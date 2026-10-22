@@ -30,7 +30,7 @@ no score. The loop that has worked:
    Convert with `OFFICE_WORD_FONTS=mac`. On macOS there is no `timeout`
    command: a sweep loop using it converts nothing.
 5. `test/run.sh --office` (or the release Office tests plus the repository
-   checks). As of 2026-10-21 all 444 Office tests pass on the Mac; the old
+   checks). As of 2026-10-21 all 445 Office tests pass on the Mac; the old
    LineHeightTests failure came from missing font resources under XCTest.
    Keep the bundled-font startup test passing; do not waive that failure.
 6. One fix per commit; fetch and rebase on `office` before every push.
@@ -45,53 +45,58 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T140. POI placeholder controls and remaining line-match misses — in progress
-Owner: Codex Mac, starling worktree, 2026-10-21
-Documents: 55966 first (33.3%); then remaining POI misses, coordinating
-with existing owners before taking their tasks.
-Baseline: office fbcab79b, staged release converter with verified fonts,
-OFFICE_WORD_FONTS=mac; 111 POI documents, mean 89.8%, median 100%,
-97 at least 95%, all physical page counts match. Nine references have
-no extractable text; the 102 text-bearing documents average 97.7%.
-Evidence: /tmp/starling-word-audit-20261021. Establish Word's placeholder
-reuse rule with lab variants before changing import; sweep all 577
-reference documents after each fix. Keep print/reference and extraction
-limitations distinct from renderer defects.
-Progress 2026-10-21: named inline placeholder reuse implemented and tested.
-55966 33.3 -> 100%; all 576 other reference documents unchanged in a full
-font-verified sweep. 441 unit tests: placeholder regression passes; known
-line-height failure plus a Cocoa spelling-service failure (being checked).
-60316 position fallback fixed: 97.0 -> 100%, sidebar in its own column;
-all other 576 documents unchanged. Its header divider still needs relative
-sizing and vertical alignment (visual, not a line-match miss).
-442 unit tests: only the known line-height failure; the transient Cocoa
-spelling failure did not recur. Next: T132's released Arabic-font task,
-use the requested complex-script face for explicitly right-to-left runs.
-Matcher correction measured independently on the original 577 PDFs:
-Arabic edges may be extracted in visual or logical order; null Arabic
-characters no longer match arbitrary letters. Only rtl's score changes
-(71.4 -> 0 on the broken baseline); all other 576 scores are unchanged.
-This is an oracle-reading correction, not a renderer improvement. Tests:
-`python3 test/docx-line-match-test.py` (also in test/run.sh).
-RTL font selection and fallback now give seven readable lines, seven
-matched, vs nine lines with null text before. Full 577-document sweep:
-only 55966, 60316 and rtl improve; no other scores change against the
-corrected baseline. POI 90.7% overall / 98.7% text-bearing, 99/102 text
-files >=95%, 111/111 page counts. Font-verified artifacts:
-`/tmp/starling-poi-fixes/rtl-final/sweep`.
-Remaining below 95%: 60329 (clipped portrait reference print of landscape
-content), delins (balloon order), chartex (sunburst fallback-image labels).
-Near-100 residuals: PDFKit grouping in bug57031, bug59058, bib-chernigovka
-and form_footnotes; bug65649 has four real ~5pt shifts in centred cells
-at the page foot. Visual-only: 60316's relative-height header divider.
-Font resource lookup fixed for Swift 6.4/XCTest and nested bundles:
-444/444 Office tests pass, including the formerly known line-height failure.
-The bare release converter loads its fonts without a symlink. Repository
-lint and the four matcher tests pass. Broader Mac checks still fail at
-termd's PTY session, terminal auto-answer's child process, and the web-size
-gate (swift-6.4-RELEASE_wasm SDK missing); none are waived as passing.
-Logs: /tmp/starling-poi-fixes/resources. Final staged sweep:
-/tmp/starling-poi-fixes/final (same fonts as the oracle sweep).
+### T140. POI matching — four fixes landed; remaining work released
+Owner: none — Codex Mac released remaining investigation, 2026-10-21
+Worktree: starling, branch office. Latest renderer fix: 8ac6515c.
+
+Landed, each swept against all 577 Word references with verified fonts
+and OFFICE_WORD_FONTS=mac:
+- 55966: named inline placeholder reuse, 33.3 -> 100% (f8e83879).
+- 60316: drawing-position compatibility fallback, 97.0 -> 100%
+  (a4393667); sidebar no longer overlaps the body.
+- rtl: complex-script face and fallback, nine garbled lines -> seven
+  readable lines, all matched (32c23c52).
+- bug65649: short cells centred/bottom-aligned in a split row's kept
+  lines, all 6,674 reference lines matched (8ac6515c). Also improves
+  14 Chinese documents; no score regresses.
+
+The RTL matcher correction (0a319fd0) was checked independently on the
+old PDFs: only rtl changes, 71.4 -> 0, because null Arabic text no longer
+matches arbitrary letters. The renderer then takes it to 100%. Its new
+edge comparison accepts PDFKit's visual and Skia's logical bidi order.
+This remains a page/height/edge-text metric, not full visual equivalence.
+
+Current: 111 POI files, mean 90.7% including nine textless references;
+98.7% over the 102 text-bearing files, median 100%, 99 at least 95%.
+All 111 physical page counts match. Chinese mean 94.5%, median 98.4%,
+386 at least 95%, 458/466 page counts match. No line-score regressions
+across the full corpus. Artifacts: /tmp/starling-poi-fixes/split-cell/sweep;
+comparison.json records the latest delta. Initial audit:
+/tmp/starling-word-audit-20261021; corrected baseline: matcher-baseline
+under /tmp/starling-poi-fixes.
+
+Validation: 445/445 Office tests, four matcher tests, repository lint.
+Font resources now load under nested SwiftPM/XCTest bundles (af3cac2b),
+so the old LineHeightTests failure passes without changing its assertion.
+Broader Mac checks still fail at termd's PTY session, terminal auto-answer's
+child process, and the missing swift-6.4-RELEASE_wasm SDK; these are not
+waived. Browser/WASM parity was not validated in this batch.
+
+Remaining, not claimed here:
+- delins 76.7%: field-code/formatting balloon order. Original Word print
+  reproduced; isolated, mark-removed and prefix variants rule out using
+  the paragraph's own mark alone. See office.md and balloons lab.
+- chartex 78.9%: native sunburst labels, still a fallback image. T15 has
+  an existing owner; coordinate there before taking that implementation.
+- 60329 12.6%: clipped portrait reference print of landscape content.
+  Keep that oracle defect separate from renderer defects.
+- Near-100: PDFKit grouping in bug57031, bug59058, bib-chernigovka and
+  form_footnotes; inspect geometry before treating these as layout bugs.
+- Visual: 60316's relative-height/vertically aligned header divider;
+  issue_51265_3's header tabs add ~89pt before its body images and shift
+  header pictures ~28–30pt right. TestTableColumns borders/positions and
+  smaller picture offsets still need work. Nine textless files are N/A,
+  not line-match successes; contact sheet: textless-comparison.png.
 
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)
