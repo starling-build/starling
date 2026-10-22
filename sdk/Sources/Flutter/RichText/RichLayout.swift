@@ -3231,7 +3231,12 @@ public final class RichLayout {
                     // draws the part's bottom rule there and centres in
                     // it. zh-1a3c7aa0's "65" on p22, 5pt low when centred
                     // to the foot.)
-                    if theme.wordRules, !setWhole.isEmpty, columns.allSatisfy({ $0.cut <= c.rowTop + 0.01 }) {
+                    // A longer centred cell may already have had its cut
+                    // moved to its text's top above. It is still the first
+                    // part: its kept lines, not the space to the page foot,
+                    // determine where its short neighbours are centred.
+                    // bug65649's row 19 otherwise puts them 4.7pt too low.
+                    if theme.wordRules, first, !setWhole.isEmpty {
                         let kept = columns.indices.filter { setWhole[$0] == nil }.map { n -> Double in
                             let column = columns[n]
                             let end = next[n] >= rowBottom - 0.01 ? column.bottom : next[n] + _cells[column.members[0]]!.pad.bottom

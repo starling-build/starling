@@ -6855,3 +6855,31 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   tests. All 444 Office tests now pass: the old 1.18-versus-1.15 line-height
   failure was the system fallback caused by a missing font bundle. The bare
   release converter also loads its fonts without the staging workaround.
+
+- **Tracked-field balloon ordering: Word labs, still open (2026-10-21).**
+  Reprinting delins reproduces the checked-in reference's order exactly.
+  Isolating either paragraph 14 (changed mark) or 16 (unchanged mark)
+  puts the field-code balloon after both formatting balloons. Removing
+  the isolated paragraph's mark change does not change that order.
+  Removing all mark changes from the complete document does change the
+  first three fields' order; keeping only its link paragraphs also changes
+  ordering, whereas retaining the preceding heading restores the original
+  pattern. A paragraph's own mark alone therefore does not decide the order.
+  Labs and Word PDFs: `/tmp/starling-poi-fixes/balloons`. No ordering
+  workaround was added; the same 23 formatting and ten field-code balloons
+  are present in both outputs, but their placement still differs.
+
+- **Short cells align within a split row's kept lines (2026-10-21).**
+  A longer centred cell may have its initial cut moved to its text's top
+  before splitting. That does not make it a continuation part. Testing
+  every cut against the row's top skipped the adjustment of its shorter
+  neighbours, centring them down to the page foot instead of in the kept
+  lines. Use the actual first-part flag. Word labs with one-, two- and
+  five-line cells keep one line from each: centre and bottom alignment
+  both put the short cell on that line. Before: 5.8/11.6pt low; after:
+  baselines 524.46pt against Word's 524.40. Regression test fails before
+  the change and passes after it. Full 577-document sweep: bug65649 now
+  matches all 6,674 reference lines (four misses fixed); 13 Chinese
+  documents improve, none regress. All 111 POI physical page counts still
+  match. All 445 Office tests and repository lint pass. Artifacts:
+  `/tmp/starling-poi-fixes/split-cell`; comparisons in `sweep/comparison.json`.
