@@ -451,6 +451,8 @@ something else.
 
 ### Looked at (Mac 01Xgpbk5, 2026-10-19): zh-d8247da5 91.9 — released: 3 of 37 lines, all in its landscape form's dense cells ("房屋坐落門牌編號…", "減半使用執照用途別"), where the reader groups neighbouring cells' text differently; not layout
 
+### Claimed (Mac 01Xgpbk5, 2026-10-22): zh-afdd4a7e 93.6, zh-340d52e9 75.6 (agreed with starling-bd)
+
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 71.5% (median 91.4). Its low ones, unclaimed:
