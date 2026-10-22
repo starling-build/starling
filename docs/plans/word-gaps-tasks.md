@@ -45,6 +45,28 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
+### T143. POI gaps after n377 — split across sessions (2026-10-22)
+Coordinator: starling-bd (session 011uWpmCQYr9neyJ1V1gzrrb, Mac).
+Sweep n377 at afd9a7ac: text-bearing POI 98.7%, 111/111 page counts.
+Each item is claimed by editing its line below and pushing that alone.
+Word prints happen only on the Mac: ask before printing, one at a time.
+- a. delins 76.7%: balloon order for field-code/formatting changes.
+  Owner: starling-bd.
+- b. bug57031 p12: the two-line "Note:" row Word keeps whole, ours 1+1.
+  Owner: starling-bd.
+- c. chartex 78.9%: sunburst drawn natively (T15). Owner: proposed
+  windows (T15's owner); unclaimed until they confirm.
+- d. TestTableColumns: borders and positions (visual, textless).
+  Owner: proposed macOS-doc.
+- e. 60316: the header divider's relative height/vertical alignment.
+  Owner: proposed macOS-doc.
+- f. drawing.docx p9: nested-table banner 5.4pt right (T142's autofit
+  parent). Owner: proposed lenovo-3.
+- g. Near-100 (form_footnotes 97.7, bib-chernigovka 99.6, bug59058
+  99.9): read the geometry; say which are PDFKit grouping and which are
+  layout. Owner: proposed lenovo-2.
+- 60329 12.6% is Word's clipped print of landscape content, not ours.
+
 ### T142. Nested-table sizing — fixed-parent fix landed; remaining work released
 Owner: none — Codex Mac released remaining investigation, 2026-10-22
 Worktree: starling, branch office; baseline e0edc780.
