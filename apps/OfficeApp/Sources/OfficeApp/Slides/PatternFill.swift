@@ -86,7 +86,7 @@ enum PatternFill {
             let f = Double((foreground.value >> sh) & 0xFF), b = Double((background.value >> sh) & 0xFF)
             return Int((f * share + b * (1 - share)).rounded())
         }
-        var f = SlideFill(color: Color(Int64(0xFF00_0000 | mix(16) << 16 | mix(8) << 8 | mix(0))))
+        var f = SlideFill(color: Color(Int64(0xFF00_0000) | Int64(mix(16)) << 16 | Int64(mix(8)) << 8 | Int64(mix(0))))   // Int64: Int is 32 bits on wasm
         let side = 8 * repeats * magnify
         let data = bmp(side: side) { x, y in
             let px = (x / magnify) % 8, py = (y / magnify) % 8

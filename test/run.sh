@@ -372,7 +372,14 @@ fi
 #     addText", which reads as missing ICU data and is not.
 if [ "$OFFICE" = 1 ]; then
     step "unit tests: office"
-    out="$(as_user env -u LD_LIBRARY_PATH SWIFT="$SWIFT" \
+    # On a Mac the package links host_debug_arm64 by default, which goes
+    # stale behind host_release_arm64 (the one the apps are built against);
+    # a stale one fails the link and takes the debug binary with it.
+    OFFICE_ENGINE_ENV=""
+    if [ "$(uname)" = Darwin ] && [ -d "$REPO/engine/src/out/host_release_arm64" ]; then
+        OFFICE_ENGINE_ENV="STARLING_ENGINE_OUT=$REPO/engine/src/out/host_release_arm64 FLUTTER_SWIFT_ENGINE_OUT=$REPO/engine/src/out/host_release_arm64"
+    fi
+    out="$(as_user env -u LD_LIBRARY_PATH $OFFICE_ENGINE_ENV SWIFT="$SWIFT" \
         "$REPO/sdk/tools/run-tests.sh" --package-path "$REPO/apps/OfficeApp" 2>&1)" \
         || fails=$((fails + 1))
     echo "$out" | grep -vE "libxml2.so.2: no version information" \
@@ -381,6 +388,24 @@ if [ "$OFFICE" = 1 ]; then
 else
     step "unit tests: office — SKIPPED"
     echo "  run with --office (minutes from cold)."
+fi
+
+# The site and the wiki (docs/plans/site.md, docs/plans/wiki.md): the site
+# built from a repository and driven in headless Chrome, the wiki's server
+# and client likewise. Minutes each, in the office tier; each script says
+# what it lacks (the native binary, the web stage, node, Chrome, Postgres)
+# and exits 2, which is a skip here, not a failure.
+if [ "$OFFICE" = 1 ]; then
+    for gate in site-build site-web wiki-codec wiki-api wiki-web; do
+        step "office: $gate"
+        GATE_LOG=$(mktemp /tmp/starling-$gate.XXXXXX)
+        as_user "$REPO/test/$gate.sh" > "$GATE_LOG" 2>&1
+        rc=$?
+        if [ $rc -eq 2 ]; then echo "  SKIPPED — $(tail -1 "$GATE_LOG")"
+        elif [ $rc -ne 0 ]; then grep -E "FAIL|failed" "$GATE_LOG" | head -8; fails=$((fails + 1))
+        else echo "  $(tail -1 "$GATE_LOG")"; fi
+        rm -f "$GATE_LOG"
+    done
 fi
 
 # An app that vendors a prebuilt native library built for another architecture

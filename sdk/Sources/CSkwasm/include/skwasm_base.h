@@ -80,4 +80,52 @@ HOST(download)
 void starling_host_download(const void* name, uint32_t nameLength, const void* bytes,
                             uint32_t byteCount);
 
+// The network, the browser's way (docs/plans/wiki.md W0). http_request
+// starts a fetch: method, URL, headers ("Name: value" lines joined by \n)
+// and body are UTF-8/bytes in OUR memory, copied before the call returns;
+// same-origin cookies ride along. The page answers through our exported
+// starling_http_done(id, status, headers, headersLength, body, bodyLength)
+// with both buffers from starling_alloc — ours to free — and status 0 for a
+// network failure. Sockets: socket_open starts a WebSocket; the page reports
+// through starling_socket_event(id, kind, bytes, length) with kind 0 open,
+// 1 text message, 2 binary message, 3 closed, 4 error (bytes as above, or
+// null). socket_send takes bytes in OUR memory (text != 0 sends a string).
+HOST(http_request)
+void starling_host_http_request(uint32_t id, const void* method, uint32_t methodLength,
+                                const void* url, uint32_t urlLength, const void* headers,
+                                uint32_t headersLength, const void* body, uint32_t bodyLength);
+HOST(socket_open) void starling_host_socket_open(uint32_t id, const void* url, uint32_t urlLength);
+HOST(socket_send)
+void starling_host_socket_send(uint32_t id, const void* bytes, uint32_t length, uint32_t text);
+HOST(socket_close) void starling_host_socket_close(uint32_t id);
+
+// The address bar: push (or replace) the tab's URL path without a load.
+// The page reports the user's back/forward through our exported
+// starling_route_changed(utf8, length).
+HOST(push_route) void starling_host_push_route(const void* utf8, uint32_t length, uint32_t replace);
+
+// The on-screen keyboard (SoftKeyboard): a phone shows one only for an
+// editable element, so the page keeps a hidden one and focuses it on show.
+// What is typed there comes back through our exported
+// starling_text(utf8, length, milliseconds) and starling_key.
+HOST(soft_keyboard) void starling_host_soft_keyboard(uint32_t show);
+
+// The system clipboard (Clipboard.provider): text and, when there is one,
+// HTML written together; a read answers through our exported
+// starling_clipboard_text(id, utf8, length) — length 0 for nothing or
+// no permission.
+HOST(clipboard_write)
+void starling_host_clipboard_write(const void* utf8, uint32_t length, const void* html, uint32_t htmlLength);
+HOST(clipboard_read) void starling_host_clipboard_read(uint32_t id);
+
+// The document's text for screen readers and crawlers: one line per
+// paragraph as "<level>\t<text>" (level 0 a paragraph, 1-3 a heading),
+// which the page keeps as hidden HTML beside the canvas.
+HOST(set_document_text) void starling_host_set_document_text(const void* utf8, uint32_t length);
+
+// A link out of the app (hostOpenURL): the browser opens it in a new tab.
+HOST(open_url) void starling_host_open_url(const void* utf8, uint32_t length);
+// The tab's own address onto the clipboard (a link to what is open).
+HOST(copy_location) void starling_host_copy_location(void);
+
 #endif  // STARLING_SKWASM_BASE_H

@@ -1,0 +1,28 @@
+{
+  "title": "Starling Site",
+  "base": "/",
+  "pages": [
+    {
+      "slug": "index",
+      "title": "Welcome"
+    },
+    {
+      "slug": "getting-started",
+      "title": "Getting started",
+      "children": [
+        {
+          "slug": "publishing",
+          "title": "Publishing"
+        }
+      ]
+    },
+    {
+      "slug": "about",
+      "title": "About"
+    },
+    {
+      "slug": "sample-paper",
+      "title": "Sample paper (from .docx)"
+    }
+  ]
+}

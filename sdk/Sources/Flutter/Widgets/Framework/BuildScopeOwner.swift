@@ -217,12 +217,28 @@ internal final class _InactiveElements {
     /// Mapping from ObjectIdentifier back to the actual Element.
     var _elementMap: [ObjectIdentifier: Element] = [:]
 
-    /// Add an element to the inactive set.
+    /// Add an element to the inactive set, deactivating everything below it.
+    ///
+    /// The recursion is upstream behaviour (`_deactivateRecursively` in
+    /// framework.dart) and it was missing here: `deactivateChild` deactivated
+    /// only the subtree's ROOT, so a descendant that was dirty when its
+    /// ancestor was dropped — a Fluent button's HoverButton, marked by the
+    /// very click whose handler rebuilt the parent without it — stayed
+    /// `.active`, passed `rebuild()`'s guard, and built against an ancestor
+    /// whose inherited widgets were already nil: `FluentTheme.of` trapped,
+    /// on the web with no message (2026-10-19, the wiki's Delete button).
     func add(_ element: Element) {
         let id = ObjectIdentifier(element)
         if _elements.insert(id).inserted {
             _elementMap[id] = element
+            element.visitChildElements { Self._deactivateRecursively($0) }
         }
+    }
+
+    private static func _deactivateRecursively(_ element: Element) {
+        guard element._lifecycleState == .active else { return }
+        element.deactivate()
+        element.visitChildElements { _deactivateRecursively($0) }
     }
 
     /// Remove an element from the inactive set.

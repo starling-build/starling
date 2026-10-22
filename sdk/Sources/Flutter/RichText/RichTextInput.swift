@@ -160,7 +160,7 @@ public final class RichTextInputConnection {
         // the split.
         var base = state["selectionBase"] as? Int ?? text.utf16.count
         var extent = state["selectionExtent"] as? Int ?? text.utf16.count
-        if text.contains("\n") {
+        if text.contains("\n" as Character) {
             let u = Array(text.utf16)
             base -= u[0 ..< min(max(base, 0), u.count)].filter { $0 == 10 }.count
             extent -= u[0 ..< min(max(extent, 0), u.count)].filter { $0 == 10 }.count

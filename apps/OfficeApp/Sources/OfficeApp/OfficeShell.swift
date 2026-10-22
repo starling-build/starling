@@ -20,11 +20,22 @@ final class OfficeShell: StatefulWidget {
     /// Start on a blank document, not on the welcome page or a recovery
     /// copy: the window came here from Slides' "Blank document".
     let startBlank: Bool
+    let startHome: Bool
+    /// A document owned by something other than a file (a wiki page):
+    /// opened as given, saved back to its owner, closed to its owner.
+    let hosted: HostedDocument?
+    /// Backstage's "Open site…" picked a site folder: the window becomes
+    /// its reader (OfficeRoot).
+    let onOpenSite: ((String, Bool) -> Void)?
 
-    init(initialPath: String?, startBlank: Bool = false, onSwitch: ((DocumentKind, String?) -> Void)? = nil) {
+    init(initialPath: String?, startBlank: Bool = false, startHome: Bool = false, hosted: HostedDocument? = nil,
+         onSwitch: ((DocumentKind, String?) -> Void)? = nil, onOpenSite: ((String, Bool) -> Void)? = nil) {
         self.initialPath = initialPath
         self.startBlank = startBlank
+        self.startHome = startHome
+        self.hosted = hosted
         self.onSwitch = onSwitch
+        self.onOpenSite = onOpenSite
         super.init()
     }
 
@@ -97,7 +108,30 @@ final class OfficeShellState: State<StatefulWidget> {
             return OfficeLayoutDump.text(self.controller.document, pageSetup: self.session.pageSetup)
         }
         let env = ProcessInfo.processInfo.environment
-        if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
+        if let hosted = (widget as! OfficeShell).hosted {
+            controller.load(hosted.document)
+            if let selection = hosted.initialSelection {
+                controller.selection = selection
+                let expectedSelection = controller.selection
+                let revision = controller.revision
+                // Reveal after the editor has a viewport. A newer edit or
+                // caret move takes precedence over this initial placement.
+                FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+                    guard let self, self.mounted, self.controller.revision == revision,
+                          self.controller.selection == expectedSelection else { return }
+                    self.controller.pendingReveal = .top
+                    self.controller.notifyListeners()
+                }
+                PlatformDispatcher.instance.scheduleFrame()
+            }
+            if let setup = hosted.pageSetup { session.pageSetup = setup }
+            session.titleOverride = hosted.title
+            session.hostName = hosted.ownerName
+            session.hostReturnLabel = hosted.returnLabel
+            session.onSaveBeforeLeaving = { [weak self] next in self?._save(afterSaving: next) }
+            // The way back asks about unsaved changes first, as Close does.
+            session.onClose = { [weak self] in self?.session.replacing { hosted.close() } }
+        } else if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
             controller.load(DemoDocument.make(pages: pages))
         } else if let path = (widget as! OfficeShell).initialPath {
             // Bytes from the browser's picker that crossed a kind switch
@@ -122,6 +156,7 @@ final class OfficeShellState: State<StatefulWidget> {
             _probePlatformMessages()
         }
         _savedRevision = controller.revision
+        if (widget as! OfficeShell).startHome { _backstage = .home }
         session.summary = session.summarize()
         controller.addListener { [weak self] in
             guard let self else { return }
@@ -345,6 +380,9 @@ final class OfficeShellState: State<StatefulWidget> {
         // the page until the user downloads it. No recovery copy either.
         return
         #else
+        // A hosted document has no file and wants no recovery copy of its
+        // own: its owner holds it.
+        guard (widget as! OfficeShell).hosted == nil else { return }
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
@@ -473,7 +511,28 @@ final class OfficeShellState: State<StatefulWidget> {
         _flash("Opened \(path.lastPathComponent)")
     }
 
-    private func _save() {
+    private func _save(afterSaving: (() -> Void)? = nil) {
+        if let hosted = (widget as! OfficeShell).hosted {
+            // The owner stores it (a wiki page: a new version). Export is
+            // still the way to a .docx.
+            let revision = controller.revision
+            hosted.save(controller.document, session.pageSetup) { [weak self] message in
+                guard let self, self.mounted else { return }
+                if let message {
+                    self.setState { self._backstage = nil }
+                    self._flash(message)
+                    return
+                }
+                self._savedRevision = revision
+                self.setState {
+                    self.session.dirty = self.controller.revision != revision
+                    self._backstage = nil
+                }
+                self._flash("Saved to the \(hosted.ownerName)")
+                if !self.session.dirty { afterSaving?() }
+            }
+            return
+        }
         #if os(WASI)
         // A download, named after the document; the browser decides where
         // it goes, and asks the user if it is set to.
@@ -938,7 +997,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
                 onOpenPath: { [weak self] path in self?._open(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { [weak self] path in self?._insertPicture(path) })),
+                onPicturePath: { [weak self] path in self?._insertPicture(path) },
+                onOpenSite: (widget as? OfficeShell)?.onOpenSite)),
         ])
     }
 

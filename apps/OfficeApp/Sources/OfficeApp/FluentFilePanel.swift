@@ -13,6 +13,7 @@ import Foundation
 enum FilePanelMode {
     case open
     case save
+    case folder
 }
 
 final class FluentFilePanel: StatefulWidget {
@@ -84,6 +85,7 @@ final class FluentFilePanelState: State<StatefulWidget> {
             var d: ObjCBool = false
             fm.fileExists(atPath: path, isDirectory: &d)
             let ext = name.pathExtension.lowercased()
+            if !d.boolValue && _w.mode == .folder { continue }
             if !d.boolValue && !_w.extensions.isEmpty && !_w.extensions.contains(ext) { continue }
             entries.append(Entry(name: name, path: path, isDirectory: d.boolValue))
         }
@@ -100,6 +102,8 @@ final class FluentFilePanelState: State<StatefulWidget> {
 
     private func _confirm() {
         switch _w.mode {
+        case .folder:
+            _w.onDone(_dir)
         case .open:
             if let s = _selected { _w.onDone(s) }
         case .save:
@@ -187,15 +191,15 @@ final class FluentFilePanelState: State<StatefulWidget> {
             bottom.append(SizedBox(width: 140, height: nil, child: Text("File name:", style: fluent.typography.body)))
             bottom.append(Expanded(child: FluentTextBox(controller: _name, onSubmitted: { [weak self] _ in self?._confirm() }, autofocus: true)))
         } else {
-            bottom.append(Expanded(child: Text(_selected.map { $0.lastPathComponent } ?? "",
+            bottom.append(Expanded(child: Text(_w.mode == .folder ? "Choose this folder, or open a subfolder." : (_selected.map { $0.lastPathComponent } ?? ""),
                                                style: fluent.typography.body)))
         }
         bottom.append(Chrome.gap(12))
         bottom.append(Button(onPressed: { [weak self] in self?._w.onDone(nil) }, child: Text("Cancel")))
         bottom.append(Chrome.gap(8))
-        let canConfirm = _w.mode == .save || _selected != nil
+        let canConfirm = _w.mode != .open || _selected != nil
         bottom.append(FilledButton(onPressed: canConfirm ? { [weak self] in self?._confirm() } : nil,
-                                   child: Text(_w.mode == .save ? "Save" : "Open")))
+                                   child: Text(_w.mode == .folder ? "Choose folder" : (_w.mode == .save ? "Save" : "Open"))))
 
         return Column(crossAxisAlignment: .stretch, children: [
             crumbs,

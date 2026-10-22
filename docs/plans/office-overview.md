@@ -2,7 +2,9 @@
 
 As of 2026-10-13. The map over the four plan documents — `office.md`
 (Writer and the suite), `office-editor.md` (the editor), `slides.md`,
-`sheets.md`, and `wasm.md` (the browser) — which carry the history and
+`sheets.md`, `wasm.md` (the browser), `site.md` (a site from a git
+repository, no server), and `wiki.md` (the documentation
+site built on the suite, drafted 2026-10-18) — which carry the history and
 the traps; this page is kept short and current.
 
 ## What it is
@@ -36,6 +38,8 @@ same file.
 | Writer (`.docx`, RTF, Markdown; PDF out) | Paged editing with styles, lists, tables, pictures, headers and footers, fields, find and replace, spelling, IME, navigation pane; Word's pagination hints | Round trip (Word prints original and our saved copy): 176 of 179 within 1%. Our drawing against Word's print: mean 7.38% (130 POI docs 3.44%, 68 Chinese government docs 13.81%) | Lines and pages break elsewhere in the Chinese sample; WMF/EMF pictures only partly wired; no comments or tracked changes |
 | Slides (`.pptx`; PDF out) | Canvas editing, layouts and themes, tables, pictures, six chart kinds, SmartArt, preset geometry, WordArt, WMF/EMF, animations, slide show, presenter view | 553 decks against PowerPoint's export: mean 3.01%, 371 at or under 2%, 8 over 20%. Windows build 2.95%; browser build pixel-identical to native on 522 of 553 | Video and audio, morph and motion paths, ink, 3D materials, comments; recent painter work seen only through the PDF export |
 | Sheets (`.xlsx`, CSV; PDF out) | Formula engine, 240-odd functions, incremental recalc, dynamic arrays, tables, filters, sort, outlines, conditional formats, validation, charts, protection, printing | 751 workbooks printed against Excel's print: mean 1.93%, median 0.40%, 42 exact | Pivot tables, macros and any scripting, external links, sparklines, slicers; radar, stock and surface charts; iOS and Linux untested |
+| Site (a git repository, published static; `docs/plans/site.md`) | `site.json` + `pages/*.json`; `--site-build` makes the folder GitHub Pages serves (app, pages, manifest, search index, a shell page per route with og tags); the reader in a tab reads it, the native app on a clone edits with the whole Writer and publishes with git | Gated: `test/site-build.sh` (the build, a rebuild, a `/demo/` base, an edit), `test/site-web.sh` (headless Chrome reads, moves, searches, under `/` and `/demo/`) | Delete/rename/reorder pages; the demo is live at https://starling-build.github.io/site-demo/ (app running under 3 s cold) |
+| Wiki (pages stored as the model; `docs/plans/wiki.md`) | Spaces, page trees, versions with restore, locks, search, .docx import/export, sign-in; the wasm Writer in flow layout is the only renderer, in a tab or natively (`--wiki <url>`) | Gated end to end: `test/wiki-api.sh` (38 checks), `test/wiki-web.sh` (headless Chrome edits and saves), `test/wiki-codec.sh` (327 of 327 readable corpus files round-trip the stored form exactly) | Comments, mentions, permissions beyond sign-in, attachments, real-time co-editing, browser IME; Linux server untested |
 
 Shared: 333 unit tests (one known failure, an Arial line-height
 constant); the layout-parity gates pass natively, in the browser and

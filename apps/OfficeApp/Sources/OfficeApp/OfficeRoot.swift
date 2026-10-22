@@ -31,6 +31,11 @@ private final class _OfficeRootState: State<StatefulWidget> {
     private var _kind = DocumentKind.document
     private var _path: String? = nil
     private var _generation = 0
+    /// A site's folder (docs/plans/site.md): the window is its reader
+    /// until "Close site" brings Writer back.
+    private var _site: String? = nil
+    private var _editSiteOnOpen = false
+    private var _returnToHome = false
 
     override func initState() {
         super.initState()
@@ -79,13 +84,29 @@ private final class _OfficeRootState: State<StatefulWidget> {
             guard let self else { return }
             self.setState {
                 self._kind = kind
+                self._returnToHome = false
                 self._path = path
                 self._generation += 1
             }
         }
         let home: Widget
+        #if !os(WASI)
+        if let site = _site {
+            let reader = SiteShell(store: LocalSiteStore(repo: site), route: SiteRecent().route(for: site), startEditing: _editSiteOnOpen, onLeave: { [weak self] in
+                guard let self else { return }
+                self.setState { self._site = nil; self._path = nil; self._returnToHome = true; self._generation += 1 }
+            })
+            return _Keyed(key: ValueKey(_generation), child: FluentApp(
+                theme: WikiAppearance.theme, themeMode: .light,
+                home: ButtonTheme(data: WikiAppearance.buttons, child: reader), title: "Starling Site"))
+        }
+        #endif
+        let onOpenSite: (String, Bool) -> Void = { [weak self] dir, startEditing in
+            guard let self else { return }
+            self.setState { self._site = dir; self._editSiteOnOpen = startEditing; self._generation += 1 }
+        }
         switch _kind {
-        case .document: home = OfficeShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
+        case .document: home = OfficeShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, startHome: _returnToHome, onSwitch: onSwitch, onOpenSite: onOpenSite)
         case .presentation: home = SlidesShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
         case .workbook: home = SheetsShell(initialPath: _path, onSwitch: onSwitch)
         }

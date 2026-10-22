@@ -3028,6 +3028,9 @@ enum DocxFormat {
             para.normalize()
             para.bookmarks = notes.pendingBookmarks
             notes.pendingBookmarks = []
+            // Word's identity for the paragraph (eight hex digits); the
+            // first piece of a w:p split at a page break carries it.
+            if built.isEmpty, let hex = p["w14:paraId"], let id = UInt32(hex, radix: 16), id != 0 { para.id = id }
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
             text = ""
             runs = []
@@ -4164,6 +4167,12 @@ enum DocxFormat {
 
     // MARK: Writing
 
+    /// A paragraph id as Word prints it: eight upper-case hex digits.
+    static func _paraIdHex(_ id: UInt32) -> String {
+        let hex = String(id, radix: 16, uppercase: true)
+        return String(repeating: "0", count: max(0, 8 - hex.count)) + hex
+    }
+
     static func write(_ doc: RichDocument, pageSetup: PageSetup) throws -> Data {
         var rels: [(id: String, target: String)] = []
         var media: [ZipEntry] = []
@@ -4379,7 +4388,7 @@ enum DocxFormat {
             }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
-            body += "<w:p><w:pPr>\(pPr)</w:pPr>"
+            body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
             for name in p.bookmarks where writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
                 let id = 100_000 + writtenBookmarks.count

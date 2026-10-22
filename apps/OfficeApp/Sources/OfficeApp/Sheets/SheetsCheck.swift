@@ -19,6 +19,9 @@ import Foundation
 enum SheetsCheck {
     struct Counts { var ok = 0, kept = 0, volatile = 0, diff = 0, noCache = 0 }
 
+    /// `n` right-aligned in `w` columns (String(format:) is legacy Foundation, absent on the web).
+    static func pad(_ n: Int, _ w: Int) -> String { let t = String(n); return String(repeating: " ", count: max(0, w - t.count)) + t }
+
     static func run(_ paths: [String], maxDiffs: Int = Int(ProcessInfo.processInfo.environment["XLSX_CHECK_MAX"] ?? "") ?? 12) -> Int32 {
         var failed: Int32 = 0
         var total = Counts()
@@ -54,12 +57,12 @@ enum SheetsCheck {
                     }
                 }
             }
-            print(String(format: "%5d ok %4d kept %3d volatile %4d DIFF  %@", counts.ok, counts.kept, counts.volatile, counts.diff, name))
+            print("\(pad(counts.ok, 5)) ok \(pad(counts.kept, 4)) kept \(pad(counts.volatile, 3)) volatile \(pad(counts.diff, 4)) DIFF  \(name)")
             for d in diffs { print(d) }
             total.ok += counts.ok; total.kept += counts.kept; total.volatile += counts.volatile; total.diff += counts.diff
         }
         if paths.count > 1 {
-            print(String(format: "TOTAL %d ok %d kept %d volatile %d DIFF in %d files", total.ok, total.kept, total.volatile, total.diff, paths.count))
+            print("TOTAL \(total.ok) ok \(total.kept) kept \(total.volatile) volatile \(total.diff) DIFF in \(paths.count) files")
         }
         return failed
     }

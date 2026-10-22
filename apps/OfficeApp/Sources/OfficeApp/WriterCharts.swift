@@ -24,7 +24,12 @@ enum WriterCharts {
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
+    #if os(WASI)
+    private struct _NoLock { func lock() {}; func unlock() {} }   // one thread in the browser, no NSLock in its Foundation
+    private static let lock = _NoLock()
+    #else
     private static let lock = NSLock()
+    #endif
 
     /// Reads the chart in `space` (a chart part's `c:chartSpace`), its
     /// colours from `themePart` (the document's `a:theme`), for the
@@ -119,7 +124,12 @@ enum WriterMetafiles {
     private nonisolated(unsafe) static var entries: [String: Metafile] = [:]
     private nonisolated(unsafe) static var decoded: [String: Image] = [:]
     private nonisolated(unsafe) static var decoding: Set<String> = []
+    #if os(WASI)
+    private struct _NoLock { func lock() {}; func unlock() {} }   // one thread in the browser, no NSLock in its Foundation
+    private static let lock = _NoLock()
+    #else
     private static let lock = NSLock()
+    #endif
 
     /// Whether a metafile's bitmap is still being decoded.
     static var hasPendingImages: Bool {
@@ -209,7 +219,12 @@ enum WriterGroups {
         let shapes: [Shape]
     }
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
+    #if os(WASI)
+    private struct _NoLock { func lock() {}; func unlock() {} }   // one thread in the browser, no NSLock in its Foundation
+    private static let lock = _NoLock()
+    #else
     private static let lock = NSLock()
+    #endif
 
     /// Reads the shapes of `group` (a `wpg:wgp`) — straight lines, and
     /// every preset `PresetGeometry` defines — in points from its top

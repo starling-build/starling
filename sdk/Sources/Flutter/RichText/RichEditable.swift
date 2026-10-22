@@ -120,6 +120,10 @@ public final class RichEditableState: State<StatefulWidget> {
 
     // Mouse.
     private var _dragging = false
+    /// A finger on the document: it scrolls, and a tap places the caret
+    /// on lift. (A mouse drag selects; a finger drag that selected could
+    /// never scroll a page on a phone.)
+    private var _touchScroll: (startY: Double, scrollStart: Double, lastY: Double, lastTime: Double, velocity: Double, moved: Bool)? = nil
     /// A picture-handle drag: which handle (0–7, clockwise from top-left),
     /// where it started, the picture's size then, and the live size.
     private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size)? = nil
@@ -192,6 +196,13 @@ public final class RichEditableState: State<StatefulWidget> {
         return layout.page(atCanvasY: r.top) + 1
     }
 
+    /// The page (from 1) at the top of the view — a third of the way
+    /// down it, so a page's tail at the top does not name the page.
+    public var visiblePage: Int {
+        guard let layout = _layout, layout.isPaged, layout.width > 0 else { return 1 }
+        return layout.page(atCanvasY: _scrollY - _w.padding.top + _viewport.height / 3) + 1
+    }
+
     public var viewportSize: Size { _viewport }
 
     public var focusNode: FocusNode { _focus }
@@ -214,6 +225,8 @@ public final class RichEditableState: State<StatefulWidget> {
             guard let self else { return }
             if !focused { self._chords.reset() }
             if focused { self._textInput?.attach() } else { self._textInput?.detach() }
+            // A phone has to be asked for its keyboard (see TextBox).
+            if focused, !self._controller.readOnly { SoftKeyboard.show() }
             self._caretVisible = true
             self._restartBlink()
             self._repaint.notifyListeners()
@@ -642,6 +655,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _pointerCancel(_ event: PointerEvent) {
         let hadDrop = _dropPosition != nil || _columnDragWidths != nil || _dragSize != nil
         _dragging = false
+        _touchScroll = nil
         _unitDrag = nil
         _textDrag = nil
         _dropPosition = nil
@@ -658,6 +672,13 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _pointerDown(_ event: PointerEvent) {
         _textDrag = nil
         _dropPosition = nil
+        if event.kind == .touch {
+            // A finger scrolls; whether it was a tap is known on lift.
+            _momentumGeneration += 1   // a glide in progress stops under it
+            _touchScroll = (event.localPosition.dy, _scrollY, event.localPosition.dy, Date().timeIntervalSince1970, 0, false)
+            _dragging = false
+            return
+        }
         if event.buttons & kSecondaryButton != 0 {
             _focus.requestFocus()
             if _layout.width > 0 {
@@ -673,7 +694,9 @@ public final class RichEditableState: State<StatefulWidget> {
             _w.onContextMenu?(event.position)
             return
         }
-        if _chords.primary, let link = _link(at: event.localPosition) {
+        // ⌘-click follows a link while editing, as Word does; reading, a
+        // plain click does, as a page does.
+        if _chords.primary || _controller.readOnly, let link = _link(at: event.localPosition) {
             if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
             return
         }
@@ -736,6 +759,29 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if var t = _touchScroll {
+            let y = event.localPosition.dy
+            let now = Date().timeIntervalSince1970
+            if !t.moved, abs(y - t.startY) > 8 {
+                // Past the tap slop: the scroll starts from here, no jump.
+                t.moved = true
+                t.startY = y
+                t.scrollStart = _scrollY
+            }
+            if t.moved {
+                let before = _scrollY
+                _scrollY = t.scrollStart - (y - t.startY)
+                _clampScroll()
+                let dt = max(0.001, now - t.lastTime)
+                let perFrame = -(y - t.lastY) / dt * 0.016
+                t.velocity = t.velocity * 0.4 + perFrame * 0.6
+                if _scrollY != before { _repaint.notifyListeners() }
+            }
+            t.lastY = y
+            t.lastTime = now
+            _touchScroll = t
+            return
+        }
         if let drag = _textDrag {
             guard event.buttons & 1 != 0, _layout.width > 0 else { return }
             if !drag.active {
@@ -808,6 +854,26 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        if let t = _touchScroll {
+            _touchScroll = nil
+            if t.moved {
+                if abs(t.velocity) > 1 {
+                    _momentumGeneration += 1
+                    _glide(_momentumGeneration, velocity: t.velocity)
+                }
+            } else if _layout.width > 0 {
+                // A tap: a link opens, else the caret goes there.
+                if let link = _link(at: event.localPosition) {
+                    if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
+                    return
+                }
+                _focus.requestFocus()
+                _textInput?.show()
+                _syncLayoutIfNeeded()
+                _controller.moveTo(_layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document), extend: false)
+            }
+            return
+        }
         if let drag = _textDrag {
             _textDrag = nil
             _dropPosition = nil
@@ -1033,7 +1099,9 @@ public final class RichEditableState: State<StatefulWidget> {
         }
 
         if let info = _w.onPageInfo {
-            let now = (caretPage, pageCount)
+            // Editing, the caret's page, as Word's status bar; reading, the
+            // page at the top of the view, which is what scrolling changes.
+            let now = (_controller.readOnly ? visiblePage : caretPage, pageCount)
             if now != _lastPageInfo {
                 _lastPageInfo = now
                 DispatchQueue.main.async { info(now.0, now.1) }

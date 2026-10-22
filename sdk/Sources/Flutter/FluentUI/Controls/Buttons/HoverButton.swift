@@ -187,6 +187,11 @@ class HoverButtonState: State<StatefulWidget> {
                 guard let self = self, self.enabled else { return }
                 widget.onTapUp?()
                 widget.onPressed?()
+                // The handler may have rebuilt an ancestor and dropped this
+                // button (a header that swaps its buttons on a click): a
+                // setState on the disposed element traps, with no message
+                // on the web.
+                guard self.mounted else { return }
                 self.setState { self._pressing = false }
             },
             onPointerCancel: { [weak self] _ in

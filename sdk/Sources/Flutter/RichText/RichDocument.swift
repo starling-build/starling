@@ -19,7 +19,7 @@ import Foundation
 // MARK: - Styles
 
 /// Vertical position of a run: normal, superscript or subscript.
-public enum ScriptPosition: Int, Hashable, Sendable {
+public enum ScriptPosition: Int, Hashable, Codable, Sendable {
     case normal
     case superscript
     case `subscript`
@@ -31,8 +31,8 @@ public enum ScriptPosition: Int, Hashable, Sendable {
 /// A footnote or endnote reference mark: the run it sits on shows the
 /// note's number, and a save writes the reference back into the document's
 /// kept notes part (`RichDocument.keptParts`), where the note's text lives.
-public struct NoteReference: Hashable, Sendable {
-    public enum Kind: Int, Hashable, Sendable { case footnote, endnote }
+public struct NoteReference: Hashable, Codable, Sendable {
+    public enum Kind: Int, Hashable, Codable, Sendable { case footnote, endnote }
     public var kind: Kind
     /// The note's id in the file's footnotes/endnotes part.
     public var id: Int
@@ -45,7 +45,7 @@ public struct NoteReference: Hashable, Sendable {
 /// A tracked FORMAT change on a run (Word's `w:rPrChange`): who changed
 /// it, when, and the run properties it had before, kept as written so the
 /// "Formatted:" balloon comes back (delins has thirty).
-public struct FormatChange: Hashable, Sendable {
+public struct FormatChange: Hashable, Codable, Sendable {
     public var author: String
     public var date: String
     public var oldRPrXML: String
@@ -54,8 +54,8 @@ public struct FormatChange: Hashable, Sendable {
     }
 }
 
-public struct RevisionMark: Hashable, Sendable {
-    public enum Kind: Int, Hashable, Sendable { case inserted, deleted }
+public struct RevisionMark: Hashable, Codable, Sendable {
+    public enum Kind: Int, Hashable, Codable, Sendable { case inserted, deleted }
     public var kind: Kind
     public var author: String
     public var date: String
@@ -73,7 +73,7 @@ public struct RevisionMark: Hashable, Sendable {
 }
 
 /// The boolean switches of a `CharStyle`, as a set.
-public struct CharSwitches: OptionSet, Hashable, Sendable {
+public struct CharSwitches: OptionSet, Hashable, Codable, Sendable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }
     public static let bold = CharSwitches(rawValue: 1)
@@ -86,7 +86,7 @@ public struct CharSwitches: OptionSet, Hashable, Sendable {
 
 /// A shadow cast by a run's letters (PowerPoint's `a:outerShdw` on a
 /// run): its colour, where it falls in points, and how far it blurs.
-public struct CharShadow: Hashable, Sendable {
+public struct CharShadow: Hashable, Codable, Sendable {
     public var color: Color
     public var dx: Double
     public var dy: Double
@@ -101,7 +101,7 @@ public struct CharShadow: Hashable, Sendable {
     }
 }
 
-public struct CharStyle: Hashable, Sendable {
+public struct CharStyle: Hashable, Codable, Sendable {
     public var bold = false
     public var italic = false
     public var underline = false
@@ -212,7 +212,7 @@ public struct CharStyle: Hashable, Sendable {
 /// `raise` points over the base's. `group` tells one ruby from the next
 /// that says the same (runs of one ruby are one base); `xml` is the
 /// file's `w:rubyPr` and `w:rt`, written back as they were.
-public struct RubyText: Hashable, Sendable {
+public struct RubyText: Hashable, Codable, Sendable {
     public var text: String
     public var size: Double
     public var raise: Double
@@ -231,21 +231,21 @@ public struct RubyText: Hashable, Sendable {
     }
 }
 
-public enum ParagraphAlignment: Int, Hashable, Sendable {
+public enum ParagraphAlignment: Int, Hashable, Codable, Sendable {
     case left
     case center
     case right
     case justify
 }
 
-public enum ListKind: Int, Hashable, Sendable {
+public enum ListKind: Int, Hashable, Codable, Sendable {
     case bullet
     case numbered
 }
 
 /// One edge of a paragraph border: a line of `width` points in `color`
 /// (nil for the text colour), `space` points away from the text.
-public struct BorderLine: Hashable, Sendable {
+public struct BorderLine: Hashable, Codable, Sendable {
     public var width: Double
     public var color: Color?
     public var space: Double
@@ -262,8 +262,8 @@ public struct BorderLine: Hashable, Sendable {
 
 /// A header or footer part kept as the file had it (see
 /// `RichDocument.keptHeaderFooters`).
-public struct KeptHeaderFooter: Hashable, Sendable {
-    public enum Kind: Int, Hashable, Sendable { case header, footer }
+public struct KeptHeaderFooter: Hashable, Codable, Sendable {
+    public enum Kind: Int, Hashable, Codable, Sendable { case header, footer }
     public var kind: Kind
     /// Word's type: "default", "first" or "even".
     public var type: String
@@ -281,7 +281,7 @@ public struct KeptHeaderFooter: Hashable, Sendable {
 /// "margin", "page", "paragraph", "line"…), or an alignment in place of
 /// an offset ("left", "center", "right"; "top", "bottom"), and whether
 /// the text keeps clear above and below it (`wp:wrapTopAndBottom`).
-public struct ImageFloat: Hashable, Sendable {
+public struct ImageFloat: Hashable, Codable, Sendable {
     public var x: Double = 0
     public var y: Double = 0
     public var horizontalFrom = "column"
@@ -317,7 +317,7 @@ public struct ImageFloat: Hashable, Sendable {
 
 /// A text box's contents (`ImageAttachment.textBox`): its paragraphs,
 /// and how far inside the box's edges they are set, in points.
-public struct RichTextBox: Hashable, Sendable {
+public struct RichTextBox: Hashable, Codable, Sendable {
     public var paragraphs: [RichParagraph]
     public var insetLeft = 7.2
     public var insetTop = 3.6
@@ -346,7 +346,7 @@ public struct RichTextBox: Hashable, Sendable {
     /// each one's paragraphs start in `paragraphs`, and its place in the
     /// group in points — its top, its height, and whether its text
     /// stands at its foot (`anchor="b"`).
-    public struct Part: Hashable, Sendable {
+    public struct Part: Hashable, Codable, Sendable {
         public var first: Int
         public var top: Double
         public var height: Double
@@ -369,7 +369,7 @@ public struct RichTextBox: Hashable, Sendable {
 /// from what it is anchored to ("text", "margin" or "page"), or an
 /// alignment in place of one ("center", "right"; "top", "bottom"), and
 /// its width where it states one.
-public struct ParagraphFrame: Hashable, Sendable {
+public struct ParagraphFrame: Hashable, Codable, Sendable {
     public var x: Double = 0
     public var y: Double = 0
     public var width: Double? = nil
@@ -388,7 +388,7 @@ public struct ParagraphFrame: Hashable, Sendable {
 /// them (a paragraph that carries a `sectionPage` ends one) — what a
 /// section does not name it has from the one before, type by type —
 /// or nil for every page of the document.
-public struct RichHeaderFooter: Hashable, Sendable {
+public struct RichHeaderFooter: Hashable, Codable, Sendable {
     public var kind: KeptHeaderFooter.Kind
     public var type: String
     public var paragraphs: [RichParagraph]
@@ -401,7 +401,7 @@ public struct RichHeaderFooter: Hashable, Sendable {
 /// A table nested in a cell, kept as the file wrote it (see
 /// `RichDocument.keptTables`): the editor shows its text flattened into
 /// the cell; the save writes this markup back while that text stands.
-public struct KeptTable: Hashable, Sendable {
+public struct KeptTable: Hashable, Codable, Sendable {
     public var xml: String
     public var rels: [KeptRel]
     /// The flattened paragraphs' texts as read, in order.
@@ -412,8 +412,8 @@ public struct KeptTable: Hashable, Sendable {
 }
 
 /// A tab stop: `position` points from the paragraph's left edge.
-public struct TabStop: Hashable, Sendable {
-    public enum Alignment: Int, Hashable, Sendable { case left, center, right, decimal }
+public struct TabStop: Hashable, Codable, Sendable {
+    public enum Alignment: Int, Hashable, Codable, Sendable { case left, center, right, decimal }
     public var position: Double
     public var alignment: Alignment
     /// The fill before the tab ("dot" in a table of contents) and Word's
@@ -428,7 +428,7 @@ public struct TabStop: Hashable, Sendable {
 }
 
 /// A paragraph's borders, each edge its own line or none.
-public struct ParagraphBorders: Hashable, Sendable {
+public struct ParagraphBorders: Hashable, Codable, Sendable {
     public var top: BorderLine? = nil
     public var bottom: BorderLine? = nil
     public var left: BorderLine? = nil
@@ -443,7 +443,7 @@ public struct ParagraphBorders: Hashable, Sendable {
 }
 
 /// Paragraph-level formatting. Lengths are in points.
-public struct RichParagraphStyle: Hashable, Sendable {
+public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var alignment: ParagraphAlignment = .left
     public var indentLeft: Double = 0
     public var indentRight: Double = 0
@@ -659,7 +659,7 @@ public struct RichParagraphStyle: Hashable, Sendable {
 /// One entry of a document's style sheet: Word's Title, Heading 1, Quote…
 /// `paragraph` is copied onto a paragraph when the style is applied;
 /// `char` supplies the defaults a run's own formatting does not set.
-public struct RichNamedStyle: Hashable, Sendable {
+public struct RichNamedStyle: Hashable, Codable, Sendable {
     public var id: String
     public var name: String
     public var paragraph: RichParagraphStyle
@@ -682,7 +682,7 @@ public struct RichNamedStyle: Hashable, Sendable {
 
 /// The style sheet, in gallery order. `word` is what a new document gets;
 /// a `.docx` replaces entries with what its own styles.xml says.
-public struct RichStyleSheet: Hashable, Sendable {
+public struct RichStyleSheet: Hashable, Codable, Sendable {
     public var styles: [RichNamedStyle]
 
     public init(styles: [RichNamedStyle]) { self.styles = styles }
@@ -780,7 +780,7 @@ public struct RichStyleSheet: Hashable, Sendable {
 /// A relationship an opaque object's markup names — its chart part, its
 /// embedded workbook, a hyperlink — carried so a save can put it back
 /// under a fresh id.
-public struct KeptRel: Hashable, Sendable {
+public struct KeptRel: Hashable, Codable, Sendable {
     public var id: String
     public var type: String
     public var target: String
@@ -794,8 +794,8 @@ public struct KeptRel: Hashable, Sendable {
 /// a box's outline (and fill), in the line's colour and width (points).
 /// The rule under a letterhead and the frame of a text box are these;
 /// every other shape is kept for the file and not drawn.
-public struct ShapeOutline: Hashable, Sendable {
-    public enum Kind: Sendable { case line, box }
+public struct ShapeOutline: Hashable, Codable, Sendable {
+    public enum Kind: Codable, Sendable { case line, box }
     public var kind: Kind
     public var color: Color?
     public var width: Double
@@ -805,7 +805,7 @@ public struct ShapeOutline: Hashable, Sendable {
     public init(kind: Kind, color: Color?, width: Double) { self.kind = kind; self.color = color; self.width = width }
 }
 
-public struct ImageAttachment: Hashable, Sendable {
+public struct ImageAttachment: Hashable, Codable, Sendable {
     public let id: String
     public var data: Data
     public var width: Double
@@ -910,7 +910,7 @@ public struct ImageAttachment: Hashable, Sendable {
 /// paragraphs tagged with the same `table` id in row-major order; a cell
 /// may hold several paragraphs. Keeping cells as ordinary paragraphs keeps
 /// every edit, selection and format operation on the flat model.
-public struct CellRef: Hashable, Sendable {
+public struct CellRef: Hashable, Codable, Sendable {
     public var table: String
     public var row: Int
     public var column: Int
@@ -1008,7 +1008,7 @@ public struct CellRef: Hashable, Sendable {
 
     /// One edge's line: a width in points and a colour, or no line at all
     /// (`color` nil) where the style would have drawn one.
-    public struct CellLine: Hashable, Sendable {
+    public struct CellLine: Hashable, Codable, Sendable {
         public var width: Double
         public var color: Color?
         /// Dashed: its pieces, on and off by turns, in widths of the line
@@ -1020,7 +1020,7 @@ public struct CellRef: Hashable, Sendable {
         public static let hidden = CellLine(width: 0, color: nil)
     }
 
-    public struct CellBorders: Hashable, Sendable {
+    public struct CellBorders: Hashable, Codable, Sendable {
         public var left: CellLine? = nil
         public var right: CellLine? = nil
         public var top: CellLine? = nil
@@ -1029,7 +1029,7 @@ public struct CellRef: Hashable, Sendable {
         public var isEmpty: Bool { left == nil && right == nil && top == nil && bottom == nil }
     }
 
-    public enum CellTextDirection: Hashable, Sendable {
+    public enum CellTextDirection: Hashable, Codable, Sendable {
         case horizontal
         /// Turned a quarter clockwise: the text reads top to bottom and the
         /// first line is at the cell's right (PowerPoint's `vert`, Word's
@@ -1074,7 +1074,7 @@ public struct CellRef: Hashable, Sendable {
 /// Border switches by side, each nil where nothing is said. A table's
 /// six (Word's `w:tblBorders`, the inside ones between its cells) or a
 /// cell's four (`w:tcBorders`) refine the one switch `TableStyle.borders`.
-public struct BorderEdges: Hashable, Sendable {
+public struct BorderEdges: Hashable, Codable, Sendable {
     public var top: Bool? = nil
     public var left: Bool? = nil
     public var bottom: Bool? = nil
@@ -1092,7 +1092,7 @@ public struct BorderEdges: Hashable, Sendable {
     public var isEmpty: Bool { top == nil && left == nil && bottom == nil && right == nil && insideH == nil && insideV == nil }
 }
 
-public struct TableStyle: Hashable, Sendable {
+public struct TableStyle: Hashable, Codable, Sendable {
     public var borders = true
     /// A floating table's position as the file wrote it (Word's
     /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
@@ -1238,7 +1238,7 @@ public struct TableStyle: Hashable, Sendable {
 
 // MARK: - List numbering
 
-public enum ListNumberFormat: Hashable, Sendable {
+public enum ListNumberFormat: Hashable, Codable, Sendable {
     case decimal, lowerLetter, upperLetter, lowerRoman, upperRoman
     /// A bullet: the level's `text` is the glyph itself, no counter.
     case bullet
@@ -1266,7 +1266,7 @@ public enum ListNumberFormat: Hashable, Sendable {
 
 /// One level's label: `text` with `%1`…`%9` standing for the counters of
 /// levels 1…9 ("%1.%2" gives "3.2"), each in that level's `format`.
-public struct ListLevelFormat: Hashable, Sendable {
+public struct ListLevelFormat: Hashable, Codable, Sendable {
     public var text: String
     public var format: ListNumberFormat
     /// The level's own indents in points (Word's w:lvl/w:pPr/w:ind), kept
@@ -1486,7 +1486,7 @@ public enum RichListNumbering {
 // MARK: - Runs and paragraphs
 
 /// A stretch of `length` UTF-16 units sharing one `CharStyle`.
-public struct Run: Hashable, Sendable {
+public struct Run: Hashable, Codable, Sendable {
     public var length: Int
     public var style: CharStyle
 
@@ -1502,7 +1502,7 @@ public struct Run: Hashable, Sendable {
 /// has length 0 — except that an EMPTY paragraph keeps exactly one zero-length
 /// run, so the style a new character will take survives deleting the last
 /// one — and no two adjacent runs share a style (`normalize()` restores that).
-public struct RichParagraph: Hashable, Sendable {
+public struct RichParagraph: Hashable, Codable, Sendable {
     public var text: String
     public var runs: [Run]
     public var style: RichParagraphStyle
@@ -1519,8 +1519,23 @@ public struct RichParagraph: Hashable, Sendable {
     /// Names of the bookmarks that start in this paragraph (what a
     /// contents page's page references point at).
     public var bookmarks: [String] = []
+    /// The paragraph's identity across edits: Word's `w14:paraId` (a
+    /// 32-bit number, printed as eight hex digits) when the file carried
+    /// one, else assigned the first time something needs it
+    /// (`RichDocument.assignParagraphIDs`). 0 is "none yet". A split keeps
+    /// the id on the head and gives the tail a fresh one; a join keeps the
+    /// head's. Comments, merges and the wiki's anchors hang off it.
+    public var id: UInt32 = 0
 
     public static let inlineImageCharacter = "\u{FFFC}"
+
+    /// A fresh, non-zero id. Word keeps paraIds below 0x80000000; so do we,
+    /// so a file that goes to Word and back keeps the ones we wrote.
+    public static func freshID() -> UInt32 {
+        var v: UInt32 = 0
+        repeat { v = UInt32.random(in: 1 ..< 0x8000_0000) } while v == 0
+        return v
+    }
 
     public init(text: String = "", runs: [Run]? = nil, style: RichParagraphStyle = .body) {
         self.text = text
@@ -1741,6 +1756,7 @@ public struct RichParagraph: Hashable, Sendable {
         tail.normalize()
         if image != nil { tail.image = nil }
         tail.cell = cell
+        tail.id = id == 0 ? 0 : RichParagraph.freshID()
         text = String(text[..<idx])
         runs = runs(in: 0 ..< offset)
         if runs.isEmpty { runs = [Run(length: 0, style: headStyleAtEnd)] }
@@ -1877,7 +1893,7 @@ public struct RichParagraph: Hashable, Sendable {
 // MARK: - Positions and selections
 
 /// A caret position: paragraph index + UTF-16 offset within it.
-public struct RichPosition: Hashable, Comparable, Sendable {
+public struct RichPosition: Hashable, Comparable, Codable, Sendable {
     public var paragraph: Int
     public var offset: Int
 
@@ -1896,7 +1912,7 @@ public struct RichPosition: Hashable, Comparable, Sendable {
 /// Anchor (where the selection started) and focus (where the caret is).
 /// A rectangle of whole cells in one table (Word's cell selection): what
 /// dragging or shift-selecting from one cell into another makes.
-public struct CellBlock: Hashable, Sendable {
+public struct CellBlock: Hashable, Codable, Sendable {
     public var table: String
     public var rows: ClosedRange<Int>
     public var columns: ClosedRange<Int>
@@ -1914,7 +1930,7 @@ public struct CellBlock: Hashable, Sendable {
     }
 }
 
-public struct RichSelection: Hashable, Sendable {
+public struct RichSelection: Hashable, Codable, Sendable {
     public var anchor: RichPosition
     public var focus: RichPosition
     /// Set when the selection is whole cells: anchor and focus are then in
@@ -1940,7 +1956,7 @@ public struct RichSelection: Hashable, Sendable {
 
 // MARK: - Document
 
-public struct RichDocument: Hashable, Sendable {
+public struct RichDocument: Hashable, Codable, Sendable {
     public var paragraphs: [RichParagraph]
     /// Running header and footer, one line each; `{PAGE}` and `{NUMPAGES}`
     /// are replaced per page. Empty means none.
@@ -2064,7 +2080,7 @@ public struct RichDocument: Hashable, Sendable {
     /// "）" to open the next line, where under zh-CN they stay; and
     /// zh-6600d539 (en-US) starts a line "，針對平臺…" in Word's print.
     public var eastAsianLineRules: Bool {
-        guard let xml = defaultLangXML, let r = xml.range(of: "w:eastAsia=\"") else { return true }
+        guard let xml = defaultLangXML, let r = xml.findRange(of: "w:eastAsia=\"") else { return true }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
     public var themeFontLangXML: String? = nil
@@ -2337,7 +2353,7 @@ public struct RichDocument: Hashable, Sendable {
 }
 
 /// An HTML block's margins above and below, in points (`RichDocument.divMargins`).
-public struct DivMargins: Hashable, Sendable {
+public struct DivMargins: Hashable, Codable, Sendable {
     public var top: Double
     public var bottom: Double
     public init(top: Double, bottom: Double) { self.top = top; self.bottom = bottom }

@@ -35,6 +35,7 @@
   // promise below; without the stack it is only 'unreachable'.
   window.addEventListener('error', (event) => {
     console.error(String(event.error?.stack || event.message));
+    window.dispatchEvent(new Event('starling-reader-failed'));
   });
   import { startStarling } from './starling.js';
   const fontStatus = document.getElementById('font-status');
@@ -45,6 +46,8 @@
     app: 'app.wasm',
     // The app's command line (Office: ['--slides'] starts in Slides).
     args: [],
+    // The tab's URL path is the app's route (the wiki opens the page it names).
+    initialRoute: location.pathname + location.search + location.hash,
     skwasmBase: 'skwasm/',
     // Written by build/web-app.sh; the first face is also the fallback
     // for any family nobody loaded.
@@ -66,16 +69,21 @@
     },
   }).then((starling) => {
     window.starling = starling;
-    document.title = 'Starling — running';
+    // A shell page made for a route (the wiki's server, a site build)
+    // already carries the page's title; keep it.
+    if (!document.querySelector('meta[name="starling-route"]')) document.title = 'Starling — running';
     const loading = document.getElementById('loading');
     // The first frame is on screen a beat after start returns.
     requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('starling-reader-ready'));
       loading.classList.add('done');
       setTimeout(() => loading.remove(), 400);
     }));
   })
     .catch((error) => {
       console.error(String(error.stack || error));
+      window.dispatchEvent(new Event('starling-reader-failed'));
+      if (document.body.classList.contains('starling-publication')) return;
       document.title = 'Starling — failed';
       document.body.append(Object.assign(document.createElement('pre'), {
         textContent: String(error.stack || error),

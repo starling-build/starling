@@ -751,7 +751,7 @@ public struct RichResolvedFace: Sendable {
 /// Paper size and margins, in points. `nil` on the layout means a continuous
 /// column (a note, a text field); set, the flow is cut into pages at line
 /// boundaries and every geometry query has a canvas-space twin.
-public struct PageSetup: Hashable, Sendable {
+public struct PageSetup: Hashable, Codable, Sendable {
     public var width: Double
     public var height: Double
     public var marginTop: Double
@@ -4707,6 +4707,15 @@ public final class RichLayout {
     }
 
     public var isPaged: Bool { pageSetup != nil }
+
+    /// The page, counted from 1, a paragraph starts on — for a table of
+    /// contents with page numbers. Nil unpaged, or before `ensureLaidOut`.
+    public func pageNumber(ofParagraph i: Int) -> Int? {
+        guard isPaged, i >= 0, i < count, _pieceStart.count == count + 1 else { return nil }
+        let pieces = _allPieces[_pieceStart[i] ..< _pieceStart[i + 1]]
+        guard let piece = pieces.first(where: { $0.part != .rules && !$0.repeated }) ?? pieces.first else { return nil }
+        return piece.page / _columns + 1
+    }
     /// `_pages` holds one entry per column slot; a page has `columns` of them.
     public var pageCount: Int { isPaged ? max(1, (_pages.count + _columns - 1) / _columns) : 1 }
     /// Per column slot (page × columns + column), in flow order.
@@ -5138,7 +5147,7 @@ public final class RichLayout {
             // (Centred between the margins where its chain says so and
             // gives no x: the cover's "山东省市场监督管理局 发布", a 372pt
             // frame, stands in the middle of the column in Word's print.)
-            if frame.horizontalAnchor == "margin", frame.horizontalAlign == "center", !(style.frameXML ?? "").contains("w:x=\""),
+            if frame.horizontalAnchor == "margin", frame.horizontalAlign == "center", !(style.frameXML ?? "").containsSubstring("w:x=\""),
                column - width > 0.5 {
                 let shift = (column - width) / 2
                 left += shift
@@ -5149,7 +5158,7 @@ public final class RichLayout {
             // (An x the style chain states wins over an alignment from
             // further down it: the date's own style puts it at 354pt, its
             // parent's says right, and Word's print has it at 354.)
-            if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").contains("w:x=\"") {
+            if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").containsSubstring("w:x=\"") {
                 let setup = _setup(ofParagraph: i)
                 let shift = _px(frame.x - setup.marginLeft - setup.gutter)
                 left += shift
@@ -6758,7 +6767,7 @@ public final class RichLayout {
                 // (A run of spaces alone takes the line's height, not its own.)
                 if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-                    if !lineSize.blank, kind != -2, !text.contains("\t"), !text.contains("\u{3000}") {
+                    if !lineSize.blank, kind != -2, !text.contains("\t" as Character), !text.contains("\u{3000}" as Character) {
                         // (Beside other characters, spaces have no height
                         // at all, whatever their face or size: lab `cap2`
                         // (Word 16, 2026-10-17) — two 14pt or 20pt spaces
@@ -7260,7 +7269,7 @@ public final class RichLayout {
                         // carry `<w:bdr w:val="none"/>`, and Word sets "14号" with
                         // 2pt between, a quarter of its 8pt; ours took the run for
                         // ruled and set 4, and every line held a character less.)
-                        if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.range(of: "<w:bdr "),
+                        if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.findRange(of: "<w:bdr "),
                            case let tag = xml[r.upperBound...].prefix(while: { $0 != ">" }),
                            !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") { gap *= 2 }
                         extra += gap
@@ -7444,7 +7453,7 @@ public final class RichLayout {
             var symbolLevel = false
             if theme.wordRules, p.style.list != nil,
                let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
-               let r = xml.range(of: "w:ascii=\"") ?? xml.range(of: "w:hAnsi=\"") {
+               let r = xml.findRange(of: "w:ascii=\"") ?? xml.findRange(of: "w:hAnsi=\"") {
                 let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
                 // (Only the symbol faces, whose lines differ from any
                 // text face's: a zero-width space before every list
@@ -8458,7 +8467,7 @@ public final class RichLayout {
         guard p.style.list != nil,
               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }) else { return (nil, nil) }
         func attr(_ name: String) -> String? {
-            guard let r = xml.range(of: name + "=\"") else { return nil }
+            guard let r = xml.findRange(of: name + "=\"") else { return nil }
             return String(xml[r.upperBound...].prefix { $0 != "\"" })
         }
         return (attr("w:ascii") ?? attr("w:hAnsi"), attr("w:eastAsia"))
@@ -8467,7 +8476,7 @@ public final class RichLayout {
     private func _levelNumberSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {
         guard p.style.list != nil,
               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
-              let r = xml.range(of: "<w:sz w:val=\"") else { return nil }
+              let r = xml.findRange(of: "<w:sz w:val=\"") else { return nil }
         return Double(xml[r.upperBound...].prefix { $0 != "\"" }).map { $0 / 2 }
     }
 
@@ -9662,7 +9671,7 @@ public final class RichLayout {
     /// zh-TW — Word keeps "，" off a line's start there.)
     static func _eastAsianLineRules(_ run: CharStyle, _ document: RichDocument, named: RichNamedStyle? = nil) -> Bool {
         for xml in [run.keptXML, named?.char.keptXML].compactMap({ $0 }) {
-            if let r = xml.range(of: "w:eastAsia=\"") {
+            if let r = xml.findRange(of: "w:eastAsia=\"") {
                 return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
             }
         }
@@ -9673,7 +9682,7 @@ public final class RichLayout {
     /// by its own `w:lang`, else its paragraph style's.
     static func _eastAsianLanguageNone(_ run: CharStyle, named: RichNamedStyle? = nil) -> Bool {
         for xml in [run.keptXML, named?.char.keptXML].compactMap({ $0 }) {
-            if let r = xml.range(of: "w:eastAsia=\"") { return xml[r.upperBound...].hasPrefix("x-none") }
+            if let r = xml.findRange(of: "w:eastAsia=\"") { return xml[r.upperBound...].hasPrefix("x-none") }
         }
         return false
     }
@@ -9954,7 +9963,7 @@ public final class RichLayout {
     /// font language, else the defaults' `w:lang`.
     private static func _traditionalChinese(_ document: RichDocument) -> Bool {
         func traditional(_ xml: String?) -> Bool? {
-            guard let xml, let r = xml.range(of: "w:eastAsia=\"") else { return nil }
+            guard let xml, let r = xml.findRange(of: "w:eastAsia=\"") else { return nil }
             let tag = xml[r.upperBound...].prefix { $0 != "\"" }
             return tag == "zh-TW" || tag == "zh-HK" || tag == "zh-MO"
         }
@@ -10049,6 +10058,12 @@ public final class RichLayout {
         // letter of the number after it: zh-b56eeded's "…總數)×" ends a
         // line before "100%" in Word's print.)
         if a == "\u{00D7}" { return b != " " }
+        // (And after a percent sign before an opening mark a number
+        // follows, which Unicode keeps together as one number's sign:
+        // zh-20d0e98f's cell ends a line "…）×100%" and opens the next
+        // "【107年：", where ours parted "100" from "%【107" and the
+        // cell grew a line.)
+        if a == "%" || a == "‰" { return _openingMarks.contains(b) }
         return false
     }
 
@@ -11187,7 +11202,7 @@ public final class RichLayout {
     /// 784.9pt down the page, 751 under a 16.9pt margin.)
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
-        return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").contains("w:vAnchor=")
+        return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").containsSubstring("w:vAnchor=")
     }
 
     /// Set on a header's or footer's own layout: its framed paragraphs
@@ -11402,12 +11417,30 @@ public final class RichLayout {
             if let n = run.style.note, n.kind == .footnote, n.id == id {
                 let g = geometry(i)
                 let m = _map(i).painter(at)
-                guard let box = g.painter.getBoxesForSelection(TextSelection(baseOffset: m, extentOffset: m + max(1, run.length))).first else { return nil }
+                // (A mark raised out of its line, `_paintScripts`'s, has no
+                // box of its own there: the character beside it stands on
+                // its line. zh-344a8d08's footnotes 2 and 3 were taken for
+                // marks of no line, reserved whole, and note 3's three
+                // lines all stood on page 4, where Word's print parts it.)
+                func boxOf(_ from: Int, _ to: Int) -> TextBox? {
+                    guard from >= 0, to > from else { return nil }
+                    return g.painter.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to)).first
+                }
+                guard let box = boxOf(m, m + max(1, run.length)) ?? (theme.wordRules ? boxOf(m - 1, m) ?? boxOf(m + max(1, run.length), m + max(1, run.length) + 1) : nil)
+                else { return nil }
                 let lines = g.painter.computeLineMetrics()
+                // (Where the line ends as the page counts it — on a grid,
+                // its whole pitches, not the engine's own line: zh-344a8d08's
+                // note 3 is marked in a 16pt line of two 22.85pt pitches,
+                // 45.7, whose engine line is 37.5; the note fit under it by
+                // 4pt in ours and goes over by 4 in Word's print.)
+                let bottoms = theme.wordRules ? Self._lineBottoms(g.painter) : []
                 var bottom = box.bottom
-                for metrics in lines where metrics.lineNumber >= 0 {
+                for (k, metrics) in lines.enumerated() where metrics.lineNumber >= 0 {
                     let top = metrics.baseline - metrics.ascent
-                    if box.top >= top - 0.5, box.top < top + metrics.height - 0.5 { bottom = max(bottom, top + metrics.height) }
+                    if box.top >= top - 0.5, box.top < top + metrics.height - 0.5 {
+                        bottom = max(bottom, k < bottoms.count ? bottoms[k] : top + metrics.height)
+                    }
                 }
                 return (g.textTop + box.top, g.textTop + bottom)
             }
@@ -12030,7 +12063,7 @@ public final class RichLayout {
                             // — zh-c3dd22c4's, in a box sized by "- 1 -",
                             // stays on one line in its print — so each
                             // space is joined to what follows it.)
-                            if piece.contains(" ") { piece = piece.replacingAll(" ", with: " \u{2060}") }
+                            if piece.contains(" " as Character) { piece = piece.replacingAll(" ", with: " \u{2060}") }
                         }
                         lastField = run.style.field
                         guard !piece.isEmpty else { continue }

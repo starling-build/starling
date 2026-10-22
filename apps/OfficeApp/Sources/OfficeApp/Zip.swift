@@ -52,15 +52,19 @@ enum Zip {
         // No directory: a file cut short at its end. Salvage what the local
         // headers still describe, as PowerPoint and Word repair such files.
         guard eocd >= 0 else { return try _salvage(bytes) }
-        var entryCount = Int(u16(bytes, eocd + 10))
-        var cdOffset = Int(u32(bytes, eocd + 16))
+        // Through the raw widths: Int is 32 bits on wasm, where the "full"
+        // marker 0xFFFF_FFFF does not fit it. A value that does not fit
+        // becomes `bytes.count`, which every bounds check below rejects.
+        let rawCount = u16(bytes, eocd + 10), rawCD = u32(bytes, eocd + 16)
+        var entryCount = Int(rawCount)
+        var cdOffset = Int(exactly: rawCD) ?? bytes.count
         // A zip64 archive's own end record, which the locator just before
         // this one points to, when these fields are full.
-        if entryCount == 0xFFFF || cdOffset == 0xFFFF_FFFF, eocd >= 20, u32(bytes, eocd - 20) == 0x07064B50 {
-            let at = Int(u64(bytes, eocd - 12))
+        if rawCount == 0xFFFF || rawCD == 0xFFFF_FFFF, eocd >= 20, u32(bytes, eocd - 20) == 0x07064B50 {
+            let at = Int(exactly: u64(bytes, eocd - 12)) ?? -1
             if at >= 0, at + 56 <= bytes.count, u32(bytes, at) == 0x06064B50 {
-                entryCount = Int(u64(bytes, at + 32))
-                cdOffset = Int(u64(bytes, at + 48))
+                entryCount = Int(exactly: u64(bytes, at + 32)) ?? bytes.count
+                cdOffset = Int(exactly: u64(bytes, at + 48)) ?? bytes.count
             }
         }
         var entries: [ZipEntry] = []
@@ -68,12 +72,13 @@ enum Zip {
         for _ in 0 ..< entryCount {
             guard p + 46 <= bytes.count, u32(bytes, p) == 0x02014B50 else { throw ZipError.corrupt("central directory") }
             let method = u16(bytes, p + 10)
-            var csize = Int(u32(bytes, p + 20))
-            var usize = Int(u32(bytes, p + 24))
+            let rawCSize = u32(bytes, p + 20), rawUSize = u32(bytes, p + 24), rawLocal = u32(bytes, p + 42)
+            var csize = Int(exactly: rawCSize) ?? bytes.count
+            var usize = Int(exactly: rawUSize) ?? bytes.count
             let nameLen = Int(u16(bytes, p + 28))
             let extraLen = Int(u16(bytes, p + 30))
             let commentLen = Int(u16(bytes, p + 32))
-            var localOffset = Int(u32(bytes, p + 42))
+            var localOffset = Int(exactly: rawLocal) ?? bytes.count
             guard p + 46 + nameLen + extraLen <= bytes.count else { throw ZipError.corrupt("central directory") }
             let name = String(decoding: bytes[(p + 46) ..< (p + 46 + nameLen)], as: UTF8.self)
             // Zip64: the sizes and offset that do not fit, in its extra
@@ -87,11 +92,11 @@ enum Zip {
                     func next() -> Int? {
                         guard q + 8 <= e + 4 + len else { return nil }
                         defer { q += 8 }
-                        return Int(u64(bytes, q))
+                        return Int(exactly: u64(bytes, q))
                     }
-                    if usize == 0xFFFF_FFFF, let v = next() { usize = v }
-                    if csize == 0xFFFF_FFFF, let v = next() { csize = v }
-                    if localOffset == 0xFFFF_FFFF, let v = next() { localOffset = v }
+                    if rawUSize == 0xFFFF_FFFF, let v = next() { usize = v }
+                    if rawCSize == 0xFFFF_FFFF, let v = next() { csize = v }
+                    if rawLocal == 0xFFFF_FFFF, let v = next() { localOffset = v }
                 }
                 e += 4 + len
             }

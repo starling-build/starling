@@ -6,6 +6,8 @@
 //
 //   click X Y            press and release the left button at CSS X,Y
 //   move X Y             move the pointer
+//   touchdrag X Y DX DY  one finger: down at X,Y, dragged by DX,DY, lifted
+//   dblclick X Y         two presses in quick succession (selects a word)
 //   type TEXT            each character as a key down (with text) and up
 //   press KEY            one key by name: Enter, Backspace, Tab, ArrowDown…
 //   chord ctrl|meta KEY  the key with Control or Meta held (chord ctrl s)
@@ -31,6 +33,8 @@
 // http://127.0.0.1:8137/), W and H (the window, default 1400×900 — Chrome
 // lays out nothing narrower than 500), DPR, CHROME (the binary),
 // CHROME_PROFILE (a user-data dir; the default is under the OS temp dir),
+// BLOCK_URLS (JSON array of CDP URL patterns to fail before navigation),
+// DISABLE_SCRIPTS=1 (disable page scripts before navigation),
 // PORT (the DevTools port, default 9333 — a crashed run leaves its Chrome
 // on the port, and the next attaches to the stale target and hangs; this
 // script kills what it started, `pkill -f remote-debugging-port=9333` for
@@ -88,6 +92,11 @@ const send = (method, params = {}) => new Promise((resolve, reject) => {
 });
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: +(process.env.DPR || 1), mobile: false });
+if (process.env.BLOCK_URLS) {
+  await send('Network.enable');
+  await send('Network.setBlockedURLs', { urls: JSON.parse(process.env.BLOCK_URLS) });
+}
+if (process.env.DISABLE_SCRIPTS === '1') await send('Emulation.setScriptExecutionDisabled', { value:true });
 await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
 await sleep(3000);
 const mouse = async (type, x, y, button = 'left') =>
@@ -108,6 +117,24 @@ try {
       await mouse('mouseReleased', x, y); await sleep(300);
     } else if (op === 'move') {
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: +args.shift(), y: +args.shift(), buttons: 0 });
+    } else if (op === 'dblclick') {
+      const x = +args.shift(), y = +args.shift();
+      await mouse('mouseMoved', x, y); await sleep(50);
+      for (let i = 0; i < 2; i++) {
+        await mouse('mousePressed', x, y); await sleep(40);
+        await mouse('mouseReleased', x, y); await sleep(60);
+      }
+      await sleep(300);
+    } else if (op === 'touchdrag') {
+      const x = +args.shift(), y = +args.shift(), dx = +args.shift(), dy = +args.shift();
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+      const steps = 8;
+      for (let i = 1; i <= steps; i++) {
+        await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx * i / steps, y: y + dy * i / steps }] });
+        await sleep(16);
+      }
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(400);
     } else if (op === 'type') {
       for (const ch of args.shift()) {
         const code = /[a-z]/i.test(ch) ? 'Key' + ch.toUpperCase() : /[0-9]/.test(ch) ? 'Digit' + ch : ch === ' ' ? 'Space' : 'Unidentified';

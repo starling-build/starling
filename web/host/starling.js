@@ -175,7 +175,7 @@ const HARD_LINE_BREAK = 100;
 async function fetchWithProgress(url, onProgress) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
-  const gzipped = new URL(url, location.href).pathname.endsWith('.gz');
+  const gzipped = new URL(url, document.baseURI).pathname.endsWith('.gz');
   if ((!onProgress && !gzipped) || !response.body) return response;
   // fetch exposes decoded bytes for HTTP compression, but Content-Length is
   // the compressed length. Do not report a fictitious percentage above 100%.
@@ -220,7 +220,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
   // which is also what Flutter does on an ordinary page.
-  const skwasmUrl = new URL(`${skwasmBase}skwasm.js`, location.href).href;
+  // Asset URLs resolve against the document's base URL (a <base href>
+  // when the page is served at a deep route, else the location itself).
+  const skwasmUrl = new URL(`${skwasmBase}skwasm.js`, document.baseURI).href;
   // Both modules compile in parallel; fonts also begin fetching immediately.
   // Progress counts the module streams; phases cover font preparation.
   const progress = { app: [0, 0], skwasm: [0, 0] };
@@ -232,7 +234,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     }
   };
   const skwasmModule = WebAssembly.compileStreaming(
-    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, location.href), report('skwasm')));
+    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, document.baseURI), report('skwasm')));
   // Compile independently: only instantiation needs the renderer's imports.
   const appModule = WebAssembly.compileStreaming(fetchWithProgress(app, report('app')));
   appModule.catch(() => {}); // observed below even if the renderer fails first
@@ -279,6 +281,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   }, 'viie');
 
   const utf8 = new TextDecoder();
+  const encoder = new TextEncoder();
   const host = {
     write(dst, src, length) {
       skBytes().set(appBytes().subarray(src, src + length), dst);
@@ -395,6 +398,223 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     },
   };
 
+  // --- the network and the address bar (docs/plans/wiki.md W0). Each
+  // answer copies into the app's memory through starling_alloc; the app
+  // frees. Requests are same-origin by default, so the session cookie
+  // rides along without the app knowing it exists.
+  const bytesIn = (pointer, length) => appBytes().slice(pointer, pointer + length);
+  const textIn = (pointer, length) => utf8.decode(appBytes().subarray(pointer, pointer + length));
+  const handOver = (bytes) => {
+    const pointer = bytes.length ? swift.starling_alloc(bytes.length) : 0;
+    if (pointer) appBytes().set(bytes, pointer);
+    return pointer;
+  };
+  host.http_request = async (id, methodPtr, methodLen, urlPtr, urlLen, headersPtr, headersLen, bodyPtr, bodyLen) => {
+    const method = textIn(methodPtr, methodLen) || 'GET';
+    const url = textIn(urlPtr, urlLen);
+    const headers = {};
+    for (const line of textIn(headersPtr, headersLen).split('\n')) {
+      const colon = line.indexOf(':');
+      if (colon > 0) headers[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+    }
+    const body = bodyLen ? bytesIn(bodyPtr, bodyLen) : undefined;
+    let status = 0, responseHeaders = new Uint8Array(0), responseBody = new Uint8Array(0);
+    try {
+      const response = await fetch(url, { method, headers, body, credentials: 'same-origin' });
+      status = response.status;
+      const lines = [];
+      response.headers.forEach((value, name) => lines.push(`${name}: ${value}`));
+      responseHeaders = encoder.encode(lines.join('\n'));
+      responseBody = new Uint8Array(await response.arrayBuffer());
+    } catch (error) {
+      console.warn(`starling: ${method} ${url}: ${error}`);
+      responseBody = encoder.encode(String(error));
+    }
+    swift.starling_http_done(id, status, handOver(responseHeaders), responseHeaders.length, handOver(responseBody), responseBody.length);
+  };
+  const sockets = new Map();
+  host.socket_open = (id, urlPtr, urlLen) => {
+    const url = new URL(textIn(urlPtr, urlLen), location.href);
+    if (url.protocol === 'http:') url.protocol = 'ws:';
+    if (url.protocol === 'https:') url.protocol = 'wss:';
+    let socket;
+    const report = (kind, bytes) => swift.starling_socket_event(id, kind, bytes ? handOver(bytes) : 0, bytes ? bytes.length : 0);
+    try {
+      socket = new WebSocket(url.href);
+    } catch (error) {
+      report(4, encoder.encode(String(error)));
+      return;
+    }
+    socket.binaryType = 'arraybuffer';
+    socket.onopen = () => report(0, null);
+    socket.onmessage = (event) => {
+      if (typeof event.data === 'string') report(1, encoder.encode(event.data));
+      else report(2, new Uint8Array(event.data));
+    };
+    socket.onerror = () => report(4, null);
+    socket.onclose = (event) => { sockets.delete(id); report(3, encoder.encode(`${event.code} ${event.reason || ''}`)); };
+    sockets.set(id, socket);
+  };
+  host.socket_send = (id, pointer, length, text) => {
+    const socket = sockets.get(id);
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(text ? textIn(pointer, length) : bytesIn(pointer, length));
+  };
+  host.socket_close = (id) => { sockets.get(id)?.close(); sockets.delete(id); };
+  // The on-screen keyboard's import must exist before the module is
+  // instantiated; the page's hidden text field, which it drives, is made
+  // once the app runs (below, with the input handlers).
+  let softKeyboard = () => {};
+  host.soft_keyboard = (show) => softKeyboard(show);
+  // The system clipboard. Writing needs a user gesture, which ⌘C is;
+  // reading asks the browser's permission (Chrome prompts once, Safari
+  // allows it from a gesture) and answers empty when refused.
+  host.clipboard_write = (pointer, length, htmlPointer, htmlLength) => {
+    const text = textIn(pointer, length);
+    const html = htmlLength ? textIn(htmlPointer, htmlLength) : '';
+    const fail = (error) => console.warn(`starling: clipboard write: ${error}`);
+    try {
+      if (html && window.ClipboardItem && navigator.clipboard?.write) {
+        navigator.clipboard.write([new ClipboardItem({
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        })]).catch(() => navigator.clipboard.writeText(text).catch(fail));
+      } else {
+        navigator.clipboard?.writeText(text).catch(fail);
+      }
+    } catch (error) { fail(error); }
+  };
+  // The open document's text as hidden HTML (#starling-text) for screen
+  // readers and crawlers: the canvas is a picture to them. A site build
+  // writes the first page's into the shell; the app replaces it as the
+  // reader moves between pages.
+  host.set_document_text = (pointer, length) => {
+    const payload = textIn(pointer, length);
+    let content;
+    if (payload.startsWith('!json\n')) {
+      try {
+        content = JSON.parse(payload.slice(6));
+        if (content.version !== 1 || !Array.isArray(content.paragraphs)) throw new Error('unknown document text version');
+      } catch (error) { console.warn('starling: could not read document text', error); return; }
+    }
+    let main = document.getElementById('starling-text');
+    if (!main) {
+      main = document.createElement('main');
+      main.id = 'starling-text';
+      main.className = 'starling-sr';
+      document.body.append(main);
+    }
+    // The article changes with the page; the site's links (nav) stay.
+    let article = document.getElementById('starling-article');
+    if (!article) {
+      article = document.createElement('article');
+      article.id = 'starling-article';
+      main.append(article);
+    }
+    if (content) {
+      const nodes = [];
+      const safeLink = value => {
+        if (typeof value !== 'string' || /[\x00-\x1f\x7f]/.test(value)) return null;
+        if (/^#p=[1-9][0-9]*$/.test(value)) return value;
+        if (value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')) {
+          const url = new URL(value, location.href);
+          if (url.origin === location.origin) return url.href;
+          return null;
+        }
+        try {
+          const url = new URL(value);
+          return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : null;
+        } catch { return null; }
+      };
+      if (content.downloads) {
+        const p = document.createElement('p'); p.className = 'starling-downloads';
+        for (const [kind, label] of [['pdf', 'Download as PDF'], ['docx', 'Download as Word']]) {
+          const path = content.downloads[kind];
+          // Downloads are site-relative generated paths, never a new origin.
+          if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')
+            || path.includes('\\') || /[\x00-\x1f\x7f]/.test(path)) continue;
+          if (p.childNodes.length) p.append(' · ');
+          const a = document.createElement('a'); a.href = path; a.textContent = label; p.append(a);
+        }
+        // The page's history is an absolute https address (GitHub).
+        const history = content.downloads.history;
+        if (typeof history === 'string') {
+          try {
+            const url = new URL(history);
+            if (url.protocol === 'https:') {
+              if (p.childNodes.length) p.append(' · ');
+              const h = document.createElement('a'); h.href = url.href; h.textContent = 'History'; p.append(h);
+            }
+          } catch {}
+        }
+        nodes.push(p);
+      }
+      const ids = new Set();
+      for (const paragraph of content.paragraphs) {
+        const level = paragraph.level;
+        const p = document.createElement(Number.isInteger(level) && level >= 1 && level <= 3 ? `h${level}` : 'p');
+        if (Number.isInteger(paragraph.id) && paragraph.id > 0 && paragraph.id <= 0xffffffff && !ids.has(paragraph.id)) {
+          p.id = `p=${paragraph.id}`; ids.add(paragraph.id);
+        }
+        for (const span of paragraph.spans || []) {
+          if (typeof span.text !== 'string') continue;
+          const link = safeLink(span.link);
+          if (link) {
+            const a = document.createElement('a'); a.href = link; a.textContent = span.text; p.append(a);
+          } else { p.append(document.createTextNode(span.text)); }
+        }
+        nodes.push(p);
+      }
+      if (typeof content.title === 'string') article.setAttribute('aria-label', content.title);
+      article.replaceChildren(...nodes);
+      return;
+    }
+    article.replaceChildren(...payload.split('\n').filter(l => l.length).map((line) => {
+      // "@\t<pdf>\t<docx>": the page's downloads, as links.
+      if (line.startsWith('@\t')) {
+        const [, pdf, docx] = line.split('\t');
+        const p = document.createElement('p');
+        p.className = 'starling-downloads';
+        const a = document.createElement('a'); a.href = pdf; a.textContent = 'Download as PDF';
+        const b = document.createElement('a'); b.href = docx; b.textContent = 'Download as Word';
+        p.append(a, ' · ', b);
+        return p;
+      }
+      const tab = line.indexOf('\t');
+      const level = tab >= 0 ? +line.slice(0, tab) : 0;
+      const el = document.createElement(level >= 1 && level <= 3 ? `h${level}` : 'p');
+      el.textContent = tab >= 0 ? line.slice(tab + 1) : line;
+      return el;
+    }));
+  };
+  // A link out of the app, in a new tab (a same-origin route goes
+  // through push_route instead).
+  host.open_url = (pointer, length) => {
+    const url = textIn(pointer, length);
+    try { window.open(url, '_blank', 'noopener'); } catch (error) { console.warn(`starling: open ${url}: ${error}`); }
+  };
+  host.copy_location = () => {
+    navigator.clipboard?.writeText(location.href).catch((error) => console.warn(`starling: clipboard: ${error}`));
+  };
+  host.clipboard_read = (id) => {
+    const answer = (text) => transfer(encoder.encode(text), (pointer, length) => swift.starling_clipboard_text(id, pointer, length));
+    const read = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'));
+    read.then(answer).catch(() => answer(''));
+  };
+  host.push_route = (pointer, length, replace) => {
+    const route = textIn(pointer, length);
+    try {
+      if (replace) history.replaceState({ starling: route }, '', route);
+      else history.pushState({ starling: route }, '', route);
+    } catch (error) {
+      console.warn(`starling: route ${route}: ${error}`);
+    }
+  };
+  window.addEventListener('popstate', () => {
+    const route = location.pathname + location.search + location.hash;
+    transfer(encoder.encode(route), (pointer, length) => swift.starling_route_changed(pointer, length));
+  });
+
   // --- the Swift module
   const timers = new Map();
   host.set_timeout = (id, milliseconds) => {
@@ -436,7 +656,6 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // straight into an SkData in skwasm's memory. A font may be registered
   // under several family names — the first entry is also given skwasm's
   // fallback name, so text in a family nobody loaded still draws.
-  const encoder = new TextEncoder();
   const registerFont = (bytes, family) => {
     const data = sk.skData_create(bytes.length);
     skBytes().set(bytes, sk.skData_getPointer(data));
@@ -460,14 +679,17 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     if (defaultFamily && families.includes(defaultFamily)) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
   }
   // Glyph fallback: the families marked `fallback` are tried, in manifest
-  // order, for characters the requested family lacks (⌘ in a UI face).
-  for (const { families, fallback } of fonts) {
-    if (!fallback) continue;
-    const name = encoder.encode(families[0]);
+  // order, for characters the requested family lacks (⌘ in a UI face). A
+  // deferred one (Noto Sans SC) joins when a document has it fetched.
+  const registerFallback = (family) => {
+    const name = encoder.encode(family);
     const pointer = swift.starling_alloc(name.length);
     appBytes().set(name, pointer);
     swift.starling_font_fallback(pointer, name.length);
     swift.starling_free(pointer);
+  };
+  for (const { families, fallback } of fonts) {
+    if (fallback) registerFallback(families[0]);
   }
 
   const manifest = await fontManifest;
@@ -476,6 +698,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   }
   fontLoader = createFontLoader(manifest, {
     register: registerFont,
+    fallback: registerFallback,
     changed: () => swift.starling_fonts_changed(),
     status: state => { fontsPending = state.pending.length; onFontStatus?.(state); },
   });
@@ -494,6 +717,18 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // --- size, before the app mounts, so its first layout is the real one.
   const resize = () => {
     const ratio = window.devicePixelRatio || 1;
+    // A phone's keyboard shrinks the visual viewport, not the layout one:
+    // size the canvas to what is actually visible so the app lays out
+    // above the keyboard instead of under it.
+    const visual = window.visualViewport;
+    const readingText = document.body.classList.contains('starling-publication')
+      && !document.body.classList.contains('starling-interactive');
+    if (!readingText && visual && visual.height < window.innerHeight - 1) {
+      canvas.style.height = `${visual.height}px`;
+      window.scrollTo(0, 0);
+    } else {
+      canvas.style.height = '';
+    }
     const { width, height } = canvas.getBoundingClientRect();
     canvas.width = Math.max(1, Math.round(width * ratio));
     canvas.height = Math.max(1, Math.round(height * ratio));
@@ -501,6 +736,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   };
   resize();
   new ResizeObserver(resize).observe(canvas);
+  window.visualViewport?.addEventListener('resize', resize);
 
   // --- the app's main. It mounts the widget tree and returns.
   onPhase?.('Drawing document…');
@@ -578,7 +814,81 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   canvas.tabIndex = 0;
   canvas.addEventListener('keydown', key);
   canvas.addEventListener('keyup', key);
-  canvas.addEventListener('pointerdown', () => canvas.focus());
+
+  // The on-screen keyboard. A canvas cannot summon one: a phone shows its
+  // keyboard only for an editable element, so a hidden textarea stands in
+  // for the app's focused text field. The app asks for it (SoftKeyboard
+  // .show → host.soft_keyboard) when a field takes focus and lets it go
+  // when focus moves elsewhere. Hardware keys typed into it go down the
+  // key path above; what the browser composes — a phone's keyboard, an
+  // input method, a paste — arrives as text and is delivered as typed
+  // characters through starling_text. The field itself is kept empty: it
+  // is a conduit, not a copy of the document.
+  const ime = document.createElement('textarea');
+  ime.id = 'starling-ime';
+  ime.setAttribute('autocapitalize', 'off');
+  ime.setAttribute('autocomplete', 'off');
+  ime.setAttribute('autocorrect', 'off');
+  ime.setAttribute('aria-hidden', 'true');
+  ime.spellcheck = false;
+  ime.tabIndex = -1;
+  // 16px: iOS zooms the page in to focus anything smaller. At the top,
+  // where iOS has no reason to scroll the page to reveal it.
+  ime.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0;margin:0;resize:none;overflow:hidden;';
+  document.body.append(ime);
+  let keyboardWanted = false;
+  let composing = false;
+  const focusInput = () => (keyboardWanted ? ime : canvas).focus({ preventScroll: true });
+  softKeyboard = (show) => {
+    keyboardWanted = !!show;
+    if (!show) ime.blur();
+    focusInput();
+  };
+  // A named key, pressed and released, through the same path a real one takes.
+  const tap = (name) => {
+    for (const type of ['keydown', 'keyup']) {
+      key({ type, key: name, code: name, location: 0, timeStamp: performance.now(), preventDefault() {} });
+    }
+  };
+  const sendText = (text) => {
+    if (!text) return;
+    const lines = text.split(/\r\n|\r|\n/);
+    lines.forEach((line, i) => {
+      if (i) tap('Enter');
+      if (line) transfer(encoder.encode(line), (pointer, length) => swift.starling_text(pointer, length, performance.now()));
+    });
+  };
+  // A key the browser is composing with (keyCode 229, "Process",
+  // "Unidentified") is the input method's; its result arrives as text.
+  const imeOwns = (dom) => dom.isComposing || dom.keyCode === 229 || dom.key === 'Process' || dom.key === 'Unidentified';
+  ime.addEventListener('keydown', (dom) => { if (!imeOwns(dom)) key(dom); });
+  ime.addEventListener('keyup', (dom) => { if (!imeOwns(dom)) key(dom); });
+  ime.addEventListener('compositionstart', () => { composing = true; });
+  ime.addEventListener('compositionend', (dom) => {
+    composing = false;
+    sendText(dom.data ?? '');
+    ime.value = '';
+  });
+  ime.addEventListener('beforeinput', (dom) => {
+    if (dom.isComposing || composing) return;  // the input method's, until compositionend
+    switch (dom.inputType) {
+      case 'insertText': case 'insertReplacementText': case 'insertFromComposition':
+        sendText(dom.data ?? ''); break;
+      case 'insertFromPaste': case 'insertFromDrop':
+        sendText(dom.data ?? dom.dataTransfer?.getData('text/plain') ?? ''); break;
+      case 'insertLineBreak': case 'insertParagraph': tap('Enter'); break;
+      case 'deleteContentBackward': case 'deleteWordBackward': case 'deleteSoftLineBackward': tap('Backspace'); break;
+      case 'deleteContentForward': case 'deleteWordForward': case 'deleteSoftLineForward': tap('Delete'); break;
+      default: break;
+    }
+    dom.preventDefault();
+  });
+  ime.addEventListener('input', () => { if (!composing) ime.value = ''; });
+  // Focus follows the tap: a phone raises its keyboard only from a user
+  // gesture, so the field is focused here, inside the gesture, once the
+  // app has had the pointer event and asked.
+  canvas.addEventListener('pointerdown', focusInput);
+  canvas.addEventListener('pointerup', focusInput);
   canvas.focus();
   // Keys held while the tab loses focus never send an up; release them.
   window.addEventListener('blur', () => {

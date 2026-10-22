@@ -65,7 +65,7 @@ enum NumberFormat {
     /// repeated there to the cell's width. Nil for a format without one.
     /// Only painting asks: everywhere else the fill is nothing, as before.
     static func fillParts(_ v: CellValue, _ code: String, width: Int = 11, pads: Bool = false) -> (left: String, fill: Character, right: String)? {
-        guard code.contains("*") else { return nil }
+        guard code.contains("*" as Character) else { return nil }
         let marker: Character = "\u{1}"
         var out = "", fill: Character? = nil
         let chars = Array(code)

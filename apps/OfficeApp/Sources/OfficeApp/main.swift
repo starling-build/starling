@@ -157,6 +157,237 @@ if let i = CommandLine.arguments.firstIndex(of: "--layout"), i + 1 < CommandLine
     }
 }
 
+// The wiki's stored form (docs/plans/wiki.md): a document as JSON, lossless.
+//   --page-json <in.docx|rtf|md> <out.json>   read a file, write the page
+//   --page-docx <in.json> <out.docx>          write a page back as a file
+//   --page-roundtrip <in.docx|rtf|md>         read, encode, decode, compare;
+//                                             prints OK or the first difference
+// Paragraphs get ids on the way in (Word's own where the file had them).
+// A site from a repository (docs/plans/site.md): the folder GitHub Pages
+// serves, made from site.json, pages/*.json and the web build.
+//   --site-build <repo> [--out <dir>] [--web <stage>] [--base /path/]
+//   out defaults to <repo>/docs; web to STARLING_WEB_STAGE or the stage in
+//   the working directory; base to site.json's, else "/".
+if let i = CommandLine.arguments.firstIndex(of: "--site-build"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    let repo = CommandLine.arguments[i + 1]
+    do {
+        let summary = try SiteBuilder.build(repo: repo, out: option("--out") ?? repo + "/docs",
+                                            web: option("--web") ?? SiteBuilder.defaultWebStage(), base: option("--base"))
+        print("site-build: \(summary.pages) pages into \(summary.out) (base \(summary.base))")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-build failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+// Create a local publication; no network, commit, or remote configuration.
+if let i = CommandLine.arguments.firstIndex(of: "--site-create"), i + 2 < CommandLine.arguments.count {
+    do {
+        var source: String?
+        if let flag = CommandLine.arguments.firstIndex(of: "--from"), flag + 1 < CommandLine.arguments.count {
+            source = CommandLine.arguments[flag + 1]
+            initializeHeadlessText()
+        }
+        let path = try SiteCreation.create(title: CommandLine.arguments[i + 2], parent: CommandLine.arguments[i + 1], source: source)
+        print("Created local publication: \(path)\nOpen site.json in Writer. Nothing has been uploaded.")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-create failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+//   --site-publish <repo> [--out <dir>] [--web <stage>] [-m <message>]
+//   what the reader's Publish button runs: build into <repo>/<out> (docs),
+//   git add -A, commit, push.
+//   --site-import <repo> <file.docx|rtf|md> [--title T] [--under slug]
+//   a document as a new page of the site (paragraph ids assigned, page
+//   setup kept); prints the slug.
+if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    let file = CommandLine.arguments[i + 2]
+    do {
+        var opened = try OfficeFormats.read(file)
+        opened.document.assignParagraphIDs()
+        let title = option("--title") ?? file.lastPathComponent.deletingPathExtension
+        let page = SitePage(document: opened.document, pageSetup: opened.pageSetup)
+        let slug = try CommandLine.arguments.contains("--draft")
+            ? SiteUnpublishedDrafts.create(repo: CommandLine.arguments[i + 1], title: title, page: page)
+            : LocalSiteStore.addPage(repo: CommandLine.arguments[i + 1], title: title, page: page, under: option("--under"))
+        print(slug)
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-import failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+// Preview a revised source against an existing page; --apply saves locally.
+// Publishing is a separate operation. The page URL/tree/title stay unchanged.
+if let i = CommandLine.arguments.firstIndex(of: "--site-update"), i + 3 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let opened = try OfficeFormats.read(CommandLine.arguments[i + 3])
+        let revision = try LocalSiteStore.prepareUpdate(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2],
+            page: SitePage(document: opened.document, pageSetup: opened.pageSetup))
+        print(revision.summary)
+        if CommandLine.arguments.contains("--apply") {
+            try LocalSiteStore.applyUpdate(repo: CommandLine.arguments[i + 1], revision: revision)
+            let held = try SiteDrafts.load(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2]) != nil
+                || SiteUnpublishedDrafts.load(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2]) != nil
+            print(held ? "Updated the separate local draft. Include it in publication review when ready; publishing excludes these draft edits."
+                       : "Updated locally; page address unchanged. Publish when ready.")
+        } else { print("Preview only; no files changed. Use --apply to replace the page, including local edits.") }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-update failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+// --site-draft <repo> <slug> start|include|set-aside|restore [--out docs]
+// The same local draft choices as publication review; these actions do not upload.
+if let i = CommandLine.arguments.firstIndex(of: "--site-draft"), i + 3 < CommandLine.arguments.count {
+    do {
+        let repo = CommandLine.arguments[i + 1], slug = CommandLine.arguments[i + 2]
+        let out = CommandLine.arguments.firstIndex(of: "--out").flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil } ?? "docs"
+        switch CommandLine.arguments[i + 3] {
+        case "start":
+            try SiteDrafts.start(repo: repo, out: out, slug: slug)
+            print("Separate local draft started. Publishing keeps the previously uploaded document.")
+        case "include":
+            if let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) {
+                try SiteUnpublishedDrafts.include(repo: repo, expected: draft)
+            } else {
+                guard let draft = try SiteDrafts.load(repo: repo, slug: slug) else { throw SiteError("This page has no separate draft.") }
+                try SiteDrafts.include(repo: repo, expected: draft)
+            }
+            print("Saved draft included in the next publication. Nothing has been uploaded.")
+        case "set-aside", "restore":
+            guard let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) else {
+                throw SiteError("Choose an unpublished chapter. Revisions of uploaded pages cannot be set aside here.")
+            }
+            if CommandLine.arguments[i + 3] == "set-aside" {
+                try SiteUnpublishedDrafts.setAside(repo: repo, expected: draft)
+                print("Chapter set aside locally. Its title and document are retained for restoration; nothing has been uploaded.")
+            } else {
+                try SiteUnpublishedDrafts.restore(repo: repo, expected: draft)
+                print("Chapter restored as an unpublished draft. Include it explicitly when ready for readers.")
+            }
+        default: throw SiteError("Choose start, include, set-aside or restore.")
+        }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-draft failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+//   --site-move <repo> <slug> up|down   one place among its siblings
+if let i = CommandLine.arguments.firstIndex(of: "--site-move"), i + 3 < CommandLine.arguments.count {
+    do {
+        let moved = try LocalSiteStore.movePage(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2],
+                                                by: CommandLine.arguments[i + 3] == "up" ? -1 : 1)
+        print(moved ? "moved" : "already at the end")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-move failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+// Inspect local publishing evidence without accessing the network.
+if let i = CommandLine.arguments.firstIndex(of: "--site-status"), i + 1 < CommandLine.arguments.count {
+    let out = CommandLine.arguments.firstIndex(of: "--out").flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil } ?? "docs"
+    let status = SitePublicationState.status(repo: CommandLine.arguments[i + 1], out: out)
+    print("\(status.rawValue): \(status.message)")
+    exit(0)
+}
+if let i = CommandLine.arguments.firstIndex(of: "--site-publish"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    let r = LocalSiteStore.publishNow(repo: CommandLine.arguments[i + 1], out: option("--out") ?? "docs",
+                                      web: option("--web") ?? SiteBuilder.defaultWebStage(), message: option("-m") ?? "")
+    if let failure = r.failure {
+        FileHandle.standardError.write("site-publish failed: \(failure)\n".data(using: .utf8)!)
+        exit(1)
+    }
+    print("site-publish: \(r.summary)")
+    exit(0)
+}
+if let i = CommandLine.arguments.firstIndex(of: "--page-json"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        var opened = try OfficeFormats.read(CommandLine.arguments[i + 1])
+        opened.document.assignParagraphIDs()
+        try RichDocumentEnvelope.encode(opened.document, pageSetup: opened.pageSetup).write(to: URL(fileURLWithPath: CommandLine.arguments[i + 2]))
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("page-json failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+if let i = CommandLine.arguments.firstIndex(of: "--page-docx"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let envelope = try RichDocumentEnvelope.decodeEnvelope(try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1])))
+        if let setup = envelope.pageSetup { try OfficeFormats.write(envelope.document, to: CommandLine.arguments[i + 2], pageSetup: setup) }
+        else { try OfficeFormats.write(envelope.document, to: CommandLine.arguments[i + 2]) }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("page-docx failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+if let i = CommandLine.arguments.firstIndex(of: "--page-roundtrip"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        var doc = try OfficeFormats.read(CommandLine.arguments[i + 1]).document
+        doc.assignParagraphIDs()
+        let data = try RichDocumentEnvelope.encode(doc)
+        let back = try RichDocumentEnvelope.decode(data)
+        if back == doc {
+            print("OK \(doc.paragraphs.count) paragraphs \(data.count) bytes")
+            exit(0)
+        }
+        // Name the first thing that differs, so the fix is a grep away.
+        if back.paragraphs.count != doc.paragraphs.count {
+            print("DIFF paragraph count \(doc.paragraphs.count) -> \(back.paragraphs.count)")
+        } else if let k = zip(doc.paragraphs, back.paragraphs).enumerated().first(where: { $0.element.0 != $0.element.1 })?.offset {
+            let (a, b) = (doc.paragraphs[k], back.paragraphs[k])
+            var what = "paragraph \(k)"
+            if a.text != b.text { what += " text" }
+            if a.runs != b.runs { what += " runs" }
+            if a.style != b.style { what += " style" }
+            if a.image != b.image { what += " image" }
+            if a.cell != b.cell { what += " cell" }
+            if a.inlineImages != b.inlineImages { what += " inlineImages" }
+            print("DIFF \(what)")
+        } else {
+            var what = "document"
+            if doc.styles != back.styles { what += " styles" }
+            if doc.tableColumns != back.tableColumns { what += " tableColumns" }
+            if doc.tableStyles != back.tableStyles { what += " tableStyles" }
+            if doc.listFormats != back.listFormats { what += " listFormats" }
+            if doc.keptParts != back.keptParts { what += " keptParts" }
+            if doc.keptTables != back.keptTables { what += " keptTables" }
+            if doc.keptHeaderFooters != back.keptHeaderFooters { what += " keptHeaderFooters" }
+            print("DIFF \(what)")
+        }
+        exit(2)
+    } catch {
+        FileHandle.standardError.write("page-roundtrip failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--sheet-layout <file.xlsx|csv>`: the active sheet as the grid lays it out
 // (SheetLayoutDump) — the native half of test/sheets-layout.sh, which diffs
 // it against `starling.debug('sheet')` in the browser.
@@ -458,16 +689,47 @@ let initialKind: DocumentKind = CommandLine.arguments.contains("--slides") ? .pr
 ScriptedInput.startIfRequested()
 #endif
 
-runStarlingApp(title: initialKind.appName,
+// `--wiki <url>` opens the wiki at that server natively (docs/plans/wiki.md);
+// in a tab the server's shell page sets the route, `/s/<space>/p/<id>/…`.
+let wikiBase: String? = {
+    guard let i = CommandLine.arguments.firstIndex(of: "--wiki"), i + 1 < CommandLine.arguments.count else { return nil }
+    return CommandLine.arguments[i + 1]
+}()
+
+// `--site <dir>` opens a cloned site repository to read, edit and publish
+// (docs/plans/site.md); `--site <url>` reads a published one. In a tab the
+// built site's shell page passes `--site <base>`.
+let siteArg: String? = {
+    guard let i = CommandLine.arguments.firstIndex(of: "--site"), i + 1 < CommandLine.arguments.count else { return nil }
+    return CommandLine.arguments[i + 1]
+}()
+
+runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
     #if os(WASI)
     if WebPlatform.defaultRouteName.hasPrefix("/office-landing") {
         FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeLandingView(), title: "Starling Office")
+    } else if let siteArg {
+        SiteRoot(store: StaticSiteStore(base: siteArg), route: WebPlatform.defaultRouteName)
+    } else if WebPlatform.defaultRouteName.hasPrefix("/s/") || WebPlatform.defaultRouteName.hasPrefix("/login") || CommandLine.arguments.contains("--wiki") {
+        WikiRoot(base: "", route: WebPlatform.defaultRouteName)
     } else {
         OfficeRoot(initialPath: initialPath, kind: initialKind)
     }
     #else
-    OfficeRoot(initialPath: initialPath, kind: initialKind)
+    if let siteArg {
+        if siteArg.hasPrefix("http://") || siteArg.hasPrefix("https://") {
+            SiteRoot(store: StaticSiteStore(base: siteArg), route: "/")
+        } else {
+            SiteRoot(store: LocalSiteStore(repo: siteArg), route: "/")
+        }
+    } else if let wikiBase {
+        // The URL may name a page: the server part is the base, the rest the route.
+        WikiRoot(base: wikiBase.findRange(of: "/s/").map { String(wikiBase[..<$0.lowerBound]) } ?? wikiBase,
+                 route: wikiBase.findRange(of: "/s/").map { String(wikiBase[$0.lowerBound...]) } ?? "/")
+    } else {
+        OfficeRoot(initialPath: initialPath, kind: initialKind)
+    }
     #endif
 }
