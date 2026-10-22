@@ -6879,7 +6879,20 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   both put the short cell on that line. Before: 5.8/11.6pt low; after:
   baselines 524.46pt against Word's 524.40. Regression test fails before
   the change and passes after it. Full 577-document sweep: bug65649 now
-  matches all 6,674 reference lines (four misses fixed); 13 Chinese
+  matches all 6,674 reference lines (four misses fixed); 14 Chinese
   documents improve, none regress. All 111 POI physical page counts still
   match. All 445 Office tests and repository lint pass. Artifacts:
   `/tmp/starling-poi-fixes/split-cell`; comparisons in `sweep/comparison.json`.
+
+- **Textless POI files need image checks (2026-10-21).**
+  51921-Word-Crash067, 59378 and Bug62859 are blank in both PDFs.
+  headerPic and zero-length have the expected header images. The
+  issue_51265 samples have small horizontal offsets; issue_51265_3 also
+  pushes its body pictures down: y213.31 vs Word121.40. Removing the last
+  tab from its header in a lab reduces Writer's first body picture to
+  y124.40; removing all header tabs gives y121.51. The header's trailing
+  tab creates extra reserved height, and its other tabs shift the header
+  pictures about 28–30pt right. No fix yet. TestTableColumns also needs
+  border/position work. These nine samples remain N/A for line matching,
+  not 100% successes. PDFs/contact sheet: `/tmp/starling-poi-fixes`,
+  tab-isolation labs: `picture-header`.
