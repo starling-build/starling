@@ -60,6 +60,105 @@ final class SiteReleasePlanTests: XCTestCase {
         }
     }
 
+    func testWritingReserveSeparatesUnpublishedSetAsideAndIncludedDocuments() throws {
+        try fixture { repo in
+            let unpublished = try newDraft(repo) // Three saved words.
+            let empty = try SiteUnpublishedDrafts.create(repo: repo, title: "Untitled scene",
+                page: SitePage(document: RichDocument(), pageSetup: nil))
+            let parked = try SiteUnpublishedDrafts.create(repo: repo, title: "Alternate scene",
+                page: SitePage(document: RichDocument(paragraphs: [RichParagraph(text: "Another ending")]), pageSetup: nil))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: parked)))
+            let before = LocalSiteStore.git(["status", "--porcelain=v1", "--untracked-files=all"], in: repo).output
+            let snapshot = try review(repo)
+            let progress = SiteWritingProgress(review: snapshot)
+            XCTAssertEqual(progress.unpublished, .init(documents: 2, words: 3))
+            XCTAssertEqual(progress.held, .init(documents: 0, words: 0))
+            XCTAssertEqual(progress.setAside, .init(documents: 1, words: 2))
+            XCTAssertEqual(progress.included, .init(documents: 1, words: 0))
+            XCTAssertEqual(snapshot.wordCounts[unpublished], .init(saved: 3, included: nil, uploaded: nil))
+            XCTAssertEqual(snapshot.wordCounts[empty]?.saved, 0)
+            XCTAssertNil(snapshot.wordCounts["welcome"]?.uploaded) // Unknown is not an empty upload.
+            let plan = try SiteReleasePlan.load(repo: repo)
+            XCTAssertEqual(SiteReleasePlan.entries(review: snapshot, plan: plan).first { $0.slug == parked }?.words?.saved, 2)
+            XCTAssertEqual(before, LocalSiteStore.git(["status", "--porcelain=v1", "--untracked-files=all"], in: repo).output)
+
+            try SiteUnpublishedDrafts.include(repo: repo, expected: XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: unpublished)))
+            let included = SiteWritingProgress(review: try review(repo))
+            XCTAssertEqual(included.unpublished, .init(documents: 1, words: 0))
+            XCTAssertEqual(included.included, .init(documents: 2, words: 3))
+            XCTAssertEqual(SiteWritingProgress(review: snapshot).unpublished, progress.unpublished)
+        }
+    }
+
+    func testHeldRevisionCountsStaySeparateFromIncludedAndUploadedWords() throws {
+        try fixture { repo in
+            func content(_ text: String) throws -> Data {
+                try RichDocumentEnvelope.encode(RichDocument(paragraphs: [RichParagraph(text: text)]))
+            }
+            try content("Original chapter").write(to: SiteDrafts.sourceURL(repo: repo, slug: "welcome"))
+            try recordUpload(repo)
+            let receipt = try Data(contentsOf: SitePublicationState.receiptURL(repo: repo))
+            try SiteDrafts.start(repo: repo, out: "docs", slug: "welcome")
+            try SiteDrafts.save(content("Original chapter with a correction"), repo: repo, slug: "welcome")
+            let snapshot = try review(repo)
+            XCTAssertEqual(snapshot.wordCounts["welcome"], .init(saved: 5, included: 2, uploaded: 2))
+            let progress = SiteWritingProgress(review: snapshot)
+            XCTAssertEqual(progress.held, .init(documents: 1, words: 5))
+            XCTAssertEqual(progress.included, .init(documents: 1, words: 2))
+            XCTAssertEqual(progress.unpublished.documents, 0)
+            // Saving again does not change the already displayed snapshot.
+            try SiteDrafts.save(content("A shorter correction"), repo: repo, slug: "welcome")
+            XCTAssertEqual(snapshot.wordCounts["welcome"]?.saved, 5)
+            XCTAssertEqual(try review(repo).wordCounts["welcome"]?.saved, 3)
+            try SiteDrafts.include(repo: repo, expected: XCTUnwrap(SiteDrafts.load(repo: repo, slug: "welcome")))
+            let refreshed = try review(repo)
+            XCTAssertEqual(refreshed.wordCounts["welcome"], .init(saved: 3, included: 3, uploaded: 2))
+            XCTAssertEqual(SiteWritingProgress(review: refreshed).held.documents, 0)
+            XCTAssertEqual(try Data(contentsOf: SitePublicationState.receiptURL(repo: repo)), receipt)
+        }
+    }
+
+    func testWordCountsUseRecordedUploadIncludingRemovedPagesAndUnknownEvidence() throws {
+        try fixture { repo in
+            let slug = try newDraft(repo)
+            try SiteUnpublishedDrafts.include(repo: repo, expected: XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug)))
+            try recordUpload(repo)
+            try RichDocumentEnvelope.encode(RichDocument(paragraphs: [RichParagraph(text: "Revised final scene with more detail")]))
+                .write(to: SiteDrafts.sourceURL(repo: repo, slug: slug))
+            XCTAssertEqual(LocalSiteStore.git(["add", "."], in: repo).status, 0)
+            XCTAssertEqual(LocalSiteStore.git(["commit", "-qm", "Not uploaded"], in: repo).status, 0)
+            XCTAssertEqual(try review(repo).wordCounts[slug], .init(saved: 6, included: 6, uploaded: 3))
+            var config = try SiteBuilder.readConfig(repo)
+            config.pages.removeAll { $0.slug == slug }
+            try SiteBuilder.writeConfig(config, to: repo)
+            let removed = try review(repo)
+            XCTAssertEqual(removed.wordCounts[slug], .init(saved: nil, included: nil, uploaded: 3))
+            XCTAssertEqual(SiteWritingProgress(review: removed).included, .init(documents: 1, words: 0))
+            let plan = try SiteReleasePlan.save(repo: repo, slug: "welcome", date: "2026-11-01", expected: SiteReleasePlan.load(repo: repo))
+            XCTAssertEqual(SiteReleasePlan.entries(review: removed, plan: plan).first { $0.slug == slug }?.words?.uploaded, 3)
+            try FileManager.default.removeItem(at: SitePublicationState.receiptURL(repo: repo))
+            let unknown = try review(repo)
+            XCTAssertNil(unknown.wordCounts[slug])
+            XCTAssertNil(unknown.wordCounts["welcome"]?.uploaded)
+        }
+    }
+
+    func testChapterCountsUseWriterCountingRulesAndIgnoreNavigationTitles() throws {
+        try fixture { repo in
+            let document = RichDocument(paragraphs: [
+                RichParagraph(text: "one\ttwo\nthree"), RichParagraph(text: "你好 世界"), RichParagraph(text: "")
+            ])
+            XCTAssertEqual(document.wordCount, 7)
+            try RichDocumentEnvelope.encode(document).write(to: SiteDrafts.sourceURL(repo: repo, slug: "welcome"))
+            var config = try SiteBuilder.readConfig(repo)
+            config.pages[0].title = "A long navigation title that is not manuscript text"
+            try SiteBuilder.writeConfig(config, to: repo)
+            try recordUpload(repo)
+            XCTAssertEqual(try review(repo).wordCounts["welcome"], .init(saved: 7, included: 7, uploaded: 7))
+            XCTAssertEqual(SiteWritingProgress(review: try review(repo)).included.words, document.wordCount)
+        }
+    }
+
     func testDatesAreLocalAndDoNotChangeReleaseFilesOrUploadEvidence() throws {
         try fixture { repo in
             let revision = try recordUpload(repo)

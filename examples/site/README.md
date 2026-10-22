@@ -187,7 +187,17 @@ while the unfinished draft record remains. Never delete that record to bypass
 an error without first recovering the document.
 
 Open **Publish → Release plan** to see your chapters' next-publication choices
-alongside their last matching upload snapshot. Choose **Plan a date**, enter a
+alongside their last matching upload snapshot. **Writing in reserve** shows
+document and word totals for unpublished drafts, held revisions and chapters
+set aside, plus the pages included for publishing. Each chapter shows the saved,
+included and last-upload word counts that are available. Held revisions count
+the entire draft, including existing text; they do not represent new chapters
+or newly written words. Empty drafts count as documents with zero words.
+Counts use Writer's word counter and do not indicate readiness to release.
+Save in Writer, then **Refresh plan** to see updated counts; unsaved edits are
+excluded. A missing upload record is unknown, not an upload of zero words.
+
+Choose **Plan a date**, enter a
 calendar day as `YYYY-MM-DD`, then **Save planned date**. Dated chapters appear
 first in date order. **Change planned date** and **Clear date** update only this
 device's plan. A date stays with its chapter through renaming, setting aside,

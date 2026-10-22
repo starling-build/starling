@@ -36,6 +36,7 @@ struct SitePublishReview {
     let removed: [RemovedPage]
     let unpublished: [SiteUnpublishedDrafts.Draft]
     let setAside: [SiteUnpublishedDrafts.Draft]
+    let wordCounts: [String: SiteChapterWordCounts]
     let compared: Bool
     let settingsChanged: Bool
     var referenceCount: Int { pages.reduce(0) { $0 + $1.references.count } }
@@ -57,6 +58,7 @@ struct SitePublishReview {
         let current = SiteBuilder.manifest(from: config)
         let prior = baseline(repo: repo, out: out)
         let oldNodes = prior.map { Dictionary(uniqueKeysWithValues: $0.manifest.flattened().map { ($0.node.slug, $0.node) }) } ?? [:]
+        var wordCounts: [String: SiteChapterWordCounts] = [:]
         let pages = sources.map { source -> Page in
             let node = source.node
             let old = oldNodes[node.slug]
@@ -70,6 +72,8 @@ struct SitePublishReview {
             let uploaded = prior?.bytes[node.slug].flatMap { data in
                 data == source.data ? saved : SiteFiles.decodePage(data)
             }
+            wordCounts[node.slug] = SiteChapterWordCounts(saved: working?.document.wordCount,
+                included: saved?.document.wordCount, uploaded: uploaded?.document.wordCount)
             if prior == nil { change = .included }
             else if old == nil { change = .added }
             else if old?.title != node.title || prior?.bytes[node.slug] != source.data || previousRoute != route { change = .updated }
@@ -96,10 +100,19 @@ struct SitePublishReview {
             $0.config.pages != config.pages || $0.config.resolvedHome != config.resolvedHome || $0.config.details != config.details
         } ?? false
         let unpublished = try SiteUnpublishedDrafts.loadAll(repo: repo)
+        for draft in unpublished {
+            wordCounts[draft.slug] = SiteChapterWordCounts(
+                saved: SiteFiles.decodePage(draft.working)?.document.wordCount, included: nil, uploaded: nil)
+        }
+        for page in removed {
+            wordCounts[page.slug] = SiteChapterWordCounts(saved: nil, included: nil,
+                uploaded: prior?.bytes[page.slug].flatMap { SiteFiles.decodePage($0)?.document.wordCount })
+        }
         let reviewed = SiteReviewedPublication(input: input, context: context)
         try reviewed.validate(repo: repo, out: out, web: web)
         return Self(title: config.title, reviewedPublication: reviewed, website: config.url, uploadedRevision: prior?.revision, pages: pages, removed: removed,
                     unpublished: unpublished.filter { !$0.isSetAside }, setAside: unpublished.filter(\.isSetAside),
+                    wordCounts: wordCounts,
                     compared: prior != nil, settingsChanged: settingsChanged)
     }
 

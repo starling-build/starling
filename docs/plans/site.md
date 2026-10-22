@@ -1,6 +1,6 @@
 # A site from a repository
 
-**Current priority: the writer's journey (2026-10-21).** Judge the product by
+**Current priority: the writer's journey (2026-10-22).** Judge the product by
 whether an author can bring an existing manuscript, review it, edit it, share
 it, and revise it later. The default journey is **Word document or blank →
 local draft → reader preview → publish → update at the same link**. Hosting
@@ -40,6 +40,33 @@ existing editor before requiring migration. Advanced lore management,
 multi-platform automation and payment tiers remain later work, not prerequisites
 for this first release-management workflow. These interviews have not happened;
 the market discussion is a hypothesis, not demand evidence.
+
+**See writing in reserve (2026-10-22):** Release plan now shows saved document
+and word totals for active unpublished chapters, held revisions and chapters
+set aside, alongside the included website pages. Each chapter shows separate
+saved, included and last-upload word counts when those versions are available.
+Holding a revised chapter does not increase the unpublished chapter count;
+its full draft word count is not presented as newly written words. Including
+a draft moves it into the included totals without claiming an upload occurred.
+Removed pages retain their recorded upload count but leave the included totals.
+
+Counts use Writer's existing document word counter, including its East Asian
+character rules. Navigation titles are excluded. Empty drafts count as documents
+with zero words; no matching upload evidence remains unknown rather than zero.
+These are saved review snapshots: save in Writer and refresh the plan to see
+later edits. Reading the overview changes no source, release plan or upload
+receipt. It does not measure daily writing, editorial readiness or scheduled
+release coverage. No new storage format or publishing behavior is introduced.
+
+Validation: native macOS build passes. All 33 focused review, release-plan and
+reviewed-publication cases passed across the main run and one retry after a
+temporary disk-space failure. Four new cases cover reserve groups and inclusion,
+held/saved/included/uploaded versions, removed pages and missing receipts, and
+Writer's counting rules. The native walkthrough confirmed the reserve overview
+and chapter counts while scrolling: a held revision showed 15 saved words while
+its included and uploaded versions both stayed at six. This increment is native
+author code under `!os(WASI)`; browser, mobile, Linux/Windows and production
+hosting were not exercised.
 
 **Publish the reviewed version (2026-10-21):** Continue to publish now carries
 the exact saved publication shown in review into one native publishing attempt.

@@ -102,11 +102,20 @@ private final class _SiteReleasePlanState: State<StatefulWidget> {
                         Button(onPressed: busy ? nil : { [weak self] in self?.setState { self?.editing = nil; self?.notice = nil } }, child: Text("Cancel date edit")),
                      ])]
         } else if let review, let plan {
+            let progress = SiteWritingProgress(review: review)
             rows += [Chrome.vgap(24), Text(review.title, style: WikiAppearance.text(23, bold: true)),
                      Chrome.vgap(8), Text("Destination: Your website" + (review.website.map { " · " + $0 } ?? " · address not configured"), style: WikiAppearance.text(16)),
                      Chrome.vgap(6), Text("Audience: Public website. This app does not restrict chapters to subscribers or paid tiers.", style: WikiAppearance.text(14)),
                      Chrome.vgap(6), Text("Live deployment is not checked here. Use Check live website in the preview after uploading.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(6), Text("Dates stay on this device and remain until you change or clear them, including after an upload. Back up the whole publication folder, including its local history.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
+                     Chrome.vgap(20)]
+            rows += [Text("Writing in reserve", style: WikiAppearance.text(22, bold: true)), Chrome.vgap(10),
+                     Text("Unpublished drafts: " + progress.unpublished.summary, style: WikiAppearance.text(16)), Chrome.vgap(6),
+                     Text("Held revisions: " + progress.held.summary, style: WikiAppearance.text(16)), Chrome.vgap(6),
+                     Text("Set aside: " + progress.setAside.summary, style: WikiAppearance.text(16)), Chrome.vgap(10),
+                     Text("Included pages: " + progress.included.summary, style: WikiAppearance.text(16, bold: true)), Chrome.vgap(8),
+                     Text("Held revisions count the whole draft, including existing text. Counts use Writer’s word counter and do not mark a chapter ready to publish.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
+                     Chrome.vgap(6), Text("Save in Writer, then Refresh plan to update counts. Unsaved edits are not shown.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(20)]
             for entry in SiteReleasePlan.entries(review: review, plan: plan) {
                 let uploaded = entry.uploadedRevision.map { "Included in upload snapshot " + String($0.prefix(12)) }
@@ -125,15 +134,19 @@ private final class _SiteReleasePlanState: State<StatefulWidget> {
                 if entry.canPreview {
                     actions.append(Button(onPressed: busy ? nil : { [weak self] in self?.panel.onPreview(entry.slug, nil) }, child: Text("Preview saved chapter")))
                 }
+                var details: [Widget] = [
+                    Text(entry.title, style: WikiAppearance.text(19, bold: true)), Chrome.vgap(8),
+                    Text(entry.date.map { "Planned: " + $0 } ?? "No planned date", style: WikiAppearance.text(16, bold: true)), Chrome.vgap(6),
+                    Text(entry.nextPublication, style: WikiAppearance.text(15)), Chrome.vgap(6),
+                ]
+                if let words = entry.words { details += [Text(words.summary, style: WikiAppearance.text(15)), Chrome.vgap(6)] }
+                details += [
+                    Text(uploaded, style: WikiAppearance.text(14, color: WikiAppearance.muted)), Chrome.vgap(12),
+                    Wrap(spacing: 12, runSpacing: 8, children: actions),
+                ]
                 rows += [DecoratedBox(decoration: BoxDecoration(color: WikiAppearance.white, border: Border.all(color: WikiAppearance.line),
                             borderRadius: BorderRadius.circular(8)), child: Padding(padding: EdgeInsets(all: 16), child:
-                            Column(crossAxisAlignment: .stretch, children: [
-                                Text(entry.title, style: WikiAppearance.text(19, bold: true)), Chrome.vgap(8),
-                                Text(entry.date.map { "Planned: " + $0 } ?? "No planned date", style: WikiAppearance.text(16, bold: true)), Chrome.vgap(6),
-                                Text(entry.nextPublication, style: WikiAppearance.text(15)), Chrome.vgap(6),
-                                Text(uploaded, style: WikiAppearance.text(14, color: WikiAppearance.muted)), Chrome.vgap(12),
-                                Wrap(spacing: 12, runSpacing: 8, children: actions),
-                            ]))), Chrome.vgap(12)]
+                            Column(crossAxisAlignment: .stretch, children: details))), Chrome.vgap(12)]
             }
         }
         return ColoredBox(color: WikiAppearance.paper, child: Padding(padding: EdgeInsets(all: 28), child:

@@ -24,6 +24,7 @@ enum SiteReleasePlan {
         let date: String?
         let canPlan: Bool
         let canPreview: Bool
+        var words: SiteChapterWordCounts?
     }
 
     private static func validSlug(_ slug: String) -> Bool {
@@ -128,7 +129,11 @@ enum SiteReleasePlan {
         return entries.enumerated().sorted {
             let left = $0.element.date ?? "~", right = $1.element.date ?? "~"
             return left == right ? $0.offset < $1.offset : left < right
-        }.map(\.element)
+        }.map {
+            var entry = $0.element
+            entry.words = review.wordCounts[entry.slug]
+            return entry
+        }
     }
 }
 #endif
