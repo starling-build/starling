@@ -54,8 +54,8 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   Owner: starling-bd.
 - b. bug57031 p12: the two-line "Note:" row Word keeps whole, ours 1+1.
   Owner: starling-bd.
-- c. chartex 78.9%: sunburst drawn natively (T15). Owner: proposed
-  windows (T15's owner); unclaimed until they confirm.
+- c. chartex 78.9%: sunburst drawn natively (T15). Owner: session
+  01QbbApP (Windows box), claimed 2026-10-22.
 - d. TestTableColumns: borders and positions (visual, textless).
   Owner: proposed macOS-doc.
 - e. 60316: the header divider's relative height/vertical alignment.
