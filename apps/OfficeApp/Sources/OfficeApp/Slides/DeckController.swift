@@ -73,6 +73,7 @@ struct ShapeState: Equatable {
     var glowRadius: Double? = nil
     var glowColor: Color? = nil
     var softEdge: Double? = nil
+    var bevel: ShapeBevel? = nil
     var shapeInsets = EdgeInsets.zero
     /// A diagram shape turned a quarter whose text frame is turned back
     /// upright: that frame, and the text's own insets — drawn as a box of
@@ -1168,6 +1169,7 @@ final class DeckController: ChangeNotifier {
         st.glowRadius = s.glowRadius
         st.glowColor = s.glowColor
         st.softEdge = s.softEdge
+        st.bevel = s.bevel
         st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
         st.anchorCentred = s.anchorCentred
@@ -1276,6 +1278,7 @@ final class DeckController: ChangeNotifier {
         shape.glowRadius = st.glowRadius
         shape.glowColor = st.glowColor
         shape.softEdge = st.softEdge
+        shape.bevel = st.bevel
         shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
         shape.anchorCentred = st.anchorCentred

@@ -859,6 +859,12 @@ final class SlidePainter: CustomPainter {
             canvas.drawPath(around, p)
             canvas.restore()
         }
+        // (Not a dark-edged one: bnc862510_5's grey box and tdf145528's
+        // matrix print flat but for their own lines.)
+        if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
+           shape.picture == nil, shape.preset?.isOpenPath != true {
+            Self.paintBevel(bevel, path ?? { let q = Path(); q.addRect(area); return q }(), area, canvas, pxPerPt: px, fill: fill)
+        }
         if let line = shape.outline, !drawnAlready, let sh = shape.shadow, shape.fill == nil, shape.fillStyle == nil,
            shape.picture == nil {
             // An outline alone casts its own shadow, blurred: lineStyle's
@@ -1178,6 +1184,53 @@ final class SlidePainter: CustomPainter {
     /// the canvas is turned about the shape's centre, which a pattern
     /// (tiles laid from the slide's corner) undoes: PowerPoint keeps a
     /// turned shape's pattern square to the slide (tdf107608).
+    /// A top bevel over a shape's plain fill, as PowerPoint prints the
+    /// 2007 theme's intense effect (5 × 2 pt under a three-point light) on
+    /// 60810's diagram boxes: the face lifted 7%; a band of light a point
+    /// and a half inside the top edge that adds about 68 to every channel
+    /// (the yellow's blue 9 → 78, its green to full), fading out by the
+    /// bevel's width; the sides and foot darkened toward three quarters at
+    /// the edge, back within two or three points. A shallower bevel is
+    /// lit as much less as it is less steep: tdf155412's 15 × 3 pt bar
+    /// shows a pale facet, not a white one. Sized by the bevel's width,
+    /// whatever its rig.
+    static func paintBevel(_ b: ShapeBevel, _ outline: Path, _ box: Rect, _ canvas: any Canvas, pxPerPt px: Double, fill: Color) {
+        let w = min(b.width * px, min(box.width, box.height) / 2)
+        guard w > 0.25 * px else { return }
+        let k = min(1, b.height / b.width / 0.4)
+        func shade(_ f: (Int) -> Double) -> Color {
+            Color(rgbo: Int(max(0, min(255, f(fill.red))).rounded()), Int(max(0, min(255, f(fill.green))).rounded()),
+                  Int(max(0, min(255, f(fill.blue))).rounded()), Double(fill.alpha) / 255)
+        }
+        canvas.save()
+        canvas.clipPath(outline)
+        let lift = Paint()
+        lift.style = .fill
+        lift.color = shade { Double($0) * (1 + 0.07 * k) }
+        canvas.drawRect(box, lift)
+        let rim = Paint()
+        rim.style = .stroke
+        rim.isAntiAlias = true
+        rim.strokeWidth = 0.6 * w
+        rim.color = Color(rgbo: 0, 0, 0, 0.42 * k)
+        rim.maskFilter = MaskFilter(blur: .normal, 0.12 * w)
+        canvas.drawPath(outline, rim)
+        // (The light along the top: the outline stroked a little down,
+        // seen only in the band the bevel's width under the top.)
+        canvas.save()
+        canvas.clipRect(Rect.fromLTRB(box.left - w, box.top - w, box.right + w, box.top + w))
+        let light = Paint()
+        light.style = .stroke
+        light.isAntiAlias = true
+        light.strokeWidth = 0.5 * w
+        light.color = shade { Double($0) * (1 + 0.07 * k) + 68 * k }
+        light.maskFilter = MaskFilter(blur: .normal, 0.22 * w)
+        canvas.translate(0, 0.3 * w)
+        canvas.drawPath(outline, light)
+        canvas.restore()
+        canvas.restore()
+    }
+
     static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1,
                           turn: Double = 0) {
         if let overlay = fill.overlay {

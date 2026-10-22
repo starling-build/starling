@@ -1556,6 +1556,7 @@ private struct SlideContext {
             }
         }
         st.innerShadow = _shapeInnerShadow(spPr, style)
+        if st.scene3d == nil { st.bevel = _shapeBevel(spPr, style) }
         if let effects = spPr?.first("a:effectLst") {
             if let g = effects.first("a:glow"), let c = colors.color(in: g) {
                 st.glowRadius = (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu
@@ -2770,6 +2771,29 @@ private struct SlideContext {
     /// none — its style's theme effect (`effectRef`, the referred colour
     /// as `phClr`), as Office 2007's themes give every shape one.
     /// A shape's inner shadow, its own or its style's.
+    /// A shape's top bevel: its own `a:sp3d`, else its theme effect
+    /// style's (`effectRef`) — the Office 2007 theme's intense effect, a
+    /// 5 × 2 pt bevel under a three-point light. Nil for none, or one of
+    /// no width.
+    private func _shapeBevel(_ spPr: XNode?, _ style: XNode?) -> ShapeBevel? {
+        func read(_ sp3d: XNode?, _ scene: XNode?) -> ShapeBevel? {
+            guard let bev = sp3d?.first("a:bevelT") else { return nil }
+            let w = (bev["w"].flatMap(Double.init) ?? 76200) / Pptx.emu, h = (bev["h"].flatMap(Double.init) ?? 76200) / Pptx.emu
+            guard w > 0.1, h > 0 else { return nil }
+            var b = ShapeBevel(width: w, height: h)
+            if let rig = scene?.first("a:lightRig")?["rig"] { b.rig = rig }
+            if let m = sp3d?["prstMaterial"] { b.material = m }
+            return b
+        }
+        if let spPr, spPr.first("a:sp3d") != nil || spPr.first("a:scene3d") != nil {
+            return read(spPr.first("a:sp3d"), spPr.first("a:scene3d"))
+        }
+        guard let ref = style?.first("a:effectRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+              theme.effectStyles.indices.contains(idx - 1) else { return nil }
+        let effect = theme.effectStyles[idx - 1]
+        return read(effect.first("a:sp3d"), effect.first("a:scene3d"))
+    }
+
     private func _shapeInnerShadow(_ spPr: XNode?, _ style: XNode?) -> CharShadow? {
         func read(_ effects: XNode?, _ c: ColorContext) -> CharShadow? {
             guard let sh = effects?.first("a:innerShdw"), let color = c.color(in: sh) else { return nil }

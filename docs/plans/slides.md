@@ -2548,6 +2548,29 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A top bevel lit as PowerPoint lights the 2007 intense effect,
+2026-10-22** (sweep 252 against control sweep 251 at the same head:
+corpus mean 0.9208 → 0.9206; 60810 −0.07, tdf155412_typeface −0.03;
+none worse past lo-numfmt's rounding). Bevels (`sp3d bevelT`) were not
+drawn at all. 60810's slide 13 boxes (5 × 2 pt under `threePt`,
+measured at 8 px/pt in PowerPoint's print): the face lifted 7%, a band
+of light peaking 1.5 pt inside the top edge that adds about 68 to every
+channel (the yellow's 188 green to full, its 9 blue to 78) and is gone
+by 5 pt, and the sides and foot darkened to about 0.74 at the edge,
+back within two to three points. Now read (`ShapeBevel`: the shape's
+own `sp3d`, else its theme effect style's through `effectRef`) and
+drawn over a plain fill clipped to the outline (`paintBevel`): the
+face at 1.07, a dark rim (a blurred stroke), and the outline stroked a
+little down in the colour plus 68, seen only in the top band. Each
+scaled by the bevel's steepness against that one's (h/w over 0.4):
+tdf155412's 15 × 3 pt bar shows a pale facet in PowerPoint's print,
+and drawn at full strength it went +0.73. A colour dodge for the light
+whitened the teal bar (dodge overdoes bright colours where PowerPoint
+adds); computed colours drawn plainly stay vector in the PDF. Not
+drawn: gradient-filled shapes (bnc862510_5's green half-disc), and the
+dark-edge material (`dkEdge`), which bnc862510_5's grey box and
+tdf145528's matrix print flat (+0.06, +0.02 drawn; tdf148921 −0.08).
+
 **A titled pie stands further under its title, 2026-10-19** (the 19
 chart decks: pie-chart 1.34 → 1.03, no other moved; corpus mean 0.9214 →
 0.9208). pie-chart's pie is 262.5 pt across in PowerPoint's print, its

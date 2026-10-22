@@ -508,6 +508,9 @@ final class SlideShape {
     /// `a:softEdge`: the shape fades out over this many points inside its
     /// outline; nil for a hard edge.
     var softEdge: Double? = nil
+    /// `a:sp3d/a:bevelT` on a shape seen square on: its face lit as a
+    /// raised edge (`SlidePainter.paintBevel`); nil for none.
+    var bevel: ShapeBevel? = nil
     /// The part of `insets` that is the geometry's text rectangle (an
     /// oval's inscribed box, a chevron's notch): it stays when margins that
     /// follow the font shrink with it.
@@ -902,4 +905,14 @@ extension SlideLayoutKind {
             return []
         }
     }
+}
+
+/// A top bevel (`a:bevelT`): its width and height in points, the light
+/// rig it is lit by (`a:lightRig rig`) and the surface's material
+/// (`a:sp3d prstMaterial`).
+struct ShapeBevel: Hashable {
+    var width: Double
+    var height: Double
+    var rig = "threePt"
+    var material = "warmMatte"
 }
