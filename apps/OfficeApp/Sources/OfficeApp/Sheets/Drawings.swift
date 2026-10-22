@@ -205,7 +205,8 @@ enum SheetDrawingsXML {
                 dims?.first { $0["type"] == type }?.first("cx:f")?.text
             }
             let dims = (d?.all("cx:numDim") ?? []) + (d?.all("cx:strDim") ?? [])
-            return (ser.first("cx:tx")?.first("cx:txData")?.first("cx:f")?.text, f(dims, "cat"), f(dims, "val"))
+            // (A sunburst's or treemap's values are its sizes.)
+            return (ser.first("cx:tx")?.first("cx:txData")?.first("cx:f")?.text, f(dims, "cat"), f(dims, "val") ?? f(dims, "size"))
         }
     }
 
@@ -305,6 +306,28 @@ extension SheetChart {
         // A box-and-whisker chart's boxes from its cells: each series'
         // values grouped by the category beside each, the categories in
         // the order they first come.
+        // A sunburst's tree from its cells: a column to each level, top
+        // first; a level left blank under a name is still that name (the
+        // way its table is written, each parent once), and a row ends at
+        // its first blank after that (chart-sunburst's Best / First / A…).
+        if c.sunburst != nil, let ref = refs.first, let cf = ref.cat, let vf = ref.val,
+           let (si, range) = resolve(cf), let sizes = values(vf) {
+            let cells = engine.values(si, range, includeEmpty: true)
+            let width = range.right - range.left + 1
+            var paths: [[String]] = [], prev: [String] = []
+            for r in 0 ..< range.bottom - range.top + 1 {
+                let row = (0 ..< width).map { j in cells[safe: r * width + j].map(shown)?.trimmingWhitespace() ?? "" }
+                guard let first = row.firstIndex(where: { !$0.isEmpty }) else { paths.append([]); continue }
+                var path = Array(prev.prefix(first))
+                for name in row[first...] { if name.isEmpty { break }; path.append(name) }
+                paths.append(path)
+                prev = path
+            }
+            c.sunburst = ChartXML.sunburstTree(paths: paths, values: sizes.map { $0.number ?? 0 })
+            c.categories = c.sunburst?.map(\.name) ?? []
+            if !c.series.isEmpty { c.series[0].values = c.sunburst?.map(\.value) ?? [] }
+            return c
+        }
         if c.boxes != nil {
             var categories: [String] = []
             var grouped: [[String: [Double]]] = []

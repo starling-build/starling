@@ -720,7 +720,10 @@ enum ChartXML {
     /// to its first empty name, points under one name summed into one
     /// wedge (chartex's three branches of stems and leaves). Its names
     /// are its labels where `cx:dataLabels` shows them.
-    static func readSunburst(_ space: XNode) -> Chart? {
+    /// `allowEmpty`: a chart whose points are only in the sheet (no
+    /// cache: chart-sunburst.xlsx's `_xlchart` names), its tree to be
+    /// built from the cells (`sunburstTree`).
+    static func readSunburst(_ space: XNode, allowEmpty: Bool = false) -> Chart? {
         guard let chart = space.first("cx:chart"),
               let ser = chart.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series").first,
               ser["layoutId"] == "sunburst",
@@ -738,30 +741,18 @@ enum ChartXML {
         }
         let levels = (d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim"))?.all("cx:lvl").map(points) ?? []
         let sizes = points((d.all("cx:numDim").first { $0["type"] == "size" } ?? d.first("cx:numDim"))?.first("cx:lvl"))
-        func add(_ path: ArraySlice<String>, _ v: Double, to nodes: inout [Chart.SunburstNode]) {
-            guard let name = path.first else { return }
-            let i = nodes.firstIndex { $0.name == name } ?? nodes.count
-            if i == nodes.count { nodes.append(Chart.SunburstNode(name: name, color: i)) }
-            nodes[i].value += v
-            add(path.dropFirst(), v, to: &nodes[i].children)
-        }
-        var roots: [Chart.SunburstNode] = []
+        var paths: [[String]] = [], values: [Double] = []
         for (i, raw) in sizes.enumerated() {
-            guard let v = raw.flatMap({ Double($0.trimmingWhitespace()) }), v.isFinite, v > 0 else { continue }
+            guard let v = raw.flatMap({ Double($0.trimmingWhitespace()) }) else { continue }
             var path: [String] = []
             for lvl in levels.reversed() {
                 guard let name = lvl[safe: i] ?? nil, !name.isEmpty else { break }
                 path.append(name)
             }
-            add(path[...], v, to: &roots)
+            paths.append(path); values.append(v)
         }
-        guard !roots.isEmpty else { return nil }
-        // The larger first, as Word lays the wedges out (chartex's 258,
-        // 165, 154 clockwise from twelve); a tie in the file's order.
-        func sorted(_ nodes: [Chart.SunburstNode]) -> [Chart.SunburstNode] {
-            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && $0.offset < $1.offset) }
-                .map { var n = $0.element; n.children = sorted(n.children); return n }
-        }
+        let roots = sunburstTree(paths: paths, values: values)
+        guard !roots.isEmpty || allowEmpty else { return nil }
         var title: String? = nil
         if let t = chart.first("cx:title") {
             var runs: [String] = []
@@ -774,7 +765,7 @@ enum ChartXML {
         }
         var c = Chart(type: .pie, title: title, categories: roots.map(\.name),
                       series: [ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series1", values: roots.map(\.value))])
-        c.sunburst = sorted(roots)
+        c.sunburst = roots
         c.chartex = true
         c.legend = chart.first("cx:legend") != nil
         c.dataLabels = ser.first("cx:dataLabels").map { $0.first("cx:visibility")?["categoryName"] != "0" } ?? false
@@ -788,6 +779,28 @@ enum ChartXML {
     /// funnels, maps…).
     static func readChartex(_ space: XNode) -> Chart? {
         readBoxWhisker(space) ?? readClusteredColumn(space) ?? readWaterfall(space) ?? readFunnel(space) ?? readHistogram(space)
+            ?? readSunburst(space, allowEmpty: true)
+    }
+
+    /// A sunburst's tree: each point down its path of names, top level
+    /// first, each node the sum of the points under it; the larger first,
+    /// as Word lays the wedges out (chartex's 258, 165, 154 clockwise from
+    /// twelve), a tie in the file's order.
+    static func sunburstTree(paths: [[String]], values: [Double]) -> [Chart.SunburstNode] {
+        func add(_ path: ArraySlice<String>, _ v: Double, to nodes: inout [Chart.SunburstNode]) {
+            guard let name = path.first else { return }
+            let i = nodes.firstIndex { $0.name == name } ?? nodes.count
+            if i == nodes.count { nodes.append(Chart.SunburstNode(name: name, color: i)) }
+            nodes[i].value += v
+            add(path.dropFirst(), v, to: &nodes[i].children)
+        }
+        var roots: [Chart.SunburstNode] = []
+        for (path, v) in zip(paths, values) where v.isFinite && v > 0 { add(path[...], v, to: &roots) }
+        func sorted(_ nodes: [Chart.SunburstNode]) -> [Chart.SunburstNode] {
+            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && $0.offset < $1.offset) }
+                .map { var n = $0.element; n.children = sorted(n.children); return n }
+        }
+        return sorted(roots)
     }
 
     /// Excel 2016's histogram: clustered columns binned (`cx:binning`),
