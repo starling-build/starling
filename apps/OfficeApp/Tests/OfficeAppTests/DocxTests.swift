@@ -1801,7 +1801,7 @@ final class DocxTests: XCTestCase {
     /// The first line's width, in points, of `text` in 12pt 宋体 laid out
     /// `width` points wide, mode 14, compressing punctuation, set left.
     private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
-                                mode: Int = 14, letterSpacing: Double? = nil) throws -> Double {
+                                mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true) throws -> Double {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1826,7 +1826,7 @@ final class DocxTests: XCTestCase {
         if !hangs { p.style.eastAsian["w:overflowPunct"] = "0" }
         var doc = RichDocument(paragraphs: [p])
         doc.compatibilityMode = mode
-        doc.characterSpacingControl = "compressPunctuation"
+        doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
@@ -1974,6 +1974,20 @@ final class DocxTests: XCTestCase {
         probe.dispose()
         XCTAssertEqual(lines(text, raised: true, width: natural - 10), 1, "the brackets and the stop give: the number is no character")
         XCTAssertEqual(lines(text, raised: false, width: natural - 10), 2, "a plain \"2\" and its space are a word: the brackets give nothing")
+    }
+
+    func testANumberThatFitsMayPartAfterItsHyphenUnderEastAsianLayout() throws {
+        // zh-b58b4f0c (mode 12, doNotCompress): a cell line ends "…8年（104-"
+        // and the next opens "111年）計畫" in Word's print; zh-b2e0f286's
+        // "106-" / "109 年", zh-a917e13c's "《2018-" / "2020 年" (mode 15) —
+        // some seventy such lines in the corpus. Not before mode 15 where
+        // punctuation is compressed: zh-0104b952 (mode 14) keeps
+        // "0571-85455244" whole with room for "0571-".
+        try requireFitterWidths()
+        let text = String(repeating: "一", count: 12) + "（104-111年）計畫"
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 185, mode: 12, compresses: false), 170, "\"（104-\" ends the line")
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 185, mode: 15), 170, "from 2013's layout, compressing too")
+        XCTAssertLessThan(try firstLineWidth(text, width: 185, mode: 14), 150, "kept whole: mode 14, compressing")
     }
 
     func testAMarkInTextOfNoEastAsianLanguageGivesNothing() throws {

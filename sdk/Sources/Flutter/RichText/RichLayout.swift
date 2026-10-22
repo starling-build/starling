@@ -6546,6 +6546,7 @@ public final class RichLayout {
         let fullQuotes = theme.wordRules
         let loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
+            .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         let wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // The spaces Word sets half an em wide (UTF-16 offsets): every
         // run of them but one between two Latin characters — see
@@ -8706,6 +8707,8 @@ public final class RichLayout {
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
+          .union(_fittingWordHyphens(p, document, textWidth: width, named: _named(p, document),
+                                     pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
         let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
         if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
         probe.layout(minWidth: 0, maxWidth: 1)
@@ -9719,6 +9722,50 @@ public final class RichLayout {
     /// number whole with its sign, parted "9:00-9" / ":10". (A word
     /// that fits keeps its hyphen: zh-64044a1d's "0932-757839", lab
     /// `hy3`.)
+    /// Under East Asian layout, where a Latin word that fits the line may
+    /// part after a hyphen between a letter or digit and a digit: Word's
+    /// prints part "（104-" / "111年）" (zh-b58b4f0c), "106-" / "109 年"
+    /// (zh-b2e0f286), "《2018-" / "2020 年" (zh-a917e13c), "電話：02-" /
+    /// "87897530" (zh-e0ca7252) — some seventy such lines in the corpus. A
+    /// word wider than the line is parted where the line ends instead.
+    private func _fittingWordHyphens(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
+                                     named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
+        // (Not before 2013's layout in a document that compresses
+        // punctuation: there Word keeps "电话0571-85455244" (zh-0104b952,
+        // mode 14), "（GB12268-2012）" (zh-10eab555), "国贸路811-819号"
+        // (zh-15428325) and zh-64044a1d's phone numbers (mode 11) whole,
+        // with room for the first part; the prints that part are of
+        // mode 15, or of documents that compress nothing.)
+        let compresses = document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false
+        guard theme.wordRules, document.usesEastAsianLayout, textWidth > 1, !p.runs.isEmpty, p.text.utf16.contains(0x2D),
+              (document.compatibilityMode ?? 12) >= 15 || !compresses else { return [] }
+        let units = Array(p.text.utf16)
+        func parts(_ u: UInt16) -> Bool { u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
+        var out: Set<Int> = []
+        var k = 0
+        while k < units.count {
+            guard !parts(units[k]) else { k += 1; continue }
+            var end = k
+            while end < units.count, !parts(units[end]) { end += 1 }
+            let cuts = (k + 1 ..< end).filter { o in
+                units[o - 1] == 0x2D && units[o] >= 0x30 && units[o] <= 0x39 && o >= 2 && Self._isLatinWordUnit(units[o - 2])
+            }
+            if !cuts.isEmpty {
+                var at = 0
+                var run = p.runs[0].style
+                for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
+                let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let word = String(decoding: units[k ..< end], as: UTF16.self)
+                let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                if painter.width <= textWidth { out.formUnion(cuts) }
+                painter.dispose()
+            }
+            k = end
+        }
+        return out
+    }
+
     private func _wideWordHyphens(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
                                   named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
         guard theme.wordRules, textWidth > 1, !p.runs.isEmpty, p.text.utf16.contains(0x2D) else { return [] }

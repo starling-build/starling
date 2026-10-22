@@ -54,6 +54,21 @@ parts on page 16 (0-based), y -670: an answer paragraph after "ตอบ:"
 wraps a word earlier, and the drift adds a page. Likely a mark in a Thai
 (cs / x-none) run that no longer gives under T136's rule.
 
+### T145. A number that fits may part after its hyphen under East Asian layout — DONE (2026-10-22)
+Owner: none (Linux office1 01Ak4ibJ built it)
+Documents: zh-b58b4f0c (39.6%), zh-875759ff (34.9%).
+zh-b58b4f0c's cell "…8年(104-111年)計畫" ends a line "（104-" in Word's print, the next "111年）計畫"; ours kept
+"(104-111年)" whole (T-hy3 left East Asian layout out on zh-64044a1d's phone numbers alone). Word's prints part
+after a hyphen between a letter or digit and a digit some seventy times in the corpus — "106-" / "109 年",
+"《2018-" / "2020 年", "電話：02-" / "87897530", "GB 32100-" / "2015", "（2019-" / "2021 年）". Not in a document
+of mode below 15 that compresses punctuation: zh-0104b952 (mode 14) keeps "电话0571-85455244" whole with room for
+"0571-", zh-10eab555 "（GB12268-2012）", zh-15428325 "国贸路811-819号", zh-64044a1d (mode 11) its phone numbers —
+every print that parts is of mode 15 or of a document that compresses nothing. A word wider than the line is
+parted where the line ends, as before. (`_fittingWordHyphens`, in the span and the fitter.) Same-base sweep, 597
+documents: zh-875759ff 34.9 -> 99.2, zh-b58b4f0c 39.6 -> 99.8, zh-dd4c6e05 96.3 -> 100, zh-489ac253 99.0 -> 100,
+zh-344a8d08 25.5 -> 26.8, zh-b2e0f286 +0.7, four more +0.1-0.2; nothing down (the first try, every document,
+cost the three above 0.2-0.8).
+
 ### T143. POI gaps after n377 — split across sessions (2026-10-22)
 Coordinator: starling-bd (session 011uWpmCQYr9neyJ1V1gzrrb, Mac).
 Sweep n377 at afd9a7ac: text-bearing POI 98.7%, 111/111 page counts.
@@ -486,7 +501,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 ### Note from the Mac (2026-10-22): the zh corpus is 486 documents — a twenty-second sample
 Twenty more (`random.seed(20261105)` among the 160 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 84.7% (median 98.9). Its low ones,
-unclaimed: zh-2b21a9d4 32.8 (DONE Mac 01Xgpbk5 → 100: a page-anchored table whose row opens with a page break stands on the page the break opens, not over the page before), zh-20d0e98f 37.2 (13/14 pages), zh-b58b4f0c 37.8 (CLAIMED Linux office1 01Ak4ibJ 2026-10-22),
+unclaimed: zh-2b21a9d4 32.8 (DONE Mac 01Xgpbk5 → 100: a page-anchored table whose row opens with a page break stands on the page the break opens, not over the page before), zh-20d0e98f 37.2 (13/14 pages), zh-b58b4f0c 37.8 (T145, Linux office1 01Ak4ibJ: 99.8 now — a number that fits parts after its hyphen; released),
 zh-4feaa34c 41.3 (11/10 pages), zh-f2ca3070 65.2 (37 pages), zh-74b34f3b 92.6.
 
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
