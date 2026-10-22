@@ -51,15 +51,26 @@ Sweep n377 at afd9a7ac: text-bearing POI 98.7%, 111/111 page counts.
 Each item is claimed by editing its line below and pushing that alone.
 Word prints happen only on the Mac: ask before printing, one at a time.
 - a. delins 76.7%: balloon order for field-code/formatting changes.
-  Owner: starling-bd.
-- b. bug57031 p12: the two-line "Note:" row Word keeps whole, ours 1+1.
-  Owner: starling-bd.
+  Owner: none (starling-bd looked, released). Word's groups go F, FC, F
+  for the first three hyperlink paragraphs, then F, F, FC; ours F, FC, F
+  throughout (same 23 F and 10 FC). Office.md's 2026-10-21 labs say the
+  order depends on context beyond the paragraph itself.
+- b. bug57031: DONE (starling-bd). Its one missed line (p2's formula)
+  stands where Word's does to 0.5pt; PDFKit groups our math font's
+  glyphs with the line above. But its footer's right `w:ptab`, the line's
+  first tab, stopped at the centre stop: fixed (53e00211), x 281 -> 490.
 - c. chartex 78.9%: sunburst drawn natively (T15). Owner: session
   01QbbApP (Windows box), claimed 2026-10-22.
-- d. TestTableColumns: borders and positions (visual, textless).
-  Owner: proposed macOS-doc.
+- d. TestTableColumns: measured (starling-bd), nothing to build. Every
+  rule within 0.4pt of Word's (row pitch 14.25/14.79 vs 14.4/14.16). The
+  visible difference is colour: "auto" rules are our soft-black ink
+  0x1B1B1B (the app's screen text colour) where Word prints black.
 - e. 60316: the header divider's relative height/vertical alignment.
-  Owner: proposed macOS-doc.
+  Owner: starling-bd, 2026-10-22. A `prst="line"` connector in the
+  header: `wp14:sizeRelV` 105% of the margin height, `wp:align center`
+  from the page, line colour `schemeClr accent2`. Word: x 208.1, y
+  36.9..753.3 (box plus its 1.8pt bottom effect = 718.2 = 1.05 x 684,
+  centred on the page), grey; ours y 36..135, black.
 - f. drawing.docx p9: nested-table banner 5.4pt right (T142's autofit
   parent). Owner: Linux 017F2GnT (lenovo-2), 2026-10-22.
 - g. Near-100 (form_footnotes 97.7, bib-chernigovka 99.6, bug59058
@@ -76,6 +87,13 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   2.5pt left of Word's. A fix draws the box as a square object of that
   advance, not a character: only form_footnotes and checkboxes carry
   FORMCHECKBOX in the corpus. Not built; released.
+- h. form_footnotes' FORMCHECKBOX as a drawn 11.5pt box (from g).
+  Owner: none. A checkbox is a "☐" character in the model and the writer
+  saves every ☐ as a checkbox field, so drawing it as a box is a model
+  change for one line in one file; not started.
+- Test note: on starling-bd's checkout, AAATextSetupTests and
+  LineHeightTests' natural-height test fail with the change stashed too
+  (shipped fonts not found under XCTest); the other 453 pass.
 - 60329 12.6% is Word's clipped print of landscape content, not ours.
 
 ### T142. Nested-table sizing — fixed-parent fix landed; remaining work released
