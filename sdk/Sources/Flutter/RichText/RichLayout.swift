@@ -9033,7 +9033,16 @@ public final class RichLayout {
                     // colon at its half and the four automatic spaces
                     // between ideographs and Latin set at 2.3 of their
                     // 3.5 — the marks first, the spaces the rest.)
-                    let given = legacy || !inCell ? spaces + ownSpaces : []
+                    // (In a cell from 2013's layout, the automatic space just
+                    // before what is taken, and no other: zh-db07d44e (mode 15,
+                    // zh-TW 12pt) ends a cell line "…加(減)1分。" at its edge in
+                    // Word's print, the "，" and "。" at their halves and the
+                    // space between "1" and "分" 0.53 narrower — 12.53 of need;
+                    // zh-6e7ff836's "…(80分)比較，相" leaves "相" 6.39 over, its
+                    // comma's 6 short and the line's spaces not before it.
+                    // Every space of the line, as in the body, took it and
+                    // zh-12db188f's "…於83年7月", whose line weighed them.)
+                    let given = legacy || !inCell ? spaces + ownSpaces : spaces.filter { $0 == a - 1 }
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
                     // apart is 8.4 over where its em would be 7.8 over,

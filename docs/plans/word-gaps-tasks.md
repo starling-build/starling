@@ -3307,8 +3307,8 @@ regression for a document the line match scores 0 either way (its Arabic is read
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
 
-### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation)
-Owner: session starling-office1-df (Linux office1 01Ak4ibJ), from 2026-10-19 (released by starling-b2, measured), with zh-344a8d08's footnote 2 — both a mode-15 final mark
+### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation) — DONE for p30's line (2026-10-22)
+Owner: none (Linux office1 01Ak4ibJ built p30's line, 2026-10-22; released by starling-b2, measured)
 Documents: zh-db07d44e (33.8 → 36.8). 標楷體 12pt, jc both, cell 3545 twips: "範圍內每增(減)10%，加(減)1 分。" is one line
 in Word's print with "，" and "。" each 9pt, the ideographs 12 apart; ours keeps both at 12 and sends "分。" on. Many of
 its cells' lines are the same, and its rows part differently from p22 on.
@@ -3320,6 +3320,15 @@ the piece, but the two marks can give only 12.0 of the 12.53 and the painter the
 the 166.45 column (it starts at 380.9 as ours does), so Word hangs the closing "。" past the edge, with "，" at 9pt —
 ours has hang 0.0 here (a cell, overflowPunct). Also: on p30 ours carries two lines of the row above (a row parted
 elsewhere from p22 on, as noted), unrelated to this line.
+
+Built (Linux office1 01Ak4ibJ): Word's print sets the "，" and "。" at their halves (6 each, trimmed 3 a side, the
+text layer showing them at 9 apart) and the automatic space between "1" and "分" 0.53 narrower — the line is
+"…加(減)1分。", no typed space. Before, a cell's automatic spaces gave nothing from mode 15; now the one just before
+what is taken gives its half. Letting every space of the line give, as the body's do, took zh-db07d44e to 59.7 but
+took "相" in zh-6e7ff836's "…(80分)比較，相" (6.39 over, its comma 6, the spaces elsewhere) and weighed zh-12db188f's
+"…於83年7月" out (the share test counts given spaces as stretch) — so not that. Same-base sweep, 577 documents:
+zh-db07d44e 36.8 -> 41.6, zh-1b74ed91 99.3 -> 99.7; nothing else moved. What else of zh-db07d44e the wider rule
+fixed is open: its other cell lines, the spaces elsewhere on them.
 
 ### T139. A spaced ideograph at a line's end is over the margin by its em and half its spacing — DONE (2026-10-19)
 Owner: none (Linux office1 01Ak4ibJ built it, from the Mac 01Xgpbk5's measure)

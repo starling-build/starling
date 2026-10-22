@@ -1851,6 +1851,54 @@ final class DocxTests: XCTestCase {
                           "6.9 over so is past it")
     }
 
+    func testACellLineFromMode15TakesTheAutomaticSpaceBeforeWhatItTakes() throws {
+        // zh-db07d44e (mode 15, zh-TW 12pt): a cell line "…加(減)1分。" ends at
+        // the cell's edge in Word's print with "，" and "。" at their halves
+        // and the automatic space between "1" and "分" 0.53 narrower — 12.53
+        // of need, where the marks give 12. Here 12.75: taken with the space
+        // before "分" giving, not without it; nor where no space is before it.
+        try requireFitterWidths()
+        func lines(_ text: String, cellTwips: Int) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+                "<w:tbl><w:tblPr><w:tblW w:w=\"\(cellTwips)\" w:type=\"dxa\"/><w:tblLayout w:type=\"fixed\"/></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"\(cellTwips)\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"\(cellTwips)\" w:type=\"dxa\"/></w:tcPr>"
+                + "<w:p><w:pPr><w:jc w:val=\"both\"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:eastAsia=\"宋体\"/>"
+                + "<w:sz w:val=\"24\"/><w:lang w:eastAsia=\"zh-TW\"/></w:rPr><w:t>\(text)</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let settings = "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:characterSpacingControl w:val=\"compressPunctuation\"/>"
+                + "<w:compat><w:useFELayout/><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"15\"/></w:compat></w:settings>"
+            entries.removeAll { $0.name == "word/settings.xml" }
+            entries.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.pageSetup = opened.pageSetup ?? .a4
+            l.width = (opened.pageSetup ?? .a4).columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+            return l.geometry(i).painter.computeLineMetrics().count
+        }
+        // (The cell's margins and borders: 11.1pt in all.)
+        func twips(_ textWidth: Double) -> Int { Int(((textWidth + 11.1) * 20).rounded()) }
+        let text = "一二三四五，六七八1分。"
+        // Its natural width, one line in a wide cell: 11 of 12, "1" and the
+        // automatic spaces each side of it, 2.7 apiece.
+        XCTAssertEqual(try lines(text, cellTwips: 9000), 1)
+        let natural = 9 * 12.0 + 12 + 12 + 6 + 2 * 2.7
+        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 12.75)), 1, "the space before \"分\" gives the last 0.75 of its 1.35")
+        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 13.75)), 2, "past the marks and that space: 13.75")
+        XCTAssertEqual(try lines("一二三四五，六七八九分。", cellTwips: twips(9 * 12.0 + 12 + 12 + 12 - 12.75)), 2, "no space before it to give")
+    }
+
     func testAMarkInTextOfNoEastAsianLanguageGivesNothing() throws {
         try requireFitterWidths()
         // zh-0513f641 p5: its body style says `w:eastAsia` x-none, and Word
