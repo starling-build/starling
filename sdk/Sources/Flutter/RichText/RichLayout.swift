@@ -12268,9 +12268,23 @@ public final class RichLayout {
                             && piece.flowTop <= _tops[i] + 0.5 && lines == nil
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
+                        // (A cell's text past its row of exact height, where
+                        // nothing stands under the row on the page: Word draws
+                        // it on, down the page. zh-340d52e9's "其他里內公共區域
+                        // 認養之必要支出", five lines in a 48.8pt row that ends
+                        // page 5, runs to 791 in Word's print; ours cut it at
+                        // the row's foot.)
+                        let overflowsExactRow: Bool = {
+                            guard theme.wordRules, !shading, lines == nil, piece.part == .all, let c = _cells[i],
+                                  document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
+                                  piece.flowBottom < _tops[i] + _heights[i] - 0.5 else { return false }
+                            return !_pages[slot].contains { $0.pageY > piece.pageY + piece.height - 0.5 && _cells[$0.paragraph].map { $0.table != c.table || $0.row != c.row } ?? true }
+                        }()
                         if lines != nil || floats {
                             // Its own lines and no others: nothing to cut off above or below.
                             canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
+                        } else if overflowsExactRow {
+                            canvas.clipRect(Rect.fromLTRB(clipL, top + _baselineShift(i, document), clipR, pageRect(p).bottom))
                         } else if opensWithFloats {
                             canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + _baselineShift(i, document)))
                         } else {
