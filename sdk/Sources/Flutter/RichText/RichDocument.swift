@@ -611,6 +611,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// Custom tab stops (Word's w:tabs), kept through a save; the layout
     /// still uses the default tab width.
     public var tabStops: [TabStop] = []
+    /// Positional tabs (Word's w:ptab), by the paragraph's count of tabs
+    /// before them: each goes to its place on the margins (left, centre,
+    /// right), past whatever stops lie between.
+    public var positionalTabs: [Int: TabStop.Alignment] = [:]
     /// A tracked change to the paragraph mark itself: deleted, the
     /// paragraph joins the next once accepted (and Word prints nothing
     /// for a paragraph whose text and mark are both deleted).

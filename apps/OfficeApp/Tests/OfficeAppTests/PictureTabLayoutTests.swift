@@ -47,6 +47,30 @@ final class PictureTabLayoutTests: XCTestCase {
         return layout
     }
 
+    func testAPositionalTabGoesToTheMarginPastTheStopsBefore() throws {
+        // bug57031's footer: "name <right ptab> Page 2 of 14" under the
+        // Footer style's centre and right stops. The ptab is the line's
+        // first tab, and Word ends the text at the right margin, not
+        // centred on the centre stop.
+        var p = RichParagraph(text: "Left\tPage 2")
+        p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+        p.style.tabStops = [TabStop(position: 225, alignment: .center), TabStop(position: 450, alignment: .right)]
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let px = theme.pixelsPerPoint
+        func end(_ p: RichParagraph) -> Double {
+            let layout = RichLayout(theme: theme, paragraphCount: 1)
+            layout.width = 450 * px
+            layout.ensureLaidOut(RichDocument(paragraphs: [p]))
+            let painter = layout.geometry(0).painter
+            let n = painter.computeLineMetrics().isEmpty ? 0 : p.text.utf16.count
+            return (painter.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: n)).map(\.right).max() ?? 0) / px
+        }
+        XCTAssertLessThan(end(p), 400)   // an ordinary tab: centred on 225
+        p.style.positionalTabs = [0: .right]
+        XCTAssertEqual(end(p), 450, accuracy: 0.5)
+    }
+
     func testPicturePositionsFollowTheirTabStops() throws {
         let layout = layout(trailingTabs: 0)
         let boxes = try XCTUnwrap(layout.geometry(0).painter.inlinePlaceholderBoxes).filter { $0.bottom - $0.top > 1 }

@@ -3949,6 +3949,14 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(try part("word/styles.xml", of: RichDocument(paragraphs: [RichParagraph(text: "a")])).contains("w:styleId=\"Hyperlink\""))
     }
 
+    func testAPositionalTabIsReadByItsPlaceAmongTheTabs() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+        let body = "<w:p><w:r><w:t>A</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>B</w:t></w:r><w:r><w:ptab w:relativeTo=\"margin\" w:alignment=\"right\" w:leader=\"none\"/></w:r><w:r><w:t>C</w:t></w:r><w:r><w:ptab w:relativeTo=\"margin\" w:alignment=\"center\" w:leader=\"none\"/></w:r></w:p>"
+        let back = try DocxFormat.read(try patched(doc, part: "word/document.xml", from: "<w:p>", through: "</w:p>", with: body)).document
+        XCTAssertEqual(back.paragraphs[0].text, "A\tB\tC\t")
+        XCTAssertEqual(back.paragraphs[0].style.positionalTabs, [1: .right, 2: .center])
+    }
+
     func testFooterThePlainFormCannotSayIsKept() throws {
         // FancyFoot: one line of text, but ruled above, in the heading
         // face, with an alignment tab and an empty paragraph under it.

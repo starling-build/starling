@@ -6890,6 +6890,20 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   workaround was added; the same 23 formatting and ten field-code balloons
   are present in both outputs, but their placement still differs.
 
+- **A positional tab goes to its place on the margins (2026-10-22, T143).**
+  `w:ptab` (alignment left/center/right, relative to the margin) was a
+  plain tab, which the Header and Footer styles' centre and right stops
+  happened to place in seven POI files. bug57031's footer, "VDPAM
+  527_S. Azeem_HW13 <right ptab> Page 2 of 14", has the ptab as its first
+  tab, so the text centred on the 234pt stop (x 281) where Word's print
+  ends it at the margin (x 490). The reader now records each ptab by its
+  count among the paragraph's tabs (`positionalTabs`), and the tab layout
+  sends it to the column's left, middle or right past any stops between.
+  bug57031's footer is at x 490.0 on every page, as Word's; the seven
+  other ptab files (ThreeColHeadFoot and kin) are unchanged to 0.1pt.
+  Sweep n378 against n377: every score and page count unchanged (x is
+  not scored). Saved, a ptab still writes back as `w:tab`, as before.
+
 - **Short cells align within a split row's kept lines (2026-10-21).**
   A longer centred cell may have its initial cut moved to its text's top
   before splitting. That does not make it a continuation part. Testing

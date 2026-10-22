@@ -2984,6 +2984,7 @@ enum DocxFormat {
         var built: [_Built] = []
         var text = ""
         var runs: [Run] = []
+        var positionalTabs: [Int: TabStop.Alignment] = [:]
         var inlineImages: [String: ImageAttachment] = [:]
         var leadingBreak = false   // the paragraph opens with a page break
         var leadingColumnBreak = false   // ... and that break is a column break
@@ -3012,12 +3013,14 @@ enum DocxFormat {
                 }
                 para.inlineImages = inlineImages
             }
+            para.style.positionalTabs = positionalTabs
             para.normalize()
             para.bookmarks = notes.pendingBookmarks
             notes.pendingBookmarks = []
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
             text = ""
             runs = []
+            positionalTabs = [:]
             inlineImages = [:]
             style.pageBreakBefore = false
         }
@@ -3535,10 +3538,16 @@ enum DocxFormat {
                 case "w:delText": addText(child.text, cs)
                 case "w:tab": addText("\t", cs)
                 // A positional tab (a header's or footer's "right of the
-                // margin"): a tab, which the Header and Footer styles'
-                // centre and right stops place: bug57031's "Page 1 of 14"
-                // at the right margin. (It was dropped, and the text ran on.)
-                case "w:ptab": addText("\t", cs)
+                // margin"): a tab the layout sends to its place on the
+                // margins, whatever stops lie before it (bug57031's "Page
+                // 2 of 14", whose right ptab is the line's first tab).
+                case "w:ptab":
+                    let alignment: TabStop.Alignment = child["w:alignment"] == "right" ? .right
+                        : child["w:alignment"] == "center" ? .center : .left
+                    if child["w:relativeTo"] != "indent" {
+                        positionalTabs[text.utf16.filter { $0 == 0x09 }.count] = alignment
+                    }
+                    addText("\t", cs)
                 case "w:br" where child["w:type"] == "page" && cellResolve != nil:
                     // A page break in a table cell is nothing: zh-8112041b's
                     // form title opens its cell with two, and Word's print

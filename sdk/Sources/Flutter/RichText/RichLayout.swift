@@ -5555,7 +5555,9 @@ public final class RichLayout {
             var shift = 0.0
             var lastTab = 0
             var base: Double? = nil
+            var ordinal = -1
             for (t, u) in units.enumerated() where u == 0x09 {
+                ordinal += 1
                 // (A line break since the last tab: the line starts over.)
                 if units[lastTab ..< t].contains(where: { $0 == 0x0A || $0 == 0x2028 }) { shift = 0 }
                 if let w = wraps.last(where: { $0 > lastTab && $0 <= t }) { shift = 0; base = edge(w) }
@@ -5574,6 +5576,14 @@ public final class RichLayout {
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
                 if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil) }
                 if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
+                // (A positional tab goes to its place on the margins, past
+                // the stops between: bug57031's footer has "Page 2 of 14"
+                // after a right ptab that is its first tab, and Word ends it
+                // at the right margin, where the Footer style's centre stop
+                // took ours to the middle.)
+                if theme.wordRules, let a = style.positionalTabs[ordinal] {
+                    stop = (a == .right ? width : a == .center ? width / 2 : 0, a, nil)
+                }
                 // (A right or centred stop past the right indent sets what
                 // follows flush against it: zh-c2c92639's "toc 1" has its
                 // dotted right stop at 13948 twips, past the page, and Word
