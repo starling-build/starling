@@ -10049,6 +10049,12 @@ public final class RichLayout {
         // letter of the number after it: zh-b56eeded's "…總數)×" ends a
         // line before "100%" in Word's print.)
         if a == "\u{00D7}" { return b != " " }
+        // (And after a percent sign before an opening mark a number
+        // follows, which Unicode keeps together as one number's sign:
+        // zh-20d0e98f's cell ends a line "…）×100%" and opens the next
+        // "【107年：", where ours parted "100" from "%【107" and the
+        // cell grew a line.)
+        if a == "%" || a == "‰" { return _openingMarks.contains(b) }
         return false
     }
 
