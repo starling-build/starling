@@ -106,19 +106,29 @@ def same_start(a, b):
     names a glyph by the first character its font maps to it, and for 民,
     長 or 青 that is the radical (⺠, ⻑, ⻘) in some faces: a radical
     stands for whatever is opposite it."""
-    if len(a) < 4 or len(b) < 4:
-        return a[:4] == b[:4]
+    rtl = any(unicodedata.bidirectional(c) in ("R", "AL") for c in a + b)
 
     # (And U+0000 for anything: a glyph Word's print maps to no
     # character at all — zh-92373179's embedded FangSong_GB2312 gives its
     # 招 so, 213 times, and its 招标 lines read as other lines.)
     def alike(p, q):
-        return all(x == y or "\u2e80" <= x <= "\u2fdf" or "\u2e80" <= y <= "\u2fdf" or x == "\x00" or y == "\x00"
+        return all(x == y or "\u2e80" <= x <= "\u2fdf" or "\u2e80" <= y <= "\u2fdf"
+                   or (not rtl and (x == "\x00" or y == "\x00"))
                    for x, y in zip(p, q))
     # (Or end with the same four: a glyph a print's font gives no
     # character for is missing from its text, and a line that lost its
     # first character is still the same line.)
-    return alike(a[:4], b[:4]) or alike(a[-4:], b[-4:])
+    def edges(p, q):
+        if len(p) < 4 or len(q) < 4:
+            return p == q
+        return alike(p[:4], q[:4]) or alike(p[-4:], q[-4:])
+
+    # PDFKit reads Word's Arabic in visual order and Skia's in logical
+    # order. Compare reversed edges too for a bidi line; this is still
+    # the same four-character edge check, not a full-line equality test.
+    # Do not let unmapped glyphs stand for Arabic here: Geeza Pro's null
+    # text previously gave rtl.docx 71% despite different line breaks.
+    return edges(a, b) or (rtl and edges(a, b[::-1]))
 
 
 def main():

@@ -65,6 +65,13 @@ sizing and vertical alignment (visual, not a line-match miss).
 442 unit tests: only the known line-height failure; the transient Cocoa
 spelling failure did not recur. Next: T132's released Arabic-font task,
 use the requested complex-script face for explicitly right-to-left runs.
+Matcher correction measured independently on the original 577 PDFs:
+Arabic edges may be extracted in visual or logical order; null Arabic
+characters no longer match arbitrary letters. Only rtl's score changes
+(71.4 -> 0 on the broken baseline); all other 576 scores are unchanged.
+This is an oracle-reading correction, not a renderer improvement. Tests:
+`python3 test/docx-line-match-test.py` (also in test/run.sh).
+
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)
 

@@ -71,6 +71,9 @@ SWIFTC="${SWIFT}c"
 step "static checks"
 python3 "$REPO/test/lint.py" || fails=$((fails + 1))
 
+step "unit tests: Word line comparison"
+python3 "$REPO/test/docx-line-match-test.py" || fails=$((fails + 1))
+
 # The emulator core is plain C with no dependencies, so its conformance
 # suite (widths, grapheme clusters, joining rules, identity queries —
 # every case a once-live bug) compiles and runs in well under a second.
