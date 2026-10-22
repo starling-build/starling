@@ -461,6 +461,12 @@ something else.
 a58ab590: a cell's text past its exact row (page 5's 48.8pt "其他里內公共區域認養之必要支出" row, the page's last) now runs on down the page as in Word's print. Left: pages 6-9's repeated header row reads "地點明備註" in Word's print and "地點明" in ours (the reader grouping two cells by a hair), and page 6's lower half ("潔維護" against our "▓3.其他經區公所核可之"), not looked at.
 zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match Word's to 0.8pt, but PDFKit reads ours with text repeated ("查\n調" four times where "調查" stands once per row, "%%%%"); every glyph is drawn once (get_texttrace). Ours are Skia's Type3 fonts, FontMatrix [.001 0 0 -.001] and FontBBox like [35 105 965 -828], y running down, and PDFKit mis-groups them across rows; Word's embedded PMingLiU reads clean. The same repeats show in ~10 more of our PDFs (zh-e49d7943, zh-05315c2a, zh-57d7a0ea, zh-86aae09f…) and would in Preview's copy and paste too. A fix would be in the engine's Skia PDF backend (starling-engine), not here.
 
+### Note from the Mac (2026-10-22): the zh corpus is 486 documents — a twenty-second sample
+Twenty more (`random.seed(20261105)` among the 160 unprinted, 15 to 400 KB, drawn by
+docxcorp id, all printed), checked in. It starts at 84.7% (median 98.9). Its low ones,
+unclaimed: zh-2b21a9d4 32.8, zh-20d0e98f 37.2 (13/14 pages), zh-b58b4f0c 37.8,
+zh-4feaa34c 41.3 (11/10 pages), zh-f2ca3070 65.2 (37 pages), zh-74b34f3b 92.6.
+
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 71.5% (median 91.4). Its low ones, unclaimed:
