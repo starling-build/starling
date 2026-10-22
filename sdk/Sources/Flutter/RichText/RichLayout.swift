@@ -3617,7 +3617,14 @@ public final class RichLayout {
                 // both lines under it; zh-a4b0f6ea p20 has it 183.4pt down,
                 // its title above and "单位（盖章）：", whose 28pt line reached
                 // into it, under it. Ours set it in the flow, after both.
-                if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
+                // (Not before a break the row opens with: the table stands on
+                // the page that break opens. zh-2b21a9d4's form, 48.8pt down
+                // its page after a page-break paragraph, took page 2's last
+                // four lines under it onto page 3 and left page 2 blank.)
+                let rowBreaksPage = c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
+                    && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
+                    && (y > 0.01 || !_pages[page].isEmpty)
+                if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
                    let off = document.tableStyles[c.table]?.pageOffsetY {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
@@ -3658,6 +3665,18 @@ public final class RichLayout {
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
                    y > 0.01 || !_pages[page].isEmpty {
                     newPage()
+                    // (A table placed against the page, at its offset on the
+                    // page the break opened.)
+                    if theme.wordRules, c.row == 0, i == 0 || _cells[i - 1]?.table != c.table,
+                       let off = document.tableStyles[c.table]?.pageOffsetY {
+                        let physical = page / _columns
+                        let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                        let target = _px(off) - insetTop
+                        if target > y + 0.01, target < contentH - 0.01 {
+                            tableReturn = (c.table, y, page, target)
+                            y = target
+                        }
+                    }
                 }
                 // (At a page's top the table goes on: its header row
                 // again, and the cells merged down from above.)
