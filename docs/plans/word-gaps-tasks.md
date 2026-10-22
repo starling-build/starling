@@ -45,12 +45,12 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T142. Nested-table sizing — fixed-parent rule built; parent autofit remains
-Owner: Codex Mac, 2026-10-22
+### T142. Nested-table sizing — fixed-parent fix landed; remaining work released
+Owner: none — Codex Mac released remaining investigation, 2026-10-22
 Worktree: starling, branch office; baseline e0edc780.
 Word labs found and separated a fixed-parent bug: nested tables widened
 for oversized content and computed percentages from their saved grids.
-The fix keeps explicit child widths and resolves percentages against the
+3429a7ae keeps explicit child widths and resolves percentages against the
 parent's cell width. Nine Word lab cases match marker edges within 0.06pt;
 all seven lab pictures match bounds within 0.01pt. Three regressions added;
 454 Office tests and repository lint pass. Full 577-document sweep has
