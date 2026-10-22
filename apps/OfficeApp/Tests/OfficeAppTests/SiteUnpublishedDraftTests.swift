@@ -157,6 +157,147 @@ final class SiteUnpublishedDraftTests: XCTestCase {
         }
     }
 
+    func testSetAsideAndRestoreRetainTitleAndBytesWithoutReleaseChanges() throws {
+        try fixture { repo in
+            let config = try Data(contentsOf: URL(fileURLWithPath: repo + "/site.json"))
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Alternative ending", page: page("The captain survives."))
+            let original = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            XCTAssertEqual(original.version, 1) // Existing records remain readable.
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: original)
+            let kept = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            XCTAssertEqual(kept.version, 2)
+            XCTAssertTrue(kept.isSetAside)
+            XCTAssertNotEqual(kept.id, original.id)
+            XCTAssertEqual(kept.working, original.working)
+            XCTAssertEqual(kept.title, original.title)
+            XCTAssertNil(try SiteUnpublishedDrafts.authorManifest(repo: repo).node(slug))
+            let store = LocalSiteStore(repo: repo)
+            store.search { XCTAssertFalse((try? $0.get().contains { $0.slug == slug }) ?? true) }
+            let review = try SitePublishReview.load(repo: repo, out: "docs", web: nil)
+            XCTAssertTrue(review.unpublished.isEmpty)
+            XCTAssertEqual(review.setAside, [kept])
+            XCTAssertThrowsError(try SiteDrafts.workingSnapshot(repo: repo, slug: slug))
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.include(repo: repo, expected: kept))
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.rename(repo: repo, slug: slug, title: "Hidden edit"))
+            XCTAssertThrowsError(try SiteDrafts.save(original.working, repo: repo, slug: slug))
+            try SiteDrafts.validateUpload(repo: repo, out: "docs")
+            try SiteUnpublishedDrafts.restore(repo: repo, expected: kept)
+            let restored = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            XCTAssertFalse(restored.isSetAside)
+            XCTAssertNotEqual(restored.id, kept.id)
+            XCTAssertNotEqual(restored.id, original.id)
+            XCTAssertEqual(restored.working, original.working)
+            XCTAssertEqual(restored.title, original.title)
+            XCTAssertEqual(try SiteUnpublishedDrafts.authorManifest(repo: repo).node(slug), original.node)
+            XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: repo + "/site.json")), config)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: repo + "/pages/" + slug + ".json"))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: repo + "/docs"))
+        }
+    }
+
+    func testStaleReviewCannotSetAsideNewEditsOrRestoreAnotherSnapshot() throws {
+        try fixture { repo in
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("First"))
+            let before = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try SiteDrafts.save(RichDocumentEnvelope.encode(page("Second").document), repo: repo, slug: slug)
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.setAside(repo: repo, expected: before))
+            let latest = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: latest)
+            let aside = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.setAside(repo: repo, expected: latest))
+            try SiteUnpublishedDrafts.restore(repo: repo, expected: aside)
+            let restored = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: restored)
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.restore(repo: repo, expected: aside))
+            XCTAssertEqual(try SiteUnpublishedDrafts.load(repo: repo, slug: slug)?.working, latest.working)
+        }
+    }
+
+    func testOpenWriterAndImportCannotCrossSetAsideRestoreRoundTrip() throws {
+        try fixture { repo in
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("Original"))
+            let store = LocalSiteStore(repo: repo)
+            store.page(slug) { XCTAssertNotNil(try? $0.get()) }
+            let imported = try LocalSiteStore.prepareUpdate(repo: repo, slug: slug, page: page("Import"))
+            let original = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: original)
+            store.save(slug, page("Stale editor")) { XCTAssertNotNil($0) }
+            XCTAssertThrowsError(try LocalSiteStore.applyUpdate(repo: repo, revision: imported))
+            try SiteUnpublishedDrafts.restore(repo: repo, expected: XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug)))
+            store.save(slug, page("Still stale")) { XCTAssertNotNil($0) }
+            XCTAssertThrowsError(try LocalSiteStore.applyUpdate(repo: repo, revision: imported))
+            XCTAssertEqual(try SiteDrafts.workingData(repo: repo, slug: slug), original.working)
+            store.page(slug) { XCTAssertNotNil(try? $0.get()) }
+            store.save(slug, page("Reopened safely")) { XCTAssertNil($0) }
+        }
+    }
+
+    func testSetAsideAddressStaysReservedForDraftAndLegacyImports() throws {
+        try fixture { repo in
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("Kept"))
+            let original = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: original)
+            XCTAssertEqual(try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("New")), "next-2")
+            XCTAssertEqual(try LocalSiteStore.addPage(repo: repo, title: "Next", page: page("Legacy"), under: nil), "next-3")
+            XCTAssertEqual(try SiteUnpublishedDrafts.load(repo: repo, slug: slug)?.working, original.working)
+            try SiteUnpublishedDrafts.restore(repo: repo, expected: XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug)))
+            XCTAssertEqual(try SiteUnpublishedDrafts.authorManifest(repo: repo).node(slug)?.title, "Next")
+        }
+    }
+
+    func testPartialInclusionAndConflictingFilesCannotBeHiddenBySetAside() throws {
+        try fixture { repo in
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("Draft"))
+            let original = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            let source = try SiteDrafts.sourceURL(repo: repo, slug: slug)
+            try original.working.write(to: source)
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.setAside(repo: repo, expected: original))
+            XCTAssertEqual(try SiteUnpublishedDrafts.load(repo: repo, slug: slug), original)
+            try FileManager.default.removeItem(at: source)
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: original)
+            let kept = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try original.working.write(to: source)
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.restore(repo: repo, expected: kept))
+            XCTAssertThrowsError(try SiteBuilder.validatedSources(repo: repo, config: SiteBuilder.readConfig(repo), web: nil))
+            XCTAssertThrowsError(try SiteDrafts.validateUpload(repo: repo, out: "docs"))
+            XCTAssertEqual(try SiteUnpublishedDrafts.load(repo: repo, slug: slug), kept)
+        }
+    }
+
+    func testSetAsideHistoryStillBlocksUploadAndRestoration() throws {
+        try fixture { repo in
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Secret", page: page("Private ending"))
+            let original = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: original)
+            let kept = try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug))
+            try kept.working.write(to: SiteDrafts.sourceURL(repo: repo, slug: slug))
+            for args in [["config", "user.name", "Test"], ["config", "user.email", "test@example.test"],
+                         ["add", "."], ["commit", "-qm", "Accidental source"],
+                         ["rm", SiteFiles.pagePath(slug)], ["commit", "-qm", "Remove"]] {
+                XCTAssertEqual(LocalSiteStore.git(args, in: repo).status, 0)
+            }
+            XCTAssertThrowsError(try SiteDrafts.validateUpload(repo: repo, out: "docs"))
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.restore(repo: repo, expected: kept))
+            XCTAssertEqual(try SiteUnpublishedDrafts.load(repo: repo, slug: slug), kept)
+        }
+    }
+
+    func testMissingSetAsideStateInNewRecordVersionFailsClosed() throws {
+        try fixture { repo in
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("Kept"))
+            try SiteUnpublishedDrafts.setAside(repo: repo, expected: XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug)))
+            let path = URL(fileURLWithPath: repo + "/.git/starling-unpublished/" + slug + ".json")
+            let original = try Data(contentsOf: path)
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+            object.removeValue(forKey: "setAside")
+            try JSONSerialization.data(withJSONObject: object).write(to: path)
+            XCTAssertThrowsError(try SiteUnpublishedDrafts.loadAll(repo: repo))
+            XCTAssertThrowsError(try SiteDrafts.validateUpload(repo: repo, out: "docs"))
+            try original.write(to: path)
+            XCTAssertTrue(try XCTUnwrap(SiteUnpublishedDrafts.load(repo: repo, slug: slug)).isSetAside)
+        }
+    }
+
     func testCorruptAndSymlinkedRecordsBlockBuildAndUpload() throws {
         try fixture { repo in
             let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next", page: page("Secret"))

@@ -251,8 +251,8 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-update"), i + 3 < Comman
         exit(1)
     }
 }
-// --site-draft <repo> <slug> start|include [--out docs]
-// The same local release choice as publication review; neither action uploads.
+// --site-draft <repo> <slug> start|include|set-aside|restore [--out docs]
+// The same local draft choices as publication review; these actions do not upload.
 if let i = CommandLine.arguments.firstIndex(of: "--site-draft"), i + 3 < CommandLine.arguments.count {
     do {
         let repo = CommandLine.arguments[i + 1], slug = CommandLine.arguments[i + 2]
@@ -269,7 +269,18 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-draft"), i + 3 < Command
                 try SiteDrafts.include(repo: repo, expected: draft)
             }
             print("Saved draft included in the next publication. Nothing has been uploaded.")
-        default: throw SiteError("Choose start or include.")
+        case "set-aside", "restore":
+            guard let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) else {
+                throw SiteError("Choose an unpublished chapter. Revisions of uploaded pages cannot be set aside here.")
+            }
+            if CommandLine.arguments[i + 3] == "set-aside" {
+                try SiteUnpublishedDrafts.setAside(repo: repo, expected: draft)
+                print("Chapter set aside locally. Its title and document are retained for restoration; nothing has been uploaded.")
+            } else {
+                try SiteUnpublishedDrafts.restore(repo: repo, expected: draft)
+                print("Chapter restored as an unpublished draft. Include it explicitly when ready for readers.")
+            }
+        default: throw SiteError("Choose start, include, set-aside or restore.")
         }
         exit(0)
     } catch {

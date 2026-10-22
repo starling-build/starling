@@ -14,6 +14,8 @@ enum SiteUnpublishedDrafts {
         let slug: String
         var title: String
         var working: Data
+        var setAside: Bool? = nil
+        var isSetAside: Bool { setAside == true }
         var node: SiteNode { SiteNode(slug: slug, title: title) }
     }
 
@@ -38,7 +40,8 @@ enum SiteUnpublishedDrafts {
                 throw SiteError("Unexpected file in unpublished chapter storage. Recover it before publishing.")
             }
             let draft = try JSONDecoder().decode(Draft.self, from: Data(contentsOf: file))
-            guard draft.version == 1, UUID(uuidString: draft.id) != nil,
+            guard (draft.version == 1 || draft.version == 2),
+                  (draft.version == 1 ? draft.setAside == nil : draft.setAside != nil), UUID(uuidString: draft.id) != nil,
                   !draft.slug.isEmpty, draft.slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
                   file.lastPathComponent == draft.slug + ".json", !draft.title.trimmingWhitespace().isEmpty,
                   SiteFiles.decodePage(draft.working) != nil else {
@@ -55,7 +58,7 @@ enum SiteUnpublishedDrafts {
 
     static func authorManifest(repo: String) throws -> SiteManifest {
         var manifest = SiteBuilder.manifest(from: try SiteBuilder.readConfig(repo), base: "/")
-        for draft in try loadAll(repo: repo) {
+        for draft in try loadAll(repo: repo) where !draft.isSetAside {
             // An interrupted inclusion can already have inserted this node.
             if manifest.node(draft.slug) == nil { manifest.pages.append(draft.node) }
         }
@@ -88,6 +91,7 @@ enum SiteUnpublishedDrafts {
             let title = title.trimmingWhitespace()
             guard !title.isEmpty else { throw SiteError("Give this chapter a title.") }
             let taken = Set(try authorManifest(repo: repo).flattened().map { $0.node.slug.lowercased() })
+                .union(try loadAll(repo: repo).map { $0.slug.lowercased() })
                 .union(try SiteDrafts.loadAll(repo: repo).keys.map { $0.lowercased() })
                 .union(SiteBuilder.reservedSlugs(web: SiteBuilder.defaultWebStage()))
             let base = SiteFiles.slug(for: title)
@@ -107,6 +111,7 @@ enum SiteUnpublishedDrafts {
 
     /// Called under the shared cross-process draft lock.
     static func saveUnlocked(_ data: Data, repo: String, draft: Draft, expectedStorageID: String?) throws {
+        guard !draft.isSetAside else { throw SiteError("This chapter was set aside. Keep your edits open, restore the draft in publication review, then reopen it before saving.") }
         guard expectedStorageID == nil || expectedStorageID == draft.id else {
             throw SiteError("The draft's release choice changed in another window. Save a separate copy before reopening.")
         }
@@ -118,7 +123,7 @@ enum SiteUnpublishedDrafts {
 
     static func rename(repo: String, slug: String, title: String) throws {
         try SiteDrafts.mutate(repo: repo) {
-            guard var draft = try load(repo: repo, slug: slug), !title.trimmingWhitespace().isEmpty else {
+            guard var draft = try load(repo: repo, slug: slug), !draft.isSetAside, !title.trimmingWhitespace().isEmpty else {
                 throw SiteError("Choose an unpublished chapter and a nonempty title.")
             }
             draft.title = title.trimmingWhitespace()
@@ -126,10 +131,40 @@ enum SiteUnpublishedDrafts {
         }
     }
 
+    static func setAside(repo: String, expected: Draft) throws {
+        try changeAvailability(repo: repo, expected: expected, setAside: true)
+    }
+
+    static func restore(repo: String, expected: Draft) throws {
+        try changeAvailability(repo: repo, expected: expected, setAside: false)
+    }
+
+    /// A single atomic record replacement retains the complete document. Keep
+    /// the address reserved and privacy checks active while it is out of view.
+    private static func changeAvailability(repo: String, expected: Draft, setAside: Bool) throws {
+        try SiteDrafts.mutate(repo: repo) {
+            guard expected.isSetAside != setAside,
+                  try load(repo: repo, slug: expected.slug) == expected else {
+                throw SiteError("This chapter changed after review. Refresh review before changing its draft state.")
+            }
+            let slugs = Set(try SiteBuilder.manifest(from: SiteBuilder.readConfig(repo)).flattened().map(\.node.slug))
+            try validateSources(repo: repo, slugs: slugs)
+            guard try !hasHistory(repo: repo, slug: expected.slug) else {
+                throw SiteError("This chapter appears in Git history or the index. Resolve that history before setting aside or restoring it.")
+            }
+            // New identity rejects editors/imports opened before either action,
+            // including a round trip through set-aside and restore.
+            let updated = Draft(version: 2, id: UUID().uuidString, slug: expected.slug,
+                                title: expected.title, working: expected.working, setAside: setAside)
+            try write(updated, repo: repo)
+        }
+    }
+
     /// Retain the record until both release files are written. If interrupted,
     /// build/upload fail closed and the same reviewed snapshot can be retried.
     static func include(repo: String, expected: Draft) throws {
         try SiteDrafts.mutate(repo: repo) {
+            guard !expected.isSetAside else { throw SiteError("Restore this chapter as a draft before including it in publication.") }
             guard try load(repo: repo, slug: expected.slug) == expected else {
                 throw SiteError("The chapter changed after review. Refresh review before including it.")
             }

@@ -80,7 +80,10 @@ enum SiteDrafts {
     }
 
     static func workingSnapshot(repo: String, slug: String) throws -> (data: Data, storageID: String) {
-        if let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) { return (draft.working, draft.id) }
+        if let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) {
+            guard !draft.isSetAside else { throw SiteError("This chapter is set aside. Restore it as a draft in publication review before opening it.") }
+            return (draft.working, draft.id)
+        }
         if let draft = try load(repo: repo, slug: slug) { return (draft.working, draft.id) }
         return (try Data(contentsOf: sourceURL(repo: repo, slug: slug)), "release")
     }

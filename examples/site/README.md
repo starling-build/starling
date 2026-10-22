@@ -163,10 +163,24 @@ contents without uploading. You can then reorder it or choose it as home using
 Page options. Review the included pages and publish as a separate action.
 Inclusion is a release choice: there is currently no "uninclude" button.
 
+To keep an unfinished chapter for later, choose **Set aside** beside it in
+publication review. It leaves the working contents and search, but its complete
+title and document remain saved locally. Find it under **Set aside for later**
+and choose **Restore as draft** to resume writing. Restoring does not include it
+in the website; **Include chapter in next publication** and **Publish** are still
+separate actions. Neither setting aside nor restoring changes release files or
+uploads anything. This applies to unpublished chapters, not already included
+pages or held revisions of published chapters.
+
+If an editor or Word-update preview was open in another window during either
+action, keep any unsaved edits in a separate copy, then reopen the restored draft
+before saving. Setting aside is reversible retention, not permanent deletion or
+a history of every saved version.
+
 Never-published chapters use `.git/starling-unpublished/`, including their titles.
 They need the same whole-folder backup as held revisions. Publishing and cloning
 do not back them up. Draft titles/order for already included chapters, draft
-history, discard and scheduling remain future work. New drafts appear at the
+history, permanent deletion and scheduling remain future work. New drafts appear at the
 end of the author's contents in address order until included. If an inclusion
 is interrupted, publication review offers a retry; build/upload stay blocked
 while the unfinished draft record remains. Never delete that record to bypass
@@ -246,6 +260,8 @@ Page options contains Rename, Delete and Move up/down. Publish builds `docs/`, c
 message and pushes. From a terminal:
 
     OfficeApp --site-import <clone> manual.docx --title "Manual" --draft
+    OfficeApp --site-draft <clone> <slug> set-aside
+    OfficeApp --site-draft <clone> <slug> restore
     OfficeApp --site-draft <clone> <slug> include
     OfficeApp --site-update <clone> <slug> revised-manual.docx
     OfficeApp --site-update <clone> <slug> revised-manual.docx --apply
@@ -288,3 +304,6 @@ directory.
 `--site-import --draft` keeps a new chapter local. The legacy CLI import without
 `--draft` still adds a release page immediately; `--under` applies only to that
 legacy mode. Inclusion and saving do not upload anything.
+
+After setting aside or restoring a chapter, keep using this build or a newer
+one. Older builds reject the updated local draft record format.

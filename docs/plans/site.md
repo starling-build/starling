@@ -40,6 +40,47 @@ multi-platform automation and payment tiers remain later work, not prerequisites
 for this first release-management workflow. These interviews have not happened;
 the market discussion is a hypothesis, not demand evidence.
 
+**Set aside and restore unpublished chapters (2026-10-21):** Publication review
+now offers Set aside on an unpublished chapter. It disappears from the author's
+working contents and search while its complete title and document remain in
+local draft storage. Set aside for later lists these chapters with Restore as
+draft. Restoration returns an unpublished chapter; inclusion and upload remain
+separate choices. Returning from review after setting aside the current chapter
+opens the publication home and refreshes any active search instead of leaving a
+missing-page preview or stale search hit.
+
+Both operations atomically replace the local record under the shared draft lock
+and compare the complete reviewed snapshot. Each transition rotates its storage
+identity, so an editor or Word update opened before set-aside/restore cannot
+silently overwrite the restored draft. The address stays reserved for both new
+drafts and legacy imports. Build and upload checks continue inspecting all local
+records, including chapters set aside; release-file conflicts and staged or
+committed source cannot be hidden by this action. An interrupted inclusion must
+be resolved before setting its chapter aside.
+
+The record upgrades to version 2 when using these actions, with an explicit
+set-aside state. Version 1 active records remain readable; a version 2 record
+without its state is rejected. Older builds reject the new version instead of
+silently treating a chapter as active. No draft bytes are deleted, and no source,
+public navigation, output, upload receipt or remote is changed by either action.
+Whole-folder backups including Git metadata are still required. This applies
+to never-included chapters only: withdrawing included content, discarding held
+revisions, permanent deletion, draft-save history and multi-device sync remain
+separate work.
+
+Validation: 36 focused Swift cases pass (35 draft/review cases plus the final
+missing-state regression). They cover exact content retention, stale snapshots,
+stale editors/imports across a set-aside/restore round trip, reserved addresses,
+source conflicts and committed content. Native macOS and optimized WebAssembly
+builds pass. Native UI scripting verified setting aside the open chapter,
+refreshing its search results, falling back to home, restoring the exact saved
+chapter, and resuming editing in Writer without changing release files or the
+upload receipt. The scripted input driver does not exercise native IME/mobile
+input. The full site-build suite and all 33 publishing integration tests pass,
+including checks of every reachable remote blob for unpublished content and
+preservation of output and receipts when source/history guards block publishing.
+Production hosting and Linux/Windows builds were not exercised.
+
 **Write unpublished chapters (2026-10-21):** Native New draft and Add a Word
 draft now create local-only chapters, including their titles. A versioned record
 under Git metadata supplies an author-only manifest overlay; the public
@@ -69,8 +110,9 @@ release afterward. Draft mutations share the existing process/file lock.
 
 Storage is local to this checkout under `.git/starling-unpublished/`, with the
 same whole-folder backup requirement as held revisions. This is not encrypted
-storage, multi-device sync or a history of draft saves. Discard/restore, undoing
-inclusion, private reordering and scheduling remain open. No claim is made to
+storage, multi-device sync or a history of draft saves. The later set-aside
+workflow above retains and restores unpublished chapters. Undoing inclusion,
+private reordering, permanent deletion and scheduling remain open. No claim is made to
 hide text an author has copied into other tracked files or already uploaded.
 
 Validation: 47 distinct focused Swift tests pass across the main 45-case run

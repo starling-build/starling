@@ -181,6 +181,7 @@ final class LocalSiteStore: SiteStore {
     static func addPage(repo: String, title: String, page: SitePage, under parent: String?) throws -> String {
         var config = try SiteBuilder.readConfig(repo)
         let taken = Set(try SiteUnpublishedDrafts.authorManifest(repo: repo).flattened().map(\.node.slug))
+            .union(try SiteUnpublishedDrafts.loadAll(repo: repo).map(\.slug))
         var slug = SiteFiles.slug(for: title)
         var n = 2
         while taken.contains(slug) { slug = SiteFiles.slug(for: title) + "-\(n)"; n += 1 }
@@ -295,8 +296,10 @@ final class LocalSiteStore: SiteStore {
 
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) {
         do {
-            guard try SiteDrafts.load(repo: repo, slug: slug) == nil,
-                  try SiteUnpublishedDrafts.load(repo: repo, slug: slug) == nil else {
+            if try SiteUnpublishedDrafts.load(repo: repo, slug: slug) != nil {
+                done("Use Set aside in publication review to keep this unpublished chapter for later. You can restore it there without publishing."); return
+            }
+            guard try SiteDrafts.load(repo: repo, slug: slug) == nil else {
                 done("This page has a separate local draft. Include it in the saved publication before deleting the page."); return
             }
             var config = try SiteBuilder.readConfig(repo)

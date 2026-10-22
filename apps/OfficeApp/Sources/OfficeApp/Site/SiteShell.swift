@@ -386,7 +386,12 @@ final class SiteShellState: State<StatefulWidget> {
     private func _refreshManifest(then: @escaping () -> Void = {}) {
         store.manifest { [weak self] r in
             guard let self else { return }
-            if case .success(let m) = r { self.setState { self._manifest = m }; self._entries = nil; self._refreshPublicationStatus() }
+            if case .success(let m) = r {
+                self.setState { self._manifest = m }
+                self._entries = nil
+                self._search(self._searchField.text)
+                self._refreshPublicationStatus()
+            }
             then()
         }
     }
@@ -812,7 +817,10 @@ final class SiteShellState: State<StatefulWidget> {
                 guard let self else { return }
                 self.setState { self._reviewOpen = false; self._publishOpen = false }
                 self._refreshManifest { [weak self] in
-                    if let self, let slug = self._slug { self._load(slug, push: false) }
+                    if let self, let manifest = self._manifest {
+                        let slug = self._slug ?? manifest.home
+                        self._load(manifest.node(slug) == nil ? manifest.home : slug, push: false)
+                    }
                 }
             }, onContinue: { [weak self] in
                 guard let self else { return }
@@ -824,7 +832,10 @@ final class SiteShellState: State<StatefulWidget> {
                     }
                 }
                 self._refreshManifest { [weak self] in
-                    if let self, let slug = self._slug { self._load(slug, push: false) }
+                    if let self, let manifest = self._manifest {
+                        let slug = self._slug ?? manifest.home
+                        self._load(manifest.node(slug) == nil ? manifest.home : slug, push: false)
+                    }
                 }
             }, onPreview: { [weak self] slug, paragraphID in
                 guard let self else { return }

@@ -37,7 +37,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         let worker = Thread { [weak self] in
             let result = Result { try SitePublishReview.load(repo: store.repo, out: store.out, web: store.webStage) }
             let recovery: [SiteUnpublishedDrafts.Draft]
-            if case .failure = result { recovery = (try? SiteUnpublishedDrafts.loadAll(repo: store.repo)) ?? [] }
+            if case .failure = result { recovery = ((try? SiteUnpublishedDrafts.loadAll(repo: store.repo)) ?? []).filter { !$0.isSetAside } }
             else { recovery = [] }
             DispatchQueue.main.async {
                 guard let self, self.mounted else { return }
@@ -55,13 +55,17 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         worker.start()
     }
 
-    private func changeDraft(slug: String, include: SiteDrafts.Draft? = nil, unpublished: SiteUnpublishedDrafts.Draft? = nil) {
+    private func changeDraft(slug: String, include: SiteDrafts.Draft? = nil, unpublished: SiteUnpublishedDrafts.Draft? = nil, availability: SiteUnpublishedDrafts.Draft? = nil) {
         guard !busy else { return }
         let store = panel.store
         setState { busy = true; error = nil }
         let worker = Thread { [weak self] in
             let result = Result {
-                if let unpublished { try SiteUnpublishedDrafts.include(repo: store.repo, expected: unpublished) }
+                if let availability {
+                    if availability.isSetAside { try SiteUnpublishedDrafts.restore(repo: store.repo, expected: availability) }
+                    else { try SiteUnpublishedDrafts.setAside(repo: store.repo, expected: availability) }
+                }
+                else if let unpublished { try SiteUnpublishedDrafts.include(repo: store.repo, expected: unpublished) }
                 else if let include { try SiteDrafts.include(repo: store.repo, expected: include) }
                 else { try SiteDrafts.start(repo: store.repo, out: store.out, slug: slug) }
             }
@@ -131,7 +135,18 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                              Wrap(spacing: 12, runSpacing: 8, children: [
                                  Button(onPressed: busy ? nil : { [weak self] in self?.panel.onPreview(draft.slug, nil) }, child: Text("Preview local draft")),
                                  Button(onPressed: busy ? nil : { [weak self] in self?.changeDraft(slug: draft.slug, unpublished: draft) }, child: Text("Include chapter in next publication")),
+                                 Button(onPressed: busy ? nil : { [weak self] in self?.changeDraft(slug: draft.slug, availability: draft) }, child: Text("Set aside")),
                              ]), Chrome.vgap(20)]
+                }
+            }
+            if !review.setAside.isEmpty {
+                rows += [Text("Set aside for later · \(review.setAside.count)", style: WikiAppearance.text(21, bold: true)),
+                         Chrome.vgap(8), Text("These chapters are kept on this device, outside your working contents and publication. Restore a chapter as an unpublished draft to read, edit or include it.", style: WikiAppearance.text(14)), Chrome.vgap(12)]
+                for draft in review.setAside {
+                    rows += [Text(draft.title, style: WikiAppearance.text(18, bold: true)), Chrome.vgap(8),
+                             Button(onPressed: busy ? nil : { [weak self] in
+                                 self?.changeDraft(slug: draft.slug, availability: draft)
+                             }, child: Text("Restore as draft")), Chrome.vgap(20)]
                 }
             }
             rows += [Text("Included pages", style: WikiAppearance.text(21, bold: true)), Chrome.vgap(12)]

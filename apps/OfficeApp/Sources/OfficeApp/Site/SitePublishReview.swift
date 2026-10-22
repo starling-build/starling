@@ -31,6 +31,7 @@ struct SitePublishReview {
     let pages: [Page]
     let removed: [RemovedPage]
     let unpublished: [SiteUnpublishedDrafts.Draft]
+    let setAside: [SiteUnpublishedDrafts.Draft]
     let compared: Bool
     let settingsChanged: Bool
     var referenceCount: Int { pages.reduce(0) { $0 + $1.references.count } }
@@ -88,7 +89,10 @@ struct SitePublishReview {
             $0.config.url != config.url || $0.config.repository != config.repository ||
             $0.config.pages != config.pages || $0.config.resolvedHome != config.resolvedHome || $0.config.details != config.details
         } ?? false
-        return Self(title: config.title, pages: pages, removed: removed, unpublished: try SiteUnpublishedDrafts.loadAll(repo: repo), compared: prior != nil, settingsChanged: settingsChanged)
+        let unpublished = try SiteUnpublishedDrafts.loadAll(repo: repo)
+        return Self(title: config.title, pages: pages, removed: removed,
+                    unpublished: unpublished.filter { !$0.isSetAside }, setAside: unpublished.filter(\.isSetAside),
+                    compared: prior != nil, settingsChanged: settingsChanged)
     }
 
     private struct Baseline {
