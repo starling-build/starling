@@ -59,8 +59,9 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   stands where Word's does to 0.5pt; PDFKit groups our math font's
   glyphs with the line above. But its footer's right `w:ptab`, the line's
   first tab, stopped at the centre stop: fixed (53e00211), x 281 -> 490.
-- c. chartex 78.9%: sunburst drawn natively (T15). Owner: session
-  01QbbApP (Windows box), claimed 2026-10-22.
+- c. chartex 78.9%: sunburst drawn natively (T15). DONE 2026-10-22
+  (session 01QbbApP, Windows box): chartex 77.8 -> 100. Sheets'
+  chart-sunburst.xlsx passed to starling-office-2.
 - d. TestTableColumns: measured (starling-bd), nothing to build. Every
   rule within 0.4pt of Word's (row pitch 14.25/14.79 vs 14.4/14.16). The
   visible difference is colour: "auto" rules are our soft-black ink
@@ -2310,7 +2311,7 @@ zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
   the deletion balloon 11pt low (delins 45 -> 37 lines of 60); reverted.
 - chartex's sunburst: Word sets its labels turned along the radius and
   wrapped mid-word ("Branc" / "h 1"), and leaves the small segments
-  unlabelled. Not built.
+  unlabelled. Built 2026-10-22 (T143c, see office.md).
 - zh-6cd1befe p49-50 (99.5%): body text wraps round the footer's framed
   page number. The footer is a `w:framePr` "— 49 —" (wrap around, vAnchor
   text, 11.75pt above the footer's empty paragraph, x 451pt). On page 49
