@@ -5748,6 +5748,17 @@ fitter dropped the paragraph's tail).
   757839", set "0932-75783" / "9" in Word's narrow cells) fell 99.3 ->
   93.8. zh-15f60bac 67.5 -> 97.8, zh-81aa310b +1.0, zh-5251dd23 +0.5;
   nothing lower.
+- **A picture on a paragraph's last line keeps to the grid
+  (2026-10-22).** A line holding a picture on a line grid is as many
+  pitches as it takes — where the picture is alone in its line, or on the
+  first of several. Not yet where it follows the text: zh-e49d7943's
+  title "…演習編組表" has its 660.55pt picture after it in the same
+  paragraph, on page 15 alone in Word's print, its line 37 18pt pitches
+  (666); with the footer's 17.15pt YaHei line raising the page's foot to
+  782.35 (lab `e49`, Windows), the empty paragraph and the next table's
+  title row run past it to page 16. Ours, the picture's own 660.7, kept
+  that row on page 15. The rest of the line goes under the picture.
+  zh-e49d7943 77.4 -> 82.4; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

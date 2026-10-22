@@ -6327,6 +6327,23 @@ public final class RichLayout {
                 _inkShift[i] += max(0, snapped - first - descent)
                 bodyHeight += snapped - first
             }
+        } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil && $0.baseline == nil }),
+                  style.lineHeightPoints == nil || style.lineHeightIsMinimum, !_offGrid(i, document),
+                  let pitch = _grid(i, document).pitch, pitch > 0,
+                  case let lines = painter.computeLineMetrics(), lines.count > 1, let last = lines.last,
+                  let box = painter.inlinePlaceholderBoxes?.last, box.top >= lines.dropLast().reduce(0, { $0 + $1.height }) - 0.5,
+                  last.height > _px(pitch) * 2 {
+            // (… and a picture on the last line of several, below the text
+            // before it: its line too is as many pitches as it takes, the
+            // rest left under it. zh-e49d7943's title "…演習編組表" has its
+            // 660.55pt picture after it in the same paragraph, on page 15
+            // alone in Word's print, its line 37 18pt pitches — 666 — and
+            // the empty paragraph and the next table's title row after it
+            // run past the foot to page 16; ours, the picture's own
+            // 660.7, kept that row on page 15.)
+            let px = _px(pitch)
+            let snapped = (last.height / px - 0.002).rounded(.up) * px
+            if snapped > last.height + 0.01 { bodyHeight += snapped - last.height }
         } else if theme.wordRules, inLine, style.lineHeightPoints == nil, _grid(i, document).pitch == nil,
                   case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001 {
             // Off the grid, a multiple on a picture's line adds what it
