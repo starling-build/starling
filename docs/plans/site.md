@@ -1034,6 +1034,12 @@ those files instead of rendering in the tab — instant where the in-tab
 PDF of a 24-page document took 15 s. The manifest says `exports: true`;
 over a clone the buttons still render locally.
 
+**Decision, 2026-10-22 (the user):** the HTML text view stays and may
+be visible — shown while the interactive reader opens, kept with "Read
+text" or `?reader=text`, and the fallback when the runtime fails. The
+no-HTML rule now means the Writer draws the page as the primary view and
+the text view is the alternative, never the layout.
+
 **The text view and #p= links (2026-10-22):** the text view that stands
 in before the interactive reader opens stayed on screen for every `#p=`
 link — the browser's jump to the anchor counted as the reader's scrolling
