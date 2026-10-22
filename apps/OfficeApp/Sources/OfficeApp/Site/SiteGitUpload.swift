@@ -11,6 +11,8 @@ import Glibc
 /// One attempt owns one control. Cancellation never touches the saved files.
 final class SitePublishControl {
     #if !os(WASI)
+    let reviewedPublication: SiteReviewedPublication?
+    init(reviewedPublication: SiteReviewedPublication? = nil) { self.reviewedPublication = reviewedPublication }
     private let lock = NSLock()
     private var requested = false
     func cancel() { lock.lock(); requested = true; lock.unlock() }
@@ -31,8 +33,8 @@ enum SiteGitUpload {
     }
     static let defaultTimeout: TimeInterval = 300
 
-    static func push(repo: String, revision: String, target: String, control: SitePublishControl) -> Result {
-        run(arguments: ["/usr/bin/env", "git", "-C", repo, "push", "--", "origin", revision + ":" + target],
+    static func push(repo: String, revision: String, target: String, destination: String = "origin", control: SitePublishControl) -> Result {
+        run(arguments: ["/usr/bin/env", "git", "-C", repo, "push", "--", destination, revision + ":" + target],
             environment: ProcessInfo.processInfo.environment.merging(["GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"]) { _, value in value },
             timeout: defaultTimeout, control: control)
     }

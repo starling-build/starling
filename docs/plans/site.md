@@ -41,6 +41,53 @@ multi-platform automation and payment tiers remain later work, not prerequisites
 for this first release-management workflow. These interviews have not happened;
 the market discussion is a hypothesis, not demand evidence.
 
+**Publish the reviewed version (2026-10-21):** Continue to publish now carries
+the exact saved publication shown in review into one native publishing attempt.
+Review shows the website address and publishing branch. Changes to included
+documents, titles, navigation, publication details, source files, local HEAD,
+branch, destination or output selection require another review. Private draft
+writing and planned dates do not invalidate an unchanged included publication.
+After hosting setup or a retry, the native flow returns to review before upload.
+
+The builder captures its configuration and documents once, then produces reading
+pages, search, Word and PDF exports from those bytes. It no longer reopens each
+document during rendering. Standalone builds and CLI publishing use the same
+capture; the CLI captures at invocation rather than requiring an interactive
+review. Publication source uses regular files; symbolic links are rejected.
+
+Publishing checks the reviewed input before building, before saving history and
+before upload. It compares raw source bytes with the index and committed tree,
+checks the prepared publication paths against the saved commit, and verifies
+that the commit has the expected parent and no changes outside publication
+paths. This catches concurrent saves and Git hooks that replace the prepared
+content or add unrelated files. Failed checks do not reset local writing or
+rewrite history: a prepared build or local commit may remain, but the remote and
+upload receipt are unchanged. If a hook inserted unintended content into local
+history, inspect and recover that history before a later upload. Clean filters
+that transform source bytes must also be resolved before proceeding.
+The capture includes configured pages and other source files Git would upload;
+ignored, untracked scratch files are excluded. Already tracked files stay in
+the review checks even when a later ignore rule matches them.
+
+Upload pins both the commit and the resolved destination. If origin changes
+during the transfer, a successful upload is reported as sent with local setup
+needing attention; the old receipt is retained rather than describing the new
+origin. A successful upload still needs the separate live-website check.
+This is review of included author content, not a sandbox for Git hooks or an
+audit of earlier repository history and web-runtime assets.
+
+Validation: native macOS and optimized WebAssembly builds pass. All 26 focused
+Swift tests pass, including ten new snapshot/publishing cases. These exercise
+stale content/settings/history, immutable build inputs, private drafts, ignored
+scratch files, commit-hook changes, preserved receipts and successful re-review.
+The full site-build check and all 36 publishing integration tests pass, including
+commit-hook source changes and destination changes during upload.
+A native scripted walkthrough saved a new title after review, observed the
+blocked upload with unchanged output/receipt/remote, refreshed review, and sent
+the reviewed revision to an isolated local bare repository. The unpublished
+chapter stayed local. No production hosting, mobile/IME or Linux/Windows builds
+were exercised.
+
 **Plan chapter releases (2026-10-21):** Publication review now opens Release plan.
 The overview combines unpublished chapters, included pages, held next drafts,
 chapters set aside and pending removals. It shows the configured website and

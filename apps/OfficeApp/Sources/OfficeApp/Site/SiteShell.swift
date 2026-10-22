@@ -63,6 +63,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _publicationCheck = 0
     #if !os(WASI)
     private var _reviewOpen = false
+    private var _reviewedPublication: SiteReviewedPublication?
     private var _detailsOpen = false
     private var _liveCheck = 0
     private var _checkingLive = false
@@ -699,6 +700,7 @@ final class SiteShellState: State<StatefulWidget> {
         setState {
             _publishOpen = true
             #if !os(WASI)
+            _reviewedPublication = nil
             _reviewOpen = store is LocalSiteStore
             #endif
         }
@@ -707,9 +709,18 @@ final class SiteShellState: State<StatefulWidget> {
     private func _publish() {
         guard !_publishing else { return }
         #if !os(WASI)
+        if store is LocalSiteStore, _reviewedPublication == nil {
+            setState { _reviewOpen = true; _publishOpen = true }
+            return
+        }
+        let control = SitePublishControl(reviewedPublication: _reviewedPublication)
+        // Each attempt consumes the review. Retrying after a local commit or a
+        // setup change returns to review instead of silently accepting new files.
+        _reviewedPublication = nil
         _clearLiveCheck()
-        #endif
+        #else
         let control = SitePublishControl()
+        #endif
         setState { _publishControl = control; _stoppingUpload = false; _publishing = true; _publishIssue = nil; _publishStage = .checking; _status = _publishStage.message }
         store.publish(message: _publishMessage.text, progress: { [weak self] stage in
             guard let self, self.mounted, self._publishing else { return }
@@ -808,7 +819,11 @@ final class SiteShellState: State<StatefulWidget> {
         if _hostingOpen, let local = store as? LocalSiteStore {
             return SiteHostingPanel(store: local, onClose: { [weak self] in
                 guard let self else { return }
-                self.setState { self._hostingOpen = false }
+                self.setState {
+                    self._hostingOpen = false
+                    self._reviewedPublication = nil
+                    if self._publishOpen { self._reviewOpen = true }
+                }
                 self._refreshManifest()
             })
         }
@@ -822,10 +837,12 @@ final class SiteShellState: State<StatefulWidget> {
                         self._load(manifest.node(slug) == nil ? manifest.home : slug, push: false)
                     }
                 }
-            }, onContinue: { [weak self] in
+            }, onContinue: { [weak self] reviewed in
                 guard let self else { return }
                 self.setState {
                     self._reviewOpen = false; self._publishOpen = true
+                    self._reviewedPublication = reviewed
+                    self._publishIssue = nil
                     if let config = try? SiteBuilder.readConfig(local.repo),
                        (config.repository ?? "").trimmingWhitespace().isEmpty || (config.url ?? "").trimmingWhitespace().isEmpty {
                         self._hostingOpen = true

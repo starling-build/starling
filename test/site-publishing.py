@@ -613,6 +613,47 @@ class PublishingTests(unittest.TestCase):
         self.run_app('--site-publish', self.repo, '--web', STAGE)
         self.assertIn('The next chapter', (self.out / slug / 'index.html').read_text())
 
+    def test_commit_hook_source_change_is_kept_locally_but_never_uploaded(self):
+        import shlex
+        remote = self.setup_remote()
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        receipt = (self.repo / '.git/starling-publish.json').read_bytes()
+        before = subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'HEAD'])
+        changed = self.root / 'changed.json'
+        changed.write_bytes((self.repo / 'pages/manual.json').read_bytes().replace(b'About', b'Unreviewed hook change'))
+        hook = self.repo / '.git/hooks/pre-commit'
+        hook.write_text('#!/bin/sh\ncp ' + shlex.quote(str(changed)) + ' pages/manual.json\ngit add pages/manual.json\n')
+        hook.chmod(0o755)
+        result = self.run_app('--site-publish', self.repo, '--web', STAGE, ok=False)
+        self.assertIn('Review the publication again', result)
+        self.assertIn('Nothing was uploaded', result)
+        self.assertEqual((self.repo / 'pages/manual.json').read_bytes(), changed.read_bytes())
+        self.assertIn('Unreviewed hook change', self.git('show', 'HEAD:pages/manual.json'))
+        self.assertEqual((self.repo / '.git/starling-publish.json').read_bytes(), receipt)
+        self.assertEqual(subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'HEAD']), before)
+        hook.unlink()
+        # A new invocation reviews/captures the now-visible source and can send it.
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        self.assertIn('Unreviewed hook change', (self.out / 'manual/index.html').read_text())
+
+    def test_changed_origin_during_push_keeps_original_destination_and_old_receipt(self):
+        import shlex
+        remote = self.setup_remote()
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        receipt = (self.repo / '.git/starling-publish.json').read_bytes()
+        before = subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'HEAD'])
+        other = self.root / 'other.git'
+        subprocess.run(['git', 'init', '--bare', '-q', str(other)], check=True)
+        hook = self.repo / '.git/hooks/pre-push'
+        hook.write_text('#!/bin/sh\ngit remote set-url origin ' + shlex.quote(str(other)) + '\n')
+        hook.chmod(0o755)
+        result = self.run_app('--site-publish', self.repo, '--web', STAGE, ok=False)
+        self.assertIn('upload succeeded', result)
+        self.assertIn('destination changed', result)
+        self.assertEqual((self.repo / '.git/starling-publish.json').read_bytes(), receipt)
+        self.assertNotEqual(subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'HEAD']), before)
+        self.assertEqual(subprocess.check_output(['git', '--git-dir', str(other), 'for-each-ref']), b'')
+
     def test_release_dates_stay_local_and_never_schedule_or_delay_publication(self):
         remote = self.setup_remote()
         marker = 'PLANNED-PRIVATE-' + str(uuid.uuid4())

@@ -217,6 +217,22 @@ what the web text view can follow, including missing bookmarks and links to
 source files. They do not check whether an external website is online and do
 not prevent publishing.
 
+**Continue to publish** keeps the saved version you just reviewed for that
+attempt. Review shows the website address and publishing branch. If an included
+chapter, title, contents order, publishing setting or local history changes,
+publishing stops with **Review publication again**. Your saved writing remains
+intact. Refresh the review, check the new version, then continue. Editing a
+separate unpublished draft or its planned date does not change the included
+publication. After hosting setup or a failed attempt, review again before retrying.
+
+The website and its Word/PDF downloads are built from one captured set of
+documents. If publishing stops after preparing files or creating a local history
+entry, those local results remain; the upload record is only updated after a
+successful transfer. A Git hook or clean filter that changes the prepared source
+can stop publishing. Inspect those changes and any resulting local commit before
+retrying, especially if a hook added unintended files to history. Source files
+must be regular files rather than symbolic links.
+
 Publishing includes the release pages and their Word/PDF downloads. Unpublished
 chapters and held draft revisions stay local until explicitly included.
 A public hosting repository also exposes committed source files and history.

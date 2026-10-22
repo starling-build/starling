@@ -19,13 +19,14 @@ enum SitePublishStage {
 /// Recovery guidance is independent of Git's raw output, which can contain
 /// credentials, server-provided text, or internal paths.
 struct SitePublishIssue {
-    enum Kind { case setup, local, authentication, connection, remoteChanges, rejected, unconfirmed, sent, cancelled, timedOut }
+    enum Kind { case setup, local, review, authentication, connection, remoteChanges, rejected, unconfirmed, sent, cancelled, timedOut }
     let kind: Kind
     let title: String
     let guidance: String
     var message: String { title + " " + guidance }
     var retryTitle: String {
         switch kind {
+        case .review: return "Review publication again"
         case .remoteChanges: return "Publish after resolving changes"
         case .sent: return "Publish"
         default: return "Try publishing again"
@@ -40,6 +41,9 @@ struct SitePublishIssue {
     }
     static func local(_ detail: String) -> Self {
         .init(kind: .local, title: "The publication could not be prepared.", guidance: detail + " Nothing was uploaded. Your saved writing is still on this device.")
+    }
+    static func review(_ detail: String) -> Self {
+        .init(kind: .review, title: "Review the publication again.", guidance: detail + " Nothing was uploaded. Your saved writing and any local history entry have been kept.")
     }
     static func sent(_ detail: String) -> Self {
         .init(kind: .sent, title: "Sent to hosting; local setup needs attention.", guidance: detail + " The upload succeeded, but live deployment has not been verified.")

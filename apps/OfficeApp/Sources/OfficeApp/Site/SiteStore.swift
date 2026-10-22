@@ -381,18 +381,34 @@ final class LocalSiteStore: SiteStore {
             }
             let problems = SiteHosting.gitProblems(repo: repo)
             guard problems.isEmpty else { return .init("", .setup(problems.joined(separator: " "))) }
-            let pushArguments = try SiteHosting.pushArguments(repo: repo)
-            let destination = try SitePublicationState.destination(repo: repo)
-            let branch = git(["symbolic-ref", "--quiet", "--short", "HEAD"], in: repo).output.trimmingWhitespace()
-            let target = String(pushArguments.last!.dropFirst("HEAD:".count))
+            let reviewed: SiteReviewedPublication
+            if let supplied = control.reviewedPublication { reviewed = supplied }
+            else {
+                // CLI publishing captures its inputs at invocation; native
+                // publishing supplies the earlier author-reviewed snapshot.
+                let context = SiteReviewedPublication.Context.load(repo: repo, out: out, web: web)
+                reviewed = SiteReviewedPublication(input: try SitePublicationSnapshot.load(repo: repo, web: web), context: context)
+            }
+            try reviewed.validate(repo: repo, out: out, web: web)
+            guard let destination = reviewed.context.destination, let branch = reviewed.context.branch,
+                  let pushTarget = reviewed.context.target else {
+                return .init("", .setup("Choose a publication destination and branch before continuing."))
+            }
+            let target = String(pushTarget.dropFirst("HEAD:".count))
             try SiteDrafts.validateUpload(repo: repo, out: out)
             progress?(.building)
-            let built = try SiteBuilder.build(repo: repo, out: repo + "/" + out, web: web, base: nil)
+            try reviewed.validate(repo: repo, out: out, web: web)
+            let built = try SiteBuilder.build(repo: repo, out: repo + "/" + out, web: web, base: nil, snapshot: reviewed.input)
             let summary = "\(built.pages) pages built into \(out)/"
             let paths = [SiteFiles.config, SiteFiles.pagesDir, out]
             progress?(.saving)
+            try reviewed.validate(repo: repo, out: out, web: web)
             let staged = git(["--literal-pathspecs", "add", "-A", "--"] + paths, in: repo)
             guard staged.status == 0 else { return .init(summary, .local("Could not save the publication files to history. Check that the folder is writable and finish any other Git operation before retrying.")) }
+            let tree = git(["write-tree"], in: repo)
+            guard tree.status == 0 else { throw SiteError("Could not capture the prepared publication. Finish other Git operations, then review again.") }
+            let stagedTree = tree.output.trimmingWhitespace()
+            try reviewed.input.validateTree(repo: repo, tree: stagedTree)
             let changes = git(["--literal-pathspecs", "diff", "--cached", "--quiet", "--"] + paths, in: repo)
             if changes.status == 1 {
                 let committed = git(["--literal-pathspecs", "commit", "--only", "-m", text, "--"] + paths, in: repo)
@@ -403,21 +419,27 @@ final class LocalSiteStore: SiteStore {
             let head = git(["rev-parse", "--verify", "HEAD"], in: repo)
             guard head.status == 0 else { return .init(summary, .local("Could not identify the saved publication revision.")) }
             let revision = head.output.trimmingWhitespace()
+            try reviewed.validateCommit(repo: repo, revision: revision, stagedTree: stagedTree)
             try SiteDrafts.validateUpload(repo: repo, out: out)
             // Send a fixed revision so another local commit cannot cause
             // the receipt to describe a different upload.
             progress?(.uploading)
-            let push = SiteGitUpload.push(repo: repo, revision: revision, target: target, control: control)
+            try reviewed.validate(repo: repo, out: out, web: web, savedRevision: revision)
+            let push = SiteGitUpload.push(repo: repo, revision: revision, target: target, destination: destination, control: control)
             if let reason = push.stopped {
                 return .init(summary, reason == .cancelled ? .cancelled : .timedOut)
             }
             if push.status != 0 { return .init(summary, .upload(output: push.output)) }
             progress?(.recording)
             // A SHA source does not set tracking like --set-upstream HEAD.
-            let tracking = git(["branch", "--set-upstream-to=origin/" + target.dropFirst("refs/heads/".count), branch], in: repo)
             guard (try? SitePublicationState.destination(repo: repo)) == destination else {
                 return .init(summary, .sent("The destination changed during publishing. Review Publishing settings; the local publication status is unknown."))
             }
+            // An explicit destination prevents a changed origin from redirecting
+            // this attempt. Record its tracking ref only while origin still matches.
+            let remoteBranch = "origin/" + target.dropFirst("refs/heads/".count)
+            let reference = git(["update-ref", "refs/remotes/" + remoteBranch, revision], in: repo)
+            let tracking = reference.status == 0 ? git(["branch", "--set-upstream-to=" + remoteBranch, branch], in: repo) : reference
             do {
                 try SitePublicationState.record(repo: repo, revision: revision, destination: destination, target: target, out: out)
             } catch {
@@ -425,6 +447,8 @@ final class LocalSiteStore: SiteStore {
             }
             if tracking.status != 0 { return .init(summary, .sent("Git branch tracking could not be saved. Review Publishing settings before publishing again.")) }
             return .init("\(summary), pushed; deployment has not been verified")
+        } catch let error as SiteReviewedPublication.Failure {
+            return .init("", .review(error.description))
         } catch {
             return .init("", .local("\(error)"))
         }

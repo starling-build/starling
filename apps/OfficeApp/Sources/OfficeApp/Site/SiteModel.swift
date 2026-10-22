@@ -205,6 +205,10 @@ enum SiteBuilder {
     static func readConfig(_ repo: String) throws -> SiteConfig {
         let path = repo + "/" + SiteFiles.config
         guard let data = FileManager.default.contents(atPath: path) else { throw Failure("no \(SiteFiles.config) in \(repo)") }
+        return try decodeConfig(data)
+    }
+
+    static func decodeConfig(_ data: Data) throws -> SiteConfig {
         do {
             var config = try JSONDecoder().decode(SiteConfig.self, from: data)
             // Capture the legacy choice before an author reorders/deletes nodes.
@@ -212,7 +216,7 @@ enum SiteBuilder {
             config.details = try config.details?.validated()
             return config
         }
-        catch { throw Failure("\(path): \(error)") }
+        catch { throw Failure("Invalid publication configuration: \(error)") }
     }
 
     static func writeConfig(_ config: SiteConfig, to repo: String) throws {
@@ -275,7 +279,7 @@ enum SiteBuilder {
         return result
     }
 
-    static func build(repo: String, out: String, web: String?, base: String?) throws -> Summary {
+    static func build(repo: String, out: String, web: String?, base: String?, snapshot: SitePublicationSnapshot? = nil) throws -> Summary {
         let fm = FileManager.default
         let source = URL(fileURLWithPath: repo).standardizedFileURL.resolvingSymlinksInPath()
         let destination = URL(fileURLWithPath: out).standardizedFileURL.resolvingSymlinksInPath()
@@ -293,8 +297,7 @@ enum SiteBuilder {
                 throw Failure("output must not overlap the web build")
             }
         }
-        let config = try readConfig(repo)
-        _ = try validatedSources(repo: repo, config: config, web: web)
+        let input = try snapshot ?? SitePublicationSnapshot.load(repo: repo, web: web)
         if fm.fileExists(atPath: destination.path) {
             let existing = try fm.contentsOfDirectory(atPath: destination.path)
             guard existing.isEmpty || fm.fileExists(atPath: destination.appendingPathComponent(SiteFiles.manifest).path) else {
@@ -306,7 +309,7 @@ enum SiteBuilder {
         let staging = parent.appendingPathComponent(".starling-build-" + UUID().uuidString)
         let backup = parent.appendingPathComponent(".starling-backup-" + UUID().uuidString)
         defer { try? fm.removeItem(at: staging) }
-        let summary = try buildContents(repo: repo, out: staging.path, web: web, base: base)
+        let summary = try buildContents(input: input, out: staging.path, web: web, base: base)
         // A public identifier for this exact built version, installed with its files.
         try JSONEncoder().encode(SiteLivePublication.Marker(version: 1, build: UUID().uuidString))
             .write(to: staging.appendingPathComponent(SiteLivePublication.markerFile), options: .atomic)
@@ -326,9 +329,9 @@ enum SiteBuilder {
         return Summary(pages: summary.pages, out: out, base: summary.base)
     }
 
-    private static func buildContents(repo: String, out: String, web: String?, base: String?) throws -> Summary {
+    private static func buildContents(input: SitePublicationSnapshot, out: String, web: String?, base: String?) throws -> Summary {
         let fm = FileManager.default
-        let config = try readConfig(repo)
+        let config = input.config
         var manifest = manifest(from: config, base: base)
         manifest.exports = true
         // The painter's theme for the PDFs, as `--convert` makes it.
@@ -367,9 +370,8 @@ enum SiteBuilder {
         var count = 0
         var hasCJK = false
         for (node, _) in manifest.flattened() {
-            let src = repo + "/" + SiteFiles.pagePath(node.slug)
-            guard let data = fm.contents(atPath: src) else { throw Failure("\(src): missing source page") }
-            guard let page = SiteFiles.decodePage(data) else { throw Failure("\(src): not a page this build can read") }
+            guard let data = input.files[SiteFiles.pagePath(node.slug)],
+                  let page = SiteFiles.decodePage(data) else { throw Failure("\(node.slug): missing or invalid captured page") }
             let doc = page.document
             try data.write(to: URL(fileURLWithPath: out + "/" + SiteFiles.pagePath(node.slug)), options: .atomic)
             // The page as a PDF and as Word, static, beside its shell: a

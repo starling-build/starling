@@ -29,6 +29,7 @@ struct SitePublishReview {
         let comparison: SiteReleaseComparison
     }
     let title: String
+    let reviewedPublication: SiteReviewedPublication
     let website: String?
     let uploadedRevision: String?
     let pages: [Page]
@@ -48,8 +49,10 @@ struct SitePublishReview {
     }
 
     static func load(repo: String, out: String, web: String?) throws -> Self {
-        let config = try SiteBuilder.readConfig(repo)
-        let sources = try SiteBuilder.validatedSources(repo: repo, config: config, web: web)
+        let context = SiteReviewedPublication.Context.load(repo: repo, out: out, web: web)
+        let input = try SitePublicationSnapshot.load(repo: repo, web: web)
+        let config = input.config
+        let sources = input.sources
         let drafts = try SiteDrafts.loadAll(repo: repo)
         let current = SiteBuilder.manifest(from: config)
         let prior = baseline(repo: repo, out: out)
@@ -93,7 +96,9 @@ struct SitePublishReview {
             $0.config.pages != config.pages || $0.config.resolvedHome != config.resolvedHome || $0.config.details != config.details
         } ?? false
         let unpublished = try SiteUnpublishedDrafts.loadAll(repo: repo)
-        return Self(title: config.title, website: config.url, uploadedRevision: prior?.revision, pages: pages, removed: removed,
+        let reviewed = SiteReviewedPublication(input: input, context: context)
+        try reviewed.validate(repo: repo, out: out, web: web)
+        return Self(title: config.title, reviewedPublication: reviewed, website: config.url, uploadedRevision: prior?.revision, pages: pages, removed: removed,
                     unpublished: unpublished.filter { !$0.isSetAside }, setAside: unpublished.filter(\.isSetAside),
                     compared: prior != nil, settingsChanged: settingsChanged)
     }

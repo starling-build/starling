@@ -8,9 +8,9 @@ import Flutter
 final class SitePublishReviewPanel: StatefulWidget {
     let store: LocalSiteStore
     let onBack: () -> Void
-    let onContinue: () -> Void
+    let onContinue: (SiteReviewedPublication) -> Void
     let onPreview: (String, UInt32?) -> Void
-    init(store: LocalSiteStore, onBack: @escaping () -> Void, onContinue: @escaping () -> Void,
+    init(store: LocalSiteStore, onBack: @escaping () -> Void, onContinue: @escaping (SiteReviewedPublication) -> Void,
          onPreview: @escaping (String, UInt32?) -> Void) {
         self.store = store; self.onBack = onBack; self.onContinue = onContinue; self.onPreview = onPreview
         super.init()
@@ -29,6 +29,11 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     private var planning = false
 
     override func initState() { super.initState(); refresh() }
+
+    private func continuePublishing() {
+        guard !busy, let review else { return }
+        panel.onContinue(review.reviewedPublication)
+    }
 
     private func refresh() {
         guard !busy else { return }
@@ -107,7 +112,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                 Button(onPressed: panel.onBack, child: Text("Back to preview")),
                 Button(onPressed: busy ? nil : { [weak self] in self?.refresh() }, child: Text("Refresh review")),
                 Button(onPressed: busy || review == nil ? nil : { [weak self] in self?.setState { self?.planning = true } }, child: Text("Release plan")),
-                FilledButton(onPressed: busy || review == nil ? nil : panel.onContinue, child: Text("Continue to publish")),
+                FilledButton(onPressed: busy || review == nil ? nil : { [weak self] in self?.continuePublishing() }, child: Text("Continue to publish")),
             ]),
         ]
         if busy { rows += [Chrome.vgap(24), Text("Reading saved pages…", style: WikiAppearance.text())] }
@@ -124,6 +129,11 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         if let review {
             rows += [Chrome.vgap(24), Text(review.title, style: WikiAppearance.text(23, bold: true)),
                      Chrome.vgap(8), Text(review.summary, style: WikiAppearance.text())]
+            let website = (try? SiteHosting.Settings(title: review.title, repository: "", url: review.website ?? ""))?.url
+            rows += [Chrome.vgap(8), Text("Website: " + (website ?? "Set up in Publishing settings"), style: WikiAppearance.text(14))]
+            if let target = review.reviewedPublication.context.target {
+                rows += [Chrome.vgap(4), Text("Publishing branch: " + target.replacingOccurrences(of: "HEAD:refs/heads/", with: ""), style: WikiAppearance.text(14))]
+            }
             if review.compared {
                 rows += [Chrome.vgap(6), Text("Compared with the last upload recorded on this device. This does not confirm what is live on the website.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
             }
@@ -134,7 +144,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                 rows += [Chrome.vgap(10), Text("\(review.referenceCount) reference\(review.referenceCount == 1 ? "" : "s") to check in text view. Open the details below to see which documents need attention.", style: WikiAppearance.text(15, bold: true))]
             }
             rows += [Chrome.vgap(12), Text("Each included page has a web reading view and Word and PDF downloads. If your hosting repository is public, its source files and history are public too, including other files already committed there.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
-                     Chrome.vgap(8), Text("This is a review of saved website pages. Refresh after changes made outside the app; publishing rebuilds the latest saved files.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
+                     Chrome.vgap(8), Text("Publishing uses these saved website pages. If included content, history or publishing settings change, review again before uploading.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(20)]
             if !review.unpublished.isEmpty {
                 rows += [Text("Not included · \(review.unpublished.count) unpublished chapter\(review.unpublished.count == 1 ? "" : "s")", style: WikiAppearance.text(21, bold: true)),
@@ -223,7 +233,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                              }, child: Text("Review removed text"))]
                 }
             }
-            rows += [Chrome.vgap(24), FilledButton(onPressed: busy ? nil : panel.onContinue, child: Text("Continue to publish"))]
+            rows += [Chrome.vgap(24), FilledButton(onPressed: busy ? nil : { [weak self] in self?.continuePublishing() }, child: Text("Continue to publish"))]
         }
         return ColoredBox(color: WikiAppearance.paper, child: Padding(padding: EdgeInsets(all: 28), child:
             SingleChildScrollView(child: Column(crossAxisAlignment: .stretch, children: rows))))
