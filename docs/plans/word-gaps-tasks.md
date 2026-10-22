@@ -65,12 +65,10 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   rule within 0.4pt of Word's (row pitch 14.25/14.79 vs 14.4/14.16). The
   visible difference is colour: "auto" rules are our soft-black ink
   0x1B1B1B (the app's screen text colour) where Word prints black.
-- e. 60316: the header divider's relative height/vertical alignment.
-  Owner: starling-bd, 2026-10-22. A `prst="line"` connector in the
-  header: `wp14:sizeRelV` 105% of the margin height, `wp:align center`
-  from the page, line colour `schemeClr accent2`. Word: x 208.1, y
-  36.9..753.3 (box plus its 1.8pt bottom effect = 718.2 = 1.05 x 684,
-  centred on the page), grey; ours y 36..135, black.
+- e. 60316's header divider: DONE (starling-bd, 429fe822). A line sized
+  105% of the margins (wp14:sizeRelV) and centred on the page, accent2:
+  now y 36.9..753.3 grey, as Word's print. Boxes that fit their text
+  (a:spAutoFit) ignore the share.
 - f. drawing.docx p9: nested-table banner 5.4pt right (T142's autofit
   parent). Owner: Linux 017F2GnT (lenovo-2), 2026-10-22 — DONE, 6705abb1:
   a nested table in an autofitting parent that already spans its page's
@@ -98,9 +96,8 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   Owner: none. A checkbox is a "☐" character in the model and the writer
   saves every ☐ as a checkbox field, so drawing it as a box is a model
   change for one line in one file; not started.
-- Test note: on starling-bd's checkout, AAATextSetupTests and
-  LineHeightTests' natural-height test fail with the change stashed too
-  (shipped fonts not found under XCTest); the other 453 pass.
+- Test note: the font-bundle test failures were fixed by macos-ios;
+  457 Office tests pass on starling-bd's checkout.
 - 60329 12.6% is Word's clipped print of landscape content, not ours.
 
 ### T142. Nested-table sizing — fixed-parent fix landed; remaining work released
