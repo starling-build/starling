@@ -6797,3 +6797,17 @@ gave the item the editor's own list slot, which hangs the number out of the text
 defines (the first line its own, none here). Sweep n376 against n375 on one base:
 zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
 
+
+- **Repeated inline placeholder controls use one cached value (2026-10-21).**
+  Word's `55966` prints the first `w:showingPlcHdr` inline text control's
+  value in the next control naming the same `w:placeholder/w:docPart`.
+  The importer previously read each stale `w:sdtContent` independently,
+  adding a line and moving the final paragraph down. Word-for-Mac labs
+  in `/tmp/starling-poi-fixes/placeholder` confirm reuse across paragraphs,
+  while removing `showingPlcHdr` or changing the placeholder name preserves
+  independent text. The reader now shares cached plain-text inline values
+  within a document. Filled controls and unnamed controls do not participate;
+  block-control refresh and rich controls remain outside this change.
+  Same-engine, same-font sweep: 55966 33.3 -> 100%; all 576 other documents
+  unchanged. POI mean 89.8 -> 90.4% including nine textless references;
+  98/111 now at least 95%, all page counts still match.

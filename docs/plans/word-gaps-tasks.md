@@ -55,6 +55,12 @@ Evidence: /tmp/starling-word-audit-20261021. Establish Word's placeholder
 reuse rule with lab variants before changing import; sweep all 577
 reference documents after each fix. Keep print/reference and extraction
 limitations distinct from renderer defects.
+Progress 2026-10-21: named inline placeholder reuse implemented and tested.
+55966 33.3 -> 100%; all 576 other reference documents unchanged in a full
+font-verified sweep. 441 unit tests: placeholder regression passes; known
+line-height failure plus a Cocoa spelling-service failure (being checked).
+Next: 60316's sidebar misses `wp:positionH` inside AlternateContent and
+paints over the body; resolving its compatibility position fallback.
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)
 

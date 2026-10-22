@@ -257,6 +257,7 @@ enum DocxFormat {
             let at = body.children.lastIndex { $0.name == "w:sectPr" } ?? body.children.count
             body.children.insert(contentsOf: extra.children.filter { $0.name != "w:sectPr" }, at: at)
         }
+        _reuseInlinePlaceholders(body)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
         // How note marks are numbered: Word's endnotes count "i, ii, iii"
         // unless the settings say otherwise, its footnotes "1, 2, 3"
@@ -1990,6 +1991,35 @@ enum DocxFormat {
             }
         }
         return DocxDocument(document: document, pageSetup: pageSetup)
+    }
+
+    /// Plain-text inline controls showing one named placeholder share its
+    /// first cached value. Word does this even across paragraphs (55966
+    /// and the placeholder labs); a filled control does not participate.
+    /// Block controls have a separate refresh behavior, so keep their
+    /// cached paragraphs. The glossary's default text is not what Word
+    /// displays when the inline controls already carry a cached value.
+    private static func _reuseInlinePlaceholders(_ body: XNode) {
+        var first: [String: XNode] = [:]
+        func copy(_ node: XNode) -> XNode {
+            let result = XNode(name: node.name, attrs: node.attrs)
+            result.text = node.text
+            result.children = node.children.map(copy)
+            return result
+        }
+        func walk(_ node: XNode) {
+            if node.name == "w:sdt", let pr = node.first("w:sdtPr"), pr.first("w:text") != nil,
+               let flag = pr.first("w:showingPlcHdr"), !_isOff(flag),
+               let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty,
+               let content = node.first("w:sdtContent"), !content.children.isEmpty,
+               content.children.allSatisfy({ $0.name == "w:r" || $0.name == "w:proofErr" }) {
+                if let cached = first[name] { content.children = cached.children.map(copy) }
+                else { first[name] = copy(content) }
+                return
+            }
+            for child in node.children { walk(child) }
+        }
+        walk(body)
     }
 
     /// A header/footer part's text with PAGE and NUMPAGES fields (simple or

@@ -38,6 +38,33 @@ final class DocxTests: XCTestCase {
         return RichDocument(paragraphs: paragraphs)
     }
 
+    /// A cached placeholder is shared by named inline text controls. A
+    /// filled control, a different name, and a block control keep their
+    /// own content (Word's 55966 and independently printed variants).
+    func testNamedInlinePlaceholders() throws {
+        func control(_ text: String, name: String = "Shared", showing: String = "<w:showingPlcHdr/>", block: Bool = false) -> String {
+            let runs = "<w:r><w:t>\(text)</w:t></w:r>"
+            return "<w:sdt><w:sdtPr><w:placeholder><w:docPart w:val=\"\(name)\"/></w:placeholder>\(showing)<w:text w:multiLine=\"1\"/></w:sdtPr><w:sdtContent>\(block ? "<w:p>\(runs)</w:p>" : runs)</w:sdtContent></w:sdt>"
+        }
+        func read(_ body: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+            let i = entries.firstIndex { $0.name == "word/document.xml" }!
+            entries[i] = ZipEntry(name: "word/document.xml", data: Data("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(body)</w:body></w:document>".utf8))
+            return try DocxFormat.read(Zip.write(entries)).document
+        }
+        let shared = try read("<w:p>\(control("First"))\(control("Stale"))</w:p><w:p>\(control("Also stale"))</w:p>\(control("Block", block: true))")
+        XCTAssertEqual(shared.paragraphs.map(\.text), ["FirstFirst", "First", "Block"])
+        XCTAssertEqual(try DocxFormat.read(DocxFormat.write(shared, pageSetup: .letter)).document.paragraphs.map(\.text), shared.paragraphs.map(\.text))
+
+        for flag in ["", "<w:showingPlcHdr w:val=\"0\"/>", "<w:showingPlcHdr w:val=\"false\"/>"] {
+            let filled = try read("<w:p>\(control("Filled", showing: flag))\(control("Placeholder"))\(control("Stale"))\(control("Own content", showing: flag))</w:p>")
+            XCTAssertEqual(filled.paragraphs.map(\.text), ["FilledPlaceholderPlaceholderOwn content"])
+        }
+        let distinct = try read("<w:p>\(control("First"))\(control("Different", name: "Other"))\(control("Unnamed", name: ""))\(control("Independent", name: ""))</w:p>")
+        XCTAssertEqual(distinct.paragraphs.map(\.text), ["FirstDifferentUnnamedIndependent"])
+        XCTAssertEqual(try read("<w:p>\(control("Another document"))</w:p>").paragraphs.map(\.text), ["Another document"])
+    }
+
     /// A file with a footnotes part: the mark reads as its number in
     /// superscript, and a save carries the part, its rels, the reference
     /// and the note styles back out — Word then shows the note again.
