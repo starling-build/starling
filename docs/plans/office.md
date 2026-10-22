@@ -3491,6 +3491,32 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **A sunburst is drawn (2026-10-22).** chartex's last `cx:` chart,
+  a sunburst (`layoutId="sunburst"`), was still its Fallback picture:
+  page 3 printed none of its 16 lines. `ChartXML.readSunburst` reads
+  each point's categories as a path down a tree (the file lists the
+  levels leaf first; a path stops at its first empty name, so chartex's
+  "Leaf 6" is a stem with nothing outside it), summing the points under
+  one name into one wedge. `ChartPainter._sunburst` draws it as Word's
+  print does:
+  - The hole and each level are rings of one width (radii 27.5, 55,
+    82.6 and 110 pt). The circle is 220 pt across, 1.35 pt above the
+    chartex plot's top and 3.15 above its foot.
+  - Wedges go clockwise from twelve o'clock, the larger first (258, 165,
+    154; children too). Each is its branch's accent, ruled 0.75 pt in
+    the background colour.
+  - Names are white 8.4 pt, set along the wedge's radius and never
+    upside down. They break to four fifths of the ring ("Branc" /
+    "h 1"), with the lines' middle 2.1 pt under the ring's.
+  - A name shows only where the wedge's inner arc holds its lines plus
+    3 pt: Leaf 3's 16.2 pt holds one line, while Leaf 2's 10.8 and
+    Leaf 10's 21.7 (two lines) are left bare.
+
+  Word's documents reach it through `ChartXML.readWordChartex`
+  (box-and-whisker, then sunburst); Sheets' `readChartex` does not yet
+  (chart-sunburst.xlsx, handed to the Sheets session). chartex 77.8% ->
+  100.
+
 - **A radar's circle, its labels, as Word and PowerPoint set them
   (2026-10-16).** The radar stood in the middle of its area with a
   label line and 4pt kept on every side, its value labels 4pt off the

@@ -345,6 +345,18 @@ struct Chart: Equatable {
     /// An Excel 2016 funnel (`layoutId="funnel"`): its one series' values
     /// as bars centred across the plot, top first, with no value axis.
     var funnel = false
+    /// An Excel 2016 sunburst (`layoutId="sunburst"`): its points as a
+    /// tree, a ring to each level of it, each node the sum of the points
+    /// under it. nil for any other chart.
+    var sunburst: [SunburstNode]? = nil
+    struct SunburstNode: Equatable {
+        var name: String
+        var value = 0.0
+        /// Its top-level branch's place in the file, which picks the
+        /// accent every wedge of that branch is filled with.
+        var color = 0
+        var children: [SunburstNode] = []
+    }
 
     /// A waterfall's columns, by point: where each starts and ends.
     var waterfallSpans: [(from: Double, to: Double)] {
@@ -693,6 +705,81 @@ enum ChartXML {
         c.boxInclusive = layout?.first("cx:statistics")?["quartileMethod"] == "inclusive"
         c.boxMeans = layout?.first("cx:visibility")?["meanMarker"] != "0"
         c.boxOutliers = layout?.first("cx:visibility")?["outliers"] != "0"
+        return c
+    }
+
+    /// The `cx:` charts Word's documents draw as Word does: box-and-
+    /// whisker and sunburst. nil for the rest, whose Fallback picture
+    /// stands.
+    static func readWordChartex(_ space: XNode) -> Chart? {
+        readBoxWhisker(space) ?? readSunburst(space)
+    }
+
+    /// Excel 2016's sunburst (`layoutId="sunburst"`): each point's
+    /// categories, the file's last level outermost, a path down the tree
+    /// to its first empty name, points under one name summed into one
+    /// wedge (chartex's three branches of stems and leaves). Its names
+    /// are its labels where `cx:dataLabels` shows them.
+    static func readSunburst(_ space: XNode) -> Chart? {
+        guard let chart = space.first("cx:chart"),
+              let ser = chart.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series").first,
+              ser["layoutId"] == "sunburst",
+              let d = (space.first("cx:chartData")?.all("cx:data") ?? []).first(where: { $0["id"] == ser.first("cx:dataId")?["val"] })
+        else { return nil }
+        func points(_ lvl: XNode?) -> [String?] {
+            guard let lvl else { return [] }
+            var out = [String?](repeating: nil, count: min(100_000, max(0, Int(lvl["ptCount"] ?? "") ?? 0)))
+            for pt in lvl.all("cx:pt") {
+                guard let i = Int(pt["idx"] ?? ""), i >= 0, i < 100_000 else { continue }
+                if i >= out.count { out += [String?](repeating: nil, count: i - out.count + 1) }
+                out[i] = pt.text
+            }
+            return out
+        }
+        let levels = (d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim"))?.all("cx:lvl").map(points) ?? []
+        let sizes = points((d.all("cx:numDim").first { $0["type"] == "size" } ?? d.first("cx:numDim"))?.first("cx:lvl"))
+        func add(_ path: ArraySlice<String>, _ v: Double, to nodes: inout [Chart.SunburstNode]) {
+            guard let name = path.first else { return }
+            let i = nodes.firstIndex { $0.name == name } ?? nodes.count
+            if i == nodes.count { nodes.append(Chart.SunburstNode(name: name, color: i)) }
+            nodes[i].value += v
+            add(path.dropFirst(), v, to: &nodes[i].children)
+        }
+        var roots: [Chart.SunburstNode] = []
+        for (i, raw) in sizes.enumerated() {
+            guard let v = raw.flatMap({ Double($0.trimmingWhitespace()) }), v.isFinite, v > 0 else { continue }
+            var path: [String] = []
+            for lvl in levels.reversed() {
+                guard let name = lvl[safe: i] ?? nil, !name.isEmpty else { break }
+                path.append(name)
+            }
+            add(path[...], v, to: &roots)
+        }
+        guard !roots.isEmpty else { return nil }
+        // The larger first, as Word lays the wedges out (chartex's 258,
+        // 165, 154 clockwise from twelve); a tie in the file's order.
+        func sorted(_ nodes: [Chart.SunburstNode]) -> [Chart.SunburstNode] {
+            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && $0.offset < $1.offset) }
+                .map { var n = $0.element; n.children = sorted(n.children); return n }
+        }
+        var title: String? = nil
+        if let t = chart.first("cx:title") {
+            var runs: [String] = []
+            func collect(_ n: XNode) {
+                if n.name == "a:t" { runs.append(n.text) }
+                n.children.forEach(collect)
+            }
+            collect(t)
+            title = runs.joined()
+        }
+        var c = Chart(type: .pie, title: title, categories: roots.map(\.name),
+                      series: [ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series1", values: roots.map(\.value))])
+        c.sunburst = sorted(roots)
+        c.chartex = true
+        c.legend = chart.first("cx:legend") != nil
+        c.dataLabels = ser.first("cx:dataLabels").map { $0.first("cx:visibility")?["categoryName"] != "0" } ?? false
+        c.textSize = 9
+        c.titleSize = 14
         return c
     }
 
@@ -2056,7 +2143,10 @@ enum ChartPainter {
         if pie, let l = c.plotLayout {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
-        if c.type == .radar {
+        if let nodes = c.sunburst {
+            _sunburst(c, nodes, canvas, area, k: k, theme: theme,
+                      text: { styled($0, $1, $2, bold: false, color: theme.background) })
+        } else if c.type == .radar {
             _radar(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? (c.onSlide && !c.styled2013 && c.officeStyled ? Color(0xFF868686) : grid),
                    text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) },
                    categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) })
@@ -3257,6 +3347,71 @@ enum ChartPainter {
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
                 tp.dispose()
             }
+        }
+    }
+}
+
+extension ChartPainter {
+    /// A sunburst, as Word prints chartex's: the hole and each level a
+    /// ring as wide, the circle 220 pt across where the plot left 222
+    /// under the title — its top 1.35 above the plot's, its foot 3.15
+    /// above it; the first level innermost, each node's wedge its share
+    /// of its parent's, the larger first clockwise from twelve o'clock,
+    /// in its branch's accent and ruled in the background at 0.75 pt.
+    /// A name runs along its wedge's radius, never upside down, in
+    /// white 8.4 pt broken to four fifths of the ring, its lines'
+    /// middle 2.1 pt under the ring's — where the wedge's inner arc
+    /// holds its lines and 3 pt more (Leaf 3's 16.2 pt does a line, Leaf
+    /// 2's 10.8 and Leaf 10's 21.7, two lines, do not).
+    static func _sunburst(_ c: Chart, _ nodes: [Chart.SunburstNode], _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
+                          text: (String, Double, Double) -> TextPainter) {
+        func depth(_ n: [Chart.SunburstNode]) -> Int { n.isEmpty ? 0 : 1 + (n.map { depth($0.children) }.max() ?? 0) }
+        let top = area.top - 1.35 * k, bottom = area.bottom - 3.15 * k
+        let radius = min(area.width, bottom - top) / 2
+        guard radius > 0 else { return }
+        let centre = Offset(area.center.dx, (top + bottom) / 2)
+        let ring = radius / Double(depth(nodes) + 1)
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        let edge = Paint()
+        edge.style = .stroke
+        edge.isAntiAlias = true
+        edge.strokeWidth = max(0.25, 0.75 * k)
+        edge.color = theme.background
+        var labels: [(name: String, level: Int, from: Double, sweep: Double)] = []
+        func draw(_ nodes: [Chart.SunburstNode], level: Int, from: Double, sweep: Double, total: Double, color: Int?) {
+            guard total > 0 else { return }
+            var angle = from
+            for n in nodes where n.value > 0 {
+                let s = n.value / total * sweep
+                let accent = color ?? n.color
+                fill.color = theme.accents.isEmpty ? Color(0xFF808080) : theme.accents[accent % theme.accents.count]
+                let inner = ring * Double(level + 1), outer = inner + ring
+                let wedge = Path()
+                wedge.arcTo(Rect.fromCircle(center: centre, radius: outer), angle, s, true)
+                wedge.arcTo(Rect.fromCircle(center: centre, radius: inner), angle + s, -s, false)
+                wedge.close()
+                canvas.drawPath(wedge, fill)
+                canvas.drawPath(wedge, edge)
+                labels.append((n.name, level, angle, s))
+                draw(n.children, level: level + 1, from: angle, sweep: s, total: n.value, color: accent)
+                angle += s
+            }
+        }
+        draw(nodes, level: 0, from: -.pi / 2, sweep: 2 * .pi, total: nodes.reduce(0) { $0 + max(0, $1.value) }, color: nil)
+        guard c.dataLabels else { return }
+        for l in labels {
+            let tp = text(l.name, 8.4, 0.8 * ring)
+            defer { tp.dispose() }
+            let inner = ring * Double(l.level + 1)
+            guard l.sweep * inner >= tp.height + 3 * k else { continue }
+            let mid = l.from + l.sweep / 2, at = inner + ring / 2
+            canvas.save()
+            canvas.translate(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at)
+            canvas.rotate(cos(mid) >= 0 ? mid : mid + .pi)
+            tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2 + 2.1 * k))
+            canvas.restore()
         }
     }
 }

@@ -35,7 +35,7 @@ enum WriterCharts {
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: pptxTheme)
         let chartex = space.name == "cx:chartSpace"
-        guard let chart = chartex ? ChartXML.readBoxWhisker(space) : ChartXML.read(space, color: { colors.color(in: $0) })
+        guard let chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
         else { return false }
         var theme = DeckTheme()
         theme.headingFont = pptxTheme.major

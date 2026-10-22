@@ -3345,8 +3345,8 @@ enum DocxFormat {
                 WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
             }
             // A box-and-whisker chart (Office 2016's chartex part), drawn
-            // on a column chart's axes: named by `cx:chart` (by `c:chart`
-            // it is read above, as chartex names its own).
+            // on a column chart's axes, or a sunburst: named by `cx:chart`
+            // (by `c:chart` it is read above, as chartex names its own).
             if node.descendant("c:chart") == nil, let space = boxWhisker(node) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
@@ -3354,12 +3354,12 @@ enum DocxFormat {
             return att
         }
         /// The chartex part a drawing names (`cx:chart`, or `c:chart` in
-        /// a chartex `a:graphicData`), where it is a box-and-whisker
-        /// chart this app draws.
+        /// a chartex `a:graphicData`), where it is a chart this app draws
+        /// (`ChartXML.readWordChartex`: box-and-whisker, sunburst).
         func boxWhisker(_ node: XNode) -> XNode? {
             guard let rid = (node.descendant("cx:chart") ?? node.descendant("c:chart"))?["r:id"], let rel = notes.rels[rid], !rel.external,
                   let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data),
-                  ChartXML.readBoxWhisker(space) != nil else { return nil }
+                  ChartXML.readWordChartex(space) != nil else { return nil }
             return space
         }
         func addImage(_ drawing: XNode) {
@@ -3643,8 +3643,9 @@ enum DocxFormat {
                     // A Choice this app cannot draw — Word 2016's charts,
                     // `cx` — is the picture of it the Fallback holds:
                     // chartex's six charts took no room at all.
-                    // A box-and-whisker chart is drawn as Word draws it, its
-                    // text text (chartex's: 8 lines of Word's print).
+                    // A box-and-whisker chart or a sunburst is drawn as Word
+                    // draws it, its text text (chartex's: 8 lines of Word's
+                    // print, and the sunburst's 16).
                     let requires = (child.first("mc:Choice")?["Requires"] ?? "").split(separator: " ")
                     if requires.contains("cx"), let drawing = child.first("mc:Choice")?.first("w:drawing"),
                        boxWhisker(drawing) != nil {
