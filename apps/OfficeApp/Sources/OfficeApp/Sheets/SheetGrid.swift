@@ -375,7 +375,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // note of 127 characters in a column of 106 is two lines
                     // there, its row 30 pt, and one line on the page.)
                     let chars = ws.colWidths[a.col].map { Xlsx._widthChars(ws, a.col, $0) } ?? ws.defaultColWidthChars ?? m.defaultChars
-                    let width = m.screenColumn(chars) * scale - 4 * zoom
+                    // Less the cell's padding, as a General number's room is:
+                    // two quarter digits and a pixel of the 192-dpi screen
+                    // (CVLKRA-KYC's 7-character remarks break "alphan|umeric"
+                    // in Excel's print, 36.0 pt wide where ours was 36.4).
+                    let pad = (2 * (m.screenDigit / 4).rounded(.up) + 1) * 72 / 192
+                    let width = (m.screenColumn(chars) - pad) * scale
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
                     // (An empty string is its font's one line, given above:
