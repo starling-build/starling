@@ -8044,7 +8044,13 @@ public final class RichLayout {
             if ch == " " {
                 run.append(at)
             } else {
-                if let end = run.last, ch != "\n", ch != "\u{2028}", wide(left) || wide(ch), !lineStarts.contains(end + 1) { out.formUnion(run) }
+                // (And the spaces a paragraph opens with, whatever follows:
+                // Word keeps them at their width in a justified line and
+                // stretches the line elsewhere. zh-b378d8c4's "    9.化工：…",
+                // 14pt under balanced widths, has its four spaces 7pt apiece
+                // in Word's print, "9" at 107.4; the engine took them as the
+                // line's stretch, down to nothing, and set "9" at 80.4.)
+                if let end = run.last, ch != "\n", ch != "\u{2028}", wide(left) || wide(ch) || run.first == 0, !lineStarts.contains(end + 1) { out.formUnion(run) }
                 run = []
                 left = ch
             }

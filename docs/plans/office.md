@@ -6645,6 +6645,16 @@ the 26 FangSong-heavy documents 7.32% -> 6.54%, line match unchanged.
   (446 zh, 110 POI). zh-291fcea7 itself stays: in that package our cell
   text stands 0.65pt lower under its row's top line than Word's, in
   every row (labs T1/T2), and its p3 table ends 0.85 low.
+- **A justified paragraph keeps the spaces it opens with (2026-10-22;
+  Windows).** Word sets them at their width and stretches the line
+  elsewhere; ours held a run of spaces as no-break ones only beside East
+  Asian text, so a run before "9." was the line's stretch and went to
+  nothing. zh-b378d8c4's "    9.化工：…" (14pt, balanced widths) has its
+  four spaces 7pt apiece in Word's print, "9" at 107.4; ours at 80.4,
+  now 107.4. The line match reads heights only, so no score moved (466
+  zh, 110 POI, same base). zh-b378d8c4's misses are elsewhere: p13's
+  foot keeps a 22pt exact line ending 0.4pt past the 1985-twip margin,
+  which Word sends on.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
