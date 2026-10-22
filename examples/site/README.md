@@ -14,8 +14,9 @@ the list; use **Open publication** to find its new location. A removed page
 falls back to the publication’s first page.
 
 Use **Edit document** to write, then **Save → Back to preview** to review the saved changes. Compare
-**Page preview** with **Reading view**, and use **Add a Word document** for
-more material. **New page +** asks for a title, then opens that page in Writer
+**Page preview** with **Reading view**, and use **Add a Word draft** for
+more material. These new chapters stay out of publishing until you explicitly
+include them in publication review. **New draft +** asks for a title, then opens it in Writer
 ready to type. **Back to preview** offers Save, Don't Save or Cancel when you
 have unsaved edits. Save writes back to the publication without asking for a
 new file name. Saving is local; publishing remains a separate action.
@@ -80,8 +81,8 @@ full addresses to the checked published version. If that page has saved edits,
 or the paragraph has not been uploaded, publish and check the website first.
 An unchanged page can still be shared when other pages have pending edits.
 
-When ready, choose **Publish**. If your publication has no website details,
-the app opens the setup guide automatically:
+When ready, choose **Publish**, review the included pages, then **Continue to
+publish**. If your publication has no website details, the setup guide opens:
 
 1. **Choose a home:** open GitHub's repository creation page, create an empty
    repository, and paste its address. Leave Website address blank to use the
@@ -101,7 +102,7 @@ the app opens the setup guide automatically:
 Creating the repository, signing in and enabling Pages are still external steps.
 The generated `PUBLISHING.md` also describes this workflow.
 
-**Publish…** first opens **Review your publication** (after first-time setup
+**Publish…** first opens **Review your publication** (before hosting setup
 when needed). It lists all website pages, their addresses and the home page.
 Use **Preview page** to inspect any page, then return to Publish. With a matching
 upload record, the review shows added, updated, unchanged and removed pages
@@ -139,13 +140,37 @@ Starting a separate draft requires a matching upload record, unchanged chapter
 content and no local commits since that upload. Publish or resolve existing
 changes first. This does not hide text already committed to repository history.
 Holding covers document content; page titles and navigation still publish.
-Brand-new pages are still included in the website.
+New chapters created with **New draft +** or **Add a Word draft** are excluded
+until explicitly included, as described below. Existing release pages keep
+their previous behavior.
 
 Held drafts are stored only in this checkout, under `.git/starling-drafts/`.
 Back up the entire publication folder, including `.git`; a Git clone or push
 does not back up held drafts. They are not automatically synced or encrypted.
 To share the older release while a draft is held, open the verified website;
 page/passage copying from the held preview does not claim the draft is live.
+
+To write a chapter that has never been published, choose **New draft +**, enter
+its title, and choose **Create draft**. Or use **Add a Word draft** to bring in
+an existing chapter. Both its title and document stay local; it appears with a
+**Draft** label in your contents. You can edit, rename, search, preview, and use
+**Update from Word** normally, even before setting up hosting or first publishing.
+
+In **Publish → Review your publication**, these chapters appear under **Not
+included**. Choose **Preview local draft** to keep writing. When ready, choose
+**Include chapter in next publication**. This adds it to the end of the website
+contents without uploading. You can then reorder it or choose it as home using
+Page options. Review the included pages and publish as a separate action.
+Inclusion is a release choice: there is currently no "uninclude" button.
+
+Never-published chapters use `.git/starling-unpublished/`, including their titles.
+They need the same whole-folder backup as held revisions. Publishing and cloning
+do not back them up. Draft titles/order for already included chapters, draft
+history, discard and scheduling remain future work. New drafts appear at the
+end of the author's contents in address order until included. If an inclusion
+is interrupted, publication review offers a retry; build/upload stay blocked
+while the unfinished draft record remains. Never delete that record to bypass
+an error without first recovering the document.
 
 When review finds **References to check**, use **Show references** to see the
 affected text, target and guidance. **Show in document** opens the passage when
@@ -156,7 +181,8 @@ what the web text view can follow, including missing bookmarks and links to
 source files. They do not check whether an external website is online and do
 not prevent publishing.
 
-Publishing includes the whole publication and each page's Word/PDF downloads.
+Publishing includes the release pages and their Word/PDF downloads. Unpublished
+chapters and held draft revisions stay local until explicitly included.
 A public hosting repository also exposes committed source files and history.
 Removed pages leave the current website after deployment; previous downloads,
 caches and repository history remain. **Continue to publish** opens the upload
@@ -215,11 +241,12 @@ back), or from a terminal:
     OfficeApp --site <clone>
 
 The reader opens on the first page. Edit is the whole Writer on the page;
-Save writes the page file. New page and Add a Word document add material;
+Save writes the working revision. New draft and Add a Word draft add local chapters;
 Page options contains Rename, Delete and Move up/down. Publish builds `docs/`, commits with your
 message and pushes. From a terminal:
 
-    OfficeApp --site-import <clone> manual.docx --title "Manual" [--under slug]
+    OfficeApp --site-import <clone> manual.docx --title "Manual" --draft
+    OfficeApp --site-draft <clone> <slug> include
     OfficeApp --site-update <clone> <slug> revised-manual.docx
     OfficeApp --site-update <clone> <slug> revised-manual.docx --apply
     OfficeApp --site-move <clone> <slug> up|down
@@ -257,3 +284,7 @@ The web build the publish ships comes from `build/web-app.sh OfficeApp
 --package apps/OfficeApp` in the Starling repository, found through
 `--web`, `STARLING_WEB_STAGE`, or `.stage-web-OfficeApp` in the working
 directory.
+
+`--site-import --draft` keeps a new chapter local. The legacy CLI import without
+`--draft` still adds a release page immediately; `--under` applies only to that
+legacy mode. Inclusion and saving do not upload anything.

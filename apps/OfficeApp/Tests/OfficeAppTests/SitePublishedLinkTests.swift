@@ -77,6 +77,17 @@ final class SitePublishedLinkTests: XCTestCase {
         }
     }
 
+    func testUnpublishedChapterCannotBeSharedAsTheVerifiedWebsite() throws {
+        try withUploaded { repo, verified, id in
+            let page = SitePage(document: RichDocument(paragraphs: [RichParagraph(text: "Unpublished")]), pageSetup: nil)
+            let slug = try SiteUnpublishedDrafts.create(repo: repo, title: "Next chapter", page: page)
+            XCTAssertThrowsError(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: slug, paragraph: id)) {
+                XCTAssertTrue(String(describing: $0).contains("has not been included"))
+            }
+            XCTAssertNoThrow(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome"))
+        }
+    }
+
     func testNewAndDeletedLocalPagesCannotBeSharedAsPublished() throws {
         try withUploaded { repo, verified, _ in
             var config = try SiteBuilder.readConfig(repo)

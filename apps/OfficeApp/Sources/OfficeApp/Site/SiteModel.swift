@@ -242,6 +242,11 @@ enum SiteBuilder {
         return nil
     }
 
+    static func reservedSlugs(web: String?) -> Set<String> {
+        Set((["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
+            + ((web.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0) }) ?? [])).map { $0.lowercased() })
+    }
+
     /// Shared by publication review and build, before either reads page paths.
     /// This validates source input only; output/hosting checks still run at build.
     static func validatedSources(repo: String, config: SiteConfig, web: String?) throws -> [(node: SiteNode, depth: Int, data: Data)] {
@@ -249,8 +254,7 @@ enum SiteBuilder {
         let source = URL(fileURLWithPath: repo).standardizedFileURL.resolvingSymlinksInPath()
         var result: [(node: SiteNode, depth: Int, data: Data)] = []
         var slugs = Set<String>()
-        let reserved = Set(["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
-            + ((web.flatMap { try? fm.contentsOfDirectory(atPath: $0) }) ?? []))
+        let reserved = reservedSlugs(web: web)
         guard !config.pages.isEmpty else { throw Failure("the site needs at least one page") }
         _ = try config.details?.validated()
         guard manifest(from: config).node(config.resolvedHome) != nil else {

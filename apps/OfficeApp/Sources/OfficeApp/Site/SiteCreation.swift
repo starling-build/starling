@@ -62,8 +62,9 @@ enum SiteCreation {
     This publication is local. Nothing has been uploaded.
 
     Open site.json from Writer's Home → Open publication. Choose Edit document
-    to write, or Add a Word document to add more material. Review the page and reading
-    views before publishing. Update from Word previews later revisions;
+    to write. New draft and Add a Word draft keep additional chapters local until
+    you include them in publication review. Review the page and reading views
+    before publishing. Update from Word previews later revisions;
     Apply saves locally and preserves the page address.
 
     ## First-time hosting setup
@@ -74,7 +75,8 @@ enum SiteCreation {
     1. Create an empty GitHub repository for this publication. A public
        repository exposes source documents as well as the built website.
        Only publish content you intend to make public.
-    2. In Writer, choose Publish. First-time setup opens automatically. Enter the
+    2. In Writer, choose Publish, review the included pages, then Continue to publish.
+       First-time setup opens automatically. Enter the
        repository address; leave Website address blank for a GitHub Pages address,
        or enter your own HTTPS address. Choose Save and connect. Existing remotes
        are never replaced. The URL path automatically sets the build base.

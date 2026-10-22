@@ -218,8 +218,10 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < Comman
         var opened = try OfficeFormats.read(file)
         opened.document.assignParagraphIDs()
         let title = option("--title") ?? file.lastPathComponent.deletingPathExtension
-        let slug = try LocalSiteStore.addPage(repo: CommandLine.arguments[i + 1], title: title,
-                                              page: SitePage(document: opened.document, pageSetup: opened.pageSetup), under: option("--under"))
+        let page = SitePage(document: opened.document, pageSetup: opened.pageSetup)
+        let slug = try CommandLine.arguments.contains("--draft")
+            ? SiteUnpublishedDrafts.create(repo: CommandLine.arguments[i + 1], title: title, page: page)
+            : LocalSiteStore.addPage(repo: CommandLine.arguments[i + 1], title: title, page: page, under: option("--under"))
         print(slug)
         exit(0)
     } catch {
@@ -239,7 +241,8 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-update"), i + 3 < Comman
         if CommandLine.arguments.contains("--apply") {
             try LocalSiteStore.applyUpdate(repo: CommandLine.arguments[i + 1], revision: revision)
             let held = try SiteDrafts.load(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2]) != nil
-            print(held ? "Updated the separate local draft. Include it in publication review when ready; publishing still uses the released document."
+                || SiteUnpublishedDrafts.load(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2]) != nil
+            print(held ? "Updated the separate local draft. Include it in publication review when ready; publishing excludes these draft edits."
                        : "Updated locally; page address unchanged. Publish when ready.")
         } else { print("Preview only; no files changed. Use --apply to replace the page, including local edits.") }
         exit(0)
@@ -259,8 +262,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-draft"), i + 3 < Command
             try SiteDrafts.start(repo: repo, out: out, slug: slug)
             print("Separate local draft started. Publishing keeps the previously uploaded document.")
         case "include":
-            guard let draft = try SiteDrafts.load(repo: repo, slug: slug) else { throw SiteError("This page has no separate draft.") }
-            try SiteDrafts.include(repo: repo, expected: draft)
+            if let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) {
+                try SiteUnpublishedDrafts.include(repo: repo, expected: draft)
+            } else {
+                guard let draft = try SiteDrafts.load(repo: repo, slug: slug) else { throw SiteError("This page has no separate draft.") }
+                try SiteDrafts.include(repo: repo, expected: draft)
+            }
             print("Saved draft included in the next publication. Nothing has been uploaded.")
         default: throw SiteError("Choose start or include.")
         }

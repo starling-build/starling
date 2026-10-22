@@ -1,6 +1,6 @@
 # A site from a repository
 
-**Current priority: the writer's journey (2026-10-20).** Judge the product by
+**Current priority: the writer's journey (2026-10-21).** Judge the product by
 whether an author can bring an existing manuscript, review it, edit it, share
 it, and revise it later. The default journey is **Word document or blank →
 local draft → reader preview → publish → update at the same link**. Hosting
@@ -19,8 +19,9 @@ Sequence the work:
    removed passages and changes outside paragraph text. This increment is
    described below.
 2. Explicit release inclusion and draft retention now cover the next revision
-   of an already uploaded chapter, as described below. New unpublished chapters
-   and private navigation metadata still need a separate author manifest.
+   of an already uploaded chapter and new unpublished chapters, as described
+   below. New chapter titles and documents have separate local records; private
+   navigation changes for already included chapters remain future work.
    The publisher commits source and generated output together: hiding a page
    from navigation or export alone would not make its source private.
 3. Introduce a release overview with chapter, destination, audience, planned date
@@ -38,6 +39,58 @@ existing editor before requiring migration. Advanced lore management,
 multi-platform automation and payment tiers remain later work, not prerequisites
 for this first release-management workflow. These interviews have not happened;
 the market discussion is a hypothesis, not demand evidence.
+
+**Write unpublished chapters (2026-10-21):** Native New draft and Add a Word
+draft now create local-only chapters, including their titles. A versioned record
+under Git metadata supplies an author-only manifest overlay; the public
+configuration, source files, build navigation, search and exports exclude them.
+The initial publication/home document remains included. Existing source pages
+and the legacy CLI import without `--draft` retain their release behavior.
+
+Authors can create, edit and review inclusion before their first upload or
+hosting setup. First-time hosting setup follows Continue to publish. Save,
+rename, search, preview and Update from Word use the local record. Publication
+review separates Not included chapters from Included pages. Include chapter in
+next publication checks the reviewed snapshot and adds its exact document and
+title to the end of the release contents. It does not build, commit or upload.
+The home page stays unchanged. Chapter ordering/home changes become available
+after inclusion; local drafts currently sort by address. Shared links and remote
+history are unavailable for unpublished chapters.
+
+New chapter addresses avoid release pages, other drafts, reserved web assets,
+existing source files and tracked history. Build/upload reject a private chapter
+that also appears in release files; upload also checks staged and historical
+source paths, including committed then deleted content. Inclusion retains its
+record until both source and navigation writes succeed. A partial inclusion
+blocks publishing and can be retried through publication review without
+silently replacing unrelated content. Writer and import saves retain storage
+identity, so a window opened before inclusion cannot silently write into the
+release afterward. Draft mutations share the existing process/file lock.
+
+Storage is local to this checkout under `.git/starling-unpublished/`, with the
+same whole-folder backup requirement as held revisions. This is not encrypted
+storage, multi-device sync or a history of draft saves. Discard/restore, undoing
+inclusion, private reordering and scheduling remain open. No claim is made to
+hide text an author has copied into other tracked files or already uploaded.
+
+Validation: 47 distinct focused Swift tests pass across the main 45-case run
+and added shared-link and merged-history regressions. The seven unpublished
+chapter cases were rerun after moving author-manifest loading off the UI thread;
+that change fixes a native startup crash found during the walkthrough. Native
+macOS and optimized WebAssembly builds pass. The full site-build suite passes,
+including 31 publishing integration cases; the two new release/recovery cases
+passed again after the final history check. Integration tests inspect every
+reachable remote blob for both unpublished text and title. A merged side branch
+that added then removed chapter source also blocks uploading.
+
+Native scripted UI checks cover New draft, writing/saving, local preview,
+review before hosting setup, explicit inclusion, and retrying an interrupted
+inclusion. The release output and upload receipt stay unchanged during these
+local actions. The headless Chrome home-passage test passes with the rebuilt
+reader, including stable passage links after changing the home page and
+rejecting ambiguous paragraph identities. Remote writes in tests use local bare
+repositories. No production hosting, mobile input or Linux/Windows builds were
+exercised; this does not replace validation with active authors.
 
 **Keep a chapter's next draft local (2026-10-20):** An unchanged uploaded page
 now offers Start next draft in publication review. Its working revision is
@@ -69,12 +122,13 @@ Open website still opens the previously checked website. Deletion of a held
 page is blocked until its draft is explicitly included.
 
 This holds document content only. Page titles, navigation and publication
-details still belong to the release. New pages remain included in publishing.
+details still belong to the release. The later unpublished-chapter workflow
+above changes the default for new pages; existing release pages stay included.
 Draft records are local to this checkout, not cloned, synchronized, encrypted
 or archived after every save. Backups must include the whole publication
 folder and its Git metadata. Never present this as a private multi-device
-workspace or a complete serial scheduling system. New unpublished chapters,
-private author navigation, draft history and discard/recovery UI remain next.
+workspace or a complete serial scheduling system. Private author navigation,
+draft history and discard/recovery UI remain next.
 
 Validation: the native macOS build and 38 focused Swift tests pass. The full
 site-build suite passes, including 29 publication integration tests. After the
@@ -365,7 +419,8 @@ paragraph. Native and optimized WebAssembly builds pass.
 
 **Review before publishing (2026-10-19):** Publish now opens a review of the
 whole publication before the change-description/upload form. First-time hosting
-setup still appears first when needed. The review lists every included website
+setup now follows review (updated by the unpublished-chapter workflow above).
+The review lists every included website
 page, its route and home-page status, with a Preview page action. It explains
 that all these pages and their Word/PDF editions are included, and that a public
 hosting repository also exposes committed source files and history. This is a

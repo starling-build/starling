@@ -22,6 +22,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     private var panel: SitePublishReviewPanel { widget as! SitePublishReviewPanel }
     private var review: SitePublishReview?
     private var busy = false
+    private var recoverableDrafts: [SiteUnpublishedDrafts.Draft] = []
     private var error: String?
     private var referenceDetails = Set<String>()
     private var comparison: (value: SiteReleaseComparison, slug: String?)?
@@ -31,17 +32,20 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     private func refresh() {
         guard !busy else { return }
         let store = panel.store
-        setState { busy = true; error = nil; review = nil }
+        setState { busy = true; error = nil; review = nil; recoverableDrafts = [] }
         // Document decoding needs the same stack allowance as import/publish.
         let worker = Thread { [weak self] in
             let result = Result { try SitePublishReview.load(repo: store.repo, out: store.out, web: store.webStage) }
+            let recovery: [SiteUnpublishedDrafts.Draft]
+            if case .failure = result { recovery = (try? SiteUnpublishedDrafts.loadAll(repo: store.repo)) ?? [] }
+            else { recovery = [] }
             DispatchQueue.main.async {
                 guard let self, self.mounted else { return }
                 self.setState {
                     self.busy = false
                     switch result {
                     case .success(let review): self.review = review
-                    case .failure(let error): self.error = "\(error)"
+                    case .failure(let error): self.error = "\(error)"; self.recoverableDrafts = recovery
                     }
                 }
             }
@@ -51,13 +55,14 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         worker.start()
     }
 
-    private func changeDraft(slug: String, include: SiteDrafts.Draft? = nil) {
+    private func changeDraft(slug: String, include: SiteDrafts.Draft? = nil, unpublished: SiteUnpublishedDrafts.Draft? = nil) {
         guard !busy else { return }
         let store = panel.store
         setState { busy = true; error = nil }
         let worker = Thread { [weak self] in
             let result = Result {
-                if let include { try SiteDrafts.include(repo: store.repo, expected: include) }
+                if let unpublished { try SiteUnpublishedDrafts.include(repo: store.repo, expected: unpublished) }
+                else if let include { try SiteDrafts.include(repo: store.repo, expected: include) }
                 else { try SiteDrafts.start(repo: store.repo, out: store.out, slug: slug) }
             }
             DispatchQueue.main.async {
@@ -85,7 +90,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         }
         var rows: [Widget] = [
             Text("Review your publication", style: WikiAppearance.text(30, bold: true)), Chrome.vgap(10),
-            Text("Publishing shares every page listed here. A held draft keeps that page's previously uploaded document in the release.", style: WikiAppearance.text()),
+            Text("Publishing shares the included pages below. Separate drafts stay local until you include them.", style: WikiAppearance.text()),
             Chrome.vgap(16), Wrap(spacing: 12, runSpacing: 8, children: [
                 Button(onPressed: panel.onBack, child: Text("Back to preview")),
                 Button(onPressed: busy ? nil : { [weak self] in self?.refresh() }, child: Text("Refresh review")),
@@ -95,6 +100,14 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         if busy { rows += [Chrome.vgap(24), Text("Reading saved pages…", style: WikiAppearance.text())] }
         if let error { rows += [Chrome.vgap(24), Text("Publication needs attention", style: WikiAppearance.text(20, bold: true)),
                                 Chrome.vgap(8), Text(error, style: WikiAppearance.text())] }
+        if !recoverableDrafts.isEmpty {
+            rows += [Chrome.vgap(12), Text("Your unpublished chapters are still stored locally. If inclusion was interrupted, retry it below. Other file conflicts must be resolved before publishing.", style: WikiAppearance.text(14))]
+            for draft in recoverableDrafts {
+                rows += [Chrome.vgap(12), Button(onPressed: busy ? nil : { [weak self] in
+                    self?.changeDraft(slug: draft.slug, unpublished: draft)
+                }, child: Text("Include chapter: " + draft.title))]
+            }
+        }
         if let review {
             rows += [Chrome.vgap(24), Text(review.title, style: WikiAppearance.text(23, bold: true)),
                      Chrome.vgap(8), Text(review.summary, style: WikiAppearance.text())]
@@ -110,6 +123,18 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
             rows += [Chrome.vgap(12), Text("Each included page has a web reading view and Word and PDF downloads. If your hosting repository is public, its source files and history are public too, including other files already committed there.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(8), Text("This is a review of saved website pages. Refresh after changes made outside the app; publishing rebuilds the latest saved files.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(20)]
+            if !review.unpublished.isEmpty {
+                rows += [Text("Not included · \(review.unpublished.count) unpublished chapter\(review.unpublished.count == 1 ? "" : "s")", style: WikiAppearance.text(21, bold: true)),
+                         Chrome.vgap(8), Text("Their titles and documents stay on this device. Include a chapter when it is ready for readers. Back up the entire publication folder, including its local history.", style: WikiAppearance.text(14)), Chrome.vgap(12)]
+                for draft in review.unpublished {
+                    rows += [Text(draft.title, style: WikiAppearance.text(18, bold: true)), Chrome.vgap(8),
+                             Wrap(spacing: 12, runSpacing: 8, children: [
+                                 Button(onPressed: busy ? nil : { [weak self] in self?.panel.onPreview(draft.slug, nil) }, child: Text("Preview local draft")),
+                                 Button(onPressed: busy ? nil : { [weak self] in self?.changeDraft(slug: draft.slug, unpublished: draft) }, child: Text("Include chapter in next publication")),
+                             ]), Chrome.vgap(20)]
+                }
+            }
+            rows += [Text("Included pages", style: WikiAppearance.text(21, bold: true)), Chrome.vgap(12)]
             for page in review.pages {
                 var detail: [Widget] = [
                     Text(page.title + (page.isHome ? " · Home" : ""), style: WikiAppearance.text(18, bold: true)),

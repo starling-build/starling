@@ -80,12 +80,13 @@ enum SiteDrafts {
     }
 
     static func workingSnapshot(repo: String, slug: String) throws -> (data: Data, storageID: String) {
+        if let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) { return (draft.working, draft.id) }
         if let draft = try load(repo: repo, slug: slug) { return (draft.working, draft.id) }
         return (try Data(contentsOf: sourceURL(repo: repo, slug: slug)), "release")
     }
 
     private static let mutationLock = NSLock()
-    private static func mutate<T>(repo: String, _ body: () throws -> T) throws -> T {
+    static func mutate<T>(repo: String, _ body: () throws -> T) throws -> T {
         // Serialize the short local transitions, never a network upload.
         guard mutationLock.try() else { throw SiteError("Another draft operation is in progress. Try again after it finishes.") }
         defer { mutationLock.unlock() }
@@ -151,6 +152,10 @@ enum SiteDrafts {
     }
 
     private static func saveUnlocked(_ data: Data, repo: String, slug: String, expectedStorageID: String?) throws {
+        if let draft = try SiteUnpublishedDrafts.load(repo: repo, slug: slug) {
+            try SiteUnpublishedDrafts.saveUnlocked(data, repo: repo, draft: draft, expectedStorageID: expectedStorageID)
+            return
+        }
         guard SiteBuilder.manifest(from: try SiteBuilder.readConfig(repo)).node(slug) != nil else {
             throw SiteError("This page is no longer in the publication.")
         }
@@ -194,6 +199,7 @@ enum SiteDrafts {
     }
 
     static func validateSources(repo: String, slugs: Set<String>, drafts: [String: Draft]) throws {
+        try SiteUnpublishedDrafts.validateSources(repo: repo, slugs: slugs)
         for draft in drafts.values {
             guard slugs.contains(draft.slug),
                   try Data(contentsOf: sourceURL(repo: repo, slug: draft.slug)) == draft.released else {
@@ -214,6 +220,7 @@ enum SiteDrafts {
     }
 
     static func validateUpload(repo: String, out: String) throws {
+        try SiteUnpublishedDrafts.validateUpload(repo: repo)
         let drafts = try loadAll(repo: repo)
         guard !drafts.isEmpty else { return }
         let receipt = try SitePublicationState.matchingReceipt(repo: repo, out: out)

@@ -64,7 +64,7 @@ enum SitePublicationState {
 
     static func status(repo: String, out: String = "docs") -> Status {
         do {
-            let held = try !SiteDrafts.loadAll(repo: repo).isEmpty
+            let held = try !SiteDrafts.loadAll(repo: repo).isEmpty || !SiteUnpublishedDrafts.loadAll(repo: repo).isEmpty
             let receipt = try matchingReceipt(repo: repo, out: out)
             let paths = [SiteFiles.config, SiteFiles.pagesDir, out]
             // Working files vs the sent commit includes saved, committed-but-

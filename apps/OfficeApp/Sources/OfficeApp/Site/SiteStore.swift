@@ -124,8 +124,18 @@ final class LocalSiteStore: SiteStore {
     }
 
     func manifest(_ done: @escaping (Result<SiteManifest, SiteError>) -> Void) {
-        do { done(.success(SiteBuilder.manifest(from: try SiteBuilder.readConfig(repo), base: "/"))) }
-        catch { done(.failure(SiteError("\(error)"))) }
+        // Resolving local draft storage calls Git. Do not pump the Cocoa event
+        // loop through Process.waitUntilExit while the initial widget mounts.
+        let repo = repo
+        let worker = Thread {
+            let result: Result<SiteManifest, SiteError>
+            do { result = .success(try SiteUnpublishedDrafts.authorManifest(repo: repo)) }
+            catch { result = .failure(SiteError("\(error)")) }
+            DispatchQueue.main.async { done(result) }
+        }
+        worker.name = "Starling author contents"
+        worker.stackSize = 8 * 1024 * 1024
+        worker.start()
     }
 
     func page(_ slug: String, _ done: @escaping (Result<SitePage, SiteError>) -> Void) {
@@ -139,11 +149,12 @@ final class LocalSiteStore: SiteStore {
 
     func search(_ done: @escaping (Result<[SiteSearchEntry], SiteError>) -> Void) {
         do {
-            let config = try SiteBuilder.readConfig(repo)
+            let manifest = try SiteUnpublishedDrafts.authorManifest(repo: repo)
             let drafts = try SiteDrafts.loadAll(repo: repo)
+            let unpublished = Dictionary(uniqueKeysWithValues: try SiteUnpublishedDrafts.loadAll(repo: repo).map { ($0.slug, $0) })
             var entries: [SiteSearchEntry] = []
-            for (node, _) in SiteBuilder.manifest(from: config).flattened() {
-                let data = drafts[node.slug]?.working ?? FileManager.default.contents(atPath: repo + "/" + SiteFiles.pagePath(node.slug)) ?? Data(SiteFiles.emptyBody.utf8)
+            for (node, _) in manifest.flattened() {
+                let data = unpublished[node.slug]?.working ?? drafts[node.slug]?.working ?? FileManager.default.contents(atPath: repo + "/" + SiteFiles.pagePath(node.slug)) ?? Data(SiteFiles.emptyBody.utf8)
                 let text = SiteFiles.decodePage(data).map { SiteFiles.plainText($0.document) } ?? ""
                 entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
             }
@@ -169,7 +180,7 @@ final class LocalSiteStore: SiteStore {
     /// its node placed under `parent` (else at the top level).
     static func addPage(repo: String, title: String, page: SitePage, under parent: String?) throws -> String {
         var config = try SiteBuilder.readConfig(repo)
-        let taken = Set(SiteBuilder.manifest(from: config).flattened().map(\.node.slug))
+        let taken = Set(try SiteUnpublishedDrafts.authorManifest(repo: repo).flattened().map(\.node.slug))
         var slug = SiteFiles.slug(for: title)
         var n = 2
         while taken.contains(slug) { slug = SiteFiles.slug(for: title) + "-\(n)"; n += 1 }
@@ -191,12 +202,12 @@ final class LocalSiteStore: SiteStore {
     }
 
     func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) {
-        do { done(.success(try Self.addPage(repo: repo, title: title, page: page, under: parent))) }
+        do { done(.success(try SiteUnpublishedDrafts.create(repo: repo, title: title, page: page))) }
         catch { done(.failure(SiteError("\(error)"))) }
     }
 
     static func prepareUpdate(repo: String, slug: String, page: SitePage) throws -> SiteRevision {
-        guard SiteBuilder.manifest(from: try SiteBuilder.readConfig(repo)).node(slug) != nil,
+        guard try SiteUnpublishedDrafts.authorManifest(repo: repo).node(slug) != nil,
               !slug.isEmpty, slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else {
             throw SiteError("No valid page \(slug).")
         }
@@ -229,6 +240,10 @@ final class LocalSiteStore: SiteStore {
 
     func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void) {
         do {
+            if try SiteUnpublishedDrafts.load(repo: repo, slug: slug) != nil {
+                try SiteUnpublishedDrafts.rename(repo: repo, slug: slug, title: title)
+                done(nil); return
+            }
             var config = try SiteBuilder.readConfig(repo)
             func visit(_ nodes: inout [SiteNode]) -> Bool {
                 for i in nodes.indices {
@@ -254,6 +269,9 @@ final class LocalSiteStore: SiteStore {
     /// Synchronous, for the command line too. False when the page is at
     /// the end it would move past.
     static func movePage(repo: String, slug: String, by: Int) throws -> Bool {
+        guard try SiteUnpublishedDrafts.load(repo: repo, slug: slug) == nil else {
+            throw SiteError("Include this draft in publication review before placing it in the website navigation.")
+        }
         var config = try SiteBuilder.readConfig(repo)
         var moved = false
         func visit(_ nodes: inout [SiteNode]) -> Bool {
@@ -277,7 +295,8 @@ final class LocalSiteStore: SiteStore {
 
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) {
         do {
-            guard try SiteDrafts.load(repo: repo, slug: slug) == nil else {
+            guard try SiteDrafts.load(repo: repo, slug: slug) == nil,
+                  try SiteUnpublishedDrafts.load(repo: repo, slug: slug) == nil else {
                 done("This page has a separate local draft. Include it in the saved publication before deleting the page."); return
             }
             var config = try SiteBuilder.readConfig(repo)

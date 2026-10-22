@@ -70,6 +70,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _verifiedPublication: SiteLivePublication.Snapshot?
     private var _copyingPageLink = false
     private var _heldDraft = false
+    private var _unpublishedSlugs: Set<String> = []
     #endif
 
     // Pages or flow: the reader's choice, else pages on a desktop and flow
@@ -354,8 +355,20 @@ final class SiteShellState: State<StatefulWidget> {
         } catch { setState { _status = "Could not export: \(error)" } }
     }
 
+    private func _isUnpublished(_ slug: String) -> Bool {
+        #if !os(WASI)
+        return _unpublishedSlugs.contains(slug)
+        #else
+        return false
+        #endif
+    }
+
     /// The page's history: its commits on GitHub, when the site names its repository.
     private func _openHistory() {
+        if let slug = _slug, _isUnpublished(slug) {
+            setState { _status = "This chapter is a local draft and has no published history." }
+            return
+        }
         guard let repo = _manifest?.repository, let slug = _slug else { return }
         let base = repo.hasSuffix("/") ? String(repo.dropLast()) : repo
         hostOpenURL?(base + "/commits/main/" + SiteFiles.pagePath(slug))
@@ -388,9 +401,10 @@ final class SiteShellState: State<StatefulWidget> {
         let worker = Thread { [weak self] in
             let message = SitePublicationState.status(repo: repo, out: out).message
             let held = slug.flatMap { try? SiteDrafts.load(repo: repo, slug: $0) } != nil
+            let unpublished = Set((try? SiteUnpublishedDrafts.loadAll(repo: repo))?.map(\.slug) ?? [])
             DispatchQueue.main.async {
                 guard let self, self.mounted, self._publicationCheck == check else { return }
-                self.setState { self._publicationStatus = message; self._heldDraft = held }
+                self.setState { self._publicationStatus = message; self._heldDraft = held; self._unpublishedSlugs = unpublished }
             }
         }
         worker.name = "Starling publication status"
@@ -601,7 +615,7 @@ final class SiteShellState: State<StatefulWidget> {
             if let error { self.setState { self._status = error }; return }
             self._entries = nil
             self._load(revision.slug, push: false)
-            self.setState { self._status = "Updated locally. The page address is unchanged. Publish when ready." }
+            self.setState { self._status = "Saved locally. Review the chapter’s inclusion before publishing." }
         }
     }
 
@@ -681,10 +695,6 @@ final class SiteShellState: State<StatefulWidget> {
             _publishOpen = true
             #if !os(WASI)
             _reviewOpen = store is LocalSiteStore
-            if let local = store as? LocalSiteStore, let config = try? SiteBuilder.readConfig(local.repo),
-               (config.repository ?? "").trimmingWhitespace().isEmpty || (config.url ?? "").trimmingWhitespace().isEmpty {
-                _hostingOpen = true
-            }
             #endif
         }
     }
@@ -806,7 +816,13 @@ final class SiteShellState: State<StatefulWidget> {
                 }
             }, onContinue: { [weak self] in
                 guard let self else { return }
-                self.setState { self._reviewOpen = false; self._publishOpen = true }
+                self.setState {
+                    self._reviewOpen = false; self._publishOpen = true
+                    if let config = try? SiteBuilder.readConfig(local.repo),
+                       (config.repository ?? "").trimmingWhitespace().isEmpty || (config.url ?? "").trimmingWhitespace().isEmpty {
+                        self._hostingOpen = true
+                    }
+                }
                 self._refreshManifest { [weak self] in
                     if let self, let slug = self._slug { self._load(slug, push: false) }
                 }
@@ -891,12 +907,19 @@ final class SiteShellState: State<StatefulWidget> {
         ]
         if store.canEdit {
             header.append(Padding(padding: EdgeInsets(horizontal: 20), child: FilledButton(
-                onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._newTitleOpen.toggle() } }, child: Text("New page +"))))
+                onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._newTitleOpen.toggle() } }, child: Text("New draft +"))))
             header.append(Chrome.vgap(16))
             if _newTitleOpen {
                 header.append(Padding(padding: EdgeInsets(left: 20, top: 0, right: 20, bottom: 12), child:
-                    WikiAppearance.field(_newTitleField, placeholder: "New page title", autofocus: true,
+                    WikiAppearance.field(_newTitleField, placeholder: "New chapter title", autofocus: true,
                                          onSubmitted: { [weak self] t in self?._createPage(t) })))
+                header.append(Padding(padding: EdgeInsets(left: 20, top: 0, right: 20, bottom: 12), child:
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                        FilledButton(onPressed: { [weak self] in
+                            guard let self else { return }; self._createPage(self._newTitleField.text)
+                        }, child: Text("Create draft")),
+                        Button(onPressed: { [weak self] in self?.setState { self?._newTitleOpen = false } }, child: Text("Cancel")),
+                    ])))
             }
         }
         header.append(Padding(padding: EdgeInsets(left: 20, top: 0, right: 20, bottom: 16), child:
@@ -924,7 +947,7 @@ final class SiteShellState: State<StatefulWidget> {
                 let (node, depth) = rows[i]
                 return Padding(padding: EdgeInsets(left: 8 + Double(depth) * 14, top: 0, right: 8, bottom: 0), child: FlyoutListTile(
                     onPressed: { self?._load(node.slug, push: true) },
-                    text: Text(node.title, style: (node.slug == current ? fluent.typography.bodyStrong : fluent.typography.body)?.copyWith(color: node.slug == current ? WikiAppearance.blue : ink), softWrap: false),
+                    text: Text(node.title + (self?._isUnpublished(node.slug) == true ? " · Draft" : ""), style: (node.slug == current ? fluent.typography.bodyStrong : fluent.typography.body)?.copyWith(color: node.slug == current ? WikiAppearance.blue : ink), softWrap: false),
                     margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),
                     selected: node.slug == current))
             }
@@ -1036,7 +1059,7 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(FilledButton(onPressed: _publishing ? nil : { [weak self] in self?._publish() }, child: Text(_publishing ? "Publishing…" : (_publishIssue?.retryTitle ?? "Publish"))))
             } else {
                 #if !os(WASI)
-                items.append(Button(onPressed: { [weak self] in self?.setState { self?._updateImport = false; self?._importOpen = true } }, child: Text("Add a Word document…")))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._updateImport = false; self?._importOpen = true } }, child: Text("Add a Word draft…")))
                 items.append(Chrome.gap(8))
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._updateImport = true; self?._importOpen = true } }, child: Text("Update from Word…")))
                 items.append(Chrome.gap(8))
@@ -1076,7 +1099,9 @@ final class SiteShellState: State<StatefulWidget> {
         if store.canEdit {
             heading += [Chrome.vgap(12), Text(_publicationStatus, style: WikiAppearance.text(14, color: WikiAppearance.muted))]
             #if !os(WASI)
-            if _heldDraft {
+            if let slug = _slug, _isUnpublished(slug) {
+                heading += [Chrome.vgap(8), Text("Unpublished chapter — its title and document stay on this device until you include it in publication review.", style: WikiAppearance.text(14, bold: true))]
+            } else if _heldDraft {
                 heading += [Chrome.vgap(8), Text("Separate local draft — publishing keeps the previously uploaded document until you include this draft in publication review.", style: WikiAppearance.text(14, bold: true))]
             }
             #endif
@@ -1084,7 +1109,7 @@ final class SiteShellState: State<StatefulWidget> {
         heading += _websiteControls()
         heading += _publishFeedback()
         if _publishOpen {
-            heading += [Chrome.vgap(12), Text("Publish all \(_manifest?.flattened().count ?? 0) pages, including their Word and PDF downloads. After publishing, check the live website before sharing its link.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+            heading += [Chrome.vgap(12), Text("Publish the included pages and their Word and PDF downloads. Unpublished chapters and held draft edits stay local. After publishing, check the live website before sharing its link.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
         }
         if !items.isEmpty { heading += [Chrome.vgap(18), Wrap(spacing: 0, runSpacing: 8, children: items)] }
         return DecoratedBox(
