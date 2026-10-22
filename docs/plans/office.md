@@ -3491,6 +3491,21 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **A picture is clipped to the cell it overflows (2026-10-22).**
+  Word cuts an inline picture wider than its table cell at the cell's
+  edge, not at the text's (cell margins do not narrow the cut), and only
+  sideways. A right- or centre-justified picture that overflows still
+  starts at the left. Body pictures are not cut. On drawing.docx p9 the
+  logo now ends at 381.2 (Word 381.12) and the 175.5 pt picture in the
+  nested table at 552.8 (Word 552.72). Lab `dr/clip1` (Word for
+  Windows): fixed-width cells A, B, D, E and F cut where Word cuts, to
+  within 0.5 pt. lenovo-2's sweep found drawing p9 to be the only
+  document whose picture bounds change. `RichLayout._clipToCell` wraps
+  both paths that paint an inline picture. Left: an autofit table (lab
+  case C) grows its column to the picture in Word (339 pt), but our
+  `_minContent` counts text only, so a picture-only paragraph adds
+  nothing and we cut it instead.
+
 - **A sunburst is drawn (2026-10-22).** chartex's last `cx:` chart,
   a sunburst (`layoutId="sunburst"`), was still its Fallback picture:
   page 3 printed none of its 16 lines. `ChartXML.readSunburst` reads

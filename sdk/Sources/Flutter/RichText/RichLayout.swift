@@ -10836,8 +10836,10 @@ public final class RichLayout {
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             let drawn = _decoded[image.id] == nil && _paintOutline(image, box, canvas)
             if let decoded = _decoded[image.id] {
+                let clipped = _clipToCell(i, image, box, canvas)
                 _drawPicture(decoded, image, box, canvas)
                 _paintFrame(image, box, canvas)
+                if clipped { canvas.restore() }
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
                 _paintTextBox(inside, text, box, canvas)
@@ -11119,8 +11121,10 @@ public final class RichLayout {
                     rect = Rect.fromLTRB(rect.left + room.left, rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
                 }
                 if let decoded = _decoded[image.id] {
+                    let clipped = _clipToCell(i, image, rect, canvas)
                     _drawPicture(decoded, image, rect, canvas)
                     _paintFrame(image, rect, canvas)
+                    if clipped { canvas.restore() }
                 } else if let inside = _textBox(image, document), let text = image.textBox {
                     _ = _paintObject(image, rect, canvas)
                     _paintTextBox(inside, text, rect, canvas)
@@ -11770,6 +11774,23 @@ public final class RichLayout {
         let right = image.float == nil && originalSize ? _px(image.effectRight) : 0
         canvas.drawRect(Rect.fromLTRB(box.left - left - out, box.top - _px(image.effectTop) - out,
                                       box.right + right + out, box.bottom + _px(image.effectBottom) + out), paint)
+    }
+
+    /// A picture in the line wider than the table cell it stands in is
+    /// cut at the cell's sides, as Word prints one (drawing.docx p9: a
+    /// 303.75pt banner in a 296pt cell ends at the cell's 381.12, and a
+    /// 175.5pt one in a nested cell at 552.72). Lab `dr/clip1` on Word
+    /// for Windows: the cut is at the cell's edge, not its text's (18pt
+    /// cell margins change nothing), the picture still starts at the
+    /// text's left when its paragraph is centred or set right, and only
+    /// across, never down. Saves the canvas and clips it, true, where it
+    /// does; the caller restores.
+    private func _clipToCell(_ i: Int, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) -> Bool {
+        guard theme.wordRules, image.float == nil, i < _cells.count, let d = _cells[i], !d.vertical,
+              box.left < d.colLeft - 0.5 || box.right > d.colLeft + d.colWidth + 0.5 else { return false }
+        canvas.save()
+        canvas.clipRect(Rect.fromLTRB(d.colLeft, box.top - 1, d.colLeft + d.colWidth, box.bottom + 1), clipOp: .intersect, doAntiAlias: false)
+        return true
     }
 
     /// Whether a floating picture is turned by an odd number of quarters.
