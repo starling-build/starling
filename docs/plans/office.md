@@ -5759,6 +5759,20 @@ fitter dropped the paragraph's tail).
   title row run past it to page 16. Ours, the picture's own 660.7, kept
   that row on page 15. The rest of the line goes under the picture.
   zh-e49d7943 77.4 -> 82.4; nothing else moved.
+- **A nested table does not grow past a parent that spans its page
+  (2026-10-22, T143f).** A table in an autofitting parent's cell
+  autofits as any does, its cells' narrowest widening it. Where the
+  parent already spans its page's text it has no room to give: Word
+  keeps the child at its saved grid and lets the content overflow.
+  drawing.docx's p9 banner table, 171.6pt in a 467.8pt parent beside a
+  303.75pt logo, holds a 177pt picture (175.5 and its 1.5pt effect), and
+  Word's print keeps the table — its right-set "Прозрачность открывает
+  реальность" banner ending at 552.72 — where ours grew it to 177 and the
+  banner stood 5.4pt right (the Mac's measurements). A parent with room
+  still grows with its child (nested-minima: 200pt in 200, 241.5 in
+  Word's print). Banner now 391.55-552.8; no line score moved. Left:
+  Word clips a picture to the cell it overflows (the 175.5pt one and the
+  logo end at their cells' edges in Word's print); ours draws it whole.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

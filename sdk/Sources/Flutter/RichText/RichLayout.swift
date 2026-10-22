@@ -1032,6 +1032,10 @@ public final class RichLayout {
     private var _flowHeight = 0.0
     private var _columnWidths: [String: [Double]] = [:]   // px, per table
     private var _nestedInFixedTable = false
+    /// The room a nested table has where its autofitting parent already
+    /// spans its page's text: past it the child keeps its saved grid and
+    /// its content overflows (pixels; nil elsewhere).
+    private var _nestedCap: Double? = nil
     private var _tableFlowWidth: [String: Double] = [:]   // px: the column each table is laid out in
     /// Points: how far a table of cell spacing is set out before Word 2013's
     /// layout — its first cell's whole text inset (`_tableLeft`).
@@ -1771,6 +1775,9 @@ public final class RichLayout {
                 widths[k] = base[k] - min(give, excess * give / slack)
             }
         }
+        // (Not past the room an autofitting parent that spans its page
+        // leaves it: `_nestedCap`.)
+        if let cap = _nestedCap, widths.reduce(0, +) > cap + _px(1), base.reduce(0, +) <= cap + _px(1) { return base }
         // (Whole pixels: up for a column a cell's narrowest set, so that
         // its piece still fits it.)
         let fitted = widths.indices.map { set.contains($0) ? (widths[$0] - 0.001).rounded(.up) : (widths[$0] + 0.001).rounded(.down) }
@@ -11334,7 +11341,22 @@ public final class RichLayout {
             _nestedInFixedTable || document.tableStyles[$0.table]?.fixedLayout == true
         } == true
         let boxWidth = fixedParent && holding != nil ? _textWidth[holding!] / _px(1) : image.width
-        let key = "\(image.id)|\(boxWidth)|\(fixedParent)|\(scale)|\(box.hashValue)|\(grid.pitch ?? 0)|\(grid.chars ?? 0)"
+        // (An autofitting parent that spans its page's text already has no
+        // room to give a child that would grow: Word keeps the child at its
+        // saved grid and lets its content overflow. drawing.docx's p9
+        // banner table, 171.6pt in the 467.8pt parent beside a 303.75pt
+        // logo, holds a 177pt picture, and Word's print keeps the table and
+        // its right-set banner at 171.6; ours grew it to 177 and the banner
+        // stood 5.4pt right. A parent with room grows with the child — the
+        // nested-minima labs' 200pt child in a 200pt autofitting parent,
+        // 241.5 in Word's print.)
+        var cap: Double? = nil
+        if theme.wordRules, box.growsToFit, !fixedParent, let k = holding, let parent = document.paragraphs[k].cell,
+           let columns = _columnWidths[parent.table], let setup = pageSetup,
+           columns.reduce(0, +) >= _px(setup.contentWidth) - _px(1) {
+            cap = _px(image.width)
+        }
+        let key = "\(image.id)|\(boxWidth)|\(fixedParent)|\(cap ?? 0)|\(scale)|\(box.hashValue)|\(grid.pitch ?? 0)|\(grid.chars ?? 0)"
         if let hit = _textBoxCache[key] { return hit }
         var sub = RichDocument(paragraphs: box.paragraphs)
         sub.styles = document.styles
@@ -11392,6 +11414,7 @@ public final class RichLayout {
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout._nestedInFixedTable = fixedParent
+        layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
         layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))
             : max(1, _px(image.height - box.insetTop - box.insetBottom))
