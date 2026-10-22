@@ -54,7 +54,12 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   Owner: none (starling-bd looked, released). Word's groups go F, FC, F
   for the first three hyperlink paragraphs, then F, F, FC; ours F, FC, F
   throughout (same 23 F and 10 FC). Office.md's 2026-10-21 labs say the
-  order depends on context beyond the paragraph itself.
+  order depends on context beyond the paragraph itself. Word for Windows
+  (Windows 01QbbApP, 2026-10-22, exported with markup, balloons) prints
+  the same 33 balloons in another order: by y, Mac FCF FCF FCF FFFC FFC
+  FFC FFC FFC FFFFC, Windows FFFC FFC FFC FFC FFC C FFFFC FFC FFC FFFFC.
+  The order is not the file's alone; the Mac print is one Word's. Not
+  worth chasing.
 - b. bug57031: DONE (starling-bd). Its one missed line (p2's formula)
   stands where Word's does to 0.5pt; PDFKit groups our math font's
   glyphs with the line above. But its footer's right `w:ptab`, the line's
