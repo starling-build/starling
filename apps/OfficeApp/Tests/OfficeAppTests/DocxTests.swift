@@ -825,6 +825,37 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual((box.top - g.textTop) / px, 7.05 + 0.35, accuracy: 0.8)
     }
 
+    /// 60316's header divider: a line 105% of the margins' height
+    /// (`wp14:sizeRelV`), centred on the page, its 1.8pt bottom effect
+    /// inside that share — Word's print draws it from 36.9 to 753.3 on
+    /// a letter page with 54pt margins, in the theme's accent2.
+    func testAShapeSizedByAShareOfTheMarginsIsCentredOnThePage() throws {
+        var f = ImageFloat()
+        f.verticalFrom = "page"
+        f.verticalAlign = "center"
+        f.horizontalFrom = "page"
+        f.effectBottom = 1.8
+        f.heightShare = 1.05
+        var line = ImageAttachment(data: Data(), width: 2.16, height: 99)
+        line.float = f
+        line.outline = ShapeOutline(kind: .line, color: Color(0xFFB2B2B2), width: 0.5)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let doc = RichDocument(paragraphs: [RichParagraph(image: line), RichParagraph(text: "body")])
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        var setup = PageSetup.letter
+        setup.marginTop = 54
+        setup.marginBottom = 54
+        l.pageSetup = setup
+        l.width = (612 - 144) * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        let box = try XCTUnwrap(l.imageRect(0))
+        XCTAssertEqual(box.height / px, 716.4, accuracy: 0.1)
+        // (From the flow's top, which is the top margin's foot.)
+        XCTAssertEqual(box.top / px + 54, 36.9, accuracy: 0.1)
+    }
+
     /// zh-547fc43c's 219pt chart under its page's last 154pt, with
     /// widow control off: Word starts the next page with it.
     func testAPictureThatDoesNotFitGoesToTheNextPageWithWidowControlOff() {

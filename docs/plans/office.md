@@ -6904,6 +6904,23 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   workaround was added; the same 23 formatting and ten field-code balloons
   are present in both outputs, but their placement still differs.
 
+- **A shape sized as a share of the page, aligned on it (2026-10-22, T143).**
+  60316's header divider is a `prst="line"` connector whose height is
+  `wp14:sizeRelV` 105% of the margins, placed `wp:align center` from the
+  page, coloured `schemeClr accent2`. Ours drew its 99pt fallback extent
+  from the header's top in black. Word's print: x 208.1, y 36.9..753.3,
+  grey. The rule that fits it exactly: the box with its bottom effect
+  extent (1.8pt) takes the share — 1.05 x 684 = 718.2 — and that whole is
+  centred on the page, so the line is 716.4 long from 36.9. Built:
+  `ImageFloat.heightShare`/`heightFrom`, top/centre/bottom alignment from
+  the page or margins (header, footer and body), and theme colours for
+  a line or box outline. A box that fits its text (`a:spAutoFit`) keeps
+  its text's height: zh-3ecd3152, zh-8fa6164c and zh-e0ca7252 carry a
+  stock 20% and are 28.5-48pt in Word's print (the first build grew them
+  to 142pt). Paired sweep n379/n380: no score down, zh-06c46ba9 97.9 ->
+  98.0 (its p71 box from y228 to Word's 72); shapes that moved, 60316,
+  zh-06c46ba9 and zh-01071d55, now stand where Word's do.
+
 - **A positional tab goes to its place on the margins (2026-10-22, T143).**
   `w:ptab` (alignment left/center/right, relative to the margin) was a
   plain tab, which the Header and Footer styles' centre and right stops

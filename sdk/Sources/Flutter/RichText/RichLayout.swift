@@ -11112,6 +11112,9 @@ public final class RichLayout {
     public var regionTopOnPage: Double? = nil
     /// … and the page's top margin there (pixels).
     public var regionMarginTop: Double = 0
+    /// … its bottom margin, and the page's height (pixels).
+    public var regionMarginBottom: Double = 0
+    public var regionPageHeight: Double = 0
     public var frameMargins: (left: Double, right: Double) = (0, 0)
 
     private var _headerFooterCache: [String: _HeaderFooter] = [:]
@@ -11552,7 +11555,24 @@ public final class RichLayout {
     /// or the paragraph, or set left, centre or right in the column (or
     /// the page, where `frameMargins` says how far that reaches).
     private func _floatRect(_ float: ImageFloat, _ image: ImageAttachment, _ g: ParagraphGeometry, _ i: Int) -> Rect {
-        let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity), h = _px(image.height)
+        let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
+        var h = _px(image.height)
+        // The page it stands on, in pixels: a header's or footer's from
+        // the page it is painted on, a body paragraph's from its section.
+        let page: (height: Double, top: Double, bottom: Double) = {
+            if floatsFrames, regionTopOnPage != nil { return (regionPageHeight, regionMarginTop, regionMarginBottom) }
+            let setup = _setup(ofParagraph: i)
+            return (_px(setup.height), _px(setup.marginTop), _px(setup.marginBottom))
+        }()
+        // (A share of the page's or margins' height, its effects within
+        // it: 60316's header divider is 105% of 684pt of margins, 718.2,
+        // and Word's print draws its line 716.4 long over a 1.8pt bottom
+        // effect, centred on the page — 36.9 to 753.3. Ours drew the
+        // file's 99pt extent from the header's top.)
+        if theme.wordRules, let share = float.heightShare, page.height > 0 {
+            let span = float.heightFrom == "page" ? page.height : page.height - page.top - page.bottom
+            h = max(0, share * span - _px(float.effectBottom))
+        }
         // The band it is placed in, from the paragraph's column edge.
         let column = _flowWidth(i)
         var bandLeft = g.textLeft - _textLeftInColumn(i), bandWidth = column
@@ -11609,6 +11629,23 @@ public final class RichLayout {
         if theme.wordRules, floatsFrames, let region = regionTopOnPage, float.verticalAlign == nil,
            float.verticalFrom == "page" || float.verticalFrom == "margin" {
             y = _px(float.y) + (float.verticalFrom == "margin" ? regionMarginTop : 0) - region
+        }
+        // (Aligned top, centre or bottom on the page or within its
+        // margins, the box and its bottom effect together: 60316's
+        // divider, centred on the page.)
+        if theme.wordRules, let a = float.verticalAlign, ["top", "center", "bottom"].contains(a),
+           float.verticalFrom == "page" || float.verticalFrom == "margin", page.height > 0 {
+            let top = float.verticalFrom == "page" ? 0 : page.top
+            let span = float.verticalFrom == "page" ? page.height : page.height - page.top - page.bottom
+            let whole = h + _px(float.effectBottom)
+            let onPage = top + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
+            if floatsFrames, let region = regionTopOnPage {
+                y = onPage - region
+            } else if !floatsFrames, let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }) {
+                let physical = piece.page / _columns
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : page.top
+                y = piece.flowTop + onPage - insetTop - piece.pageY
+            }
         }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
@@ -12004,6 +12041,8 @@ public final class RichLayout {
             let top = kind == .header ? rect.top + _px(setup.headerDistance) : rect.bottom - _px(setup.footerDistance) - hf.height
             hf.layout.regionTopOnPage = top - rect.top
             hf.layout.regionMarginTop = _px(setup.marginTop)
+            hf.layout.regionMarginBottom = _px(setup.marginBottom)
+            hf.layout.regionPageHeight = _px(setup.height)
             canvas.save()
             canvas.translate(rect.left + _pxMarginLeft(p), top)
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,

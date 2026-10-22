@@ -2211,6 +2211,17 @@ enum DocxFormat {
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
+            // (A height that is a share of the page's or margins': 60316's
+            // header divider, 105% of the margins, 718.2pt where its
+            // extent says 99. Not a box that fits its text, which keeps
+            // its text's height: zh-3ecd3152's and zh-e0ca7252's say 20%
+            // and are 28.5 and 48pt in Word's print.)
+            if anchor.descendant("a:spAutoFit") == nil,
+               let rel = anchor.first("wp14:sizeRelV"), let pct = Double(rel.first("wp14:pctHeight")?.text ?? ""), pct > 0,
+               ["page", "margin"].contains(rel["relativeFrom"] ?? "") {
+                f.heightShare = pct / 100_000
+                f.heightFrom = rel["relativeFrom"] ?? "margin"
+            }
             if let t = Double(anchor["distT"] ?? "") { f.distanceTop = t / 12700 }
             if let b = Double(anchor["distB"] ?? "") { f.distanceBottom = b / 12700 }
             return f
@@ -3104,9 +3115,14 @@ enum DocxFormat {
             // see `WriterGroups`.)
             if node.descendant("wpg:wgp") == nil, let sp = node.descendant("wps:spPr"), let geom = sp.first("a:prstGeom")?["prst"],
                ["line", "straightConnector1", "rect"].contains(geom) {
+                // (A theme's colour too: 60316's divider is accent2, grey in
+                // Word's print, where ours fell back to black.)
+                let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
+                let colors = ColorContext(theme: PptxTheme(notes.part(_resolvePath("word", themeTarget)).flatMap { XNode.parse($0) }))
                 func rgb(_ n: XNode?) -> Color? {
-                    guard let hex = n?.first("a:solidFill")?.first("a:srgbClr")?["val"], let v = Int64(hex, radix: 16) else { return nil }
-                    return Color(0xFF00_0000 | v)
+                    guard let fill = n?.first("a:solidFill") else { return nil }
+                    if let hex = fill.first("a:srgbClr")?["val"], let v = Int64(hex, radix: 16) { return Color(0xFF00_0000 | v) }
+                    return fill.first("a:schemeClr") != nil ? colors.color(in: fill) : nil
                 }
                 let ln = sp.first("a:ln")
                 var outline = ShapeOutline(kind: geom == "rect" ? .box : .line,
