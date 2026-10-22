@@ -23,11 +23,14 @@ struct SitePublishReview {
         let heldDraft: SiteDrafts.Draft?
     }
     struct RemovedPage {
+        let slug: String
         let title: String
         let route: String
         let comparison: SiteReleaseComparison
     }
     let title: String
+    let website: String?
+    let uploadedRevision: String?
     let pages: [Page]
     let removed: [RemovedPage]
     let unpublished: [SiteUnpublishedDrafts.Draft]
@@ -79,7 +82,7 @@ struct SitePublishReview {
         }
         let slugs = Set(pages.map(\.slug))
         let removed = prior?.manifest.flattened().filter { !slugs.contains($0.node.slug) }.map {
-            RemovedPage(title: $0.node.title, route: prior!.manifest.route($0.node.slug),
+            RemovedPage(slug: $0.node.slug, title: $0.node.title, route: prior!.manifest.route($0.node.slug),
                         comparison: SiteReleaseComparison(
                             previous: prior!.bytes[$0.node.slug].flatMap { SiteFiles.decodePage($0) }, current: nil,
                             previousTitle: $0.node.title, currentTitle: nil))
@@ -90,12 +93,13 @@ struct SitePublishReview {
             $0.config.pages != config.pages || $0.config.resolvedHome != config.resolvedHome || $0.config.details != config.details
         } ?? false
         let unpublished = try SiteUnpublishedDrafts.loadAll(repo: repo)
-        return Self(title: config.title, pages: pages, removed: removed,
+        return Self(title: config.title, website: config.url, uploadedRevision: prior?.revision, pages: pages, removed: removed,
                     unpublished: unpublished.filter { !$0.isSetAside }, setAside: unpublished.filter(\.isSetAside),
                     compared: prior != nil, settingsChanged: settingsChanged)
     }
 
     private struct Baseline {
+        let revision: String
         let config: SiteConfig
         let manifest: SiteManifest
         let bytes: [String: Data]
@@ -120,7 +124,7 @@ struct SitePublishReview {
                   SiteFiles.decodePage(data) != nil else { return nil }
             bytes[node.slug] = data
         }
-        return Baseline(config: config, manifest: manifest, bytes: bytes)
+        return Baseline(revision: receipt.revision, config: config, manifest: manifest, bytes: bytes)
     }
 }
 #endif

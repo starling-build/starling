@@ -186,6 +186,28 @@ is interrupted, publication review offers a retry; build/upload stay blocked
 while the unfinished draft record remains. Never delete that record to bypass
 an error without first recovering the document.
 
+Open **Publish → Release plan** to see your chapters' next-publication choices
+alongside their last matching upload snapshot. Choose **Plan a date**, enter a
+calendar day as `YYYY-MM-DD`, then **Save planned date**. Dated chapters appear
+first in date order. **Change planned date** and **Clear date** update only this
+device's plan. A date stays with its chapter through renaming, setting aside,
+restoring, inclusion and upload; clear it when it is no longer useful. Removed
+chapters keep a visible, clearable date rather than silently losing the plan.
+
+Dates are reminders, not a scheduler. Publishing still sends every included
+page, even with a future date; a past date never includes a local draft. Return
+to publication review to include a chapter deliberately. The overview shows the
+configured website and public audience; it does not provide subscriber tiers or
+external-platform distribution. An upload snapshot identifies the version sent
+to hosting, not a verified live deployment or the chapter's last edit. Use
+**Check live website** in preview after uploading to check deployment separately.
+
+The plan is stored in `.git/starling-release-plan.json`, outside source files
+and public output. Cloning or publishing does not back it up; include Git metadata
+in whole-folder backups. Concurrent edits are rejected instead of overwriting
+another window's plan. A damaged plan must be recovered before editing its dates,
+but does not block publication review or upload.
+
 When review finds **References to check**, use **Show references** to see the
 affected text, target and guidance. **Show in document** opens the passage when
 it can be identified uniquely; use **Preview page** for the whole document.

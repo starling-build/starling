@@ -26,6 +26,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     private var error: String?
     private var referenceDetails = Set<String>()
     private var comparison: (value: SiteReleaseComparison, slug: String?)?
+    private var planning = false
 
     override func initState() { super.initState(); refresh() }
 
@@ -84,6 +85,13 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        if planning {
+            return SiteReleasePlanPanel(store: panel.store, onBack: { [weak self] in
+                guard let self else { return }
+                self.setState { self.planning = false }
+                self.refresh()
+            }, onPreview: panel.onPreview)
+        }
         if let comparison {
             let preview: ((UInt32?) -> Void)? = comparison.slug.map { slug in
                 { [weak self] id in self?.panel.onPreview(slug, id) }
@@ -98,6 +106,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
             Chrome.vgap(16), Wrap(spacing: 12, runSpacing: 8, children: [
                 Button(onPressed: panel.onBack, child: Text("Back to preview")),
                 Button(onPressed: busy ? nil : { [weak self] in self?.refresh() }, child: Text("Refresh review")),
+                Button(onPressed: busy || review == nil ? nil : { [weak self] in self?.setState { self?.planning = true } }, child: Text("Release plan")),
                 FilledButton(onPressed: busy || review == nil ? nil : panel.onContinue, child: Text("Continue to publish")),
             ]),
         ]

@@ -24,8 +24,9 @@ Sequence the work:
    navigation changes for already included chapters remain future work.
    The publisher commits source and generated output together: hiding a page
    from navigation or export alone would not make its source private.
-3. Introduce a release overview with chapter, destination, audience, planned date
-   and released revision. Scheduled, uploaded, verified live and manually
+3. A local release overview now covers chapter, website destination, public
+   audience, planned date and matching upload snapshot, as described below.
+   Scheduled, uploaded, verified live and manually
    recorded releases must remain distinct; dates alone are not a scheduler.
 4. Make publishing to the author's own site dependable, then evaluate one
    external destination with active writers and supported publishing access.
@@ -39,6 +40,48 @@ existing editor before requiring migration. Advanced lore management,
 multi-platform automation and payment tiers remain later work, not prerequisites
 for this first release-management workflow. These interviews have not happened;
 the market discussion is a hypothesis, not demand evidence.
+
+**Plan chapter releases (2026-10-21):** Publication review now opens Release plan.
+The overview combines unpublished chapters, included pages, held next drafts,
+chapters set aside and pending removals. It shows the configured website and
+public audience. Upload evidence comes from the same validated receipt/artifacts
+as publication review: an included page is not assumed uploaded, and a local
+commit cannot substitute for the recorded upload. The displayed revision is the
+upload snapshot containing that chapter, not its last edit or a live-deployment
+claim. Live checking remains a separate action in preview.
+
+Authors can save, change and clear one planned calendar day per chapter. Dated
+entries sort first by date. These are local intentions: they do not schedule,
+delay or include anything. Publishing continues to upload all included pages,
+including pages with future dates. Dates persist through rename, set-aside,
+restore, inclusion and upload until explicitly changed/cleared. A removed or
+otherwise unavailable chapter retains a visible old date that can be cleared.
+
+A versioned `starling-release-plan.json` record lives in the checkout's Git
+metadata. Dates use strict Gregorian YYYY-MM-DD validation without an invented
+time/zone. Writes use the shared draft lock, full-snapshot comparison, a rotating
+identity and atomic replacement. Stale windows cannot overwrite another date
+edit or clear/re-add cycle. Corrupt/unsupported records and redirected storage
+are rejected without overwriting; a broken plan does not block publishing.
+The publisher never consumes this metadata. Whole-folder backups including Git
+metadata remain necessary. There are no automatic reminders, timed releases,
+manual external-release records, subscriber access controls or synchronization.
+
+Validation: the native macOS build and 19 focused Swift tests pass (eight new
+release-plan cases and eleven publication-review regressions). They cover date
+validation, stale edits, corrupt/symlinked storage, chapter transitions, missing
+chapters and matching upload evidence. A native scripted walkthrough verified
+invalid-date feedback, saving, reopening, changing, cancelling and clearing a
+date, then returning to publication review. Manuscripts, configuration, public
+output and the upload receipt stayed byte-identical throughout. The full
+site-build suite and all 34 publishing integration tests pass. The new test
+checks every reachable remote blob for private dates/draft content and verifies
+that future dates never delay included pages, past dates never publish drafts,
+and a damaged plan never blocks a correction. All remote writes target temporary
+local bare repositories. This increment is native author UI/model code under
+`!os(WASI)`; the public browser reader is
+unchanged. Mobile/IME, Linux/Windows builds and production hosting were not
+exercised.
 
 **Set aside and restore unpublished chapters (2026-10-21):** Publication review
 now offers Set aside on an unpublished chapter. It disappears from the author's

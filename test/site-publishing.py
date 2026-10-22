@@ -613,6 +613,41 @@ class PublishingTests(unittest.TestCase):
         self.run_app('--site-publish', self.repo, '--web', STAGE)
         self.assertIn('The next chapter', (self.out / slug / 'index.html').read_text())
 
+    def test_release_dates_stay_local_and_never_schedule_or_delay_publication(self):
+        remote = self.setup_remote()
+        marker = 'PLANNED-PRIVATE-' + str(uuid.uuid4())
+        manuscript = self.root / 'planned.md'
+        manuscript.write_text(marker)
+        slug = self.run_app('--site-import', self.repo, manuscript, '--title', 'Future chapter', '--draft').strip()
+        plan = self.repo / '.git/starling-release-plan.json'
+        identity = str(uuid.uuid4())
+        # Use the native store's schema. Dates must not be read as release commands:
+        # an included page with a future date still publishes; an overdue draft does not.
+        plan.write_text(json.dumps({'version': 1, 'id': identity,
+                                    'dates': {'manual': '2399-12-31', slug: '2001-01-02'}}))
+        saved = plan.read_bytes()
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        self.assertTrue((self.out / 'manual/index.html').exists())
+        self.assertFalse((self.out / slug).exists())
+        self.assertEqual(plan.read_bytes(), saved)
+        self.assertEqual(self.state(), 'held')
+        objects = subprocess.check_output(
+            ['git', '--git-dir', str(remote), 'rev-list', '--objects', '--all'], text=True).splitlines()
+        for entry in objects:
+            self.assertNotIn('starling-release-plan', entry)
+            self.assertNotIn(slug, entry)
+            oid = entry.split()[0]
+            kind = subprocess.check_output(['git', '--git-dir', str(remote), 'cat-file', '-t', oid]).strip()
+            if kind == b'blob':
+                content = subprocess.check_output(['git', '--git-dir', str(remote), 'cat-file', 'blob', oid])
+                for private in [identity, marker, '2399-12-31', '2001-01-02']:
+                    self.assertNotIn(private.encode(), content)
+        # A damaged reminder cannot prevent the writer from publishing a correction.
+        plan.write_text('recover this local plan')
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        self.assertEqual(plan.read_text(), 'recover this local plan')
+        self.assertFalse((self.out / slug).exists())
+
     def test_set_aside_and_restored_chapter_stays_private_until_explicit_inclusion(self):
         import base64
         remote = self.setup_remote()
