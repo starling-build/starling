@@ -90,6 +90,7 @@ final class OfficeSession {
         // clone each is drawn with (OfficeFonts, Resources/fonts/README.md).
         theme.fontFamilyResolver = OfficeFonts.substitute
         theme.faceResolver = OfficeFonts.face
+        theme.complexFaceResolver = OfficeFonts.complexFace
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.wordRules = true
         // (Letters one by one: Word sets a face's ligatures only where a

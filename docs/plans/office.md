@@ -6823,3 +6823,24 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   percentage size `wp14:sizeRelV` and header vertical alignment are not
   handled by this position-reading fix. Regression tests cover both axes
   and precedence of a direct position over alternate content.
+
+- **RTL runs draw their complex-script font (2026-10-21).**
+  `RichTextTheme.textStyle` now selects `CharStyle.complexFontFamily`
+  for explicitly right-to-left runs, inherited from their named style or
+  Normal, through `complexFaceResolver`. Latin runs keep their Latin
+  resolver. Office preserves the requested or embedded complex face and
+  supplies Cambria/Caladea, Times New Roman, Noto Naskh Arabic and DejaVu
+  Sans as fallbacks. Word-for-Mac labs (`/tmp/starling-poi-fixes/rtl/lab`)
+  show that a missing complex-script face uses Cambria for punctuation
+  and spaces, and Times for Arabic. Using Times for both makes eight
+  lines instead of seven. With the correct fallback order, rtl.docx has
+  Word's seven lines and readable PDF text; the previous fallback was
+  Geeza Pro with null text and nine lines. Native editor, layout dump and
+  PDF export share the same resolver. Available fonts still determine
+  fallback coverage on each platform; this sweep is on macOS.
+  The matcher separately handles visual/logical RTL edge order and stops
+  treating null Arabic text as matching letters. Re-evaluating the old
+  corpus changes only rtl (71.4 -> 0). Against that corrected baseline,
+  the three fixes move 55966, 60316 and rtl to 100%; all 574 other scores
+  are unchanged. Final POI mean 90.7% including nine textless references,
+  98.7% over 102 text-bearing files; 99 at least 95%, 111 page counts match.

@@ -1265,6 +1265,18 @@ enum OfficeFonts {
     /// East Asian text in a Latin face is set in the face Word falls
     /// back to, 宋体. The ideographs themselves are drawn by whatever
     /// the platform falls back to; they are an em wide in every face.
+    /// Complex-script text needs the requested face itself: the shipped
+    /// Latin metric clones do not include Arabic. Try the document's
+    /// embedded face first, then installed Arabic-capable families. Word
+    /// uses Cambria for spaces/punctuation and Times New Roman for Arabic
+    /// when the named face is absent (rtl.docx and missing-face labs).
+    static func complexFace(_ family: String?) -> RichResolvedFace? {
+        let name = family ?? "Times New Roman"
+        var face = RichResolvedFace(family: embeddedFamily(name) ?? name)
+        face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
+        return face
+    }
+
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
         let own = isEastAsianFace(family)

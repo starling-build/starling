@@ -71,6 +71,19 @@ characters no longer match arbitrary letters. Only rtl's score changes
 (71.4 -> 0 on the broken baseline); all other 576 scores are unchanged.
 This is an oracle-reading correction, not a renderer improvement. Tests:
 `python3 test/docx-line-match-test.py` (also in test/run.sh).
+RTL font selection and fallback now give seven readable lines, seven
+matched, vs nine lines with null text before. Full 577-document sweep:
+only 55966, 60316 and rtl improve; no other scores change against the
+corrected baseline. POI 90.7% overall / 98.7% text-bearing, 99/102 text
+files >=95%, 111/111 page counts. Font-verified artifacts:
+`/tmp/starling-poi-fixes/rtl-final/sweep`.
+Remaining below 95%: 60329 (clipped portrait reference print of landscape
+content), delins (balloon order), chartex (sunburst fallback-image labels).
+Near-100 residuals: PDFKit grouping in bug57031, bug59058, bib-chernigovka
+and form_footnotes; bug65649 has four real ~5pt shifts in centred cells
+at the page foot. Visual-only: 60316's relative-height header divider.
+Font resource lookup under the Swift 6.4 XCTest bundle is being fixed:
+the supposedly known line-height failure used unregistered fonts.
 
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)

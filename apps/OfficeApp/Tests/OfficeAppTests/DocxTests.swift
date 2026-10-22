@@ -65,6 +65,24 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try read("<w:p>\(control("Another document"))</w:p>").paragraphs.map(\.text), ["Another document"])
     }
 
+    func testRightToLeftRunsResolveTheirComplexScriptFont() {
+        let theme = RichTextTheme(fontFamily: "Latin default")
+        theme.fontFamilyResolver = { _ in "Latin clone" }
+        var normal = CharStyle()
+        normal.complexFontFamily = "Inherited Arabic"
+        var run = CharStyle()
+        run.fontFamily = "Latin"
+        run.rightToLeft = true
+        func family() -> String? { theme.textStyle(for: run, in: RichParagraphStyle(), normal: normal, scale: 1).fontFamily }
+        XCTAssertEqual(family(), "Inherited Arabic", "the Latin clone cannot supply Arabic")
+        run.complexFontFamily = "Run Arabic"
+        XCTAssertEqual(family(), "Run Arabic")
+        theme.complexFaceResolver = { RichResolvedFace(family: "Embedded " + ($0 ?? "")) }
+        XCTAssertEqual(family(), "Embedded Run Arabic")
+        run.rightToLeft = false
+        XCTAssertEqual(family(), "Latin clone", "Latin text inside a bidi paragraph keeps its Latin face")
+    }
+
     /// A file with a footnotes part: the mark reads as its number in
     /// superscript, and a save carries the part, its rels, the reference
     /// and the note styles back out — Word then shows the note again.

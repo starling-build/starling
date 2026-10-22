@@ -49,6 +49,10 @@ public final class RichTextTheme {
     /// the stand-in the original's widths, and the original's line
     /// height.
     public var faceResolver: ((String?, Bool) -> RichResolvedFace?)? = nil
+    /// A right-to-left run uses its complex-script face (`w:cs`), which
+    /// may need different fallbacks from a Latin metric clone. nil keeps
+    /// that face's name and metrics instead of applying the Latin resolver.
+    public var complexFaceResolver: ((String?) -> RichResolvedFace?)? = nil
     /// A Latin family's average character width in ems, by the name
     /// the document uses (nil: half an em). Word's automatic space
     /// between an ideograph and a Latin letter or digit is a quarter of
@@ -491,9 +495,11 @@ public final class RichTextTheme {
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         var color = style.color ?? named?.char.color ?? normal?.color ?? textColor
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily
-        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
-        let face = faceResolver?(familyName, eastAsian)
-        let family = face?.family ?? familyName.map { fontFamilyResolver?($0) ?? $0 }
+        let complex = style.rightToLeft && !eastAsian
+        let familyName = complex ? (style.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily ?? latinName)
+            : eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let face = complex ? complexFaceResolver?(familyName) : faceResolver?(familyName, eastAsian)
+        let family = face?.family ?? familyName.map { complex ? $0 : (fontFamilyResolver?($0) ?? $0) }
         // (A character scale is laid out as that much smaller or larger
         // a size — the engine sets no face narrower than it is, and the
         // widths are what break the lines — and drawn pulled back to

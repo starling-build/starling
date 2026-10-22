@@ -422,6 +422,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
             let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
             theme.fontFamilyResolver = OfficeFonts.substitute
             theme.faceResolver = OfficeFonts.face
+            theme.complexFaceResolver = OfficeFonts.complexFace
             theme.averageCharWidth = OfficeFonts.averageCharWidth
             theme.wordRules = true
             theme.disablesLigatures = true
