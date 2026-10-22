@@ -45,6 +45,14 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
+### T141. POI picture-header tabs — in progress
+Owner: Codex Mac, starling worktree, 2026-10-22
+Documents: issue_51265_3; then related image/header positioning gaps.
+Baseline: ebf9faf6, /tmp/starling-poi-fixes/split-cell/sweep, same engine
+and OFFICE_WORD_FONTS=mac. Investigate why a trailing header tab adds an
+extra line and why tabs shift the header pictures right. Use Word labs,
+regression tests, image coordinates and the full 577-document sweep.
+
 ### T140. POI matching — four fixes landed; remaining work released
 Owner: none — Codex Mac released remaining investigation, 2026-10-21
 Worktree: starling, branch office. Latest renderer fix: 8ac6515c.
