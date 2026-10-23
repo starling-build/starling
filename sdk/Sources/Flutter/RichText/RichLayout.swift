@@ -2584,8 +2584,15 @@ public final class RichLayout {
         var setups: [PageSetup] = []
         var of = Array(repeating: 0, count: document.paragraphs.count)
         var start = 0
+        // (Not for the sections of a cover — those before the first that
+        // ends on its page: set in the body's columns, the cover is still
+        // its page. zh-b5359de4's title is a one-column section between
+        // two-column ones on a page of empty paragraphs, its body two
+        // columns of A3 landscape; set in one column, the whole file ran
+        // 25 pages to Word's 14.)
+        let cover = document.paragraphs.firstIndex { $0.cell == nil && $0.style.sectionPage != nil && $0.style.sectionBreaksPage == true } ?? -1
         _oneColumn = last.columns > 1 && document.paragraphs.enumerated().contains { i, p in
-            p.cell == nil && i < document.paragraphs.count - 1 && p.style.sectionPage.map { max(1, $0.columns) != last.columns } == true
+            p.cell == nil && i > cover && i < document.paragraphs.count - 1 && p.style.sectionPage.map { max(1, $0.columns) != last.columns } == true
         }
         for (i, p) in document.paragraphs.enumerated() where p.cell == nil {
             guard var setup = p.style.sectionPage, i < document.paragraphs.count - 1 else { continue }
