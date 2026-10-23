@@ -133,9 +133,13 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   advance, not a character: only form_footnotes and checkboxes carry
   FORMCHECKBOX in the corpus. Not built; released.
 - h. form_footnotes' FORMCHECKBOX as a drawn 11.5pt box (from g).
-  Owner: none. A checkbox is a "☐" character in the model and the writer
-  saves every ☐ as a checkbox field, so drawing it as a box is a model
-  change for one line in one file; not started.
+  DONE (Mac 0fcba326, 2026-10-22; the user chose Word's look). Not a model
+  change: the "☐"/"☒" stays in the text (and saves as the field) and the
+  layout, under Word's rules, hides it and sets a box after it — 9.36pt
+  square stroked 0.72 at 10pt, 1.06 before and 1.08 after, 8.4 over the
+  baseline, ticked crossed corner to corner. All 29 of form_footnotes'
+  boxes stand within 0.2pt of Word's x; n386 vs n385: form_footnotes
+  97.7 -> 98.9, checkboxes 6/8 -> 6/6 lines, nothing else moved.
 - i. An autofit table cell holding only a picture grows its column to the
   picture plus the cell margins in Word (lab dr/clip1 case C: 339pt);
   ours keeps the column and cuts the picture, because _minContent and

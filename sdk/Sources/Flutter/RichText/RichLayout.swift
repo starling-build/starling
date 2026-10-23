@@ -7570,7 +7570,8 @@ public final class RichLayout {
         // margin in Word's print — counted, 87 figures moved 3.5pt left.)
         let roomyTrail = theme.wordRules && p.style.alignment == .right && p.text.hasSuffix(" ")
             && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
-        if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail {
+        let checkboxes = theme.wordRules && p.text.contains { $0 == "\u{2610}" || $0 == "\u{2612}" }
+        if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
             let spans = styled(p.text[...], p.runs[0].style)
             if spans.count == 1 { return (spans[0], [], inserts) }
             return (TextSpan(children: spans), [], inserts)
@@ -7794,6 +7795,48 @@ public final class RichLayout {
                 var hidden = run.style
                 hidden.hidden = true
                 children.append(contentsOf: styled(p.text[a ..< b], hidden, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
+                continue
+            }
+            // A form's check box ("☐", "☒" — the reader's FORMCHECKBOX)
+            // is a drawn square in Word's print, not a character: at 10pt
+            // a 9.36pt box stroked 0.72, 1.06 before it and 1.08 after (an
+            // 11.5pt advance), its foot 0.96 under the baseline —
+            // form_footnotes' "☐ Yes ☐ No", whose "Yes" stood 2.5pt left
+            // of Word's behind the glyph's 8.96. A box in the line before
+            // the character, which is kept and hidden, as a combined run's.
+            if theme.wordRules, p.text[a ..< b].contains(where: { $0 == "\u{2610}" || $0 == "\u{2612}" }) {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                var hidden = run.style
+                hidden.hidden = true
+                var start = a
+                for idx in p.text[a ..< b].indices where p.text[idx] == "\u{2610}" || p.text[idx] == "\u{2612}" {
+                    let at = pos - run.length + utf16.distance(from: a, to: idx)
+                    if start < idx {
+                        children.append(contentsOf: styled(p.text[start ..< idx], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: p.text[idx]))
+                    }
+                    var box = ImageAttachment(data: Data(), width: size * 0.936, height: size * 0.936, name: p.text[idx] == "\u{2612}" ? "checkbox-on" : "checkbox")
+                    box.outline = ShapeOutline(kind: .box, color: run.style.color ?? theme.textColor, width: size * 0.072)
+                    box.effectLeft = size * 0.106
+                    box.effectRight = size * 0.108
+                    // (After the character, which a tab before it sets at
+                    // its stop; and a zero-width space in the run's style
+                    // with it, so a line of the box alone is a line of
+                    // the text — Word's cells of one box are 11.52 tall
+                    // at 10pt, not the box's 9.36.)
+                    let after = p.text.index(after: idx)
+                    children.append(contentsOf: styled(p.text[idx ..< after], hidden, at: at, next: after < p.text.endIndex ? p.text[after] : nil))
+                    children.append(TextSpan(text: "\u{200B}", style: style))
+                    inserts.append(at + 1)
+                    children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                    inline.append((box, PlaceholderDimensions(size: Size(_px(size * 1.15), _px(size * 0.936)), alignment: PlaceholderAlignment.baseline,
+                                                              baseline: TextBaseline.alphabetic, baselineOffset: _px(size * 0.84))))
+                    inserts.append(at + 1)
+                    start = after
+                }
+                if start < b {
+                    children.append(contentsOf: styled(p.text[start ..< b], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: b < utf16.endIndex ? p.text[b] : nil))
+                }
                 continue
             }
             children.append(contentsOf: styled(p.text[a ..< b], run.style, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
@@ -11286,6 +11329,19 @@ public final class RichLayout {
                 } else if let inside = _textBox(image, document), let text = image.textBox {
                     _ = _paintObject(image, rect, canvas)
                     _paintTextBox(inside, text, rect, canvas)
+                } else if theme.wordRules, image.name == "checkbox" || image.name == "checkbox-on", let outline = image.outline {
+                    // (A form's check box: see where it is set. Stroked
+                    // inside its square, as Word's 0.72 line is; a ticked
+                    // one crossed corner to corner.)
+                    let stroke = Paint()
+                    stroke.style = .stroke
+                    stroke.strokeWidth = _px(outline.width)
+                    stroke.color = outline.color ?? theme.textColor
+                    canvas.drawRect(rect, stroke)
+                    if image.name == "checkbox-on" {
+                        canvas.drawLine(rect.topLeft, rect.bottomRight, stroke)
+                        canvas.drawLine(rect.bottomLeft, rect.topRight, stroke)
+                    }
                 } else if !_paintObject(image, rect, canvas) {
                     // (An object in the line that the app draws — chartex's
                     // line chart, a space after it — is drawn as one alone in

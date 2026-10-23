@@ -7106,6 +7106,24 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   98.0 (its p71 box from y228 to Word's 72); shapes that moved, 60316,
   zh-06c46ba9 and zh-01071d55, now stand where Word's do.
 
+- **A form check box is drawn as Word draws it (2026-10-22, T143h).**
+  The reader turns a FORMCHECKBOX field into "☐" or "☒" and the writer
+  saves those as the field; Word's print draws the field as a square,
+  not a glyph — at 10pt a 9.36pt box stroked 0.72, with 1.06 before and
+  1.08 after it (an 11.5pt advance, against Apple Symbols' 8.3–8.96), its
+  foot 0.96 under the baseline. Under Word's rules the layout now keeps the
+  character, hidden, and sets after it a placeholder of that advance and a
+  zero-width space in the run's style (a cell of one box keeps a line of
+  text's height: Word's are 11.52 at 10pt, the box alone 9.36). The
+  painter strokes the square, crossed for "☒". After the character so a
+  tab before it sets the box at its stop: placed before it, the tab put
+  the hidden character at the stop and the box 11.5pt short. A one-run
+  paragraph skips the fast path when it has one. The text layer keeps no
+  "☐", as Word's has none. form_footnotes: all 29 boxes within 0.2pt of
+  Word's x, "Yes" 3.2pt nearer Word's; the corpus's only other check boxes
+  are in checkboxes.docx. Paired sweep n386 vs n385: form_footnotes 97.7 ->
+  98.9, nothing else moved.
+
 - **A row taller than a page ends at the foot; a wrapper keeps its cell's room (2026-10-22).**
   zh-045c5a75 (sample 23) was a page long at 24.9%. Its row of at least
   779.75pt (`trHeight` 15595, more than the page's 749.7pt) runs over pages
