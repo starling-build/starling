@@ -7764,3 +7764,16 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   `fixed-parent-text-comparison.json` and `tests-final.log` under the lab
   directory above. This fixes the isolated fixed-parent cases, not the
   original autofitting-parent banner or a corpus line-score gap.
+
+- **A hint sends block elements to the East Asian face too (2026-10-23;
+  Windows 01QbbApP, from Word's print).** zh-340d52e9's "▓3.其他經區公所…"
+  begins with a run whose Latin face is 新細明體, hinted East Asian, with
+  no East Asian face of its own, so it takes Normal's 標楷體. Word's print
+  sets its "▓" (U+2593) in YaHei Bold, and the line stands taller for
+  it, both of its lines 25-29pt apart where the table's others are 18.
+  Ours set it in the Latin face. `isEastAsian(_:hinted:)` let the hint
+  take box drawing (to U+257F) and geometric shapes (from U+25A0), but
+  skipped the block elements between them (U+2580-259F); it now covers
+  the whole run. Only zh-340d52e9 and zh-045c5a75 in the corpus have
+  such a character. zh-340d52e9 76.0 -> 97.7; zh-045c5a75 unchanged
+  (pair bl-base/bl-new).

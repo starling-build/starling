@@ -11236,7 +11236,11 @@ public final class RichLayout {
              0xFE30 ... 0xFE6F, 0xFF00 ... 0xFFEF, 0x20000 ... 0x3FFFF:
             return true
         case 0xA1 ... 0x24F, 0x2010 ... 0x203B, 0x2103, 0x2109, 0x2116, 0x2121, 0x2160 ... 0x217F, 0x2190 ... 0x2199,
-             0x2200 ... 0x22FF, 0x2460 ... 0x257F, 0x25A0 ... 0x266F:
+             0x2200 ... 0x22FF, 0x2460 ... 0x266F:
+            // (Block elements too: zh-340d52e9's "▓", hinted East Asian in
+            // a run whose Latin face is 新細明體 and whose East Asian one
+            // is Normal's 標楷體, is YaHei Bold in Word's print, its line
+            // the taller for it; ours drew it in the Latin face.)
             return hinted
         default:
             return false
