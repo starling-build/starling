@@ -3952,8 +3952,12 @@ enum DocxFormat {
                     // run's own text and needs no number.
                     let footnote = child.name == "w:footnoteReference"
                     guard footnote ? notes.footnotes : notes.endnotes, let id = Int(child["w:id"] ?? "") else { break }
+                    // (Raised as its run says — its "footnote reference"
+                    // style, most often: zh-7a16a243's marks are in runs
+                    // that name no style, and Word's print sets "5" at the
+                    // text's size on the line, 9.6pt wide where ours, raised
+                    // and small, took 5.8 and a character more a line.)
                     var mark = cs
-                    mark.script = .superscript
                     mark.note = NoteReference(kind: footnote ? .footnote : .endnote, id: id)
                     if child["w:customMarkFollows"] == "1" || child["w:customMarkFollows"] == "true" {
                         addText("\u{200B}", mark)
