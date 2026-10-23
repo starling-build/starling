@@ -2306,7 +2306,12 @@ public final class RichLayout {
                                 let top: Double
                                 switch f.verticalFrom {
                                 case "paragraph", "line": top = max(0, offset + cell.pad.top + _px(f.y))
-                                case "page", "margin": top = 0
+                                // (From under the row's top line, as its text:
+                                // Word's p17 row is the chart's 632.4pt and 0.7,
+                                // 121.9 to 755.0 between its lines; from the
+                                // row's very top ours was 632.3, and the next
+                                // row parted where Word's goes over whole.)
+                                case "page", "margin": top = cell.pad.top
                                 default: continue
                                 }
                                 rowHeight = max(rowHeight, top + h)
