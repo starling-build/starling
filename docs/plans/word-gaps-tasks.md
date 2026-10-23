@@ -4096,8 +4096,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   the table's one-line rows are 21.58pt in ours, 21.1 in Word's — the
   line itself (21.08 against ~20.6; the rule is 0.5 in both), ~0.5pt a
   row, ~5pt by p17's foot. Font metrics, not row parting.
-- zh-4f70ee2d (95.3; Linux 017F2GnT 2026-10-23, lab asked of the Mac): p19's
-  last row "1 | 党委政府分别组织专题学习安全…" (atLeast 28.35, a vMerge'd
-  centred label of three 13pt lines, top line sz12) goes whole to p20 in
-  Word's print with ~38pt left; ours parts it a line a cell. Its footer
-  "— 20 —" (frame, w 1353) is also one line in Word's, two in ours.
+- zh-4f70ee2d (95.3; Linux 017F2GnT 2026-10-23, released): p19's last row
+  "1 | 党委政府分别组织专题学习安全…" (atLeast 28.35 under a 1.5pt line) goes
+  whole to p20 in Word's print, ours parts it. Lab `rp` (the Mac): Word
+  parts it from 32pt above the foot, not at 28 — the stated-height rule,
+  merge and heavy line no matter. So the room differs: the row starts at
+  714.0 in both, our foot is the margin's 742.8 (30.2 left, parts) and
+  Word's is raised by the even footer (footer3: an auto-sized frame "— 20
+  —" at y 1, 14pt, then an empty 9pt paragraph; Word's text at 745.7, its
+  top just over 742.8; ours at 747.0 and wrapped to two lines, "—20"/"—").
+  Footer frame layout, not row parting.
