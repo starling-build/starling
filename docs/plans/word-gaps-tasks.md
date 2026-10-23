@@ -4029,3 +4029,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   at all, does not push it to a second line. Ours sets "X" alone on the
   first line and the text right-aligned under it. Needs a lab in a
   footer (lab `oi` in the body wraps).
+
+### Note from Linux 017F2GnT (2026-10-23): two fitter lines, unclaimed
+- zh-499adba6 / zh-9932bd83 (87.9 after 7e4dfc99): pages Word's to p25; on
+  p25 the paragraph "在社會組織中，根據內政部…" (jc both, line 440 exact,
+  標楷體 12pt, compressPunctuation, zh-TW) ends its tenth line "…權力分配。" in
+  Word's print — 34 characters to "配" at 494.43 and the "。" at
+  493.85-505.85, closed up and hanging 3pt past the 502.9 margin. Ours
+  keeps 33 and sets "配。" on an eleventh line; the paragraph and every page
+  after run a line late until p91.
+- zh-c15af02e p37 — claimed by office1 (see its entry).
