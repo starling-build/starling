@@ -7295,6 +7295,20 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   sweep n395 vs n394: zh-6e653ca0 and zh-e2dc2598 53.6 -> 100, zh-ae79c618
   88.4 -> 99.2, nothing down.
 
+- **A merged cell over a parted row is centred in the row's whole part (2026-10-23).**
+  zh-17ac8aa2 (sample 28, 75.0): its "所需信息情况", a vMerge'd label of eleven
+  26pt lines centred over rows 7-9, stood 6.7pt high. Row 9 parts at page
+  1's foot, and the label is centred in rows 7-8 plus what row 9 keeps on
+  the page (`partingKept`). For a centred cell, that took the block from
+  each paragraph to the column's end, not from the column's first paragraph.
+  So "获取信息的方式（可多选）", three paragraphs of which two fit, read from its
+  second as a two-line block that fits: 52.5 kept, where the cut (and
+  `splitRow`'s part, and Word's print) is 65.7. Now the block starts at
+  the column's first paragraph. Paired sweep n397 vs n396: zh-17ac8aa2 75.0
+  -> 96.9, zh-540dc149 97.0 -> 97.8, nothing down (zh, POI). Left there:
+  p2's "□若本机关…" (黑体 □ + 楷体_GB2312, one 39.2pt line in a top-set
+  cell) has its baseline 13.3 down in ours and 20.4 in Word's print.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and

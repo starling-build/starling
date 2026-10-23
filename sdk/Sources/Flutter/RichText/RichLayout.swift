@@ -4245,8 +4245,15 @@ public final class RichLayout {
                                     // blank cells beside a top-set cell of two
                                     // lines made the part 9.5pt deeper, and its
                                     // "是否存在转包、挂靠行为" 5pt low.)
+                                    // (The column's whole block, from its first
+                                    // paragraph: zh-17ac8aa2's "获取信息的方式" cell,
+                                    // three lines of which two fit, read from its
+                                    // second as two that fit — its part 52.5, not
+                                    // the 65.7 to the cut, and "所需信息情况" beside
+                                    // it centred 6.7pt high.)
                                     var block = 0.0
                                     var m = n
+                                    while m > first, let h = _cells[m - 1], h.table == c.table, h.row == r, h.column == f.column { m -= 1 }
                                     while m < count, let h = _cells[m], h.table == c.table, h.row == r, h.column == f.column { block += _heights[m]; m += 1 }
                                     let centred = f.verticalAlign == "center" || f.verticalAlign == "bottom"
                                     if centred, block + f.pad.top + f.pad.bottom <= limit - e.rowTop {
