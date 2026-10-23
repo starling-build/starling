@@ -1160,7 +1160,14 @@ enum OfficeFonts {
         // with 8..12 twips over 48 x 312, and 24 lines of 24pt with the
         // same over 24 x 624 — labs `ln`, `lb`, Word 16, 2026-10-16. The
         // 0.2 twip a line kept zh-e061a08e's page 1 a line long.)
-        if has("pmingliu", "新細明體") { return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, fakeBold: true) }
+        // (Its baseline is its hhea ascent, 820 of 1024, and half of what
+        // Word adds — 974/1024. With none of its own the engine spread a
+        // spaced line's extra over and under, and zh-b8de3ae2's 13.5pt
+        // notes at 1.39 lines stood 3.8pt under Word's print, where Word
+        // sets all of it under the text.)
+        if has("pmingliu", "新細明體") {
+            return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, fakeBold: true, baseline: 974.0 / 1024.0)
+        }
         if has("stzhongsong", "华文中宋") {
             // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
             // 61pt, and 90.2 at 34% of its width.)

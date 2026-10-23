@@ -426,6 +426,18 @@ public final class RichTextTheme {
         return (t - natural / 2) * size
     }
 
+    /// How tall a single line of `style`'s text is, in points — or nil
+    /// where the face is not known.
+    public func naturalLine(for style: CharStyle, named: RichNamedStyle?, eastAsian: Bool) -> Double? {
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return nil }
+        return ((bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)) * size
+    }
+
     /// How far a single line of `style`'s text reaches under its baseline,
     /// in points — or nil where the face's own line is not known: what
     /// Word's `w:textAlignment` "bottom" sets on an exact line's foot.
@@ -6752,15 +6764,33 @@ public final class RichLayout {
                     // baseline, 7pt high of Word's print, in the two-pitch
                     // line the 楷体 makes.)
                     start = 0
+                    var tallest = 0.0
+                    var latin: [CharStyle] = []
                     for run in p.runs where run.length > 0 {
                         defer { start += run.length }
                         guard start < firstEnd else { break }
                         if run.style.inlineImage != nil || run.style.script != .normal { continue }
                         let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
                         let end = min(start + run.length, firstEnd, units.count)
-                        guard start < end, String(decoding: units[start ..< end], as: UTF16.self)
-                            .contains(where: { !Self._setsNoLine($0) && Self.isEastAsian($0, hinted: hinted) }) else { continue }
-                        if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: true, gridPitch: pitch) { target = max(target, b) }
+                        guard start < end else { continue }
+                        let text = String(decoding: units[start ..< end], as: UTF16.self)
+                        if text.contains(where: { !Self._setsNoLine($0) && Self.isEastAsian($0, hinted: hinted) }) {
+                            if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: true, gridPitch: pitch) { target = max(target, b) }
+                            tallest = max(tallest, theme.naturalLine(for: run.style, named: named, eastAsian: true) ?? .infinity)
+                        }
+                        if text.contains(where: { !Self._setsNoLine($0) && !Self.isEastAsian($0, hinted: hinted) }) { latin.append(run.style) }
+                    }
+                    // (… and a Latin run's, where its line is the taller:
+                    // zh-77bd4900's "①+②-③=④", PMingLiU circled digits
+                    // between 標楷體 signs — YaHei to Word on a Mac — stands
+                    // at YaHei's baseline in Word's print. A shorter one
+                    // sets nothing: zh-c25d08c5's Times "2022" in YaHei
+                    // lines on a grid, centred in its pitch, stood 3.8pt
+                    // under them.)
+                    for r in latin {
+                        guard let own = theme.naturalLine(for: r, named: named, eastAsian: false), own > tallest + 0.01,
+                              let b = theme.baseline(for: r, in: style, named: named, eastAsian: false, gridPitch: pitch) else { continue }
+                        target = max(target, b)
                     }
                 }
                 _inkShift[i] = _px(target) - line.baseline
