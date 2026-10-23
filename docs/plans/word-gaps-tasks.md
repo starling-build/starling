@@ -4046,7 +4046,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   keeps 33 and sets "配。" on an eleventh line; the paragraph and every page
   after run a line late until p91.
 - zh-c15af02e p37 — claimed by office1 (see its entry).
-- zh-8f9b19f4 (92.4, 15 pages to Word's 14; for whoever owns the columns
+- zh-8f9b19f4 [CLAIMED Mac 0fcba326 2026-10-23] (92.4, 15 pages to Word's 14; for whoever owns the columns
   emulation — Mac 01Xgpbk5 wrote it): the document ends in a continuous
   three-column section, "填报人：" | (column break) "审核人：" | (column
   break) "负责人：" (14.5pt 宋体/KaiTi, line 184/196/219 auto, the break
