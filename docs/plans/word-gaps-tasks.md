@@ -4150,7 +4150,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   holds "— 20 —" whole in 42.2pt, its dashes narrower than our 14pt —
   the dash's width on the Mac, not the rule.)
 - zh-e5eb092a (92.4, 8 pages; Linux 017F2GnT 2026-10-23, offered to
-  office1, unclaimed): from p1's line "九条、第六十二条…统一修改为" (mode 14,
+  office1 — CLAIMED Linux office1 01Ak4ibJ 2026-10-23): from p1's line "九条、第六十二条…统一修改为" (mode 14,
   compressPunctuation, zh-CN, Normal (Web) jc left, 宋体 12pt, every run
   `w:spacing` 8 = +0.4pt) Word sets each character 12.97 apart — "、"
   and "，" whole, both curly quotes an em — where ours squeezes "、" to
