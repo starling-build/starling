@@ -517,7 +517,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 Twenty more (`random.seed(20261106)` among the 139 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 80.9% (median 97.9). Its low ones,
 unclaimed: zh-19dde9e7 0.0 (Word 3 pages, ours 4) [CLAIMED Mac 01Xgpbk5], zh-5f9b6549 0.0 [CLAIMED Mac 01Xgpbk5], zh-045c5a75 24.9 (38 pages against Word's 37) [CLAIMED Mac 0fcba326],
-zh-015abfaf 62.4 (15 against 16) [CLAIMED Mac 0fcba326], zh-77bd4900 68.5 (58 pages; CLAIMED Linux 017F2GnT 2026-10-22), zh-8f70b676 88.2 (CLAIMED Linux 017F2GnT 2026-10-22).
+zh-015abfaf 62.4 (15 against 16) [CLAIMED Mac 0fcba326], zh-77bd4900 68.5 (58 pages; CLAIMED Linux 017F2GnT 2026-10-22), zh-8f70b676 88.2 (Linux 017F2GnT, 2026-10-22: 98.0 under PyMuPDF on the tip — 50 of 51 lines; the one missed is a narrow cell's "17:00-18:30" wrapped "…18:" / "30" in Word's print, ours a line less; the rest of the Mac's 88.2 is likely PDFKit's grouping; released).
 
 ### Note from the Mac (2026-10-22): the zh corpus is 486 documents — a twenty-second sample
 Twenty more (`random.seed(20261105)` among the 160 unprinted, 15 to 400 KB, drawn by
