@@ -3332,6 +3332,16 @@ were its 22pt "○" lines held to an em after the grid snapped them (lab `g44`: 
 vs n360: zh-e1b09977 65.4 -> 81.4, zh-cec9d337 84.2 -> 88.2, zh-5251dd23 89.2 -> 96.8, none down. What is left
 in zh-e1b09977: p14's split row ends a line later in ours. Lab `hdr` (its first rows whole) ends where Word's
 does; only the text inside rows sits ~2pt higher than Word's, which decides that cut.
+(Linux 017F2GnT, 2026-10-22, measured, not built: the ~2pt is the
+header's heavy line. The table's two repeated header rows (tblHeader)
+state top and bottom single sz 18 (2.25pt); on p14 Word draws the line
+under them at 147.12-149.28, wholly below the heading's text, and the
+first data row's text 11.5 under its foot (160.8); ours draws it at
+147.16 as the boundary's centre and sets the row's text at 159.1, 1.7pt
+high, so p14 keeps "揮中心相關防疫要求…" that Word sends to p15. A rule
+2.25pt wide between rows seems to stand all in the lower row in Word,
+half and half in ours — wants a lab of one heavy line between two rows,
+repeated header and not.)
 
 ### T130. zh-c9f4d690: under wordWrap 0, one closing space after a hanging mark takes a line of its own — DONE (2026-10-19)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurement, 01Xgpbk5)
