@@ -3509,9 +3509,21 @@ fitter dropped the paragraph's tail).
   The cell's text now measures the room across the cell's text, from
   the float's own x. zh-e4ef4c4d 93.3 -> 100. It is the only document
   in the corpus with a wrapping anchor in a cell, headers and footers
-  included. Left: Word keeps a picture anchored above its cell's top
-  inside the cell (p5's top photos, -11.7 and -23.7pt, both drawn at
-  the row's 124.6), where ours draws them above the row.
+  included.
+- **A wrapped picture stands no higher than its cell's top
+  (2026-10-22).** A picture that text wraps round (square, tight,
+  through) is placed from a paragraph in a table cell. Word draws it at
+  the cell's top when its offset would put it above. zh-e4ef4c4d p5's
+  photos, 179.7 and 191.7pt above their paragraphs eight lines down,
+  stand at the row's 124.6 (ours 113.2 and 101.2), and its p4 pair
+  likewise (413.9; ours 386.2 and 390.0). drawing.docx p9's square-
+  wrapped icon is at 281.0 (Word 278.8; ours 219.6). A picture in front
+  of the text or behind it is not held: zh-e49d7943's "附件5" box,
+  wrapNone, stands 27.8pt over its table's first row in Word's print,
+  and held to the row it cost a line (82.4 -> 82.2). Every anchor in a
+  cell in the corpus says `layoutInCell="1"`, so it is not read. Only
+  five documents anchor a picture in a cell above its paragraph; no line
+  score moves. drawing's icon still stands at x 0 (Word 86.6).
 
 - **An autofit cell grows to its picture, and to a table nested in it
   (2026-10-22).** `_minContent` counted text only, so an inline picture

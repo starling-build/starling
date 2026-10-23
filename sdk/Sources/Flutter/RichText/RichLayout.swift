@@ -11881,6 +11881,17 @@ public final class RichLayout {
                 y = piece.flowTop + onPage - insetTop - piece.pageY
             }
         }
+        // (One that text wraps round, placed from a paragraph in a table
+        // cell, stands no higher than the cell's top: zh-e4ef4c4d p5's
+        // photos, wrapped tight and anchored 179.7 and 191.7pt above their
+        // paragraphs, eight lines down their cells, are drawn at the row's
+        // top in Word's print, where ours stood 11.7 and 23.7pt above the
+        // row; drawing.docx p9's icon, wrapped square, 278.8 (ours 219.6).
+        // One in front of the text or behind it is not held: zh-e49d7943's
+        // "附件5" box stands 27.8pt over its table's first row in Word's
+        // print. Every anchor in a cell in the corpus is `layoutInCell`.)
+        if theme.wordRules, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
+           i < _cells.count, let d = _cells[i], !d.vertical, y < d.rowTop { y = d.rowTop }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
