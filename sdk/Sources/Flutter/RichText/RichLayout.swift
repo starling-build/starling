@@ -2276,6 +2276,25 @@ public final class RichLayout {
                         && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
                     if cell.rowSpan == 1, !cell.vertical, !hidden {
                         rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
+                        // (And as tall as a float its text wraps round reaches,
+                        // where it stands in the cell (`_floatRect`, no higher
+                        // than the row's top): zh-ab9cbe66's flow charts, 632pt
+                        // groups held to their rows, have the text after their
+                        // tables on the next page in Word's print, where ours
+                        // set it over the chart.)
+                        if theme.wordRules {
+                            for image in Array(document.paragraphs[k].inlineImages.values) + [document.paragraphs[k].image].compactMap({ $0 }) {
+                                guard let f = image.float, f.wraps, f.verticalAlign == nil else { continue }
+                                let h = _px(image.height + image.effectBottom + f.distanceBottom)
+                                let top: Double
+                                switch f.verticalFrom {
+                                case "paragraph", "line": top = max(0, offset + cell.pad.top + _px(f.y))
+                                case "page", "margin": top = 0
+                                default: continue
+                                }
+                                rowHeight = max(rowHeight, top + h)
+                            }
+                        }
                     }
                 }
                 // (A cell merged down into this row rules it as its own
