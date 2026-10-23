@@ -548,7 +548,7 @@ The last 19 (`random.seed(20261112)`: every unprinted one of 15 to 400 KB, drawn
 id, all printed), checked in. It starts at 88.7% (median 97.4), 18 of 19 page counts Word's.
 The 15-400 KB pool is empty now; a thirtieth sample would have to widen the size range.
 Its low ones, unclaimed: zh-8d1a3d99 0.0 (2/3 pages) [DONE Mac 01Xgpbk5 2026-10-23: 100, 2 pages — a page-anchored table goes to the next page when the text before it would not fit under its first row],
-zh-f47b8a74 68.7 [CLAIMED Mac 01Xgpbk5 2026-10-23], zh-28416dc9 78.9, zh-529fa492 81.2, zh-e2dc9dce 85.6.
+zh-f47b8a74 68.7 [CLAIMED Mac 01Xgpbk5 2026-10-23], zh-28416dc9 78.9 [CLAIMED Mac 0fcba326 2026-10-23], zh-529fa492 81.2, zh-e2dc9dce 85.6.
 
 ### Note from the Mac (2026-10-23): the zh corpus is 606 documents — a twenty-eighth sample
 Twenty more (`random.seed(20261111)` among the 39 unprinted, 15 to 400 KB, drawn by
