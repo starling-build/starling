@@ -1661,7 +1661,8 @@ enum DocxFormat {
                 // second's line — Normal's 1.15 lines and 10pt after. A
                 // footer is the one line in that style: as Normal, the
                 // page held a line fewer than Word's.)
-                let phantom: Data? = path.hasPrefix("phantom:") ? Data((
+                let phantom: Data? = path == "phantom:mark" ? Data("<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:p/></w:hdr>".utf8)
+                    : path.hasPrefix("phantom:") ? Data((
                     "<w:\(path.hasSuffix("header") ? "hdr" : "ftr") xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
                     + "<w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p>"
                     + (path.hasSuffix("header") ? "<w:p/>" : "")
@@ -1695,7 +1696,16 @@ enum DocxFormat {
             for (s, entries) in perSection.enumerated() {
                 for key in entries.keys.sorted() {
                     guard let hf = entries[key] else { continue }
-                    let made = paragraphsOf(hf.part)
+                    var made = paragraphsOf(hf.part)
+                    // (And a header it has ends in one more empty Normal
+                    // paragraph: lab `5f` (zh-5f9b6549's package, Word 16,
+                    // 2026-10-22) — its two empty header marks are followed
+                    // by a 12pt Normal one, 67.3 to 80.6, and the body starts
+                    // under it, 8.6pt below its 72pt margin; with Normal at
+                    // 24pt that mark is 24pt, and without the background it
+                    // is gone and the body starts at the margin. The footer
+                    // stays as it is.)
+                    if hf.kind == .header, !made.isEmpty, root.first("w:background") != nil { made += paragraphsOf("phantom:mark") }
                     if !made.isEmpty {
                         headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: made, section: numbered ? s : nil))
                     }
