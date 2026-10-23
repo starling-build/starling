@@ -413,9 +413,16 @@ public final class RichTextTheme {
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
         let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
         let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        // (A Latin face that keeps no line of its own is measured by its
+        // stand-in's natural line, as `baseline(for:)` measures it: zh-27a874b7's
+        // Times 14pt in 27pt exact lines set by their middle stands 18.7pt
+        // down each line in Word's print; with no middle ours fell to the
+        // exact line's 13/16, 21.9, and every English line was 3.4pt low.)
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         guard size > 0, let face = faceResolver?(familyName, eastAsian),
               let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
-              let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return nil }
+              let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight
+                ?? (eastAsian ? nil : naturalLineHeight(family: face.family, bold: bold, italic: italic)) else { return nil }
         return (t - natural / 2) * size
     }
 
