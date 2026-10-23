@@ -6967,6 +6967,18 @@ public final class RichLayout {
             // (A horizontal rule's paragraph is a line of its text: the
             // reader's "hr", lab `hr`.)
             if theme.wordRules, image.name == "hr" { bodyHeight = max(bodyHeight, _markLineHeight(i, document)) }
+            // (In a line of an exact height a picture taller than it keeps
+            // the line that tall, and stands on its baseline, rising over
+            // the lines above: zh-ae2dd08d's flowchart, a 594pt inline
+            // group in a cell's last paragraph of exact 23pt lines, is
+            // drawn whole up the cell in Word's print and its four rows
+            // stand at the 598pt their lines make; ours grew the line to
+            // the picture, the row to 656pt, and it went over the page.)
+            else if theme.wordRules, image.float == nil, image.textBox?.growsToFit != true, let exact = style.lineHeightPoints,
+                    !style.lineHeightIsMinimum, exact > 0, h + room.top + room.bottom > _px(exact) + 0.5 {
+                bodyHeight = _px(exact)
+                _imageDrop[i] = _px(exact * 13 / 16) - h - room.bottom
+            }
             // (A picture shorter than its paragraph's line of text stands
             // at the foot of that text's own line, which the line takes
             // the height of. drawing.docx's 4.5pt spacer under five empty

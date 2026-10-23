@@ -7491,6 +7491,18 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   Latin character of a number takes them. Paired sweep n413 vs n412:
   zh-12c4f07a 82.6 -> 83.7, nothing else moved.
 
+- **A picture taller than its exact line stands on the line, rising over the lines above (2026-10-23).**
+  zh-ae2dd08d's flowcharts (sample 30) are inline groups — 446.9 x 594.4pt
+  — in the last paragraph of a merged cell of exact 23pt lines. Word's
+  print keeps that line 23pt and draws the group up the cell from the
+  line's baseline, whole, so the cell's four rows stand at the 598pt its
+  26 lines make. Ours grew the line to the picture: the last row was 656pt
+  where Word's is 85, it went over the page, and the chart with it. Now an
+  inline picture (a group with text too, not a nested table's box) in an
+  exact line keeps the line and is drawn from the baseline up. Paired sweep
+  n415 vs n414: zh-ae2dd08d 24.8 -> 47.2, 97 -> 96 pages (Word 94), nothing
+  else moved. Left there: the groups' shape outlines are not drawn.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and
