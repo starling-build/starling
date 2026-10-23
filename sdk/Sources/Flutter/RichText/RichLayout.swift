@@ -1612,7 +1612,20 @@ public final class RichLayout {
                         // fixed one too: zh-540dc149's form says 98% of
                         // 640.6pt and Word rules its 638.6pt grid, where ours,
                         // 627.7 wide, wrapped its cells a word early.)
-                        if theme.wordRules, !_nestedInFixedTable, !_nestedNarrowed, scale < 1 { scale = 1 }
+                        // (Not a fixed one under Word 2013's layout (mode 15)
+                        // whose grid is wider than the column: Word sets it to
+                        // its share. zh-8628cfbe's fixed tables, 100% to 102.5%
+                        // of a 453.5pt column over grids 2.8pt wider still,
+                        // have their rules where the shares put them in Word's
+                        // print — ours 1.6pt right at the third column, whose
+                        // lines took a character Word's wrap; with tblW at 100%
+                        // the columns scale by 5000/5126 exactly, and neither
+                        // the cells' widths nor their margins move them (lab
+                        // `pt`, Word for Mac). Before mode 15 the grid stands:
+                        // zh-fec5fa30, zh-77bd4900, zh-937b8442, zh-ec8f908f and
+                        // zh-c25d08c5 (modes 12 and 14) are drawn at their grids.)
+                        if theme.wordRules, !_nestedInFixedTable, !_nestedNarrowed, scale < 1,
+                           !(ts.fixedLayout && (document.compatibilityMode ?? 12) >= 15 && _px(sum) > width + _px(0.5)) { scale = 1 }
                     }
                     else if let w = ts.width {
                         scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
