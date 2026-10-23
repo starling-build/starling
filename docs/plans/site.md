@@ -1434,3 +1434,39 @@ was not exercised. No production repository was contacted or deployed.
 The final native and optimized WebAssembly builds passed. A future deployment
 check should compare a unique build identifier at the saved public address;
 HTTP success alone must not count as proof that the new revision is live.
+
+## The site template (2026-10-22)
+
+The user's question: how does a manual get a professional look, when the
+styles live inside each page's document? The answer that was missing was a
+site-wide starting point, so `site.json` now names a **template**: a path
+in the repository to a .docx (anything the Writer opens) or a stored page
+.json. `SiteTemplate` (apps/OfficeApp/Sources/OfficeApp/Site/SiteTemplate.swift)
+loads it and does two things with it:
+
+- **New page** is the template whole, paragraph ids reassigned — Word's
+  .dotx semantics: the cover and any boilerplate come along, to be kept or
+  deleted. `LocalSiteStore.newPage(repo:)`, so the reader's New page and
+  the new `--site-new <repo> <title>` command agree.
+- **Import** of a source with no design of its own (Markdown, RTF, plain
+  text; a zip means a .docx) is *dressed*: the template owns the styles,
+  header/footer, page setup and document settings; the page owns its
+  paragraphs and what they refer to (tables, lists, notes). A style the
+  page names that the template lacks is added from the page's sheet. A
+  .docx keeps its own design unless `--site-import … --template`.
+
+Why a document and not a theme file: the template is a real document the
+author can open in Writer or in Word, see, and restyle with the same tools
+as any page; nothing new to learn, and the Word-fidelity work is what makes
+it faithful. `build/tools/docx-template.py` writes a professional starter
+from scratch (Arial, navy headings with a rule under Heading 1, quote bar,
+shaded code, running header, "Page N of M" footer, Letter, one-inch
+margins, cover without header/footer) — `examples/site/template/starter.docx`
+is its output, and the starter site names it. Fonts on the web remain the
+constraint noted in the plan: Arial/Times families map to Liberation
+there; any other face is substituted in the browser while the PDF uses the
+Mac's.
+
+Not done: a page already made does not follow a later change to the
+template (each page holds its own copy of the design); a "re-dress this
+page" action would be the next step. Gate: test/site-build.sh "template".

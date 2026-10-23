@@ -33,6 +33,11 @@ struct SiteConfig: Codable {
     /// The repository's address on GitHub ("https://github.com/user/repo"):
     /// the reader's History link opens a page's commits there.
     var repository: String? = nil
+    /// The document new pages start from, a path in the repository: a
+    /// .docx (or any file the Writer opens) or a stored page .json. Its
+    /// styles, header and footer, page setup and settings dress a text
+    /// import too (see SiteTemplate). Without it, pages start blank.
+    var template: String? = nil
     var pages: [SiteNode]
     /// Legacy files use their first page until the next save pins that choice.
     var home: String? = nil

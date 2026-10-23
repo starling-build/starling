@@ -102,6 +102,22 @@ check "and it sits under its parent in site.json" "$(json '["pages"][1]["childre
 SLUG2="$("$APP" --site-import "$SITE" "$REPO/apps/OfficeApp/Tests/OfficeAppTests/Fixtures/word-boringcrypto.docx" --title "Imported policy" 2>/dev/null)"
 check "a second page of the same title gets its own slug" "$SLUG2" imported-policy-2
 
+echo "── template: new pages, and text imports, start from the site's template (site.json \"template\")"
+check "the starter names its template" "$(json '["template"]' < "$SITE/site.json")" template/starter.docx
+NEW="$("$APP" --site-new "$SITE" "From the template" 2>"$OUT/new.log")"
+check "site-new prints the new page's slug" "$NEW" from-the-template
+check "the page carries the template's running header" "$(json '["document"]["header"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" "Starling Site  ·  A publication"
+check "and its footer with the page fields" "$(json '["document"]["footer"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" "Page {PAGE} of {NUMPAGES}"
+check "and its page setup" "$(json '["pageSetup"]["width"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" 612
+check "and its cover, as Word opens a .dotx" "$(json '["document"]["paragraphs"][0]["text"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" "Starling Site"
+check "with the template's face in its first style, Normal" "$(json '["document"]["styles"]["styles"][0]["id"]' < "$SITE/pages/from-the-template.json" 2>/dev/null):$(json '["document"]["styles"]["styles"][0]["char"]["fontFamily"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" Normal:Arial
+printf '# Hello\n\nA paragraph of text.\n' > "$OUT/hello.md"
+MD="$("$APP" --site-import "$SITE" "$OUT/hello.md" --title "Hello" 2>"$OUT/import-md.log")"
+check "a Markdown import keeps its own text" "$(json '["document"]["paragraphs"][1]["text"]' < "$SITE/pages/hello.json" 2>/dev/null)" "A paragraph of text."
+check "in the template's design" "$(json '["document"]["header"]' < "$SITE/pages/hello.json" 2>/dev/null)" "Starling Site  ·  A publication"
+check "a .docx import keeps its own design" "$(json '["document"]["header"]' < "$SITE/pages/imported-policy.json" 2>/dev/null | grep -c 'A publication')" 0
+"$APP" --site-move "$SITE" imported-policy-2 down >/dev/null 2>&1; "$APP" --site-move "$SITE" imported-policy-2 down >/dev/null 2>&1
+
 echo "── move: a page one place among its siblings (the Move up/down buttons)"
 check "move down" "$("$APP" --site-move "$SITE" index down 2>/dev/null)" moved
 check "and the order follows" "$(json '["pages"][1]["slug"]' < "$SITE/site.json")" index

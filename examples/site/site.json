@@ -1,5 +1,4 @@
 {
-  "title": "Starling Site",
   "base": "/",
   "pages": [
     {
@@ -7,14 +6,14 @@
       "title": "Welcome"
     },
     {
-      "slug": "getting-started",
-      "title": "Getting started",
       "children": [
         {
           "slug": "publishing",
           "title": "Publishing"
         }
-      ]
+      ],
+      "slug": "getting-started",
+      "title": "Getting started"
     },
     {
       "slug": "about",
@@ -24,5 +23,7 @@
       "slug": "sample-paper",
       "title": "Sample paper (from .docx)"
     }
-  ]
+  ],
+  "template": "template/starter.docx",
+  "title": "Starling Site"
 }

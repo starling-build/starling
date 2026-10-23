@@ -128,6 +128,16 @@ final class FormatsTests: XCTestCase {
         XCTAssertEqual(MarkdownFormat.render(doc), md)
     }
 
+    func testMarkdownListItemGathersItsWrappedLines() {
+        // An item wrapped over source lines is one item; a blank line or
+        // the next block ends it, as for a paragraph.
+        let md = "- **Terminal** — a real terminal;\n  TUI programs work.\n- Second\nlazy line\n\nAfter.\n# Head\n"
+        let doc = MarkdownFormat.parse(md)
+        XCTAssertEqual(doc.paragraphs.map(\.text), ["Terminal — a real terminal; TUI programs work.", "Second lazy line", "After.", "Head"])
+        XCTAssertEqual(doc.paragraphs.map { $0.style.list != nil }, [true, true, false, false])
+        XCTAssertEqual(doc.paragraphs[3].style.heading, 1)
+    }
+
     func testRtfNamedStylesRoundTrip() throws {
         var doc = RichDocument(plainText: "The Title\nA quote\nHeading\nBody")
         doc.styles = OfficeStyles.sheet

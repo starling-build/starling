@@ -204,9 +204,29 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-create"), i + 2 < Comman
 //   --site-publish <repo> [--out <dir>] [--web <stage>] [-m <message>]
 //   what the reader's Publish button runs: build into <repo>/<out> (docs),
 //   git add -A, commit, push.
-//   --site-import <repo> <file.docx|rtf|md> [--title T] [--under slug]
+//   --site-import <repo> <file.docx|rtf|md> [--title T] [--under slug] [--template]
 //   a document as a new page of the site (paragraph ids assigned, page
-//   setup kept); prints the slug.
+//   setup kept); prints the slug. A text source (Markdown, RTF, plain
+//   text) is dressed in the site's template when site.json names one;
+//   --template dresses a .docx too, which otherwise keeps its own design.
+//   --site-new <repo> <title> [--under slug]
+//   a new page, from the site's template or blank (what New page runs).
+if let i = CommandLine.arguments.firstIndex(of: "--site-new"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    do {
+        let repo = CommandLine.arguments[i + 1]
+        let page = try LocalSiteStore.newPage(repo: repo)
+        print(try LocalSiteStore.addPage(repo: repo, title: CommandLine.arguments[i + 2], page: page, under: option("--under")))
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-new failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
 if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < CommandLine.arguments.count {
     initializeHeadlessText()
     func option(_ name: String) -> String? {
@@ -215,10 +235,15 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < Comman
     }
     let file = CommandLine.arguments[i + 2]
     do {
-        var opened = try OfficeFormats.read(file)
+        guard let data = FileManager.default.contents(atPath: file) else { throw OfficeFormats.FormatError.unreadable }
+        var opened = try OfficeFormats.read(data, named: file)
         opened.document.assignParagraphIDs()
         let title = option("--title") ?? file.lastPathComponent.deletingPathExtension
-        let page = SitePage(document: opened.document, pageSetup: opened.pageSetup)
+        var page = SitePage(document: opened.document, pageSetup: opened.pageSetup)
+        if CommandLine.arguments.contains("--template") || !SiteTemplate.carriesDesign(data),
+           let template = try SiteTemplate.load(repo: CommandLine.arguments[i + 1]) {
+            page = SiteTemplate.dress(page, in: template)
+        }
         let slug = try CommandLine.arguments.contains("--draft")
             ? SiteUnpublishedDrafts.create(repo: CommandLine.arguments[i + 1], title: title, page: page)
             : LocalSiteStore.addPage(repo: CommandLine.arguments[i + 1], title: title, page: page, under: option("--under"))

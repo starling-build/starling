@@ -161,7 +161,12 @@ enum MarkdownFormat {
                 flush()
                 var style = RichParagraphStyle(list: bullet.kind, listLevel: min(8, indent / 2))
                 style.pageBreakBefore = false
-                paragraphs.append(_inline(bullet.rest, style))
+                // The item gathers the lines that follow it, as a paragraph
+                // does, until a blank line or the next block: an item wrapped
+                // over several source lines is one item, not one item and a
+                // paragraph per line.
+                pending.append(bullet.rest)
+                pendingStyle = style
                 continue
             }
             if trimmed.hasPrefix("> ") || trimmed == ">" {

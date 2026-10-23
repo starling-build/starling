@@ -171,9 +171,17 @@ final class LocalSiteStore: SiteStore {
     }
 
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) {
+        do { importPage(title: title, page: try Self.newPage(repo: repo), under: parent, done) }
+        catch { done(.failure(SiteError("\(error)"))) }
+    }
+
+    /// What a new page starts as: the site's template when site.json
+    /// names one, else a blank document in the Writer's default styles.
+    static func newPage(repo: String) throws -> SitePage {
+        if let template = try SiteTemplate.load(repo: repo) { return SiteTemplate.newPage(from: template) }
         var blank = RichDocument()
         blank.styles = OfficeStyles.sheet
-        importPage(title: title, page: SitePage(document: blank, pageSetup: nil), under: parent, done)
+        return SitePage(document: blank, pageSetup: nil)
     }
 
     /// Synchronous, for the command line too: the page's file written and

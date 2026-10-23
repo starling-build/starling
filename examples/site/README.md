@@ -50,6 +50,28 @@ and link-preview URLs. The root home page and its direct page address identify
 the same page to search engines. Rebuild/publish after changing the website
 address or home page to update that metadata.
 
+## One design for every page: the template
+
+`site.json` names a **template** — here `template/starter.docx` — and every
+new page starts from it, as a Word document starts from a .dotx: its
+styles (the fonts, sizes and colours of Normal, Title, the headings, Quote,
+Caption, Code), its running header and its "Page N of M" footer, its page
+size and margins, and its cover, which the header and footer leave alone.
+Import a Markdown, RTF or plain-text file and it is dressed in the same
+design with its own text; a Word file keeps the design it came with unless
+you import it with `--template`. Edit the template in Writer or in Word to
+restyle the site, then make or re-import pages. A page already made keeps
+its own copy of the design.
+
+The starter template was written by `build/tools/docx-template.py`, which
+makes one with your title, subtitle and header line:
+
+    build/tools/docx-template.py template/mine.docx --title "Acme" --subtitle "Field manual"
+
+From the command line: `OfficeApp --site-new <repo> "<title>" [--under
+slug]` makes a page from the template; `--site-import <repo> file.md` a
+page from a text source in its design.
+
 The preview shows the status of your saved publication:
 
 - **Saved locally; no matching publish record**: this checkout has no usable
