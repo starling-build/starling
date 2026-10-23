@@ -4046,6 +4046,33 @@ public final class RichLayout {
                         newPage()
                     }
                 }
+                // A table floating by the text, straight after another table
+                // and placed up over it (a tblpY of none or less), that does
+                // not fit whole where it stands and would on a page of its
+                // own goes to the next page whole: zh-694447ca's 34-row
+                // equipment list, tblpY -85 under the table before it, has
+                // its header row at page 15's head in Word's print and page
+                // 14 ends with the two rows before it; ours filled 14 to
+                // the foot and took two rows to 15. (Not one after a
+                // paragraph, or placed down from the table before: those
+                // part — zh-efd9229a's at tblpY 412 after a paragraph and
+                // zh-cd48112c's at 169 after a table go on over the page
+                // in Word's prints. Nor one longer than a page, as
+                // zh-38758b14's three-page scoring table.)
+                if theme.wordRules, c.row == 0, c.firstInRow, y > 0.01, i > 0, let before = _cells[i - 1]?.table, before != c.table,
+                   let ts = document.tableStyles[c.table], ts.floatsOverText, !ts.pageAnchored,
+                   let kept = ts.keptPosition, let at = kept.range(of: "w:tblpY=\""),
+                   let raised = Double(kept[at.upperBound...].prefix { $0 == "-" || $0.isNumber }), raised <= 0 {
+                    var bottom = rowBottom, k = j
+                    while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                    let whole = bottom - c.rowTop
+                    // (Whole while it ends above the footer's place, as a
+                    // table placed against the page: its 649pt end 7pt
+                    // past the margin on page 15, over the footer's 49.6.)
+                    let setup = pageSetup(forPage: page / _columns)
+                    let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
+                    if y + whole > edge + 0.01, whole <= edge - 0.01 { newPage() }
+                }
                 let atTop = y < 0.01
                 if atTop { goOn() }
                 // A row made taller in the flow for a cell merged down
