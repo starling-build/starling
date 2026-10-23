@@ -2008,9 +2008,17 @@ enum DocxFormat {
             }
         }
         if let styles = part("word/styles.xml").flatMap(XNode.parse) {
-            // The defaults' language, or Normal's over it.
+            // The defaults' language, or Normal's over it — each of its
+            // three by itself: zh-63a571aa's Normal says only
+            // `w:bidi="ar-SA"`, its East Asian text the defaults' zh-TW,
+            // whose centred "。" keeps its em before "」" in Word's print;
+            // ours took no East Asian language and closed it up.
             let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
-            if let lang = normal?.first("w:rPr")?.first("w:lang") ?? styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang") {
+            let own = normal?.first("w:rPr")?.first("w:lang")
+            let defaults = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")
+            if let own, let defaults {
+                document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
+            } else if let lang = own ?? defaults {
                 document.defaultLangXML = PptxXML.serialize(lang)
             }
         }

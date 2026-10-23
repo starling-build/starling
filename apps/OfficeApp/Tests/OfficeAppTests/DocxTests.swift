@@ -2967,6 +2967,31 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(numAgain.contains("<w:lvlText w:val=\"\u{F094}\"/>"), numAgain)
     }
 
+    func testNormalsLanguageTakesTheDefaultsEastAsianOneItDoesNotState() throws {
+        // zh-63a571aa's Normal says only `w:bidi="ar-SA"`; its East Asian
+        // text is the defaults' zh-TW, whose centred "。" keeps its em
+        // before "」" in Word's print. Ours took Normal's whole and no
+        // East Asian language with it, and closed the "。" up.
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "甲。」，乙")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        while let r = styles.range(of: "<w:lang [^>]*/>", options: .regularExpression) { styles.removeSubrange(r) }
+        let defaults = try XCTUnwrap(styles.range(of: "<w:rPrDefault><w:rPr>"), styles)
+        styles.insert(contentsOf: "<w:lang w:val=\"en-US\" w:eastAsia=\"zh-TW\" w:bidi=\"hi-IN\"/>", at: defaults.upperBound)
+        let normal = try XCTUnwrap(styles.range(of: "w:styleId=\"Normal\""), styles)
+        let end = try XCTUnwrap(styles.range(of: "</w:style>", range: normal.upperBound ..< styles.endIndex))
+        if let rPr = styles.range(of: "<w:rPr>", range: normal.upperBound ..< end.lowerBound) {
+            styles.insert(contentsOf: "<w:lang w:bidi=\"ar-SA\"/>", at: rPr.upperBound)
+        } else {
+            styles.insert(contentsOf: "<w:rPr><w:lang w:bidi=\"ar-SA\"/></w:rPr>", at: end.lowerBound)
+        }
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.marksCentred, back.defaultLangXML ?? "no language")
+        XCTAssertTrue(back.defaultLangXML?.contains("w:bidi=\"ar-SA\"") ?? false, back.defaultLangXML ?? "no language")
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the
