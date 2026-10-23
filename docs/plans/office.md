@@ -3508,8 +3508,16 @@ fitter dropped the paragraph's tail).
   -> 37.9; the other 15 documents with such rows are unchanged. Left
   there: the label "综合业务", merged from the row above down into the
   group, Word centres in its part on the page (240-482), ours in its
-  own first row; and the bulleted cell, centred and too tall for the
-  part, which Word sets from the part's top, ours lower.
+  own first row.
+  Then (the same day): such a part is as tall as the rows that fit,
+  whatever its cells keep, and a cell merged only over the row's ghosts
+  whose text fits that part is set whole in it, centred, as Word sets
+  zh-9ef811c8's "●社会救助信访通讯地址…" (five lines; 402.8/449.6, Word
+  403.7/450.5, the part's foot 481.7 to Word's 482.5). Ours had parted
+  it where centring over all four rows put it, two lines on the page.
+  Set whole without the part's height, the part shrank to its cells
+  (474.9) and the document fell 37.9 -> 34.7. With it: 37.9 -> 39.3;
+  the other 15 documents are unchanged.
 
 - **PMingLiU's en dash is an em (2026-10-22).** zh-05699f05's cells
   are 新細明體 throughout (its Normal names it for every script), and Word

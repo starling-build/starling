@@ -3350,9 +3350,13 @@ public final class RichLayout {
                 // lines lower they part after the second. Ours parted the
                 // 81pt row, six lines on the page, and centred what then
                 // fitted.)
+                // (The part is then that tall, whatever its cells keep: the
+                // rows that fit go with it whole.)
+                var ghostPart: Double? = nil
                 if theme.wordRules, first, !fits, !c.ghostBounds.isEmpty,
                    let bound = c.ghostBounds.last(where: { $0 + ruleUnder(c) <= avail + 0.01 }) {
                     avail = bound + ruleUnder(c)
+                    ghostPart = bound
                 }
                 // A centred cell (or one set at the bottom) that does not fit
                 // the part is parted from its text's top, at the part's top:
@@ -3422,7 +3426,16 @@ public final class RichLayout {
                         // its row's part on page 5 in Word's print, the row
                         // parting under it; ours had no line of it to keep there
                         // and sent the row over whole.)
-                        let wholeMerged = d0.rowSpan > 1 && !column.cuts.contains { $0 > column.cut + 0.01 && $0 <= limit }
+                        // (Or merged only over rows that hold nothing of
+                        // their own, the row's ghosts, and all of it fitting
+                        // the part: lab `mg`, zh-9ef811c8's "●社会救助信访通讯
+                        // 地址…", five lines centred over the four rows, is set
+                        // whole in the part on p4 in Word's print, where ours
+                        // parted it where centring over the four put it, two
+                        // lines on the page. Not over rows with lines of their
+                        // own: that cost zh-e37f8d40, which has none of these.)
+                        let wholeMerged = d0.rowSpan > 1 && (!column.cuts.contains { $0 > column.cut + 0.01 && $0 <= limit }
+                            || d0.rowSpan - 1 <= c.ghostRows)
                         if theme.wordRules, column.cut <= c.rowTop + 0.01, d0.rowSpan == 1 || wholeMerged, !d0.vertical,
                            d0.verticalAlign == "center" || d0.verticalAlign == "bottom", room >= -0.01 {
                             // A centred cell (or one set at the bottom)
@@ -3490,7 +3503,7 @@ public final class RichLayout {
                             let last = column.members[column.members.count - 1]
                             whole = max(whole, _tops[last] + _heights[last] - _tops[column.members[0]] + d0.pad.top + d0.pad.bottom)
                         }
-                        if let keptMax = kept.max(), case let part = max(keptMax, stated, whole), part < avail {
+                        if let keptMax = kept.max(), case let part = max(keptMax, stated, whole, ghostPart ?? 0), part < avail {
                             for (n, _) in setWhole {
                                 let column = columns[n]
                                 let d0 = _cells[column.members[0]]!
@@ -3566,7 +3579,7 @@ public final class RichLayout {
                         let last = column.members[column.members.count - 1]
                         whole = max(whole, _tops[last] + _heights[last] - _tops[column.members[0]] + d0.pad.top + d0.pad.bottom)
                     }
-                    let part = min(avail, max(stated, whole, extent.map { n, e in e.bottom - columns[n].cut }.max() ?? 0))
+                    let part = min(avail, max(stated, whole, ghostPart ?? 0, extent.map { n, e in e.bottom - columns[n].cut }.max() ?? 0))
                     // (The rules end with the part only where no cell
                     // merged down from above has text below it: zh-e6d54ae4's
                     // "(二)衡酌實際需求…" runs on beside the row's part to the
