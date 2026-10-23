@@ -4047,8 +4047,8 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   landscape page with bottom margin 0 and no footer. Word prints all
   three on p14 (审核人 564.8, 负责人 566.3); ours parts the emulating row
   (STARLING_RICHTEXT_ROWS=14: row 0 of t10, own 33.3 against 31.4 left)
-  and sets columns 2-3 on a p15. Its text ends 23.2pt down the row: each
-  cell paragraph's block carries ~7-8pt under its line in `--layout`
-  (¶3 block 37.6px, text@7.7, line 20.5; the 1pt break paragraphs 10.8px
-  for a 0.2px line), where Word gives none. Probe:
+  and sets columns 2-3 on a p15. Its text ends 23.2pt down the row, so
+  ~10pt of the row is under the text; where it comes from is not found
+  (`--layout` shows every block ~8pt over its line, a plain body
+  paragraph's too, so that column may not be the row's measure). Probe:
   ~/tmp/word/lab/col/mk.py (Linux box) cuts the file to that section.
