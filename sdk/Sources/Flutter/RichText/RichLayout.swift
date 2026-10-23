@@ -1921,13 +1921,14 @@ public final class RichLayout {
             if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: 100_000)
             let map = _OffsetMap(lead: 0, inserts: inserts)
+            let percentStarts = _percentStarts(document)
             // (And where `w:wordWrap` off parts a Latin word: zh-f2441f00's
             // 42.2pt column holds "平台(iC" / "ulture)" in Word's print,
             // its grid kept; ours measured "(iCulture)" whole and widened
             // the column to 44.5, narrowing the table's others.)
             let breakBefore = Set(inserts.filter { o in
                 guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
-                return Self._breaksBetween(Character(a), Character(b))
+                return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts)
             }).union(_looseWordOffsets(p, document, textWidth: 100_000, named: _named(p, document),
                                        pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
             func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
@@ -6941,6 +6942,7 @@ public final class RichLayout {
         var afterIdeograph = false
         let trailingSpaces = p.text.utf16.count - p.text.utf16.reversed().prefix(while: { $0 == 0x20 }).count
         let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
+        let percentStarts = _percentStarts(document)
         // (A paragraph that turns the line-breaking rules off —
         // `w:kinsoku` 0 — may start a line with a closing mark (not end
         // one with an opening mark: Word keeps "（" with what it opens,
@@ -7436,7 +7438,7 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (In a line too narrow for one character
                             // every character is a line, the marks
                             // too: zh-830ef10d's 6pt cell sets
@@ -9185,6 +9187,7 @@ public final class RichLayout {
             guard wordRules, o >= 0, o < runOf.count else { return false }
             return Self._eastAsianLanguageNone(p.runs[runOf[o]].style, named: lineStyle)
         }
+        let percentStarts = _percentStarts(document)
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
             // (But not an opening mark at a line's end, either way: Word
@@ -9194,7 +9197,7 @@ public final class RichLayout {
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
-            return Self._breaksBetween(Character(a), Character(b))
+            return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts)
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
@@ -10597,8 +10600,14 @@ public final class RichLayout {
     /// sake: before an opening one that follows East Asian text or a
     /// closing mark, after a closing one that East Asian text or an
     /// opening mark follows.
-    private static func _breaksBetween(_ a: Character, _ b: Character) -> Bool {
+    private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false) -> Bool {
         func wide(_ c: Character) -> Bool { (c.unicodeScalars.first?.value ?? 0) >= 0x2E80 }
+        // (And before a percent sign after a full-width character, where
+        // the document's own list of what may not start a line leaves it
+        // out (`_percentStarts`): zh-505b9619's lists Taiwan's, and Word's
+        // print ends a line "…契約價金總額＿" and starts the next "%(由機關
+        // …"; the engine keeps a sign with what it follows.)
+        if percentStarts, b == "%", wide(a), !_openingMarks.contains(a) { return true }
         if b == "\u{201C}" || b == "\u{2018}" {
             return wide(a) && !_openingMarks.contains(a) || a == "\u{201D}" || a == "\u{2019}"
         }
@@ -10631,6 +10640,14 @@ public final class RichLayout {
         // cell grew a line.)
         if a == "%" || a == "‰" { return _openingMarks.contains(b) }
         return false
+    }
+
+    /// Whether "%" may start a line by the document's own list of what may
+    /// not (`w:noLineBreaksBefore`), which Word keeps to where it states one.
+    private func _percentStarts(_ document: RichDocument) -> Bool {
+        guard theme.wordRules, let kept = document.keptSettings["w:noLineBreaksBefore"],
+              let r = kept.range(of: "w:val=\"") else { return false }
+        return !kept[r.upperBound...].prefix(while: { $0 != "\"" }).contains("%")
     }
 
     /// Whether Word may part a line after a hyphen-minus that opens a

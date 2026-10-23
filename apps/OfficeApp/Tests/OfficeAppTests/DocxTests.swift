@@ -2251,6 +2251,38 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(all, text.utf16.count - 3)
     }
 
+    func testAPercentSignStartsALineWhereTheDocumentsListLeavesItOut() throws {
+        try requireFitterWidths()
+        // zh-505b9619 lists Taiwan's characters that may not start a line,
+        // "%" not among them, and Word's print ends a line "…契約價金總額＿"
+        // and starts the next "%(由機關…"; ours took "＿%" down together.
+        let text = String(repeating: "甲", count: 10) + "＿%乙"
+        func first(_ list: String?) throws -> Int {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontSize = 12
+            var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
+            p.style.alignment = .left
+            var doc = RichDocument(paragraphs: [p])
+            doc.usesEastAsianLayout = true
+            if let list { doc.keptSettings["w:noLineBreaksBefore"] = "<w:noLineBreaksBefore w:lang=\"zh-TW\" w:val=\"\(list)\"/>" }
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 11 * 12 * theme.pixelsPerPoint   // "甲"×10 and "＿", not "%"
+            l.ensureLaidOut(doc)
+            return l.geometry(0).painter.getLineBoundary(TextPosition(offset: 0)).end
+        }
+        // (The line's end counts the break put in before "%" too.)
+        XCTAssertEqual(try first("!),.:;?]}、。）"), 12, "\"＿\" ends the line, \"%\" opens the next")
+        // (Without a list of the document's own, the defaults keep it from a line's start.)
+        XCTAssertEqual(try first(nil), 10)
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its
