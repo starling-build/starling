@@ -1696,7 +1696,9 @@ public final class RichLayout {
                 box = TextBox(fromLTRBD: left, box.top, left + advance, box.bottom, box.direction)
             }
             let form = Self._verticalForms[ch] ?? ch
-            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]), textDirection: .ltr)
+            // (Its own advance, without the run's letter spacing: that
+            // follows it — below.)
+            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
             glyph.layout()
             // (Its em square centred in its box — the square stands 0.88
             // em over the baseline and 0.12 under it — not its line, which
@@ -1708,7 +1710,12 @@ public final class RichLayout {
             canvas.save()
             // (A mark's vertical form further down its box or up it, as
             // Word sets it: `_verticalFormDrop`.)
-            canvas.translate(origin.dx + (box.left + box.right) / 2 + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + (box.top + box.bottom) / 2)
+            // (At the start of its place, the letter spacing after it, as
+            // Word sets a spaced run: zh-b0401810's "职业资格证书…" (51
+            // twips, 15.6pt apart) stands 2.55pt higher in Word's print —
+            // half its spacing — than ours, centred in each place, did.)
+            let along = box.left + min(box.right - box.left, glyph.width) / 2
+            canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + (box.top + box.bottom) / 2)
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()

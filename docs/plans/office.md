@@ -3503,7 +3503,32 @@ fitter dropped the paragraph's tail).
   "︵" and "︐" now stand where Word's do. Its "︶" ends the line, in a
   box we narrow, and stands 2.7pt above Word's. Of the 22 documents with
   marks in vertical cells, zh-65e6c317 went 83.2 -> 84.2 and none moved
-  down. zh-b0401810's column stays 3pt low and 4pt right of Word's (next).
+  down.
+- **A letter-spaced vertical run: the spacing follows each glyph
+  (2026-10-22).** Lab `vs` on Word for Windows (SimSun 10.5pt down tbRlV
+  cells, spacing 0, 51 and 102 twips, left, centre and right) shows
+  Word's rule:
+  - Each character's place is its em plus twice the spacing (15.6pt at
+    51 twips), and the glyph starts the place.
+  - The whole run, trailing spacing included, is what the alignment
+    sets. So a centred run's glyphs stand one spacing above the middle,
+    and a right-set one ends two spacings short of the cell's end.
+  `_paintUpright` centred each glyph in its place instead. It now sets
+  the glyph at the place's start (laid out without the run's spacing).
+  In the lab, the centred and right-set runs' ink now matches Word's to
+  0.3pt (they were 2.3 late).
+  - zh-b0401810's "职业资格证书…" (jc center, 51 twips) stood 2.55pt low;
+    the score went 93.3 -> 97.4.
+  - zh-e9616b2b went 97.2 -> 97.8.
+  - zh-f2835e26 went 76.4 -> 75.8, but its ink is Word's: p6's column
+    starts at 287.8 (Word 288.0, before 289.5), p7's at 218.0 (218.5,
+    before 219.8). The line scorer reads a glyph's box from its font's
+    ascender, and our SimSun stand-in's box stands about 2.2pt above
+    Word's for the same ink (the lab's unspaced columns: ink equal, boxes
+    2.2 to 2.5 apart).
+  Left: a left-set spaced run with no indent still starts about one
+  spacing late in the lab (ink 3.0pt late at 51 twips, 5.5 at 102), and
+  zh-b0401810's column stands 3.3pt right of Word's across the cell.
 
 - **Text in a table cell goes under a picture that leaves it no room
   (2026-10-22).** `_floatPush` set a body paragraph's text under a
