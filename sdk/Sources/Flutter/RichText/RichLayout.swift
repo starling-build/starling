@@ -2376,7 +2376,15 @@ public final class RichLayout {
                     let offset = stack[cell.column].map { $0 - shared(k) } ?? 0
                     let last = min(rows.count - 1, r + cell.rowSpan - 1)
                     let spanned = cell.rowSpan > 1 ? rows[r ... last].map(\.height).reduce(0, +) : row.height
-                    let room = cell.vertical ? cell.colWidth - cell.pad.left - cell.pad.right
+                    // (Text reading down runs from the cell's right margin to
+                    // its very left edge, no margin there — lab `vs` on Word
+                    // for Windows: set at the bottom, its ink stands 1.6pt
+                    // off the left rule whatever the left margin (18pt) or
+                    // the bottom (10); centred, half the right margin left
+                    // of the middle — zh-b0401810's "职业资格证书…", which
+                    // stood 3.3pt right of Word's.)
+                    let endPad = theme.wordRules && cell.direction == .down ? 0 : cell.pad.left
+                    let room = cell.vertical ? cell.colWidth - endPad - cell.pad.right
                         : spanned - cell.pad.top - cell.pad.bottom - rules[r].above - rules[last].below
                     let free = max(0, room - (content[cell.column] ?? 0))
                     let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0

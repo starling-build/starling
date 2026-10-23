@@ -3527,8 +3527,22 @@ fitter dropped the paragraph's tail).
     Word's for the same ink (the lab's unspaced columns: ink equal, boxes
     2.2 to 2.5 apart).
   Left: a left-set spaced run with no indent still starts about one
-  spacing late in the lab (ink 3.0pt late at 51 twips, 5.5 at 102), and
-  zh-b0401810's column stands 3.3pt right of Word's across the cell.
+  spacing late in the lab (ink 3.0pt late at 51 twips, 5.5 at 102).
+- **Across a cell of text reading down, no margin on the left
+  (2026-10-22).** Labs `vs/v2` and `v3` on Word for Windows (tbRlV cells
+  62.5pt wide, 5.4pt side margins, set top, centre and bottom):
+  - The lines run from the cell's right margin to its very left edge.
+    Set at the bottom, the ink stands 1.6pt off the left rule, whatever
+    the left margin (18pt in v3) or the bottom one (10).
+  - Set at the top, the ink stands the right margin in (19.4 at 18pt).
+  - Centred, it stands half the right margin left of the middle.
+  - The top and bottom margins move nothing along the column either.
+  Ours took both side margins off the room, so centred and bottom-set
+  text stood 2.7 and 5.4pt right of Word's. Now all six v2 cases match
+  Word to 0.5pt, and zh-b0401810's column is at x 101.9 (Word 101.3,
+  before 104.6). Text reading up is not measured and keeps both
+  margins. No line score moves among the 28 documents with such cells
+  (the matcher does not weigh x).
 
 - **Text in a table cell goes under a picture that leaves it no room
   (2026-10-22).** `_floatPush` set a body paragraph's text under a
