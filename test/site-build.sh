@@ -110,7 +110,7 @@ check "the page carries the template's running header" "$(json '["document"]["he
 check "and its footer with the page fields" "$(json '["document"]["footer"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" "Page {PAGE} of {NUMPAGES}"
 check "and its page setup" "$(json '["pageSetup"]["width"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" 612
 check "and its cover, as Word opens a .dotx" "$(json '["document"]["paragraphs"][0]["text"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" "Starling Site"
-check "with the template's face in its first style, Normal" "$(json '["document"]["styles"]["styles"][0]["id"]' < "$SITE/pages/from-the-template.json" 2>/dev/null):$(json '["document"]["styles"]["styles"][0]["char"]["fontFamily"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" Normal:Arial
+check "with the template's face in its first style, Normal" "$(json '["document"]["styles"]["styles"][0]["id"]' < "$SITE/pages/from-the-template.json" 2>/dev/null):$(json '["document"]["styles"]["styles"][0]["char"]["fontFamily"]' < "$SITE/pages/from-the-template.json" 2>/dev/null)" Normal:Caladea
 printf '# Hello\n\nA paragraph of text.\n' > "$OUT/hello.md"
 MD="$("$APP" --site-import "$SITE" "$OUT/hello.md" --title "Hello" 2>"$OUT/import-md.log")"
 check "a Markdown import keeps its own text" "$(json '["document"]["paragraphs"][1]["text"]' < "$SITE/pages/hello.json" 2>/dev/null)" "A paragraph of text."

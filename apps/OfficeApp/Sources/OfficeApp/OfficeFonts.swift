@@ -79,6 +79,12 @@ enum OfficeFonts {
             return calibri
         case "caladea", "cambria":
             return cambria
+        case _ where shippedByName[n] != nil:
+            // The free faces Slides ships (Poppins, Work Sans, Libre
+            // Franklin, Archivo Black, by weight): a Writer document — a
+            // site template, say — may name them and gets them, on every
+            // platform, since they are registered like the clones above.
+            return shippedByName[n]!
         default:
             // ("code" as in Source Code Pro — not as in Lucida Sans Unicode,
             // which came up monospace for a while.)
@@ -1688,6 +1694,10 @@ enum OfficeFonts {
     }
 
     /// The files of Slides' free faces and the family each is loaded as.
+    /// `slideFaces`' family names by their lowercased spelling.
+    private static let shippedByName: [String: String] =
+        Dictionary(slideFaces.map { ($0.1.lowercased(), $0.1) }, uniquingKeysWith: { a, _ in a })
+
     static let slideFaces: [(String, String)] = {
         var faces: [(String, String)] = []
         for (file, family) in [("Poppins", "Poppins"), ("WorkSans", "Work Sans"), ("LibreFranklin", "Libre Franklin")] {

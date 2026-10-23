@@ -76,6 +76,14 @@ enum SiteTemplate {
         for style in own.styles.styles where doc.styles[style.id] == nil {
             doc.styles[style.id] = style
         }
+        // A heading, quote or code paragraph takes the template's entry
+        // for it in full — its rule, bar or shading, not only its face —
+        // the way Word restyles a document whose styles are replaced.
+        for i in doc.paragraphs.indices {
+            let style = doc.paragraphs[i].style
+            guard style.named != nil || style.heading != nil, let entry = doc.styles.resolve(style) else { continue }
+            doc.styles.apply(entry.id, to: &doc.paragraphs[i].style)
+        }
         return SitePage(document: doc, pageSetup: template.pageSetup ?? page.pageSetup)
     }
 

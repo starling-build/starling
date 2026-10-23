@@ -10,7 +10,7 @@ and in the PDF. The Writer opens it as any Word file: a site names it in
 site.json as `template` and every new page starts from it; it opens in
 Word too, for anyone who wants to restyle it there.
 
-    build/tools/docx-template.py OUT.docx [--design technical|editorial|modern]
+    build/tools/docx-template.py OUT.docx [--design editorial|technical|modern]
         [--title T] [--subtitle S] [--header H] [--byline B]
         [--heading-font F] [--body-font F] [--primary HEX] [--accent HEX] [--cover band|rule|plain]
 
@@ -34,7 +34,7 @@ DESIGNS = {
 }
 
 ap = argparse.ArgumentParser()
-ap.add_argument('out'); ap.add_argument('--design', default='technical', choices=sorted(DESIGNS))
+ap.add_argument('out'); ap.add_argument('--design', default='editorial', choices=sorted(DESIGNS))
 ap.add_argument('--title', default='Starling Site'); ap.add_argument('--subtitle', default='A publication')
 ap.add_argument('--header', default=None); ap.add_argument('--byline', default='')
 for k in ['heading-font', 'body-font', 'primary', 'accent', 'cover']: ap.add_argument('--' + k, default=None)
@@ -92,7 +92,7 @@ styles = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 {style("Title", "Title", ppr=title_p, rpr=title_r)}
 {style("Subtitle", "Subtitle", ppr=sub_p, rpr=sub_r)}
 {style("Heading1", "heading 1", ppr=f'<w:keepNext/><w:keepLines/><w:spacing w:before="560" w:after="200"/>{h1_rule}<w:outlineLvl w:val="0"/>', rpr=f'{HF}{sz(21)}{color(P)}<w:b/>')}
-{style("Heading2", "heading 2", ppr='<w:keepNext/><w:keepLines/><w:spacing w:before="400" w:after="120"/><w:outlineLvl w:val="1"/>', rpr=f'{HF}{sz(14)}{color(A if cover != "band" else P)}<w:b/>')}
+{style("Heading2", "heading 2", ppr='<w:keepNext/><w:keepLines/><w:spacing w:before="400" w:after="120"/><w:outlineLvl w:val="1"/>', rpr=f'{HF}{sz(14)}{color(P)}<w:b/>')}
 {style("Heading3", "heading 3", ppr='<w:keepNext/><w:keepLines/><w:spacing w:before="280" w:after="80"/><w:outlineLvl w:val="2"/>', rpr=f'{HF}{sz(11.5)}{color(INK)}<w:b/>')}
 {style("Quote", "Quote", ppr=f'<w:ind w:left="600" w:right="600"/><w:spacing w:before="160" w:after="200"/><w:pBdr><w:left w:val="single" w:sz="24" w:space="14" w:color="{A}"/></w:pBdr>', rpr=f'{color("444444")}<w:i/>')}
 {style("Caption", "caption", ppr='<w:spacing w:after="220"/>', rpr=f'{sz(9)}{color(MUTED)}<w:i/>')}
