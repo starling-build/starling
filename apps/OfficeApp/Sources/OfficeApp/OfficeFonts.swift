@@ -1511,6 +1511,15 @@ enum OfficeFonts {
             // and "°" and "×" are an em in SimSun and SimHei wherever
             // Word's prints have them; the stand-in drew its own 0.4 em
             // "°", and "5.5.1 坡度＜25°…" took the "土中。" Word's leaves.)
+            // (Arial Unicode MS's curly quotes are its own narrow ones, not an
+            // em: zh-0aac9d1a's 楷体_GB2312 heading "（一）物业服务企业守信“红名单”。"
+            // steps 5.52 at each quote at 16pt in Word's print, and no blank
+            // stands beside them.)
+            if ea.height == arialUnicode.height, ea.baseline == arialUnicode.baseline {
+                let quotes: [UInt32: Double] = [0x2018: 0.345, 0x2019: 0.345, 0x201C: 0.345, 0x201D: 0.345]
+                face.otherAdvances = quotes
+                face.boldOtherAdvances = quotes
+            }
             if ea.latin == mono, face.otherAdvances == nil {
                 let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1]
                 face.otherAdvances = gb

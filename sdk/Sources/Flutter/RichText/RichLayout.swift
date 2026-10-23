@@ -7152,7 +7152,13 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{2060}", style: notoStyle!))
                     inserts.append(offset)
                 }
+                // (Not where the face gives the quote a width of its own
+                // (`otherAdvances`): Arial Unicode MS's are narrow, and Word
+                // sets them so with no blank beside them — zh-0aac9d1a.)
                 let quote = ea && fullQuotes && (ch == "\u{201C}" || ch == "\u{2018}" || ch == "\u{201D}" || ch == "\u{2019}")
+                    && theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                           ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?
+                        .otherAdvances?[ch.unicodeScalars.first!.value] == nil
                 // (None where the face's own quote is the em to a hair: Starling
                 // FangSong's is 15.99997 of 16, and a blank of that hair sent
                 // the squeeze the line fitting asked of an opening quote into a
@@ -8981,7 +8987,10 @@ public final class RichLayout {
             let hint = run.style.fontHint ?? named?.char.fontHint
             let high = (run.style.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
             let hinted = hint == "eastAsia" || (face?.isEastAsian ?? false) && (hint != "default" || (high?.isEastAsian ?? true))
-            wideQuotes.append(contentsOf: repeatElement(hinted, count: run.length))
+            // (Not a face with quotes of its own width: `_span`.)
+            let ownQuotes = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0x201C] != nil
+            wideQuotes.append(contentsOf: repeatElement(hinted && !ownQuotes, count: run.length))
         }
         guard ems.count == units.count else { return [:] }
         func wideQuote(_ k: Int) -> Bool { wideQuotes[k] && (units[k] == 0x201C || units[k] == 0x201D || units[k] == 0x2018 || units[k] == 0x2019) }
