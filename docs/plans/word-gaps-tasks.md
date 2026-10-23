@@ -547,8 +547,8 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 With the 15-400 KB pool empty: 20 of the 22 unprinted of 400 to 800 KB (`random.seed(20261113)`,
 drawn by docxcorp id, all printed), checked in. Bigger documents, more to find: it starts at
 64.4% (median ~70), 13 of 20 page counts Word's. Its low ones, unclaimed:
-zh-6d402586 4.4 (39/41 pages) [CLAIMED Mac 01Xgpbk5 2026-10-23], zh-6aa8bd7c 13.9 (33/32) [CLAIMED Linux b2 01JsizVV 2026-10-23],
-zh-e68a2f57 20.4 (63/62), zh-ab9cbe66 20.5 (100/99), zh-ae2dd08d 24.8 (94/97), zh-b8de3ae2 38.8
+zh-6d402586 4.4 (39/41 pages) [CLAIMED Mac 01Xgpbk5 2026-10-23], zh-6aa8bd7c 13.9 (33/32) [Linux b2 01JsizVV measured, released: pp1-5 match; p6 opens an autofit 100% table (landscape, tblCellMar 28, tcW pct, cells w:noWrap) whose columns Word sets 62.6/52.3/41.1/50.8/98.4/56.9/54.3/78.0/55.2/151.2 and ours 62.5/53.1/41.6/51.5/98.4/50.8/55.0/78.4/56.2/153.0; at 78.0 Word wraps the mobile numbers "0932-83889"/"8" (YaHei digits 7.04, 75.6 + 2.8 needed), ours at 78.4 keeps them whole, every row a line short; noWrap is not modelled. Autofit ground],
+zh-e68a2f57 20.4 (63/62) [CLAIMED Linux b2 01JsizVV 2026-10-23], zh-ab9cbe66 20.5 (100/99), zh-ae2dd08d 24.8 (94/97), zh-b8de3ae2 38.8
 (29/30), zh-76700e5f 48.1, zh-72da925e 58.3, zh-7654804a 58.5, zh-7a16a243 64.7, zh-57f1de0d 80.0,
 zh-1cfb652b 87.5. (Corpus mean is not comparable with the 625's: 95.1 with these in.)
 
