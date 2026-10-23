@@ -2001,7 +2001,7 @@ final class DocxTests: XCTestCase {
                            mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
                            hanging: Double = 0, justified: Bool = false,
                            documentLanguage: String? = nil, characterGrid: Double? = nil,
-                           runXML: String = "") throws -> (width: Double, length: Int) {
+                           runXML: String = "", kerns: Bool = false) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -2020,6 +2020,7 @@ final class DocxTests: XCTestCase {
         style.letterSpacing = letterSpacing
         if let language { style.keptXML = "<w:lang w:eastAsia=\"\(language)\"/>" }
         if !runXML.isEmpty { style.keptXML = (style.keptXML ?? "") + runXML }
+        if kerns { style.kerningFrom = 1 }
         var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
         // (Set left, as every paragraph is fitted before mode 15, so the
         // line's width is what it holds.)
@@ -2169,6 +2170,24 @@ final class DocxTests: XCTestCase {
                        text.utf16.count - 2, "the four marks give 10.0, weighed against 23 characters of 12")
         XCTAssertEqual(try firstLine(text, width: through - 10.5, mode: 15, justified: true, characterGrid: 4, runXML: off).length,
                        text.utf16.count - 3)
+    }
+
+    func testAMarkClosedUpToTheLastHangsHalfAnEmOnALineWithWordSpaces() throws {
+        try requireFitterWidths()
+        // Labs `u5`/`u6` (Mac, Word 16, zh-505b9619's package: mode 15,
+        // 14pt, a line with word spaces and three marks to give): "…3日）。"
+        // is taken with the need over a whole em's hang up to 14.0 and not
+        // from 14.25 — "）。" gives half an em for hanging, not the whole.
+        // Here at 12pt the marks "（", "，", "（" give a third each.
+        let text = "甲（甲甲）， 甲甲甲甲甲甲甲甲甲甲（甲甲甲甲日）。乙丙"
+        let through = try firstLine(text, width: 1000, mode: 15, kerns: true).width - 24   // to "。"'s end
+        func length(_ need: Double) throws -> Int {
+            try firstLine(text, width: through - 12 - need, mode: 15, justified: true, kerns: true).length
+        }
+        let all = try length(0)   // the line through "。"
+        XCTAssertEqual(try length(11.0), all)
+        XCTAssertLessThan(try length(12.75), all, "with half an em to hang, 12.75 asks the marks more than the line would stretch")
+        XCTAssertGreaterThan(all, text.utf16.count - 3)
     }
 
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {

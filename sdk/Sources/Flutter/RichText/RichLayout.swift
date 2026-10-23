@@ -9407,10 +9407,23 @@ public final class RichLayout {
                 let centredEnd = (document.compatibilityMode ?? 12) < 15 && squeezes && !inCell && document.marksCentred
                     && Self._centredUnits.contains(units[tail])
                 let paragraphEnd = tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
+                // (From 2013's layout, a mark another closes up to — "）。" —
+                // gives the line half an em for hanging, not its whole: labs
+                // `u5`/`u6` (Mac, Word 16, zh-505b9619's package: mode 15,
+                // 14pt, three marks on the line) take "…（未載明者為3日）。" with
+                // the need, over a whole em's hang, up to 14.0 and not from
+                // 14.25 — the marks giving a third each of it and half an em
+                // more — and draw the "。" inside the margin, "）" 3.5 wide.
+                // Only on a line with word spaces, whose marks give by the
+                // older test: on one without, the share test with a whole
+                // em's hang is Word's — zh-7488a70f's "…（民間21項、機關16
+                // 項）。" is one line in its print. u5's blanks as "某" left
+                // Word's limit where it was and ours lower: not found.)
+                let closedUpTo = theme.wordRules && !legacy && lineOther && tail > a && closesUp(tail - 1)
                 let hang = hangs && !holdsFinal && !(centredEnd && paragraphEnd)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
-                    ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
+                    ? min(ems[tail] * (closesUp(tail) || document.hangsHalf || closedUpTo ? 0.5 : 1), boxes(tail, tail + 1)) : 0
                 // (No hair over the hang: lab `hc`, a two-character indent
                 // and 28 ideographs and "。" on zh-d68ac84a's grid, the
                 // mark 0.003pt past its em at 586 twips of indent, is
