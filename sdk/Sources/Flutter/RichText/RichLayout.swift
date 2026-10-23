@@ -7629,6 +7629,15 @@ public final class RichLayout {
                         spans.append(TextSpan(text: "\u{00A0}", style: s))
                         spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
                         inserts.append(offset + 1)
+                    } else if theme.wordRules, ea, ch == "\u{2013}" {
+                        // (So too an East Asian dash the East Asian face
+                        // lacks, drawn by the glyph fallback: its own
+                        // spacing came out only before a space — lab `ds`,
+                        // PMingLiU's em-wide "–" stood 6.67 before "基",
+                        // 12.0 before " ".)
+                        spans.append(TextSpan(text: String(ch), style: s))
+                        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
+                        inserts.append(offset + 1)
                     } else {
                         spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
                     }

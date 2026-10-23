@@ -1505,6 +1505,20 @@ enum OfficeFonts {
                 face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
             }
+            // (PMingLiU's en dash is an em, where the run sets it East
+            // Asian — hinted, or by its Latin face: zh-05699f05's
+            // "（100%+目標值）–基準維護件數】" in 新細明體 sets "–" 12.0 at
+            // 12pt in Word's print — beside ideographs, spaces, Latin
+            // letters or digits alike, hinted or not (lab `ds`) — where the
+            // stand-in drew Liberation Sans's 6.67, and the cell's line held
+            // the "數】" Word sends down. Its "×" is half an em, 6.0, but
+            // set so alone it let lines take what the no-break space beside
+            // it, 6.0 in Word's print and 2.82 in ours, gives back:
+            // zh-e061a08e's "數）×100％" took "（以". Left for both.)
+            if ea.height == 1332.0 / 1024.0, face.otherAdvances == nil {
+                face.otherAdvances = [0x2013: 1.0]
+                face.boldOtherAdvances = [0x2013: 1.0]
+            }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
             // eastAsia — is 10.50 at 10.5pt in its print of zh-cd8987db,

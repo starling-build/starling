@@ -3491,6 +3491,22 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **PMingLiU's en dash is an em (2026-10-22).** zh-05699f05's cells
+  are 新細明體 throughout (its Normal names it for every script), and Word
+  sets "（100%+目標值）–基準維護件數】"'s "–" 12.0 wide at 12pt. Lab `ds`
+  on Word for Windows: the same beside ideographs, spaces, Latin letters
+  or digits, hinted or not, under zh-TW or en-US. Ours drew the Latin
+  stand-in's 6.67, and the cell's line held the "數】" Word sends down,
+  then every row after. PMingLiU's East Asian face now gives U+2013 an
+  em (`otherAdvances`). On Windows the face's fallback draws that glyph,
+  and a fallback glyph's own spacing came out only before a space, so
+  the dash's spacing now goes on a word joiner after it, as a no-break
+  space's does. Its "×" is half an em (6.0) in Word's print, but set
+  alone it let zh-e061a08e's "數）×100％" take "（以" back. The no-break
+  space beside it is 6.0 in Word and 2.82 in ours, and the old 7.01
+  "×" had hidden that, so both are left. Of 144 documents with
+  PMingLiU and a dash or "×": zh-05699f05 79.4 -> 100, none down.
+
 - **Marks in vertical cells are their vertical forms (2026-10-22).**
   Word's prints of tbRlV cells hold "︑", "︐", "︵" and "︶" where the
   files have "、", "，", "（" and "）": zh-b0401810, zh-cec9d337,
