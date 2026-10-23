@@ -250,7 +250,11 @@ enum WriterGroups {
                 case "wpg:grpSp":
                     if let xfrm = child.first("wpg:grpSpPr")?.first("a:xfrm") { walk(child.children, map(xfrm, outer: place)) }
                 case "wps:wsp":
-                    guard let sp = child.first("wps:spPr"), let geom = sp.first("a:prstGeom"), let prst = geom["prst"],
+                    // (A freeform too, `a:custGeom`: zh-ae2dd08d's flowcharts
+                    // draw their boxes and diamonds so, Word's print each with
+                    // its edges, ours with none.)
+                    let custom = child.first("wps:spPr")?.first("a:custGeom")
+                    guard let sp = child.first("wps:spPr"), let prst = sp.first("a:prstGeom")?["prst"] ?? (custom != nil ? "" : nil),
                           let xfrm = sp.first("a:xfrm") else { continue }
                     let at = place(Rect.fromLTWH(number(xfrm.first("a:off"), "x"), number(xfrm.first("a:off"), "y"),
                                                  number(xfrm.first("a:ext"), "cx"), number(xfrm.first("a:ext"), "cy")))
@@ -260,8 +264,13 @@ enum WriterGroups {
                         return (colors.color(in: r), idx)
                     }
                     let isLine = ["line", "straightConnector1"].contains(prst)
-                    let geometry = isLine ? nil : PresetGeometry.geometry(prst, width: max(1, at.width), height: max(1, at.height),
-                                                                          adjustments: PresetGeometry.adjustments(geom))
+                    let geometry: FreeformGeometry?
+                    if isLine { geometry = nil }
+                    else if let custom { geometry = FreeformGeometry.parse(custom, width: max(1, at.width), height: max(1, at.height)) }
+                    else {
+                        geometry = PresetGeometry.geometry(prst, width: max(1, at.width), height: max(1, at.height),
+                                                           adjustments: sp.first("a:prstGeom").map { PresetGeometry.adjustments($0) } ?? [:])
+                    }
                     guard isLine || geometry != nil else { continue }
                     var fill: Color? = nil
                     if !isLine {

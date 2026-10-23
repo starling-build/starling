@@ -7777,3 +7777,18 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   the whole run. Only zh-340d52e9 and zh-045c5a75 in the corpus have
   such a character. zh-340d52e9 76.0 -> 97.7; zh-045c5a75 unchanged
   (pair bl-base/bl-new).
+
+- **A group's freeform shapes are drawn (2026-10-23; Windows 01QbbApP,
+  from Word's prints).** zh-ae2dd08d's and zh-ab9cbe66's flowcharts draw
+  their boxes, diamonds and documents as `a:custGeom`: one-unit paths
+  (`w`/`h` 1) over guides like `*/ f0 1 1`. Word prints every edge. Ours
+  drew their text and arrows but no outline, because
+  `WriterGroups.register` read a `wps:wsp` only with an `a:prstGeom`.
+  It now reads a custGeom through `FreeformGeometry.parse`, the slides'
+  guide evaluator. zh-6cd1befe p58's burst and boxes come back the same
+  way. Only these three documents have such a shape. No line score
+  moves (the scorer reads text); the pages compare against Word's
+  prints by image (cg-base/cg-new). Left: text in a freeform is set
+  from the box's top inset, not the geometry's own `a:rect` (zh-ab9cbe66
+  p17's diamonds stand their text high).
+
