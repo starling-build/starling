@@ -1153,6 +1153,10 @@ public struct TableStyle: Hashable, Sendable {
     /// preferences froze bib-chernigovka's number column at its grid
     /// width and wrapped the text column a line early.
     public var autoCellWidths = false
+    /// Nor does the table (`w:tblW` auto), nor any of its cells: Word
+    /// then fits every column between its narrowest and its widest
+    /// content, the saved grid set aside (`RichLayout._autofit`).
+    public var contentFit = false
     /// Space between cells in points (w:tblCellSpacing, HTML's
     /// cellspacing); nil when the file says nothing. Zero is kept apart
     /// from nil: Word draws a table that states it with separate borders.

@@ -1114,8 +1114,9 @@ public final class RichLayout {
     private var _listSig: [ListSig] = []
     private var _wasCell: [Bool] = []
     private var _tablesDirty = true
-    /// Each cell paragraph's narrowest setting (px), for `_autofit`.
-    private var _cellMins: [Int: Double] = [:]
+    /// Each cell paragraph's narrowest and widest settings (px), for
+    /// `_autofit`.
+    private var _cellMins: [Int: (min: Double, max: Double)] = [:]
     private struct ListSig: Equatable {
         var kind: ListKind?
         var level: Int
@@ -1793,7 +1794,7 @@ public final class RichLayout {
     /// form: 34.6/187.6/110.5/156.4pt in Word's print, from a grid of
     /// 67.5/151.1/76.3/134.0, for its stamp line's 444pt piece.
     private func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
-        struct Cell { var column: Int; var span: Int; var min: Double; var picture: Bool }
+        struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
         var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
         let ins = _cellInsets(table, document)
@@ -1804,14 +1805,69 @@ public final class RichLayout {
             guard c.textDirection == .horizontal else { continue }
             let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
             let w = sides + _minContent(i, p, document)
+            let widest = sides + _maxContent(i, p, document)
             let picture = theme.wordRules && p.text.isEmpty && p.image.map { $0.float == nil && !Self._isEquation($0) } == true
             let key = c.row * 4096 + c.column
             if let k = at[key] {
                 if w > cells[k].min { cells[k].picture = picture }
                 cells[k].min = max(cells[k].min, w)
+                cells[k].max = max(cells[k].max, widest)
             } else {
                 at[key] = cells.count
-                cells.append(Cell(column: c.column, span: c.span, min: w, picture: picture))
+                cells.append(Cell(column: c.column, span: c.span, min: w, max: widest, picture: picture))
+            }
+        }
+        // A table that states no width, nor any of its cells, is fitted
+        // to its content, its grid set aside (office.md's "All-auto
+        // tables"; labs `aa`, `ab`, `ac` on Word for Windows). Each column
+        // lies between its cells' narrowest and widest settings, a span's
+        // over its columns' shared out as theirs are; the table is as
+        // wide as the widest if they fit its room, and otherwise the room
+        // wide, each column the same share of the way from its narrowest
+        // to its widest. zh-e49d7943's calendar: 69.1/57.6/63.0/62.9/62.9/
+        // 71.9pt inside in Word's print, over a grid of 67.55/60.25/
+        // 63.55×3/70.0, and "星期二" parted. (A cell's widest is taken as
+        // 1580pt at most, about the 22 inches Word allows a table — lab
+        // `ae`: a cell of 1720, 1985 or 2975pt of words sets its table as
+        // one of 1580 does; zh-12f87285's descriptions, 4400pt unparted,
+        // leave its 194 rows at the grid WPS saved, Word's own fit.)
+        if theme.wordRules, document.tableStyles[table]?.contentFit == true, _nestedCap == nil, !cells.isEmpty {
+            let cap = _px(1580)
+            var low = Array(repeating: 0.0, count: base.count), high = low
+            for c in cells where c.span == 1 {
+                low[c.column] = max(low[c.column], c.min)
+                high[c.column] = max(high[c.column], min(c.max, cap))
+            }
+            for c in cells.filter({ $0.span > 1 }).sorted(by: { $0.span < $1.span }) {
+                let cols = c.column ..< c.column + c.span
+                func share(_ widths: inout [Double], _ need: Double) {
+                    let has = cols.reduce(0) { $0 + widths[$1] }
+                    guard need > has else { return }
+                    for k in cols { widths[k] = has > 0 ? widths[k] * need / has : need / Double(c.span) }
+                }
+                share(&low, c.min)
+                share(&high, min(c.max, cap))
+            }
+            // (Not where a column holds nothing measured: turned cells only.)
+            if !low.contains(0) {
+                high = zip(low, high).map { max($0, $1) }
+                let room = (_tableFlowWidth[table] ?? width) + ins.left + ins.right
+                let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
+                let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
+                // (Whole pixels: up where each is its widest, so that it
+                // still fits.)
+                let fitted = zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
+                if Self.debugAutofit {
+                    let pt = theme.pixelsPerPoint * scale
+                    FileHandle.standardError.write(Data("autofit \(table): content fit \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
+                }
+                // (A grid within a point of it in every column is the
+                // saving program's own fit, and ours is Word's to within a
+                // little, as below: zh-12f87285's comes out 0.3pt narrower
+                // in its description column, which then parted lines Word
+                // keeps whole.)
+                if fitted.count == base.count, zip(fitted, base).allSatisfy({ abs($0 - $1) <= _px(1) }) { return base }
+                return fitted
             }
         }
         func room(_ c: Cell) -> Double { base[c.column ..< c.column + c.span].reduce(0, +) }
@@ -1936,8 +1992,9 @@ public final class RichLayout {
     /// run that fits its line is never parted for it, and a line of
     /// ideographs came out as wide as all of them.)
     private func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
-        if let m = _cellMins[i] { return m }
+        if let m = _cellMins[i] { return m.min }
         var m = 0.0, first = 0.0   // the pieces after the first; the first
+        var widest = 0.0, opening = 0.0   // its lines unparted after the first; the first
         let units = Array(p.text.utf16)
         if !units.isEmpty {
             var gaps: [Int: Double] = [:]
@@ -1975,9 +2032,13 @@ public final class RichLayout {
                 if theme.wordRules, let gap = gaps[e - 1] { w -= gap }
                 return w
             }
-            var start = 0
+            var start = 0, line = 0
             for k in 1 ..< units.count {
                 let a = units[k - 1], b = units[k]
+                if a == 0x0A || a == 0x0B || a == 0x2028 {
+                    if line == 0 { opening = piece(line, k) } else { widest = max(widest, piece(line, k)) }
+                    line = k
+                }
                 let parts: Bool
                 if a == 0x0A || a == 0x0B || a == 0x2028 { parts = true }
                 else if space(b) { parts = false }
@@ -2012,6 +2073,7 @@ public final class RichLayout {
                 }
             }
             if start == 0 { first = piece(start, units.count) } else { m = max(m, piece(start, units.count)) }
+            if line == 0 { opening = piece(line, units.count) } else { widest = max(widest, piece(line, units.count)) }
             probe.dispose()
         }
         // (A picture that stands alone in its paragraph is one piece as
@@ -2033,6 +2095,7 @@ public final class RichLayout {
                 let room = _pictureRoom(image)
                 first = _px(image.width) + room.left + room.right
             }
+            opening = first
         }
         let sides = _sideIndents(p, document)
         // (Indents out into the cell's margins count against it:
@@ -2044,13 +2107,23 @@ public final class RichLayout {
         // at the cell's edge, and Word keeps the grid's 76pt column —
         // ours, counting the indent for it too, wanted 84.8 and gave
         // "18 連江縣" a column too narrow to hold it.)
+        var unparted: Double
         if theme.wordRules, _wordList(p, document) == nil {
             m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + firstLineIndent(p, document)) + first, 0) + _px(sides.right)
+            unparted = max(widest > 0 ? _px(sides.left) + widest : 0, _px(sides.left + firstLineIndent(p, document)) + opening, 0) + _px(sides.right)
         } else {
             m = max(m, first) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
+            unparted = max(widest, opening) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
         }
-        _cellMins[i] = m
+        _cellMins[i] = (m, max(m, unparted))
         return m
+    }
+
+    /// The widest a paragraph of a cell is set (px): its longest line
+    /// unparted, and its side indents, as `_minContent` measures them.
+    private func _maxContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
+        _ = _minContent(i, p, document)
+        return _cellMins[i]!.max
     }
 
     /// Column widths (points) shown instead of the document's while a

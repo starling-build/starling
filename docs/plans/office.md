@@ -5311,8 +5311,24 @@ fitter dropped the paragraph's tail).
   "星期二" then wraps "星期" / "二" as Word's does.
   Not tested: mins summing past the room, merged-down cells, nested
   tables, and lab `ac` s7, which is off by 0.7pt on a 2165pt span.
-  Only zh-e49d7943 and zh-12f87285 in the zh corpus have such a table.
-  Not built yet.
+  Five corpus documents have such a table: zh-e49d7943, zh-12f87285,
+  bib-chernigovka, bug57031 and drawing.
+  Lab `ae` adds a cap. A cell's max counts as 1580pt at most, about
+  Word's 22-inch limit on a table. With the first cell's words at 800,
+  1200 or 1500pt, this rule matches Word to 0.1pt. At 1720, 1985 or
+  2975pt Word sets the table exactly as at 1580.
+  zh-12f87285 (WPS's save; 194 rows of 14pt YaHei, some descriptions
+  4400pt unwrapped) is fitted all the same: cut to 12, 16, 20, 30, 50
+  or 100 rows (lab `ad`), Word gives each cut its own widths. The full
+  table's fit is simply the grid WPS saved. Without the cap ours gave
+  23.2/38.6/54.8/280 for 30.4/47.7/84.5/234.3 (100 -> 8.5). With it,
+  30.5/47.7/84.6/234.0, but the description column 0.3pt narrower still
+  re-wrapped lines Word keeps whole (100 -> 88.5). So, as for the rule
+  above, a fit within a point of the grid in every column keeps the
+  grid.
+  Built (`TableStyle.contentFit`, `_autofit`, `_maxContent`).
+  zh-e49d7943 86.6 -> 93.5 (its p16 now matches; it was 1 line); the
+  other four are unchanged (pair aa-base/aa-new3).
 - **Vertical writing in a cell (2026-10-15, T20; Linux, no lab).**
   Word's `w:textDirection` tbRl, tbRlV and tbLrV all print the same way
   in zh-2b955411: the ideographs upright, stacked down the cell one

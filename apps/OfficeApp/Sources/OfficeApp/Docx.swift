@@ -1362,6 +1362,7 @@ enum DocxFormat {
                     return w == nil || w?["w:type"] == "auto"
                 }.count
                 if !cells.isEmpty, widthless * 2 > cells.count, !style.fixedLayout { style.autoCellWidths = true }
+                if !cells.isEmpty, widthless == cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout { style.contentFit = true }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
