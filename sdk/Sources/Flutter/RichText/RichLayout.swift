@@ -6421,7 +6421,12 @@ public final class RichLayout {
                     var end = k
                     while end < stop, units[end] == 0x20 { end += 1 }
                     let before = k > 0 && units[k - 1] != 0x20 ? size : 0
-                    if _px(Double(end - k) * space + before) > textWidth { underHeld.formUnion(k ..< end) }
+                    // (Every one where the document keeps East Asian break
+                    // rules: zh-f47b8a74's blanks that fit a line wrap in
+                    // Word's print too — the four documents a hold of every
+                    // blank cost all say w:doNotUseEastAsianBreakRules, and
+                    // those it helped none.)
+                    if !document.ignoresEastAsianBreakRules || _px(Double(end - k) * space + before) > textWidth { underHeld.formUnion(k ..< end) }
                     k = end
                 }
             }
