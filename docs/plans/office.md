@@ -7579,6 +7579,17 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   vs n420: zh-6d402586 39.3 -> 62.2, 41 -> 40 pages (Word 39), nothing
   else moved.
 
+- **A picture's paragraph taller than its page goes whole onto it (2026-10-23).**
+  zh-6d402586's "參考資料1" is a paragraph of a text box anchor and a 749pt
+  inline picture on a page of 698. Word prints it on page 26, overfull, its
+  section break with it, and "參考資料2" on page 27. Ours placed the picture
+  as "a line taller than a page", carried the 9pt under it to a page 27 of
+  its own, and the next section opened page 28. A paragraph of objects alone
+  now goes whole onto the page it starts, which it leaves full; the empty
+  section mark after it takes no room there (the `ender` rule). Paired sweep
+  n425 vs n424: zh-6d402586 62.2 -> 90.9, 39 pages (Word's), nothing else
+  moved.
+
 - **REVERTED (2026-10-23, the user's decision): the entry below fitted a Word for Mac fault.**
   Since 2026-10-18 Word for Mac on the printing Mac draws any EMBEDDED face
   as blank one-em glyphs; Word for Windows draws the real face (windows-1's

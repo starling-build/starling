@@ -5266,10 +5266,24 @@ public final class RichLayout {
                     newPage()
                 } else {
                     // A single line taller than a page: place it and overflow.
-                    let next = cuts!.first(where: { $0 > cursor + 0.01 }) ?? bottom
+                    // (A picture's paragraph whole, the line under the picture
+                    // too: zh-6d402586's "參考資料1", a 749pt picture on a page
+                    // of 698, is page 26 in Word's print, its mark and section
+                    // break with it, and "參考資料2" page 27; ours carried the
+                    // 9pt under the picture to a page 27 of its own, and the
+                    // next section went to 28.)
+                    let pictureOnly = document.paragraphs[i].image != nil || (!document.paragraphs[i].inlineImages.isEmpty
+                        && document.paragraphs[i].text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " })
+                    let next = theme.wordRules && pictureOnly ? bottom
+                        : cuts!.first(where: { $0 > cursor + 0.01 }) ?? bottom
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: next,
                                                   page: page, pageY: y))
                     cursor = next
+                    if theme.wordRules, pictureOnly {
+                        // (The page is full; what follows opens the next one.)
+                        y = contentH
+                        break
+                    }
                     newPage()
                 }
             }
