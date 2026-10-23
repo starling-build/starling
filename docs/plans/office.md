@@ -5269,6 +5269,42 @@ fitter dropped the paragraph's tail).
   close enough that no line moves here, but a lab is needed (a span
   over three columns of unequal content and grid, its narrowest
   varied) before another document depends on it.
+- **All-auto tables: Word fits them to their content (2026-10-23;
+  Windows 01QbbApP, labs `aa`, `ab`, `ac` in ~/starling-doc-check/lab, on
+  Word for Windows; zh-e49d7943 p16, handed over by Linux 017F2GnT).**
+  The rule above (keep the grid until a cell can't fit) holds for tables
+  whose cells state widths. A table with `tblW` auto where EVERY `tcW` is
+  auto is a different case: Word ignores the saved grid and fits the
+  columns to their content, like HTML's auto layout. Lab `aa` is
+  zh-e49d7943's calendar alone. As saved (all auto) Word prints it
+  69.1/57.6/63.0/62.9/62.9/71.9 inside. With each cell's `tcW` set to its
+  grid width it prints the grid, 67.6/60.3/63.5/63.6/63.5/70.1. The fit,
+  from labs `ab` and `ac` (Courier New 10pt, every width exact):
+  (1) Each column has a min and a max: the widest of its one-column
+  cells' narrowest settings and of their unwrapped paragraphs, each with
+  the cell's margins. The max includes Word's automatic gap between
+  digits and ideographs: 0.26em, so "11初四" is 18.6 + 4.2 + 32 at 16pt.
+  (2) Spans, narrowest first: where a span's max is over its columns'
+  sum, the excess goes to them in proportion to their maxes. The same
+  goes for its min against their mins. Lab `ac` s1: 'a' / 5 W / 10 W
+  over a 109-character span prints 64.6/156.6/271.6, and this gives
+  64.5/156.6/271.8. s2 spreads the span's min the same way.
+  (3) If the maxes sum to no more than the room (the column's width plus
+  the cell margins either side: 492.8 for 481.9), the columns are their
+  maxes and the table is that narrow. Lab `ab` v3 prints 22.8/76.9/46.8
+  for 'ab' / 11 chars / 6 chars, whatever the grid says. Otherwise the
+  table is the room wide and each column is min + (max − min)·k, with k
+  the same for all. v1 prints 213.2/118.6/161.1 (this gives
+  213.3/118.5/161.0); v4 prints 406.4/16.9/69.5 (this gives
+  406.4/16.8/69.5); v2 is v1 with a 50% wider grid and prints the same.
+  On the calendar, with YaHei's metrics standing in for 標楷體 (as Word
+  sets it there), this gives 35.9/69.2/57.6/62.9/62.9/62.9/72.0/69.2.
+  That is columns 2–8 within 0.1pt, the first about 0.4 under.
+  "星期二" then wraps "星期" / "二" as Word's does.
+  Not tested: mins summing past the room, merged-down cells, nested
+  tables, and lab `ac` s7, which is off by 0.7pt on a 2165pt span.
+  Only zh-e49d7943 and zh-12f87285 in the zh corpus have such a table.
+  Not built yet.
 - **Vertical writing in a cell (2026-10-15, T20; Linux, no lab).**
   Word's `w:textDirection` tbRl, tbRlV and tbLrV all print the same way
   in zh-2b955411: the ideographs upright, stacked down the cell one
