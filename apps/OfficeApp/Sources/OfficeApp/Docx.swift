@@ -249,8 +249,19 @@ enum DocxFormat {
             while let n = stack.popLast() {
                 if n.name == "w:sectPr" { sects.append(n) } else if n.name != "w:tbl" { stack.append(contentsOf: n.children.reversed()) }
             }
+            // (A continuous section on paper of another size or the other
+            // way round starts a page all the same: zh-3ab8a2fb's landscape
+            // "附件2" table, continuous after a portrait section, opens page
+            // 22 in Word's print; ours set its label at page 21's foot, and
+            // the document ran a page long.)
+            func paper(_ s: XNode) -> String {
+                let size = s.first("w:pgSz")
+                return "\(size?["w:w"] ?? "")x\(size?["w:h"] ?? "")"
+            }
             for (i, sect) in sects.enumerated().dropLast() {
-                sect.attrs["x-next-breaks"] = (sects[i + 1].first("w:type")?["w:val"] ?? "nextPage") != "continuous" ? "1" : "0"
+                let next = sects[i + 1]
+                let breaks = (next.first("w:type")?["w:val"] ?? "nextPage") != "continuous" || paper(next) != paper(sect)
+                sect.attrs["x-next-breaks"] = breaks ? "1" : "0"
             }
         }
         for extra in root.all("w:body").dropFirst() {
