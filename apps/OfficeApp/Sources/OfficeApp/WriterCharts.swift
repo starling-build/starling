@@ -103,6 +103,9 @@ enum WriterCharts {
                     || WriterGroups.paint(attachment, canvas, rect, pxPerPt) || WriterMath.paint(attachment, canvas, rect, pxPerPt)
             }
         }
+        if RichLayout.objectFitter == nil {
+            RichLayout.objectFitter = { attachment, width in WriterMath.fit(attachment, width: width) }
+        }
     }
 }
 

@@ -3975,7 +3975,16 @@ enum DocxFormat {
                         var att = ImageAttachment(data: Data(), width: 1, height: 1, name: child.name)
                         att.sourceXML = frag.xml
                         att.sourceRels = frag.rels
-                        if let m = WriterMath.register(child, for: att.id, size: 11) {
+                        // (Its runs' size where they say none: the paragraph's —
+                        // its mark's, its style's, Normal's. zh-db07d44e's
+                        // cell equation is 12pt in Word's print, Normal's, and
+                        // breaks where 11 would hold a piece more.)
+                        var mathSize: Double = 11
+                        if let n = sheet["Normal"]?.char.fontSize { mathSize = n }
+                        if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
+                        if let n = cellChar.fontSize { mathSize = n }
+                        if let n = markStyle?.fontSize { mathSize = n }
+                        if let m = WriterMath.register(child, for: att.id, size: mathSize) {
                             att.width = m.width
                             att.height = m.height
                             att.baseline = m.baseline

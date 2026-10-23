@@ -792,6 +792,30 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<m:t>L=99−</m:t>"), saved)
     }
 
+    func testADisplayEquationWiderThanItsLineBreaksBeforeItsOperators() throws {
+        // zh-db07d44e's cell "實績值=(…/…×1/3+…/…×1/3+…/…×1/3)×100%" is four
+        // lines in Word's print, parted before "×" and "+" inside its
+        // brackets, each after the first an inch in; ours ran past the cell.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        func frac(_ a: String, _ b: String) -> String { "<m:f><m:num><m:r><m:t>\(a)</m:t></m:r></m:num><m:den><m:r><m:t>\(b)</m:t></m:r></m:den></m:f>" }
+        let inside = frac("aaaaaaaaa", "bbbbbbbbb") + "<m:r><m:t>×</m:t></m:r>" + frac("1", "3") + "<m:r><m:t>+</m:t></m:r>"
+            + frac("ccccc", "ddddd") + "<m:r><m:t>×</m:t></m:r>" + frac("1", "3")
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><m:oMathPara \(m)><m:oMath><m:r><m:t>y=</m:t></m:r><m:d><m:e>\(inside)</m:e></m:d><m:r><m:t>×100%</m:t></m:r></m:oMath></m:oMathPara></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let eq = try XCTUnwrap(doc.paragraphs.first?.image ?? doc.paragraphs.first?.inlineImages.values.first)
+        let narrow = eq.width * 0.55
+        let fit = try XCTUnwrap(WriterMath.fit(eq, width: narrow), "an equation wider than its line breaks")
+        XCTAssertLessThanOrEqual(fit.width, narrow + 0.5)
+        XCTAssertGreaterThan(fit.height, eq.height * 1.8, "two lines at least")
+        XCTAssertNil(WriterMath.fit(eq, width: eq.width + 10), "one that fits is left whole")
+    }
+
     /// zh-547fc43c p6: a 233.75pt chart and 1.75pt of effect extent on a
     /// 15.6pt grid take 16 pitches in Word's print, and stand centred in
     /// them — 7.05pt of the 14.1 spare over it.

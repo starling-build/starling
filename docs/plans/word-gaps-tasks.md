@@ -3467,8 +3467,8 @@ regression for a document the line match scores 0 either way (its Arabic is read
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
 
-### T147. zh-db07d44e p22: a display equation wider than its cell breaks over lines — CLAIMED
-Owner: Linux office1 01Ak4ibJ (lenovo-3), 2026-10-23
+### T147. zh-db07d44e p22: a display equation wider than its cell breaks over lines — DONE (2026-10-23)
+Owner: none (Linux office1 01Ak4ibJ built it)
 Documents: zh-db07d44e (54.8 on Linux; p22 on is a page behind).
 Known: p22's cell holds "實績值=(實際取得…/預計…×1/3+實際決標量/預計決標量×1/3+實際併聯量/預計併聯量
 ×1/3)×100%", an `m:oMathPara` (jc left) round one `m:d`; Word sets it over four lines in its cell, broken
@@ -3477,6 +3477,14 @@ as one unbreakable object, and the cell's line runs past its edge.
 Plan: RichLayout asks an object hook for the object's size at the width it has (`objectFitter`);
 `WriterMath` breaks a display equation too wide for it at its top-level operators, the delimiter's
 content among them, and draws the broken form.
+Built: `RichLayout.objectFitter`, asked for a picture-less object wider than its line (in a line or a
+paragraph alone); `WriterMath.fit` parts a display equation before its operators — the content of one
+bracket round what follows opened up — fills lines greedily, each after the first an inch in, 0.3 em
+between them, and the painter draws the form whose width the rectangle has. An equation's runs take the
+paragraph's size where they state none (its mark's, its style's, Normal's — not 11), and their East
+Asian text the run's `w:eastAsia` face at its line height (標楷體: YaHei on the Mac, 15.8pt rows at 12).
+p22 now matches Word's four lines. Same-base sweep of 756: zh-db07d44e 54.8 -> 61.9; nothing else
+moved. Left: from p28 another cell's cascade, not looked at.
 
 ### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation) — DONE for p30's line (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built p30's line, 2026-10-22; released by starling-b2, measured)

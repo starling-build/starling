@@ -6983,6 +6983,12 @@ public final class RichLayout {
             var w = _px(image.width)
             var h = _px(image.height)
             if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
+            // (Or laid out again to the line's width, where it can be:
+            // `objectFitter` — a display equation broken over lines.)
+            if theme.wordRules, image.float == nil, image.data.isEmpty, w > textWidth + 0.5, textWidth > 0,
+               let fit = Self.objectFitter?(image, textWidth / (theme.pixelsPerPoint * scale)) {
+                w = _px(fit.width); h = _px(fit.height)
+            }
             // (A table nested in a cell: as tall as it lays out.)
             if image.textBox?.growsToFit == true, let inside = _textBox(image, document) { h = inside.height }
             _imageSize[i] = Size(w.rounded(), h.rounded())
@@ -8361,6 +8367,13 @@ public final class RichLayout {
                 // sets it; shrunk to the column when wider.
                 var w = _px(image.width), h = _px(image.height)
                 if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
+                // (Or laid out again to the line's width, where it can be:
+                // `objectFitter`.)
+                var fittedBaseline: Double? = nil
+                if theme.wordRules, image.float == nil, image.data.isEmpty, w > textWidth + 0.5, textWidth > 0,
+                   let fit = Self.objectFitter?(image, textWidth / (theme.pixelsPerPoint * scale)) {
+                    w = _px(fit.width); h = _px(fit.height); fittedBaseline = fit.baseline
+                }
                 // (A box in the line fitted to its text's height: that tall.)
                 if theme.wordRules, image.float == nil, let box = image.textBox, box.fitsHeight, let inside = _textBox(image, document) {
                     h = inside.layout.totalHeight + _px(box.insetTop + box.insetBottom)
@@ -8434,7 +8447,7 @@ public final class RichLayout {
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
                                                              baselineOffset: middle.map { size.height / 2 + _px($0) }
-                                                                ?? image.baseline.map { min(size.height, _px($0)) } ?? size.height)))
+                                                                ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)))
                 // (Before 2013's layout a space after a picture wider than
                 // the line goes to a line of its own: lab `ps` (Word 16, a
                 // cell of 74.35pt) sets the paragraph under a 76 or 80pt
@@ -11182,6 +11195,11 @@ public final class RichLayout {
     /// Whether `objectPainter` draws an object: one it draws floats and
     /// is wrapped round as a picture is (`_wrapBoxes`).
     public nonisolated(unsafe) static var drawsObject: ((ImageAttachment) -> Bool)? = nil
+    /// An object's size laid out again to the width it has (points), where
+    /// it is wider than its line and can be: a display equation broken
+    /// over lines. nil keeps its own size. `objectPainter` then draws the
+    /// form that fits the rectangle it is given.
+    public nonisolated(unsafe) static var objectFitter: ((ImageAttachment, Double) -> (width: Double, height: Double, baseline: Double)?)? = nil
 
     /// What `objectPainter` draws for an object with no picture, in
     /// `rect`; true where it drew it.
