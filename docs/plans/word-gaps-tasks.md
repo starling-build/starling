@@ -572,6 +572,9 @@ Each owner claims its item below as usual; this only says who was asked.
 
 ### Mac 01Xgpbk5 (2026-10-23): zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
 
+### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23]
+Its landscape pages number themselves in an `eaVert` box at the page's left ("- 33 -" reads down in Word's print); ours set it across. Also moves zh-2e7ef069, zh-6d402586 (its "通知書一式兩聯…" side box, not the 附件 boxes Windows holds), zh-6cd1befe.
+
 ### Note from the Mac (2026-10-23): the zh corpus is 645 documents — a thirtieth sample, of 400-800 KB
 With the 15-400 KB pool empty: 20 of the 22 unprinted of 400 to 800 KB (`random.seed(20261113)`,
 drawn by docxcorp id, all printed), checked in. Bigger documents, more to find: it starts at
