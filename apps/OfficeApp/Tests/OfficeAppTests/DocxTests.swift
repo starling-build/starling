@@ -2298,6 +2298,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try first(nil), 10)
     }
 
+    func testAFullWidthPercentSignStartsALineUnderTaiwansDefaultList() throws {
+        try requireFitterWidths()
+        // zh-499adba6 is zh-TW with no list of its own — Taiwan's, which
+        // has no "%" or "％" — and its p25 paragraph "在社會組織中，根據內政部
+        // …" ends "…權力分配。" in Word's print; ours, a number's sign held to
+        // it, ran its lines a character short and set "分配。" alone.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-499adba6") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("總幹事占比為38.54") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let at = try XCTUnwrap(shown.range(of: "權力分配"))
+        let line = painter.getLineBoundary(TextPosition(offset: shown.utf16.distance(from: shown.utf16.startIndex, to: at.lowerBound.samePosition(in: shown.utf16)!)))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+        // (Its tenth line, as Word's: the page and every one after it then
+        // a line behind no more.)
+        XCTAssertTrue(text.contains("權力分配。"), text)
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its

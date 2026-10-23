@@ -10724,7 +10724,11 @@ public final class RichLayout {
         // out (`_percentStarts`): zh-505b9619's lists Taiwan's, and Word's
         // print ends a line "…契約價金總額＿" and starts the next "%(由機關
         // …"; the engine keeps a sign with what it follows.)
+        // (And before a full-width one after a digit too: zh-499adba6
+        // (zh-TW, no list of its own — Taiwan's, which has neither) ends a
+        // line "…總幹事占比為38.54" and starts the next "％，女性理事…".)
         if percentStarts, b == "%", wide(a), !_openingMarks.contains(a) { return true }
+        if percentStarts, b == "％", wide(a) && !_openingMarks.contains(a) || a.isASCII && a.isNumber { return true }
         if b == "\u{201C}" || b == "\u{2018}" {
             return wide(a) && !_openingMarks.contains(a) || a == "\u{201D}" || a == "\u{2019}"
         }
@@ -10760,11 +10764,16 @@ public final class RichLayout {
     }
 
     /// Whether "%" may start a line by the document's own list of what may
-    /// not (`w:noLineBreaksBefore`), which Word keeps to where it states one.
+    /// not (`w:noLineBreaksBefore`), which Word keeps to where it states one,
+    /// else by its language's: Taiwan's (and Hong Kong's and Macau's) has
+    /// no "%", the mainland's and Japan's have.
     private func _percentStarts(_ document: RichDocument) -> Bool {
-        guard theme.wordRules, let kept = document.keptSettings["w:noLineBreaksBefore"],
-              let r = kept.range(of: "w:val=\"") else { return false }
-        return !kept[r.upperBound...].prefix(while: { $0 != "\"" }).contains("%")
+        guard theme.wordRules else { return false }
+        guard let kept = document.keptSettings["w:noLineBreaksBefore"], let r = kept.range(of: "w:val=\"") else {
+            return document.marksCentred
+        }
+        let list = kept[r.upperBound...].prefix(while: { $0 != "\"" })
+        return !list.contains("%") && !list.contains("％")
     }
 
     /// Whether Word may part a line after a hyphen-minus that opens a
