@@ -2106,6 +2106,10 @@ public struct RichDocument: Hashable, Sendable {
     /// — unless it stands between two Latin words. The spaces that push
     /// a signature across the page are then twice as wide in most faces.
     public var balancesSpaceWidth = false
+    /// Word's `w:ulTrailSpace`: underlined spaces are underlined at a
+    /// line's end too — text, not the blank a line may hang past its
+    /// margin. A run of them wraps as characters do.
+    public var underlinesTrailingSpaces = false
     /// Word's `w:adjustLineHeightInTable`: a table's text keeps to the
     /// section's line grid as body text does. Without it Word sets a
     /// cell's lines off the grid (zh-117cf7c6's 12pt rows on an 18.25pt

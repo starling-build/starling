@@ -6198,7 +6198,44 @@ public final class RichLayout {
         // the tab it stands for — enough, at the margin, to send the
         // page number to a line of its own. Lab `tb`'s justified "toc 1"
         // entry did; set left, it did not.)
-        let tabsHeld: Set<Int> = theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []
+        // (And underlined spaces where the document underlines them at a
+        // line's end, `w:ulTrailSpace`: text there, they hang past no
+        // margin, and a run of them stays with what stands before it.
+        // zh-f47b8a74's notices leave blanks of underlined spaces —
+        // "…号），因" and 105 of them, 8pt apiece — and Word's print sets
+        // "因" and 53 on a line of their own, the other 52 and "，根" on the
+        // next; ours kept "因" on the line before, the run hanging past
+        // its margin, and every line after stood one early. Not the
+        // paragraph's closing spaces: `_looseWordOffsets` has those.)
+        // (Only a run that, with the character before it, is wider than
+        // the line: one that fits hangs past the margin as any spaces do —
+        // zh-621d8756's "申请人：" and 48 underlined spaces, then "申请项目："
+        // in the same paragraph, run 32pt past the margin in Word's print
+        // and "申请项目：" opens the next line.)
+        var underHeld: Set<Int> = []
+        if theme.wordRules, document.underlinesTrailingSpaces, p.text.utf16.contains(0x20) {
+            let units = Array(p.text.utf16)
+            var closing = units.count
+            while closing > 0, units[closing - 1] == 0x20 { closing -= 1 }
+            var at = 0
+            for run in p.runs {
+                defer { at += run.length }
+                guard run.style.underline, run.style.inlineImage == nil, at < closing else { continue }
+                let size = run.style.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                let space = document.balancesSpaceWidth ? size / 2 : size / 4
+                var k = at
+                let stop = min(at + run.length, closing)
+                while k < stop {
+                    guard units[k] == 0x20 else { k += 1; continue }
+                    var end = k
+                    while end < stop, units[end] == 0x20 { end += 1 }
+                    let before = k > 0 && units[k - 1] != 0x20 ? size : 0
+                    if _px(Double(end - k) * space + before) > textWidth { underHeld.formUnion(k ..< end) }
+                    k = end
+                }
+            }
+        }
+        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld)
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
@@ -7104,10 +7141,48 @@ public final class RichLayout {
         // quote in Word's print, where ours set YaHei's own 0.38 em and its
         // lines took a character more than Word's.)
         let fullQuotes = theme.wordRules
-        let loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        var loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
             .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
-        let wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        // (A run of underlined spaces held under `w:ulTrailSpace`, with the
+        // character before it, is a word to Word: one wider than the line
+        // opens a line of its own and is parted at the margin, as a long
+        // Latin word is. zh-f47b8a74's "因" and 105 spaces of 8pt start a
+        // line in Word's print and fill it, the rest of them opening the
+        // next; held whole, ours ran past the margin.)
+        if theme.wordRules, document.underlinesTrailingSpaces, !held.isEmpty {
+            let units = Array(p.text.utf16)
+            var at = 0
+            for run in p.runs {
+                defer { at += run.length }
+                guard run.style.underline else { continue }
+                var k = at
+                while k < at + run.length {
+                    guard held.contains(k) else { k += 1; continue }
+                    var end = k
+                    while end < at + run.length, held.contains(end) { end += 1 }
+                    let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    let space = document.balancesSpaceWidth ? size / 2 : size / 4
+                    // (The word runs back to where a line may part: an
+                    // ideograph opens it, Latin text and full-width marks
+                    // join it — page 12's "1．" and its blank keep their
+                    // place at the paragraph's start in Word's print, the
+                    // spaces wrapping; ours had parted "1" from "．".)
+                    var from = k
+                    while from > 0, units[from - 1] != 0x20, units[from - 1] != 0x0A, units[from - 1] != 0x2028 {
+                        from -= 1
+                        if (0x3400 ... 0x9FFF).contains(units[from]) || (0xF900 ... 0xFAFF).contains(units[from]) { break }
+                    }
+                    let width = Double(end - k) * space + (from < k ? size : 0)
+                    if _px(width) > textWidth {
+                        if from > 0, units[from - 1] != 0x0A, units[from - 1] != 0x2028 { wideStarts.insert(from) }
+                        loose.formUnion((k + 1) ..< end)
+                    }
+                    k = end
+                }
+            }
+        }
         // The spaces Word sets half an em wide (UTF-16 offsets): every
         // run of them but one between two Latin characters — see
         // `RichDocument.balancesSpaceWidth`.
@@ -7882,7 +7957,15 @@ public final class RichLayout {
                 if heldSpaces.contains(offset) {
                     flush(i)
                     let s = style(kind)
-                    spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                    if theme.wordRules, document.underlinesTrailingSpaces, run.underline {
+                        // (An underlined one under `w:ulTrailSpace` as a figure
+                        // space of the space's width: the engine hangs a run of
+                        // no-break spaces past the margin as it does plain ones,
+                        // where Word wraps it.)
+                        spans.append(TextSpan(text: "\u{2007}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, " ") - _glyphWidth(s, "\u{2007}"))))
+                    } else {
+                        spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                    }
                     start = after
                     afterHeld = true
                     heldKind = kind
