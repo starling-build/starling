@@ -12830,8 +12830,18 @@ public final class RichLayout {
         // One in front of the text or behind it is not held: zh-e49d7943's
         // "附件5" box stands 27.8pt over its table's first row in Word's
         // print. Every anchor in a cell in the corpus is `layoutInCell`.)
+        // (So does one placed against the page from a cell, over the
+        // cell: zh-ab9cbe66's flow charts, groups 0pt down their pages
+        // anchored in a table's second row, wrapped tight, stand at that
+        // row's top in Word's print, 120pt down; ours drew them over the
+        // page's top margin. Not one out in the page's margin beside the
+        // table: zh-d8247da5's two 14pt marks, wrapped through 29 and 49pt
+        // down the page at its left edge, held to their rows cost 3 lines.)
         if theme.wordRules, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
            i < _cells.count, let d = _cells[i], !d.vertical, y < d.rowTop { y = d.rowTop }
+        if theme.wordRules, float.wraps, float.verticalAlign == nil, ["page", "margin"].contains(float.verticalFrom),
+           i < _cells.count, let d = _cells[i], !d.vertical, y < d.rowTop,
+           x + w > d.colLeft, x < d.colLeft + d.colWidth { y = d.rowTop }
         // (Nor further left than the cell's edge, its effect extent
         // inside: drawing.docx p9's icon, 85.05pt left of its column, is
         // at 86.6 in Word's print — its cell's 85.05 and a 1.5pt effect —
