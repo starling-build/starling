@@ -377,15 +377,21 @@ enum WordArt {
                 let spare = widest - line.width
                 var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
                 // A line's share of the band is its letters', capital top
-                // to descender, not its whole box: the box has an eighth
-                // of nothing above the capitals, which goes outside.
+                // to descender, not its whole box: what is above the
+                // capitals goes outside.
                 // Lines stand a line's pitch apart (`pitch`, in heights of
                 // a line's box), the gaps between them kept: the band is
                 // the first line's capitals to the last one's foot, all of
                 // it scaled to fit (ImportWordArtGradient's two lines,
                 // 27 pt apart in PowerPoint's print, where squeezed
                 // together they ran into each other).
-                let above = 0.13, below = descends ? 0.03 : 0.2
+                // (Fitted over the corpus's WordArt, 2026-10-22: the box is
+                // one em, so the capitals' top sits only a few hundredths
+                // in, and a descender hangs past its foot — Archivo Black's
+                // "y" 0.017 em. At 0.13 and 0.03 the letters stood past
+                // WordArtBitmapFill's frame top and foot; 20 decks 75.6 →
+                // 70.1 in sum, ImportWordArtGradient's two lines 0.9 worse.)
+                let above = 0.04, below = descends ? -0.02 : 0.15
                 let pitch = Self.linePitch
                 let span = (n - 1) * pitch + 1 - above - below
                 let v0 = (Double(li) * pitch - above) / span, v1 = (Double(li) * pitch + 1 - above) / span

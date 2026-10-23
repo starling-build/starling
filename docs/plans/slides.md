@@ -2548,6 +2548,21 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**WordArt's letters fitted capital top to descender foot, 2026-10-22**
+(sweep 254: corpus mean 0.9202 → 0.9101; WordArtBitmapFill −3.95,
+Wordart3D −1.24, ThemeColorTransparency −1.04, WordArtDefaultColor
+−0.39, FontWorkScaleX −0.12; ImportWordArtGradient +0.87, the
+tdf125085 pair +0.15 and +0.17). A warped line's band was mapped to
+its box less 0.13 above and 0.03 below (0.2 with no descender). The
+glyphs' boxes are one em, so the capitals stand only a few hundredths
+in and a descender hangs past the foot (Archivo Black's "y" by 0.017
+em): WordArtBitmapFill's "Happy" stood 10 pt over its frame's top and
+"Birthday"'s "y" 8 pt under its foot, where PowerPoint's print keeps
+both inside, its letters about 7% shorter. Fitted over the 20 WordArt
+decks (75.6 in sum at the old values; 0.04 above and −0.02 or 0.15
+below, 70.1): 0.04 / −0.02 / 0.15. ImportWordArtGradient, whose two
+lines' pitch was fitted at the old values, is the one that loses.
+
 **Lucida Sans Unicode's italic slanted from its regular, 2026-10-22**
 (sweep 253: corpus mean 0.9206 → 0.9202; aascu 5864 4.85 → 4.65,
 GeomLec1 5.33 → 5.32; none worse). The face has no italic, and
