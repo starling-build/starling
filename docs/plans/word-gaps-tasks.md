@@ -4068,3 +4068,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   (`--layout` shows every block ~8pt over its line, a plain body
   paragraph's too, so that column may not be the row's measure). Probe:
   ~/tmp/word/lab/col/mk.py (Linux box) cuts the file to that section.
+- zh-e1b09977 (81.6; Linux 017F2GnT 2026-10-23, looked, released): pages
+  Word's to p12. At p13's foot, under a parted row's last kept lines
+  ("地區災害防救", "二、2.縣(市)政府是否適切分配國軍救災"), ours draws the tops
+  of the next lines' glyphs (13pt 標楷體 in 14pt exact lines, which stand
+  above their own boxes) in a ~3pt strip over the closing line, and the
+  text layer reads them as a line ("計畫勾稽", "位 潛勢 地點…") — the same
+  lines open p14. A clip of the part's text above the next line's ink
+  (tried in the piece clip of `paint`, by baseline) did not reach these
+  cell pieces and cut the row's closing line; reverted. pp13-17 then run
+  a line or two apart (p14 holds one line more than Word's).
