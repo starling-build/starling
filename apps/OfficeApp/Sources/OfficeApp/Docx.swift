@@ -3269,6 +3269,13 @@ enum DocxFormat {
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
+            // (A level line — no height — takes no room in the line whatever
+            // its wrapping: zh-f47b8a74's red rules under its letterhead,
+            // two lines wrapped top and bottom in an empty paragraph, are
+            // drawn in Word's print over that paragraph's own 28pt line;
+            // set in the line at their size they made it none, drew
+            // nothing, and every line after stood 30pt high.)
+            if h == 0, att.float?.takesRoom == true { att.float?.takesRoom = false }
             // A straight line or a plain box, drawn by the layout: its
             // line's width and colour (`a:ln`), and a solid fill.
             // (Not a group's: its first child's shape is not the group's —
