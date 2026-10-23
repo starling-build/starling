@@ -3055,6 +3055,21 @@ public final class RichLayout {
                             here.append(id)
                             rowPending = Array(mine[(n + 1)...])
                         } else {
+                            // (With no line of it fitting under its mark,
+                            // the mark's line goes over with it, as where
+                            // the paragraph began: the page ends over that
+                            // line — less nothing, the room of the notes
+                            // taken before it comes off the foot in
+                            // `reserveNotes` next. zh-7a16a243's "都市計畫法第
+                            // 32條34及第22條35規定…", the last line page 42
+                            // holds of a paragraph begun on page 41, marks
+                            // notes 34 and 35; Word's print opens page 43
+                            // with that line, both notes at its foot. Ours
+                            // kept the line with note 34 and set 35 first on
+                            // page 43, and pages 43-51 ran a line ahead.)
+                            if y > 0.01 || mark.top - flow > 0.5 {
+                                contentH = max(1, min(contentH, y + (mark.top - flow) + (here.isEmpty ? 0 : room - note.height)))
+                            }
                             rowPending = Array(mine[n...])
                         }
                         break
