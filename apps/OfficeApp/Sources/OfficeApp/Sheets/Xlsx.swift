@@ -245,8 +245,13 @@ enum Xlsx {
             let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
             // A run over the whole sheet (a default width) is not 16k entries.
             if hi - lo > 2000 { if !hidden && w > 0 { ws.defaultColWidthPt = pt; ws.defaultColWidthChars = w }; continue }
+            // (Every width the file states is kept, the default's own too:
+            // on paper a width is its characters, and 11.43 of them is the
+            // 80 px default of a baseColWidth 10 at 96 dpi but prints 64.3
+            // pt where the default prints 60.2 — lo-forum-mso-de-104083's
+            // column D, all to its right 3.9 pt left of Excel's.)
             for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols {
-                if abs(pt - ws.defaultColWidthPt) > 0.01 { ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w } }
+                ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w }
             }
         }
         // Cells.

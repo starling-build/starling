@@ -249,6 +249,11 @@ the same base; the commits give the numbers):
   number's, 2⌈d/4⌉+1 px: CVLKRA-KYC), narrower than on paper
   (lo-tdf100034's two-line note). A printer's line between measured
   font sizes is the next dot up (49609's Microsoft Sans Serif 8.25).
+  A `<col>` width the default's at 96 dpi is still that width in
+  characters on paper, not the default: lo-forum-mso-de-104083's D, 11.43
+  for a baseColWidth 10, prints 64.3 pt where the default's is 60.2
+  (7.08 -> 6.70; 45 such workbooks, 8 better, 51710 +0.49, whose one
+  9.14 column Excel prints half a 192-dpi pixel past either).
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs
