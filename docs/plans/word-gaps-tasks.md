@@ -547,7 +547,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 Twenty more (`random.seed(20261109)` among the 79 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 92.0% (median 99.5), every page count
 Word's. Its low ones, unclaimed: zh-c15af02e 41.9 [CLAIMED Mac 01Xgpbk5 2026-10-22], zh-a031fa16 55.9 [Mac 0fcba326 looked, released: Word's print has no readable text (4116 of 4126 characters blank; its package embeds FangSong_GB2312 and Word for Mac prints it without a Unicode map, as the seven restored references) — the score measures nothing; a reference from another Word, or one scored by geometry, would be needed],
-zh-9462c6d6 58.6 [handed to Linux b2 01JsizVV by the Mac: p1's foot — Word keeps the first line of "（二）促進有線廣播電視普及發展…" at 774 under "…服務品質。" (759) and runs its second on p2; ours sends the whole paragraph to p2, every page after a line early], zh-0daa510e 94.8, zh-63a571aa 95.0.
+zh-9462c6d6 58.6 [handed to Linux b2 01JsizVV by the Mac: p1's foot — Word keeps the first line of "（二）促進有線廣播電視普及發展…" at 774 under "…服務品質。" (759) and runs its second on p2; ours sends the whole paragraph to p2, every page after a line early], zh-0daa510e 94.8, zh-63a571aa 95.0 (Mac 0fcba326: 96.5 and 97.9 under PyMuPDF; zh-63a571aa p5's "…供垃圾車及店鋪使|用。」，" is taken by ours with its three marks squeezed and wrapped by Word — likely the 0.455-em limit lenovo-3 is building; re-check both after it lands).
 
 ### Note from the Mac (2026-10-22): the zh corpus is 546 documents — a twenty-fifth sample
 Twenty more (`random.seed(20261108)` among the 99 unprinted, 15 to 400 KB, drawn by
