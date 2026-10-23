@@ -3467,6 +3467,17 @@ regression for a document the line match scores 0 either way (its Arabic is read
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
 
+### T147. zh-db07d44e p22: a display equation wider than its cell breaks over lines — CLAIMED
+Owner: Linux office1 01Ak4ibJ (lenovo-3), 2026-10-23
+Documents: zh-db07d44e (54.8 on Linux; p22 on is a page behind).
+Known: p22's cell holds "實績值=(實際取得…/預計…×1/3+實際決標量/預計決標量×1/3+實際併聯量/預計併聯量
+×1/3)×100%", an `m:oMathPara` (jc left) round one `m:d`; Word sets it over four lines in its cell, broken
+at the "+" signs inside the brackets and before "×100%". `WriterMath` lays an equation out once, at read,
+as one unbreakable object, and the cell's line runs past its edge.
+Plan: RichLayout asks an object hook for the object's size at the width it has (`objectFitter`);
+`WriterMath` breaks a display equation too wide for it at its top-level operators, the delimiter's
+content among them, and draws the broken form.
+
 ### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation) — DONE for p30's line (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built p30's line, 2026-10-22; released by starling-b2, measured)
 Documents: zh-db07d44e (33.8 → 36.8). 標楷體 12pt, jc both, cell 3545 twips: "範圍內每增(減)10%，加(減)1 分。" is one line
