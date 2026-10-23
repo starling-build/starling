@@ -44,6 +44,8 @@ final class XNode {
         return nil
     }
     func all(_ name: String) -> [XNode] { children.filter { $0.name == name } }
+    /// Every descendant by name, depth first.
+    func descendants(_ name: String) -> [XNode] { children.flatMap { ($0.name == name ? [$0] : []) + $0.descendants(name) } }
 
     /// The tree with each name in a namespace of `prefixes` (by URI) under
     /// that prefix, whatever the file called it; the rest as they were.
@@ -2238,6 +2240,70 @@ enum DocxFormat {
                              (x - origin.0 + w) * kx - at(2, 7.2), (y - origin.1 + h) * ky - at(3, 3.6))
     }
 
+    /// Every text box in a VML group, nested groups' too, in document
+    /// order: its content, where its text stands in the outermost group
+    /// in points from its top left (`_vmlTextPlace`'s reckoning, through
+    /// each group's `coordorigin` and `coordsize`), and whether it stands
+    /// at the box's foot (`v-text-anchor:bottom`). A shape whose
+    /// `v:shapetype` (among `types`, by id) gives a `textboxrect` sets
+    /// its text in that: zh-6e6b9821's flowchart "preparation" hexagon
+    /// (`_x0000_t117`, 4353 to 17214 of 21600 across) has its text at
+    /// 217pt in Word's print, 50pt in from the box's edge.
+    static func _vmlTextPlaces(_ group: XNode, types: [XNode] = []) -> [(content: XNode, place: Rect, atFoot: Bool)] {
+        func style(_ n: XNode) -> [String: String] {
+            var out: [String: String] = [:]
+            for pair in (n["style"] ?? "").split(separator: ";") {
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                if kv.count == 2 { out[kv[0].trimmingWhitespace()] = String(kv[1]).trimmingWhitespace() }
+            }
+            return out
+        }
+        func pair(_ raw: String?, _ fallback: (Double, Double)) -> (Double, Double) {
+            let v = (raw ?? "").split(separator: ",", omittingEmptySubsequences: false).map { Double($0.trimmingWhitespace()) }
+            return (v.count > 0 ? v[0] ?? fallback.0 : fallback.0, v.count > 1 ? v[1] ?? fallback.1 : fallback.1)
+        }
+        let g = style(group)
+        guard let gw = g["width"].flatMap(_length), let gh = g["height"].flatMap(_length), gw > 0, gh > 0 else { return [] }
+        var out: [(content: XNode, place: Rect, atFoot: Bool)] = []
+        // A group's children in its own coordinates → points in the outermost.
+        func walk(_ group: XNode, _ map: @escaping (Rect) -> Rect) {
+            let origin = pair(group["coordorigin"], (0, 0)), size = pair(group["coordsize"], (1000, 1000))
+            guard size.0 > 0, size.1 > 0 else { return }
+            for child in group.children {
+                let sh = style(child)
+                guard let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
+                      let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { continue }
+                var r = map(Rect.fromLTWH(x - origin.0, y - origin.1, w, h))
+                if child.name == "v:group" {
+                    let inner = pair(child["coordsize"], (1000, 1000))
+                    guard inner.0 > 0, inner.1 > 0 else { continue }
+                    walk(child) { q in Rect.fromLTWH(r.left + q.left * r.width / inner.0, r.top + q.top * r.height / inner.1,
+                                                     q.width * r.width / inner.0, q.height * r.height / inner.1) }
+                } else if _vmlShapes.contains(child.name), let textbox = child.first("v:textbox"),
+                          let content = textbox.descendant("w:txbxContent") {
+                    let inset = (textbox["inset"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0)) }
+                    func at(_ k: Int, _ d: Double) -> Double { k < inset.count ? inset[k] ?? d : d }
+                    if let id = child["type"].map({ $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }),
+                       let type = types.first(where: { $0["id"] == id }),
+                       let raw = type.first("v:path")?["textboxrect"]?.split(separator: ";").first,
+                       case let v = raw.split(separator: ",").compactMap({ Double($0.trimmingWhitespace()) }), v.count == 4 {
+                        let cs = pair(type["coordsize"], (21600, 21600))
+                        if cs.0 > 0, cs.1 > 0, v[2] > v[0], v[3] > v[1] {
+                            r = Rect.fromLTRB(r.left + v[0] / cs.0 * r.width, r.top + v[1] / cs.1 * r.height,
+                                              r.left + v[2] / cs.0 * r.width, r.top + v[3] / cs.1 * r.height)
+                        }
+                    }
+                    out.append((content, Rect.fromLTRB(r.left + at(0, 7.2), r.top + at(1, 3.6), r.right - at(2, 7.2), r.bottom - at(3, 3.6)),
+                                sh["v-text-anchor"]?.hasPrefix("bottom") == true))
+                }
+            }
+        }
+        let size = pair(group["coordsize"], (1000, 1000))
+        guard size.0 > 0, size.1 > 0 else { return [] }
+        walk(group) { r in Rect.fromLTWH(r.left * gw / size.0, r.top * gh / size.1, r.width * gw / size.0, r.height * gh / size.1) }
+        return out
+    }
+
     /// Where an anchored drawing floats (`wp:anchor`: its two positions
     /// and its wrapping), or nil for one in the line. A VML shape floats
     /// when its style positions it absolutely — the outermost one: a
@@ -2628,6 +2694,9 @@ enum DocxFormat {
         /// its `w:txbxContent`, for the body's reader to read again with
         /// its tables (this reader sets paragraphs only).
         var boxTables: [String: XNode] = [:]
+        /// The VML shape types read so far (`v:shapetype`): Word writes
+        /// each once, where it is first used.
+        var shapeTypes: [XNode] = []
         var fieldShown = false   // the innermost field's result has text
         let rootNS: [String: String]
         let part: (String) -> Data?
@@ -3134,6 +3203,7 @@ enum DocxFormat {
         /// The kept-verbatim attachment for `node`, or nil when a part it
         /// names is missing.
         func objectAttachment(_ node: XNode) -> ImageAttachment? {
+            notes.shapeTypes += node.descendants("v:shapetype")
             var w = 300.0, h = 200.0
             var isRule = false
             if let extent = node.descendant("wp:extent"),
@@ -3311,6 +3381,22 @@ enum DocxFormat {
                             }
                             parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b"))
                         }
+                    }
+                } else if let group = Self._vmlTop(node), group.name == "v:group",
+                          case let places = Self._vmlTextPlaces(group, types: notes.shapeTypes), places.count > 1, places[0].content === content {
+                    // (A VML group of text boxes alike: each box's text at its
+                    // own place in the group. zh-6e6b9821 p3's flowchart is a
+                    // group of eleven boxes and ten arrows; ours set the first
+                    // box's text across the group and read no other.)
+                    perPart = true
+                    for (n, b) in places.enumerated() {
+                        let first = n == 0 ? 0 : inside.count
+                        if n > 0 { read(b.content) }
+                        for q in first ..< inside.count {
+                            inside[q].style.indentLeft += b.place.left
+                            inside[q].style.indentRight += max(0, att.width - b.place.right)
+                        }
+                        parts.append(RichTextBox.Part(first: first, top: b.place.top, height: max(0, b.place.height), atFoot: b.atFoot))
                     }
                 }
                 notes.inTextBox = false
