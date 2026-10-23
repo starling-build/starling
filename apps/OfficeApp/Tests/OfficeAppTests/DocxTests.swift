@@ -1920,7 +1920,8 @@ final class DocxTests: XCTestCase {
     private func firstLine(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
                            mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
                            hanging: Double = 0, justified: Bool = false,
-                           documentLanguage: String? = nil) throws -> (width: Double, length: Int) {
+                           documentLanguage: String? = nil, characterGrid: Double? = nil,
+                           runXML: String = "") throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1938,6 +1939,7 @@ final class DocxTests: XCTestCase {
         style.fontSize = 12
         style.letterSpacing = letterSpacing
         if let language { style.keptXML = "<w:lang w:eastAsia=\"\(language)\"/>" }
+        if !runXML.isEmpty { style.keptXML = (style.keptXML ?? "") + runXML }
         var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
         // (Set left, as every paragraph is fitted before mode 15, so the
         // line's width is what it holds.)
@@ -1949,6 +1951,7 @@ final class DocxTests: XCTestCase {
         doc.compatibilityMode = mode
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
+        if let characterGrid { doc.characterGridSpace = characterGrid }
         if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
@@ -2069,6 +2072,23 @@ final class DocxTests: XCTestCase {
         // (… and "度", its space given up at the line's end, a line alone:
         // the engine set the two on one line over the margin.)
         XCTAssertEqual(l.geometry(0).painter.computeLineMetrics().count, 6)
+    }
+
+    func testARunOffTheGridWeighsItsCharactersAtTheirOwnEms() throws {
+        try requireFitterWidths()
+        // zh-c15af02e (mode 15, a grid adding 1pt) sets its runs off the grid,
+        // 16pt ideographs 16 apart, and takes "…已核發" 13.58pt over with four
+        // marks giving; weighed at the grid's 17 a character the share test
+        // left it. Here 23 characters and four marks at 12pt, the grid adding
+        // 4: the next is taken 10.0 over weighed at 12 (to 10.24), not at 16
+        // (to 9.76).
+        let text = "甲甲甲：甲甲甲甲、甲甲（甲甲）甲甲甲甲甲甲甲甲" + "乙丙丁"
+        let off = "<w:snapToGrid w:val=\"0\"/>"
+        let through = try firstLine(text, width: 1000, mode: 15, characterGrid: 4, runXML: off).width - 24   // to "乙"'s end
+        XCTAssertEqual(try firstLine(text, width: through - 10.0, mode: 15, justified: true, characterGrid: 4, runXML: off).length,
+                       text.utf16.count - 2, "the four marks give 10.0, weighed against 23 characters of 12")
+        XCTAssertEqual(try firstLine(text, width: through - 10.5, mode: 15, justified: true, characterGrid: 4, runXML: off).length,
+                       text.utf16.count - 3)
     }
 
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {

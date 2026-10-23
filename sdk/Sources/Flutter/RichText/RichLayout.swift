@@ -9158,6 +9158,16 @@ public final class RichLayout {
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
         let onCharacterGrid = (_grid(i, document).chars ?? 0) != 0
         let gridAdd = p.style.eastAsian["w:snapToGrid"] == "0" ? 0 : _px(_grid(i, document).chars ?? 0)
+        // (Not a character whose run is off the grid, as `_span` sets it:
+        // zh-c15af02e's runs say `w:snapToGrid` 0 on a grid of 1pt, their
+        // 16pt ideographs 16 apart, and Word's print takes "…已核發" 13.58pt
+        // over with four marks giving — weighed at 17 a character, ours
+        // left it.)
+        let runsOffGrid: [Bool] = p.runs.map { run in
+            run.style.keptXML?.containsSubstring("<w:snapToGrid") ?? false
+                ? run.style.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false
+                : theme.wordRules && (lineStyle?.char.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
+        }
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
         var lineBlank = false   // a space character (U+0020) on the line so far
@@ -9665,7 +9675,7 @@ public final class RichLayout {
                                 && need <= all.filter { !(document.marksCentred && Self._centredUnits.contains(units[$0])) }.reduce(0.0) { $0 + half($1) } + hair)
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
-                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))
+                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
                     }
                     // (A Latin word's own curly quotes give nothing for it
                     // in the body: lab `sq-q` (zh-b00fef0d's package,
@@ -9876,7 +9886,7 @@ public final class RichLayout {
                     // "經" 12.44pt over with two marks and 25 characters —
                     // its marks' halves 8.5 each, as set — which the em
                     // alone took.)
-                    if !continues { lineWide += 1; lineEms += ems[k] + gridAdd }
+                    if !continues { lineWide += 1; lineEms += ems[k] + (k < runOf.count && runsOffGrid[runOf[k]] ? 0 : gridAdd) }
                     if latin { lineLatin = true }
                 }
             }
