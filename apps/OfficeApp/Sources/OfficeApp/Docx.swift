@@ -3147,6 +3147,7 @@ enum DocxFormat {
         var leadingBreak = false   // the paragraph opens with a page break
         var leadingColumnBreak = false   // ... and that break is a column break
         var leadingBreakRPr: String? = nil   // ... in a run with these properties
+        var splitBefore = false   // the text being read is the rest of a split w:p
         func flush(pageBreakAfter: Bool) {
             var para: RichParagraph
             if inlineImages.count == 1, text == RichParagraph.inlineImageCharacter, let only = inlineImages.values.first {
@@ -3172,6 +3173,8 @@ enum DocxFormat {
                 para.inlineImages = inlineImages
             }
             para.style.positionalTabs = positionalTabs
+            para.style.continuesParagraph = splitBefore
+            splitBefore = false
             para.normalize()
             para.bookmarks = notes.pendingBookmarks
             notes.pendingBookmarks = []
@@ -3756,6 +3759,7 @@ enum DocxFormat {
                         else {
                             flush(pageBreakAfter: true)
                             built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = runPropertiesXML
+                            splitBefore = true
                         }
                     } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)

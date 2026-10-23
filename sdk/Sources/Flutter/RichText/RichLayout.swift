@@ -8375,7 +8375,11 @@ public final class RichLayout {
             guard p.style.list == nil, !p.text.isEmpty, p.image == nil, p.cell == nil else { return 0 }
             return p.style.firstLineIndent
         }
-        guard p.style.list == nil, !p.text.isEmpty, p.image == nil else { return 0 }
+        // (Nor the rest of a paragraph a page break split: zh-694447ca's
+        // title runs on past a break from "（此件公开发布）" under
+        // firstLineChars 200, and Word's print has it at the margin on the
+        // next page, where ours set it 39pt in and wrapped its "装修、".)
+        guard p.style.list == nil, !p.text.isEmpty, p.image == nil, !p.style.continuesParagraph else { return 0 }
         let chars = Double(p.style.eastAsian["w:hangingChars"] ?? "").map { -$0 } ?? Double(p.style.eastAsian["w:firstLineChars"] ?? "")
         if let chars, chars != 0 {
             // (A character of the first run: its size, and its character
