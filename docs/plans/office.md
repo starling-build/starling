@@ -7026,6 +7026,18 @@ fitter dropped the paragraph's tail).
   of each lost a character. zh-f3802561 69.4 -> 99.8; nothing else moved
   (s347 -> s348).
 
+- **Notes at the foot, counted once.** A body line's notes are set on
+  the page with the line that marks them, and a later note of the same
+  paragraph that has no room sends its own mark's line over — the page
+  ends above that line. The cut is above the line itself, not above it
+  less the room of the notes already taken on the page: `reserveNotes`
+  takes that room off the foot right after, so counting it in the cut
+  took it twice, and the line marking the earlier notes went over as
+  well. zh-7a16a243's page 12 ends with the line marking notes 15 and
+  16 in Word's print, note 17's line first on page 13; ours sent the
+  15/16 line over too, and pages 13-26 ran a line behind — 66.3 to 85.2
+  of Word's lines, the same-base pair moving no other document.
+
 ### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
 
 What these files look like depends on which Word opens them, on which
