@@ -1844,7 +1844,8 @@ final class DocxTests: XCTestCase {
     /// of 12pt 宋体 laid out alone at `width` points.
     private func firstLine(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
                            mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
-                           hanging: Double = 0, justified: Bool = false) throws -> (width: Double, length: Int) {
+                           hanging: Double = 0, justified: Bool = false,
+                           documentLanguage: String? = nil) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1873,6 +1874,7 @@ final class DocxTests: XCTestCase {
         doc.compatibilityMode = mode
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
+        if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
         theme.faceResolver = OfficeFonts.face
@@ -1942,6 +1944,20 @@ final class DocxTests: XCTestCase {
         let spacedThrough = try firstLineWidth(spaced, width: 1000, mode: 15, compresses: false) - 24
         XCTAssertEqual(try firstLine(spaced, width: spacedThrough - 2.0, mode: 15, compresses: false, justified: true).length, spaced.utf16.count - 2)
         XCTAssertEqual(try firstLine(spaced, width: spacedThrough - 2.5, mode: 15, compresses: false, justified: true).length, spaced.utf16.count - 3)
+    }
+
+    func testAKeptFinalMarkTakesNothingFromTheOthersRoom() throws {
+        try requireFitterWidths()
+        // Lab `s2` (Windows, Word for Windows, zh-045c5a75's package: mode
+        // 14, zh-TW, compressing punctuation, set left): the sentence is one
+        // line from 371pt at 13pt, "扶" 6 past the margin and "、（）" giving
+        // 19 of their 19.5 — the final "。" giving nothing. Ours took its
+        // half off the others' room as well and wanted 377.
+        let text = "低收入戶得向戶籍所在地直轄市、縣（市）主管機關申請生活扶助。"
+        XCTAssertEqual(try firstLine(text, width: 343, language: "zh-TW", documentLanguage: "zh-TW").length, text.utf16.count,
+                       "\"、（）\" give the 17 it needs; \"扶\" is 5 over, inside half \"活\"")
+        // (Not past what they have: 18 of room.)
+        XCTAssertLessThan(try firstLine(text, width: 341, language: "zh-TW", documentLanguage: "zh-TW").length, text.utf16.count)
     }
 
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {

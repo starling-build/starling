@@ -9346,8 +9346,15 @@ public final class RichLayout {
                     // print; ours took it, all three squeezed. Not under
                     // Taiwan's list — `listed`, its rules above: zh-ae3d78ee's
                     // "…你花最多的。" is taken over the margin with a comma giving.)
+                    // (Only where that mark is among those giving: where it
+                    // gives nothing already — kept — the others' room is
+                    // theirs. Lab `s2` (Windows, Word for Windows,
+                    // zh-045c5a75's package: mode 14, zh-TW, 標楷體 13pt):
+                    // "…直轄市、縣（市）主管機關申請生活扶助。" is one line from
+                    // 371pt, "扶" 6 past the margin and "、（）" giving 19 of
+                    // their 19.5; ours took the "。"'s half off them again.)
                     let finalGive = centredEnd && paragraphEnd && !listed && p.style.eastAsian["w:overflowPunct"] != "0"
-                        && x + min(lead, w) > width + hair ? half(tail) : 0
+                        && all.contains(tail) && x + min(lead, w) > width + hair ? half(tail) : 0
                     // (Half of a mark as it is set — on a character
                     // grid half of its em and of the grid's addition:
                     // two marks on a grid of 1.008 gave 8.5pt each, a
