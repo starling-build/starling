@@ -2107,8 +2107,11 @@ enum ChartPainter {
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
                 // 10 pt legends 1.7 pt higher in PowerPoint's print, their
                 // plots 2.9.)
-                y = area.bottom - 1.2 * k - lineH * Double(lines.count)
-                area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k)
+                // (On a sheet 2.2 pt higher, and the plot's foot 4.43 higher:
+                // Excel's prints of nine charts with the legend below.)
+                let pt = c.onSheet ? k / 0.75 : 0
+                y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
+                area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
             }
             for line in lines {
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
@@ -2688,7 +2691,14 @@ enum ChartPainter {
             // lower: line- and scatter-chart's top gridline at 161.35 in
             // its print, ours at 160.43. Cooper's untitled ones stand
             // 3.8 pt higher than ours instead, not followed: one deck.)
-            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k : 0
+            // (On a sheet a titled chart's plot starts 2.57 pt lower, under
+            // a title where ours is, and an untitled one 1.25 higher, 1.62
+            // in a 2007-style chart: Excel's prints of 70 column, line and
+            // scatter charts, their feet where ours are.)
+            let pt = k / 0.75
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k
+                : c.onSheet ? (titled ? (c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt : 0
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
@@ -2712,7 +2722,9 @@ enum ChartPainter {
             // (Its plot's top 11.1pt under the frame's in both, where ours
             // stood half a label line under the area's, 4.3 lower: so
             // measured only with a table.)
-            let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * k
+            // (On a sheet too, 11.1 pt: chart-ChartDataTable's in Excel's
+            // print, where 11.1 px stood 2.6 pt high.)
+            let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * (c.onSheet ? k / 0.75 : k)
             plot = Rect.fromLTRB(max(plot.left, frame.left + 17 * k + column), head, plot.right, top)
             table = (top, row, plot.left - column, size)
         }

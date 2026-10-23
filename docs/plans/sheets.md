@@ -265,7 +265,15 @@ the same base; the commits give the numbers):
   the whole next row where one row of both is squarer (2026-10-22:
   chart-treemap's 15 boxes within 0.06 pt, 6.81 -> 0.75). A `cx:`
   title on a sheet stands 8.2 pt under the frame's top, 2.4 lower than
-  a `c:` one (eleven prints). Two bar groups on one pair of axes are one
+  a `c:` one (eleven prints). On a sheet a `c:` chart's plot starts
+  2.57 pt lower under a title (2.05 in a 2007-style chart) and 1.25
+  higher with none (1.62), its foot where ours was: 70 column, line and
+  scatter charts, their titles already on Excel's baselines. A legend
+  below stands 2.2 pt higher and the plot's foot 4.43 (nine prints); a
+  data table's plot starts 11.1 pt under the frame, not 11.1 px
+  (2026-10-23: 184 chart books 1.237 -> 1.200, 97 better, 24 worse, the
+  worst +0.34: chart-tdf114139's 3-D pie, already too small and high).
+  Two bar groups on one pair of axes are one
   group; two line groups on two axes are drawn; a gradient chart area;
   a varied single bar series' legend of its points; labels at zero over
   negative values; "Series1"; an empty axis title's room. Open: a
