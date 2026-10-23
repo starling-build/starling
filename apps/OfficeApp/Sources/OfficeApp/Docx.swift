@@ -4767,6 +4767,9 @@ enum DocxFormat {
                     let st = doc.keptCharacterStyleIds[note.kind == .footnote ? "footnote reference" : "endnote reference"]
                         ?? (note.kind == .footnote ? "FootnoteReference" : "EndnoteReference")
                     let custom = piece.filter { $0 != "\u{200B}" && !$0.isNumber }
+                    // (A mark the file set on the baseline keeps it, under
+                    // the reference style's superscript.)
+                    if s.script != .superscript { rPr += "<w:vertAlign w:val=\"baseline\"/>" }
                     body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/>\(rPr)</w:rPr>"
                     body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
                     body += "</w:r>"
