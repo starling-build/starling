@@ -2451,6 +2451,34 @@ enum DocxFormat {
     static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
     static let _eastAsianSpacing = ["w:beforeLines", "w:afterLines"]
 
+    /// A group's text boxes (`wps:wsp` holding `w:txbxContent`), those of
+    /// the groups nested in it too, in document order, each at its place
+    /// in the group's own child space (EMU).
+    static func _groupTextBoxes(_ group: XNode) -> [(box: XNode, place: Rect)] {
+        func number(_ n: XNode?, _ key: String) -> Double { Double(n?[key] ?? "") ?? 0 }
+        var out: [(box: XNode, place: Rect)] = []
+        func walk(_ children: [XNode], _ place: @escaping (Rect) -> Rect) {
+            for child in children {
+                let xfrm = (child.first("wps:spPr") ?? child.first("wpg:grpSpPr"))?.first("a:xfrm")
+                let r = Rect.fromLTWH(number(xfrm?.first("a:off"), "x"), number(xfrm?.first("a:off"), "y"),
+                                      number(xfrm?.first("a:ext"), "cx"), number(xfrm?.first("a:ext"), "cy"))
+                if child.name == "wps:wsp", child.descendant("w:txbxContent") != nil {
+                    out.append((child, place(r)))
+                } else if child.name == "wpg:grpSp", let xfrm {
+                    let chOff = xfrm.first("a:chOff"), chExt = xfrm.first("a:chExt")
+                    let kx = number(chExt, "cx") > 0 ? r.width / number(chExt, "cx") : 1
+                    let ky = number(chExt, "cy") > 0 ? r.height / number(chExt, "cy") : 1
+                    let cx = number(chOff, "x"), cy = number(chOff, "y")
+                    walk(child.children) { inner in
+                        place(Rect.fromLTWH(r.left + (inner.left - cx) * kx, r.top + (inner.top - cy) * ky, inner.width * kx, inner.height * ky))
+                    }
+                }
+            }
+        }
+        walk(group.children) { $0 }
+        return out
+    }
+
     /// Half a shape's outline width (points), which Word adds to its
     /// text's insets whether or not the outline is drawn (see the text
     /// box reader); none where the outline states no width.
@@ -3401,12 +3429,17 @@ enum DocxFormat {
                 var parts: [RichTextBox.Part] = []
                 var perPart = false
                 if let group = node.descendant("wpg:wgp") {
-                    let boxes = group.all("wps:wsp").filter { $0.descendant("w:txbxContent") != nil }
+                    // (The boxes of the groups in it too, each at its place
+                    // in the group: zh-ae2dd08d p21's flowchart nests its
+                    // boxes two groups deep, and ours read only the first
+                    // box's text, set across the whole group.)
+                    let placed = Self._groupTextBoxes(group)
+                    let boxes = placed.map(\.box)
                     let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
                     let ext = Double(gx?.first("a:ext")?["cy"] ?? "") ?? 0, chExt = Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0
                     let k = chExt > 0 && ext > 0 ? ext / chExt : 1
-                    let widths = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:ext")?["cx"] ?? "") ?? -1 }
-                    let lefts = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:off")?["x"] ?? "") ?? -1 }
+                    let widths = placed.map(\.place.width)
+                    let lefts = placed.map(\.place.left)
                     if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content,
                        Set(widths).count == 1, Set(lefts).count == 1, widths[0] > 0 {
                         // (From the group's own origin, `a:chOff`: zh-799c91cd's
@@ -3418,13 +3451,11 @@ enum DocxFormat {
                         // 3.6pt under "掛號"'s none stood its text 3.8pt high.)
                         func topInset(_ b: XNode) -> Double { (Double(b.first("wps:bodyPr")?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6) + Self._halfOutline(b.first("wps:spPr")) }
                         let firstInset = topInset(boxes[0])
-                        for b in boxes.dropFirst() {
-                            let xfrm = b.first("wps:spPr")?.first("a:xfrm")
+                        for (b, place) in placed.dropFirst() {
                             let first = inside.count
                             read(b.descendant("w:txbxContent")!)
-                            parts.append(RichTextBox.Part(first: first, top: ((Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) - oy) * k / 12700
-                                                          + topInset(b) - firstInset,
-                                                          height: (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700,
+                            parts.append(RichTextBox.Part(first: first, top: (place.top - oy) * k / 12700 + topInset(b) - firstInset,
+                                                          height: place.height * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
                     } else if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content {
@@ -3440,12 +3471,11 @@ enum DocxFormat {
                         let kx = Double(gx?.first("a:chExt")?["cx"] ?? "").flatMap { c in Double(gx?.first("a:ext")?["cx"] ?? "").map { c > 0 ? $0 / c : 1 } } ?? 1
                         let ox = Double(gx?.first("a:chOff")?["x"] ?? "") ?? 0, oy = Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0
                         let groupWidth = (Double(gx?.first("a:ext")?["cx"] ?? "") ?? 0) / 12700
-                        for (n, b) in boxes.enumerated() {
-                            let xfrm = b.first("wps:spPr")?.first("a:xfrm")
-                            let x = ((Double(xfrm?.first("a:off")?["x"] ?? "") ?? 0) - ox) * kx / 12700
-                            let y = ((Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) - oy) * k / 12700
-                            let w = (Double(xfrm?.first("a:ext")?["cx"] ?? "") ?? 0) * kx / 12700
-                            let h = (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700
+                        for (n, (b, place)) in placed.enumerated() {
+                            let x = (place.left - ox) * kx / 12700
+                            let y = (place.top - oy) * k / 12700
+                            let w = place.width * kx / 12700
+                            let h = place.height * k / 12700
                             let body = b.first("wps:bodyPr")
                             var l = Double(body?["lIns"] ?? "").map { $0 / 12700 } ?? 7.2, t = Double(body?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6
                             var r = Double(body?["rIns"] ?? "").map { $0 / 12700 } ?? 7.2, bottom = Double(body?["bIns"] ?? "").map { $0 / 12700 } ?? 3.6

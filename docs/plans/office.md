@@ -7803,3 +7803,18 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   from the box's top inset, not the geometry's own `a:rect` (zh-ab9cbe66
   p17's diamonds stand their text high).
 
+- **The text boxes of a group's groups are read (2026-10-23; Windows
+  01QbbApP, from Word's prints).** zh-ae2dd08d p21's flowchart (in a
+  table cell, wrapTight) is one group holding twelve shapes, its eight
+  text boxes two groups deep. Ours read only the first box's text, set
+  across the whole group, because the group's text boxes were taken
+  from its direct children alone (`group.all("wps:wsp")`).
+  `_groupTextBoxes` now walks the groups in it too, each box at its
+  place through every level's `chOff`/`chExt`, in document order, and
+  both readers set each box's text where it stands. Seven documents
+  have text boxes in nested groups: zh-61b62a40 95.2 -> 98.6,
+  zh-bdae17c0 97.2 -> 98.1, zh-ab9cbe66 93.6 -> 94.6; the other four
+  are unchanged (pair ng-base/ng-new). Left: text in a slanted or
+  freeform box takes the preset's text rectangle only (zh-ae2dd08d p21's
+  parallelograms set their text a little left of Word's).
+
