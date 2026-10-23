@@ -3939,6 +3939,30 @@ public final class RichLayout {
                         // title row's text at 67 in Word's print; ours
                         // stood at the margin, 15pt low.)
                         y = target
+                    } else if theme.wordRules, target >= 0, target < y - 0.01, deferredUnder.isEmpty, {
+                        // (Not where the text it would take under it does not
+                        // fit under its first row: the table stands at its
+                        // offset on the next page and the text keeps its
+                        // place. zh-8d1a3d99's application form, 64.55pt down
+                        // a page, follows a page of rules; Word's print has
+                        // the rules on page 1 and the form on page 2, where
+                        // ours set the form on page 1 and took every rule
+                        // under it. A title or a line that fits under the
+                        // first row is taken there, and the table parts —
+                        // zh-6cd1befe p51, zh-60173bb6, as `anchoredParts`.)
+                        let under = _pages[page].filter { $0.paragraph < i && _cells[$0.paragraph] == nil && !$0.repeated
+                            && $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 }
+                            .reduce(0.0) { $0 + $1.flowBottom - $1.flowTop }
+                        return target + c.ownRowHeight + under > contentH + 0.01
+                    }() {
+                        newPage()
+                        let physical = page / _columns
+                        let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                        let target = _px(off) - insetTop
+                        if target > y + 0.01, target < contentH - 0.01 {
+                            tableReturn = (c.table, y, page, target)
+                            y = target
+                        }
                     } else if target >= 0, target < y - 0.01, deferredUnder.isEmpty {
                         var moved: [PagePiece] = []
                         while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
