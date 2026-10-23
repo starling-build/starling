@@ -6030,6 +6030,17 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A row parted at the foot is closed with the table's bottom line
+  (2026-10-22).** Lab `ef2b` (Word 16 Mac, mode 14, zh-e1b09977's
+  package): a last row of four 17pt lines over a 2.25pt bottom line,
+  with 15 to 25pt left under its third. Word parts it after the third up
+  to 19 and keeps all four from 20 — the fourth must fit with the heavy
+  line under it, and the part on the page is closed with that line.
+  Ours left room for the row's top line (0.5) under the part, took the
+  fourth for a line that fits, found nothing left to send over, and took
+  the row over whole at 18 and 19. In the table's last row, from mode
+  14 on, a cut now leaves the bottom line's room (`ruleClosing`); a cell
+  that ends on the page is judged as before. No corpus score moved.
 - **A style's page break before is the paragraph's (2026-10-22).** The
   reader takes a named style's paragraph properties with
   `RichStyleSheet.apply`, which keeps the paragraph's own break, as an

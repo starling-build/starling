@@ -3078,6 +3078,20 @@ public final class RichLayout {
             }
             return max(0, c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
         }
+        // What a row's part at a page's foot is closed with there: its
+        // top line's width, as `ruleUnder(parted:)` has it — and in the
+        // table's last row, from Word 2010's layout on, the table's bottom
+        // line, which Word draws under the part. Lab `ef2b` (Word 16 Mac,
+        // mode 14, zh-e1b09977's package): a cell of four 17pt lines over
+        // a 2.25pt bottom line parts after its third with 15 to 19pt left
+        // under that, and keeps all four from 20; ours, leaving the top
+        // line's 0.5, took the fourth for a line that fits, had nothing
+        // left to send over, and took the row over whole at 18 and 19.
+        func ruleClosing(_ c: _CellGeo) -> Double {
+            let own = ruleUnder(c, parted: true)
+            guard theme.wordRules, c.ruleBelow > 0, (document.compatibilityMode ?? 12) >= 14 else { return own }
+            return max(own, c.ruleBelow)
+        }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
             // (A table nested in the cell parts between its rows, as
@@ -3358,7 +3372,7 @@ public final class RichLayout {
                         // text from the row's top there; centred in the whole
                         // row, ours stood 3 to 48pt down the page.)
                         let start = max(c.rowTop, blockTop - d0.pad.top)
-                        let limit = start + avail - ruleUnder(c, parted: true) + 0.01
+                        let limit = start + avail - ruleClosing(c) + 0.01
                         let partsAnyway = fresh && c.ownRowHeight + ruleUnder(c) > avail + 0.01
                         if room < -0.01, (!fresh && y > 0.01) || partsAnyway, columns[n].cuts.contains(where: { $0 > start + 0.01 && $0 <= limit }) {
                             columns[n].cut = start
@@ -3375,6 +3389,9 @@ public final class RichLayout {
                     var moved = false, stuck = false
                     for (n, column) in columns.enumerated() {
                         let limit = column.cut + avail - ruleUnder(c, parted: true) + 0.01
+                        // (A cut, under the line the part is closed with —
+                        // where the cell ends here, its own bottom has it.)
+                        let closed = column.cut + avail - ruleClosing(c) + 0.01
                         let d0 = _cells[column.members[0]]!
                         let blockTop = _tops[column.members[0]]
                         let blockBottom = _tops[column.members[column.members.count - 1]] + _heights[column.members[column.members.count - 1]]
@@ -3407,7 +3424,7 @@ public final class RichLayout {
                             // (All that is left of this cell is on this page.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= limit - (theme.wordRules ? d0.margin : 0) }) {
+                        } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= closed - (theme.wordRules ? d0.margin : 0) }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line

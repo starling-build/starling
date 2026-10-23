@@ -1864,6 +1864,48 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(kept, 33, "the 34th line goes over: under it, no room for the cell's 1.2pt margin")
     }
 
+    func testARowPartedAtTheFootIsClosedWithTheTablesBottomLine() throws {
+        // Lab `ef2b` (Word 16 Mac, mode 14): a last row of four 17pt lines
+        // over a 2.25pt bottom line, 15 to 25pt left under its third. Word
+        // parts it after the third up to 19 and keeps all four from 20:
+        // the fourth must fit with the heavy line under it. Ours, leaving
+        // the top line's 0.5 under the part, took the fourth for one that
+        // fits, had nothing left to send over, and took the row over whole.
+        func kept(_ room: Int) throws -> (pages: Int, kept: Int) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            func line(_ text: String, _ twips: Int) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            func edge(_ side: String, _ sz: Int) -> String { "<w:\(side) w:val=\"single\" w:sz=\"\(sz)\" w:space=\"0\" w:color=\"000000\"/>" }
+            let cell = (0 ..< 4).map { line("cell \($0)", 340) }.joined()
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: line("filler", (663 - room) * 20)
+                + "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"dxa\"/><w:tblBorders>" + edge("top", 4) + edge("left", 4) + edge("bottom", 18)
+                + edge("right", 4) + edge("insideH", 4) + edge("insideV", 4) + "</w:tblBorders>"
+                + "<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"5000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"5000\" w:type=\"dxa\"/></w:tcPr>\(cell)</w:tc></w:tr></w:tbl>"
+                + "<w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1416\" w:right=\"1134\" w:bottom=\"1134\" w:left=\"1134\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            var doc = opened.document
+            doc.compatibilityMode = 14
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l.pageCount, Set(l.pieces[0].map(\.paragraph)).filter { doc.paragraphs[$0].text.hasPrefix("cell") }.count)
+        }
+        XCTAssertEqual(try kept(15).kept, 3)
+        XCTAssertEqual(try kept(18).kept, 3, "parted after the third line, not taken over whole")
+        XCTAssertEqual(try kept(19).kept, 3)
+        XCTAssertEqual(try kept(20).kept, 4)
+    }
+
     /// The first line's width, in points, of `text` in 12pt 宋体 laid out
     /// `width` points wide, mode 14, compressing punctuation, set left.
     private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
