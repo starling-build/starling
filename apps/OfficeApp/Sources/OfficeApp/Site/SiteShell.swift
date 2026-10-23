@@ -1205,8 +1205,21 @@ final class SiteShellState: State<StatefulWidget> {
             return Padding(padding: EdgeInsets(left: 8 + Double(max(0, h.level - 1)) * 12, top: 0, right: 8, bottom: 0), child: FlyoutListTile(
                 onPressed: {
                     guard let self else { return }
-                    self._controller.moveTo(RichPosition(paragraph: h.index, offset: 0), reveal: .top)
-                    self.setState {}
+                    let target = RichPosition(paragraph: h.index, offset: 0)
+                    self._controller.moveTo(target, reveal: .top)
+                    guard self._compact else { self.setState {}; return }
+                    // On a phone the Contents panel stands in for the reader,
+                    // so the move had no layout to scroll: close the panel,
+                    // and once the reader is laid out ask again — through a
+                    // different caret first, so the move is a change the
+                    // editable hears.
+                    let slug = self._slug
+                    self.setState { self._tocOpen = false }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
+                        guard let self, self._slug == slug, self._controller.document.paragraphs.indices.contains(h.index) else { return }
+                        self._controller.moveTo(RichPosition(paragraph: 0, offset: 0), reveal: .visible)
+                        self._controller.moveTo(target, reveal: .top)
+                    }
                 },
                 text: Row(children: row),
                 margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),

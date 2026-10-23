@@ -116,6 +116,16 @@ W=390 H=844 URL="$URL/" "${DRIVE[@]}" wait 9000 click 336 36 wait 1000 shot "$OU
 M=(); while IFS= read -r l; do M+=("$l"); done < <(evals "$OUT/drive6b.log")
 check "a finger dragged over the phone's page list opens nothing" "${M[0]:-}" '"index"'
 check "a tap on a row still opens it" "${M[1]:-}" '"getting-started"'
+# On a phone the Contents panel takes the reader's place (header button
+# at x≈56, entries from y≈279, 27px apart): a tap on an entry closes the
+# panel and moves the caret to that heading.
+W=390 H=844 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('caret')" click 56 192 wait 1000 \
+    shot "$OUT/7-phone-contents.png" click 100 414 wait 1500 eval "starling.debug('caret')" \
+    eval "starling.debug('toc').split('\n')[5].split('\t')[2]" shot "$OUT/8-phone-jumped.png" > "$OUT/drive6c.log" 2>&1
+N=(); while IFS= read -r l; do N+=("$l"); done < <(evals "$OUT/drive6c.log")
+# (The caret reads as a paragraph id, so the check is that it moved.)
+check "a phone's Contents tap moves the caret to the heading" "$(printf '%s' "${N[1]:-}" | grep -Ec '^"[1-9][0-9]*"$')" 1
+check "away from the first paragraph" "$([ -n "${N[0]:-}" ] && [ "${N[0]:-}" != "${N[1]:-}" ] && echo moved)" moved
 # Find: the Find button opens a field after PDF; typing selects the first
 # match. Copy: a double-click selects a word, Ctrl+C puts it on the system
 # clipboard (stubbed here: the page's writeText records what it was given).

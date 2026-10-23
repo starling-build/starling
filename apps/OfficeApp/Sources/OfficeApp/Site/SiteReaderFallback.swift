@@ -31,8 +31,10 @@ enum SiteReaderFallback {
       #starling-reader-controls p { margin:8px 0; font-size:15px; }
       .starling-interactive #starling-text { position:absolute; width:1px; height:1px;
         overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; padding:0; }
-      .starling-interactive #starling-reader-controls { position:fixed; bottom:12px; left:12px;
-        z-index:10; padding:0; }
+      /* Once the reader draws, nothing floats over it: the text view stays
+         a click away through ?reader=text, and screen readers have the
+         text layer. */
+      .starling-interactive #starling-reader-controls { display:none; }
       .starling-interactive #starling-reader-status { display:none; }
       @media print {
         .starling-publication #starling,.starling-publication #starling-reader-controls,
