@@ -4037,7 +4037,16 @@ public final class RichLayout {
                                     // line on page 5 and the note went over
                                     // alone, and every page after ran a line
                                     // ahead.)
-                                    contentH = max(1, min(contentH, y + (mark.top - _tops[i])))
+                                    // (Over that line — not over it less the
+                                    // room of the notes taken before it, which
+                                    // `reserveNotes` takes off the foot next:
+                                    // zh-7a16a243's page 12 ends with the line
+                                    // marking notes 15 and 16 in Word's print,
+                                    // note 17's line first on page 13; the room
+                                    // of 15 and 16, counted twice, sent their
+                                    // line over too, and twelve pages ran a
+                                    // line behind.)
+                                    contentH = max(1, min(contentH, y + (mark.top - _tops[i]) + (here.isEmpty ? 0 : room - note.height)))
                                 }
                                 for later in placing where !here.contains(later) && !pageNotes.contains(later) && !pendingNotes.contains(later) { pendingNotes.append(later) }
                                 break
@@ -4083,7 +4092,9 @@ public final class RichLayout {
                                     pageCut = (id, keep)
                                     here.append(id)
                                 } else {
-                                    if y > 0.01 || mark.top > c0.rowTop + 0.5 { contentH = max(1, min(contentH, y + (mark.top - c0.rowTop))) }
+                                    if y > 0.01 || mark.top > c0.rowTop + 0.5 {
+                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + (here.isEmpty ? 0 : room - note.height)))
+                                    }
                                     rowPending.append(id)
                                 }
                                 for later in placing where !here.contains(later) && !pageNotes.contains(later) && !rowPending.contains(later) { rowPending.append(later) }
