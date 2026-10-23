@@ -5997,6 +5997,14 @@ fitter dropped the paragraph's tail).
   asking 0.75, kept it. (Modes 14 and up, as the line under a row is
   counted; a parted row's piece keeps its own top line's width, as
   before.) zh-77bd4900 96.4 -> 97.4; nothing else moved.
+- **A cell's floating objects are drawn outside its row (2026-10-22).** A
+  paragraph shown whole that carries a floating object is not cut to its
+  own lines, so the object stands where its anchor puts it — for the
+  body's paragraphs; a cell's piece of a row is its `.text`, and was cut
+  to the row. zh-e49d7943's "附件3" box, 36pt over the calendar's title in
+  its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
+  anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
+  38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

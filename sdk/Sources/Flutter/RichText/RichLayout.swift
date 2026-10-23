@@ -12713,7 +12713,11 @@ public final class RichLayout {
                         // and showed one row of eleven.)
                         let whole = piece.flowTop <= _tops[i] + (i < _spaceBefore.count ? _spaceBefore[i] : 0) + 0.5
                             && piece.flowBottom >= _tops[i] + _heights[i] - 0.5
-                        let floats = theme.wordRules && !shading && whole && piece.part == .all
+                        // (A cell's text drawn whole too — a row's piece is
+                        // its `.text`: zh-e49d7943's "附件3" box, 36pt over
+                        // the title in the calendar's first row, was cut off
+                        // at the row's top and drawn nowhere.)
+                        let floats = theme.wordRules && !shading && whole && (piece.part == .all || (piece.part == .text && _cells[i] != nil))
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
                         // (The first piece of a paragraph that parts, its
