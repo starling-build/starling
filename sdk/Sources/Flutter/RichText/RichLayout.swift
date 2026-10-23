@@ -1009,6 +1009,9 @@ public final class RichLayout {
         /// (every cell of them merged down from above), whose height
         /// `ownRowHeight` takes in: the row's edges are drawn round both.
         var ghostRows = 0
+        /// Where each of those rows begins, under the row's top (px): the
+        /// row parts over a page only there (see where rows part).
+        var ghostBounds: [Double] = []
         /// How much of `ownRowHeight` the row was given for the cells
         /// merged down into it, whose text was taller than their rows:
         /// what a page that takes up such a cell part-way can do without.
@@ -2385,7 +2388,9 @@ public final class RichLayout {
                 // paged as part of this one: every cell of this row runs
                 // on through them.
                 var ghosts = 0.0, ghostCount = 0, given = stretched[r]
+                var bounds: [Double] = []   // where each of those rows begins, under the row's top
                 while r + ghostCount + 1 < rows.count, rows[r + ghostCount + 1].first == rows[r + ghostCount + 1].end {
+                    bounds.append(row.height + ghosts)
                     ghostCount += 1
                     ghosts += rows[r + ghostCount].height
                     given += stretched[r + ghostCount]
@@ -2419,6 +2424,7 @@ public final class RichLayout {
                     _cells[k]!.rowTop = row.top
                     _cells[k]!.ownRowHeight = row.height + ghosts
                     _cells[k]!.ghostRows = ghostCount
+                    _cells[k]!.ghostBounds = bounds
                     _cells[k]!.stretched = given
                     if cell.rowSpan > 1 {
                         _cells[k]!.rowHeight = spanned
@@ -3333,6 +3339,20 @@ public final class RichLayout {
                     if c.row > 0 { continueSpans(into: i, c) }
                     wentOver = true
                     return false
+                }
+                // (A row that the rows merged down under it run on through,
+                // rows that hold nothing of their own, parts only where one
+                // of them begins: its text fills the rows that fit, and the
+                // next goes over whole. Lab `mg` on Word for Windows,
+                // zh-9ef811c8's table: its "监督检查" row (15.6pt) and the
+                // three under it (15.6, 53.1, 81) part at the 81pt row's top,
+                // 84.3pt down, its lists five lines on the page, and three
+                // lines lower they part after the second. Ours parted the
+                // 81pt row, six lines on the page, and centred what then
+                // fitted.)
+                if theme.wordRules, first, !fits, !c.ghostBounds.isEmpty,
+                   let bound = c.ghostBounds.last(where: { $0 + ruleUnder(c) <= avail + 0.01 }) {
+                    avail = bound + ruleUnder(c)
                 }
                 // A centred cell (or one set at the bottom) that does not fit
                 // the part is parted from its text's top, at the part's top:

@@ -3491,6 +3491,26 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **A row with rows merged down under it parts only where one of them
+  begins (2026-10-23).** zh-9ef811c8's "监督检查" row (15.6pt at least)
+  has every cell merged down over the three rows under it (15.6, 53.1,
+  81), which hold nothing of their own. We draw those rows as part of
+  the first, its "ghosts". Lab `mg` on Word for Windows (the document,
+  its table moved 0, 3, 6 and 10 lines down): Word parts the group only
+  at a row's top. The text fills the rows that fit and the next row
+  goes over whole. Unshifted, it parts at the 81pt row's top, 84.3pt
+  down (482.5 on p4), its channel list five lines on the page; three
+  lines lower, after the second row (499.1). Ours parted the 81pt row
+  wherever a line fitted, six lines down, and centred what then fit.
+  `_CellGeo.ghostBounds` now keeps where each ghost row begins, and the
+  part's room ends at the last one that fits; rows with lines of their
+  own part as before. Ours parts at 479.8 and 499.2. zh-9ef811c8 27.0
+  -> 37.9; the other 15 documents with such rows are unchanged. Left
+  there: the label "综合业务", merged from the row above down into the
+  group, Word centres in its part on the page (240-482), ours in its
+  own first row; and the bulleted cell, centred and too tall for the
+  part, which Word sets from the part's top, ours lower.
+
 - **PMingLiU's en dash is an em (2026-10-22).** zh-05699f05's cells
   are 新細明體 throughout (its Normal names it for every script), and Word
   sets "（100%+目標值）–基準維護件數】"'s "–" 12.0 wide at 12pt. Lab `ds`
