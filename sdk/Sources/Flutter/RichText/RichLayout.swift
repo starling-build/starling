@@ -386,6 +386,14 @@ public final class RichTextTheme {
                let middle = lineMiddle(for: style, named: named, eastAsian: eastAsian) {
                 return points / 2 + middle
             }
+            // (Set by its foot — "bottom" — the text's own line ends at the
+            // exact one's: zh-d3d3f266's 22pt YaHei titles in 28pt exact
+            // lines have their baselines 18.06pt down in Word's print,
+            // 28 less YaHei's 0.455 em under the baseline; ours, 22.8.)
+            if paragraph.eastAsian["w:textAlignment"] == "bottom",
+               let under = lineUnder(for: style, named: named, eastAsian: eastAsian) {
+                return points - under
+            }
             return lineBox(size: size, natural: 1, baseline: 0, in: paragraph, gridPitch: gridPitch).baseline
         }
         guard size > 0, let face = faceResolver?(familyName, eastAsian),
@@ -409,6 +417,20 @@ public final class RichTextTheme {
               let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
               let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return nil }
         return (t - natural / 2) * size
+    }
+
+    /// How far a single line of `style`'s text reaches under its baseline,
+    /// in points — or nil where the face's own line is not known: what
+    /// Word's `w:textAlignment` "bottom" sets on an exact line's foot.
+    public func lineUnder(for style: CharStyle, named: RichNamedStyle?, eastAsian: Bool) -> Double? {
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian),
+              let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
+              let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return nil }
+        return (natural - t) * size
     }
 
     /// The height of a line whose text carries ruby, as a multiple of the
