@@ -306,9 +306,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             var lines: [Int: Double] = [:]   // by style
             func line(_ style: Int) -> Double {
                 if let known = lines[style] { return known }
-                let st = book.style(style)
-                let l = style == 0 || st.fontName == nil && st.fontSize == nil ? m.defaultRow
-                    : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
+                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book)
                 lines[style] = l
                 return l
             }
@@ -398,9 +396,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
                     guard lines > one * 1.5 else { continue }
-                    let line = st.fontName == nil && st.fontSize == nil ? m.defaultRow
-                        : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
-                    let tall = (lines / one).rounded() * line
+                    let tall = (lines / one).rounded() * Self._fittedLine(st, m, book)
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
             }
@@ -2588,8 +2584,49 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             canvas.restore()
             return
         }
+        // Wrapped lines on paper are their font's fitted line apart, the
+        // line a row of it is fitted to, not the face's own: Arial 10's
+        // 12.36 pt (lo-tdf159581_optimalRowHeight, ours 11.0), Calibri
+        // 11's 14.52 (52716, ours 13.0), in Excel's prints of 26
+        // workbooks. The line the alignment holds — the last at the foot,
+        // the first at the head, the middle in the centre — stands where
+        // one line would (52716's last lines with their rows' numbers).
+        if printing && wraps {
+            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2))
+                .split(separator: "\n", omittingEmptySubsequences: false)
+            if lines.count > 1 {
+                let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+                let pitch = Self._fittedLine(st, m, book) * scale
+                let one = texts.painter("X", style).height, n = Double(lines.count - 1)
+                let y0: Double
+                switch st.vAlign {
+                case .top: y0 = top + 1
+                case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch
+                case .bottom: y0 = bottom - one - 1 - n * pitch
+                }
+                for (i, line) in lines.enumerated() {
+                    let lp = texts.painter(String(line), style)
+                    let x: Double
+                    switch align {
+                    case .right: x = right - rightMargin - inset - lp.width
+                    case .center: x = left + (width - lead - lp.width) / 2 + lead
+                    default: x = left + margin + inset + lead
+                    }
+                    lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
+                }
+                canvas.restore()
+                return
+            }
+        }
         tp.paint(canvas, at(tx))
         canvas.restore()
+    }
+
+    /// A cell's font's line on paper, in points: the row Excel fits to
+    /// it in this workbook (`m`, the metrics of its default font).
+    static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
+        st.fontName == nil && st.fontSize == nil ? m.defaultRow
+            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
     }
 
     /// Text turned a quarter: up (`textRotation` 90, read from the foot)

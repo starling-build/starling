@@ -232,7 +232,14 @@ Excel was found to do, each checked on its workbook and its neighbours:
 
 - *Wrapped text* that fits on one line is its font's line, not a
   measured line and a margin (lo-pivottable_invalid_formats lost a row a
-  page to 0.14 pt).
+  page to 0.14 pt). On paper its lines are the font's fitted line apart
+  (the row it fits), not the face's own: Arial 10's 12.36 pt where ours
+  were 11.0, Calibri 11's 14.52 for 13.0 (26 of Excel's prints). The
+  line the vertical alignment holds stands where one line would. 97
+  workbooks with wrapping styles: 26 better, none worse (CVLKRA-KYC 4.67
+  -> 4.16, 52716 4.29 -> 4.04). Open: AverageTaxRates' bold Times New
+  Roman 10 headings print 12.72 apart, regular Times' fitted line, where
+  the bold face's table entry (34 px on screen) makes 12.36.
 
 **2026-10-17/18, Windows** (each checked on its files against a build of
 the same base; the commits give the numbers):
