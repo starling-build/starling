@@ -3619,6 +3619,15 @@ fitter dropped the paragraph's tail).
   cell margin where Word's start at the parent's (G2: 383.6 vs 390.5).
   The 12 corpus documents that nest a table: zh-291fcea7 31.4 -> 32.4,
   the rest unchanged.
+  Not an equation (2026-10-22): the reader keeps an Office Math
+  equation as an attachment (`m:oMath`, `m:oMathPara`), and ours sets a
+  long one on one line where Word breaks it at its operators. Counted
+  as a picture, zh-db07d44e's p22 display formula asked its column for
+  ~400pt, and the document ran 78 pages to Word's 70 (41.6 -> 16.7,
+  found by lenovo-2's sweep). The sweep of this entry covered only the
+  nested-table documents. With equations left out it is back at 41.6
+  and 70 pages; the other two documents with equations in cells are
+  unchanged.
 
 - **A picture is clipped to the cell it overflows (2026-10-22).**
   Word cuts an inline picture wider than its table cell at the cell's

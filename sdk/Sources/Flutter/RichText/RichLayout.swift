@@ -1748,7 +1748,7 @@ public final class RichLayout {
             guard c.textDirection == .horizontal else { continue }
             let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
             let w = sides + _minContent(i, p, document)
-            let picture = theme.wordRules && p.text.isEmpty && p.image.map { $0.float == nil } == true
+            let picture = theme.wordRules && p.text.isEmpty && p.image.map { $0.float == nil && !Self._isEquation($0) } == true
             let key = c.row * 4096 + c.column
             if let k = at[key] {
                 if w > cells[k].min { cells[k].picture = picture }
@@ -1845,6 +1845,10 @@ public final class RichLayout {
         }
         return fitted
     }
+
+    /// Whether an object is an Office Math equation (`m:oMath`,
+    /// `m:oMathPara`), which the reader keeps as an attachment.
+    static func _isEquation(_ image: ImageAttachment) -> Bool { image.name == "m:oMath" || image.name == "m:oMathPara" }
 
     /// The narrowest this document's tables can be set (px), the widest
     /// of them: each row its cells' narrowest settings side by side, with
@@ -1952,7 +1956,11 @@ public final class RichLayout {
         // kept the grid and cut the picture. Labs dr2/h: drawing.docx's
         // p9 logo widens its column too once the nested table beside it
         // has room, or gives way when it does not.)
-        else if theme.wordRules, let image = p.image, image.float == nil {
+        // (Not an equation: Word breaks a long one at its operators, and
+        // ours, set on one line, asked its column for all of it —
+        // zh-db07d44e's display formula on p22 widened its table's column
+        // to ~400pt, and the document ran 78 pages to Word's 70.)
+        else if theme.wordRules, let image = p.image, image.float == nil, !Self._isEquation(image) {
             if let box = image.textBox {
                 if box.growsToFit, let inside = _textBox(image, document) { first = inside.layout._narrowestTables(inside.document) }
             } else {
