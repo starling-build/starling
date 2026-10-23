@@ -1867,6 +1867,10 @@ public final class RichLayout {
                 share(&low, c.min)
                 share(&high, min(c.max, cap))
             }
+            for (column, points) in document.tableStyles[table]?.contentFitFixed ?? [:] where column < low.count {
+                low[column] = max(low[column], _px(points))
+                high[column] = low[column]
+            }
             // (Not where a column holds nothing measured: turned cells only.)
             if !low.contains(0) {
                 high = zip(low, high).map { max($0, $1) }

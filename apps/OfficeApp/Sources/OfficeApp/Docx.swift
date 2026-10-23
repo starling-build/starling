@@ -1366,6 +1366,32 @@ enum DocxFormat {
                 }.count
                 if !cells.isEmpty, widthless * 2 > cells.count, !style.fixedLayout { style.autoCellWidths = true }
                 if !cells.isEmpty, widthless == cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout { style.contentFit = true }
+                // (… and one whose stated cells are whole columns of one
+                // width in twips, the rest auto: those columns keep their
+                // width and the others are fitted — zh-72da925e's rain
+                // tables, a 794-twip rank column beside six auto ones, are
+                // 39.6/46.1/57.1/45.9/57.3/51.9/57.1pt in Word's print, the
+                // year columns widened past a grid that parted "2001" / "年".)
+                if !cells.isEmpty, !style.contentFit, widthless * 2 > cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout {
+                    var fixed: [Int: Double] = [:], auto = Set<Int>(), mixed = false
+                    for tr in unwrapped(node, "w:tr") {
+                        var col = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
+                        for tc in unwrapped(tr, "w:tc") {
+                            let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if w == nil || w?["w:type"] == "auto" {
+                                auto.formUnion(col ..< col + span)
+                            } else if w?["w:type"] == "dxa", span == 1, let v = Double(w?["w:w"] ?? ""), v > 0, fixed[col].map({ $0 == v / 20 }) ?? true {
+                                fixed[col] = v / 20
+                            } else { mixed = true }
+                            col += span
+                        }
+                    }
+                    if !mixed, !fixed.isEmpty, auto.isDisjoint(with: fixed.keys) {
+                        style.contentFit = true
+                        style.contentFitFixed = fixed
+                    }
+                }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.

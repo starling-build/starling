@@ -4089,6 +4089,34 @@ final class DocxTests: XCTestCase {
     /// after another: zh-8f9b19f4 ends "填报人：" | "审核人：" | "负责人："
     /// in three columns, one line in Word's print and a page each in ours.
     /// A document of one section of columns keeps them as columns.
+    /// An auto table whose stated cells are whole columns of one width in
+    /// twips is fitted to its content, those columns kept: zh-72da925e's
+    /// rain tables. A column stated in one row and auto in another is not.
+    func testAnAutoTableWithFixedColumnsIsFittedToItsContent() throws {
+        func read(_ body: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let a = xml.range(of: "<w:body>")!, b = xml.range(of: "</w:body>")!
+            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: body)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            return try DocxFormat.read(try Zip.write(entries)).document
+        }
+        func table(_ second: String) -> String {
+            let fixed = "<w:tc><w:tcPr><w:tcW w:w=\"794\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>1</w:t></w:r></w:p></w:tc>"
+            let auto = "<w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr><w:p><w:r><w:t>2001</w:t></w:r></w:p></w:tc>"
+            return "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"794\"/><w:gridCol w:w=\"997\"/><w:gridCol w:w=\"997\"/></w:tblGrid>"
+                + "<w:tr>\(fixed)\(auto)\(auto)</w:tr><w:tr>\(second)\(auto)\(auto)</w:tr></w:tbl><w:p/>"
+        }
+        let fixed = "<w:tc><w:tcPr><w:tcW w:w=\"794\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc>"
+        let doc = try read(table(fixed))
+        let style = try XCTUnwrap(doc.tableStyles.values.first)
+        XCTAssertTrue(style.contentFit)
+        XCTAssertEqual(style.contentFitFixed, [0: 39.7])
+        let mixed = try read(table("<w:tc><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc>"))
+        XCTAssertFalse(mixed.tableStyles.values.first?.contentFit ?? false)
+    }
+
     func testAContinuousLastSectionOfColumnsIsARow() throws {
         func read(_ body: String) throws -> RichDocument {
             var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))

@@ -1167,6 +1167,9 @@ public struct TableStyle: Hashable, Sendable {
     /// then fits every column between its narrowest and its widest
     /// content, the saved grid set aside (`RichLayout._autofit`).
     public var contentFit = false
+    /// … but for these columns, by grid index, which keep the width their
+    /// cells state (points).
+    public var contentFitFixed: [Int: Double] = [:]
     /// Space between cells in points (w:tblCellSpacing, HTML's
     /// cellspacing); nil when the file says nothing. Zero is kept apart
     /// from nil: Word draws a table that states it with separate borders.
