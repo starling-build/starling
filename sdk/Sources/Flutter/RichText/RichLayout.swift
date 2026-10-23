@@ -3740,19 +3740,34 @@ public final class RichLayout {
             // pages long, has the fourteen empty paragraphs after it in the
             // 100pt to its left on its last page in Word's print, and
             // "附件2：" at the next page's top; ours set them under it, a
-            // page of their own. Text keeps under it.)
+            // page of their own. Text keeps under it. So do paragraphs of
+            // spaces alone, and a table centred on the page with 22pt to
+            // its left: zh-6e6b9821 p2 has the "    " and the five empty
+            // paragraphs after its centred 354pt table in that room, and
+            // "16." under the table on the same page; ours set them under
+            // it, and "16." went over.)
+            func blank(_ p: RichParagraph) -> Bool { !p.text.contains { $0 != " " } && p.image == nil }
             if let beside = besideTable {
                 let p = document.paragraphs[i]
                 if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
-                else if _cells[i] != nil || !p.text.isEmpty || p.image != nil { y = beside.bottom; besideTable = nil }
+                else if _cells[i] != nil || !blank(p) { y = beside.bottom; besideTable = nil }
             }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
-               document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil,
-               let ts = document.tableStyles[prev], ts.floatOffsetY != nil, !ts.pageAnchored, ts.floatX != nil,
-               _tableLeft(prev, document) - _px(9) >= _px(36),
+               blank(document.paragraphs[i]),
+               let ts = document.tableStyles[prev], ts.floatOffsetY != nil, !ts.pageAnchored, ts.keptPosition != nil,
+               _tableLeft(prev, document) - _px(9) >= _px(18),
                let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 {
                 besideTable = (y, page)
                 y = top
+                // From the line the table hangs from, where its first row
+                // is on this page: its tblpY stands it lower than that,
+                // and Word's first empty line beside zh-6e6b9821's table
+                // is that 8pt above the table's top.
+                var first = i - 1
+                while first > 0, _cells[first - 1]?.table == prev { first -= 1 }
+                if _pages[page].contains(where: { $0.paragraph == first }), let down = ts.floatOffsetY {
+                    y = max(_pages[page].map(\.pageY).min() ?? 0, top - _px(down))
+                }
             }
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
