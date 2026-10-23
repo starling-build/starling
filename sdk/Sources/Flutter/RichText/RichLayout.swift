@@ -12826,7 +12826,7 @@ public final class RichLayout {
             // "- 9 -", holds "- 10 -" to "- 99 -" whole, 7 over and its
             // two 7pt spaces halved, and parts "- 100 -", 14 over, at its
             // space; zh-5a9a85c6's VML "— 11 —" stands in the 49pt
-            // "— 1 —" set, its 宋体 spaces halved, where zh-875759ff's,
+            // "— 1 —" set, its 宋体 spaces halved, where zh-875759ff's first print,
             // its em dashes in YaHei and its spaces Times' 3.5pt, parts
             // before the closing dash. Not a closing space, which hangs,
             // and not one beside a character set as East Asian, which
@@ -12842,9 +12842,10 @@ public final class RichLayout {
                 let named = layout._named(para, sub)
                 let line = g.painter.maxIntrinsicWidth + g.textLeft
                 let units = Array(para.text.utf16)
-                var hintedAt = Set<Int>(), eastAsianFace = false, at = 0
+                var hintedAt = Set<Int>(), latinAt = Set<Int>(), eastAsianFace = false, at = 0
                 for run in para.runs {
                     if run.style.fontHint == "eastAsia" { hintedAt.formUnion(at ..< at + run.length) }
+                    if run.style.fontHint == "default" { latinAt.formUnion(at ..< at + run.length) }
                     let latin = run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                     if theme.faceResolver?(latin, false)?.isEastAsian == true { eastAsianFace = true }
                     at += run.length
@@ -12853,7 +12854,15 @@ public final class RichLayout {
                     guard i >= 0, i < units.count, let scalar = Unicode.Scalar(units[i]) else { return false }
                     return Self.isEastAsian(Character(scalar), hinted: hintedAt.contains(i))
                 }
-                let anyEastAsian = eastAsianFace || units.indices.contains { setEastAsian($0) || units[$0] == 0x2014 }
+                // (An em dash is the East Asian face's but where its run
+                // says `w:hint` "default" in a DrawingML box: zh-57f1de0d's,
+                // zh-08dc38da's and zh-f1f73836's "— 17 —", Times with that
+                // hint, stand whole in Word's prints, where ours parted the
+                // closing dash on every two-digit page. Not in VML's:
+                // zh-875759ff's even pages, the same runs in a VML box sized
+                // by "— 2 —", part "— 10" / "—".)
+                let latinDashes = box.fitsAsDrawing ? latinAt : []
+                let anyEastAsian = eastAsianFace || units.indices.contains { setEastAsian($0) || (units[$0] == 0x2014 && !latinDashes.contains($0)) }
                 var spaces = 0.0
                 if anyEastAsian, line > room + 0.5 {
                     let map = layout._map(k)

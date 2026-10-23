@@ -334,6 +334,10 @@ public struct RichTextBox: Hashable, Sendable {
     /// … and is sized once, on the first page its header or footer is on
     /// (lab `ftD`, DrawingML; lab `vf`, VML alike).
     public var fitsOnce = false
+    /// … and is DrawingML's (`wps:bodyPr`), not VML's: an em dash its
+    /// text says is Latin (`w:hint` "default") is then set as Latin when
+    /// the box is fitted, where a VML box's is not.
+    public var fitsAsDrawing = false
     /// The tables among `paragraphs` (their cells' `CellRef.table`), with
     /// their looks and grids: a table nested in a cell is read as a box
     /// of its own, laid out as a document is.
