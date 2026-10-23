@@ -257,8 +257,15 @@ the same base; the commits give the numbers):
   waterfall, funnel, histogram (binned clusteredColumn: Scott's width
   to two figures, "[lo, hi]" then "(lo, hi]", "≤ u" and "> o") and
   pareto, their data read live through hidden names (_xlchart.v1.*);
-  treemap, sunburst and region maps are not drawn yet, nor a chartex
-  title's own box fill. Two bar groups on one pair of axes are one
+  sunburst and treemap trees built from the cells (a name's blank
+  inherits the row above's); region maps are not drawn yet, nor a
+  chartex title's own box fill. A treemap is Excel's strip layout, not
+  squarified: each level larger first in rows across its parent, a row
+  taking the next node while its boxes' mean aspect does not worsen, and
+  the whole next row where one row of both is squarer (2026-10-22:
+  chart-treemap's 15 boxes within 0.06 pt, 6.81 -> 0.75). A `cx:`
+  title on a sheet stands 8.2 pt under the frame's top, 2.4 lower than
+  a `c:` one (eleven prints). Two bar groups on one pair of axes are one
   group; two line groups on two axes are drawn; a gradient chart area;
   a varied single bar series' legend of its points; labels at zero over
   negative values; "Series1"; an empty axis title's room. Open: a
@@ -277,7 +284,9 @@ the same base; the commits give the numbers):
   drawn). A title's own box (fill, line, dash) and a pie's series outline
   are drawn. A sheet's chart title (and plot under it) stands 2.5 pt
   lower than PowerPoint's; a pie whose labels stand round it gives them a
-  line a side. Open: treemaps (hierarchical categories, squarified).
+  line a side.
+  Open: a drawing's frame on a sheet stands 0.8 to 1.4 pt right of
+  Excel's and up to 2.4 pt wider (chart-funnel1, chart-treemap).
   Open, fitting: a wrapped word too long for its column breaks inside
   in Excel's screen layout otherwise than in ours, which measures the
   printed face against the screen's width: LIBRE_OFFICE-116306-0's

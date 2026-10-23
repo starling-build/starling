@@ -357,6 +357,9 @@ struct Chart: Equatable {
         var color = 0
         var children: [SunburstNode] = []
     }
+    /// An Excel 2016 treemap (`layoutId="treemap"`): the `sunburst` tree
+    /// drawn as nested rectangles instead of rings.
+    var treemap = false
 
     /// A waterfall's columns, by point: where each starts and ends.
     var waterfallSpans: [(from: Double, to: Double)] {
@@ -723,10 +726,12 @@ enum ChartXML {
     /// `allowEmpty`: a chart whose points are only in the sheet (no
     /// cache: chart-sunburst.xlsx's `_xlchart` names), its tree to be
     /// built from the cells (`sunburstTree`).
-    static func readSunburst(_ space: XNode, allowEmpty: Bool = false) -> Chart? {
+    /// `treemap`: an Excel 2016 treemap's tree too, read the same way
+    /// (chart-treemap.xlsx's).
+    static func readSunburst(_ space: XNode, allowEmpty: Bool = false, treemap: Bool = false) -> Chart? {
         guard let chart = space.first("cx:chart"),
               let ser = chart.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series").first,
-              ser["layoutId"] == "sunburst",
+              ser["layoutId"] == "sunburst" || (treemap && ser["layoutId"] == "treemap"),
               let d = (space.first("cx:chartData")?.all("cx:data") ?? []).first(where: { $0["id"] == ser.first("cx:dataId")?["val"] })
         else { return nil }
         func points(_ lvl: XNode?) -> [String?] {
@@ -766,6 +771,7 @@ enum ChartXML {
         var c = Chart(type: .pie, title: title, categories: roots.map(\.name),
                       series: [ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series1", values: roots.map(\.value))])
         c.sunburst = roots
+        c.treemap = ser["layoutId"] == "treemap"
         c.chartex = true
         c.legend = chart.first("cx:legend") != nil
         c.dataLabels = ser.first("cx:dataLabels").map { $0.first("cx:visibility")?["categoryName"] != "0" } ?? false
@@ -779,7 +785,7 @@ enum ChartXML {
     /// funnels, maps…).
     static func readChartex(_ space: XNode) -> Chart? {
         readBoxWhisker(space) ?? readClusteredColumn(space) ?? readWaterfall(space) ?? readFunnel(space) ?? readHistogram(space)
-            ?? readSunburst(space, allowEmpty: true)
+            ?? readSunburst(space, allowEmpty: true, treemap: true)
     }
 
     /// A sunburst's tree: each point down its path of names, top level
@@ -1979,7 +1985,10 @@ enum ChartPainter {
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand
                 // 2.2 to 3.0 lower than ours did, their plots' tops 3 to 4.)
                 if c.onSheet { area = Rect.fromLTRB(area.left, area.top + 3.4 * k, area.right, area.bottom) }
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k)
+                // (An Excel 2016 chart's 2.4 pt lower again, its plot not:
+                // eleven `cx:` charts' titles 8.1 to 8.25 pt under the
+                // frame's top in Excel's print, ours 5.82.)
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? 3.2 * k : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -2156,7 +2165,10 @@ enum ChartPainter {
         if pie, let l = c.plotLayout {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
-        if let nodes = c.sunburst {
+        if let nodes = c.sunburst, c.treemap {
+            _treemap(c, nodes, canvas, area, k: k, theme: theme,
+                     text: { styled($0, $1, $2, bold: false, color: theme.background) })
+        } else if let nodes = c.sunburst {
             _sunburst(c, nodes, canvas, area, k: k, theme: theme,
                       text: { styled($0, $1, $2, bold: false, color: theme.background) })
         } else if c.type == .radar {
@@ -3425,6 +3437,95 @@ extension ChartPainter {
             canvas.rotate(cos(mid) >= 0 ? mid : mid + .pi)
             tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2 + 2.1 * k))
             canvas.restore()
+        }
+    }
+
+    /// A treemap, as Excel prints chart-treemap's: each level's nodes,
+    /// the larger first, in strips across their parent's box, top to
+    /// bottom, a strip taking the next node while that does not worsen
+    /// its boxes' mean aspect, and taking the whole next strip where one
+    /// strip of both is squarer than the two (First's A, D and C in one
+    /// row, not A and D over a sliver of C). Only the leaves are filled,
+    /// in their branch's accent, ruled in the background at 1.5 pt; a
+    /// leaf's name in its foot's left corner, a top-level branch's in its
+    /// box's top left, 3.8 pt in.
+    static func _treemap(_ c: Chart, _ nodes: [Chart.SunburstNode], _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
+                         text: (String, Double, Double) -> TextPainter) {
+        // (A sheet's k is three quarters of a point's.)
+        let pt = c.onSheet ? k / 0.75 : k
+        // (The boxes 5.8 pt inside the frame at the sides and foot, and
+        // 0.67 lower than the room under the title: Excel's print of
+        // chart-treemap, where ours stood 6.75 in and 3.45 off its foot.)
+        let area = c.onSheet ? Rect.fromLTRB(area.left - 0.95 * pt, area.top + 0.67 * pt, area.right + 0.95 * pt, area.bottom - 2.43 * pt) : area
+        func aspect(_ areas: ArraySlice<Double>, across width: Double) -> Double {
+            let h = areas.reduce(0, +) / width
+            guard h > 0 else { return .infinity }
+            return areas.reduce(0) { $0 + max($1 / h / h, h * h / max($1, 1e-9)) } / Double(areas.count)
+        }
+        func strips(_ values: [Double], in box: Rect) -> [Rect] {
+            let total = values.reduce(0, +)
+            guard total > 0, box.width > 0, box.height > 0 else { return values.map { _ in .zero } }
+            let areas = values.map { $0 / total * box.width * box.height }
+            func grow(_ i: Int) -> Int {
+                var j = i + 1
+                while j < areas.count, aspect(areas[i ... j], across: box.width) <= aspect(areas[i ..< j], across: box.width) { j += 1 }
+                return j
+            }
+            var out: [Rect] = [], i = 0, y = box.top
+            while i < areas.count {
+                var j = grow(i)
+                while j < areas.count {
+                    let next = grow(j)
+                    let apart = (aspect(areas[i ..< j], across: box.width) * Double(j - i)
+                        + aspect(areas[j ..< next], across: box.width) * Double(next - j)) / Double(next - i)
+                    guard aspect(areas[i ..< next], across: box.width) < apart else { break }
+                    j = next
+                }
+                let h = areas[i ..< j].reduce(0, +) / box.width
+                var x = box.left
+                for a in areas[i ..< j] {
+                    out.append(Rect.fromLTWH(x, y, a / h, h))
+                    x += a / h
+                }
+                y += h
+                i = j
+            }
+            return out
+        }
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        let edge = Paint()
+        edge.style = .stroke
+        edge.isAntiAlias = true
+        edge.strokeWidth = max(0.25, 1.5 * pt)
+        edge.color = theme.background
+        var labels: [(name: String, box: Rect, top: Bool)] = []
+        func draw(_ nodes: [Chart.SunburstNode], in box: Rect, level: Int, color: Int?) {
+            let shown = nodes.filter { $0.value > 0 }
+            for (n, r) in zip(shown, strips(shown.map(\.value), in: box)) {
+                let accent = color ?? n.color
+                if n.children.isEmpty {
+                    fill.color = theme.accents.isEmpty ? Color(0xFF808080) : theme.accents[accent % theme.accents.count]
+                    canvas.drawRect(r, fill)
+                    canvas.drawRect(r, edge)
+                    labels.append((n.name, r, false))
+                } else {
+                    draw(n.children, in: r, level: level + 1, color: accent)
+                    if level == 0 { labels.append((n.name, r, true)) }
+                }
+            }
+        }
+        draw(nodes, in: area, level: 0, color: nil)
+        guard c.dataLabels else { return }
+        // (Their glyphs 1.35 pt lower than a line's box 3.8 pt in would
+        // put them: B's and Best's in Excel's print.)
+        let inset = 3.8 * pt, drop = 1.35 * pt
+        for l in labels {
+            let tp = text(l.name, c.textSize ?? 9, max(1, l.box.width - 2 * inset))
+            defer { tp.dispose() }
+            guard tp.width <= l.box.width - 2 * inset + 0.5, tp.height <= l.box.height - 2 * inset else { continue }
+            tp.paint(canvas, Offset(l.box.left + inset, (l.top ? l.box.top + inset : l.box.bottom - inset - tp.height) + drop))
         }
     }
 }

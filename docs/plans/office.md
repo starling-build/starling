@@ -3491,6 +3491,28 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **Text in a table cell goes under a picture that leaves it no room
+  (2026-10-22).** `_floatPush` set a body paragraph's text under a
+  wrapped float of its own that left its first line less than an em on
+  either side, but never a cell's. zh-e4ef4c4d p5 holds four photos
+  anchored in cells (wrapTight, layoutInCell). The 184pt one, 15.4pt
+  down in a cell 201pt across inside its margins, leaves no room, and
+  Word sets its paragraph's six lines under it; ours ran them over it.
+  Lab `wc` on Word for Windows (zh-e4ef4c4d's own package):
+  - Lines of an exact height go down in whole lines from the
+    paragraph's top until they clear the picture: 24pt lines to 168pt
+    under a photo ending 153.75 down, to 144 under one ending 135.4 (or
+    123, when anchored 3pt down).
+  - A line of auto spacing goes to just under the picture (134.5 under
+    one ending 135.4; its wrap polygon stops 1.6pt short).
+  - The picture stays where the paragraph first started.
+  The cell's text now measures the room across the cell's text, from
+  the float's own x. zh-e4ef4c4d 93.3 -> 100. It is the only document
+  in the corpus with a wrapping anchor in a cell, headers and footers
+  included. Left: Word keeps a picture anchored above its cell's top
+  inside the cell (p5's top photos, -11.7 and -23.7pt, both drawn at
+  the row's 124.6), where ours draws them above the row.
+
 - **An autofit cell grows to its picture, and to a table nested in it
   (2026-10-22).** `_minContent` counted text only, so an inline picture
   alone in its paragraph, and a nested table, added nothing to their
