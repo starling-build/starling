@@ -548,7 +548,7 @@ Twenty more (`random.seed(20261111)` among the 39 unprinted, 15 to 400 KB, drawn
 docxcorp id, all printed), checked in. It starts at 89.0% (median 98.4), 18 of 20 page counts
 Word's. Its low ones, unclaimed: zh-694447ca 11.1 [DONE Mac 01Xgpbk5 2026-10-23: 86.6 — the rest of a page-split paragraph takes no first-line indent (fb7a6d8a), a floating table raised over the table before it goes over whole (one document's evidence, kept narrow). Left: the footer's framed folio stands 66pt above Word's on every page (frame w:y=1 anchored to an empty 9pt footer paragraph, snapToGrid 0) — the scorer skips folios, so no score; and a negative tblpY at a page's head is not applied (4pt)],
 zh-8628cfbe 26.0 (45/46 pages) [CLAIMED Linux b2 01JsizVV 2026-10-23], zh-17ac8aa2 75.0 [CLAIMED Mac 0fcba326 2026-10-23], zh-31d580df 93.9, zh-13552a3a 94.6,
-zh-bbbb2e6a 95.2 (16/15 pages).
+zh-bbbb2e6a 95.2 (16/15 pages) [CLAIMED Mac 01Xgpbk5 2026-10-23].
 
 ### Note from the Mac (2026-10-22): the zh corpus is 586 documents — a twenty-seventh sample
 Twenty more (`random.seed(20261110)` among the 59 unprinted, 15 to 400 KB, drawn by
