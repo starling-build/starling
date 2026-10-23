@@ -1661,6 +1661,67 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try kept(note: true), 33, "but not into the notes")
     }
 
+    func testAPageFootLineReachesByItsOwnFaces() throws {
+        // zh-c15af02e's p11: a paragraph with a "%" in another face on its
+        // second line, whose one pitch leaves 1pt, keeps its fifteenth
+        // line 5.4pt past the foot in Word's print; ours took the 1pt for
+        // every line. Here: 20pt pitches, 10pt lines, and a run of a size
+        // that fills its pitch but for under half a point — the 34th line
+        // 0.5pt past the foot is kept, unless that run is on it.
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        func document(odd: Int, size: Int) throws -> (RichDocument, PageSetup) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let runs = (0 ..< 40).map { n in
+                (n == odd ? "<w:r><w:rPr><w:sz w:val=\"\(size)\"/></w:rPr><w:t>X</w:t></w:r>" : "")
+                    + "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t>行文\(n)</w:t></w:r>" + (n < 39 ? "<w:r><w:br/></w:r>" : "")
+            }.joined()
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+                "<w:p><w:pPr><w:snapToGrid w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"370\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>"
+                + "<w:p><w:pPr><w:widowControl w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>\(runs)</w:p>"
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/><w:docGrid w:type=\"lines\" w:linePitch=\"400\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            return (opened.document, opened.pageSetup ?? .a4)
+        }
+        // (The size: the largest in half points whose line is one pitch
+        // with less than 0.45pt left under the half leading.)
+        func laid(_ line: Int, _ size: Int) throws -> (doc: RichDocument, layout: RichLayout, target: Int) {
+            let (doc, setup) = try document(odd: line, size: size)
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (doc, l, try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("行文") }))
+        }
+        // (A size whose line is one pitch in the layout itself, with less
+        // than 0.45pt left under its half leading.)
+        var size: Int? = nil
+        for half in stride(from: 40, through: 24, by: -1) {
+            let (doc, l, target) = try laid(0, half)
+            let p = doc.paragraphs[target]
+            guard let run = p.runs.first(where: { $0.style.fontSize == Double(half) / 2 }),
+                  let first = l.geometry(target).painter.computeLineMetrics().first,
+                  abs(first.height / theme.pixelsPerPoint - 20) < 0.01 else { continue }
+            let reach = theme.gridOverhang(for: run.style, in: p.style, named: doc.styles.resolve(p.style), eastAsian: false, gridPitch: 20)
+            if reach > 0.01, reach < 0.45 { size = half; break }
+        }
+        // (Which size that is depends on the faces registered, and after
+        // some other tests' fonts there is none: the case cannot be set up.)
+        guard let odd = size else { throw XCTSkip("no size fills a 20pt pitch but for under half a point with these faces") }
+        func kept(_ line: Int) throws -> Int {
+            let (_, l, target) = try laid(line, odd)
+            let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == target })
+            return Int(((piece.flowBottom - piece.flowTop) / theme.pixelsPerPoint / 20).rounded())
+        }
+        XCTAssertEqual(try kept(0), 34, "an odd face on the first line does not hold the 34th back")
+        XCTAssertEqual(try kept(33), 33, "on the 34th itself it does")
+    }
+
     func testEmptyPictIsNothing() throws {
         // bug59058: a paragraph of nothing but `<w:pict/>` before a table —
         // no mark on Word's print and no room, where a 300 by 200 stand-in

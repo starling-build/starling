@@ -1083,6 +1083,9 @@ public final class RichLayout {
     /// How far each paragraph's last line on a page may reach past the
     /// page's foot (px; `RichTheme.gridOverhang`).
     private var _overhang: [Double] = []
+    /// … line by line, where its faces differ from line to line (px; empty
+    /// where only the paragraph's `_overhang` is known).
+    private var _lineOverhang: [[Double]] = []
     /// The paragraphs set with their indents mirrored (`w:mirrorIndents`
     /// on a page Word mirrors), by index; recomputed after paging.
     private var _mirrored: Set<Int> = []
@@ -1228,6 +1231,7 @@ public final class RichLayout {
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
         _overhang = Array(repeating: 0, count: n)
+        _lineOverhang = Array(repeating: [], count: n)
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
@@ -1300,6 +1304,7 @@ public final class RichLayout {
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _overhang.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _lineOverhang.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -1336,6 +1341,7 @@ public final class RichLayout {
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
                 _overhang.removeSubrange(at ..< end)
+                _lineOverhang.removeSubrange(at ..< end)
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
@@ -4801,6 +4807,9 @@ public final class RichLayout {
                 // fourteenth reaches 4.3pt into the separator's line, and
                 // its overhang let ours keep it.)
                 let overhang = placedFrame ? .infinity : theme.wordRules && i < _overhang.count && pageNotes.isEmpty ? _overhang[i] : 0
+                let lineOverhangs = !placedFrame && theme.wordRules && pageNotes.isEmpty && i < _lineOverhang.count ? _lineOverhang[i] : []
+                // (The reach of line `k` past the foot: its own faces'.)
+                func reach(_ k: Int) -> Double { k >= 0 && k < lineOverhangs.count ? max(overhang, lineOverhangs[k]) : overhang }
                 // (Word sets a line where it ends on the foot or above —
                 // in binary floating point: lab `ef`, Word 16, 2026-10-18,
                 // exact lines of 20 and 27pt fill a page whose text is
@@ -4824,7 +4833,7 @@ public final class RichLayout {
                 // print; ours took it, and a line a page after it, over.)
                 let slack = theme.wordRules && overhang > 0 && overhang.isFinite ? _px(0.05)
                     : theme.wordRules && !tieFits ? -_px(0.025) : 0.01
-                if rest <= available + slack + overhang {
+                if rest <= available + slack + reach(lineOverhangs.count - 1) {
                     // (The line, not its space after: that may stand past the foot.)
                     if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last,
                        g.textTop + line - cursor > available + 0.01 { overfull = true }
@@ -4845,7 +4854,7 @@ public final class RichLayout {
                 }
                 // The lowest cut that still fits.
                 var cut: Double? = nil
-                for c in cuts! where c > cursor + 0.01 && c - cursor <= available + slack + overhang { cut = c }
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
@@ -6366,6 +6375,7 @@ public final class RichLayout {
         }
         if i < _overhang.count {
             _overhang[i] = 0
+            if i < _lineOverhang.count { _lineOverhang[i] = [] }
             if theme.wordRules, p.image == nil, p.cell == nil, style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch {
                 let named = _named(p, document)
                 // (An empty paragraph's line is its mark's, and the mark
@@ -6390,21 +6400,45 @@ public final class RichLayout {
                     // "第六十六条…" is 宋体 bold and then YaHei, and its 宋体
                     // first run's 6.5pt let ours keep at page 20's foot a line
                     // Word sends over.)
+                    // (… and on the line that ends the page, by that line's
+                    // faces alone: zh-c15af02e's p11 paragraph has a "%" in
+                    // 新細明體 on its second line, whose one pitch leaves 1pt,
+                    // and its fifteenth line, all 標楷體 in two pitches, ends
+                    // 5.4pt past the foot and is page 11's last in Word's
+                    // print; ours, taking the 1pt for every line, sent it on.)
                     var least = Double.infinity
                     var at = p.text.startIndex
+                    var offset = 0
+                    let map = _OffsetMap(lead: _lead(i), inserts: i < _inserts.count ? _inserts[i] : [])
+                    let tops = painter.computeLineMetrics().map { $0.baseline - $0.ascent }
+                    // (The line an offset's caret stands on.)
+                    func lineOf(_ offset: Int) -> Int {
+                        let dy = painter.getOffsetForCaret(TextPosition(offset: map.painter(offset)), Rect.zero).dy
+                        return max(0, (tops.lastIndex { $0 <= dy + 0.5 }) ?? 0)
+                    }
+                    var perLine = Array(repeating: Double.infinity, count: tops.count)
                     for run in p.runs {
                         let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.endIndex) ?? p.text.endIndex
                         let text = p.text[at ..< end]
                         at = end
+                        let from = offset
+                        offset += run.length
                         guard text.contains(where: { !$0.isWhitespace }) else { continue }
                         let ea = text.contains { Self.isEastAsian($0, hinted: false) }
-                        least = min(least, theme.gridOverhang(for: run.style, in: style, named: named, eastAsian: ea, gridPitch: pitch))
+                        let reach = theme.gridOverhang(for: run.style, in: style, named: named, eastAsian: ea, gridPitch: pitch)
+                        least = min(least, reach)
+                        if !perLine.isEmpty {
+                            for k in min(lineOf(from), perLine.count - 1) ... min(max(lineOf(from), lineOf(offset - 1)), perLine.count - 1) {
+                                perLine[k] = min(perLine[k], reach)
+                            }
+                        }
                     }
                     if !least.isFinite {
                         let ea = p.text.contains { Self.isEastAsian($0, hinted: false) }
                         least = theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch)
                     }
                     _overhang[i] = _px(least)
+                    if i < _lineOverhang.count, perLine.count > 1 { _lineOverhang[i] = perLine.map { _px($0.isFinite ? $0 : least) } }
                 }
             } else if theme.wordRules, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
                       case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,

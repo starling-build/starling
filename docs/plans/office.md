@@ -6058,6 +6058,18 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A page's last line reaches past the foot by its own faces
+  (2026-10-23).** The reach a grid line has past the page's foot was the
+  least over every run of its paragraph. zh-c15af02e's p11 paragraph has
+  a "%" in 新細明體 on its second line, a face whose line fills its one
+  pitch but for 1pt; its fifteenth line, all 標楷體 in two pitches, ends
+  5.4pt past the foot and is page 11's last in Word's print, where ours,
+  taking the 1pt for every line, sent it on. Each line now has the least
+  of the runs on it (`_lineOverhang`, found by the runs' caret lines),
+  and the line that ends the page reaches by its own. zh-17749c13, whose
+  two faces set the old rule, stays at 100. zh-c15af02e 66.5 -> 79.7;
+  nothing else moved (sweep h125). The test of it skips in the full
+  suite, where other tests' fonts leave no size to set it up with.
 - **A grid line does not hang into the footnotes (2026-10-23).** On a
   line grid a page's last line may reach past the foot by the leading
   its face leaves (`_overhang`); over the page's notes it may not. zh-
