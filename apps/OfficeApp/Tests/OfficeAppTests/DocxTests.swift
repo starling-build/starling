@@ -2962,6 +2962,37 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(larger.gap, plain.gap, accuracy: 0.15, "and the next line is the text's line under it")
     }
 
+    func testANumberIsOnTheGridWhereItsLevelSaysSoOverItsMark() throws {
+        try requireFitterWidths()
+        // zh-c15af02e's heading 6 level says `<w:snapToGrid/>` and its
+        // paragraphs' text is off a grid of 1pt: Word sets "〈2〉" 17.0, 9.9
+        // and 17.0 at 16pt, and p37's "〈2〉依該市社會經濟發展、交通運輸狀況、
+        // 車輛持" is its first line; ours set the number off the grid with
+        // the mark, the text 2.5pt early, and took "有" too.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-c15af02e") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("依該市社會經濟發展") })
+        let end = l.geometry(i).painter.getLineBoundary(TextPosition(offset: 0)).end
+        // (The painter's offsets count one zero-width break `_span` puts in
+        // before the line's end, so the text's first line is one shorter.)
+        let first = String(doc.paragraphs[i].text.utf16.prefix(end - 1)) ?? ""
+        XCTAssertTrue(first.hasSuffix("車輛持"), first)
+    }
+
     func testANumbersTabReachesTheParagraphsOwnStop() throws {
         // bug65649: "3.2.1.3." under a first-line indent of 567 twips and
         // no hanging one ends short of the paragraph's stop at 1843;

@@ -9107,7 +9107,19 @@ public final class RichLayout {
         var span = latinStyle.map { latin in
             TextSpan(children: label.map { TextSpan(text: String($0), style: latinChar($0) ? advanced($0, latin) : markerStyle) })
         } ?? TextSpan(text: label, style: markerStyle)
-        if theme.wordRules, let g = _grid(i, document).chars, g != 0, !(markerChar.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false),
+        // (Unless the mark is off it — and not then where the level
+        // puts its number on it: zh-c15af02e's heading 6 level says
+        // `<w:snapToGrid/>` over runs off a grid of 1pt, and Word sets
+        // "〈2〉" 17.0, 9.9 and 17.0 at 16pt, the line a character short of
+        // ours.)
+        let levelGrid = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }
+            .flatMap { xml -> Bool? in
+                guard let r = xml.range(of: "<w:snapToGrid") else { return nil }
+                let tag = xml[r.upperBound...].prefix(while: { $0 != ">" })
+                return !(tag.containsSubstring("w:val=\"0\"") || tag.containsSubstring("w:val=\"false\"") || tag.containsSubstring("w:val=\"off\""))
+            }
+        if theme.wordRules, let g = _grid(i, document).chars, g != 0,
+           levelGrid ?? !(markerChar.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false),
            p.style.eastAsian["w:snapToGrid"] != "0" {
             func spaced(_ st: TextStyle, _ by: Double) -> TextStyle { st.copyWith(letterSpacing: (st.letterSpacing ?? 0) + by) }
             let latin = latinStyle ?? markerStyle
