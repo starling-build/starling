@@ -2418,6 +2418,12 @@ enum DocxFormat {
             }
         }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
+        // (A style's own break before, too — and a paragraph's "off" over
+        // it: zh-499adba6's Heading 2 says pageBreakBefore, and Word's print
+        // opens page 23 with its "（一）權力、決策與影響力", where ours, which
+        // read the break only from the paragraph's own properties, set it
+        // at page 22's foot, and the book ran three pages short from there.)
+        if let b = pPr.first("w:pageBreakBefore") { style.pageBreakBefore = !_isOff(b) }
         if let d = pPr.first("w:divId")?["w:val"] { style.divId = d }
         for tag in _eastAsianSwitches { if let n = pPr.first(tag) { style.eastAsian[tag] = _isOff(n) ? "0" : "1" } }
         if let v = pPr.first("w:textAlignment")?["w:val"] { style.eastAsian["w:textAlignment"] = v }
@@ -2902,10 +2908,15 @@ enum DocxFormat {
         // otherwise was wrong). bib-chernigovka's cover is 7 such spacers
         // at 16pt, and without them its first table ran onto page one.
         var markStyle: CharStyle? = nil
+        var styleBreak = false
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] {
                 sheet.apply(ours, to: &style)
+                // (`apply` keeps the paragraph's break, as an edit that
+                // restyles one must; read from the file, the style's is
+                // the paragraph's too — see `_paragraphProps`.)
+                if sheet[ours]?.paragraph.pageBreakBefore == true, !style.pageBreakBefore { style.pageBreakBefore = true; styleBreak = true }
                 if let inCell = cellResolve?(id) {
                     let named = style.named, heading = style.heading
                     style = inCell
@@ -2978,6 +2989,14 @@ enum DocxFormat {
             }
             if pPr.first("w:pageBreakBefore") != nil, !_isOff(pPr.first("w:pageBreakBefore")!) {
                 style.pageBreakBefore = true
+            }
+            // (Not a style's break on a paragraph that is only a section's
+            // end, with no run in it: zh-499adba6's contents section ends in
+            // an empty Heading 2, and Word's print has no page for it — the
+            // next section's page is the break; ours set it on a page alone.)
+            if styleBreak, pPr.first("w:pageBreakBefore") == nil, pPr.first("w:sectPr") != nil {
+                func hasRun(_ n: XNode) -> Bool { n.children.contains { $0.name == "w:r" || hasRun($0) } }
+                if !p.children.contains(where: { $0.name != "w:pPr" && ($0.name == "w:r" || hasRun($0)) }) { style.pageBreakBefore = false }
             }
             // A section ending here (its sectPr sits in this paragraph's
             // properties) starts the next on a new page unless continuous;

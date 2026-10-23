@@ -6014,6 +6014,19 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A style's page break before is the paragraph's (2026-10-22).** The
+  reader takes a named style's paragraph properties with
+  `RichStyleSheet.apply`, which keeps the paragraph's own break, as an
+  edit that restyles a paragraph must — so a style's `w:pageBreakBefore`
+  was never read. zh-499adba6 (and its twin zh-9932bd83) give Heading 2
+  the break; Word's print opens page 23 with "（一）權力、決策與影響力"
+  and each part after it on a page of its own, where ours ran on and the
+  book was three pages short. Read from the file, the style's break is
+  the paragraph's now, and a paragraph's "off" undoes it — but not on an
+  empty paragraph that only ends a section: the contents section ends in
+  an empty Heading 2, and Word's print has no page for it (the next
+  section's page is the break). zh-499adba6 and zh-9932bd83 27.0 -> 87.4,
+  99 pages as Word's; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

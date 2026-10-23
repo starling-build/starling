@@ -1035,6 +1035,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try pages(leading), 2)
     }
 
+    /// A style's `w:pageBreakBefore` breaks the page before each paragraph
+    /// of it, as the paragraph's own does, and a paragraph's "off" undoes
+    /// it — but not on a paragraph that is only a section's end, empty:
+    /// zh-499adba6's contents section ends in an empty Heading 2.
+    func testAStylesPageBreakBeforeIsTheParagraphs() throws {
+        func pages(_ inner: String) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: "<w:p><w:r><w:t>甲</w:t></w:r></w:p>" + inner)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+            var styles = String(decoding: entries[si].data, as: UTF8.self)
+            let end = try XCTUnwrap(styles.range(of: "</w:styles>"))
+            styles.replaceSubrange(end, with: "<w:style w:type=\"paragraph\" w:styleId=\"Brk\"><w:name w:val=\"Brk\"/><w:pPr><w:pageBreakBefore/></w:pPr></w:style></w:styles>")
+            entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(doc)
+            return layout.pageCount
+        }
+        let styled = "<w:p><w:pPr><w:pStyle w:val=\"Brk\"/></w:pPr><w:r><w:t>乙</w:t></w:r></w:p>"
+        XCTAssertEqual(try pages(styled), 2)
+        XCTAssertEqual(try pages("<w:p><w:pPr><w:pStyle w:val=\"Brk\"/><w:pageBreakBefore w:val=\"0\"/></w:pPr><w:r><w:t>乙</w:t></w:r></w:p>"), 1)
+        let sectionEnd = "<w:p><w:pPr><w:pStyle w:val=\"Brk\"/><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:pPr></w:p>"
+        XCTAssertEqual(try pages(sectionEnd + styled), 2)
+    }
+
     /// Word leaves a paragraph's space before behind where the paragraph
     /// heads a page after a break that ended the paragraph above; it
     /// keeps it where the paragraph itself begins with the break, and —
