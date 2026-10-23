@@ -2500,6 +2500,37 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(try width(note: true), try width(note: false) - 4, "a raised digit that is no note's number keeps its two")
     }
 
+    func testAnUnhintedTimesSignIsALetterOfTheNumberAfterIt() throws {
+        try requireFitterWidths()
+        // zh-8628cfbe's cell "13.2稅前盈餘/用人費用×100%" — its runs not
+        // hinted East Asian — ends a line "…用人費用" and opens the next
+        // "×100%" in Word's print; ours kept "×" on the first line, as
+        // zh-b56eeded's hinted "…總數）×" is.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8628cfbe") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("稅前盈餘/用人費用×100%") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let at = try XCTUnwrap(shown.range(of: "用人費用"))
+        let line = painter.getLineBoundary(TextPosition(offset: shown.utf16.distance(from: shown.utf16.startIndex, to: at.lowerBound.samePosition(in: shown.utf16)!)))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+        XCTAssertFalse(text.contains("×"), text)
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its

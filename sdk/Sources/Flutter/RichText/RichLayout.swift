@@ -1953,7 +1953,8 @@ public final class RichLayout {
             // the column to 44.5, narrowing the table's others.)
             let breakBefore = Set(inserts.filter { o in
                 guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
-                return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts)
+                return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
+                                           timesEastAsian: units[o - 1] != 0xD7 || _setEastAsian(p, document, at: o - 1))
             }).union(_looseWordOffsets(p, document, textWidth: 100_000, named: _named(p, document),
                                        pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
             func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
@@ -7682,7 +7683,7 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch, percentStarts: percentStarts) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (In a line too narrow for one character
                             // every character is a line, the marks
                             // too: zh-830ef10d's 6pt cell sets
@@ -9468,7 +9469,8 @@ public final class RichLayout {
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
-            return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts)
+            return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
+                                       timesEastAsian: units[o - 1] != 0xD7 || _setEastAsian(p, document, at: o - 1))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
@@ -10881,7 +10883,7 @@ public final class RichLayout {
     /// sake: before an opening one that follows East Asian text or a
     /// closing mark, after a closing one that East Asian text or an
     /// opening mark follows.
-    private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false) -> Bool {
+    private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false, timesEastAsian: Bool = true) -> Bool {
         func wide(_ c: Character) -> Bool { (c.unicodeScalars.first?.value ?? 0) >= 0x2E80 }
         // (And before a percent sign after a full-width character, where
         // the document's own list of what may not start a line leaves it
@@ -10917,7 +10919,11 @@ public final class RichLayout {
         // (And after a multiplication sign, which the engine reads as a
         // letter of the number after it: zh-b56eeded's "…總數)×" ends a
         // line before "100%" in Word's print.)
-        if a == "\u{00D7}" { return b != " " }
+        // (Only where it is set East Asian — its run hinted so, or its
+        // Latin face an East Asian one: zh-8628cfbe's unhinted "用人費用×100%"
+        // ends a line "…用人費用" and opens the next "×100%" in Word's
+        // print, the sign a letter of the number there.)
+        if a == "\u{00D7}" { return timesEastAsian && b != " " }
         // (And after a percent sign before an opening mark a number
         // follows, which Unicode keeps together as one number's sign:
         // zh-20d0e98f's cell ends a line "…）×100%" and opens the next
@@ -10925,6 +10931,23 @@ public final class RichLayout {
         // cell grew a line.)
         if a == "%" || a == "‰" { return _openingMarks.contains(b) }
         return false
+    }
+
+    /// Whether the character at `k` is set East Asian as a shared mark is
+    /// ("×"): its run hinted so, or its Latin face an East Asian one.
+    private func _setEastAsian(_ p: RichParagraph, _ document: RichDocument, at k: Int) -> Bool {
+        var at = 0
+        for run in p.runs {
+            if k < at + run.length {
+                let named = _named(p, document)
+                let hint = run.style.fontHint ?? named?.char.fontHint
+                if hint == "eastAsia" { return true }
+                let face = theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)
+                return hint != "default" && (face?.isEastAsian ?? false)
+            }
+            at += run.length
+        }
+        return true
     }
 
     /// Whether "%" may start a line by the document's own list of what may
