@@ -3524,8 +3524,21 @@ fitter dropped the paragraph's tail).
   left of its cells, so everything after it stood 34pt high. Page 5's
   last line is now at 435.0 (Word 437.0; it was 400.8). zh-9ef811c8
   39.3 -> 50.2 (pair ghost-base4/ghost-new4); the other 15 are unchanged.
-  It still prints 11 pages to Word's 10: page 6 ends at 422.8 with 86
-  lines, where Word's ends at 473.3 with 94.
+  Then, lab `gs` (Word for Windows; the document with its table shifted
+  1-9 lines down, as in `mg`): where the merged text stretches the last
+  of those rows, the rows' own stated heights are one more place to
+  part. The "审批" row and the three under it (15.6, 15.6, 53.1, 48.95;
+  133.25 in all) fit at those heights above page 6's foot (about 507),
+  but its ten-line policy cell (about 160) does not. Word sets the rows
+  at their stated heights with eight lines on the page and sends the
+  two that stretch them over. It parts neither at the last row's top
+  (84.3, ours) nor at the foot. The "办事指南" group (15.6×3 + 84 =
+  130.8) does not fit at its stated heights, and parts at its last row
+  top that fits, in every shift. Ours parted the "审批" group at 84.3,
+  then the document ran to 11 pages. `ghostBounds` gains that bound.
+  zh-9ef811c8 51.6 -> 62.1, 10 pages as Word's, pages 1-6 matched (pair
+  gs-base/gs-new); the other 15 are unchanged. Simply parting a
+  stretched last row at a line instead cost page 5 (51.6 -> 40.7).
 
 - **PMingLiU's en dash is an em (2026-10-22).** zh-05699f05's cells
   are 新細明體 throughout (its Normal names it for every script), and Word

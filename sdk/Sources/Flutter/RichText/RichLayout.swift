@@ -2549,6 +2549,14 @@ public final class RichLayout {
                     ghosts += rows[r + ghostCount].height
                     given += stretched[r + ghostCount]
                 }
+                // (And where they end at their own heights, where the text
+                // merged down stretches the last: lab `gs` on Word for
+                // Windows, zh-9ef811c8's "审批" row and its three (15.6,
+                // 53.1, 48.95; 133.25 in all), its policy cell ten lines,
+                // stands on page 6 at those heights, eight lines of it, the
+                // two that stretch it going over — not parted at the last
+                // row's top, as where the rows themselves do not fit.)
+                if theme.wordRules, ghostCount > 0, given > 0.01 { bounds.append(row.height + ghosts - given) }
                 var stack: [Int: Double] = [:]
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
