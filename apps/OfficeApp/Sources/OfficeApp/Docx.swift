@@ -1615,7 +1615,16 @@ enum DocxFormat {
                 let final = para.style.sectionXML == nil && i == paragraphs.count - 1 && start > 0 && finalColumns != nil
                 guard para.cell == nil, para.style.sectionXML != nil || final else { continue }
                 defer { start = i + 1 }
-                guard para.style.sectionBreaksPage == false || final, let sx = para.style.sectionXML ?? finalColumns,
+                // (… or one that follows another on its page itself, a
+                // page starting after it: zh-b8de3ae2's "資料來源" | " ",
+                // a column break into a second column of 422pt before a
+                // section of its own page, has the space in the second
+                // column at the note's height in Word's print, where ours
+                // took the break for a page — a blank page, every page
+                // after it one late.)
+                let opensOnItsPage = start > 0 && para.style.sectionXML.flatMap { XNode.parse(Data($0.utf8)) }?
+                    .descendant("w:type")?["w:val"] == "continuous"
+                guard para.style.sectionBreaksPage == false || final || opensOnItsPage, let sx = para.style.sectionXML ?? finalColumns,
                       let gaps = _sectionColumns(sx, final ? finalPage : para.style.sectionPage), gaps.count > 1,
                       paragraphs[start ... i].allSatisfy({ $0.cell == nil }) else { continue }
                 var columns: [[RichParagraph]] = [[]]

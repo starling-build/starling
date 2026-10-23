@@ -4081,6 +4081,13 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains(">right<"), saved)
         let alone = try read(columns + last)
         XCTAssertFalse(alone.paragraphs.contains { $0.cell != nil }, "one section: its own columns")
+        // (… and one continuous after another with a section of its own
+        // page after it: zh-b8de3ae2's "資料來源" | " ".)
+        let ends = "<w:p><w:pPr><w:sectPr><w:type w:val=\"continuous\"/>\(page)<w:cols w:num=\"2\" w:space=\"720\"/></w:sectPr></w:pPr></w:p>"
+        let middle = try read("<w:p><w:r><w:t>before</w:t></w:r></w:p><w:p><w:pPr><w:sectPr>\(page)<w:cols w:space=\"720\"/></w:sectPr></w:pPr></w:p>"
+                              + columns + ends + "<w:p><w:r><w:t>after</w:t></w:r></w:p><w:sectPr>\(page)<w:cols w:space=\"720\"/></w:sectPr>")
+        XCTAssertEqual(middle.paragraphs.first { $0.text == "right" }?.cell?.column, 2)
+        XCTAssertNil(middle.paragraphs.first { $0.text == "after" }?.cell)
     }
 
     /// A long one is flattened into its cell, kept verbatim for the save
