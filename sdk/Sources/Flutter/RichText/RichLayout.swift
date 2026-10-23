@@ -3039,7 +3039,17 @@ public final class RichLayout {
             // where bug65649's 0.75 line with 0.6 left, mode 15, did not,
             // nor zh-d68ac84a's p36 row with 0.53 left, mode 14.)
             if parted { return max(0, c.rules - c.ruleBelow) }
-            return max(0, c.ruleNext) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
+            // (Where the row ends the page, the table's own bottom line
+            // closes it there when that is the heavier: zh-77bd4900's
+            // tables, a 0.75pt line between rows and 1.5 round them,
+            // close page 18 under a 1.44pt line in Word's print, and its
+            // "Ex:第一期費用" row, which fits with the half a point but not
+            // with the one and a half, goes to page 19; ours kept it.)
+            var bottom = 0.0
+            if let ts = document.tableStyles[c.table], ts.edges?.bottom ?? (ts.borders && !ts.bordersFromCells) {
+                bottom = _px(Self._ruleRoom(ts.edgeStyles["bottom"] ?? ts.borderStyle, ts.edgeWidths["bottom"] ?? ts.borderWidth ?? 0.5))
+            }
+            return max(0, c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
         }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)

@@ -5987,6 +5987,16 @@ fitter dropped the paragraph's tail).
   line at its foot that Word's print sends on — the closing heavy line
   under a parted row's part, which Word draws under its last line
   (759.12-761.28) and ours lower.
+- **A page's part of a table closes with the table's bottom line
+  (2026-10-22).** A row that ends a page whole wants room under it for
+  the line drawn there — the next row's top, as before, or the table's
+  own bottom line where that is heavier. zh-77bd4900's tables rule 0.75pt
+  between rows and 1.5 round them; Word's print closes page 18 under a
+  1.44pt line (and opens page 19 under one), and its "Ex:第一期費用" row,
+  ending 768.7 over a 769.9 foot, goes to page 19 for the 1.5; ours,
+  asking 0.75, kept it. (Modes 14 and up, as the line under a row is
+  counted; a parted row's piece keeps its own top line's width, as
+  before.) zh-77bd4900 96.4 -> 97.4; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
