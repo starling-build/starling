@@ -9481,7 +9481,12 @@ public final class RichLayout {
                 // list, mode 14) is 2.1pt over and one line in Word's
                 // print, its "。" set 12.3 of 14.4; ours sent "動。" down,
                 // and the page ran a line long.)
-                let holdsFinal = (listed || centredFinal) && p.style.eastAsian["w:overflowPunct"] != "0"
+                // (In the body: a cell's last mark gives its half under the
+                // list too, as lab `pe` has it without — zh-31d580df's
+                // review table (zh-TW list, no mode) ends a cell line
+                // "…施作項目與數量。" 2.7pt over in Word's print, the "。"
+                // squeezed; ours sent "量。" down.)
+                let holdsFinal = (listed && !inCell || centredFinal) && p.style.eastAsian["w:overflowPunct"] != "0"
                     && (document.compatibilityMode ?? 12) < 15
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
                 // (From 2013's layout on a Latin comma hangs too, whole:
