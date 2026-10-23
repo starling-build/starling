@@ -1836,6 +1836,15 @@ final class DocxTests: XCTestCase {
     private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
                                 mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
                                 hanging: Double = 0) throws -> Double {
+        try firstLine(text, width: width, language: language, hangs: hangs, mode: mode,
+                      letterSpacing: letterSpacing, compresses: compresses, hanging: hanging).width
+    }
+
+    /// The first line's width and the characters it holds, its paragraph
+    /// of 12pt 宋体 laid out alone at `width` points.
+    private func firstLine(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
+                           mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
+                           hanging: Double = 0, justified: Bool = false) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1856,7 +1865,7 @@ final class DocxTests: XCTestCase {
         var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
         // (Set left, as every paragraph is fitted before mode 15, so the
         // line's width is what it holds.)
-        p.style.alignment = .left
+        p.style.alignment = justified ? .justify : .left
         if !hangs { p.style.eastAsian["w:overflowPunct"] = "0" }
         p.style.indentLeft = hanging
         p.style.firstLineIndent = -hanging
@@ -1872,7 +1881,9 @@ final class DocxTests: XCTestCase {
         let l = RichLayout(theme: theme, paragraphCount: 1)
         l.width = width * theme.pixelsPerPoint
         l.ensureLaidOut(doc)
-        return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        let painter = l.geometry(0).painter
+        return ((painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint,
+                painter.getLineBoundary(TextPosition(offset: 0)).end)
     }
 
     /// Whether the fitter can measure here: ICU's data must reach the bridge
@@ -1904,6 +1915,33 @@ final class DocxTests: XCTestCase {
         // a stop back: zh-6a4fc013's Thai answers "ตอบ :<tab><tab>…" ran a
         // page long on the Mac with their space held.
         XCTAssertGreaterThan(try firstLineWidth(text, width: 359, hangs: false), 358, "with no hanging indent, \"）\" gives too")
+    }
+
+    func testAutomaticSpacesGiveAsMarksDoFromMode15() throws {
+        try requireFitterWidths()
+        // Lab `as` (Mac, Word 16, zh-5bfac68f's package: mode 15, justified,
+        // compressing nothing): forty ideographs and an "i" between them,
+        // two automatic spaces of 3.0, take the next 2.0pt over and not 2.5
+        // — as a share of their halves no more than the line would stretch
+        // by. Half of each, 3.0, took zh-5bfac68f's "並" 2.83 over.
+        let text = String(repeating: "甲", count: 20) + "i" + String(repeating: "甲", count: 19) + "乙丙丁"
+        let through = try firstLineWidth(text, width: 1000, mode: 15, compresses: false) - 24   // to "乙"'s end
+        let taken = text.utf16.count - 2, left = taken - 1
+        XCTAssertEqual(try firstLine(text, width: through - 2.0, mode: 15, compresses: false, justified: true).length, taken)
+        XCTAssertEqual(try firstLine(text, width: through - 2.5, mode: 15, compresses: false, justified: true).length, left,
+                       "two spaces giving 1.25 apiece would ask more of them than stretching asks of the line")
+        // (Four — "a" too — take it 2.5 over, and not 3.0.)
+        let four = String(repeating: "甲", count: 10) + "i" + String(repeating: "甲", count: 15) + "a" + String(repeating: "甲", count: 14) + "乙丙丁"
+        let fourThrough = try firstLineWidth(four, width: 1000, mode: 15, compresses: false) - 24
+        XCTAssertEqual(try firstLine(four, width: fourThrough - 2.5, mode: 15, compresses: false, justified: true).length, four.utf16.count - 2)
+        XCTAssertEqual(try firstLine(four, width: fourThrough - 3.0, mode: 15, compresses: false, justified: true).length, four.utf16.count - 3)
+        // (A word space among them gives a quarter and weighs whole:
+        // zh-5bfac68f's cell "…（i-Taiwan Window）服務，提供年輕人返臺"
+        // leaves a "投" 2.91 over that the spaces' room alone took.)
+        let spaced = String(repeating: "甲", count: 20) + "i j" + String(repeating: "甲", count: 18) + "乙丙丁"
+        let spacedThrough = try firstLineWidth(spaced, width: 1000, mode: 15, compresses: false) - 24
+        XCTAssertEqual(try firstLine(spaced, width: spacedThrough - 2.0, mode: 15, compresses: false, justified: true).length, spaced.utf16.count - 2)
+        XCTAssertEqual(try firstLine(spaced, width: spacedThrough - 2.5, mode: 15, compresses: false, justified: true).length, spaced.utf16.count - 3)
     }
 
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {

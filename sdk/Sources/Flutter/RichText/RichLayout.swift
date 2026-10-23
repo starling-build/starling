@@ -9660,7 +9660,28 @@ public final class RichLayout {
                     let stretch = width - (x - (wordSpaces.last?.w ?? 0))
                     let halfStretch = wordSpaces.count < 2
                         || need / Double(wordSpaces.count) <= stretch / Double(wordSpaces.count - 1) / 2 + hair
-                    if need <= roomSpaces + hair, halfStretch {
+                    // (Where automatic spaces give, off a character grid,
+                    // they give as marks do from 2013's layout: what the
+                    // spaces must give, as a share of what they can, is no
+                    // more than the line would stretch by, as a share of a
+                    // sixty-fourth of each gap's em and the spaces whole.
+                    // Lab `as` (Mac, Word 16, zh-5bfac68f's package: mode 15,
+                    // zh-TW, PMingLiU 12, justified, compressing nothing):
+                    // "甲…i…甲乙", two automatic spaces of 3.0, takes "乙"
+                    // 2.0pt over and not 2.5; with "i" and "a", four, 2.5 and
+                    // not 3.0; with none, nothing over. zh-5bfac68f's
+                    // "…型態i僑卡…基礎，並" leaves "並" 2.83 over so, where half
+                    // of each — 3.0 — took it; and its cell's "…（i-Taiwan
+                    // Window）服務，提供年輕人返臺" a "投" 2.91 over, a word
+                    // space among them. An ideograph's test: a Latin word
+                    // is taken where they can give it — zh-4ea36aa8's cell
+                    // "…為了加強臺灣IC" ends so in Word's print.)
+                    let autoRoom = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
+                    let sharesStretch = autos.isEmpty || onCharacterGrid || units[a] < 0x2E80
+                        || need * (lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64 + autoRoom
+                                   + wordSpaces.reduce(0.0) { $0 + $1.w })
+                            <= (autoRoom / 2 + wordSpaces.reduce(0.0) { $0 + $1.w } / 4) * (width - x + hair)
+                    if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
                         for space in wordSpaces { adjust[space.k, default: 0] -= space.w / 4 * share }
