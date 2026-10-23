@@ -408,6 +408,50 @@ enum OfficeFonts {
     nonisolated(unsafe) private static var embeddedLines: [String: (ascent: Double, descent: Double)] = [:]
     /// The characters each loaded embedded face holds (its `cmap`).
     nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:]
+    /// Each loaded embedded face's own family, from its `name` table.
+    nonisolated(unsafe) private static var embeddedNames: [String: String] = [:]
+    /// The loaded embedded faces that carry bitmaps (`EBDT`).
+    nonisolated(unsafe) private static var embeddedBitmaps: Set<String> = []
+
+    /// Whether an sfnt has table `tag`.
+    static func hasTable(_ data: Data, _ tag: String) -> Bool {
+        let b = [UInt8](data)
+        guard b.count > 12 else { return false }
+        let count = Int(b[4]) << 8 | Int(b[5])
+        return (0 ..< count).contains { t in
+            let at = 12 + 16 * t
+            return at + 4 <= b.count && String(decoding: b[at ..< at + 4], as: UTF8.self) == tag
+        }
+    }
+
+    /// An sfnt's family name (`name` ID 1, Windows Unicode or Mac Roman).
+    static func familyName(_ data: Data) -> String? {
+        let b = [UInt8](data)
+        func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+        guard b.count > 12 else { return nil }
+        var name = -1
+        for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+            let at = 12 + 16 * t
+            if String(decoding: b[at ..< at + 4], as: UTF8.self) == "name" { name = u32(at + 8) }
+        }
+        guard name >= 0 else { return nil }
+        let count = u16(name + 2), strings = name + u16(name + 4)
+        var mac: String? = nil
+        for r in 0 ..< count {
+            let at = name + 6 + 12 * r
+            guard u16(at + 6) == 1 else { continue }
+            let platform = u16(at), length = u16(at + 8), offset = strings + u16(at + 10)
+            guard offset + length <= b.count else { continue }
+            if platform == 3 {
+                var units: [UInt16] = []
+                for k in stride(from: 0, to: length - 1, by: 2) { units.append(UInt16(u16(offset + k))) }
+                return String(decoding: units, as: UTF16.self)
+            }
+            if platform == 1, mac == nil { mac = String(decoding: b[offset ..< offset + length], as: UTF8.self) }
+        }
+        return mac
+    }
 
     /// The characters an sfnt's `cmap` maps (formats 4 and 12, Unicode
     /// subtables); nil where it has none this reads.
@@ -521,6 +565,8 @@ enum OfficeFonts {
         loadedEmbedded.insert(family)
         if let covered { embeddedCoverage[family] = covered }
         if let line = lineMetrics(data) { embeddedLines[family] = line }
+        if let own = familyName(data) { embeddedNames[family] = own }
+        if hasTable(data, "EBDT") { embeddedBitmaps.insert(family) }
         declaredLock.unlock()
         return family
     }
@@ -1043,7 +1089,40 @@ enum OfficeFonts {
         0.332, 0.2783, 0.332, 0.6943
     ]
 
+    /// (An embedded SimSun under another face's name — WPS saves the
+    /// SimSun it set the text in under the name the run asks for — is
+    /// drawn by Word for Mac with every character an em, its ASCII too,
+    /// and its bold no wider: lab `emb` (Word 16, zh-a031fa16's package,
+    /// a SimSun subset embedded as 仿宋_GB2312) sets "2024" 18.0 apiece in
+    /// the bold 18pt title and 14.0 in the 14pt body, the ideographs 18.00
+    /// bold; renamed SimSun, the same file sets them half an em and bold
+    /// 18.4, as ours did, and a line of ours took four characters more.
+    /// Only a SimSun with its bitmaps (`EBDT`), Windows' own file:
+    /// zh-c2f6d17a's 楷体_GB2312 is one, drawn so too ("Helvetica" in
+    /// Word's PDF); zh-2bca0bdf's 楷体_GB2312 and zh-e8d4c046's
+    /// 仿宋_GB2312, SimSun without them, are drawn as SimSun, half an em
+    /// to a digit — the rule cost zh-2bca0bdf 97.6 -> 60.1.)
     private static func eastAsianFace(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
+        var face = eastAsianFaceAsNamed(family, ignoringEmbedding: ignoringEmbedding)
+        let n = family.trimmingWhitespace().lowercased()
+        if !ignoringEmbedding, n != "simsun", n != "宋体", let registered = embeddedFamily(family) {
+            declaredLock.lock()
+            let own = embeddedNames[registered]?.trimmingWhitespace().lowercased()
+            let bitmaps = embeddedBitmaps.contains(registered)
+            declaredLock.unlock()
+            if own == "simsun", bitmaps {
+                let em = [Double](repeating: 1, count: 0x7F - 0x20)
+                face.latinAdvances = em
+                face.latinBoldAdvances = em
+                face.latinKerns = nil
+                face.latinBoldKerns = nil
+                face.boldWiden = 0
+            }
+        }
+        return face
+    }
+
+    private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
         if has("yahei ui") {

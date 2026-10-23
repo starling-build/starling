@@ -7222,6 +7222,25 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   98.0 (its p71 box from y228 to Word's 72); shapes that moved, 60316,
   zh-06c46ba9 and zh-01071d55, now stand where Word's do.
 
+- **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
+  zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
+  SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and
+  Word for Mac draws it — "Helvetica" in its PDF, no text map — with
+  every glyph an em, ASCII too, and bold no wider: "2024" 18.0 apiece in
+  the 18pt bold title and 14.0 in the 14pt body. Ours drew the embedded
+  face at its own advances (digits half an em, bold 1/48 wider), and its
+  lines held four characters more. Lab `emb` (Word 16, this package): the
+  embed dropped, Word falls back to YaHei; the runs and the font table
+  renamed SimSun, the same file is drawn as SimSun, digits half an em,
+  bold 18.4 — line for line as ours. Only with bitmaps: zh-2bca0bdf's
+  楷体_GB2312 and zh-e8d4c046's 仿宋_GB2312, SimSun without `EBDT`, print as
+  SimSun (the first try, every misnamed SimSun, cost zh-2bca0bdf 97.6 ->
+  60.1); zh-c2f6d17a's bitmap SimSun as 楷体_GB2312 is "Helvetica" in its
+  print too. `loadEmbedded` now notes each face's own family and its
+  `EBDT`, and `eastAsianFace` gives such a face 1-em ASCII advances and no
+  bold widening. Paired sweep n393 vs n392: zh-a031fa16 55.9 -> 89.0,
+  nothing else moved.
+
 - **An autofit column a hair too narrow is widened; a wide "29-30" parts after its hyphen (2026-10-22).**
   zh-fea6e23a (sample 25, 54.7): its schedule's time columns are 46.8pt,
   36.0 of text, and "11:30-" needs 36.23. Word widens both to 47.0 and
