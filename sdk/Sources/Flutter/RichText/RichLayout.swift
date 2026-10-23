@@ -2703,7 +2703,7 @@ public final class RichLayout {
         // A table placed against the page further down than the text has
         // come: where the text stood, to go on from there round it.
         var tableReturn: (table: String, y: Double, page: Int, top: Double)? = nil
-        var tableBands: [(top: Double, bottom: Double)] = []
+        var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
         var besideTable: (bottom: Double, page: Int)? = nil
         var reordered = false
         var i = 0
@@ -3800,7 +3800,7 @@ public final class RichLayout {
             if let back = tableReturn, _cells[i]?.table != back.table {
                 tableReturn = nil
                 if back.page == page, y > back.top {
-                    tableBands.append((top: back.top, bottom: y))
+                    tableBands.append((top: back.top, bottom: y, owner: -1))
                     y = back.y
                 }
             }
@@ -4596,10 +4596,13 @@ public final class RichLayout {
                     guard let f = image.float, f.bandsPage else { continue }
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                    let onPage = _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
+                    let mine = f.verticalFrom == "paragraph"
+                    let onPage = mine ? y + _px(f.y) : _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
                     let top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.distanceBottom)
-                    guard bottom > 0.01, top < contentH - 0.01 else { continue }
-                    tableBands.append((top: top, bottom: bottom))
+                    guard bottom > 0.01, top < contentH - 0.01, !(mine && image.height <= 0) else { continue }
+                    // (Its own paragraph keeps its place: the band is under
+                    // what follows it, as the title over zh-6d402586's box.)
+                    tableBands.append((top: top, bottom: bottom, owner: mine ? i : -1))
                     var moved: [PagePiece] = []
                     while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
                           last.pageY + (last.flowBottom - last.flowTop) > top + 0.01 {
@@ -4775,7 +4778,7 @@ public final class RichLayout {
                 // under it — and so to page 3 — in Word's print.)
                 if !tableBands.isEmpty {
                     let line = Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]
-                    while let band = tableBands.first(where: { $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
+                    while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
                         y = band.bottom; guardSteps += 1
                     }
                 }
@@ -12064,7 +12067,7 @@ public final class RichLayout {
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
-                            self._paintTextBox(inside, text, rect, canvas)
+                            self._paintTextBox(inside, text, rect, canvas, clips: float.bandsPage)
                         }
                         continue
                     }
@@ -12216,8 +12219,17 @@ public final class RichLayout {
     /// quarter about the corner it reads from (`RichTextBox.textDirection`)
     /// — reading up from the bottom-left inset corner, its lines stacking
     /// rightwards; reading down from the top-right, stacking leftwards.
-    private func _paintTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas) {
+    private func _paintTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas, clips: Bool = false) {
         canvas.save()
+        // (Text past a box that keeps its size and bands its page is not
+        // shown: zh-6d402586's box of revision dates, 158pt tall, holds ten
+        // of its fifteen dates in Word's print, the rest hidden under its
+        // foot; ours ran them down over "一、前言". Not a box wrapped none:
+        // zh-01071d55's header box shows its second line under its foot.)
+        if clips, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
+            canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom - _px(text.insetBottom)),
+                            clipOp: .intersect, doAntiAlias: false)
+        }
         switch text.textDirection {
         case .horizontal:
             canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))

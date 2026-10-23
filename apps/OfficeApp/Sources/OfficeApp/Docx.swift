@@ -2433,7 +2433,12 @@ enum DocxFormat {
     /// print; taken as a block in its anchor's line, ours stood the box
     /// in the flow and the page ran 50pt long.
     static func _bandPage(_ f: inout ImageFloat) {
-        guard f.takesRoom, f.verticalAlign == nil, f.verticalFrom == "page" || f.verticalFrom == "margin" else { return }
+        // (So does one placed down from its paragraph: zh-6d402586's box of
+        // revision dates, 38pt under the second title line it is anchored
+        // in, stands at the right margin in Word's print, the title in its
+        // place and "一、前言" under the box; set in the line, ours stood
+        // the box at the paragraph's start and the title after it.)
+        guard f.takesRoom, f.verticalAlign == nil, ["page", "margin", "paragraph"].contains(f.verticalFrom) else { return }
         f.takesRoom = false
         f.bandsPage = true
     }
