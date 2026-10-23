@@ -2433,6 +2433,35 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text.contains("權力分配。"), text)
     }
 
+    func testANotesNumberHasNoAutomaticSpaceBesideIt() throws {
+        try requireFitterWidths()
+        // zh-499adba6's notes' numbers — "（SDGs）⁷作為", "權能⁸，" — stand with
+        // no automatic space either side in Word's print, where a digit
+        // between ideographs has one each side.
+        func width(note: Bool) throws -> Double {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontSize = 12
+            var number = style
+            number.script = .superscript
+            if note { number.note = NoteReference(kind: .footnote, id: 1) }
+            let p = RichParagraph(text: "甲7乙", runs: [Run(length: 1, style: style), Run(length: 1, style: number), Run(length: 1, style: style)])
+            var doc = RichDocument(paragraphs: [p])
+            doc.usesEastAsianLayout = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 300 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        }
+        XCTAssertLessThan(try width(note: true), try width(note: false) - 4, "a raised digit that is no note's number keeps its two")
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its

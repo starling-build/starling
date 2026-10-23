@@ -7207,6 +7207,9 @@ public final class RichLayout {
             if let best { return (best, false) }
             return (size(p.style.mark), true)
         }()
+        // (Which characters are a note's number: no automatic space stands
+        // beside one, see below.)
+        let raised: [Bool] = p.runs.flatMap { repeatElement($0.style.note != nil, count: $0.length) }
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
             let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
@@ -7816,7 +7819,14 @@ public final class RichLayout {
                     }
                 }
                 if let following {
-                    if theme.wordRules, document.usesEastAsianLayout, Self._autoSpaced(ch, following, p.style) {
+                    // (Not beside a note's number: zh-499adba6's — "（SDGs）⁷作
+                    // 為", "權能⁸，" (mode 14, 12pt) — have none either side in
+                    // Word's print, and its line "…增強所有婦女和女" takes the
+                    // last "女" there, 3pt nearer than ours. Other raised or
+                    // lowered text keeps them: zh-27083953's "PM₂.₅为", "O₃为".)
+                    let nextAt = offset + ch.utf16.count
+                    let besideRaised = theme.wordRules && ((offset < raised.count && raised[offset]) || (nextAt < raised.count && raised[nextAt]))
+                    if theme.wordRules, document.usesEastAsianLayout, !besideRaised, Self._autoSpaced(ch, following, p.style) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                         // (Of the grid's character, where there is a grid
                         // of them, and of the run's spacing with it; a
