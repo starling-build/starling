@@ -4089,3 +4089,10 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   (tried in the piece clip of `paint`, by baseline) did not reach these
   cell pieces and cut the row's closing line; reverted. pp13-17 then run
   a line or two apart (p14 holds one line more than Word's).
+- zh-147bdae0 (92.7; Linux 017F2GnT 2026-10-23, looked, released): p17's
+  last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) parts at the
+  foot in Word's print, two of its four names there; ours takes it whole
+  to p18 (49.3 with its line against 49.17 left). The room is the cause:
+  the table's one-line rows are 21.58pt in ours, 21.1 in Word's — the
+  line itself (21.08 against ~20.6; the rule is 0.5 in both), ~0.5pt a
+  row, ~5pt by p17's foot. Font metrics, not row parting.
