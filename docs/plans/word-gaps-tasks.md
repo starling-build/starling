@@ -540,6 +540,7 @@ something else.
 ### Looked at (Mac 01Xgpbk5, 2026-10-19): zh-d8247da5 91.9 — released: 3 of 37 lines, all in its landscape form's dense cells ("房屋坐落門牌編號…", "減半使用執照用途別"), where the reader groups neighbouring cells' text differently; not layout
 
 ### Looked at (Mac 01Xgpbk5, 2026-10-22): zh-340d52e9 75.6 → 76.2, released
+Windows 01QbbApP 2026-10-23: DONE 76.0 -> 97.7 (PyMuPDF). Page 6's lower half was "▓" (U+2593, Block Elements) in a run hinted East Asian, its Latin face 新細明體 and its East Asian one Normal's 標楷體. Word sets it in YaHei Bold and the line grows; ours set it in the Latin face, because the hinted ranges skipped U+2580-259F. 3, 2, 1 and 1 misses are left on pp5-8; released.
 a58ab590: a cell's text past its exact row (page 5's 48.8pt "其他里內公共區域認養之必要支出" row, the page's last) now runs on down the page as in Word's print. Left: pages 6-9's repeated header row reads "地點明備註" in Word's print and "地點明" in ours (the reader grouping two cells by a hair), and page 6's lower half ("潔維護" against our "▓3.其他經區公所核可之"), not looked at.
 zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match Word's to 0.8pt, but PDFKit reads ours with text repeated ("查\n調" four times where "調查" stands once per row, "%%%%"); every glyph is drawn once (get_texttrace). Ours are Skia's Type3 fonts, FontMatrix [.001 0 0 -.001] and FontBBox like [35 105 965 -828], y running down, and PDFKit mis-groups them across rows; Word's embedded PMingLiU reads clean. The same repeats show in ~10 more of our PDFs (zh-e49d7943, zh-05315c2a, zh-57d7a0ea, zh-86aae09f…) and would in Preview's copy and paste too. A fix would be in the engine's Skia PDF backend (starling-engine), not here.
 
@@ -547,7 +548,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 Each owner claims its item below as usual; this only says who was asked.
 - lenovo-3: zh-72da925e p5 — the fit takes "79", the final layout breaks before it.
 - macOS-doc: zh-7a16a243 (64.7) [CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23].
-- windows: text in shapes not drawn — zh-6d402586's page-anchored "附件1/2" boxes, zh-ae2dd08d p21's flowchart text, p20's box outlines.
+- windows: text in shapes not drawn — zh-6d402586's page-anchored "附件1/2" boxes, zh-ae2dd08d p21's flowchart text, p20's box outlines. [CLAIMED Windows 01QbbApP 2026-10-23, all three. zh-6d402586's boxes are anchored in paragraphs 74 and 75, each a section of one paragraph that is itself the section break (74 holds the 附件1 box, page-relative; 75 the 附件2 box and annex 2's 433x738pt flowchart, wrapNone, 26pt above the paragraph). Ours draws neither box, and puts the flowchart at y -750 on p16, above the page. Paragraph 73's blank p15 is Mac 0fcba326's item (1), not touched here.]
 - lenovo-2 (after its current item): zh-e68a2f57 p7 — notes under an inline chart 1.8pt high.
 - lenovo (after its current item): zh-57f1de0d (80.0).
 - Mac 0fcba326: zh-6d402586 (1), the empty 34pt-exact section ender taking a page; then zh-1cfb652b (87.5).
