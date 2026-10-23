@@ -285,8 +285,15 @@ the same base; the commits give the numbers):
   are drawn. A sheet's chart title (and plot under it) stands 2.5 pt
   lower than PowerPoint's; a pie whose labels stand round it gives them a
   line a side.
-  Open: a drawing's frame on a sheet stands 0.8 to 1.4 pt right of
-  Excel's and up to 2.4 pt wider (chart-funnel1, chart-treemap).
+  A drawing's anchor offset on paper is not its share of the cell (as
+  from 2026-10-12) but its points scaled as Excel scales its 192 dpi
+  screen: across by the printer's digit over the screen's (Calibri 11
+  47 dots / 15 px = 1.003, Calibri 10 42 / 14 = 0.96), down by the row
+  scale. chart-treemap's and -testCombinedChartAxis's frames now within
+  0.3 pt of Excel's (were 0.8 to 2.9 right), 53568's pictures 0.30 ->
+  0.04; 277 drawing workbooks mean 1.292 -> 1.206 (161 better, 32
+  worse). A one-cell anchor's size is not scaled: scaled, tdf119138's
+  and tdf100084's charts printed larger than Excel's.
   Open, fitting: a wrapped word too long for its column breaks inside
   in Excel's screen layout otherwise than in ours, which measures the
   printed face against the screen's width: LIBRE_OFFICE-116306-0's

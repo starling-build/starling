@@ -578,20 +578,38 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// Where a drawing's anchor puts it on screen.
     func drawingRect(_ anchor: SheetAnchor) -> Rect {
-        // An offset is a share of its cell — never past it (Excel holds a
-        // corner inside the cell it names), and on paper, where the cell has
-        // the printer's size, the same share of that.
+        // An offset is its points into its cell — never past it (Excel holds
+        // a corner inside the cell it names). On paper it is scaled as the
+        // screen is: across, by the printer's digit over the 192 dpi
+        // screen's (a column's own scale, its padding aside), and down by
+        // the row scale — not by its cell's share, a column's padding
+        // being the same few pixels at any width. Calibri 11's 47 dots
+        // over 15 px is 1.003: chart-treemap's frame 12.75 pt into a 51.13
+        // pt column F and 36.75 into M, 318.9 to 700.74 in Excel's print,
+        // where a share put ours at 319.66 to 703.18. Calibri 10's 42 over
+        // 14 is 0.96: 53568's 3 to 31.8 pt into B, 27.65 pt wide.
         let ws = controller.sheet, ca = cols, ra = rows
+        var across = 1.0, down = 1.0
+        if printing {
+            let book = controller.book
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            across = m.digit / (m.screenDigit * 72 / 192)
+            down = m.rowScale
+        }
         func at(_ m: SheetMarker) -> Offset {
             let w = ws.colWidth(m.col), h = ws.rowHeight(m.row)
-            return Offset(colX(m.col) + (w > 0 ? min(1, m.colOff / w) : 0) * ca.size(m.col),
-                          rowY(m.row) + (h > 0 ? min(1, m.rowOff / h) : 0) * ra.size(m.row))
+            return Offset(colX(m.col) + (w > 0 ? min(m.colOff * across * scale, ca.size(m.col)) : 0),
+                          rowY(m.row) + (h > 0 ? min(m.rowOff * down * scale, ra.size(m.row)) : 0))
         }
         switch anchor {
         case .twoCell(let from, let to):
             let a = at(from), b = at(to)
             return Rect.fromLTRB(a.dx, a.dy, max(a.dx, b.dx), max(a.dy, b.dy))
         case .oneCell(let from, let w, let h):
+            // (Its size as it says, not scaled as an offset is: scaled,
+            // chart-tdf119138's and -tdf100084's charts printed larger
+            // than Excel's, lo-tdf139763ShapeAnchor's shapes no longer
+            // exact.)
             let a = at(from)
             return Rect.fromLTWH(a.dx, a.dy, w * scale, h * scale)
         case .absolute(let x, let y, let w, let h):
