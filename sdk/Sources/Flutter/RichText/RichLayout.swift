@@ -12913,10 +12913,22 @@ public final class RichLayout {
         // though the page's footer is the section it began in: zh-b5359de4's
         // body, continuous from start 1 under its contents on page 4, is
         // "2" on page 5 in Word's print, page 4 keeping the contents' "2".)
+        // (And a continuous one begins where the mark of the section before
+        // it stands, though a page break in that mark's paragraph sets its
+        // first line on the next page: zh-e2dc9dce's contents end on page 2
+        // with the mark and a break, and its body, continuous from 1, is "2"
+        // on page 3 in Word's print.)
         func begins(_ index: Int) -> Int? {
             guard theme.wordRules, let k = _sectionOf.firstIndex(of: index), k < _pieceStart.count,
                   _pieceStart[k] < _allPieces.count else { return nil }
-            return _allPieces[_pieceStart[k]].page / _columns
+            let own = _allPieces[_pieceStart[k]].page / _columns
+            // (The mark's paragraph, its line taken by the break, may stand
+            // nowhere: the page is that of whatever was set last before.)
+            if k > 0, document.paragraphs[k - 1].style.sectionXML != nil, document.paragraphs[k - 1].style.sectionBreaksPage == false,
+               _pieceStart[k] > 0, case let mark = _allPieces[_pieceStart[k] - 1], mark.paragraph < k, mark.page / _columns < own {
+                return mark.page / _columns
+            }
+            return own
         }
         var number = 0
         var previous = -1
