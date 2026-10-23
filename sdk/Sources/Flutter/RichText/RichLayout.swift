@@ -7368,6 +7368,15 @@ public final class RichLayout {
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
             .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        // (Before a "×" or "÷" after an ideograph or a full-width mark Word
+        // may part a line, as between ideographs; the engine takes "％×1.2"
+        // for one word. zh-7a16a243's "…可達560％×1.2=672％)" ends a line at
+        // "560％" in Word's print; ours parted it before the "％", and the
+        // lines after ran a character late.)
+        if theme.wordRules, document.usesEastAsianLayout {
+            let units = Array(p.text.utf16)
+            for k in units.indices.dropFirst() where (units[k] == 0xD7 || units[k] == 0xF7) && units[k - 1] >= 0x2E80 { loose.insert(k) }
+        }
         // (A run of underlined spaces held under `w:ulTrailSpace`, with the
         // character before it, is a word to Word: one wider than the line
         // opens a line of its own and is parted at the margin, as a long
