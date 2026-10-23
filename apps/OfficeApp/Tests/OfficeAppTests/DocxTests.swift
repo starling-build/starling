@@ -1581,6 +1581,42 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.endnoteSeparator.count, 1)
     }
 
+    func testALineWhoseNoteHasNoRoomGoesOverWithIt() throws {
+        // zh-c15af02e's footnote 1, one line, is marked in the line that
+        // would end page 5; with no room for a line of the note under it,
+        // Word's print takes that line to page 6 with the note. Ours kept
+        // the line and sent the note over alone.
+        // Here: 698pt of page, a 673pt filler, then a 20pt line marking a
+        // note — the line fits the 25pt left, the separator and note do not.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let footnotes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> note</w:t></w:r></w:p></w:footnote></w:footnotes>
+        """
+        entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func exact(_ twips: Int) -> String { "<w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr>" }
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: "<w:p>\(exact(13460))<w:r><w:t>filler</w:t></w:r></w:p>"
+            + "<w:p>\(exact(400))<w:r><w:t>marked</w:t></w:r><w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r></w:p>"
+            + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        XCTAssertEqual(doc.footnotes.keys.sorted(), [1])
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let marked = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("marked") })
+        XCTAssertEqual(l.pageCount, 2)
+        XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
+    }
+
     func testEmptyPictIsNothing() throws {
         // bug59058: a paragraph of nothing but `<w:pict/>` before a table —
         // no mark on Word's print and no room, where a 300 by 200 stand-in

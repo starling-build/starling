@@ -3792,6 +3792,17 @@ public final class RichLayout {
                                 if pageCut == nil, let keep = _noteCuts(id, width: width, document).last(where: { $0 <= left + 0.01 }) {
                                     pageCut = (id, keep)
                                     here.append(id)
+                                } else if mark.top > _tops[i] + 0.5 || y > 0.01 {
+                                    // (With no line of it there, the mark's line
+                                    // goes over with it: the page ends over that
+                                    // line. zh-c15af02e's footnote 1, one line,
+                                    // marked in the line that would end page 5,
+                                    // opens page 6's foot in Word's print with
+                                    // that line at page 6's head; ours kept the
+                                    // line on page 5 and the note went over
+                                    // alone, and every page after ran a line
+                                    // ahead.)
+                                    contentH = max(1, min(contentH, y + (mark.top - _tops[i])))
                                 }
                                 for later in placing where !here.contains(later) && !pageNotes.contains(later) && !pendingNotes.contains(later) { pendingNotes.append(later) }
                                 break

@@ -6058,6 +6058,15 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A line whose note has no room under it goes over with it
+  (2026-10-23).** A footnote that did not fit under its mark's line, and
+  had no line of it to leave there, was put off to the next page alone
+  and the line stayed. Word takes the line over with its note:
+  zh-c15af02e's footnote 1, one line, is marked in the line that would
+  end page 5, and Word's print opens page 6 with that line and the note
+  at its foot (office1 found it). The page now ends over the marking
+  line, and the note goes over as before. zh-c15af02e 15.3 -> 52.0,
+  zh-344a8d08 27.8 -> 65.9; nothing lower (sweep h123).
 - **A parted row's part is closed with the table's bottom line
   (2026-10-23).** The line drawn under a row's part at a page's foot
   took the table's inside width. Word closes it with the bottom line
