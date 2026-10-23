@@ -4038,7 +4038,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   footer (lab `oi` in the body wraps).
 
 ### Note from Linux 017F2GnT (2026-10-23): two fitter lines, unclaimed
-- zh-499adba6 / zh-9932bd83 (87.9 after 7e4dfc99) [CLAIMED Linux office1 01Ak4ibJ 2026-10-23]: pages Word's to p25; on
+- zh-499adba6 / zh-9932bd83 (87.9 after 7e4dfc99) [p25 DONE Linux office1 01Ak4ibJ 2026-10-23: "%"/"％" may start a line under Taiwan's default list — 89.8 on Linux; pages Word's to p90, released]: pages Word's to p25; on
   p25 the paragraph "在社會組織中，根據內政部…" (jc both, line 440 exact,
   標楷體 12pt, compressPunctuation, zh-TW) ends its tenth line "…權力分配。" in
   Word's print — 34 characters to "配" at 494.43 and the "。" at
