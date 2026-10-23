@@ -4120,7 +4120,12 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   text layer reads them as a line ("計畫勾稽", "位 潛勢 地點…") — the same
   lines open p14. A clip of the part's text above the next line's ink
   (tried in the piece clip of `paint`, by baseline) did not reach these
-  cell pieces and cut the row's closing line; reverted. pp13-17 then run
+  cell pieces and cut the row's closing line; reverted. Tried again
+  2026-10-23 with the next line's ink an em over its baseline and the
+  styles' size (the runs state none): zh-073c9234 lost its 10 phantom
+  foot lines (699 -> 689 of Word's 689) but zh-e1b09977's strip stayed —
+  it is not drawn through that clip; not found, reverted. Seen too in
+  zh-073c9234 p15 ("書" cut at the foot). pp13-17 then run
   a line or two apart (p14 holds one line more than Word's).
 - zh-147bdae0 (92.7; Linux 017F2GnT 2026-10-23, looked, released): p17's
   last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) parts at the
