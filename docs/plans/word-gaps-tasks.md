@@ -133,7 +133,14 @@ Word prints happen only on the Mac: ask before printing, one at a time.
 - i. An autofit table cell holding only a picture grows its column to the
   picture plus the cell margins in Word (lab dr/clip1 case C: 339pt);
   ours keeps the column and cuts the picture, because _minContent and
-  _autofit count only text. Owner: Windows 01QbbApP, 2026-10-22.
+  _autofit count only text. Owner: Windows 01QbbApP, 2026-10-22 — DONE:
+  a picture alone in its paragraph and a nested table count toward their
+  column's narrowest; past the column's room Word shares it in proportion
+  (labs dr2/g, h, k). Lab C 339.8 (Word 339.77); drawing p9 within 0.3pt;
+  of the 12 nested-table docs, zh-291fcea7 went 31.4 -> 32.4 and the rest
+  are unchanged. NestedTableLayoutTests (PDFKit) want a Mac run. Note:
+  drawing.docx --convert segfaults about 4 runs in 5 on Windows, after
+  the PDF is written; the base binary does the same and Linux is clean.
 - Test note: the font-bundle test failures were fixed by macos-ios;
   457 Office tests pass on starling-bd's checkout.
 - 60329 12.6% is Word's clipped print of landscape content, not ours.
