@@ -315,6 +315,12 @@ the same base; the commits give the numbers):
   printed face against the screen's width: LIBRE_OFFICE-116306-0's
   "NONKQUB|ELA/NTLO…" fits five lines in Excel, seven in ours; 52716's
   e-mail addresses likewise.
+  Open: bug66675's "Nomination Point Name" header rows (ht 18, not
+  custom; bold Arial 9, wrapped, bottom-aligned; merged A:D and E:G)
+  print 15.24 pt in Excel's print, 127 dots, its centred "Gas" rows and
+  its data rows 14.52 — every such page 0.72 pt a table further off.
+  Not tried in a lab: the box's display is at 100% now, where a fitted
+  Calibri 11 row prints 15.24 (the references were made at 200%).
   Open: chart-fdo78080's chart (LibreOffice's: no c:title, no
   autoTitleDeleted, no varyColors) has no title in Excel's print and a
   legend of its points; ours titles it "col1" as PowerPoint would. One
