@@ -7351,9 +7351,19 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   second as a two-line block that fits: 52.5 kept, where the cut (and
   `splitRow`'s part, and Word's print) is 65.7. Now the block starts at
   the column's first paragraph. Paired sweep n397 vs n396: zh-17ac8aa2 75.0
-  -> 96.9, zh-540dc149 97.0 -> 97.8, nothing down (zh, POI). Left there:
-  p2's "□若本机关…" (黑体 □ + 楷体_GB2312, one 39.2pt line in a top-set
-  cell) has its baseline 13.3 down in ours and 20.4 in Word's print.
+  -> 96.9, zh-540dc149 97.0 -> 97.8, nothing down (zh, POI).
+
+- **A line's baseline is its tallest East Asian run's (2026-10-23).**
+  zh-17ac8aa2's last miss: p2's "□若本机关…", a 黑体 "□" before 楷体_GB2312
+  text on a 15.6pt line grid. The □'s face is one pitch tall, the 楷体's
+  (Arial Unicode MS on the Mac) two, and the line two; Word centres the text
+  in the two-pitch line (baseline 20.4 down), and ours stood it at the □'s
+  one-pitch baseline (13.3). A line led by East Asian text took its baseline
+  from the first East Asian run; it now takes the deepest of the first
+  line's East Asian runs, as a Latin-led line already did of its runs.
+  Paired sweep n399 vs n398: zh-17ac8aa2 96.9 -> 100, zh-21421b7d 97.4 ->
+  100, zh-e02b0479 97.1 -> 100, zh-cd8987db 89.9 -> 90.3, zh-0a56c942 95.7
+  -> 96.1, nothing down (zh, POI).
 
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is

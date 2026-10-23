@@ -6438,6 +6438,22 @@ public final class RichLayout {
                             break scan
                         }
                     }
+                    // (… and the tallest East Asian run on it, not the
+                    // first: zh-17ac8aa2's "□" in 黑体 before "若本机关…" in
+                    // 楷体_GB2312 stood the line's text at the □'s one-pitch
+                    // baseline, 7pt high of Word's print, in the two-pitch
+                    // line the 楷体 makes.)
+                    start = 0
+                    for run in p.runs where run.length > 0 {
+                        defer { start += run.length }
+                        guard start < firstEnd else { break }
+                        if run.style.inlineImage != nil || run.style.script != .normal { continue }
+                        let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
+                        let end = min(start + run.length, firstEnd, units.count)
+                        guard start < end, String(decoding: units[start ..< end], as: UTF16.self)
+                            .contains(where: { !Self._setsNoLine($0) && Self.isEastAsian($0, hinted: hinted) }) else { continue }
+                        if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: true, gridPitch: pitch) { target = max(target, b) }
+                    }
                 }
                 _inkShift[i] = _px(target) - line.baseline
             }
