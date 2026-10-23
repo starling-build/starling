@@ -516,7 +516,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 ### Note from the Mac (2026-10-22): the zh corpus is 526 documents — a twenty-fourth sample
 Twenty more (`random.seed(20261107)` among the 119 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 91.2% (median 98.3), every page count
-Word's. Its low ones, unclaimed: zh-5bfac68f 47.6 [CLAIMED Mac 01Xgpbk5], zh-61aaad09 50.0 [CLAIMED Mac 01Xgpbk5], zh-b0401810 81.3
+Word's. Its low ones, unclaimed: zh-5bfac68f 47.6 (Mac 01Xgpbk5 measured, sent to lenovo-3 — the fitter: p2's "…推動虛擬型態i僑卡作為數位僑務服務基礎，並" (mode 15, zh-TW, no grid, PMingLiU 12pt, jc both) is 501.1pt natural in 498.3 of room; Word sends "並" on and stretches, ours takes it by squeezing the two automatic spaces round "i" from 3.0 to 1.6 apiece, every mark whole. Lab 5b: unjustified, ours = Word to 0.02. The rest cascades, plus reader grouping of its "類別實施內容" heads), zh-61aaad09 50.0 [CLAIMED Mac 01Xgpbk5], zh-b0401810 81.3
 (1115 lines against Word's 1286), zh-4e5fe46f 86.0 [CLAIMED Linux 01JsizVV], zh-7dd5643e 88.2 [CLAIMED Linux 01JsizVV].
 
 ### Note from the Mac (2026-10-22): the zh corpus is 506 documents — a twenty-third sample
