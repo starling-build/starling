@@ -3117,7 +3117,7 @@ public final class RichLayout {
                 return Array(rows.sorted().dropLast()) + [_tops[k] + _heights[k]]
             }
             var lines = Self._lineBottoms(g.painter).map { g.textTop + $0 }
-            if (document.compatibilityMode ?? 12) >= 15, document.paragraphs[k].style.widowControl {
+            if (document.compatibilityMode ?? 12) >= 15, document.paragraphs[k].style.widowControl, !document.widowControlSuspended {
                 lines = lines.count >= 4 ? Array(lines[1 ..< lines.count - 2]) : []
             } else if !lines.isEmpty {
                 lines.removeLast()
@@ -4064,8 +4064,8 @@ public final class RichLayout {
                     let g = geometry(j)
                     let lines = g.painter.computeLineMetrics().count
                     let bottoms = Self._lineBottoms(g.painter)
-                    let need = st.keepLines || lines <= 1 || (st.widowControl && lines <= 3) || bottoms.isEmpty ? _heights[j]
-                        : (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl ? 1 : 0)]
+                    let need = st.keepLines || lines <= 1 || (st.widowControl && !document.widowControlSuspended && lines <= 3) || bottoms.isEmpty ? _heights[j]
+                        : (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl && !document.widowControlSuspended ? 1 : 0)]
                     if shown + ruleUnder(c) + need > contentH - y + 0.01 {
                         newPage()
                         goOn()
@@ -4471,9 +4471,9 @@ public final class RichLayout {
                     let st = document.paragraphs[k].style
                     let g = geometry(k)
                     let lines = g.painter.computeLineMetrics()
-                    if st.keepLines || lines.count <= 1 || (st.widowControl && lines.count <= 3) { return _heights[k] }
+                    if st.keepLines || lines.count <= 1 || (st.widowControl && !document.widowControlSuspended && lines.count <= 3) { return _heights[k] }
                     let bottoms = Self._lineBottoms(g.painter)
-                    return (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl ? 1 : 0)]
+                    return (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl && !document.widowControlSuspended ? 1 : 0)]
                 }
                 let room = contentH - y
                 var cum = 0.0
@@ -4809,7 +4809,7 @@ public final class RichLayout {
                     var keep = last - first + 1
                     if st.keepLines, bottom - top <= contentH + 0.01 {
                         keep = 0
-                    } else if st.widowControl {
+                    } else if st.widowControl, !document.widowControlSuspended {
                         if all.count - 1 - last == 1 { keep -= 1 }
                         // (An orphan only where lines go on: the whole of
                         // a one-line paragraph fits, though its space

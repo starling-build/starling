@@ -277,6 +277,7 @@ enum DocxFormat {
         var keptHeaderFooters: [KeptHeaderFooter] = []
         var titlePage = false
         var evenAndOddHeaders = false
+        var footerFramed = false
         var keptCompat: String? = nil
         // The default tab distance: 35.4pt in a third of the corpus (metric
         // Word's 1.25cm), and every typed "4.2.8.<tab>text" lands
@@ -319,6 +320,19 @@ enum DocxFormat {
                 // three-line header, form_footnotes' blank footer that still
                 // reserves its height, FancyFoot's ruled Cambria line,
                 // headerFooter's footer at the left margin).
+                // (A framed paragraph in a footer raised over the footer's
+                // top — `w:framePr` with a negative `w:y`, so it stands up
+                // into the body's room — and Word for Mac lets the body's
+                // lines part with no widow control: lab wc2 (Word 16, mode
+                // 14); its w:y set to 0 or 1 (lab wc3), the lines stay
+                // together again. Not a frame at or under the footer's top:
+                // the 36 references whose page numbers stand 1 to 8 twips
+                // down keep widow control in Word's prints.)
+                func raisedFrame(_ n: XNode) -> Bool {
+                    if n.name == "w:framePr", let y = n["w:y"].flatMap(Double.init), y < 0 { return true }
+                    return n.children.contains(where: raisedFrame)
+                }
+                if ref.name == "w:footerReference", raisedFrame(node) { footerFramed = true }
                 let path = _resolvePath("word", target)
                 notes.keep(path)
                 guard notes.kept[path] != nil else { continue }
@@ -1854,6 +1868,7 @@ enum DocxFormat {
         document.keptHeaderFooters = keptHeaderFooters
         document.titlePage = titlePage
         document.evenAndOddHeaders = evenAndOddHeaders
+        document.widowControlSuspended = footerFramed
         document.keptCompat = keptCompat
         document.defaultTabStop = defaultTabStop
         if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }

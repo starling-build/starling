@@ -2082,6 +2082,14 @@ public struct RichDocument: Hashable, Sendable {
     /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
     /// label's tab goes to the next tab stop, not to the hanging indent.
     public var indentNotNumberingTabStop = false
+    /// Widow control holds for no paragraph, whatever each says: Word for
+    /// Mac lays out a body whose footer holds a framed paragraph raised
+    /// over the footer's top (a page number in a `w:framePr` of negative
+    /// `w:y`) so — labs wc2, wc3 (Word 16, mode 14): with it a three-line
+    /// paragraph keeps one line at a page's foot, or two; with the footer
+    /// gone, its frame gone, or the frame's y 0 or 1, they stay together.
+    /// zh-9462c6d6's "（二）促進有線…" parts one and two over pages 1-2.
+    public var widowControlSuspended = false
     /// Whether punctuation kerns (the settings lack
     /// `w:noPunctuationKerning`): two marks that stand together close up
     /// only where it does.
