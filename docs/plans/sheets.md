@@ -258,6 +258,17 @@ the same base; the commits give the numbers):
   joined "ft" and "ti" (151 workbooks whose text has such pairs: 41
   better, 3 worse by 0.01; lo-forum-mso-de-104083 6.70 -> 6.16,
   CVLKRA-KYC 4.16 -> 3.69, lo-tdf113271 6.22 -> 5.75).
+- *Printed size.* Excel prints a cell's font a whole number of 600-dpi
+  pixels high (Calibri 11 at 11.04 pt, Arial and Times 10 at 9.96, at
+  the page's scale), its text that much wider: numbers right-aligned
+  began 0.06 pt a digit left of ours. Ours is laid out at the font's own
+  size and drawn grown about its aligned end, on its baseline (laid out
+  at 11.04 it sat a point low), and only in faces whose clone has their
+  advances (DejaVu Sans is wider than Verdana; the format tests lost
+  0.5). All 720 workbooks: 200 better, 56 worse, mean 0.928 -> 0.909
+  (lo-forum-mso-en4-134670 4.29 -> 2.60, lo-tdf113271 5.75 -> 4.29).
+  Open: bold Calibri is set between the two, 57890's "Amount
+  UnsignedInt" as far past Excel's as it fell short before.
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs

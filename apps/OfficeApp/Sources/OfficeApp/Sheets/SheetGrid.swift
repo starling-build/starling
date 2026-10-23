@@ -263,6 +263,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// The sheet prints in black and white (`pageSetup@blackAndWhite`): no
     /// fills, its text and rules black.
     var printMono = false
+    /// The page's scale while its cells are painted, 0 otherwise: what
+    /// a cell's font is sized for on the printer (`_paintCell`).
+    var printTextScale = 0.0
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
@@ -2471,6 +2474,22 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
         if cell.value.isText { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
+        // On paper the font is a whole number of the printer's pixels
+        // high: Excel's Calibri 11 prints at 11.04 pt, 92 of 600 dpi, and
+        // Arial 10 at 9.96 — its text wider than ours by a part in 300,
+        // lo-forum-mso-de-104083's right-aligned "5,740.0000" begun 0.6
+        // pt left of ours, its "Werkauftrag: WA14-46314 / 3" ending 0.75
+        // pt right. The text is laid out at the font's own size and drawn
+        // that much larger about where its alignment holds it, on its
+        // baseline. (Laid out at 11.04, its baselines fell a point.) Only
+        // where ours is the face's twin, its advances the face's: DejaVu
+        // Sans for Verdana is wider than Verdana, and at Excel's 9.96 the
+        // format tests' lines came out the shorter for it.
+        var grow = 1.0
+        if printing, printTextScale > 0, Self._twins.contains(book.fontName(st).trimmingWhitespace().lowercased()) {
+            let dots = (style.size / scale * printTextScale * 600 / 72).rounded()
+            if dots > 0 { grow = dots * 72 / 600 / (style.size / scale * printTextScale) }
+        }
         // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
         // their characters' width ahead of it. (Spaced out as `_TextCache`
         // spaces the rest, the text after them was drawn half the spacing
@@ -2564,6 +2583,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // (Whole pixels on a screen; on paper a page has no pixels, and a
         // row's rounding would show as uneven lines of text.)
         func at(_ x: Double) -> Offset { printing ? Offset(x, ty) : Offset(x.rounded(), ty.rounded()) }
+        /// `p` painted at `o`, grown to the printer's size about `anchor`
+        /// on its baseline.
+        func draw(_ p: TextPainter, _ o: Offset, anchor: Double) {
+            guard grow != 1 else { p.paint(canvas, o); return }
+            let base = o.dy + p.computeDistanceToActualBaseline(.alphabetic)
+            canvas.save()
+            canvas.translate(anchor, base)
+            canvas.scale(grow, grow)
+            canvas.translate(-anchor, -base)
+            p.paint(canvas, o)
+            canvas.restore()
+        }
+        func anchor(_ x: Double, _ w: Double) -> Double { align == .right ? x + w : align == .center ? x + w / 2 : x }
         // A format that fills its cell (`*x`) spans it, whatever the
         // alignment: what is before the fill at the left, what is after it
         // at the right, the character repeated between — Accounting's "$"
@@ -2576,11 +2608,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let one = texts.painter(String(parts.fill), style).width
                 if one > 0 {
                     let fp = texts.painter(String(repeating: String(parts.fill), count: Int((x1 - x0) / one)), style)
-                    fp.paint(canvas, at(x1 - fp.width))
+                    draw(fp, at(x1 - fp.width), anchor: x1)
                 }
             }
-            lp.paint(canvas, at(left + margin))
-            rp.paint(canvas, at(x1))
+            draw(lp, at(left + margin), anchor: left + margin)
+            draw(rp, at(x1), anchor: x1 + rp.width)
             canvas.restore()
             return
         }
@@ -2612,15 +2644,20 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     case .center: x = left + (width - lead - lp.width) / 2 + lead
                     default: x = left + margin + inset + lead
                     }
-                    lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
+                    draw(lp, Offset(x, y0 + Double(i) * pitch), anchor: anchor(x, lp.width))
                 }
                 canvas.restore()
                 return
             }
         }
-        tp.paint(canvas, at(tx))
+        draw(tp, at(tx), anchor: anchor(tx, tp.width))
         canvas.restore()
     }
+
+    /// The faces whose shipped clones have their advances to the unit.
+    static let _twins: Set<String> = ["calibri", "carlito", "arial", "liberation sans", "arimo", "times new roman",
+                                      "liberation serif", "tinos", "courier new", "liberation mono", "cousine",
+                                      "cambria", "caladea"]
 
     /// A cell's font's line on paper, in points: the row Excel fits to
     /// it in this workbook (`m`, the metrics of its default font).

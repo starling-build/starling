@@ -476,6 +476,8 @@ extension SheetGridState {
         let hfFont = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(hfStyle)),
                                    size: book.fontSize(hfStyle), color: Int64(0xFF000000))
         for (pages, s) in jobs {
+            printTextScale = s
+            defer { printTextScale = 0 }
             for page in pages {
                 if let maxPages, out.count >= maxPages { return }
                 guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
