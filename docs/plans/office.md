@@ -7850,3 +7850,19 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   freeform box takes the preset's text rectangle only (zh-ae2dd08d p21's
   parallelograms set their text a little left of Word's).
 
+- **In the autofit measure a closing mark stays with the Latin word
+  before it (2026-10-23; Windows 01QbbApP, lab `af` on Word for
+  Windows).** zh-ae2dd08d p24's table (tblW 10050, autofit) keeps its
+  grid in ours, 90.5/70.9/71.4/269.7. Word prints it
+  90.1/73.8/70.7/268.0. Its column 2 holds "【05-01】" under a 36pt
+  hanging indent. The lab reproduces Word's re-fit with the table as
+  saved. Without the brackets, or without the indent, Word keeps the
+  grid. So Word's narrowest setting parts "【05-" / "01】", and "01】",
+  at the indent, is the piece that is over (36 + 26 + margins).
+  Ours had parted "01" / "】" since zh-82b166b4's "（WebHR）" (Word sets
+  "（W" / "ebHR）" there), making every full-width mark beside a Latin
+  word a piece. That holds for an opening mark, or one before the word,
+  but not for a closing mark after it. 210 documents have a Latin
+  character before a full-width closing mark in a cell: zh-ae2dd08d
+  51.4 -> 54.8, nothing else moved (pair cl-base/cl-new).
+

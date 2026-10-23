@@ -2083,8 +2083,13 @@ public final class RichLayout {
                 // zh-82b166b4's "（WebHR）", 50pt glued, sits in its 51.1pt
                 // column in Word's print — the grid kept, the word parted
                 // "（W" / "ebHR）" — where ours widened the column to 61.)
+                // (But not a closing one after it: lab `af` on Word for
+                // Windows, zh-ae2dd08d p24's "【05-01】" under a 36pt hanging
+                // indent widens its 70.9pt column to 73.7, "01】" one piece
+                // at the indent; without the brackets, or the indent, the
+                // grid stands.)
                 else if theme.wordRules, (a >= 0x3000 && Self._isLatinWordUnit(b)) || (Self._isLatinWordUnit(a) && b >= 0x3000),
-                        Self._openingUnits.contains(a) || Self._closingUnits.contains(b) || Self._openingUnits.contains(b) || Self._closingUnits.contains(a) { parts = true }
+                        Self._openingUnits.contains(a) || Self._openingUnits.contains(b) || Self._closingUnits.contains(a) { parts = true }
                 else { parts = !Self._glued(a, b) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
