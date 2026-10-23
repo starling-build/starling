@@ -6094,6 +6094,18 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A row's note with no room under its mark parts as a paragraph's
+  does (2026-10-23).** A table row whose footnote did not fit under its
+  mark's line left the note for later; where the row fit whole without
+  it, the row was set whole and the note reserved only when the next row
+  began — over the row's last lines. zh-499adba6's book is a one-column
+  table, a paragraph a row, and its footnote 11, marked in the second
+  line of the row "在重要政策領域…" near page 90's foot, parts there in
+  Word's print and the row after its mark's line; ours set the row's
+  seven lines whole and drew the note's 134pt over the last five. The
+  row's note now parts where a line of it fits under the mark, else the
+  page ends over the mark's line, as a body paragraph's (5c8d7006).
+  zh-499adba6 and zh-9932bd83 87.9 -> 97.9; nothing else moved (h129).
 - **A full-width percent sign may open a Traditional Chinese line
   (2026-10-23).** Word's Traditional Chinese line-start list does not
   hold "％" (its Simplified one does). zh-499adba6's "…占比為38.54" ends

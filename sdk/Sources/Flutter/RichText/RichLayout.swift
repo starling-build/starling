@@ -3886,7 +3886,31 @@ public final class RichLayout {
                                 continue
                             }
                             room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
-                            if y + (mark.bottom - c0.rowTop) + room > contentH + 0.01 { rowPending.append(id); continue }
+                            if y + (mark.bottom - c0.rowTop) + room > contentH + 0.01 {
+                                // (As under a body paragraph's mark: the note
+                                // parts where a line of it fits under its
+                                // mark's line, else the page ends over that
+                                // line and the note goes over with it. Left
+                                // for later, the note of a row that fits whole
+                                // without it was reserved only after the row
+                                // was set: zh-499adba6's book is a table, a
+                                // paragraph a row, and its footnote 11, marked
+                                // in the second line of the row "在重要政策領域…"
+                                // near page 90's foot, parts there in Word's
+                                // print, the row with it; ours set the row's
+                                // seven lines whole and the note's 134pt over
+                                // the last five.)
+                                let left = contentH - (y + (mark.bottom - c0.rowTop)) - (room - note.height)
+                                if pageCut == nil, let keep = _noteCuts(id, width: width, document).last(where: { $0 <= left + 0.01 }) {
+                                    pageCut = (id, keep)
+                                    here.append(id)
+                                } else {
+                                    if y > 0.01 || mark.top > c0.rowTop + 0.5 { contentH = max(1, min(contentH, y + (mark.top - c0.rowTop))) }
+                                    rowPending.append(id)
+                                }
+                                for later in placing where !here.contains(later) && !pageNotes.contains(later) && !rowPending.contains(later) { rowPending.append(later) }
+                                break
+                            }
                             here.append(id)
                         }
                         reserveNotes(here)

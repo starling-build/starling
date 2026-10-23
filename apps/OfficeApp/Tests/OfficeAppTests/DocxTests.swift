@@ -1617,6 +1617,51 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
     }
 
+    func testARowWhoseNoteHasNoRoomPartsWithIt() throws {
+        // zh-499adba6's book is a one-column table, a paragraph a row; its
+        // footnote 11, marked in the second line of a seven-line row near
+        // page 90's foot, parts there in Word's print and the row with it.
+        // Ours set the row whole — it fits without the note — and reserved
+        // the note after it, over its last lines.
+        // Here: 698pt of page, a 540pt row, then a row of seven 20pt lines
+        // marking on its second a note of ten 12pt lines.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let lines = (1 ... 10).map { "<w:r><w:t>note \($0)</w:t></w:r>" }.joined(separator: "<w:r><w:br/></w:r>")
+        let footnotes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r>\(lines)</w:p></w:footnote></w:footnotes>
+        """
+        entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func exact(_ twips: Int) -> String { "<w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr>" }
+        let marked = (1 ... 7).map { n in "<w:r><w:t>row \(n)</w:t></w:r>" + (n == 2 ? "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r>" : "") }
+            .joined(separator: "<w:r><w:br/></w:r>")
+        func row(_ p: String) -> String { "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"9000\" w:type=\"dxa\"/></w:tcPr>\(p)</w:tc></w:tr>" }
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+            "<w:tbl><w:tblPr><w:tblW w:w=\"9000\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"9000\"/></w:tblGrid>"
+            + row("<w:p>\(exact(10800))<w:r><w:t>filler</w:t></w:r></w:p>")
+            + row("<w:p>\(exact(400))\(marked)</w:p>")
+            + "</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        XCTAssertEqual(doc.footnotes.keys.sorted(), [1])
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let target = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("row 1") })
+        let here = l.pieces[0].filter { $0.paragraph == target && $0.part != .rules }
+        let kept = here.map { $0.flowBottom - $0.flowTop }.reduce(0, +) / theme.pixelsPerPoint
+        XCTAssertGreaterThan(kept, 30, "the row keeps its marking line on the page")
+        XCTAssertLessThan(kept, 139, "and parts there, not set whole under its note")
+    }
+
     func testAGridLineDoesNotHangIntoTheFootnotes() throws {
         // zh-c15af02e's page 6: lines on a grid over a one-line note. A
         // page's last line may reach past the foot by its grid's overhang,
