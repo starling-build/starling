@@ -541,7 +541,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 ### Note from the Mac (2026-10-22): the zh corpus is 546 documents — a twenty-fifth sample
 Twenty more (`random.seed(20261108)` among the 99 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 89.3% (median 98.0), every page count
-Word's. Its low ones, unclaimed: zh-9ef811c8 26.3 [CLAIMED Mac 01Xgpbk5], zh-fea6e23a 54.7 [CLAIMED Mac 0fcba326], zh-05699f05 77.7,
+Word's. Its low ones, unclaimed: zh-9ef811c8 26.3 (Mac 01Xgpbk5 measured, released: pp1-3 match glyph for glyph; from p4 its landscape table parts its "监督检查" row (row 3, every cell vAlign center and itself merged down over rows 3-6) at another line. In Word's print the short cells stand centred in the part on p4 (397-482) and only the channels' list parts, after 5 lines; ours centres each in the whole merged span, so they start low and every one parts, the list after 6. The parted-row centring rule (setWhole) skips them for rowSpan > 1 with cuts in the part; letting a merged cell that fits be centred in the part sank zh-e37f8d40 100 -> 67.6 and did not lift this one, so not that: reverted. Its PDFKit text also repeats glyphs ("其他他他他") — reader), zh-fea6e23a 54.7 [CLAIMED Mac 0fcba326], zh-05699f05 77.7,
 zh-7eba7349 78.5, zh-727812d5 83.3 (CLAIMED Linux 017F2GnT 2026-10-22), zh-e329b438 85.1.
 
 ### Note from the Mac (2026-10-22): the zh corpus is 526 documents — a twenty-fourth sample
