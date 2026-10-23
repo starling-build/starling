@@ -7037,6 +7037,16 @@ fitter dropped the paragraph's tail).
   16 in Word's print, note 17's line first on page 13; ours sent the
   15/16 line over too, and pages 13-26 ran a line behind — 66.3 to 85.2
   of Word's lines, the same-base pair moving no other document.
+- **A continued paragraph's notes, likewise.** Where a paragraph goes
+  on at a new page, the notes whose marks stand in its lines there are
+  fitted by mark line as where it began — and one that no line of fits
+  under its mark sends the mark's line over with it, the page ending
+  above that line, as the body path does; it used to be deferred alone,
+  the line kept. zh-7a16a243's "都市計畫法第32條34及第22條35規定…", the
+  last line page 42 holds of a paragraph begun on page 41, opens page 43
+  in Word's print with notes 34 and 35 at its foot; ours kept the line
+  with 34 and set 35 first on 43, and pages 43-51 ran a line ahead —
+  85.2 to 95.2, the same-base pair (n3/n4) moving no other document.
 
 ### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
 
