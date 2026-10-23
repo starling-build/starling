@@ -1640,6 +1640,32 @@ public final class RichLayout {
     /// Set `distribute` (`w:jc` distribute), the first character starts
     /// the line and the last ends it, the rest evenly between: Word's
     /// "经济行为类型" down a 77.3pt cell, 13.64pt apart at 9pt.
+    /// The marks Word sets in their vertical forms down a vertical line
+    /// (Unicode's CJK compatibility forms, U+FE10 to U+FE44). Word's
+    /// prints of tbRlV cells hold "︑", "︐", "︵" and "︶" where the files
+    /// have "、", "，", "（" and "）" (zh-b0401810's "职业资格证书︑职业技能…",
+    /// zh-cec9d337, zh-e49d7943, zh-65e6c317, zh-74b34f3b); the rest
+    /// follow the same table.
+    static let _verticalForms: [Unicode.Scalar: Unicode.Scalar] = [
+        "，": "\u{FE10}", "、": "\u{FE11}", "。": "\u{FE12}", "：": "\u{FE13}", "；": "\u{FE14}",
+        "！": "\u{FE15}", "？": "\u{FE16}", "〖": "\u{FE17}", "〗": "\u{FE18}", "…": "\u{FE19}",
+        "‥": "\u{FE30}", "—": "\u{FE31}", "–": "\u{FE32}", "＿": "\u{FE33}",
+        "（": "\u{FE35}", "）": "\u{FE36}", "｛": "\u{FE37}", "｝": "\u{FE38}", "〔": "\u{FE39}", "〕": "\u{FE3A}",
+        "【": "\u{FE3B}", "】": "\u{FE3C}", "《": "\u{FE3D}", "》": "\u{FE3E}", "〈": "\u{FE3F}", "〉": "\u{FE40}",
+        "「": "\u{FE41}", "」": "\u{FE42}", "『": "\u{FE43}", "』": "\u{FE44}",
+    ]
+
+    /// How far down its box Word sets a mark's vertical form, in ems: its
+    /// ink, which the form keeps to one side of its square, comes out
+    /// about the middle of the character's place. Word's prints in
+    /// Microsoft YaHei: "︑" 5.9pt under its place at 10.56pt
+    /// (zh-b0401810), "︐" 6.2 under and "︵" / "︶" 2.3 over and under
+    /// at 12 (zh-cec9d337, zh-e49d7943). Ours stood in the square, and
+    /// "︑" and "︐" missed their lines. Other forms are not measured.
+    static let _verticalFormDrop: [Unicode.Scalar: Double] = [
+        "\u{FE10}": 0.52, "\u{FE11}": 0.56, "\u{FE35}": -0.19, "\u{FE36}": 0.19,
+    ]
+
     private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
@@ -1669,7 +1695,8 @@ public final class RichLayout {
                 let left = Double(n) * (painter.width - advance) / Double(shown.count - 1)
                 box = TextBox(fromLTRBD: left, box.top, left + advance, box.bottom, box.direction)
             }
-            let glyph = TextPainter(text: TextSpan(text: String(Character(ch)), style: styles[k]), textDirection: .ltr)
+            let form = Self._verticalForms[ch] ?? ch
+            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]), textDirection: .ltr)
             glyph.layout()
             // (Its em square centred in its box — the square stands 0.88
             // em over the baseline and 0.12 under it — not its line, which
@@ -1679,7 +1706,9 @@ public final class RichLayout {
             let em = styles[k]?.fontSize ?? 14
             let middle = glyph.computeDistanceToActualBaseline(.alphabetic) - 0.38 * em
             canvas.save()
-            canvas.translate(origin.dx + (box.left + box.right) / 2, origin.dy + (box.top + box.bottom) / 2)
+            // (A mark's vertical form further down its box or up it, as
+            // Word sets it: `_verticalFormDrop`.)
+            canvas.translate(origin.dx + (box.left + box.right) / 2 + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + (box.top + box.bottom) / 2)
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()

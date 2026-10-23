@@ -3491,6 +3491,20 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **Marks in vertical cells are their vertical forms (2026-10-22).**
+  Word's prints of tbRlV cells hold "︑", "︐", "︵" and "︶" where the
+  files have "、", "，", "（" and "）": zh-b0401810, zh-cec9d337,
+  zh-e49d7943, zh-65e6c317 and zh-74b34f3b. None of these files
+  contains a vertical form itself. `_paintUpright` now draws each mark
+  by Unicode's table (U+FE10 to U+FE44). Word sets the form off its
+  square, with its ink about the middle of the character's place. In
+  Microsoft YaHei: "︑" +0.56em down, "︐" +0.52, "︵" -0.19 (up), "︶"
+  +0.19 (`_verticalFormDrop`; other forms not measured). zh-cec9d337's
+  "︵" and "︐" now stand where Word's do. Its "︶" ends the line, in a
+  box we narrow, and stands 2.7pt above Word's. Of the 22 documents with
+  marks in vertical cells, zh-65e6c317 went 83.2 -> 84.2 and none moved
+  down. zh-b0401810's column stays 3pt low and 4pt right of Word's (next).
+
 - **Text in a table cell goes under a picture that leaves it no room
   (2026-10-22).** `_floatPush` set a body paragraph's text under a
   wrapped float of its own that left its first line less than an em on
