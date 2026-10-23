@@ -45,7 +45,7 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136) — FIXED on Linux, Mac to confirm (2026-10-22)
+### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136) — DONE, confirmed on the Mac (2026-10-22)
 Owner: Linux office1 01Ak4ibJ (lenovo-3). (Two T144s on this board: the other is zh-344a8d08's footnote.)
 Bisected on the Mac (OFFICE_WORD_FONTS=mac, the one document):
 97f8a42b 54.2% 26/26 pages, 58b0cbd8 51.5% 27 pages (Word 26). The Thai
@@ -57,6 +57,8 @@ stop, default stops too — where squeezing the label may move the tab a stop ba
 before the tab that takes a first line's label to its hanging indent (zh-499adba6's "（六）<tab>"). Same-base
 sweep, 597 documents: nothing moves on Linux's fonts (zh-499adba6 / zh-9932bd83 hold 27.0; zh-6a4fc013 is 26/26
 pages here either way) — the Mac's fonts are the ones that show the page.
+Mac 0fcba326 at 6ee23008 (OFFICE_WORD_FONTS=mac, PDFKit): zh-6a4fc013 54.2%, 614/614 lines, 26/26 pages
+(n383: 51.5, 27); zh-499adba6 and zh-9932bd83 unchanged at 26.8 (99/96 pages).
 
 ### T145. A number that fits may part after its hyphen under East Asian layout — DONE (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built it)
