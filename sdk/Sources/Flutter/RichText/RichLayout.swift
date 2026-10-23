@@ -1763,7 +1763,7 @@ public final class RichLayout {
         // little, and the grid is down to whole pixels. bug57031's HTML
         // tables are saved at Word's own fit of their text, and ours
         // measure their widest words 0.6 to 0.75pt over it.)
-        let tolerance = _px(1)
+        let tolerance = _px(0.05)
         let over = cells.filter { $0.min > room($0) + tolerance }
         if Self.debugAutofit {
             let pt = theme.pixelsPerPoint * scale
@@ -1922,8 +1922,12 @@ public final class RichLayout {
                 // grid's 49.4pt time columns in Word's print, "9:00-" /
                 // "9:10" in each, where ours took "9:00-9:10" for one piece
                 // and widened them to 78.)
+                // (… and any such, from 2013's layout or where nothing is
+                // compressed, as the line breaking parts it there —
+                // `_wideWordHyphens`: zh-e329b438's "29-30".)
                 else if theme.wordRules, a == 0x2D, b >= 0x30, b <= 0x39, k > 1, Self._isLatinWordUnit(units[k - 2]),
-                        units[k...].prefix(while: { !space($0) && $0 < 0x2E80 }).contains(0x3A) || units[..<k].reversed().prefix(while: { !space($0) && $0 < 0x2E80 }).contains(0x3A) { parts = true }
+                        units[k...].prefix(while: { !space($0) && $0 < 0x2E80 }).contains(0x3A) || units[..<k].reversed().prefix(while: { !space($0) && $0 < 0x2E80 }).contains(0x3A)
+                        || document.usesEastAsianLayout && ((document.compatibilityMode ?? 12) >= 15 || !(document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)) { parts = true }
                 // (A full-width mark beside a Latin word is a piece of its
                 // own to autofit, whatever the line breaking keeps together:
                 // zh-82b166b4's "（WebHR）", 50pt glued, sits in its 51.1pt
@@ -10043,8 +10047,13 @@ public final class RichLayout {
             while end < units.count, !parts(units[end]) { end += 1 }
             // (Times of day only — "9:00-9:10", a colon in it: zh-64044a1d's
             // phone numbers, "0932-757839" in words wider than their cells,
-            // keep their hyphens in Word's print.)
-            let cuts = !units[k ..< end].contains(0x3A) ? [] : (k + 1 ..< end).filter { o in
+            // keep their hyphens in Word's print. That is mode 11 and
+            // compresses punctuation; from 2013's layout, or where nothing
+            // is compressed, any such word parts there, as one that fits
+            // does — `_fittingWordHyphens`: zh-e329b438 (mode 15) sets its
+            // 14pt score ranges "29-" / "30" in a 38.1pt cell.)
+            let modern = (document.compatibilityMode ?? 12) >= 15 || !(document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
+            let cuts = !(units[k ..< end].contains(0x3A) || modern && document.usesEastAsianLayout) ? [] : (k + 1 ..< end).filter { o in
                 units[o - 1] == 0x2D && units[o] >= 0x30 && units[o] <= 0x39 && o >= 2 && Self._isLatinWordUnit(units[o - 2])
             }
             if !cuts.isEmpty {

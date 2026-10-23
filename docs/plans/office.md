@@ -7145,6 +7145,27 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   98.0 (its p71 box from y228 to Word's 72); shapes that moved, 60316,
   zh-06c46ba9 and zh-01071d55, now stand where Word's do.
 
+- **An autofit column a hair too narrow is widened; a wide "29-30" parts after its hyphen (2026-10-22).**
+  zh-fea6e23a (sample 25, 54.7): its schedule's time columns are 46.8pt,
+  36.0 of text, and "11:30-" needs 36.23. Word widens both to 47.0 and
+  takes the 0.2 from their neighbours (its print's rules: 230.2/277.2/
+  379.0/426.0); `_autofit` refitted only a cell a whole point over, so the
+  grid stood and the line parted "11:30" / "-" / "13:00", three lines a
+  cell. Lab `hy` (Word 16, this package, fixed one-cell tables at 36.23 to
+  32.23pt) sets "11:30-" whole only at 36.23, as ours: no hyphen hangs in
+  a cell, so the column is the difference. The tolerance is now 0.05pt.
+  That exposed zh-e329b438 (85.1 -> 54.3 alone): its 14pt score ranges
+  "29-30" measured one piece, 49.7 against a 49.1 column, where Word
+  prints "29-" / "30" in a column of 48.9. `_wideWordHyphens` and the
+  autofit pieces parted after a hyphen before a digit only in a time
+  (a colon in the word), for zh-64044a1d's phone numbers (mode 11,
+  compressing); from 2013's layout, or where nothing is compressed, any
+  such word now parts there, as `_fittingWordHyphens` already allows for
+  one that fits. Paired sweep n390 vs n388: zh-fea6e23a and zh-b3e887f7
+  54.7 -> 100, zh-e329b438 85.1 -> 89.7, zh-7dd5643e 88.2 -> 90.0,
+  nothing down; zh-64044a1d 98.3 unchanged. Left in zh-e329b438: its
+  label column is 28.0 in Word's print and 31.6 in ours.
+
 - **A form check box is drawn as Word draws it (2026-10-22, T143h).**
   The reader turns a FORMCHECKBOX field into "☐" or "☒" and the writer
   saves those as the field; Word's print draws the field as a square,
