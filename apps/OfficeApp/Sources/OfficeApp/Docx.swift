@@ -402,6 +402,10 @@ enum DocxFormat {
         // A table style's conditional parts: the first row's fill and run
         // look, the body rows' bands.
         var tableConds: [String: _Cond] = [:]
+        // A table style's own text size, by its chain, where the Normal style
+        // says none of its own (`tableSizes`).
+        var tableSizes: [String: Double] = [:]
+        var normalStatesSize = false
         // Table styles (and the default one) that fix the layout: a table
         // that says nothing itself is then not autofitted.
         var fixedTableStyles = Set<String>()
@@ -512,6 +516,23 @@ enum DocxFormat {
                     cur = node.first("w:basedOn")?["w:val"]
                 }
                 tableConds[id] = cond
+            }
+            // (A table style's text size stands under the paragraph's own
+            // style, over the document's defaults: zh-e2dc9dce's form, style
+            // "表格格線1" at 10pt under a Normal that says no size over 12pt
+            // defaults, sets its cells' unsized text at 10pt in Word's print;
+            // ours at 12, its rows grew and its lines wrapped elsewhere.)
+            normalStatesSize = styles.all("w:style").contains { style in
+                style["w:type"] == "paragraph" && (style["w:default"] == "1" || style["w:styleId"] == "Normal")
+                    && style.first("w:rPr")?.first("w:sz") != nil
+            }
+            for id in tableNodes.keys {
+                var seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    if let v = node.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init) { tableSizes[id] = v / 2; break }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
             }
             for id in tableNodes.keys {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
@@ -961,6 +982,7 @@ enum DocxFormat {
                         let counts = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
                                       notes.seenComments, notes.fieldShown)
                         paragraphs = []; currentCell = nil; recordingBody = false; pendingPageBreak = false
+                        cellChar = CharStyle()
                         notes.inTextBox = true
                         for child in content.children { walkBlock(child, indent: 0, depth: 1) }
                         notes.inTextBox = false
@@ -1197,6 +1219,7 @@ enum DocxFormat {
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
                 let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
+                let tableStyleSize = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableSizes[$0] }
                 let look = node.first("w:tblPr")?.first("w:tblLook")
                 let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
@@ -1528,6 +1551,8 @@ enum DocxFormat {
                         if direction != nil, currentCell?.textDirection != .horizontal || direction == "lrTbV" { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
+                        notes.cellSizeFromTable = false
+                        if cellChar.fontSize == nil, !normalStatesSize, let size = tableStyleSize { cellChar.fontSize = size; notes.cellSizeFromTable = true }
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -2714,6 +2739,9 @@ enum DocxFormat {
         var inHeaderFooter = false
         /// Reading a text box's paragraphs (a box inside a box is not read).
         var inTextBox = false
+        /// The cell's run base takes its size from the table's style
+        /// (`tableSizes`): a paragraph whose own style states one keeps that.
+        var cellSizeFromTable = false
         /// A text box whose text holds a table, by its attachment's id:
         /// its `w:txbxContent`, for the body's reader to read again with
         /// its tables (this reader sets paragraphs only).
@@ -3028,6 +3056,14 @@ enum DocxFormat {
                                     _ cellResolve: ((String) -> RichParagraphStyle?)? = nil) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
+        // (The table style's size stands under the paragraph's own style:
+        // zh-e2dc9dce's flow table, styled at 10pt, sets its "01 標題壹"
+        // headings at that style's 14pt in Word's print.)
+        var cellChar = cellChar
+        if notes.cellSizeFromTable, let id = p.first("w:pPr")?.first("w:pStyle")?["w:val"], let ours = styleIds[id],
+           sheet[ours]?.char.fontSize != nil {
+            cellChar.fontSize = nil
+        }
         // The paragraph mark's look (w:pPr/w:rPr): an empty paragraph is
         // as tall as its mark's font — a 28pt mark is a 28pt spacer. Word
         // honours it in every spelling (probed 2026-10-09 with 30 marks of
@@ -3335,7 +3371,12 @@ enum DocxFormat {
                     var stack = Array(content.children.reversed())
                     while let n = stack.popLast() {
                         if n.name == "w:p" {
-                            for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, cellChar, nil) { inside.append(b.paragraph) }
+                            // (A text box's paragraphs take nothing of the
+                            // table its anchor stands in: zh-e2dc9dce's
+                            // flow-chart boxes, anchored in cells of a table
+                            // styled at 10pt, print at the defaults' 12pt —
+                            // lab `ts`, Word for Mac.)
+                            for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil) { inside.append(b.paragraph) }
                         } else if n.name != "w:tbl" {
                             stack.append(contentsOf: n.children.reversed())
                         } else {
