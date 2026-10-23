@@ -3495,7 +3495,8 @@ between them, and the painter draws the form whose width the rectangle has. An e
 paragraph's size where they state none (its mark's, its style's, Normal's — not 11), and their East
 Asian text the run's `w:eastAsia` face at its line height (標楷體: YaHei on the Mac, 15.8pt rows at 12).
 p22 now matches Word's four lines. Same-base sweep of 756: zh-db07d44e 54.8 -> 61.9; nothing else
-moved. Left: from p28 another cell's cascade, not looked at.
+moved. Then p28's cells "…基準分80分，": a cell's automatic spaces either side of the Latin word before what is
+taken give (both of "80"'s, 2.2 of 3.0 in Word's print) — 61.9 -> 98.0, nothing else moved.
 
 ### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation) — DONE for p30's line (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built p30's line, 2026-10-22; released by starling-b2, measured)
