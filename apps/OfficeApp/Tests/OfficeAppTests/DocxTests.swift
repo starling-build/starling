@@ -1617,6 +1617,44 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
     }
 
+    func testAPartedRowOpensWithItsOwnTopLine() throws {
+        // Lab `tb` (Word 16 Mac, zh-13552a3a's package): cells of top nil
+        // and bottom single, a row parted at page 1's foot — page 2 opens
+        // with no line and the text at the margin; with the cells' top
+        // single 4 the line is drawn and the text stands 0.48 lower.
+        func opening(top: String) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            func p(_ text: String) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"312\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            let borders = "<w:tcBorders><w:top w:val=\"\(top)\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>"
+            func row(_ content: String) -> String { "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"8000\" w:type=\"dxa\"/>\(borders)</w:tcPr>\(content)</w:tc></w:tr>" }
+            var parts: [String] = ["<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"8000\"/></w:tblGrid>"]
+            for n in 1 ... 5 { parts.append(row(p("row \(n)"))) }
+            parts.append(row((1 ... 60).map { n -> String in p("long \(n)") }.joined()))
+            parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            XCTAssertGreaterThan(l.pageCount, 1)
+            let first = try XCTUnwrap(l.pieces[1].filter { doc.paragraphs[$0.paragraph].text.hasPrefix("long") && $0.part != .rules }.map(\.pageY).min())
+            return first / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try opening(top: "nil"), 0, accuracy: 0.01, "no line, no room: the text at the margin")
+        XCTAssertGreaterThan(try opening(top: "single"), 0.3, "under the line it opens with")
+    }
+
     func testAMergedCellSetWholeInAPartIsNotDrawnAgain() throws {
         // zh-13552a3a's "4.就业失业登记", centred and merged over rows 10-11,
         // stands whole in row 10's part at page 15's foot in Word's print,

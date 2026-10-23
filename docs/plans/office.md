@@ -6094,6 +6094,18 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A parted row opens its next page with its own top line
+  (2026-10-23).** A row's part that goes over to a new page was opened
+  with the line above it and stood its text that line's width down. Lab
+  `tb` (Word 16 Mac, zh-13552a3a's package — the Mac printed it): a
+  one-column table whose cells state top nil and bottom single, a row
+  parted at page 1's foot — page 2 opens with no line and the text at the
+  margin (first baseline as row 1's on page 1); with the cells' top single
+  4, a line at the head and the text 0.48 lower. Where every cell of the
+  row says it has no top line, the part now opens bare (`_rowOpensBare`):
+  zh-13552a3a's rows, top nil, stood 0.8pt low on every page they opened
+  and now within 0.3 of Word's. No line score moved (sweep h131); its p28
+  still sends "正）" over, a fifth of a point short.
 - **A merged cell set whole in a row's part is drawn once (2026-10-23).**
   A centred cell merged down, whose text fits the part of its row on the
   page, is set whole there (`setWhole`); centred over all its rows, its

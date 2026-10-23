@@ -3737,7 +3737,14 @@ public final class RichLayout {
                 // (What goes over is ruled across its top again, and its
                 // text stands below that rule as the row's did: zh-89385c94's
                 // second page, 0.4pt higher than Word's without it.)
-                if theme.wordRules { lift = ruleUnder(c, parted: true); y += lift }
+                // (Not where every cell of the row says it has no top line:
+                // lab `tb` (Word 16 Mac, zh-13552a3a's package), cells of top
+                // nil and bottom single, a row parted at page 1's foot opens
+                // page 2 with no line and its text at the margin, where with
+                // a top line stated the line is drawn there and the text
+                // stands its 0.48 lower. zh-13552a3a's parted rows opened
+                // their pages 0.8pt low, and p28's last line went over.)
+                if theme.wordRules { lift = Self._rowOpensBare(i, j, document) ? 0 : ruleUnder(c, parted: true); y += lift }
                 // (The notes marked in what this page will hold of the row.)
                 if theme.wordRules, !rowPending.isEmpty {
                     let width = _px(pageSetup(forPage: page / _columns).contentWidth)
@@ -13280,6 +13287,13 @@ public final class RichLayout {
     /// there and opened with on the next page, as Word draws them: the
     /// table's inside line, across the table, wherever a piece of the
     /// row's rules stops short of the row's own top or bottom.
+    /// Whether every cell of the row of paragraphs `i ..< j` says it has
+    /// no top line (`w:top` nil or none): a part of it that goes over to a
+    /// new page opens with none (lab `tb`).
+    private static func _rowOpensBare(_ i: Int, _ j: Int, _ document: RichDocument) -> Bool {
+        j > i && (i ..< min(j, document.paragraphs.count)).allSatisfy { document.paragraphs[$0].cell?.edges?.top == false }
+    }
+
     private func _paintPartedRules(_ piece: PagePiece, _ canvas: any Canvas, _ document: RichDocument) {
         guard theme.wordRules, !piece.repeated, piece.part != .text, let c = _cells[piece.paragraph], c.firstInRow else { return }
         let ts = document.tableStyles[c.table]
@@ -13287,7 +13301,10 @@ public final class RichLayout {
         // (And over a row that starts a page under cells merged down
         // from the page before, which have no top of their own there.)
         let parted = piece.part == .rules && !piece.inner
-        let opens = (parted && piece.flowTop > c.rowTop + 0.5) || (piece.pageY < 0.01 && c.row > 0 && piece.flowTop < c.rowTop + 0.5)
+        var end = piece.paragraph
+        while end < _cells.count, let d = _cells[end], d.table == c.table, d.row == c.row { end += 1 }
+        let opens = ((parted && piece.flowTop > c.rowTop + 0.5) || (piece.pageY < 0.01 && c.row > 0 && piece.flowTop < c.rowTop + 0.5))
+            && !Self._rowOpensBare(piece.paragraph, end, document)
         let closes = parted && piece.flowBottom < c.rowTop + c.ownRowHeight - 0.5
         guard opens || closes else { return }
         let widths = _columnWidths[c.table] ?? []
