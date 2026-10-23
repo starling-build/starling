@@ -7887,3 +7887,25 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   character before a full-width closing mark in a cell: zh-ae2dd08d
   51.4 -> 54.8, nothing else moved (pair cl-base/cl-new).
 
+- **A section-ending paragraph of floating objects stands on its page
+  (2026-10-23; Windows 01QbbApP, lab `ax` on Word for Windows, from the
+  Mac's report).** zh-6d402586's annexes are each a section of one
+  paragraph that is itself the break: annex 1's paragraph holds the
+  page's picture (VML, behind the text since 1571f2a4) and the
+  page-relative "附件1" box; annex 2's its box and a wrapNone picture
+  26pt over it. Word draws them on the annex's page. Such a paragraph
+  takes no room (`_layoutParagraph`), and pagination's
+  `while cursor < bottom` gave it no piece at all, so its objects were
+  drawn nowhere and the pages stood blank. It now gets a piece of no
+  height where it stands. Lab `ax` (body 70-76 alone): with "x" added
+  to the paragraph, ours drew both annexes as Word does; without it,
+  neither. Seven documents end a section in such a paragraph (pair
+  ax-base/ax-new). By image: zh-6d402586 pp15-16 match Word's; the
+  covers of zh-76700e5f, zh-9db183d5 and zh-cd8987db get their rule
+  under "发布/实施" back; zh-e0ca7252 p41 its "注：本一覽表…" note.
+  Lines: zh-6d402586 61.9 -> 62.2, the rest unchanged. Left: zh-6cd1befe
+  p52's diagonal line is anchored in the empty paragraph after a
+  page-anchored floating table (`tblpPr` vertAnchor page). Word draws it
+  at the table's top-left; ours, now drawing it, puts it under the
+  table, where our flow sets that paragraph.
+

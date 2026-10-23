@@ -5118,6 +5118,17 @@ public final class RichLayout {
                 let ownBreak = _pageBreak[i] && !st.pageBreakInline && !st.breakEndsPrevious
                 leavesLead = !newSection && !st.pageBreakInline && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
             }
+            // A paragraph that ends its section and holds only floating
+            // objects takes no room (see `_layoutParagraph`), but stands on
+            // its page all the same, its objects with it: zh-6d402586's
+            // annexes are each a section of one such paragraph — a page's
+            // picture and its "附件1" box — and Word draws them on the
+            // annex's page; ours gave the paragraph no piece, and the page
+            // stood blank.
+            if theme.wordRules, bottom - top < 0.01, _cells[i] == nil, document.paragraphs[i].style.sectionXML != nil,
+               (i < _floatImages.count && _floatImages[i] != nil) || (i < _inline.count && _inline[i].contains { $0.float != nil }) {
+                add(PagePiece(paragraph: i, flowTop: top, flowBottom: top, page: page, pageY: y))
+            }
             while cursor < bottom - 0.01 {
                 if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
                 // (Space kept at a page's top is less the space after of
