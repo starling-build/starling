@@ -541,7 +541,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 ### Note from the Mac (2026-10-22): the zh corpus is 546 documents — a twenty-fifth sample
 Twenty more (`random.seed(20261108)` among the 99 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 89.3% (median 98.0), every page count
-Word's. Its low ones, unclaimed: zh-9ef811c8 26.3, zh-fea6e23a 54.7, zh-05699f05 77.7,
+Word's. Its low ones, unclaimed: zh-9ef811c8 26.3 [CLAIMED Mac 01Xgpbk5], zh-fea6e23a 54.7, zh-05699f05 77.7,
 zh-7eba7349 78.5, zh-727812d5 83.3, zh-e329b438 85.1.
 
 ### Note from the Mac (2026-10-22): the zh corpus is 526 documents — a twenty-fourth sample
