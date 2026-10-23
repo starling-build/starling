@@ -745,12 +745,22 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // --- input. Event numbers are WebHost.PointerEvent's.
   const MOVE = 0, DOWN = 1, UP = 2, LEAVE = 3, CANCEL = 4;
   const KINDS = { touch: 0, mouse: 1, pen: 2 };
+  // Safari on iOS reports a touch's pointerup (and cancel) at (0, 0), so a
+  // tap would lift at the canvas's corner: the finger's last known place
+  // stands in for a lift with no position.
+  const lastAt = new Map();
   const pointer = (event) => (dom) => {
     const box = canvas.getBoundingClientRect();
+    let x = dom.clientX - box.left, y = dom.clientY - box.top;
+    if (event === UP || event === CANCEL) {
+      const last = lastAt.get(dom.pointerId);
+      if (last && dom.pointerType === 'touch' && dom.clientX === 0 && dom.clientY === 0) [x, y] = last;
+      lastAt.delete(dom.pointerId);
+    } else if (event !== LEAVE) {
+      lastAt.set(dom.pointerId, [x, y]);
+    }
     if (event === DOWN) canvas.setPointerCapture(dom.pointerId);
-    swift.starling_pointer(
-      event, dom.pointerId, KINDS[dom.pointerType] ?? 1,
-      dom.clientX - box.left, dom.clientY - box.top, dom.buttons, dom.timeStamp);
+    swift.starling_pointer(event, dom.pointerId, KINDS[dom.pointerType] ?? 1, x, y, dom.buttons, dom.timeStamp);
     dom.preventDefault();
   };
   canvas.addEventListener('pointermove', pointer(MOVE));

@@ -96,7 +96,7 @@ styles = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 {style("Heading3", "heading 3", ppr='<w:keepNext/><w:keepLines/><w:spacing w:before="280" w:after="80"/><w:outlineLvl w:val="2"/>', rpr=f'{HF}{sz(11.5)}{color(INK)}<w:b/>')}
 {style("Quote", "Quote", ppr=f'<w:ind w:left="600" w:right="600"/><w:spacing w:before="160" w:after="200"/><w:pBdr><w:left w:val="single" w:sz="24" w:space="14" w:color="{A}"/></w:pBdr>', rpr=f'{color("444444")}<w:i/>')}
 {style("Caption", "caption", ppr='<w:spacing w:after="220"/>', rpr=f'{sz(9)}{color(MUTED)}<w:i/>')}
-{style("Code", "Code", ppr=f'<w:spacing w:after="0" w:line="252" w:lineRule="auto"/>{shade("F3F4F6")}<w:ind w:left="200" w:right="200"/>', rpr=f'{font("Liberation Mono")}{sz(9.5)}{color("1F2328")}')}
+{style("Code", "Code", ppr=f'<w:spacing w:before="120" w:after="120" w:line="252" w:lineRule="auto"/><w:contextualSpacing/>{shade("F3F4F6")}<w:ind w:left="200" w:right="200"/>', rpr=f'{font("Liberation Mono")}{sz(9.5)}{color("1F2328")}')}
 {style("ListParagraph", "List Paragraph", ppr='<w:ind w:left="720"/><w:contextualSpacing/>')}
 {style("Header", "header", ppr=f'<w:jc w:val="right"/><w:spacing w:after="0"/>{rule("D0D7E2", 0.5)}', rpr=f'{HF}{sz(8.5)}{color(MUTED)}')}
 {style("Footer", "footer", ppr='<w:jc w:val="center"/><w:spacing w:after="0"/>', rpr=f'{HF}{sz(8.5)}{color(MUTED)}')}

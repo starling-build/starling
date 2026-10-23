@@ -1236,6 +1236,18 @@ final class SiteShellState: State<StatefulWidget> {
     /// A link inside a page: one of this site's routes opens in place;
     /// anything else opens outside — a new tab, or the system's browser.
     private func _followLink(_ link: String) {
+        // A fragment alone is a place in this page: `#p=<id>` a paragraph,
+        // `#name` a bookmark (every Markdown heading is one, by its slug).
+        if link.hasPrefix("#") {
+            if let id = Self.paragraph(inRoute: link) { _reveal(paragraphID: id); return }
+            let name = String(link.dropFirst())
+            let doc = _controller.document
+            if let p = doc.paragraphs.first(where: { $0.bookmarks.contains(name) }), p.id != 0 {
+                _reveal(paragraphID: p.id); return
+            }
+            setState { _status = "No \"\(name)\" in this page." }
+            return
+        }
         if let m = _manifest, link.hasPrefix("/") || link.hasPrefix(m.base) {
             let slug = SiteFiles.slug(ofRoute: link, base: m.base)
             if m.node(slug) != nil {

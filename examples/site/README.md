@@ -72,6 +72,13 @@ From the command line: `OfficeApp --site-new <repo> "<title>" [--under
 slug]` makes a page from the template; `--site-import <repo> file.md` a
 page from a text source in its design.
 
+A Markdown source can use what a manual needs: `#` headings, `-` and `1.`
+lists, `|` pipe tables, `>` notes (the Quote style, one note per blank-line
+block), fenced code blocks (the Code style), `inline code`, and links.
+Every heading is also a bookmark named by its slug, so
+`[the dock](#the-dock)` jumps to "The dock" from anywhere in the page — in
+the reader, in the text view, and as an anchor in the Word download.
+
 The preview shows the status of your saved publication:
 
 - **Saved locally; no matching publish record**: this checkout has no usable

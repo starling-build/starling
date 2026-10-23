@@ -145,7 +145,13 @@ enum MarkdownFormat {
                 let level = trimmed.prefix(while: { $0 == "#" }).count
                 let rest = trimmed.dropFirst(level).trimmingWhitespace(newlines: false)
                 if level <= 6 && !rest.isEmpty {
-                    paragraphs.append(_inline(String(rest), RichParagraphStyle(heading: level)))
+                    var heading = _inline(String(rest), RichParagraphStyle(heading: level))
+                    // A heading is a bookmark named by its slug, so
+                    // `[see](#the-dock)` reaches "The dock" from anywhere in
+                    // the document — the reader, the text layer and the
+                    // .docx (a w:hyperlink anchor) all resolve it.
+                    heading.bookmarks = [SiteFiles.slug(for: String(rest))]
+                    paragraphs.append(heading)
                     continue
                 }
             }
@@ -169,11 +175,15 @@ enum MarkdownFormat {
                 pendingStyle = style
                 continue
             }
-            if trimmed.hasPrefix("> ") || trimmed == ">" {
-                flush()
+            if trimmed.hasPrefix(">") {
+                // A quote gathers its lines as a paragraph does: a note
+                // wrapped over three source lines is one note with one bar,
+                // not three. A bare ">" ends the paragraph and keeps quoting.
                 var style = RichParagraphStyle.body
                 sheet.apply("Quote", to: &style)
-                paragraphs.append(_inline(String(trimmed.dropFirst(min(2, trimmed.count))), style))
+                let body = trimmed.dropFirst().trimmingWhitespace(newlines: false)
+                if pendingStyle != style || pending.isEmpty { flush(); pendingStyle = style }
+                if body.isEmpty { flush(); pendingStyle = style } else { pending.append(String(body)) }
                 continue
             }
             if trimmed.hasPrefix("```") {

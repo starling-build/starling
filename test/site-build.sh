@@ -116,7 +116,18 @@ MD="$("$APP" --site-import "$SITE" "$OUT/hello.md" --title "Hello" 2>"$OUT/impor
 check "a Markdown import keeps its own text" "$(json '["document"]["paragraphs"][1]["text"]' < "$SITE/pages/hello.json" 2>/dev/null)" "A paragraph of text."
 check "in the template's design" "$(json '["document"]["header"]' < "$SITE/pages/hello.json" 2>/dev/null)" "Starling Site  ·  A publication"
 check "a .docx import keeps its own design" "$(json '["document"]["header"]' < "$SITE/pages/imported-policy.json" 2>/dev/null | grep -c 'A publication')" 0
-"$APP" --site-move "$SITE" imported-policy-2 down >/dev/null 2>&1; "$APP" --site-move "$SITE" imported-policy-2 down >/dev/null 2>&1
+# A heading is a bookmark named by its slug, so a Markdown cross-reference
+# reaches it: in the stored page, and in the built text layer as #p=<id>.
+printf '# Guide\n\nSee [the setup](#setting-up) first.\n\n## Setting up\n\nPlug it in.\n' > "$OUT/xref.md"
+XR="$("$APP" --site-import "$SITE" "$OUT/xref.md" --title "Cross reference" 2>"$OUT/import-xref.log")"
+check "a Markdown heading carries its slug as a bookmark" "$(json '["document"]["paragraphs"][2]["bookmarks"]' < "$SITE/pages/cross-reference.json" 2>/dev/null)" "['setting-up']"
+check "and the link to it is kept as written" "$(json '["document"]["paragraphs"][1]["runs"][1]["style"]["link"]' < "$SITE/pages/cross-reference.json" 2>/dev/null)" "#setting-up"
+"$APP" --site-build "$SITE" --out "$OUT/www" --web "$STAGE" > "$OUT/build-xref.log" 2>&1
+XID="$(json '["document"]["paragraphs"][2]["id"]' < "$SITE/pages/cross-reference.json" 2>/dev/null)"
+check "the text layer resolves it to the heading's paragraph" "$(grep -c "href=\"/cross-reference/#p=$XID\"" "$OUT/www/cross-reference/index.html")" 1
+# (Three pages were added after imported-policy-2; the move section below
+# wants it last.)
+for _ in 1 2 3; do "$APP" --site-move "$SITE" imported-policy-2 down >/dev/null 2>&1; done
 
 echo "── move: a page one place among its siblings (the Move up/down buttons)"
 check "move down" "$("$APP" --site-move "$SITE" index down 2>/dev/null)" moved
