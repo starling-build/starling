@@ -7522,6 +7522,19 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   n415 vs n414: zh-ae2dd08d 24.8 -> 47.2, 97 -> 96 pages (Word 94), nothing
   else moved. Left there: the groups' shape outlines are not drawn.
 
+- **East Asian single-spaced lines with a bold run are held to the paragraph's common height (2026-10-23).**
+  zh-ae2dd08d's "(一) 一般對象（補助80%…" (YaHei for 標楷體, 12pt, single)
+  has a bold run on its third line. The bold's line (1.73 em) differs
+  from the regular's (1.715), so the paragraph had no strut, and its first
+  line, where "80%" is drawn by YaHei's Latin stand-in (a sans 1.07 the
+  size), took the stand-in's own split about the baseline: 21.5pt where
+  Word's is 20.4. Every numbered paragraph stood a point low, and page 37
+  lost its last line. The strut that holds a paragraph to the height most
+  of its text has, beside a bold run (`_strut(near:)`, until now only over
+  1.2 lines), now applies at single spacing in documents of East Asian
+  layout too. Paired sweep n417 vs n416: zh-ae2dd08d 47.2 -> 49.9,
+  nothing else moved.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and

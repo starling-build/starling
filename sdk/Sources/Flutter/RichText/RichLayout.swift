@@ -6444,7 +6444,14 @@ public final class RichLayout {
         // At single spacing each line keeps its tallest: bug59058's Times
         // paragraphs, bold labels in their lines, stand a hair apart line by
         // line in Word's print as in the engine's.)
-        let spacedOver = theme.wordRules && style.lineHeightPoints == nil && style.lineSpacing > 1.2
+        // (… and in a document of East Asian layout at single spacing
+        // too, where a Latin stretch is drawn by its East Asian face's
+        // stand-in: the stand-in splits the line about its baseline its
+        // own way, and the line it shares grew a point — zh-ae2dd08d's
+        // "(一) 一般對象（補助80%…" first line, beside a bold YaHei run
+        // lower down, stood 21.5pt where Word's is 20.4.)
+        let spacedOver = theme.wordRules && style.lineHeightPoints == nil
+            && (style.lineSpacing > 1.2 || document.usesEastAsianLayout)
         func laidOut(_ span: TextSpan) -> TextPainter {
             let painter = TextPainter(
                 text: span,
