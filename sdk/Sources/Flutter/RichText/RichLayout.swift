@@ -3327,6 +3327,7 @@ public final class RichLayout {
             // Word's print, and once; ours drew "失业登/记" again at page
             // 16's head, the lines past row 10's bottom in the flow.)
             var doneWhole = Set<Int>()
+            var ghostLeft = 0.0   // the rows merged down under it that went over whole
             var first = true
             while true {
                 var avail = contentH - y
@@ -3379,8 +3380,13 @@ public final class RichLayout {
                 // and Word ends it at page 7's foot; ours padded the last
                 // part to the stated height, which went over again and made
                 // page 8 blank.)
+                // (… and no shorter than the rows merged down under it that
+                // went over whole, where it parted at one's top — lab `mg`:
+                // zh-9ef811c8's 81pt row stands whole at page 5's head, the
+                // next table head 34pt lower than under ours, which kept only
+                // the three lines left of its cells.)
                 let rest = first ? (carried > 0 ? max(c.ownRowHeight - c.stretched, carried) : c.ownRowHeight)
-                    : max(theme.wordRules && left + ruleUnder(c) <= avail + 0.01 ? min(stated, avail - ruleUnder(c)) : stated, left)
+                    : max(theme.wordRules && left + ruleUnder(c) <= avail + 0.01 ? min(stated, avail - ruleUnder(c)) : stated, left, ghostLeft)
                 // (A part, or the row on the next page, goes under a pinned
                 // float it would run into, as a whole row does.)
                 if !pinBands.isEmpty {
@@ -3433,6 +3439,7 @@ public final class RichLayout {
                    let bound = c.ghostBounds.last(where: { $0 + ruleUnder(c) <= avail + 0.01 }) {
                     avail = bound + ruleUnder(c)
                     ghostPart = bound
+                    ghostLeft = c.ownRowHeight - bound
                 }
                 // A centred cell (or one set at the bottom) that does not fit
                 // the part is parted from its text's top, at the part's top:

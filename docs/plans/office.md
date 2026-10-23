@@ -3518,6 +3518,14 @@ fitter dropped the paragraph's tail).
   Set whole without the part's height, the part shrank to its cells
   (474.9) and the document fell 37.9 -> 34.7. With it: 37.9 -> 39.3;
   the other 15 documents are unchanged.
+  Then: the part that goes over is no shorter than the ghost rows that
+  went with it. Lab `mg` has the 81pt row stand whole at page 5's head,
+  and the next table's head under it. Ours carried only the three lines
+  left of its cells, so everything after it stood 34pt high. Page 5's
+  last line is now at 435.0 (Word 437.0; it was 400.8). zh-9ef811c8
+  39.3 -> 50.2 (pair ghost-base4/ghost-new4); the other 15 are unchanged.
+  It still prints 11 pages to Word's 10: page 6 ends at 422.8 with 86
+  lines, where Word's ends at 473.3 with 94.
 
 - **PMingLiU's en dash is an em (2026-10-22).** zh-05699f05's cells
   are 新細明體 throughout (its Normal names it for every script), and Word
