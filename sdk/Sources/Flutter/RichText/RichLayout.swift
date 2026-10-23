@@ -13186,7 +13186,16 @@ public final class RichLayout {
                   // it at the page's foot and the calendar from page 2.)
                   !image.data.isEmpty || Self.drawsObject?(image) == true || image.textBox != nil
                     || (image.textBox == nil && image.sourceXML?.containsSubstring("drawingml/2006/chart") == true) else { continue }
-            out.append((image.id, _floatRect(float, image, g, i), _px(float.distanceTop), _px(float.distanceBottom)))
+            // (Text on one side only: the other is kept clear to the
+            // column's edge. zh-f47b8a74's "第  页共  页" boxes, wrapped
+            // square with text on their right, stand at the right of the
+            // column 21pt under an empty line, and Word's print sets that
+            // line and the "制作指引：" after it under the box; ours ran
+            // them past its left.)
+            var r = _floatRect(float, image, g, i)
+            if float.wrapSide == "right" { r = Rect.fromLTRB(-1_000_000, r.top, r.right, r.bottom) }
+            if float.wrapSide == "left" { r = Rect.fromLTRB(r.left, r.top, 1_000_000, r.bottom) }
+            out.append((image.id, r, _px(float.distanceTop), _px(float.distanceBottom)))
         }
         return out
     }

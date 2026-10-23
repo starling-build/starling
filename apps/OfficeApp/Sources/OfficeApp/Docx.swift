@@ -2397,6 +2397,8 @@ enum DocxFormat {
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
+            if let w = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].lazy.compactMap({ anchor.first($0) }).first,
+               let side = w["wrapText"], side == "left" || side == "right" { f.wrapSide = side }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             // (A height that is a share of the page's or margins': 60316's
@@ -2434,6 +2436,7 @@ enum DocxFormat {
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
+            if let side = shape.first("w10:wrap")?["side"], side == "left" || side == "right" { f.wrapSide = side }
             // (Behind the text — a z-index under 0 — no text wraps beside it,
             // whatever its wrap says: zh-6d402586's annex is one empty
             // paragraph anchoring a 786pt flowchart picture, wrap "tight"

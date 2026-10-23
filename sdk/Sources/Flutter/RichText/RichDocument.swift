@@ -297,6 +297,9 @@ public struct ImageFloat: Hashable, Sendable {
     /// Text wraps round it (Word's square, tight and through wrapping):
     /// the lines beside it are shorter, or start under it.
     public var wraps = false
+    /// … on which side (`wrapText` of `wp:wrapSquare`/`Tight`/`Through`,
+    /// VML's `w10:wrap side`): "left" or "right" alone, or nil for both.
+    public var wrapSide: String? = nil
     /// How far its drawn effects reach below its box (`wp:effectExtent`'s
     /// `b`, points): its outline's and shadow's share of the room Word
     /// gives it.
