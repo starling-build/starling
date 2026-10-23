@@ -33,6 +33,12 @@ enum SlideFonts {
         // strokes as heavy, where Liberation Sans Bold's letters stood thin
         // and apart at Arial Black's widths: ThemeColorTransparency.)
         "arial black": "Archivo Black",
+        // (Lucida Sans Unicode in Liberation Sans's regular and bold under a
+        // name of their own, with no italic: PowerPoint slants the regular,
+        // and so does the engine. aascu 5864's p34 quote, `i="1"`, is the
+        // regular slanted in PowerPoint's print, where Liberation Sans
+        // Italic's letters are another design.)
+        "lucida sans unicode": "Starling Lucida Sans",
     ]
 
     static func resolve(_ family: String) -> String {

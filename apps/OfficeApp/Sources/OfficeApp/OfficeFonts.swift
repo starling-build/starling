@@ -1701,6 +1701,11 @@ enum OfficeFonts {
         }
         faces += [("LibreFranklin-Medium.ttf", "Libre Franklin Medium"), ("LibreFranklin-MediumItalic.ttf", "Libre Franklin Medium")]
         faces += [("ArchivoBlack-Regular.ttf", "Archivo Black")]
+        // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
+        // bold with no italic: the face has none, and PowerPoint's print
+        // slants its regular — the engine does the same for a family with
+        // no italic, where Liberation Sans's own italic has other letters.)
+        faces += [("LiberationSans-Regular.ttf", "Starling Lucida Sans"), ("LiberationSans-Bold.ttf", "Starling Lucida Sans")]
         faces += [("SelawikDoc-Regular.ttf", "Selawik Doc"), ("SelawikDoc-Bold.ttf", "Selawik Doc"),
                   ("SelawikDoc-Light.ttf", "Selawik Doc Light"), ("SelawikDoc-Semilight.ttf", "Selawik Doc Semilight"),
                   ("SelawikDoc-Semibold.ttf", "Selawik Doc Semibold")]
