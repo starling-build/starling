@@ -56,7 +56,7 @@ ArialUnicodeMS, 16 never set 楷体 text on the page; page counts unchanged but 
 Re-scored on n386: mean 95.1 -> 94.9; 19 down where ours still sets 楷体 as YaHei (zh-c5b5087b 94.4 -> 53.0,
 zh-dc9cfa34 97.6 -> 56.9, zh-e37f8d40 100 -> 67.6, zh-0aac9d1a 99.4 -> 69.5, zh-3cdafcc9/e076bb5a/160a5e81 97.6
 -> 85.1 …), 4 up (zh-608e661b 7.3 -> 100, zh-92373179 65.9 -> 71.3, zh-007ca091 93.0 -> 96.4, zh-c2f6d17a 93.6
--> 96.7). Next: one rule, 楷体_GB2312 -> Arial Unicode MS under OFFICE_WORD_FONTS=mac (lenovo, 1.74 em lines).
+-> 96.7). Next: one rule, 楷体_GB2312 -> Arial Unicode MS under OFFICE_WORD_FONTS=mac (lenovo, 1.74 em lines) [CLAIMED Linux b2 01JsizVV 2026-10-22].
 Earlier "released: drifting fallback" entries (zh-4e5fe46f, zh-884c6e3e, zh-875759ff, zh-4feaa34c) are now on
 one reference setup.
 
