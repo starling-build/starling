@@ -2108,6 +2108,21 @@ final class DocxTests: XCTestCase {
                 painter.getLineBoundary(TextPosition(offset: 0)).end)
     }
 
+    func testAFullWidthPercentMayOpenATraditionalChineseLine() throws {
+        // zh-499adba6's "…占比為38.54" ends page 25's first line in Word's
+        // print and "％，女性理事…" opens the next: Word's Traditional
+        // Chinese lists do not keep "％" from a line's start, as its
+        // Simplified one does. The engine kept "38.54％" together.
+        let head = String(repeating: "一", count: 20) + "38.54"
+        let text = head + "％" + String(repeating: "二", count: 10)
+        // (A line as wide as the number and half the sign; no mark hangs.)
+        let width = try firstLine(head, width: 1000, language: "zh-TW", hangs: false, compresses: false, documentLanguage: "zh-TW").width + 6
+        let traditional = try firstLine(text, width: width, language: "zh-TW", hangs: false, compresses: false, documentLanguage: "zh-TW")
+        XCTAssertEqual(traditional.width, width - 6, accuracy: 0.5, "parted before the sign, the number on the line")
+        let simplified = try firstLine(text, width: width, language: "zh-CN", hangs: false, compresses: false, documentLanguage: "zh-CN")
+        XCTAssertEqual(simplified.length, 20, "the number goes over with its sign")
+    }
+
     /// Whether the fitter can measure here: ICU's data must reach the bridge
     /// before any paragraph is laid out in the process, or every character
     /// measures zero wide and nothing is ever over. `TestText` loads it

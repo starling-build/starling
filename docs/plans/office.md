@@ -6058,6 +6058,16 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A full-width percent sign may open a Traditional Chinese line
+  (2026-10-23).** Word's Traditional Chinese line-start list does not
+  hold "％" (its Simplified one does). zh-499adba6's "…占比為38.54" ends
+  page 25's first line in Word's print and "％，女性理事…" opens the
+  next; the engine, by Unicode's rules, keeps a number's postfix sign
+  with it and took "38.54％" down, every line after two characters
+  behind. Under the `zh-TW` lists a line may now part between a digit
+  and "％". 40 documents up, all `zh-TW` with numbers before "％":
+  zh-499adba6 87.4 -> 87.9, zh-afdd4a7e 95.5 -> 95.9, the rest to or near
+  100; nothing lower (sweep h128, on the rebased tree).
 - **A page's last line reaches past the foot by its own faces
   (2026-10-23).** The reach a grid line has past the page's foot was the
   least over every run of its paragraph. zh-c15af02e's p11 paragraph has

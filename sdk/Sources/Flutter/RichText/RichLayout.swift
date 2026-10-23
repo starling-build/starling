@@ -6977,6 +6977,7 @@ public final class RichLayout {
         let trailingSpaces = p.text.utf16.count - p.text.utf16.reversed().prefix(while: { $0 == 0x20 }).count
         let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
         let percentStarts = _percentStarts(document)
+        let traditionalLists = breaksAtQuotes && Self._traditionalChinese(document)
         // (A paragraph that turns the line-breaking rules off —
         // `w:kinsoku` 0 — may start a line with a closing mark (not end
         // one with an opening mark: Word keeps "（" with what it opens,
@@ -7470,6 +7471,18 @@ public final class RichLayout {
                     // opened the line with "%".)
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if traditionalLists, !lineRulesOff, ch == "\u{FF05}", let b = before, b.isASCII, b.isNumber {
+                    // (Before a full-width percent sign after a number, where
+                    // Word's Traditional Chinese lists hold: they do not keep
+                    // "％" from a line's start, as its Simplified one does.
+                    // zh-499adba6's "…占比為38.54" ends page 25's first line
+                    // in Word's print and "％，女性理事…" opens the next;
+                    // the engine, by Unicode's rules, keeps a number's sign
+                    // with it, took "38.54％" down and set every line after
+                    // two characters behind.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch, percentStarts: percentStarts) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
