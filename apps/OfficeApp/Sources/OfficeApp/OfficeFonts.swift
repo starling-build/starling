@@ -636,6 +636,14 @@ enum OfficeFonts {
     // 14pt (zh-33aa9899's body), 27.66 at 16 and 34.62 at 20 (zh-7dc3afad's
     // contents) — where its regular's are 1.715. The extra goes half
     // above, half below.)
+    // (Arial Unicode MS by its hhea, 1.069 over and 0.271 under, at
+    // Word's 1.3 of that, the extra half above and half below: zh-4e5fe46f's
+    // empty 10pt marks in it step 20.16 at 278/240 in Word's print, 1.740
+    // em. Its Latin is Arial's; it has no bold, and Word emboldens it a
+    // fiftieth of an em wider a character, JhengHei Light's lab `bw` rate:
+    // zh-884c6e3e's bold 16pt steps 16.645 where YaHei's step 16.325.)
+    private static let arialUnicode = EastAsianFace(height: 1.742, latin: sans, latinScale: 1.0, fakeBold: true, boldWiden: 1.0 / 50,
+                                                    baseline: 1.270)
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances,
                                              latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns, fakeBold: false, baseline: 1.26,
@@ -1091,7 +1099,7 @@ enum OfficeFonts {
         if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
         if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
         if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
-        if has("arial unicode") { return EastAsianFace(height: 1.75, latin: sans, latinScale: 1.0, fakeBold: true) }
+        if has("arial unicode") { return arialUnicode }
         // (Noto Sans SC, which Word's fallback takes for some CJK
         // compatibility ideographs — `RichLayout._notoCompatibility`: its
         // hhea 1.16 + 0.288 ems with Word's 30% more, the baseline 1.377
@@ -1163,6 +1171,15 @@ enum OfficeFonts {
         // FZShuTi, no entry either, is YaHei in its print.)
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), n.hasPrefix("fzxiaobiaosong"), n.unicodeScalars.allSatisfy({ $0.isASCII }) {
             return eastAsianFace("SimSun")
+        }
+        // (楷体_GB2312 is Arial Unicode MS in Word for Mac's prints — every
+        // one since 2026-10-18 20:57, when the printing Mac changed from
+        // setting it in YaHei with nothing in the files to tell; the
+        // older references were printed again (c3fce0af). zh-c5b5087b,
+        // zh-dc9cfa34, zh-e37f8d40 and zh-0aac9d1a dropped 30-40 points
+        // against the reprints while ours kept YaHei's taller lines.)
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), has("楷体_gb2312", "kaiti_gb2312") {
+            return arialUnicode
         }
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
