@@ -5958,6 +5958,21 @@ fitter dropped the paragraph's tail).
   16pt on, and every such item ran a line long from page 6. Centred,
   half the number is past the start. zh-f2ca3070 65.3 -> 98.5,
   zh-d746674a +0.3; nothing else moved.
+- **A repeated header's line keeps its room over the row it stands on
+  (2026-10-22).** A heading's line under it is the room between it and
+  the row under it, whatever that row's own top: lab `hl` (Word for Mac,
+  zh-e1b09977's calendar, the Mac's prints) — a 2.25pt line under two
+  header rows takes its whole width under them, on the first page and
+  under every repeat alike, the next row's text 13.68 under its foot.
+  Ours gave the first row of a repeated page its own top line, resolved
+  against the row above it in the file (half a point), and zh-e1b09977's
+  later pages stood 1.7pt high (p14's rows now Word's to 0.3). Not over a
+  row whose cells state their own top: zh-6e7ff836's repeats stand over
+  rows whose tops say nil, and Word gives its header's double line no
+  more room there. No line score moved: zh-e1b09977's p14 still keeps a
+  line at its foot that Word's print sends on — the closing heavy line
+  under a parted row's part, which Word draws under its last line
+  (759.12-761.28) and ours lower.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

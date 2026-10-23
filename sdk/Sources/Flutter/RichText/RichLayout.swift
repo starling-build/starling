@@ -2961,6 +2961,36 @@ public final class RichLayout {
                 height = max(height, d.rowTop + d.ownRowHeight - h.rowTop)
                 j += 1
             }
+            // (The line under the header is the room between it and the
+            // row it now stands over, whatever that row's own top line:
+            // lab `hl` (Word for Mac, zh-e1b09977's calendar): a 2.25pt
+            // line under two header rows takes its whole width under
+            // them, on the first page and under each repeat alike, and
+            // the next row's text stands 13.68 under its foot. Ours gave
+            // the row its own half-point top from the row above it in
+            // the file, and the repeated pages' rows stood 1.7pt high.)
+            if theme.wordRules, let next = _cells[i], next.table == table, next.row >= rows {
+                var under = 0.0
+                var n = k0
+                while n < count, let d = _cells[n], d.table == table, d.row < rows {
+                    if d.row + d.rowSpan >= rows, let side = Self._cellSide(document.paragraphs[n].cell?.bordersXML, "bottom") {
+                        under = max(under, _px(Self._ruleRoom(side.style, side.width)))
+                    }
+                    n += 1
+                }
+                // (Not over a row whose cells state their own top — nil,
+                // none, or a line: zh-6e7ff836's repeats stand over rows
+                // whose tops say nil, and Word's print gives the header's
+                // double line no room more there.)
+                var stated = false
+                var m = i
+                while m < count, let e = _cells[m], e.table == table, e.row == next.row {
+                    if document.paragraphs[m].cell?.bordersXML?.containsSubstring("<w:top ") == true { stated = true }
+                    m += 1
+                }
+                let own = max(0, next.rules - next.ruleBelow)
+                if !stated, under > own + 0.01 { height += under - own }
+            }
             // (Not a header that leaves the page no room under it.)
             guard height < contentH - y - 1 else { return }
             _pages[page].append(contentsOf: pieces)
