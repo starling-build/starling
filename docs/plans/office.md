@@ -6050,6 +6050,13 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A parted row's part is closed with the table's bottom line
+  (2026-10-23).** The line drawn under a row's part at a page's foot
+  took the table's inside width. Word closes it with the bottom line
+  where that is heavier, from mode 14 on, straight under the last line
+  kept: lab `ef2b` (Word 16 Mac) 770.40-772.56 under a third line ending
+  770.3, ours now 770.30-772.55 (a 0.5 line at 772.3 before); zh-e1b09977
+  p14's part, 2.16 in Word's print, was 0.5. Drawing only.
 - **A table's sides are drawn at their own widths, its top and bottom
   inside its rows (2026-10-23).** The painter stroked every ruled edge
   at the table's one width, and a side the file states wider or thinner

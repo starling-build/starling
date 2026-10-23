@@ -12831,7 +12831,23 @@ public final class RichLayout {
         stroke.color = ts?.borderColor ?? theme.textColor.withOpacity(0.6)
         let half = stroke.strokeWidth / 2
         if opens { canvas.drawLine(Offset(left, piece.flowTop + half), Offset(right, piece.flowTop + half), stroke) }
-        if closes { canvas.drawLine(Offset(left, piece.flowBottom - half), Offset(right, piece.flowBottom - half), stroke) }
+        // (Closed with the table's bottom line where that is the heavier,
+        // from mode 14 on, as a page's part of a table is closed — lab
+        // `ef2b` (Word 16 Mac): a row parted under a 2.25pt bottom line
+        // and 0.5 inside ones has the heavy line under its part, straight
+        // under its last line kept; zh-e1b09977 p14's part, 2.16 in
+        // Word's print, was 0.5 in ours.)
+        if closes {
+            var width = stroke.strokeWidth
+            if (document.compatibilityMode ?? 12) >= 14, let ts, ts.edges?.bottom ?? (ts.borders && !ts.bordersFromCells) {
+                width = max(width, _px(ts.edgeWidths["bottom"] ?? ts.borderWidth ?? 0.5).rounded())
+            }
+            let close = Paint()
+            close.style = .stroke
+            close.strokeWidth = width
+            close.color = stroke.color
+            canvas.drawLine(Offset(left, piece.flowBottom - width / 2), Offset(right, piece.flowBottom - width / 2), close)
+        }
     }
 
     /// Every visible paragraph, page by page and column by column: its
