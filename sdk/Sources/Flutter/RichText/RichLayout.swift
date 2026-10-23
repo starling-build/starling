@@ -9328,8 +9328,14 @@ public final class RichLayout {
         // started 9pt early. An ascii face that is itself East Asian
         // (zh-90e0cea8's 黑体) resolves to that face's own Latin.
         func latinChar(_ c: Character) -> Bool { !Self.isEastAsian(c, hinted: false) }
-        let latinStyle = ea && theme.wordRules && label.contains(where: latinChar)
-            ? theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: false, gridPitch: pitch)
+        // (… and a number of Latin characters alone too: zh-12c4f07a's
+        // "3.3.1.1." in its level's 14pt 標楷體 is YaHei's 0.586 em a digit
+        // and 0.241 a stop in Word's print, ending under the 96pt default
+        // stop, where the stand-in's own widths ran it 3.7pt past and the
+        // text went on to the indent, a character a line fewer.)
+        let latinStyle = theme.wordRules && label.contains(where: latinChar)
+            ? (ea ? theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: false, gridPitch: pitch)
+                : markerStyle)
             : nil
         // (At the face's own advances, as the text's spans are set: the
         // stand-in's glyph widened or narrowed to the width the face

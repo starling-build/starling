@@ -7464,6 +7464,17 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   n411 vs n410: zh-12c4f07a +1 line (its next miss is a line fit on the
   same page), nothing else moved.
 
+- **A number of Latin characters alone is set at its face's advances (2026-10-23).**
+  zh-12c4f07a's "3.3.1.1." (its level's 14pt 標楷體, YaHei in Word's print:
+  0.586 em a digit, 0.241 a stop) ends 93.0pt from the margin, under the
+  96pt default stop (`doNotUseIndentAsNumberingTabStop`), and Word starts
+  its text there. The marker set the face's advances on its Latin
+  characters only where the number also held East Asian ones; "3.3.1.1."
+  kept the stand-in's widths, ended 3.7pt later, past the stop, and its
+  text went to the indent, 7.45pt on — a character a line fewer. Now any
+  Latin character of a number takes them. Paired sweep n413 vs n412:
+  zh-12c4f07a 82.6 -> 83.7, nothing else moved.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and
