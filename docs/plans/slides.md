@@ -2548,6 +2548,21 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**Looked at and left, 2026-10-22 (late):**
+- GeomLec1's bold Lucida Sans Unicode. PowerPoint fakes it (render mode
+  2, fill and stroke) for "Euclid" and the grey "common notions", but
+  not for the red "postulates", also `b="1"`: no rule from one deck.
+  Making the bold from the regular cost the deck 0.34, so its bold stays
+  Liberation Sans Bold.
+- A run's own outline (`a:rPr/a:ln`) outside WordArt is still not drawn.
+  Only tdf114848's footer (a 1.45 pt white line over red 12 pt text,
+  which reads white in PowerPoint's print) and HowWeRefactor's six runs
+  have one among the decks with a print. `_clearedPainter`'s span copy
+  would carry a stroked second pass, if it is ever worth it.
+- 60810's worst pages (p22, p10, p4: 6-7%) are screenshots, the
+  difference their resampling's; AES p8 (7.5%) is Verdana's stand-in's
+  glyphs, the layout line for line.
+
 **WordArt's letters fitted capital top to descender foot, 2026-10-22**
 (sweep 254: corpus mean 0.9202 → 0.9101; WordArtBitmapFill −3.95,
 Wordart3D −1.24, ThemeColorTransparency −1.04, WordArtDefaultColor
