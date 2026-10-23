@@ -2608,6 +2608,40 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(text.contains("×"), text)
     }
 
+    func testACellsSpacesBothSidesOfTheWordBeforeWhatIsTakenGive() throws {
+        try requireFitterWidths()
+        // zh-db07d44e's cell "達成預算目標者得基準分80分，每增（減）1%…" (mode 15,
+        // zh-TW, 12pt) ends its first line "…分80分，" in Word's print, the
+        // automatic spaces either side of "80" set at 2.2 of their 3.0 and
+        // "，" at its half; ours let only the one after it give, and the cell
+        // and every page after it ran a line long.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-db07d44e") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let cells = doc.paragraphs.indices.filter { doc.paragraphs[$0].text.hasPrefix("達成預算目標者得基準分80分，每增") }
+        XCTAssertFalse(cells.isEmpty)
+        for i in cells {
+            let painter = l.geometry(i).painter
+            let shown = painter.plainText
+            let line = painter.getLineBoundary(TextPosition(offset: 0))
+            let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+            XCTAssertTrue(text.contains("80分，"), "\(i): \(text)")
+        }
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its
@@ -2668,7 +2702,10 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try lines(text, cellTwips: 9000), 1)
         let natural = 9 * 12.0 + 12 + 12 + 6 + 2 * 2.7
         XCTAssertEqual(try lines(text, cellTwips: twips(natural - 12.75)), 1, "the space before \"分\" gives the last 0.75 of its 1.35")
-        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 13.75)), 2, "past the marks and that space: 13.75")
+        // (And the space before "1" — the word's other side — gives too:
+        // zh-db07d44e's "…分80分，", both its spaces at 2.2 of 3.0.)
+        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 13.75)), 1, "both of the word's spaces give: 13.75")
+        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 15.25)), 2, "past the marks and both spaces: 15.25")
         XCTAssertEqual(try lines("一二三四五，六七八九分。", cellTwips: twips(9 * 12.0 + 12 + 12 + 12 - 12.75)), 2, "no space before it to give")
     }
 

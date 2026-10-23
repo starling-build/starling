@@ -10105,7 +10105,14 @@ public final class RichLayout {
                     // comma's 6 short and the line's spaces not before it.
                     // Every space of the line, as in the body, took it and
                     // zh-12db188f's "…於83年7月", whose line weighed them.)
-                    let given = legacy || !inCell ? spaces + ownSpaces : spaces.filter { $0 == a - 1 }
+                    // (… and the one before the Latin word that space ends, its
+                    // other side: zh-db07d44e's cell "…得基準分80分，" (mode 15,
+                    // zh-TW, 12pt) is a line in Word's print, the spaces either
+                    // side of "80" set at 2.2 of their 3.0 and "，" at its half.)
+                    var wordStart = a
+                    while wordStart > 0, units[wordStart - 1] < 0x2E80, !isSpace(units[wordStart - 1]) { wordStart -= 1 }
+                    let given = legacy || !inCell ? spaces + ownSpaces
+                        : spaces.filter { $0 == a - 1 || (wordStart < a && $0 == wordStart - 1) }
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
                     // apart is 8.4 over where its em would be 7.8 over,
