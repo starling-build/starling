@@ -554,7 +554,7 @@ Each owner claims its item below as usual; this only says who was asked.
 - Mac 0fcba326: zh-6d402586 (1), the empty 34pt-exact section ender taking a page; then zh-1cfb652b (87.5).
 - OPEN, no taker yet (windows-1 is on Sheets by its user's word): column-width autofit — zh-6aa8bd7c p6 (noWrap cells) and zh-ae2dd08d p24 (widths redistributed with nothing over); best with Word for Windows labs.
 
-### Mac 01Xgpbk5 (2026-10-23): zh-160a5e81 87.2 [CLAIMED Mac 01Xgpbk5 2026-10-23]
+### Mac 01Xgpbk5 (2026-10-23): zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [CLAIMED Mac 01Xgpbk5 2026-10-23]
 
 ### Note from the Mac (2026-10-23): the zh corpus is 645 documents — a thirtieth sample, of 400-800 KB
 With the 15-400 KB pool empty: 20 of the 22 unprinted of 400 to 800 KB (`random.seed(20261113)`,
