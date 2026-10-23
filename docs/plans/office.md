@@ -7391,6 +7391,16 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   unchanged (the scorer reads the moved lines as matched on neither
   page), nothing else moved.
 
+- **A ")" after an ideograph hangs before Word 2013's layout too (2026-10-23).**
+  zh-28416dc9 (sample 29, 78.9; mode 12, doNotCompress, 標楷體 14pt
+  zh-TW, left-set) has "…委外機構(公 司)所在地…": Word's print ends the line
+  "(公 司)", "司" inside the margin and the half-width ")" 4.8pt past it.
+  Ours broke at the space before "司", and the page ran a line late. A
+  Latin ")" or "," hung only from 2013's layout (zh-e0ca7252, zh-4b8e0abc).
+  Now a ")" after an East Asian character hangs in the older layouts too
+  (the comma, unmeasured there, does not). Paired sweep n403 vs n402:
+  zh-28416dc9 78.9 -> 100, nothing else moved (zh, POI).
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and

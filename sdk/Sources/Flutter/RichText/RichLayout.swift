@@ -9627,7 +9627,12 @@ public final class RichLayout {
                 // ends "…免載於招標文件)" with its ")" 4.2pt past the margin
                 // in Word's print, "件" squeezed in before it; ours sent
                 // "件)" to a line of its own and page 26 ran a line long.)
+                // (Before it too, a ")" after an East Asian character: zh-28416dc9
+                // (mode 12, doNotCompress, 標楷體 14pt) ends "…委外機構(公 司)"
+                // with its ")" 4.8pt past the margin in Word's print, "司"
+                // inside; ours broke at the space before "司".)
                 let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
+                    || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80
                 // (Before Word 2013's layout, in a document that compresses
                 // punctuation, Taiwan's centred marks give nothing at a
                 // line's end to be taken, and the paragraph's own last one
