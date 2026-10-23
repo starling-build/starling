@@ -5853,6 +5853,10 @@ public final class RichLayout {
         // sets what follows about it. The engine gives a tab no width of
         // its own, so each is widened by what its stop needs.
         var tabs: [Int: Double] = [:]
+        // What stands past the margin after a right stop at it (or set
+        // there), by the offset of its last character: drawn there,
+        // taking no room.
+        var hangs: [Int: Double] = [:]
         let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
         var leftTabs: Set<Int> = []    // tabs that take a first line's label to its hanging indent
@@ -5898,6 +5902,7 @@ public final class RichLayout {
             }()
             func measure(_ wraps: [Int]) {
             tabs = [:]
+            hangs = [:]
             atMargin = []
             leftTabs = []
             _leaders[i] = []
@@ -5974,6 +5979,33 @@ public final class RichLayout {
                 if theme.wordRules, pictureTabs, units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
                     extra = min(extra, max(0, ownLeft + textWidth - x) - own)
                 }
+                // (A stop set at the margin that the text before it has
+                // nearly reached: what follows the tab stands on past the
+                // margin, the line's marks unsqueezed, as Word's print sets
+                // zh-ab1ea005's contents — "55.…是否支付经济补偿？<tab>23",
+                // its dotted stop past the margin, ends "23" 4.8pt over it;
+                // ours sent "23" to a line of its own, and the contents ran
+                // a line behind. Only where the tab starts inside its stop:
+                // one past it goes down with what follows, T127.)
+                if theme.wordRules, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1), x + own < stop.x - 0.01,
+                   let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }),
+                   case let over = x + own + edge(last + 1) - after - (ownLeft + textWidth), over > 0.01 {
+                    // (The tab takes nothing — the number follows the text
+                    // straight on in Word's print — and the rest is off the
+                    // last character's advance, a hair more, so the line
+                    // ends inside the margin and its ink runs on past it.
+                    // Where that is more than the character's own advance,
+                    // shared out by width over what follows the tab: the
+                    // engine keeps no advance under nothing.)
+                    extra = -own
+                    let rest = over - own + 0.05
+                    let span = max(0.01, edge(last + 1) - after)
+                    if rest > 0, rest < edge(last + 1) - edge(last) - 0.5 {
+                        hangs[last] = -rest
+                    } else if rest > 0 {
+                        for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -rest * max(0, edge(k + 1) - edge(k)) / span }
+                    }
+                }
                 tabs[t] = extra
                 if toIndent { leftTabs.insert(t) }
                 shift += extra
@@ -5997,7 +6029,8 @@ public final class RichLayout {
             if theme.markersAtHang || theme.wordRules {
                 var wraps: [Int] = []
                 for _ in 0 ..< 3 {
-                    let (s1, in1, ins1) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs)
+                    let (s1, in1, ins1) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
+                                                adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 })
                     let trial = TextPainter(text: s1, textAlign: .left, textDirection: .ltr)
                     if !in1.isEmpty { trial.setPlaceholderDimensions(in1.map { $0.dimensions }) }
                     trial.layout(minWidth: textWidth, maxWidth: textWidth)
@@ -6035,7 +6068,8 @@ public final class RichLayout {
         // page number to a line of its own. Lab `tb`'s justified "toc 1"
         // entry did; set left, it did not.)
         let tabsHeld: Set<Int> = theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []
-        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs, held: tabsHeld)
+        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
+                                            adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
         // A right-to-left paragraph runs from the right, and its "left"
         // (Word's start) is the right edge.

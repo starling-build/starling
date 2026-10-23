@@ -3346,7 +3346,7 @@ All three in: the number takes the paragraph style's size where the mark has non
 an East Asian family's Latin side falls back to its CJK face before the symbol face. Same-base sweep, 377 docs:
 zh-117cf7c6 92.0 -> 100.0, nothing else moved.
 
-### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — tried, released [CLAIMED Linux b2 01JsizVV 2026-10-23]
+### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — part (a) done, released
 Owner: — (released by starling-office1-df, 2026-10-18; the Mac's measurements, 01Xgpbk5)
 Documents: zh-ab1ea005 (12%: its TOC runs a line behind and the body a page behind).
 Known (Mac, Word's print): toc 2, a dotted right stop at 8844 twips (519.2pt), compressPunctuation, mode 14, 方正楷体
@@ -3356,6 +3356,8 @@ same with "23"); ours squeezes both commas to fit "20" (51), or sends "23" to it
 the tab with "22" goes to the next line; ours sends "偿？" down with the tab. Rule: a right-stop tab whose
 unsqueezed start is before its stop stays and what follows may overflow the margin, unsqueezed; one whose start is
 past it breaks before itself, the line before fitted as a line end (the engine allows no break before a tab).
+
+Part (a) DONE (Linux b2 01JsizVV, 2026-10-23): a right stop at the margin (or set there) whose tab starts inside it lets what follows run past the margin — the tab takes nothing, the rest comes off the last character's advance, so the line ends inside and its ink runs on. "55.…补偿？<tab>23" keeps "23" on its line as in Word's print; zh-ab1ea005 12.0 -> 14.9, nothing else moved (A/B with 5e452e14 landing between: its three gains are its own). Left: (b) entry 54's break before the tab, and the body a page behind; released.
 
 ### T128. A Latin word at a line's end, by Word's start rule (zh-eb54d3b0, zh-499adba6) — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Windows box's labs lw*, the Mac's case)
