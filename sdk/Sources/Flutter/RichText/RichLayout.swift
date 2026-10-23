@@ -3547,6 +3547,15 @@ public final class RichLayout {
                     avail = bound + ruleUnder(c)
                     ghostPart = bound
                     ghostLeft = c.ownRowHeight - bound
+                    // (Where it ends at the rows' own heights, what goes
+                    // over is the last of them again, as tall as the file
+                    // says it is: zh-9ef811c8's "审批" rows send two lines
+                    // over, and Word's page 7 stands them in the 48.95pt
+                    // row, the next row 17.7pt lower than under ours.)
+                    let last = c.row + c.ghostRows
+                    if bound == c.ghostBounds.last, c.stretched > 0.01, let h = ts.rowHeights[last], !ts.rowsExactHeight.contains(last) {
+                        ghostLeft = max(ghostLeft, _px(h) + max(c.rules - c.ruleBelow, margins - c.ruleBelow, 0))
+                    }
                 }
                 // A centred cell (or one set at the bottom) that does not fit
                 // the part is parted from its text's top, at the part's top:

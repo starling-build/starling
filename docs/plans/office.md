@@ -3539,6 +3539,12 @@ fitter dropped the paragraph's tail).
   zh-9ef811c8 51.6 -> 62.1, 10 pages as Word's, pages 1-6 matched (pair
   gs-base/gs-new); the other 15 are unchanged. Simply parting a
   stretched last row at a line instead cost page 5 (51.6 -> 40.7).
+  And what goes over there is the last row again, as tall as the file
+  says it is (the rule for any row that goes over). Word's page 7 sets
+  the two carried lines in the 48.95pt row, and the next row stands
+  17.7pt lower than under ours, which made that part only as tall as
+  its two lines. zh-9ef811c8 62.1 -> 99.3 (pair go-base/go-new); the
+  other 15 are unchanged.
 
 - **PMingLiU's en dash is an em (2026-10-22).** zh-05699f05's cells
   are 新細明體 throughout (its Normal names it for every script), and Word
