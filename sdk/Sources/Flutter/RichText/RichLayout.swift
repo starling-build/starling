@@ -4090,6 +4090,13 @@ public final class RichLayout {
                     reserveNotes(ids, deferring: true)
                 }
             }
+            func raiseAtHead(_ c: _CellGeo) {
+                guard theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
+                      let up = document.tableStyles[c.table]?.floatRaiseY, y < 0.01 else { return }
+                let physical = page / _columns
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                y = max(-insetTop, -_px(up))
+            }
             if let c = _cells[i] {
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
@@ -4099,6 +4106,12 @@ public final class RichLayout {
                     textFloatTop = (c.table, page, y, _px(down), false)
                     y += _px(down)
                 }
+                // (And one placed above the text's place, at a page's head,
+                // that much up into the top margin: zh-76700e5f's cover table,
+                // tblpY -733 under frames that take no room, has "ICS
+                // 67.080.20" at 34.5 in Word's print, 36.65pt over the
+                // margin; ours stood it at the margin — and 177pt down.)
+                raiseAtHead(c)
                 // A floating table placed against the page stands at its
                 // offset there, and the text before it on that page that
                 // would reach into it is set under it: lab `fc` (Word 16, a
@@ -4298,7 +4311,7 @@ public final class RichLayout {
                     // past the margin on page 15, over the footer's 49.6.)
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
-                    if y + whole > edge + 0.01, whole <= edge - 0.01 { newPage() }
+                    if y + whole > edge + 0.01, whole <= edge - 0.01 { newPage(); raiseAtHead(c) }
                 }
                 let atTop = y < 0.01
                 if atTop { goOn() }

@@ -1295,6 +1295,9 @@ enum DocxFormat {
                         style.floatOffsetY = v / 20
                     }
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
+                        style.floatRaiseY = -v / 20
+                    }
                     if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
                         style.floatX = v / 20
                         style.floatXAnchor = pos["w:horzAnchor"] ?? "text"

@@ -1109,6 +1109,9 @@ public struct TableStyle: Hashable, Sendable {
     /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
     /// laid out in the flow, it starts that much lower.
     public var floatOffsetY: Double? = nil
+    /// … and how far ABOVE it one stands whose w:tblpY is negative, in
+    /// points: at a page's head it reaches up into the top margin.
+    public var floatRaiseY: Double? = nil
     /// A floating table's left (`w:tblpX`, points) and what it is from
     /// (`w:horzAnchor`: "page", "margin" or "text").
     public var floatX: Double? = nil
