@@ -6222,6 +6222,36 @@ public final class RichLayout {
                 if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0) { push = max(push, _px(float.y) + _px(image.height)) }
             }
         }
+        // (In a table cell too, across the cell's text — lab `wc` on Word
+        // for Windows: zh-e4ef4c4d's 184pt photo, anchored 15.4pt down in a
+        // cell 201pt across inside its margins, sets its paragraph's text
+        // under it, where ours ran the text over it. A line of an exact
+        // height goes down by whole lines from the paragraph's top — 24pt
+        // lines to 168pt under a photo that ends 153.75 down, 144 under
+        // one ending 135.4 — and one of auto spacing to just under it.)
+        else if theme.wordRules, let cell = p.cell, cell.textDirection == .horizontal {
+            let bare = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
+            let gap = _px(9), em = bare ? 0.0 : _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+            for image in p.inlineImages.values {
+                guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil,
+                      float.verticalFrom == "paragraph", float.horizontalFrom != "page" else { continue }
+                let w = min(_px(image.width), textWidth)
+                let x: Double
+                switch float.horizontalAlign {
+                case "center": x = (textWidth - w) / 2
+                case "right", "outside": x = textWidth - w
+                case "left", "inside": x = 0
+                default: x = _px(float.x)
+                }
+                let leftRoom = x - gap - max(0, lead), rightRoom = textWidth - (x + w) - gap
+                guard em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0) else { continue }
+                var under = _px(float.y) + _px(image.height)
+                if let exact = style.lineHeightPoints, !style.lineHeightIsMinimum, exact > 0, under > 0 {
+                    under = (under / _px(exact) - 0.001).rounded(.up) * _px(exact)
+                }
+                push = max(push, under)
+            }
+        }
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height
