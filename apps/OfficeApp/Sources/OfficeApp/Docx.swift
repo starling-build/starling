@@ -767,8 +767,21 @@ enum DocxFormat {
                 abstract[id] = levels
                 abstractFormats[id] = formats
             }
+            // (A definition that only names a numbering style —
+            // w:numStyleLink — has its levels in the definition that
+            // style is (w:styleLink): zh-12c4f07a's "3.1.1" items are a
+            // list over such a one, which ours, finding no levels, drew
+            // as bullets.)
+            var styleLinked: [String: String] = [:]
+            var numStyleLinks: [String: String] = [:]
+            for a in numbering.all("w:abstractNum") {
+                guard let id = a["w:abstractNumId"] else { continue }
+                if let s = a.first("w:styleLink")?["w:val"] { styleLinked[s] = id }
+                if let s = a.first("w:numStyleLink")?["w:val"] { numStyleLinks[id] = s }
+            }
             for n in numbering.all("w:num") {
-                guard let id = n["w:numId"], let aid = n.first("w:abstractNumId")?["w:val"] else { continue }
+                guard let id = n["w:numId"], var aid = n.first("w:abstractNumId")?["w:val"] else { continue }
+                if (abstract[aid] ?? [:]).isEmpty, let style = numStyleLinks[aid], let linked = styleLinked[style] { aid = linked }
                 var levels = abstract[aid] ?? [:]
                 var formats = abstractFormats[aid] ?? [:]
                 // A level the list itself redefines (w:lvlOverride with a

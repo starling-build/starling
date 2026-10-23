@@ -7447,6 +7447,15 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   blank page, 100 -> 29.3.) Paired sweep n409 vs n408: zh-12c4f07a 81.6 ->
   82.6, zh-f47b8a74 69.0 -> 70.7, nothing down.
 
+- **A list over a numbering style's link takes that style's levels (2026-10-23).**
+  zh-12c4f07a's "3.1.1" items (p10 on) are numId 32, whose abstractNum
+  says only `w:numStyleLink` "7" — the levels are in the abstractNum that
+  carries `w:styleLink` "7" ("%1.%2.%3"). The reader found no levels and
+  drew bullets. A definition with no levels of its own and a numStyleLink
+  now reads the linked definition's, and shares its counter. Paired sweep
+  n411 vs n410: zh-12c4f07a +1 line (its next miss is a line fit on the
+  same page), nothing else moved.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and
