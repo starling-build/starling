@@ -77,7 +77,10 @@ lists, `|` pipe tables, `>` notes (the Quote style, one note per blank-line
 block), fenced code blocks (the Code style), `inline code`, and links.
 Every heading is also a bookmark named by its slug, so
 `[the dock](#the-dock)` jumps to "The dock" from anywhere in the page — in
-the reader, in the text view, and as an anchor in the Word download.
+the reader, in the text view, and as an anchor in the Word download. In the
+browser every jump — a link followed, a Contents entry — is a history entry:
+the address bar reads `…/page/#the-dock` (shareable), Back returns to where
+you were, Forward to the section again.
 
 The preview shows the status of your saved publication:
 

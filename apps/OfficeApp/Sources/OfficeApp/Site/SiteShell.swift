@@ -84,7 +84,13 @@ final class SiteShellState: State<StatefulWidget> {
     private var _toc: [(index: Int, level: Int, text: String, page: Int?)] = []
     private var _tocOpen = false
     /// A paragraph the route named (`#p=<id>`), revealed once its page is open.
-    private var _pendingParagraph: UInt32?
+    /// The place in the page to open at once it loads: a route's `#…`
+    /// (`p=<id>` a paragraph, else a bookmark name), and whether to select
+    /// the paragraph so it reads as "here" (a link followed) or only scroll
+    /// to it (a step back through the browser's history).
+    private var _pendingFragment: (fragment: String, select: Bool)?
+    private let _editableKey = GlobalKey<State<StatefulWidget>>()
+    private var _editable: RichEditableState? { _editableKey.currentState as? RichEditableState }
 
     // Editing (the whole Writer) and publishing, over a writable store.
     private var _editing = false
@@ -186,6 +192,9 @@ final class SiteShellState: State<StatefulWidget> {
             case "caret":
                 let i = self._controller.caret.paragraph
                 return self._controller.document.paragraphs.indices.contains(i) ? "\(self._controller.document.paragraphs[i].id)" : ""
+            case "top":
+                let i = self._editable?.topParagraph ?? 0
+                return self._controller.document.paragraphs.indices.contains(i) ? "\(self._controller.document.paragraphs[i].id)" : ""
             default: return nil
             }
         }
@@ -193,23 +202,46 @@ final class SiteShellState: State<StatefulWidget> {
 
     // MARK: Pages
 
-    /// `#p=<id>` at the end of a route: the paragraph to open at.
-    static func paragraph(inRoute route: String) -> UInt32? {
-        guard let r = route.findRange(of: "#p=") else { return nil }
-        var digits = ""
-        for ch in route[r.upperBound...] { if ch.isNumber { digits.append(ch) } else { break } }
-        return UInt32(digits)
+    /// What follows `#` in a route: the place in the page to open at.
+    static func fragment(ofRoute route: String) -> String? {
+        guard let hash = route.firstIndex(of: "#") else { return nil }
+        let f = String(route[route.index(after: hash)...])
+        return f.isEmpty ? nil : f
     }
 
+    /// The paragraph a fragment names: `p=<id>` by id, anything else a
+    /// bookmark (every Markdown heading is one, by its slug; Word's TOC
+    /// entries point at its `_Toc…` marks).
+    private func _paragraphIndex(ofFragment fragment: String) -> Int? {
+        let doc = _controller.document
+        if fragment.hasPrefix("p=") {
+            guard let id = UInt32(fragment.dropFirst(2)), id != 0 else { return nil }
+            let matches = doc.paragraphs.indices.filter { doc.paragraphs[$0].id == id }
+            return matches.count == 1 ? matches[0] : nil
+        }
+        return doc.paragraphs.indices.first { doc.paragraphs[$0].bookmarks.contains(fragment) }
+    }
+
+    /// A route arriving from the browser: the first one, or Back/Forward.
     private func _open(route: String, push: Bool) {
         guard let m = _manifest else { return }
         let slug = SiteFiles.slug(ofRoute: route, base: m.base)
-        _pendingParagraph = Self.paragraph(inRoute: route)
-        _load(slug.isEmpty ? m.home : slug, push: push)
+        let target = slug.isEmpty ? m.home : slug
+        let fragment = Self.fragment(ofRoute: route)
+        // Back or Forward within the open page: the browser's history holds
+        // one entry per jump (a link followed, a Contents tap), each naming
+        // where the reader was. Go there — no reload, nothing selected.
+        if !push, target == _slug, !_editing, !_loading {
+            _reveal(index: fragment.flatMap { _paragraphIndex(ofFragment: $0) } ?? 0, select: false)
+            return
+        }
+        _pendingFragment = fragment.map { ($0, push) }
+        _load(target, push: push)
     }
 
     private func _load(_ slug: String, push: Bool) {
         if _publishing { return }
+        if push { _recordPlace() }
         _revision = nil
         _confirmHome = nil
         _confirmDelete = false
@@ -258,7 +290,11 @@ final class SiteShellState: State<StatefulWidget> {
                     WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document), downloads: downloads)
                 }
                 #endif
-                if let id = self._pendingParagraph { self._pendingParagraph = nil; self._reveal(paragraphID: id) }
+                if let pending = self._pendingFragment {
+                    self._pendingFragment = nil
+                    if let i = self._paragraphIndex(ofFragment: pending.fragment) { self._reveal(index: i, select: pending.select) }
+                    else { self.setState { self._status = "This link names a place that is not in the page." } }
+                }
                 if self._editOnNextLoad {
                     self._editOnNextLoad = false
                     self._beginEdit()
@@ -286,36 +322,80 @@ final class SiteShellState: State<StatefulWidget> {
         setState { _toc = outline.map { (index: $0.index, level: $0.level, text: $0.text, page: pages[$0.index]) } }
     }
 
-    /// Open at a paragraph: scroll it to the top and select it, so it reads
-    /// as "here".
-    private func _reveal(paragraphID id: UInt32) {
+    /// Go to a paragraph: scroll it to the top, and when `select`, select it
+    /// so it reads as "here".
+    private func _reveal(index i: Int, select: Bool) {
         let doc = _controller.document
-        let matches = doc.paragraphs.indices.filter { doc.paragraphs[$0].id == id }
-        guard id != 0, matches.count == 1 else {
-            setState { _status = "This passage link could not be matched to a single paragraph." }
-            return
-        }
-        let i = matches[0]
-        // Selected with the caret at its START, and that start scrolled to
-        // the top: a selection whose caret sat at the end would be revealed
-        // by its end, and the paragraph would land at the foot of the view.
+        guard doc.paragraphs.indices.contains(i) else { return }
         let slug = _slug
         let apply = { [weak self] in
             guard let self else { return }
+            if i == 0, !select {
+                // The document's start is the top of the page, margin and
+                // all — not the first line with the paper above it cut off.
+                self._controller.moveTo(RichPosition(paragraph: 0, offset: 0), reveal: .visible)
+                self._editable?.scrollY = 0
+                return
+            }
             self._controller.pendingReveal = .top
-            self._controller.selection = RichSelection(anchor: RichPosition(paragraph: i, offset: doc.paragraphs[i].length),
-                                                       focus: RichPosition(paragraph: i, offset: 0))
+            // Selected with the caret at its START, and that start scrolled
+            // to the top: a selection whose caret sat at the end would be
+            // revealed by its end, and the paragraph would land at the foot
+            // of the view.
+            let start = RichPosition(paragraph: i, offset: 0)
+            self._controller.selection = select
+                ? RichSelection(anchor: RichPosition(paragraph: i, offset: doc.paragraphs[i].length), focus: start)
+                : RichSelection(caret: start)
         }
         apply()
-        // The editable lays the new document out on its next frame; until
+        // The editable lays a new document out on its next frame; until
         // then a reveal has no layout to measure against and is lost. Asked
-        // again once it has one (a collapsed caret first, so the second set
-        // is a change the editable hears).
+        // again once it has one (through a different caret first, so the
+        // second set is a change the editable hears).
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
             guard let self, self._slug == slug, self._controller.document.paragraphs.indices.contains(i) else { return }
-            self._controller.selection = RichSelection(anchor: RichPosition(paragraph: i, offset: 0), focus: RichPosition(paragraph: i, offset: 0))
+            self._controller.selection = RichSelection(caret: RichPosition(paragraph: i == 0 ? min(1, doc.paragraphs.count - 1) : 0, offset: 0))
             apply()
         }
+    }
+
+    /// Where the reader is, as a route fragment: the top paragraph's
+    /// bookmark, else `p=<id>`; nil at the page's start, or with no reader
+    /// on screen (a phone showing its Contents).
+    private func _hereFragment() -> String? {
+        guard let e = _editable else { return nil }
+        let doc = _controller.document
+        let i = e.topParagraph
+        guard i > 0, doc.paragraphs.indices.contains(i) else { return nil }
+        return Self.fragment(forParagraph: doc.paragraphs[i])
+    }
+
+    /// A paragraph as a route fragment: its bookmark, else `p=<id>`.
+    private static func fragment(forParagraph p: RichParagraph) -> String? {
+        if let name = p.bookmarks.first { return name }
+        return p.id != 0 ? "p=\(p.id)" : nil
+    }
+
+    /// Rewrite the browser's current history entry to say where in the page
+    /// the reader is, so that Back from wherever they go next returns here —
+    /// as it does between ordinary web pages. Done before every push.
+    private func _recordPlace() {
+        #if os(WASI)
+        guard let m = _manifest, let slug = _slug, !_editing, _editable != nil else { return }
+        var route = m.route(slug)
+        if let f = _hereFragment() { route += "#" + f }
+        WebHistory.push(route, replace: true)
+        #endif
+    }
+
+    /// A jump within the page — a link followed, a Contents entry — is a
+    /// browser history entry of its own, so Back returns to where the
+    /// reader was and the address bar names the passage.
+    private func _pushPlace(_ fragment: String) {
+        #if os(WASI)
+        guard let m = _manifest, let slug = _slug, !_editing else { return }
+        WebHistory.push(m.route(slug) + "#" + fragment)
+        #endif
     }
 
     /// The address bar becomes a link to the paragraph the caret is in.
@@ -864,7 +944,7 @@ final class SiteShellState: State<StatefulWidget> {
                 self.setState { self._reviewOpen = false; self._publishOpen = false }
                 self._refreshManifest { [weak self] in
                     guard let self else { return }
-                    self._pendingParagraph = paragraphID
+                    self._pendingFragment = ("p=\(paragraphID)", true)
                     self._load(slug, push: true)
                 }
             })
@@ -915,8 +995,14 @@ final class SiteShellState: State<StatefulWidget> {
             Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
         ]
         if _compact {
-            items.append(Button(onPressed: { [weak self] in self?.setState { self?._navigationOpen.toggle() } },
-                                child: Text(_navigationOpen ? "Close" : "Pages")))
+            items.append(Button(onPressed: { [weak self] in
+                guard let self else { return }
+                // The panel takes the reader's place on a phone: record where
+                // the reader is while it is still on screen, so Back from the
+                // page chosen next returns here.
+                if !self._navigationOpen { self._recordPlace() }
+                self.setState { self._navigationOpen.toggle() }
+            }, child: Text(_navigationOpen ? "Close" : "Pages")))
         } else if let leave = (widget as! SiteShell).onLeave {
             items.append(Text("LOCAL COPY", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.muted)))
             items.append(Chrome.gap(16))
@@ -1004,7 +1090,14 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(Chrome.gap(8))
             }
             if !_toc.isEmpty {
-                items.append(Button(onPressed: { [weak self] in self?.setState { self?._tocOpen.toggle() } }, child: Text(_tocOpen ? "Hide contents" : "Contents")))
+                items.append(Button(onPressed: { [weak self] in
+                    guard let self else { return }
+                    // On a phone the panel takes the reader's place: where
+                    // the reader is goes into the history now, while it is
+                    // still on screen to ask.
+                    if !self._tocOpen, self._compact { self._recordPlace() }
+                    self.setState { self._tocOpen.toggle() }
+                }, child: Text(_tocOpen ? "Hide contents" : "Contents")))
                 items.append(Chrome.gap(8))
             }
             if !store.canEdit, !tools {
@@ -1178,7 +1271,7 @@ final class SiteShellState: State<StatefulWidget> {
             if pageWidth > room, room > 200 { zoom = max(0.4, room / pageWidth) }
         }
         return RichEditable(
-            controller: _controller, theme: theme,
+            key: _editableKey, controller: _controller, theme: theme,
             padding: paged != nil ? EdgeInsets(all: 24) : EdgeInsets(left: _compact ? 20 : 40, top: 28, right: _compact ? 20 : 40, bottom: 120),
             autofocus: false, backgroundColor: paged != nil ? WikiAppearance.paper : page, zoom: zoom,
             pageSetup: paged, pageColor: page,
@@ -1206,6 +1299,11 @@ final class SiteShellState: State<StatefulWidget> {
                 onPressed: {
                     guard let self else { return }
                     let target = RichPosition(paragraph: h.index, offset: 0)
+                    // (On a phone the reader is off screen and its place was
+                    // recorded when the panel opened.)
+                    self._recordPlace()
+                    if self._controller.document.paragraphs.indices.contains(h.index),
+                       let f = Self.fragment(forParagraph: self._controller.document.paragraphs[h.index]) { self._pushPlace(f) }
                     self._controller.moveTo(target, reveal: .top)
                     guard self._compact else { self.setState {}; return }
                     // On a phone the Contents panel stands in for the reader,
@@ -1239,19 +1337,20 @@ final class SiteShellState: State<StatefulWidget> {
         // A fragment alone is a place in this page: `#p=<id>` a paragraph,
         // `#name` a bookmark (every Markdown heading is one, by its slug).
         if link.hasPrefix("#") {
-            if let id = Self.paragraph(inRoute: link) { _reveal(paragraphID: id); return }
-            let name = String(link.dropFirst())
-            let doc = _controller.document
-            if let p = doc.paragraphs.first(where: { $0.bookmarks.contains(name) }), p.id != 0 {
-                _reveal(paragraphID: p.id); return
+            let fragment = String(link.dropFirst())
+            guard let i = _paragraphIndex(ofFragment: fragment) else {
+                setState { _status = "No \"\(fragment)\" in this page." }
+                return
             }
-            setState { _status = "No \"\(name)\" in this page." }
+            _recordPlace()
+            _pushPlace(fragment)
+            _reveal(index: i, select: true)
             return
         }
         if let m = _manifest, link.hasPrefix("/") || link.hasPrefix(m.base) {
             let slug = SiteFiles.slug(ofRoute: link, base: m.base)
             if m.node(slug) != nil {
-                _pendingParagraph = Self.paragraph(inRoute: link)
+                _pendingFragment = Self.fragment(ofRoute: link).map { ($0, true) }
                 _load(slug, push: true)
                 return
             }

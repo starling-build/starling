@@ -121,11 +121,14 @@ check "a tap on a row still opens it" "${M[1]:-}" '"getting-started"'
 # panel and moves the caret to that heading.
 W=390 H=844 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('caret')" click 56 192 wait 1000 \
     shot "$OUT/7-phone-contents.png" click 100 414 wait 1500 eval "starling.debug('caret')" \
-    eval "starling.debug('toc').split('\n')[5].split('\t')[2]" shot "$OUT/8-phone-jumped.png" > "$OUT/drive6c.log" 2>&1
+    eval "starling.debug('toc').split('\n')[5].split('\t')[2]" shot "$OUT/8-phone-jumped.png" \
+    eval "location.hash" eval "history.back(); 'back'" wait 1200 eval "location.hash" eval "starling.debug('top')" > "$OUT/drive6c.log" 2>&1
 N=(); while IFS= read -r l; do N+=("$l"); done < <(evals "$OUT/drive6c.log")
 # (The caret reads as a paragraph id, so the check is that it moved.)
 check "a phone's Contents tap moves the caret to the heading" "$(printf '%s' "${N[1]:-}" | grep -Ec '^"[1-9][0-9]*"$')" 1
 check "away from the first paragraph" "$([ -n "${N[0]:-}" ] && [ "${N[0]:-}" != "${N[1]:-}" ] && echo moved)" moved
+check "the tap is a history entry naming the heading" "$(printf '%s' "${N[3]:-}" | grep -Ec '^"#.+"$')" 1
+check "and Back returns to the page's start" "$([ "${N[5]:-}" = '""' ] && [ "${N[6]:-}" = "${N[0]:-}" ] && echo back)" back
 # Find: the Find button opens a field after PDF; typing selects the first
 # match. Copy: a double-click selects a word, Ctrl+C puts it on the system
 # clipboard (stubbed here: the page's writeText records what it was given).
@@ -158,14 +161,29 @@ URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" click 605 220 wai
 L=(); while IFS= read -r l; do L+=("$l"); done < <(evals "$OUT/drive8.log")
 check "Link to paragraph puts #p=<id> in the address bar" "$(printf '%s' "${L[1]:-}" | grep -Ec '^"#p=[0-9]+"$')" 1
 check "and the whole address on the clipboard" "${L[2]:-}" true
-# The Contents panel's first entry, clicked, moves the caret to the first
-# heading. (The PDF and Word buttons open the build's static files, checked
-# above; the static PDF is served too.)
+# The Contents panel's "Introduction" (page 6, y≈586), clicked, moves the
+# caret to that heading — and is a browser history entry: the address bar names the
+# heading (its bookmark, else #p=<id>), Back returns to the page's start
+# without reloading it, Forward to the heading again. (The PDF and Word
+# buttons open the build's static files, checked above; the static PDF is
+# served too.)
 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 \
-    click 520 220 wait 1500 click 1250 300 wait 1500 eval "starling.debug('caret')" shot "$OUT/6-contents.png" \
+    click 520 220 wait 1500 click 1200 586 wait 1500 eval "starling.debug('caret')" shot "$OUT/6-contents.png" \
+    eval "location.hash" eval "starling.debug('top') === starling.debug('caret')" \
+    eval "window.__stayed = 'yes'; history.back(); 'back'" wait 1200 \
+    eval "location.hash" eval "starling.debug('top')" eval "window.__stayed" \
+    eval "history.forward(); 'forward'" wait 1200 eval "location.hash" eval "starling.debug('top') === starling.debug('caret')" \
     > "$OUT/drive5.log" 2>&1
 C=(); while IFS= read -r l; do C+=("$l"); done < <(evals "$OUT/drive5.log")
-check "a contents entry moves the caret to its heading" "$(printf '%s' "${C[0]:-}" | grep -Ec '^"[1-9][0-9]*"$')" 1
+FIRST="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["document"]["paragraphs"][0]["id"])' "$OUT/repo/pages/sample-paper.json" 2>/dev/null || echo '?')"
+check "a contents entry moves the caret to its heading" "$([ -n "${C[0]:-}" ] && [ "${C[0]:-}" != "\"$FIRST\"" ] && echo moved)" moved
+check "and puts the heading in the address bar" "$(printf '%s' "${C[1]:-}" | grep -Ec '^"#(p=[0-9]+|[A-Za-z_][A-Za-z0-9_-]*)"$')" 1
+check "scrolled to the top of the view" "${C[2]:-}" true
+check "Back clears the address bar's place" "${C[4]:-}" '""'
+check "and returns to the page's start" "${C[5]:-}" "\"$FIRST\""
+check "without reloading the page" "${C[6]:-}" '"yes"'
+check "Forward names the heading again" "${C[8]:-}" "${C[1]:-x}"
+check "and scrolls back to it" "${C[9]:-}" true
 check "the page's static PDF is served" "$(curl -s -o /dev/null -w '%{http_code}' "$URL/sample-paper/sample-paper.pdf")" 200
 
 echo "── the same site under /demo/"

@@ -205,6 +205,18 @@ public final class RichEditableState: State<StatefulWidget> {
 
     public var viewportSize: Size { _viewport }
 
+    /// The paragraph at the top of the view (0 before layout, or at the
+    /// document's start): where a reader is, for a history entry that
+    /// brings them back here.
+    public var topParagraph: Int {
+        guard let layout = _layout, layout.width > 0 else { return 0 }
+        let canvasY = _scrollY - _w.padding.top + 1
+        guard canvasY > 0 else { return 0 }
+        // The first column of the page under the view's top edge, when paged.
+        let y = layout.isPaged ? layout.flowPoint(Offset(0, canvasY)).dy : canvasY
+        return layout.paragraphIndex(atY: y)
+    }
+
     public var focusNode: FocusNode { _focus }
 
     // MARK: Lifecycle
