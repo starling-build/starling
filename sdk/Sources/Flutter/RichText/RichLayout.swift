@@ -1036,6 +1036,10 @@ public final class RichLayout {
     /// spans its page's text: past it the child keeps its saved grid and
     /// its content overflows (pixels; nil elsewhere).
     private var _nestedCap: Double? = nil
+    /// A nested table whose autofitting parent fitted its column narrower
+    /// than the child's saved width: a share of it is a share of that
+    /// column, under the saved grid too (lab dr2/h).
+    private var _nestedNarrowed = false
     private var _tableFlowWidth: [String: Double] = [:]   // px: the column each table is laid out in
     /// Points: how far a table of cell spacing is set out before Word 2013's
     /// layout — its first cell's whole text inset (`_tableLeft`).
@@ -1577,7 +1581,7 @@ public final class RichLayout {
                         // fixed one too: zh-540dc149's form says 98% of
                         // 640.6pt and Word rules its 638.6pt grid, where ours,
                         // 627.7 wide, wrapped its cells a word early.)
-                        if theme.wordRules, !_nestedInFixedTable, scale < 1 { scale = 1 }
+                        if theme.wordRules, !_nestedInFixedTable, !_nestedNarrowed, scale < 1 { scale = 1 }
                     }
                     else if let w = ts.width {
                         scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
@@ -1697,7 +1701,7 @@ public final class RichLayout {
     /// form: 34.6/187.6/110.5/156.4pt in Word's print, from a grid of
     /// 67.5/151.1/76.3/134.0, for its stamp line's 444pt piece.
     private func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
-        struct Cell { var column: Int; var span: Int; var min: Double }
+        struct Cell { var column: Int; var span: Int; var min: Double; var picture: Bool }
         var cells: [Cell] = []
         var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
         let ins = _cellInsets(table, document)
@@ -1708,10 +1712,14 @@ public final class RichLayout {
             guard c.textDirection == .horizontal else { continue }
             let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
             let w = sides + _minContent(i, p, document)
+            let picture = theme.wordRules && p.text.isEmpty && p.image.map { $0.float == nil } == true
             let key = c.row * 4096 + c.column
-            if let k = at[key] { cells[k].min = max(cells[k].min, w) } else {
+            if let k = at[key] {
+                if w > cells[k].min { cells[k].picture = picture }
+                cells[k].min = max(cells[k].min, w)
+            } else {
                 at[key] = cells.count
-                cells.append(Cell(column: c.column, span: c.span, min: w))
+                cells.append(Cell(column: c.column, span: c.span, min: w, picture: picture))
             }
         }
         func room(_ c: Cell) -> Double { base[c.column ..< c.column + c.span].reduce(0, +) }
@@ -1775,6 +1783,20 @@ public final class RichLayout {
                 widths[k] = base[k] - min(give, excess * give / slack)
             }
         }
+        // (A picture, or a table nested in a cell, that would take the
+        // table past its column and its side margins shares that room out
+        // instead, each column as its narrowest is of all of theirs. Lab
+        // dr2/k on Word for Windows: a 450pt picture beside "right cell"
+        // in a 467.75pt column sets 445.4 / 22.9, the text parted "righ" /
+        // "t" and the picture cut; drawing.docx's p9 logo, 306pt beside a
+        // nested table of 177, keeps the 296.15 of its grid, where the
+        // share gives 296.3. Text alone still takes a table past: the 62
+        // "W"s above.) (Nor narrower than a grid already wider.)
+        let room = max((_tableFlowWidth[table] ?? width) + ins.left + ins.right, base.reduce(0, +))
+        let total = widths.reduce(0, +)
+        if theme.wordRules, total > room + _px(1), over.contains(where: { $0.picture }) {
+            widths = widths.map { $0 * room / total }
+        }
         // (Not past the room an autofitting parent that spans its page
         // leaves it: `_nestedCap`.)
         if let cap = _nestedCap, widths.reduce(0, +) > cap + _px(1), base.reduce(0, +) <= cap + _px(1) { return base }
@@ -1786,6 +1808,23 @@ public final class RichLayout {
             FileHandle.standardError.write(Data("  fitted \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
         }
         return fitted
+    }
+
+    /// The narrowest this document's tables can be set (px), the widest
+    /// of them: each row its cells' narrowest settings side by side, with
+    /// their margins, as `_autofit` measures them.
+    private func _narrowestTables(_ document: RichDocument) -> Double {
+        var cells: [String: Double] = [:]   // "table|row|column" → narrowest
+        var rows: [String: [String]] = [:]  // "table|row" → its cells
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.textDirection == .horizontal else { continue }
+            let ins = _cellInsets(c.table, document)
+            let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
+            let row = "\(c.table)|\(c.row)", key = "\(row)|\(c.column)"
+            if cells[key] == nil { rows[row, default: []].append(key) }
+            cells[key] = max(cells[key] ?? 0, sides + _minContent(i, p, document))
+        }
+        return rows.values.map { $0.reduce(0) { $0 + (cells[$1] ?? 0) } }.max() ?? 0
     }
 
     /// The narrowest a paragraph of a cell can be set (px): its longest
@@ -1864,6 +1903,22 @@ public final class RichLayout {
             }
             if start == 0 { first = piece(start, units.count) } else { m = max(m, piece(start, units.count)) }
             probe.dispose()
+        }
+        // (A picture that stands alone in its paragraph is one piece as
+        // wide as it, its effect extent and border too, and a table
+        // nested there is one as narrow as it can be set. Lab dr/clip1
+        // on Word for Windows: a 303.75pt picture in an autofit cell of
+        // 150pt widens the cell to 339.8 with its 18pt margins, where ours
+        // kept the grid and cut the picture. Labs dr2/h: drawing.docx's
+        // p9 logo widens its column too once the nested table beside it
+        // has room, or gives way when it does not.)
+        else if theme.wordRules, let image = p.image, image.float == nil {
+            if let box = image.textBox {
+                if box.growsToFit, let inside = _textBox(image, document) { first = inside.layout._narrowestTables(inside.document) }
+            } else {
+                let room = _pictureRoom(image)
+                first = _px(image.width) + room.left + room.right
+            }
         }
         let sides = _sideIndents(p, document)
         // (Indents out into the cell's margins count against it:
@@ -11475,7 +11530,14 @@ public final class RichLayout {
         let fixedParent = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell }.map {
             _nestedInFixedTable || document.tableStyles[$0.table]?.fixedLayout == true
         } == true
-        let boxWidth = fixedParent && holding != nil ? _textWidth[holding!] / _px(1) : image.width
+        // (So does an autofitting one, at its column as fitted, which a
+        // picture beside it may have narrowed: lab dr2/h's 100% child
+        // holding a 150pt picture, beside a 306pt logo, ends at the page's
+        // 552.8 in Word's print, where ours, at the child's saved 171.6,
+        // ran 10pt past it. Not before its cell is laid out.)
+        let fitted = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell } != nil
+            ? holding.flatMap { $0 < _textWidth.count && _textWidth[$0] > 0 ? _textWidth[$0] / _px(1) : nil } : nil
+        let boxWidth = fixedParent && holding != nil ? _textWidth[holding!] / _px(1) : fitted ?? image.width
         // (An autofitting parent that spans its page's text already has no
         // room to give a child that would grow: Word keeps the child at its
         // saved grid and lets its content overflow. drawing.docx's p9
@@ -11549,6 +11611,7 @@ public final class RichLayout {
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout._nestedInFixedTable = fixedParent
+        layout._nestedNarrowed = fitted.map { $0 < image.width - 0.5 } ?? false
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
         layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))

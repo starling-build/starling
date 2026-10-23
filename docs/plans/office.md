@@ -3491,6 +3491,44 @@ fitter dropped the paragraph's tail).
   names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
   page 2: 13 of 21 lines to 21); nothing else moved.
 
+- **An autofit cell grows to its picture, and to a table nested in it
+  (2026-10-22).** `_minContent` counted text only, so an inline picture
+  alone in its paragraph, and a nested table, added nothing to their
+  column's narrowest. Word for Windows labs `dr/clip1` and `dr2/g`, `h`,
+  `k`:
+  - A picture alone in its paragraph is one piece as wide as it, with
+    its effect extent and border. Clip1's case C (a 303.75pt picture in
+    a 150pt cell with 18pt margins) is now 339.8 / 58.7 (Word 339.77 /
+    58.7), and the picture is no longer cut.
+  - A nested table counts as its narrowest: each row its cells'
+    narrowest, side by side, with their margins
+    (`_narrowestTables`, on the child's own layout). A 250pt logo
+    beside drawing's banner table leaves the child's column at 177 for
+    its 175.5pt picture, at 377.6-553.1 (Word 377.3-552.8).
+  - When a picture or a nested table would take the table past its
+    column plus its side margins, Word does not grow the table. It
+    shares that room out in proportion to the columns' narrowest,
+    breaks words ("righ" / "t") and cuts the picture. A 450pt picture
+    beside "right cell" in a 467.75pt pct table comes out 445.4 / 22.9
+    in Word; ours cuts it at 530.4 (Word 529.8).
+    drawing.docx p9's logo (306) beside its banner table (177) is that
+    case: the share is 296.3, and Word's print keeps its grid's 296.15.
+    Ours cuts at 381.4 (Word 381.12), and the banner ends at 553.0
+    (552.72). With 18pt margins (k K2) ours is 2.7pt wide of Word's,
+    which seems to share the margins out differently. Text alone still
+    takes a table past its column (the 62 "W"s of "Autofit tables").
+  - A nested table lays out at its parent's column as fitted, not its
+    saved width. A 100% child that the parent narrowed shares the
+    narrower column even under its saved grid (`_nestedNarrowed`): in
+    lab h's H2 the child's 150pt picture ends at 552.8, as in Word.
+  Left: Word re-fits a hand-made grid in proportion to the cells' widest
+  settings (dr2/g G1: 409.8 / 58.5 for a 303.75pt picture beside "right
+  cell"), and ours keeps the grid where nothing is over. A file Word
+  saved holds its own fit. Our nested tables still stand out by their
+  cell margin where Word's start at the parent's (G2: 383.6 vs 390.5).
+  The 12 corpus documents that nest a table: zh-291fcea7 31.4 -> 32.4,
+  the rest unchanged.
+
 - **A picture is clipped to the cell it overflows (2026-10-22).**
   Word cuts an inline picture wider than its table cell at the cell's
   edge, not at the text's (cell margins do not narrow the cut), and only
@@ -5823,6 +5861,17 @@ fitter dropped the paragraph's tail).
   page 13 is 134.4pt in Word's print, 133.0 in ours, and the page after
   it took the 22pt line Word sends on — every page after a line out.
   zh-b378d8c4 39.1 -> 100; nothing else moved.
+- **A footnote's mark is on the line the page counts (2026-10-22).**
+  Where a note fits is measured from the foot of the line its mark is
+  on. Two ways that line was lost: a mark raised out of its line
+  (`_paintScripts`) has no box there, and such a note was taken for one
+  of no line and reserved whole — its line is now its neighbour's; and
+  the line's foot was the engine's own line, short of the whole pitches
+  a grid gives it. zh-344a8d08's note 3 is marked in a 16pt line of two
+  22.85pt pitches, 45.7, whose engine line is 37.5: the note fit whole
+  under it by 4pt in ours, and goes over by 4 in Word's print, its third
+  line on page 5 (T144's one-line note 2 had left it the room).
+  zh-344a8d08 25.5 -> 26.5; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
