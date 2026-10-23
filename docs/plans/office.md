@@ -6094,6 +6094,15 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A merged cell set whole in a row's part is drawn once (2026-10-23).**
+  A centred cell merged down, whose text fits the part of its row on the
+  page, is set whole there (`setWhole`); centred over all its rows, its
+  text reaches past its own row's bottom in the flow, and the row's next
+  part drew those lines again. zh-13552a3a's "4.就业失业登记", merged over
+  rows 10-11, stands whole at page 15's foot in Word's print, and once;
+  ours drew "失业登/记" again at page 16's head (the Mac's find). A
+  column set whole in a part has nothing left for the parts after it.
+  Drawing only — no line score moved (sweep h130).
 - **A row's note with no room under its mark parts as a paragraph's
   does (2026-10-23).** A table row whose footnote did not fit under its
   mark's line left the note for later; where the row fit whole without

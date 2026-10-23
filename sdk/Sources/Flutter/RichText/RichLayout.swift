@@ -3319,6 +3319,13 @@ public final class RichLayout {
             var pieces: [Int: [PagePiece]] = [:]
             var rules: [PagePiece] = []
             var lift = 0.0   // the line a part that went over opens with
+            // (Columns set whole in a part already — a cell merged down
+            // whose text, centred over its rows, reaches past this row's
+            // own bottom: zh-13552a3a's "4.就业失业登记", merged over rows
+            // 10-11, stands whole in row 10's part at page 15's foot in
+            // Word's print, and once; ours drew "失业登/记" again at page
+            // 16's head, the lines past row 10's bottom in the flow.)
+            var doneWhole = Set<Int>()
             var first = true
             while true {
                 var avail = contentH - y
@@ -3686,7 +3693,9 @@ public final class RichLayout {
                 rules.append(rule)
                 _pages[page].append(rule)
                 for (n, column) in columns.enumerated() {
+                    if doneWhole.contains(n) { continue }
                     if let at = setWhole[n] {
+                        doneWhole.insert(n)
                         for k in column.members {
                             var piece = PagePiece(paragraph: k, flowTop: _tops[k], flowBottom: _tops[k] + _heights[k], page: page, pageY: at + _tops[k])
                             piece.part = .text

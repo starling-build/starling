@@ -1617,6 +1617,63 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
     }
 
+    func testAMergedCellSetWholeInAPartIsNotDrawnAgain() throws {
+        // zh-13552a3a's "4.就业失业登记", centred and merged over rows 10-11,
+        // stands whole in row 10's part at page 15's foot in Word's print,
+        // and once; its text, centred over both rows, reaches past row 10's
+        // own bottom, and ours drew those lines again at page 16's head.
+        // Here: a label of three lines merged over a row of 30 lines that
+        // parts at the foot and a row of 30 more, with a filler above.
+        func kept(filler: Int) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            func p(_ text: String) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"300\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            func long(_ tag: String) -> String { (1 ... 30).map { n -> String in p("\(tag) \(n)") }.joined() }
+            let label = "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"300\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>label one</w:t></w:r><w:r><w:br/></w:r><w:r><w:t>label two</w:t></w:r><w:r><w:br/></w:r><w:r><w:t>label three</w:t></w:r></w:p>"
+            func cell(_ props: String, _ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/>\(props)</w:tcPr>\(content)</w:tc>" }
+            let borders = "<w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+            var parts: [String] = []
+            parts.append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(filler)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>")
+            parts.append("<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/>\(borders)</w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>")
+            let restart = cell("<w:vMerge w:val=\"restart\"/><w:vAlign w:val=\"center\"/>", label)
+            let merged = cell("<w:vMerge/><w:vAlign w:val=\"center\"/>", "<w:p/>")
+            parts.append("<w:tr>\(restart)\(cell("", long("first")))</w:tr>")
+            parts.append("<w:tr>\(merged)\(cell("", long("second")))</w:tr>")
+            parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let target = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("label") })
+            // (What of its text lines each piece shows: a merged cell's
+            // window may reach far past them.)
+            let g = l.geometry(target)
+            let top = g.textTop, bottom = g.textTop + g.painter.height
+            var drawn = 0.0
+            for page in 0 ..< l.pageCount {
+                for piece in l.pieces[page] where piece.paragraph == target && piece.part != .rules {
+                    drawn += max(0, min(piece.flowBottom, bottom) - max(piece.flowTop, top))
+                }
+            }
+            return drawn / theme.pixelsPerPoint
+        }
+        // (The label's lines are drawn once, wherever the rows part.)
+        for filler in stride(from: 4000, through: 9000, by: 500) {
+            XCTAssertLessThanOrEqual(try kept(filler: filler), 45.5, "filler \(filler / 20)pt: the label drawn once")
+        }
+    }
+
     func testARowWhoseNoteHasNoRoomPartsWithIt() throws {
         // zh-499adba6's book is a one-column table, a paragraph a row; its
         // footnote 11, marked in the second line of a seven-line row near
