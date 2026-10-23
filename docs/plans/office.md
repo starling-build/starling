@@ -7569,6 +7569,15 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   vs n420: zh-6d402586 39.3 -> 62.2, 41 -> 40 pages (Word 39), nothing
   else moved.
 
+- **REVERTED (2026-10-23, the user's decision): the entry below fitted a Word for Mac fault.**
+  Since 2026-10-18 Word for Mac on the printing Mac draws any EMBEDDED face
+  as blank one-em glyphs; Word for Windows draws the real face (windows-1's
+  print of zh-529fa492, digits half an em), as this Mac did before. The user
+  chose real Word, so the em-a-glyph override is gone: the face keeps its
+  own widths. Paired sweep n423 vs n422: zh-a031fa16 89.0 -> 55.9 against
+  its Mac reference, which is one of the ten set aside on the board;
+  nothing else moved.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and

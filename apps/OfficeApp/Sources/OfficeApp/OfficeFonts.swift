@@ -1089,37 +1089,14 @@ enum OfficeFonts {
         0.332, 0.2783, 0.332, 0.6943
     ]
 
-    /// (An embedded SimSun under another face's name — WPS saves the
-    /// SimSun it set the text in under the name the run asks for — is
-    /// drawn by Word for Mac with every character an em, its ASCII too,
-    /// and its bold no wider: lab `emb` (Word 16, zh-a031fa16's package,
-    /// a SimSun subset embedded as 仿宋_GB2312) sets "2024" 18.0 apiece in
-    /// the bold 18pt title and 14.0 in the 14pt body, the ideographs 18.00
-    /// bold; renamed SimSun, the same file sets them half an em and bold
-    /// 18.4, as ours did, and a line of ours took four characters more.
-    /// Only a SimSun with its bitmaps (`EBDT`), Windows' own file:
-    /// zh-c2f6d17a's 楷体_GB2312 is one, drawn so too ("Helvetica" in
-    /// Word's PDF); zh-2bca0bdf's 楷体_GB2312 and zh-e8d4c046's
-    /// 仿宋_GB2312, SimSun without them, are drawn as SimSun, half an em
-    /// to a digit — the rule cost zh-2bca0bdf 97.6 -> 60.1.)
+    /// (No longer an em a glyph for an embedded SimSun with bitmaps: that
+    /// was Word for Mac's fault since 2026-10-18 — it draws any embedded
+    /// face as blank one-em glyphs — and the user chose Word's real
+    /// behaviour, Word for Windows' print, which sets the face's own
+    /// widths. The names and bitmaps are still recorded for whoever needs
+    /// them.)
     private static func eastAsianFace(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
-        var face = eastAsianFaceAsNamed(family, ignoringEmbedding: ignoringEmbedding)
-        let n = family.trimmingWhitespace().lowercased()
-        if !ignoringEmbedding, n != "simsun", n != "宋体", let registered = embeddedFamily(family) {
-            declaredLock.lock()
-            let own = embeddedNames[registered]?.trimmingWhitespace().lowercased()
-            let bitmaps = embeddedBitmaps.contains(registered)
-            declaredLock.unlock()
-            if own == "simsun", bitmaps {
-                let em = [Double](repeating: 1, count: 0x7F - 0x20)
-                face.latinAdvances = em
-                face.latinBoldAdvances = em
-                face.latinKerns = nil
-                face.latinBoldKerns = nil
-                face.boldWiden = 0
-            }
-        }
-        return face
+        eastAsianFaceAsNamed(family, ignoringEmbedding: ignoringEmbedding)
     }
 
     private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {

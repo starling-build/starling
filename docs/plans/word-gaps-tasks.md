@@ -553,7 +553,7 @@ are, and treat these Mac references as unreliable wherever text is set in the em
 do NOT fit them: zh-1cfb652b, zh-2bca0bdf, zh-529fa492, zh-57f1de0d, zh-7eba7349,
 zh-984846dc, zh-a031fa16, zh-c2229d4a, zh-d9b085b1, zh-e68a2f57 (NUL share 0.46-0.90). The
 other nine embedding files have older prints with real glyphs. 42848c6a (an embedded
-SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted next.
+SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted (see office.md; zh-a031fa16 89.0 -> 55.9 against its set-aside reference, nothing else moved).
 
 ### Assignments from the Mac (0fcba326), 2026-10-23, at the user's request
 Each owner claims its item below as usual; this only says who was asked.
