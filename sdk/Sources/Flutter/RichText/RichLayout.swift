@@ -1624,8 +1624,20 @@ public final class RichLayout {
                         // `pt`, Word for Mac). Before mode 15 the grid stands:
                         // zh-fec5fa30, zh-77bd4900, zh-937b8442, zh-ec8f908f and
                         // zh-c25d08c5 (modes 12 and 14) are drawn at their grids.)
-                        if theme.wordRules, !_nestedInFixedTable, !_nestedNarrowed, scale < 1,
-                           !(ts.fixedLayout && (document.compatibilityMode ?? 12) >= 15 && _px(sum) > width + _px(0.5)) { scale = 1 }
+                        // (Its outer rules inside the share, half each side's
+                        // width in from its edges: the table's 1.5pt sides make
+                        // it 452.1 of a 453.5pt share in Word's print, its
+                        // 2.25pt ones 462.7 of 464.95.)
+                        let sharesShare = theme.wordRules && ts.fixedLayout && (document.compatibilityMode ?? 12) >= 15 && _px(sum) > width + _px(0.5)
+                        if sharesShare {
+                            let side: Double = ts.borderWidth ?? 0.5
+                            let left: Double = ts.edgeWidths["left"] ?? side
+                            let right: Double = ts.edgeWidths["right"] ?? side
+                            let inset: Double = ts.borders ? _px((left + right) / 2) : 0
+                            let share: Double = width * pct / 100
+                            scale = max(0.01, share - inset) / _px(sum)
+                        }
+                        if theme.wordRules, !_nestedInFixedTable, !_nestedNarrowed, scale < 1, !sharesShare { scale = 1 }
                     }
                     else if let w = ts.width {
                         scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
