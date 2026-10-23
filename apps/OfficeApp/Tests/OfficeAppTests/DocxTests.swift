@@ -941,6 +941,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try pitch("<w:tcBorders><w:top w:val=\"nil\"/></w:tcBorders>"), 22.7, accuracy: 0.05, "nil stated: none")
     }
 
+    /// A number set right ends where its first line starts, and its tab
+    /// goes on from there: zh-f2ca3070's "i." under a 7pt hanging indent
+    /// has its text at the indent in Word's print, 7pt on — not at the
+    /// next default stop, where measuring the number from the line's start
+    /// sent it.
+    func testARightAlignedNumbersTabGoesOnFromWhereItEnds() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let run = "<w:rPr><w:sz w:val=\"28\"/></w:rPr>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr><w:ind w:left=\"2550\" w:hanging=\"140\"/>\(run)</w:pPr><w:r>\(run)<w:t>text</w:t></w:r></w:p>"
+            + "<w:p><w:pPr>\(run)</w:pPr><w:r>\(run)<w:t>text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"lowerRoman\"/><w:lvlText w:val=\"%1.\"/><w:lvlJc w:val=\"right\"/><w:pPr><w:ind w:left=\"3108\" w:hanging=\"480\"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        // (By the painters' widths, the same text in each: the text's lead
+        // past the indent is the difference — none, the text at the
+        // indent; 16.5 to the default stop when the number was measured
+        // from the line's start.)
+        func width(_ i: Int) -> Double { layout.geometry(i).painter.maxIntrinsicWidth / theme.pixelsPerPoint }
+        XCTAssertEqual(width(0) - width(1), 0, accuracy: 0.05, "\(width(0)) \(width(1))")
+    }
+
     /// A Wingdings bullet is as wide as Wingdings makes it, whatever the
     /// glyph drawn for it: zh-3fe252ff's 15pt "Ø" (0.794 em) ends short
     /// of the 42pt default stop from a 30pt first-line indent, and Word

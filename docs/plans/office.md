@@ -5894,6 +5894,15 @@ fitter dropped the paragraph's tail).
   under it by 4pt in ours, and goes over by 4 in Word's print, its third
   line on page 5 (T144's one-line note 2 had left it the room).
   zh-344a8d08 25.5 -> 26.5; nothing else moved.
+- **A number set right ends where its line starts (2026-10-22).** A list
+  level's `w:lvlJc` right was drawn — the number ending at the first
+  line's start — but measured as starting there, and its tab went on
+  from a number's width too far. zh-f2ca3070's "i." and "ii." (lowerRoman,
+  right, under a 7pt hanging indent) have their text at the indent in
+  Word's print; ours, measured past it, went to the next default stop,
+  16pt on, and every such item ran a line long from page 6. Centred,
+  half the number is past the start. zh-f2ca3070 65.3 -> 98.5,
+  zh-d746674a +0.3; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

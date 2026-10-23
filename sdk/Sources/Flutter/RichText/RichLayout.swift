@@ -5519,12 +5519,19 @@ public final class RichLayout {
         }
         if let wl = wordList, !p.text.isEmpty, let label = listLabel(i, document) {
             let marker = _marker(i, p, document, label: label, strut: nil)
-            var end = _px(wl.first) + marker.width
+            // (A number set right — `w:lvlJc` right — ends where the first
+            // line starts, as it is drawn; centred, half of it past. Its
+            // tab goes on from there: zh-f2ca3070's "i." ends at its
+            // hanging indent's start and Word sets "國內新創企業…" at the
+            // indent, 7pt on; measured as starting there, ours ended past
+            // the indent and its text went to the next default stop.)
+            let back = theme.wordRules ? (wl.format?.justification == "right" ? marker.width : wl.format?.justification == "center" ? marker.width / 2 : 0) : 0
+            var end = _px(wl.first) + marker.width - back
             switch wl.format?.suffix {
             case "nothing": break
             case "space":
                 let spaced = _marker(i, p, document, label: label + "\u{A0}", strut: nil)
-                end = _px(wl.first) + spaced.width
+                end = _px(wl.first) + spaced.width - back
                 spaced.dispose()
             default:
                 // (A tab stop of the paragraph's own between the number's
