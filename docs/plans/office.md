@@ -6050,6 +6050,16 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A table's sides are drawn at their own widths, its top and bottom
+  inside its rows (2026-10-23).** The painter stroked every ruled edge
+  at the table's one width, and a side the file states wider or thinner
+  (`edgeWidths`) took room in the layout but was drawn at that width:
+  lab `ef2b`'s 2.25pt bottom under 0.5pt sides came out 0.5. Each side
+  now has its own width; the table's top and bottom lines stand wholly
+  inside the room their rows keep (`ef2b`'s bottom 782.3-784.55 against
+  Word's 782.40-784.56, where centred on the edge its lower half was cut
+  off with the row; zh-77bd4900's p3 tables open under a line at 68.7,
+  Word's 68.64, ours 67.6 before). Drawing only; no score moved.
 - **A row parted at the foot is closed with the table's bottom line
   (2026-10-22).** Lab `ef2b` (Word 16 Mac, mode 14, zh-e1b09977's
   package): a last row of four 17pt lines over a 2.25pt bottom line,

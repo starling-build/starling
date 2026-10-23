@@ -11149,7 +11149,10 @@ public final class RichLayout {
             // A cell's own line on an edge (the file's lnL…lnB, with its
             // own width and colour) replaces the rule there: drawn centred
             // on the edge, or not at all for a hidden one.
-            func line(_ own: CellRef.CellLine?, _ ruled: Bool, _ from: Offset, _ to: Offset, inward: Offset) {
+            // (The table's line on that side at its own width: lab `ef2b`
+            // (Word 16 Mac), a 2.25pt bottom under 0.5pt sides and inside
+            // lines, drawn 0.5 where Word's print has the heavy line.)
+            func line(_ own: CellRef.CellLine?, _ ruled: Bool, _ from: Offset, _ to: Offset, inward: Offset, side: String) {
                 if let own {
                     guard let color = own.color, own.width > 0 else { return }
                     let p = Paint()
@@ -11180,7 +11183,19 @@ public final class RichLayout {
                     }
                     canvas.restore()
                 } else if ruled {
-                    canvas.drawLine(from + inward * 0.5, to + inward * 0.5, stroke)
+                    let p = Paint()
+                    p.style = .stroke
+                    p.strokeWidth = ts?.edgeWidths[side].map { max(1, _px($0).rounded()) } ?? stroke.strokeWidth
+                    p.color = stroke.color
+                    // (The table's top and bottom lines wholly inside the room
+                    // its first and last rows keep for them, as Word draws
+                    // them: `ef2b`'s 2.25pt bottom at 782.40-784.56 in Word's
+                    // print, under a row ending at 784.55 — centred on the
+                    // edge, its lower half was cut off with the row; and
+                    // zh-77bd4900's p3 tables open under a 2.16pt line at
+                    // 68.64, ours at 67.6.)
+                    let into = theme.wordRules && (side == "bottom" || side == "top") ? max(0.5, p.strokeWidth / 2) : 0.5
+                    canvas.drawLine(from + inward * into, to + inward * into, p)
                 }
             }
             // Whether the cell of this row whose left side stands at `x`
@@ -11196,29 +11211,29 @@ public final class RichLayout {
             func paintEdges(_ d: _CellGeo, bottomHere: Bool, ownTop: Bool) {
                 let cellRight = (d.colLeft + d.colWidth).rounded()
                 line(d.borders.left, on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV),
-                     Offset(d.colLeft, rowTop), Offset(d.colLeft, rowBottom), inward: Offset(1, 0))
+                     Offset(d.colLeft, rowTop), Offset(d.colLeft, rowBottom), inward: Offset(1, 0), side: d.column == 0 ? "left" : "insideV")
                 // The row above drew this cell's top, unless the cell has
                 // its own line there (on the first row it covers).
                 if (c.row == 0 && d.row == 0) || (ownTop && d.borders.top != nil) {
                     line(d.borders.top, c.row == 0 && d.row == 0 && on(d.edges?.top, te?.top),
-                         Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1))
+                         Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1), side: c.row == 0 && d.row == 0 ? "top" : "insideH")
                 }
                 if bottomHere {
                     line(d.borders.bottom, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH),
-                         Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1))
+                         Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1), side: lastRow ? "bottom" : "insideH")
                 }
                 if cellRight >= right - 0.5 {
                     line(d.borders.right, on(d.edges?.right, te?.right),
-                         Offset(right, rowTop), Offset(right, rowBottom), inward: Offset(-1, 0))
+                         Offset(right, rowTop), Offset(right, rowBottom), inward: Offset(-1, 0), side: "right")
                 } else if d.borders.right != nil {
-                    line(d.borders.right, false, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0))
+                    line(d.borders.right, false, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0), side: "insideV")
                 } else if theme.wordRules, d.edges?.right == true, !leftDrawn(at: cellRight) {
                     // (A cell's own right side where the cell beside it
                     // draws no left: Word draws the line either cell
                     // states. zh-91e44bcb's tables give each cell a right
                     // and a bottom and no left or top, and stood without
                     // a line between their columns.)
-                    line(nil, true, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0))
+                    line(nil, true, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0), side: "insideV")
                 }
             }
             // Each cell of the row draws its edges; a cell from above that
