@@ -12529,7 +12529,13 @@ public final class RichLayout {
                         // them — four photos anchored to empty paragraphs
                         // were each a strip one line tall (zh-37b6536f).
                         let i = piece.paragraph
-                        let whole = piece.flowTop <= _tops[i] + 0.5 && piece.flowBottom >= _tops[i] + _heights[i] - 0.5
+                        // (Whole, too, where all it left behind is its space
+                        // before, dropped at the page's head: zh-4e5fe46f's
+                        // 496pt table in a box, anchored in a one-line
+                        // paragraph that opens page 7, was cut to that line
+                        // and showed one row of eleven.)
+                        let whole = piece.flowTop <= _tops[i] + (i < _spaceBefore.count ? _spaceBefore[i] : 0) + 0.5
+                            && piece.flowBottom >= _tops[i] + _heights[i] - 0.5
                         let floats = theme.wordRules && !shading && whole && piece.part == .all
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
