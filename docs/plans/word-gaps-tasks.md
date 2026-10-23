@@ -517,7 +517,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 Twenty more (`random.seed(20261107)` among the 119 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 91.2% (median 98.3), every page count
 Word's. Its low ones, unclaimed: zh-5bfac68f 47.6 [CLAIMED Mac 01Xgpbk5], zh-61aaad09 50.0 [CLAIMED Mac 01Xgpbk5], zh-b0401810 81.3
-(1115 lines against Word's 1286), zh-4e5fe46f 86.0, zh-7dd5643e 88.2.
+(1115 lines against Word's 1286), zh-4e5fe46f 86.0 [CLAIMED Linux 01JsizVV], zh-7dd5643e 88.2 [CLAIMED Linux 01JsizVV].
 
 ### Note from the Mac (2026-10-22): the zh corpus is 506 documents — a twenty-third sample
 Twenty more (`random.seed(20261106)` among the 139 unprinted, 15 to 400 KB, drawn by
