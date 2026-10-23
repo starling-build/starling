@@ -7051,6 +7051,26 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   98.0 (its p71 box from y228 to Word's 72); shapes that moved, 60316,
   zh-06c46ba9 and zh-01071d55, now stand where Word's do.
 
+- **A row taller than a page ends at the foot; a wrapper keeps its cell's room (2026-10-22).**
+  zh-045c5a75 (sample 23) was a page long at 24.9%. Its row of at least
+  779.75pt (`trHeight` 15595, more than the page's 749.7pt) runs over pages
+  4 to 7; every continuation was made at least the stated height, so the
+  last part, whose text fits page 7, was padded past the foot and parted
+  again into an empty page 8. A continuation whose text fits is now no
+  taller than the room to the foot (zh-b378d8c4's 132pt row, which does
+  fit, keeps its stated height as before). Second, its 社會救助法 text is a
+  table inside an invisible one-column wrapper (`_isInvisibleWrapper`),
+  which the reader treats as the body. That dropped the wrapper's 0.75pt
+  cell margins and spacing, and Word sets the first line 2.35pt lower; the
+  row at page 9's foot then kept a line Word sends over. The wrapper's cells
+  now keep margin + spacing (twice on the first and last rows) as their
+  first and last paragraphs' space, as flattened nested tables already
+  do. Paired sweep n382 vs n381: zh-045c5a75 24.9 -> 58.7, 37/37 pages;
+  nothing else moved (zh, POI). Left there: in-line punctuation squeeze in
+  its zh-TW cells (mode 14). Word squeezes "、" and the final "。" together
+  on some lines and refuses "…生活扶助。" 10.9pt over with both able to
+  give 6.5; not yet explained.
+
 - **A positional tab goes to its place on the margins (2026-10-22, T143).**
   `w:ptab` (alignment left/center/right, relative to the margin) was a
   plain tab, which the Header and Footer styles' centre and right stops

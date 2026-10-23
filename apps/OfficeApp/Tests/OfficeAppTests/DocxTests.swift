@@ -2947,6 +2947,29 @@ final class DocxTests: XCTestCase {
         return try DocxFormat.read(try Zip.write(entries)).document
     }
 
+    /// zh-045c5a75: a one-column table that draws nothing round a table
+    /// is read as the body, and keeps the room it gives its cell above and
+    /// below — the cell's margin and twice the cell spacing — as its first
+    /// and last paragraphs' space, as a nested table's cells do.
+    func testAnInvisibleWrapperKeepsItsCellsRoom() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let wrapper = "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/><w:tblCellSpacing w:w=\"15\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"15\" w:type=\"dxa\"/><w:bottom w:w=\"15\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"9000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr>"
+            + nestedTable("a", "b") + "<w:p><w:r><w:t>tail</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+        let p = xml.range(of: "<w:p>")!.lowerBound
+        xml.insert(contentsOf: wrapper, at: p)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let a = try XCTUnwrap(back.paragraphs.first { $0.text == "a" })
+        let tail = try XCTUnwrap(back.paragraphs.first { $0.text == "tail" })
+        XCTAssertNotNil(a.cell, "the inner table is the body's")
+        XCTAssertNil(tail.cell, "the wrapper is not a table")
+        XCTAssertEqual(a.style.spaceBefore, 2.25, accuracy: 0.001)
+        let plain = try XCTUnwrap(back.paragraphs.first { $0.text == "x" })
+        XCTAssertEqual(tail.style.spaceAfter - plain.style.spaceAfter, 2.25, accuracy: 0.001)
+    }
+
     private func nestedTable(_ first: String, _ second: String) -> String {
         "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"8\" w:space=\"0\" w:color=\"FF0000\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(first)</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(second)</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
     }

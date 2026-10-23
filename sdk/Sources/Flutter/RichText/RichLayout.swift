@@ -3174,13 +3174,20 @@ public final class RichLayout {
                         carried = max(carried, piece.pageY + (min(piece.flowBottom, _tops[m] + _heights[m]) - piece.flowTop) + d.pad.bottom - y)
                     }
                 }
+                let left = max(carried, columns.map { column in
+                    // (With the cell's top margin under the rule again —
+                    // see where the pieces are set below.)
+                    max(0, column.bottom - column.cut)
+                        + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0)
+                }.max() ?? 0)
+                // (A part whose text fits is no taller than the room to the
+                // foot, though the row states more: zh-045c5a75's row of at
+                // least 779.75pt — more than a page — runs over pages 4 to 7,
+                // and Word ends it at page 7's foot; ours padded the last
+                // part to the stated height, which went over again and made
+                // page 8 blank.)
                 let rest = first ? (carried > 0 ? max(c.ownRowHeight - c.stretched, carried) : c.ownRowHeight)
-                    : max(stated, carried, columns.map { column in
-                        // (With the cell's top margin under the rule again —
-                        // see where the pieces are set below.)
-                        max(0, column.bottom - column.cut)
-                            + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0)
-                    }.max() ?? 0)
+                    : max(theme.wordRules && left + ruleUnder(c) <= avail + 0.01 ? min(stated, avail - ruleUnder(c)) : stated, left)
                 // (A part, or the row on the next page, goes under a pinned
                 // float it would run into, as a whole row does.)
                 if !pinBands.isEmpty {
