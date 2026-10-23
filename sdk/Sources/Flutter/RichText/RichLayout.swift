@@ -4329,6 +4329,15 @@ public final class RichLayout {
                     newPage()
                 }
                 newPage()
+                // (In columns a page break, or a section's, goes on to the
+                // next page, not the next column: only a column break
+                // does that. zh-b5359de4's preface section, after a cover
+                // that runs into page 2's first column, opens Word's page
+                // 3; ours set it in page 2's second column and went on a
+                // column ahead of Word's.)
+                if theme.wordRules, _columns > 1, !document.paragraphs[i].style.columnBreak {
+                    while page % _columns != 0 { newPage() }
+                }
                 if theme.wordRules, document.paragraphs[i].style.pageBreakTwice { newPage() }
             }
             // A float that bands its page (`ImageFloat.bandsPage`): the text
