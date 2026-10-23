@@ -3696,6 +3696,13 @@ public final class RichLayout {
                     if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
+                    } else if target < -0.01, y < 0.01, _pages[page].isEmpty, target > -insetTop {
+                        // (Over the top margin too, where the page opens
+                        // with it: zh-19dde9e7's report, a table placed
+                        // 58.25pt down a page whose margin is 72, has its
+                        // title row's text at 67 in Word's print; ours
+                        // stood at the margin, 15pt low.)
+                        y = target
                     } else if target >= 0, target < y - 0.01, deferredUnder.isEmpty {
                         var moved: [PagePiece] = []
                         while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
@@ -3766,10 +3773,11 @@ public final class RichLayout {
                 // centred cells merged down are then set in it alone.
                 func anchoredParts() -> (whole: Bool, under: Double)? {
                     guard theme.wordRules, c.row <= 1, c.firstInRow, y > 0.01, document.tableStyles[c.table]?.pageAnchored == true else { return nil }
-                    var bottom = rowBottom, next = c.row == 1 ? c.ownRowHeight : 0
+                    var bottom = rowBottom, next = c.row == 1 ? c.ownRowHeight : 0, second = rowBottom
                     var k = j
                     while k < count, let d = _cells[k], d.table == c.table {
                         bottom = max(bottom, d.rowTop + d.ownRowHeight)
+                        if d.row <= 1 { second = max(second, d.rowTop + d.ownRowHeight) }
                         if d.row == 1, next == 0 { next = d.ownRowHeight }
                         k += 1
                     }
@@ -3785,7 +3793,12 @@ public final class RichLayout {
                     // the page, and Word parts them.)
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
-                    if y + rest > edge + 0.01 { return (true, 0) }
+                    // (Only where its second row does not fit whole: lab
+                    // `pa19` (Word 16, zh-19dde9e7's seven-row table placed
+                    // 150pt down) keeps rows 0 to 5 on the page and takes the
+                    // tall row 6 alone to the next, though the whole would
+                    // end past the foot; ours set the first row alone.)
+                    if y + (second - c.rowTop) > edge + 0.01 { return (true, 0) }
                     if under > 0, y + rest + under + next > contentH + 0.01 { return (false, rest) }
                     return nil
                 }

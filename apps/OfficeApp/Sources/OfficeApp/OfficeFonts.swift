@@ -1479,9 +1479,14 @@ enum OfficeFonts {
             // stand-in's is an em: zh-8d6f702e's "160—230" sets "—"
             // 17.18pt at 16pt on its grid of -0.21 in Word's print, ours
             // 15.79, and the line then took "累", which Word wraps.)
+            // (And its hyphenation point "‧", U+2027, a dot as narrow:
+            // 0.2407 em, 0.2861 bold. zh-5f9b6549's 標楷體 title,
+            // "…場域實證‧共創解題」補", fills its text box in Word's print,
+            // the dot 3.37pt at 14pt; ours set it half an em and wrapped
+            // "補".)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
-                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395].merging(circled(1.0)) { $1 }
+                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
+                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
             }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
