@@ -4758,7 +4758,12 @@ public final class RichLayout {
                 // the text's foot and stays on the cover in Word's print;
                 // ours took it, and a page of its own, to page 2.)
                 let placedFrame = theme.wordRules && ownFrame != nil && frameReturn?.page == page
-                let overhang = placedFrame ? .infinity : theme.wordRules && i < _overhang.count ? _overhang[i] : 0
+                // (Not into the footnotes: over a page's notes the line ends
+                // above them. zh-c15af02e's page 6, 45.7pt lines on a grid
+                // over a one-line note, holds thirteen in Word's print; the
+                // fourteenth reaches 4.3pt into the separator's line, and
+                // its overhang let ours keep it.)
+                let overhang = placedFrame ? .infinity : theme.wordRules && i < _overhang.count && pageNotes.isEmpty ? _overhang[i] : 0
                 // (Word sets a line where it ends on the foot or above —
                 // in binary floating point: lab `ef`, Word 16, 2026-10-18,
                 // exact lines of 20 and 27pt fill a page whose text is

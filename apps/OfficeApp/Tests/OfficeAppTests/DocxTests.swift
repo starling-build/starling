@@ -1617,6 +1617,50 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
     }
 
+    func testAGridLineDoesNotHangIntoTheFootnotes() throws {
+        // zh-c15af02e's page 6: lines on a grid over a one-line note. A
+        // page's last line may reach past the foot by its grid's overhang,
+        // but not into the notes: Word's print holds thirteen, the
+        // fourteenth reaching 4.3pt into the separator's line.
+        // Here: 698pt of page on a 20pt grid, a note of 6.5pt under a 12pt
+        // separator — 679.5pt for 10pt lines a pitch each, the 34th 0.5pt
+        // over. Without the note and with the foot 18.5pt higher, the 34th
+        // hangs past it and stays.
+        func kept(note: Bool) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            if note {
+                let footnotes = """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="exact"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:before="0" w:after="0" w:line="130" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:vertAlign w:val="superscript"/><w:sz w:val="12"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="12"/></w:rPr><w:t xml:space="preserve"> note</w:t></w:r></w:p></w:footnote></w:footnotes>
+                """
+                entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+            }
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let ref = note ? "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r>" : ""
+            let lines = (0 ..< 40).map { n in
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t>行文\(n)</w:t></w:r>\(n == 0 ? ref : "")</w:p>"
+            }.joined()
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: lines
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"\(note ? 1440 : 1810)\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/><w:docGrid w:type=\"lines\" w:linePitch=\"400\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return Set(l.pieces[0].map(\.paragraph)).filter { doc.paragraphs[$0].text.hasPrefix("行文") }.count
+        }
+        XCTAssertEqual(try kept(note: false), 34, "the 34th hangs past a bare foot")
+        XCTAssertEqual(try kept(note: true), 33, "but not into the notes")
+    }
+
     func testEmptyPictIsNothing() throws {
         // bug59058: a paragraph of nothing but `<w:pict/>` before a table —
         // no mark on Word's print and no room, where a 300 by 200 stand-in

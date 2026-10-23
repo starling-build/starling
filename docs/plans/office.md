@@ -6058,6 +6058,15 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A grid line does not hang into the footnotes (2026-10-23).** On a
+  line grid a page's last line may reach past the foot by the leading
+  its face leaves (`_overhang`); over the page's notes it may not. zh-
+  c15af02e's page 6, 45.7pt lines over a one-line note, holds thirteen
+  in Word's print — the fourteenth would reach 4.3pt into the
+  separator's line — where ours kept fourteen. Where the page holds
+  notes, the line ends above them. zh-344a8d08 65.9 -> 99.8 (its p5 foot,
+  the board's thirteenth line), zh-c15af02e 52.0 -> 66.5; nothing lower
+  (sweep h124).
 - **A line whose note has no room under it goes over with it
   (2026-10-23).** A footnote that did not fit under its mark's line, and
   had no line of it to leave there, was put off to the next page alone
