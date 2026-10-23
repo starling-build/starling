@@ -254,6 +254,10 @@ the same base; the commits give the numbers):
   for a baseColWidth 10, prints 64.3 pt where the default's is 60.2
   (7.08 -> 6.70; 45 such workbooks, 8 better, 51710 +0.49, whose one
   9.14 column Excel prints half a 192-dpi pixel past either).
+- *Ligatures.* A cell is set letter by letter, as Excel sets it: Carlito
+  joined "ft" and "ti" (151 workbooks whose text has such pairs: 41
+  better, 3 worse by 0.01; lo-forum-mso-de-104083 6.70 -> 6.16,
+  CVLKRA-KYC 4.16 -> 3.69, lo-tdf113271 6.22 -> 5.75).
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs
