@@ -1641,6 +1641,41 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
     }
 
+    func testAPicturesLineOffItsSectionsGridTakesItsMultiplesExtra() throws {
+        // Lab `pn` (Word 16 Mac, zh-e68a2f57's package): a chart alone in
+        // a paragraph of 1.1 lines, snapToGrid 0, in a section with a line
+        // grid — the note under it 1.20 lower than at single, 0.1 of the
+        // 9pt mark's line, as off any grid (lab `hp`); ours added nothing.
+        func height(line: Int) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let picture = "<w:r><w:drawing><wp:inline xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\"><wp:extent cx=\"2540000\" cy=\"1270000\"/><wp:docPr id=\"1\" name=\"p\"/></wp:inline></w:drawing></w:r>"
+            var parts: [String] = []
+            parts.append("<w:p><w:pPr><w:snapToGrid w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(line)\" w:lineRule=\"auto\"/><w:rPr><w:sz w:val=\"18\"/></w:rPr></w:pPr>\(picture)</w:p>")
+            parts.append("<w:p><w:r><w:t>note</w:t></w:r></w:p>")
+            parts.append("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/><w:docGrid w:type=\"lines\" w:linePitch=\"312\"/></w:sectPr>")
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            XCTAssertNotNil(doc.paragraphs[0].image ?? doc.paragraphs[0].inlineImages.values.first, "the picture is read")
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let note = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "note" })
+            return try XCTUnwrap(l.pieces[0].first { $0.paragraph == note }).pageY / theme.pixelsPerPoint
+        }
+        let extra = try height(line: 360) - height(line: 240)
+        XCTAssertGreaterThan(extra, 3, "half the mark's line under the picture at 1.5 lines")
+        XCTAssertLessThan(extra, 10, "not half the picture")
+    }
+
     func testAMergedLabelIsCentredDownToAGhostRowsPart() throws {
         // zh-9ef811c8's "综合业务", merged from a row into the next — whose
         // cells are merged down over rows holding nothing, parting at

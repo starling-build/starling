@@ -6137,6 +6137,17 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A picture's line off its section's grid takes its multiple's extra
+  (2026-10-23).** Off the grid, a multiple on a picture's line adds what
+  it adds to its mark's single line, under the picture (lab `hp`) — but
+  only where the section had no grid; a paragraph that leaves a grid the
+  section has (`w:snapToGrid` 0) got neither that nor the grid's pitches.
+  Lab `pn` (Word 16 Mac, zh-e68a2f57's package — the Mac printed it): its
+  p7 chart, alone in a paragraph of 1.1 lines, snapToGrid 0, under a 9pt
+  黑体 mark, sets the note after it 1.20 lower than at single, whatever
+  the picture run's size. Ours now 1.03 lower; 0.66 is left, at single
+  too, which the note's own spacing and first face do not move (labs
+  pn-e/f) — the faces' metrics. No line score moved (sweep h134).
 - **A merged label is centred down to a ghost-row group's part
   (2026-10-23).** A centred cell merged down over rows that do not all
   fit the page is set in the rows that do and the kept part of the one

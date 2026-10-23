@@ -7207,7 +7207,7 @@ public final class RichLayout {
             let px = _px(pitch)
             let snapped = (last.height / px - 0.002).rounded(.up) * px
             if snapped > last.height + 0.01 { bodyHeight += snapped - last.height }
-        } else if theme.wordRules, inLine, style.lineHeightPoints == nil, _grid(i, document).pitch == nil,
+        } else if theme.wordRules, inLine, style.lineHeightPoints == nil, _grid(i, document).pitch == nil || _offGrid(i, document),
                   case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001 {
             // Off the grid, a multiple on a picture's line adds what it
             // adds to its mark's single line, under the line — not a
@@ -7216,6 +7216,11 @@ public final class RichLayout {
             // 78pt logo alone in a header paragraph, Calibri 11): the text
             // after it 2.04 lower at 1.15 lines than at single, 13.44
             // lower at 2 — with or without text beside the picture.
+            // (Off a grid the section has, too: lab `pn` (Word 16 Mac,
+            // zh-e68a2f57's package), its p7 chart alone in a paragraph of
+            // 1.1 lines, snapToGrid 0, under a 9pt 黑体 mark — the note
+            // after it 1.20 lower than at single, 0.1 of the mark's line,
+            // whatever the picture run's size; ours added nothing there.)
             let single = _markLineHeight(i, document) / multiple
             if p.image != nil {
                 bodyHeight += (multiple - 1) * single
