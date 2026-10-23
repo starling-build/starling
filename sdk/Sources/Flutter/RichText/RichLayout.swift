@@ -6015,7 +6015,14 @@ public final class RichLayout {
             // one. A line without that stretch is its own height — the
             // footer of zh-1563bd74, an "X" in 16pt over a 14pt line.)
             if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
-               let strut = _strut(span, tallest: true, near: spacedOver),
+               // (On a grid, every line is held to the tallest, so not to
+               // a word joiner's: the one before a compatibility ideograph
+               // set in Noto Sans SC is Noto's line, and it held all of
+               // its paragraph's lines to it — zh-c15af02e's "(一)…", one
+               // "年" U+F98E on its first line, stood 46.2pt apart, where
+               // Word's print keeps two pitches, 45.7, on every line, the
+               // ones holding Noto's characters within 0.4 of it.)
+               let strut = _strut(span, tallest: true, near: spacedOver, joiners: !(gridded && lines > 1)),
                lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
@@ -8056,7 +8063,7 @@ public final class RichLayout {
         abs(s1 * h1 - s2 * h2) < 0.01 || (abs(s1 - s2) < 0.01 && abs(s1 * h1 - s2 * h2) <= 0.015 * max(s1 * h1, s2 * h2))
     }
 
-    private func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false) -> StrutStyle? {
+    private func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false, joiners: Bool = true) -> StrutStyle? {
         guard theme.wordRules else { return nil }
         var first: TextStyle? = nil
         var uniform = true
@@ -8086,6 +8093,7 @@ public final class RichLayout {
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
             if let text = t.text, blanksToo || text.contains(where: { !Self._setsNoLine($0) }),
+               joiners || text.contains(where: { $0 != "\u{2060}" }),
                let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
                 share[size * h, default: (style, 0)].1 += text.count
