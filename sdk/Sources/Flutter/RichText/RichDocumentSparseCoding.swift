@@ -340,3 +340,375 @@ extension CharShadow {
         if anchor != Offset(0.5, 0.5) { try c.encode(anchor, forKey: .anchor) }
     }
 }
+
+// MARK: - Tolerant readers for the rest of the model
+//
+// The types below are stored with every key, as the synthesized coding
+// would write them, but READ with a default for any key that is absent:
+// a field added to the model after a page was stored must not make that
+// page unreadable. (It did, 2026-10-22: four fields added on one branch
+// left every page stored on the other undecodable.) A field without a
+// default is still required. Regenerate these lists when a field is added;
+// test/site-build.sh and test/wiki-codec.sh catch a drift.
+
+extension RichDocument {
+    enum CodingKeys: String, CodingKey {
+        case paragraphs, header, footer, tableColumns, tableStyles, styles, listFormats, listCounterOf, listRestarts, keptParts, keptCharacterStyles, keptCharacterStyleIds, keptHeaderFooters, keptTables, keptCompat, defaultTabStop, pageBordersXML, docGridXML, lineGridPitch, characterGridSpace, sectionLeadXML, sectionTypeXML, columnsXML, columnsKeptUnder, gutterTwips, marginSettingsXML, keptSettings, sectionTailXML, defaultLangXML, themeFontLangXML, characterSpacingControl, usesEastAsianLayout, indentNotNumberingTabStop, kernsPunctuation, balancesSpaceWidth, adjustsLineHeightInTable, compatibilityMode, hangsHalf, flipsMirrorIndents, htmlAutoSpacing, divMargins, backgroundXML, backgroundRels, styleAliases, fileFonts, readFromFile, addsParagraphSpacing, titlePage, headerFooters, footnotes, footnoteSeparator, endnotes, endnoteSeparator, pageNumberStart, pageNumberFormat, evenAndOddHeaders, keptPartTypes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        paragraphs = try c.decode([RichParagraph].self, forKey: .paragraphs)
+        header = try c.decodeIfPresent(String.self, forKey: .header) ?? ""
+        footer = try c.decodeIfPresent(String.self, forKey: .footer) ?? ""
+        tableColumns = try c.decodeIfPresent([String: [Double]].self, forKey: .tableColumns) ?? [:]
+        tableStyles = try c.decodeIfPresent([String: TableStyle].self, forKey: .tableStyles) ?? [:]
+        styles = try c.decodeIfPresent(RichStyleSheet.self, forKey: .styles) ?? .word
+        listFormats = try c.decodeIfPresent([String: [Int: ListLevelFormat]].self, forKey: .listFormats) ?? [:]
+        listCounterOf = try c.decodeIfPresent([String: String].self, forKey: .listCounterOf) ?? [:]
+        listRestarts = try c.decodeIfPresent([String: [Int: Int]].self, forKey: .listRestarts) ?? [:]
+        keptParts = try c.decodeIfPresent([String: Data].self, forKey: .keptParts) ?? [:]
+        keptCharacterStyles = try c.decodeIfPresent([String: String].self, forKey: .keptCharacterStyles) ?? [:]
+        keptCharacterStyleIds = try c.decodeIfPresent([String: String].self, forKey: .keptCharacterStyleIds) ?? [:]
+        keptHeaderFooters = try c.decodeIfPresent([KeptHeaderFooter].self, forKey: .keptHeaderFooters) ?? []
+        keptTables = try c.decodeIfPresent([String: KeptTable].self, forKey: .keptTables) ?? [:]
+        keptCompat = try c.decodeIfPresent(String.self, forKey: .keptCompat)
+        defaultTabStop = try c.decodeIfPresent(Double.self, forKey: .defaultTabStop)
+        pageBordersXML = try c.decodeIfPresent(String.self, forKey: .pageBordersXML)
+        docGridXML = try c.decodeIfPresent(String.self, forKey: .docGridXML)
+        lineGridPitch = try c.decodeIfPresent(Double.self, forKey: .lineGridPitch)
+        characterGridSpace = try c.decodeIfPresent(Double.self, forKey: .characterGridSpace)
+        sectionLeadXML = try c.decodeIfPresent(String.self, forKey: .sectionLeadXML)
+        sectionTypeXML = try c.decodeIfPresent(String.self, forKey: .sectionTypeXML)
+        columnsXML = try c.decodeIfPresent(String.self, forKey: .columnsXML)
+        columnsKeptUnder = try c.decodeIfPresent(Int.self, forKey: .columnsKeptUnder)
+        gutterTwips = try c.decodeIfPresent(Int.self, forKey: .gutterTwips)
+        marginSettingsXML = try c.decodeIfPresent(String.self, forKey: .marginSettingsXML)
+        keptSettings = try c.decodeIfPresent([String: String].self, forKey: .keptSettings) ?? [:]
+        sectionTailXML = try c.decodeIfPresent(String.self, forKey: .sectionTailXML)
+        defaultLangXML = try c.decodeIfPresent(String.self, forKey: .defaultLangXML)
+        themeFontLangXML = try c.decodeIfPresent(String.self, forKey: .themeFontLangXML)
+        characterSpacingControl = try c.decodeIfPresent(String.self, forKey: .characterSpacingControl)
+        usesEastAsianLayout = try c.decodeIfPresent(Bool.self, forKey: .usesEastAsianLayout) ?? false
+        indentNotNumberingTabStop = try c.decodeIfPresent(Bool.self, forKey: .indentNotNumberingTabStop) ?? false
+        kernsPunctuation = try c.decodeIfPresent(Bool.self, forKey: .kernsPunctuation) ?? true
+        balancesSpaceWidth = try c.decodeIfPresent(Bool.self, forKey: .balancesSpaceWidth) ?? false
+        adjustsLineHeightInTable = try c.decodeIfPresent(Bool.self, forKey: .adjustsLineHeightInTable) ?? true
+        compatibilityMode = try c.decodeIfPresent(Int.self, forKey: .compatibilityMode)
+        hangsHalf = try c.decodeIfPresent(Bool.self, forKey: .hangsHalf) ?? false
+        flipsMirrorIndents = try c.decodeIfPresent(Bool.self, forKey: .flipsMirrorIndents) ?? true
+        htmlAutoSpacing = try c.decodeIfPresent(Bool.self, forKey: .htmlAutoSpacing) ?? true
+        divMargins = try c.decodeIfPresent([String: DivMargins].self, forKey: .divMargins) ?? [:]
+        backgroundXML = try c.decodeIfPresent(String.self, forKey: .backgroundXML)
+        backgroundRels = try c.decodeIfPresent([KeptRel].self, forKey: .backgroundRels) ?? []
+        styleAliases = try c.decodeIfPresent([String: String].self, forKey: .styleAliases) ?? [:]
+        fileFonts = try c.decodeIfPresent(Set<String>.self, forKey: .fileFonts) ?? []
+        readFromFile = try c.decodeIfPresent(Bool.self, forKey: .readFromFile) ?? false
+        addsParagraphSpacing = try c.decodeIfPresent(Bool.self, forKey: .addsParagraphSpacing) ?? false
+        titlePage = try c.decodeIfPresent(Bool.self, forKey: .titlePage) ?? false
+        headerFooters = try c.decodeIfPresent([RichHeaderFooter].self, forKey: .headerFooters) ?? []
+        footnotes = try c.decodeIfPresent([Int: [RichParagraph]].self, forKey: .footnotes) ?? [:]
+        footnoteSeparator = try c.decodeIfPresent([RichParagraph].self, forKey: .footnoteSeparator) ?? []
+        endnotes = try c.decodeIfPresent([Int: [RichParagraph]].self, forKey: .endnotes) ?? [:]
+        endnoteSeparator = try c.decodeIfPresent([RichParagraph].self, forKey: .endnoteSeparator) ?? []
+        pageNumberStart = try c.decodeIfPresent(Int.self, forKey: .pageNumberStart)
+        pageNumberFormat = try c.decodeIfPresent(String.self, forKey: .pageNumberFormat)
+        evenAndOddHeaders = try c.decodeIfPresent(Bool.self, forKey: .evenAndOddHeaders) ?? false
+        keptPartTypes = try c.decodeIfPresent([String: String].self, forKey: .keptPartTypes) ?? [:]
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(paragraphs, forKey: .paragraphs)
+        try c.encode(header, forKey: .header)
+        try c.encode(footer, forKey: .footer)
+        try c.encode(tableColumns, forKey: .tableColumns)
+        try c.encode(tableStyles, forKey: .tableStyles)
+        try c.encode(styles, forKey: .styles)
+        try c.encode(listFormats, forKey: .listFormats)
+        try c.encode(listCounterOf, forKey: .listCounterOf)
+        try c.encode(listRestarts, forKey: .listRestarts)
+        try c.encode(keptParts, forKey: .keptParts)
+        try c.encode(keptCharacterStyles, forKey: .keptCharacterStyles)
+        try c.encode(keptCharacterStyleIds, forKey: .keptCharacterStyleIds)
+        try c.encode(keptHeaderFooters, forKey: .keptHeaderFooters)
+        try c.encode(keptTables, forKey: .keptTables)
+        try c.encodeIfPresent(keptCompat, forKey: .keptCompat)
+        try c.encodeIfPresent(defaultTabStop, forKey: .defaultTabStop)
+        try c.encodeIfPresent(pageBordersXML, forKey: .pageBordersXML)
+        try c.encodeIfPresent(docGridXML, forKey: .docGridXML)
+        try c.encodeIfPresent(lineGridPitch, forKey: .lineGridPitch)
+        try c.encodeIfPresent(characterGridSpace, forKey: .characterGridSpace)
+        try c.encodeIfPresent(sectionLeadXML, forKey: .sectionLeadXML)
+        try c.encodeIfPresent(sectionTypeXML, forKey: .sectionTypeXML)
+        try c.encodeIfPresent(columnsXML, forKey: .columnsXML)
+        try c.encodeIfPresent(columnsKeptUnder, forKey: .columnsKeptUnder)
+        try c.encodeIfPresent(gutterTwips, forKey: .gutterTwips)
+        try c.encodeIfPresent(marginSettingsXML, forKey: .marginSettingsXML)
+        try c.encode(keptSettings, forKey: .keptSettings)
+        try c.encodeIfPresent(sectionTailXML, forKey: .sectionTailXML)
+        try c.encodeIfPresent(defaultLangXML, forKey: .defaultLangXML)
+        try c.encodeIfPresent(themeFontLangXML, forKey: .themeFontLangXML)
+        try c.encodeIfPresent(characterSpacingControl, forKey: .characterSpacingControl)
+        try c.encode(usesEastAsianLayout, forKey: .usesEastAsianLayout)
+        try c.encode(indentNotNumberingTabStop, forKey: .indentNotNumberingTabStop)
+        try c.encode(kernsPunctuation, forKey: .kernsPunctuation)
+        try c.encode(balancesSpaceWidth, forKey: .balancesSpaceWidth)
+        try c.encode(adjustsLineHeightInTable, forKey: .adjustsLineHeightInTable)
+        try c.encodeIfPresent(compatibilityMode, forKey: .compatibilityMode)
+        try c.encode(hangsHalf, forKey: .hangsHalf)
+        try c.encode(flipsMirrorIndents, forKey: .flipsMirrorIndents)
+        try c.encode(htmlAutoSpacing, forKey: .htmlAutoSpacing)
+        try c.encode(divMargins, forKey: .divMargins)
+        try c.encodeIfPresent(backgroundXML, forKey: .backgroundXML)
+        try c.encode(backgroundRels, forKey: .backgroundRels)
+        try c.encode(styleAliases, forKey: .styleAliases)
+        try c.encode(fileFonts, forKey: .fileFonts)
+        try c.encode(readFromFile, forKey: .readFromFile)
+        try c.encode(addsParagraphSpacing, forKey: .addsParagraphSpacing)
+        try c.encode(titlePage, forKey: .titlePage)
+        try c.encode(headerFooters, forKey: .headerFooters)
+        try c.encode(footnotes, forKey: .footnotes)
+        try c.encode(footnoteSeparator, forKey: .footnoteSeparator)
+        try c.encode(endnotes, forKey: .endnotes)
+        try c.encode(endnoteSeparator, forKey: .endnoteSeparator)
+        try c.encodeIfPresent(pageNumberStart, forKey: .pageNumberStart)
+        try c.encodeIfPresent(pageNumberFormat, forKey: .pageNumberFormat)
+        try c.encode(evenAndOddHeaders, forKey: .evenAndOddHeaders)
+        try c.encode(keptPartTypes, forKey: .keptPartTypes)
+    }
+}
+
+extension ImageAttachment {
+    enum CodingKeys: String, CodingKey {
+        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        data = try c.decode(Data.self, forKey: .data)
+        width = try c.decode(Double.self, forKey: .width)
+        height = try c.decode(Double.self, forKey: .height)
+        name = try c.decode(String.self, forKey: .name)
+        naturalWidth = try c.decodeIfPresent(Double.self, forKey: .naturalWidth)
+        naturalHeight = try c.decodeIfPresent(Double.self, forKey: .naturalHeight)
+        sourceXML = try c.decodeIfPresent(String.self, forKey: .sourceXML)
+        sourceRels = try c.decodeIfPresent([KeptRel].self, forKey: .sourceRels) ?? []
+        outline = try c.decodeIfPresent(ShapeOutline.self, forKey: .outline)
+        sourceWidth = try c.decodeIfPresent(Double.self, forKey: .sourceWidth)
+        sourceHeight = try c.decodeIfPresent(Double.self, forKey: .sourceHeight)
+        sourceRunPropertiesXML = try c.decodeIfPresent(String.self, forKey: .sourceRunPropertiesXML)
+        frame = try c.decodeIfPresent(BorderLine.self, forKey: .frame)
+        effectLeft = try c.decodeIfPresent(Double.self, forKey: .effectLeft) ?? 0.0
+        effectRight = try c.decodeIfPresent(Double.self, forKey: .effectRight) ?? 0.0
+        effectTop = try c.decodeIfPresent(Double.self, forKey: .effectTop) ?? 0.0
+        baseline = try c.decodeIfPresent(Double.self, forKey: .baseline)
+        effectBottom = try c.decodeIfPresent(Double.self, forKey: .effectBottom) ?? 0.0
+        float = try c.decodeIfPresent(ImageFloat.self, forKey: .float)
+        rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? 0
+        textBox = try c.decodeIfPresent(RichTextBox.self, forKey: .textBox)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(data, forKey: .data)
+        try c.encode(width, forKey: .width)
+        try c.encode(height, forKey: .height)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(naturalWidth, forKey: .naturalWidth)
+        try c.encodeIfPresent(naturalHeight, forKey: .naturalHeight)
+        try c.encodeIfPresent(sourceXML, forKey: .sourceXML)
+        try c.encode(sourceRels, forKey: .sourceRels)
+        try c.encodeIfPresent(outline, forKey: .outline)
+        try c.encodeIfPresent(sourceWidth, forKey: .sourceWidth)
+        try c.encodeIfPresent(sourceHeight, forKey: .sourceHeight)
+        try c.encodeIfPresent(sourceRunPropertiesXML, forKey: .sourceRunPropertiesXML)
+        try c.encodeIfPresent(frame, forKey: .frame)
+        try c.encode(effectLeft, forKey: .effectLeft)
+        try c.encode(effectRight, forKey: .effectRight)
+        try c.encode(effectTop, forKey: .effectTop)
+        try c.encodeIfPresent(baseline, forKey: .baseline)
+        try c.encode(effectBottom, forKey: .effectBottom)
+        try c.encodeIfPresent(float, forKey: .float)
+        try c.encode(rotation, forKey: .rotation)
+        try c.encodeIfPresent(textBox, forKey: .textBox)
+    }
+}
+
+extension ImageFloat {
+    enum CodingKeys: String, CodingKey {
+        case x, y, horizontalFrom, verticalFrom, horizontalAlign, verticalAlign, takesRoom, bandsPage, wraps, effectBottom, distanceTop, distanceBottom, heightShare, heightFrom
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        x = try c.decodeIfPresent(Double.self, forKey: .x) ?? 0
+        y = try c.decodeIfPresent(Double.self, forKey: .y) ?? 0
+        horizontalFrom = try c.decodeIfPresent(String.self, forKey: .horizontalFrom) ?? "column"
+        verticalFrom = try c.decodeIfPresent(String.self, forKey: .verticalFrom) ?? "paragraph"
+        horizontalAlign = try c.decodeIfPresent(String.self, forKey: .horizontalAlign)
+        verticalAlign = try c.decodeIfPresent(String.self, forKey: .verticalAlign)
+        takesRoom = try c.decodeIfPresent(Bool.self, forKey: .takesRoom) ?? false
+        bandsPage = try c.decodeIfPresent(Bool.self, forKey: .bandsPage) ?? false
+        wraps = try c.decodeIfPresent(Bool.self, forKey: .wraps) ?? false
+        effectBottom = try c.decodeIfPresent(Double.self, forKey: .effectBottom) ?? 0.0
+        distanceTop = try c.decodeIfPresent(Double.self, forKey: .distanceTop) ?? 0.0
+        distanceBottom = try c.decodeIfPresent(Double.self, forKey: .distanceBottom) ?? 0.0
+        heightShare = try c.decodeIfPresent(Double.self, forKey: .heightShare)
+        heightFrom = try c.decodeIfPresent(String.self, forKey: .heightFrom) ?? "margin"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(x, forKey: .x)
+        try c.encode(y, forKey: .y)
+        try c.encode(horizontalFrom, forKey: .horizontalFrom)
+        try c.encode(verticalFrom, forKey: .verticalFrom)
+        try c.encodeIfPresent(horizontalAlign, forKey: .horizontalAlign)
+        try c.encodeIfPresent(verticalAlign, forKey: .verticalAlign)
+        try c.encode(takesRoom, forKey: .takesRoom)
+        try c.encode(bandsPage, forKey: .bandsPage)
+        try c.encode(wraps, forKey: .wraps)
+        try c.encode(effectBottom, forKey: .effectBottom)
+        try c.encode(distanceTop, forKey: .distanceTop)
+        try c.encode(distanceBottom, forKey: .distanceBottom)
+        try c.encodeIfPresent(heightShare, forKey: .heightShare)
+        try c.encode(heightFrom, forKey: .heightFrom)
+    }
+}
+
+extension RichTextBox {
+    enum CodingKeys: String, CodingKey {
+        case paragraphs, insetLeft, insetTop, insetRight, insetBottom, fitsText, fitsHeight, fitsOnce, tableStyles, tableColumns, growsToFit, parts, textDirection
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        paragraphs = try c.decode([RichParagraph].self, forKey: .paragraphs)
+        insetLeft = try c.decodeIfPresent(Double.self, forKey: .insetLeft) ?? 7.2
+        insetTop = try c.decodeIfPresent(Double.self, forKey: .insetTop) ?? 3.6
+        insetRight = try c.decodeIfPresent(Double.self, forKey: .insetRight) ?? 7.2
+        insetBottom = try c.decodeIfPresent(Double.self, forKey: .insetBottom) ?? 3.6
+        fitsText = try c.decodeIfPresent(Bool.self, forKey: .fitsText) ?? false
+        fitsHeight = try c.decodeIfPresent(Bool.self, forKey: .fitsHeight) ?? false
+        fitsOnce = try c.decodeIfPresent(Bool.self, forKey: .fitsOnce) ?? false
+        tableStyles = try c.decodeIfPresent([String: TableStyle].self, forKey: .tableStyles) ?? [:]
+        tableColumns = try c.decodeIfPresent([String: [Double]].self, forKey: .tableColumns) ?? [:]
+        growsToFit = try c.decodeIfPresent(Bool.self, forKey: .growsToFit) ?? false
+        parts = try c.decodeIfPresent([Part].self, forKey: .parts) ?? []
+        textDirection = try c.decodeIfPresent(CellRef.CellTextDirection.self, forKey: .textDirection) ?? .horizontal
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(paragraphs, forKey: .paragraphs)
+        try c.encode(insetLeft, forKey: .insetLeft)
+        try c.encode(insetTop, forKey: .insetTop)
+        try c.encode(insetRight, forKey: .insetRight)
+        try c.encode(insetBottom, forKey: .insetBottom)
+        try c.encode(fitsText, forKey: .fitsText)
+        try c.encode(fitsHeight, forKey: .fitsHeight)
+        try c.encode(fitsOnce, forKey: .fitsOnce)
+        try c.encode(tableStyles, forKey: .tableStyles)
+        try c.encode(tableColumns, forKey: .tableColumns)
+        try c.encode(growsToFit, forKey: .growsToFit)
+        try c.encode(parts, forKey: .parts)
+        try c.encode(textDirection, forKey: .textDirection)
+    }
+}
+
+extension TableStyle {
+    enum CodingKeys: String, CodingKey {
+        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        borders = try c.decodeIfPresent(Bool.self, forKey: .borders) ?? true
+        keptPosition = try c.decodeIfPresent(String.self, forKey: .keptPosition)
+        floatOffsetY = try c.decodeIfPresent(Double.self, forKey: .floatOffsetY)
+        floatX = try c.decodeIfPresent(Double.self, forKey: .floatX)
+        floatXAnchor = try c.decodeIfPresent(String.self, forKey: .floatXAnchor)
+        pageAnchored = try c.decodeIfPresent(Bool.self, forKey: .pageAnchored) ?? false
+        pageOffsetY = try c.decodeIfPresent(Double.self, forKey: .pageOffsetY)
+        floatsOverText = try c.decodeIfPresent(Bool.self, forKey: .floatsOverText) ?? false
+        keptCellMarginsXML = try c.decodeIfPresent(String.self, forKey: .keptCellMarginsXML)
+        keptCellMarginsUnder = try c.decodeIfPresent([Double?].self, forKey: .keptCellMarginsUnder) ?? []
+        edges = try c.decodeIfPresent(BorderEdges.self, forKey: .edges)
+        headerRow = try c.decodeIfPresent(Bool.self, forKey: .headerRow) ?? false
+        headerRowCount = try c.decodeIfPresent(Int.self, forKey: .headerRowCount) ?? 1
+        widthPercent = try c.decodeIfPresent(Double.self, forKey: .widthPercent)
+        width = try c.decodeIfPresent(Double.self, forKey: .width)
+        fixedLayout = try c.decodeIfPresent(Bool.self, forKey: .fixedLayout) ?? false
+        autoCellWidths = try c.decodeIfPresent(Bool.self, forKey: .autoCellWidths) ?? false
+        cellSpacing = try c.decodeIfPresent(Double.self, forKey: .cellSpacing)
+        textOutdent = try c.decodeIfPresent(Double.self, forKey: .textOutdent) ?? 0
+        textOutdentRight = try c.decodeIfPresent(Double.self, forKey: .textOutdentRight) ?? 0
+        headerFill = try c.decodeIfPresent(Color.self, forKey: .headerFill)
+        bandFill = try c.decodeIfPresent(Color.self, forKey: .bandFill)
+        bandAltFill = try c.decodeIfPresent(Color.self, forKey: .bandAltFill)
+        borderColor = try c.decodeIfPresent(Color.self, forKey: .borderColor)
+        borderWidth = try c.decodeIfPresent(Double.self, forKey: .borderWidth)
+        borderStyle = try c.decodeIfPresent(String.self, forKey: .borderStyle)
+        edgeStyles = try c.decodeIfPresent([String: String].self, forKey: .edgeStyles) ?? [:]
+        edgeWidths = try c.decodeIfPresent([String: Double].self, forKey: .edgeWidths) ?? [:]
+        bordersFromCells = try c.decodeIfPresent(Bool.self, forKey: .bordersFromCells) ?? false
+        alignment = try c.decodeIfPresent(ParagraphAlignment.self, forKey: .alignment) ?? .left
+        indent = try c.decodeIfPresent(Double.self, forKey: .indent) ?? 0
+        rowsCantSplit = try c.decodeIfPresent(Set<Int>.self, forKey: .rowsCantSplit) ?? []
+        rowExceptions = try c.decodeIfPresent([Int: String].self, forKey: .rowExceptions) ?? [:]
+        rowsGridBefore = try c.decodeIfPresent([Int: Int].self, forKey: .rowsGridBefore) ?? [:]
+        rowHeights = try c.decodeIfPresent([Int: Double].self, forKey: .rowHeights) ?? [:]
+        rowsExactHeight = try c.decodeIfPresent(Set<Int>.self, forKey: .rowsExactHeight) ?? []
+        cellMarginTop = try c.decodeIfPresent(Double.self, forKey: .cellMarginTop)
+        cellMarginLeft = try c.decodeIfPresent(Double.self, forKey: .cellMarginLeft)
+        cellMarginBottom = try c.decodeIfPresent(Double.self, forKey: .cellMarginBottom)
+        cellMarginRight = try c.decodeIfPresent(Double.self, forKey: .cellMarginRight)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(borders, forKey: .borders)
+        try c.encodeIfPresent(keptPosition, forKey: .keptPosition)
+        try c.encodeIfPresent(floatOffsetY, forKey: .floatOffsetY)
+        try c.encodeIfPresent(floatX, forKey: .floatX)
+        try c.encodeIfPresent(floatXAnchor, forKey: .floatXAnchor)
+        try c.encode(pageAnchored, forKey: .pageAnchored)
+        try c.encodeIfPresent(pageOffsetY, forKey: .pageOffsetY)
+        try c.encode(floatsOverText, forKey: .floatsOverText)
+        try c.encodeIfPresent(keptCellMarginsXML, forKey: .keptCellMarginsXML)
+        try c.encode(keptCellMarginsUnder, forKey: .keptCellMarginsUnder)
+        try c.encodeIfPresent(edges, forKey: .edges)
+        try c.encode(headerRow, forKey: .headerRow)
+        try c.encode(headerRowCount, forKey: .headerRowCount)
+        try c.encodeIfPresent(widthPercent, forKey: .widthPercent)
+        try c.encodeIfPresent(width, forKey: .width)
+        try c.encode(fixedLayout, forKey: .fixedLayout)
+        try c.encode(autoCellWidths, forKey: .autoCellWidths)
+        try c.encodeIfPresent(cellSpacing, forKey: .cellSpacing)
+        try c.encode(textOutdent, forKey: .textOutdent)
+        try c.encode(textOutdentRight, forKey: .textOutdentRight)
+        try c.encodeIfPresent(headerFill, forKey: .headerFill)
+        try c.encodeIfPresent(bandFill, forKey: .bandFill)
+        try c.encodeIfPresent(bandAltFill, forKey: .bandAltFill)
+        try c.encodeIfPresent(borderColor, forKey: .borderColor)
+        try c.encodeIfPresent(borderWidth, forKey: .borderWidth)
+        try c.encodeIfPresent(borderStyle, forKey: .borderStyle)
+        try c.encode(edgeStyles, forKey: .edgeStyles)
+        try c.encode(edgeWidths, forKey: .edgeWidths)
+        try c.encode(bordersFromCells, forKey: .bordersFromCells)
+        try c.encode(alignment, forKey: .alignment)
+        try c.encode(indent, forKey: .indent)
+        try c.encode(rowsCantSplit, forKey: .rowsCantSplit)
+        try c.encode(rowExceptions, forKey: .rowExceptions)
+        try c.encode(rowsGridBefore, forKey: .rowsGridBefore)
+        try c.encode(rowHeights, forKey: .rowHeights)
+        try c.encode(rowsExactHeight, forKey: .rowsExactHeight)
+        try c.encodeIfPresent(cellMarginTop, forKey: .cellMarginTop)
+        try c.encodeIfPresent(cellMarginLeft, forKey: .cellMarginLeft)
+        try c.encodeIfPresent(cellMarginBottom, forKey: .cellMarginBottom)
+        try c.encodeIfPresent(cellMarginRight, forKey: .cellMarginRight)
+    }
+}
