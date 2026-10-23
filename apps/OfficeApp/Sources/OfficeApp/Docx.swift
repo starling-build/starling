@@ -2433,6 +2433,21 @@ enum DocxFormat {
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
+            // (Behind the text — a z-index under 0 — no text wraps beside it,
+            // whatever its wrap says: zh-6d402586's annex is one empty
+            // paragraph anchoring a 786pt flowchart picture, wrap "tight"
+            // and z-index -251652097, on a page of 770; Word prints it on
+            // that page alone, ours wrapped the paragraph's line under the
+            // picture, past the foot, and left the page blank.)
+            if let z = st.split(separator: ";").compactMap({ pair -> Double? in
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                return kv.count == 2 && kv[0].trimmingWhitespace() == "z-index" ? Double(String(kv[1]).trimmingWhitespace()) : nil
+            }).first, z < 0 {
+                // (A top-and-bottom one still takes its band: zh-7773163d's
+                // 153pt boxes at z under 0 push the text below them in
+                // Word's print as they did in ours.)
+                f.wraps = false
+            }
             Self._bandPage(&f)
             return f
         }

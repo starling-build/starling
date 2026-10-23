@@ -7546,6 +7546,17 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   layout too. Paired sweep n417 vs n416: zh-ae2dd08d 47.2 -> 49.9,
   nothing else moved.
 
+- **A VML shape behind the text wraps no text (2026-10-23).**
+  zh-6d402586's annex is a section of one empty paragraph anchoring a
+  786pt flowchart picture (VML, wrap "tight", z-index -251652097) on a
+  page whose body is 770. Word prints it on that page; ours wrapped the
+  paragraph's own line under the picture, past the foot, and left a blank
+  page. A VML shape with a negative z-index now wraps nothing beside it;
+  a top-and-bottom one still takes its band (zh-7773163d's 153pt boxes,
+  which a first version that cleared that too cost 0.8). Paired sweep n421
+  vs n420: zh-6d402586 39.3 -> 62.2, 41 -> 40 pages (Word 39), nothing
+  else moved.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and
