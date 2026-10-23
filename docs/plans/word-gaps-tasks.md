@@ -60,6 +60,11 @@ zh-dc9cfa34 97.6 -> 56.9, zh-e37f8d40 100 -> 67.6 [Mac], zh-0aac9d1a 99.4 -> 69.
 Earlier "released: drifting fallback" entries (zh-4e5fe46f, zh-884c6e3e, zh-875759ff, zh-4feaa34c) are now on
 one reference setup.
 
+Seven of the 96 restored to their old prints (Mac 0fcba326): zh-32f4ad9f, zh-540dc149, zh-70094a34,
+zh-7b5b3de2, zh-92373179, zh-c2f6d17a, zh-e37f8d40. Their packages embed fonts, and today's Word prints those
+without a Unicode map — 50-85% of their text reads as NUL (zh-e37f8d40: 5278 of 6182 characters, 0 in the old
+print), so the scorer matched nothing; the line geometry was the old print's. Their old references stand.
+
 ### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136) — DONE, confirmed on the Mac (2026-10-22)
 Owner: Linux office1 01Ak4ibJ (lenovo-3). (Two T144s on this board: the other is zh-344a8d08's footnote.)
 Bisected on the Mac (OFFICE_WORD_FONTS=mac, the one document):
