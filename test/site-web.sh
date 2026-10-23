@@ -122,9 +122,11 @@ check "a tap on a row still opens it" "${M[1]:-}" '"getting-started"'
 # The header, left to right: Pages, Flow, Contents, Link to paragraph, PDF,
 # Word (x≈814), History (x≈893, since the site names its repository), Find
 # (x≈969). History opens a new tab (stubbed: window.open records the URL).
+# A reader sees only Pages, Flow, Contents and More (x≈605): More reveals
+# the tools in that order, so the positions below hold once it is clicked.
 STUB="navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; window.open = (u) => { window.__opened = u; return null; }; 'stubbed'"
 rm -rf "$OUT/downloads2"; mkdir -p "$OUT/downloads2"
-URL="$URL/sample-paper/" "${DRIVE[@]}" downloads "$OUT/downloads2" wait 12000 eval "$STUB" \
+URL="$URL/sample-paper/" "${DRIVE[@]}" downloads "$OUT/downloads2" wait 12000 eval "$STUB" click 605 220 wait 400 \
     dblclick 843 597 wait 500 eval "starling.debug('selection')" chord ctrl c wait 500 eval "window.__copied" \
     click 893 220 wait 500 eval "window.__opened" \
     click 814 220 wait 500 eval "window.__opened" \
@@ -140,7 +142,7 @@ check "PDF opens the page's static PDF" "${F[5]:-}" '"/sample-paper/sample-paper
 check "find selects the first match of what is typed, case aside" "${F[6]:-}" '"cryptographic boundary"'
 # Link to paragraph: a click into the page, then the button; the address
 # bar gets #p=<id> and the clipboard the whole address.
-URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" click 843 597 wait 300 \
+URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" click 605 220 wait 400 click 843 597 wait 300 \
     click 643 220 wait 500 eval "location.hash" eval "window.__copied === location.href && /#p=\d+$/.test(window.__copied)" \
     > "$OUT/drive8.log" 2>&1
 L=(); while IFS= read -r l; do L+=("$l"); done < <(evals "$OUT/drive8.log")

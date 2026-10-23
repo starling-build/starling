@@ -113,6 +113,10 @@ final class SiteShellState: State<StatefulWidget> {
 
     // Find in the page.
     private var _findOpen = false
+    // The published reader's tools (link, downloads, history, find) sit
+    // behind "More": a reader sees the page, the contents and the view
+    // toggle, not a toolbar — on a phone the toolbar wrapped to three rows.
+    private var _moreOpen = false
     private let _findField = TextEditingController()
     private var _findStatus = ""
 
@@ -991,7 +995,9 @@ final class SiteShellState: State<StatefulWidget> {
         let title = _slug.flatMap { _manifest?.node($0)?.title } ?? (_loading ? "Loading…" : (_manifest == nil ? "Loading site…" : "Choose a page"))
         var items: [Widget] = []
         if _slug != nil {
-            if _pageSetup != nil {
+            let tools = store.canEdit || _moreOpen
+            // A phone reads as flow; the toggle is for a desktop reader.
+            if _pageSetup != nil, store.canEdit || !_compact {
                 items.append(Button(onPressed: showPages ? nil : { [weak self] in self?.setState { self?._viewPages = true } }, child: Text(store.canEdit ? "Page preview" : "Pages")))
                 items.append(Chrome.gap(4))
                 items.append(Button(onPressed: showPages ? { [weak self] in self?.setState { self?._viewPages = false } } : nil, child: Text(store.canEdit ? "Reading view" : "Flow")))
@@ -1001,6 +1007,12 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._tocOpen.toggle() } }, child: Text(_tocOpen ? "Hide contents" : "Contents")))
                 items.append(Chrome.gap(8))
             }
+            if !store.canEdit, !tools {
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._moreOpen = true } }, child: Text("More")))
+                items.append(Chrome.gap(8))
+            }
+        }
+        if _slug != nil, store.canEdit || _moreOpen {
             items.append(Button(onPressed: { [weak self] in self?._linkToParagraph() }, child: Text("Link to paragraph")))
             items.append(Chrome.gap(8))
             items.append(Button(onPressed: { [weak self] in self?._exportPDF() }, child: Text("PDF")))
@@ -1032,6 +1044,10 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._findOpen = true } }, child: Text("Find")))
             }
             items.append(Chrome.gap(8))
+            if !store.canEdit {
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._moreOpen = false; self?._findOpen = false; self?._findStatus = "" } }, child: Text("Less")))
+                items.append(Chrome.gap(8))
+            }
         }
         if store.canEdit, _slug != nil {
             if let revision = _revision {
