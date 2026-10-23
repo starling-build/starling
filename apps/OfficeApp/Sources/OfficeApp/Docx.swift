@@ -1128,7 +1128,16 @@ enum DocxFormat {
                 // (The table's own colour when its cells decided the switch
                 // and named none: bug57031's grey frames came back black.)
                 style.borderColor = borders?.color ?? _borders(node.first("w:tblPr"), "w:tblBorders")?.color
-                style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
+                // (The width a side no cell states takes is the table's own,
+                // else its style's, where either says one — the cells decide
+                // only whether it is ruled: zh-bbbb2e6a's review form rules
+                // its cells' outer sides 1.5pt and leaves the rows to Table
+                // Grid's 0.5pt, its 96.6pt rows 97.1 apart in Word's print;
+                // ours took 1.5 between them, 98.1, and the form's closing
+                // lines went to a page of their own.)
+                let tableSaid = _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders
+                let widthFrom = cellBorders != nil && tableSaid?.on == true ? tableSaid : borders
+                style.borderWidth = widthFrom?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
                 // The line style: the cells' when they decided, else the
                 // table's own (a table ruled by its cells' nil sides still
                 // names outset on its tblBorders).
