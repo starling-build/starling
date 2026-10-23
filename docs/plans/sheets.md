@@ -293,8 +293,10 @@ the same base; the commits give the numbers):
   lo-forum-mso-en4-134670 9.76 -> 4.34, NumberFormatApproxTests 12.65 ->
   7.34). Open: lo-tdf58243 (fit to page, centred across) wants no
   vertical inset either (6.81 -> 7.90); lo-tdf91332's border 0.76 low;
-  a centred page still stands about 0.4 pt right of Excel's
-  (45540_*, 45544, simple-monthly-budget).
+  Across a centred page the cells stand 0.48 LEFT of plain centring
+  (Excel centres them as if 0.96 wider): the 18 centred workbooks 4.321
+  -> 4.198, 11 better, Tables +0.59 and chart-tdf140489 +0.32 worse
+  (tdf140489's band 0.38 wider than Excel's at its 90%).
   With the cells in place, right-aligned text keeps the left side's
   margin (0.48 + a quarter digit): the 0.4 pt the right had stood closer
   was measured against cells 0.48 left of Excel's. 0.918 -> 0.902 (277

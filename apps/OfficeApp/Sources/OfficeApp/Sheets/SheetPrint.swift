@@ -496,9 +496,13 @@ extension SheetGridState {
                 // where Excel's did, or 0.4 right — AverageTaxRates', Tables'
                 // and lo-tdf58243's pages, centred, 2.8, 1.8 and 1.8% worse
                 // for it, where simple-monthly-budget's, centred across
-                // only, came 0.48 nearer down.)
+                // only, came 0.48 nearer down. Across a centred page the
+                // cells stand as far the other way: Excel centres them as if
+                // 0.96 wider, from its left — the first fills of eleven such
+                // pages, at any scale (lo-bnc762542's 36%, 45544's 100%),
+                // 0.24 to 0.55 pt left of where plain centring put ours.)
                 let inset = 0.48
-                let insetX = setup.centerHorizontally ? 0 : inset, insetY = setup.centerVertically ? 0 : inset
+                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? 0 : inset
                 var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
