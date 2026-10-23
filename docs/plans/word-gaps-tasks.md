@@ -555,6 +555,11 @@ zh-984846dc, zh-a031fa16, zh-c2229d4a, zh-d9b085b1, zh-e68a2f57 (NUL share 0.46-
 other nine embedding files have older prints with real glyphs. 42848c6a (an embedded
 SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted (see office.md; zh-a031fa16 89.0 -> 55.9 against its set-aside reference, nothing else moved).
 
+### Looked at (Mac 0fcba326, 2026-10-23): zh-92373179 65.9 — reader, released
+From p5 its lines stand where Word's do (within 1-2pt, same breaks), but Word's print maps its
+embedded 仿宋_GB2312 subset's glyphs to wrong characters ("满足"→"7F", "评价"→"4价", "不少于"→"S少于"),
+so the four-character edges miss though the lines match. Not layout; nothing to fix here.
+
 ### Assignments from the Mac (0fcba326), 2026-10-23, at the user's request
 Each owner claims its item below as usual; this only says who was asked.
 - lenovo-3: zh-72da925e p5 — the fit takes "79", the final layout breaks before it.
