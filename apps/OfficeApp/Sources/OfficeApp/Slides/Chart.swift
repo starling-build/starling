@@ -448,6 +448,9 @@ struct Chart: Equatable {
         var moves: [Int: [Double]] = [:]
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
+        /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
+        /// shown as it stands: zh-61aaad09's pie says "109646, 15.85%".
+        var texts: [Int: String] = [:]
         var fill: Color? = nil
         var line: Color? = nil
         var lineWidth = 0.75
@@ -1403,6 +1406,10 @@ enum ChartXML {
                     if p == "outEnd" { ends = true }
                 }
                 if let sz = one.first("c:tx")?.descendant("a:rPr")?["sz"].flatMap(Double.init) { l.sizes[i] = sz / 100 }
+                if let rich = one.first("c:tx")?.first("c:rich") {
+                    let text = rich.all("a:p").map { _texts($0, "a:t").joined() }.joined(separator: "\n")
+                    if !text.isEmpty { l.texts[i] = text }
+                }
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
                     l.moves[i] = [x, y]
@@ -1422,7 +1429,7 @@ enum ChartXML {
                 l.leaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
             }
             // Only what the plain labels do not already draw.
-            if l.series || l.category || l.percent || l.outside || !l.moves.isEmpty || l.fill != nil { c.pieLabels = l }
+            if l.series || l.category || l.percent || l.outside || !l.moves.isEmpty || l.fill != nil || !l.texts.isEmpty { c.pieLabels = l }
         }
         if type == .radar { c.radarFilled = el.first("c:radarStyle")?["val"] == "filled" }
         if el.name == "c:bar3DChart" {
@@ -1912,11 +1919,11 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(c.font ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback)),
-                textAlign: .center, textDirection: .ltr)   // (a label broken in two centres each line)
+                textAlign: align, textDirection: .ltr)   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
         }
@@ -2045,6 +2052,17 @@ enum ChartPainter {
             let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
             // Room before an entry's name.
             let lead = lineKeys && !beside ? 24.8 * k : key + gap
+            // (In a place of its own a name wider than the place wraps
+            // within it, set left: zh-61aaad09's pie legend, 26% of the
+            // chart's width, sets "实体投诉举报" as "实体投诉" / "举报" in Word's
+            // print.)
+            if let box {
+                entries = entries.map { e in
+                    guard lead + e.tp.width > box.width + 0.01 else { return e }
+                    e.tp.dispose()
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left))
+                }
+            }
             // A column beside stacked columns (or areas) reads as the stack
             // does, the last series — the top of it — first.
             if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
@@ -2068,11 +2086,21 @@ enum ChartPainter {
             let textH = entries.isEmpty ? size * k : latin.height
             latin.dispose()
             let lineH = beside ? textH + 6 * k : textH
+            // (Each line as tall as its tallest name, a wrapped one too.)
+            var lineHs = lines.map { line in max(lineH, line.map { $0.tp.height }.max() ?? 0) }
+            // (A place of its own taller than its lines shares its height
+            // among them: zh-61aaad09's two entries, in a box 94% of the
+            // chart's height, stand 57pt apart in Word's print, each in the
+            // middle of its half.)
+            if let box, lineHs.reduce(0, +) < box.height, !lines.isEmpty {
+                lineHs = lines.map { _ in box.height / Double(lines.count) }
+            }
+            let linesH = lineHs.reduce(0, +)
             let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
             var y: Double, columnX = 0.0
             if let box {
                 // In its own place, the plot's room untouched.
-                y = box.center.dy - lineH * Double(lines.count) / 2
+                y = box.center.dy - linesH / 2
             } else if beside {
                 y = c.legendPosition == "tr" ? area.top : area.center.dy - lineH * Double(lines.count) / 2
                 if c.legendPosition == "l" {
@@ -2113,7 +2141,8 @@ enum ChartPainter {
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
                 area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
             }
-            for line in lines {
+            for (n, line) in lines.enumerated() {
+                let lineH = lineHs[n]
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
                 // (A row on a slide stands 0.19 of its size right of the
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
@@ -3973,8 +4002,8 @@ extension ChartPainter {
                     parts.append(NumberFormat.format(share, code, width: 40).text.trimmingWhitespace())
                 } else { parts.append("\(Int((share * 100).rounded()))%") }
             }
-            guard !parts.isEmpty else { continue }
-            let text = parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
+            guard !parts.isEmpty || l.texts[s.index] != nil else { continue }
+            let text = l.texts[s.index] ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
