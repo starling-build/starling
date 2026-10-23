@@ -1617,6 +1617,59 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
     }
 
+    func testAMergedLabelIsCentredDownToAGhostRowsPart() throws {
+        // zh-9ef811c8's "综合业务", merged from a row into the next — whose
+        // cells are merged down over rows holding nothing, parting at
+        // page 4's foot at one of those rows' tops (lab `mg`) — stands
+        // centred down to that part's foot in Word's print; ours centred
+        // it in its first row alone, 43pt high.
+        // Here: a row of one line with the label beside it, then a row
+        // whose cells are merged over three empty rows of 60pt, two of
+        // which fit the page.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func p(_ text: String) -> String {
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+        }
+        func cell(_ props: String, _ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/>\(props)</w:tcPr>\(content)</w:tc>" }
+        let centre = "<w:vAlign w:val=\"center\"/>"
+        let restart = "<w:vMerge w:val=\"restart\"/>\(centre)", goesOn = "<w:vMerge/>\(centre)"
+        let borders = "<w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+        var parts: [String] = []
+        parts.append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"9600\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>")
+        parts.append("<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/>\(borders)</w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>")
+        parts.append("<w:tr>\(cell(restart, p("label one") + p("label two")))\(cell("", p("first")))</w:tr>")
+        parts.append("<w:tr>\(cell(goesOn, "<w:p/>"))\(cell(restart, p("merged")))</w:tr>")
+        for _ in 1 ... 3 {
+            parts.append("<w:tr><w:trPr><w:trHeight w:val=\"1200\"/></w:trPr>\(cell(goesOn, "<w:p/>"))\(cell(goesOn, "<w:p/>"))</w:tr>")
+        }
+        parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        XCTAssertGreaterThan(l.pageCount, 1, "the merged rows part over the page")
+        let label = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "label one" })
+        let first = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "first" })
+        // (Where its text is drawn on the page, against the first row's
+        // line beside it.)
+        func drawn(_ k: Int) throws -> Double {
+            let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+            return piece.pageY + l.geometry(k).textTop - piece.flowTop
+        }
+        let down = (try drawn(label) - drawn(first)) / theme.pixelsPerPoint
+        XCTAssertGreaterThan(down, 30, "centred down the part on the page, not in its first row")
+    }
+
     func testAPartedRowOpensWithItsOwnTopLine() throws {
         // Lab `tb` (Word 16 Mac, zh-13552a3a's package): cells of top nil
         // and bottom single, a row parted at page 1's foot — page 2 opens

@@ -6094,6 +6094,17 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A merged label is centred down to a ghost-row group's part
+  (2026-10-23).** A centred cell merged down over rows that do not all
+  fit the page is set in the rows that do and the kept part of the one
+  that parts there (`partingKept`), which weighed only cells of one row.
+  A row whose cells are themselves merged over rows holding nothing parts
+  only at one of those rows' tops (lab `mg`, Windows), and had none to
+  weigh: zh-9ef811c8's "综合业务", merged from the row above into "监督检查"
+  — merged over empty rows and parting at page 4's foot — stands centred
+  down to that part's foot in Word's print (333.1), ours in its first row
+  alone (289.9). Such a row now keeps the last ghost bound that fits:
+  332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
 - **A parted row opens its next page with its own top line
   (2026-10-23).** A row's part that goes over to a new page was opened
   with the line above it and stood its text that line's width down. Lab

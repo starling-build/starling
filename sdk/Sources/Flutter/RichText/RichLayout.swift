@@ -4333,6 +4333,18 @@ public final class RichLayout {
                            !document.paragraphs[first].style.keepNext,
                            _px(document.tableStyles[c.table]?.rowHeights[r] ?? 0) <= contentH - y - part - ruleUnder(e, parted: true) + 0.01 else { return 0 }
                             let limit = e.rowTop + (contentH - y - part) - ruleUnder(e, parted: true) + 0.01
+                            // (A row whose cells are merged down over rows that
+                            // hold nothing parts only at one of those rows' tops
+                            // (lab `mg`, `ghostBounds`): it keeps the last that
+                            // fits. zh-9ef811c8's "综合业务", merged from the row
+                            // above into "监督检查" — itself merged over empty
+                            // rows, parting at page 4's foot — stands centred
+                            // down to that part's foot in Word's print (333.1);
+                            // ours, finding no cell of one row to weigh, centred
+                            // it in the row above alone, 43pt high.)
+                            if theme.wordRules, !e.ghostBounds.isEmpty {
+                                return e.ghostBounds.last(where: { $0 + ruleUnder(e) <= contentH - y - part + 0.01 }) ?? 0
+                            }
                             // (Only where the row does part there: every cell
                             // of it keeps a line on the page, else it goes
                             // over whole — see `splitRow`.)
