@@ -4113,4 +4113,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   Word's is raised by the even footer (footer3: an auto-sized frame "— 20
   —" at y 1, 14pt, then an empty 9pt paragraph; Word's text at 745.7, its
   top just over 742.8; ours at 747.0 and wrapped to two lines, "—20"/"—").
-  Footer frame layout, not row parting.
+  Footer frame layout, not row parting. (Correction: p19's footer is
+  footer1, a DrawingML box fit to its text and sized once, "— PAGE —" all
+  hinted East Asian in 宋体 14pt — by lab `ftD`'s rule it parts when a
+  two-digit number outgrows the "— 1 —" box, as ours does; Word's print
+  holds "— 20 —" whole in 42.2pt, its dashes narrower than our 14pt —
+  the dash's width on the Mac, not the rule.)
