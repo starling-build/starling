@@ -3368,6 +3368,20 @@ public final class RichLayout {
                     avail = contentH - y
                 }
                 var fits = rest + ruleUnder(c) <= avail + 0.01
+                // (A section's columns, set as a row, fit as the body's
+                // paragraphs do: the space after each column's last
+                // paragraph may stand past the foot. zh-8f9b19f4 ends in
+                // three columns, "填报人：" | "审核人：" | "负责人：", 31.4pt
+                // over a foot with no margin under it; their lines end 25.3
+                // down and their 8pt after at 33.3, and Word prints all
+                // three on page 14 — ours parted the row onto a page 15.)
+                if !fits, theme.wordRules, first, carried == 0, document.tableStyles[c.table]?.sectionColumns == true,
+                   columns.map({ column -> Double in
+                       let last = column.members[column.members.count - 1]
+                       return _tops[last] + _heights[last] - _spacing(last, document).after - c.rowTop
+                   }).max() ?? .infinity <= avail + 0.01 {
+                    fits = true
+                }
                 // A row is not begun where the height the file states
                 // for it has no room: it goes to the next page whole,
                 // though a line of each cell would fit (prints of

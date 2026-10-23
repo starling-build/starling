@@ -7377,6 +7377,20 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   100, zh-e02b0479 97.1 -> 100, zh-cd8987db 89.9 -> 90.3, zh-0a56c942 95.7
   -> 96.1, nothing down (zh, POI).
 
+- **A section's columns, set as a row, may leave their space after past the foot (2026-10-23).**
+  zh-8f9b19f4 ends in a continuous three-column section, "填报人：" |
+  "审核人：" | "负责人：" (14.5pt, line 184-219 auto, 8pt after from the
+  styles' missing pPrDefault), 31.4pt over the foot of a landscape page
+  with no bottom margin. The reader sets section columns as a one-row
+  table, and that row's 33.3 parted, columns 2-3 going to a page 15. Its
+  lines end 25.3 down, and the rest is the last paragraphs' space after,
+  which Word lets stand past the foot as it does for any body paragraph.
+  The emulated table is now marked (`TableStyle.sectionColumns`), and its
+  row fits where each column without its last paragraph's space after
+  does. Paired sweep n401 vs n400: zh-8f9b19f4 15 -> 14 pages (Word's), 92.3
+  unchanged (the scorer reads the moved lines as matched on neither
+  page), nothing else moved.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and

@@ -1098,6 +1098,9 @@ public struct BorderEdges: Hashable, Sendable {
 
 public struct TableStyle: Hashable, Sendable {
     public var borders = true
+    /// A section's text columns set as a one-row table (the docx reader's
+    /// emulation of `w:cols`), not a table of the file's.
+    public var sectionColumns = false
     /// A floating table's position as the file wrote it (Word's
     /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
     /// out in the text's flow, and a save puts it back where it floated.

@@ -1645,6 +1645,7 @@ enum DocxFormat {
                 tableColumns[id] = widths
                 var ts = TableStyle()
                 ts.borders = false
+                ts.sectionColumns = true
                 ts.cellMarginTop = 0; ts.cellMarginLeft = 0; ts.cellMarginBottom = 0; ts.cellMarginRight = 0
                 tableStyles[id] = ts
                 var xml = "", kept: [KeptRel] = []
