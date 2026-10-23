@@ -45,14 +45,18 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136)
-Owner: Linux office1 01Ak4ibJ (lenovo-3), CLAIMED 2026-10-22 — T135, not T136: the answers open "ตอบ :<tab><tab>…" and T135 held the space before tabs to default stops, which squeezing may move a stop back; narrowing T135 to the label's tab to the hanging indent.
+### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136) — FIXED on Linux, Mac to confirm (2026-10-22)
+Owner: Linux office1 01Ak4ibJ (lenovo-3). (Two T144s on this board: the other is zh-344a8d08's footnote.)
 Bisected on the Mac (OFFICE_WORD_FONTS=mac, the one document):
 97f8a42b 54.2% 26/26 pages, 58b0cbd8 51.5% 27 pages (Word 26). The Thai
 document (TH Sarabun New / 標楷體, mode 15, compressPunctuation) first
 parts on page 16 (0-based), y -670: an answer paragraph after "ตอบ:"
-wraps a word earlier, and the drift adds a page. Likely a mark in a Thai
-(cs / x-none) run that no longer gives under T136's rule.
+wraps a word earlier, and the drift adds a page.
+It was T135, not T136: the answers open "ตอบ :<tab><tab>…", and T135 held what stands before any tab to a left
+stop, default stops too — where squeezing the label may move the tab a stop back. T135 now holds only what stands
+before the tab that takes a first line's label to its hanging indent (zh-499adba6's "（六）<tab>"). Same-base
+sweep, 597 documents: nothing moves on Linux's fonts (zh-499adba6 / zh-9932bd83 hold 27.0; zh-6a4fc013 is 26/26
+pages here either way) — the Mac's fonts are the ones that show the page.
 
 ### T145. A number that fits may part after its hyphen under East Asian layout — DONE (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built it)

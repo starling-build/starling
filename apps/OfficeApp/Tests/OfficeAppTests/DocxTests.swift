@@ -1834,7 +1834,8 @@ final class DocxTests: XCTestCase {
     /// The first line's width, in points, of `text` in 12pt 宋体 laid out
     /// `width` points wide, mode 14, compressing punctuation, set left.
     private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
-                                mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true) throws -> Double {
+                                mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
+                                hanging: Double = 0) throws -> Double {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1857,6 +1858,8 @@ final class DocxTests: XCTestCase {
         // line's width is what it holds.)
         p.style.alignment = .left
         if !hangs { p.style.eastAsian["w:overflowPunct"] = "0" }
+        p.style.indentLeft = hanging
+        p.style.firstLineIndent = -hanging
         var doc = RichDocument(paragraphs: [p])
         doc.compatibilityMode = mode
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
@@ -1889,14 +1892,18 @@ final class DocxTests: XCTestCase {
         // zh-499adba6 p17: "（六）<tab>推動…政策，…負擔制" leaves "度，" 7.1pt over
         // for the next line in Word's print: the comma after the tab can
         // give 6, and the label's "）" before it nothing — the tab takes
-        // the text to its stop however narrow the label is set. (Its line
-        // is a cell's, where the last comma gives nothing; here, with no
-        // hang, it gives 6 too, and "度，" is 13 over.)
+        // the text to the hanging indent however narrow the label is set.
+        // (Its line is a cell's, where the last comma gives nothing; here,
+        // with no hang, it gives 6 too, and "度，" is 13 over.)
         let ten = String(repeating: "一", count: 10), twelve = String(repeating: "二", count: 12)
         let text = "（六）\t" + ten + "，" + twelve + "度，擴大"
-        XCTAssertLessThan(try firstLineWidth(text, width: 359, hangs: false), 355, "\"度，\" goes down: two commas cannot give 13")
+        XCTAssertLessThan(try firstLineWidth(text, width: 359, hangs: false, hanging: 48), 355, "\"度，\" goes down: two commas cannot give 13")
         // (Where all three marks follow the tab, they give it: 18 of room.)
         XCTAssertGreaterThan(try firstLineWidth("一二三\t（六）" + String(repeating: "一", count: 7) + "，" + twelve + "度，擴大", width: 359, hangs: false), 358)
+        // Not a tab to an ordinary stop, which the label's marks may move
+        // a stop back: zh-6a4fc013's Thai answers "ตอบ :<tab><tab>…" ran a
+        // page long on the Mac with their space held.
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 359, hangs: false), 358, "with no hanging indent, \"）\" gives too")
     }
 
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {

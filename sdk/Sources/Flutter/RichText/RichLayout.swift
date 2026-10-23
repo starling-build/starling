@@ -5623,7 +5623,7 @@ public final class RichLayout {
         var tabs: [Int: Double] = [:]
         let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
-        var leftTabs: Set<Int> = []    // tabs to a left stop
+        var leftTabs: Set<Int> = []    // tabs that take a first line's label to its hanging indent
         _leaders[i] = []
         // (PowerPoint's the same way: its stops from the text's left, the
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
@@ -5691,7 +5691,8 @@ public final class RichLayout {
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
-                if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil) }
+                var toIndent = false
+                if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil); toIndent = true }
                 if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
                 // (A positional tab goes to its place on the margins, past
                 // the stops between: bug57031's footer has "Page 2 of 14"
@@ -5742,7 +5743,7 @@ public final class RichLayout {
                     extra = min(extra, max(0, ownLeft + textWidth - x) - own)
                 }
                 tabs[t] = extra
-                if stop.alignment == .left { leftTabs.insert(t) }
+                if toIndent { leftTabs.insert(t) }
                 shift += extra
                 if let fill = stop.leader, fill != "none" {
                     let ch = ["dot": ".", "hyphen": "-", "underscore": "_", "middleDot": "\u{B7}", "heavy": "_"][fill] ?? "."
@@ -9589,14 +9590,17 @@ public final class RichLayout {
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }
-            // (What stands before a tab to a left stop gives nothing to
-            // what comes after it: the tab takes the text to its stop
-            // however narrow the marks before it are set. zh-499adba6's
-            // cell line "（六）<tab>推動…政策，…負擔制" leaves "度，" 7.1pt over
-            // for the next line in Word's print, the comma before it
-            // giving 6 — the label's "）" had given ours the rest. Not a
-            // right stop's, which what is before it does move:
-            // zh-ab1ea005's contents lines.)
+            // (What stands before the tab that takes a first line's label
+            // to its hanging indent gives nothing to what comes after it:
+            // the tab takes the text to the indent however narrow the
+            // label is set. zh-499adba6's cell line "（六）<tab>推動…政策，
+            // …負擔制" leaves "度，" 7.1pt over for the next line in Word's
+            // print, the comma before it giving 6 — the label's "）" had
+            // given ours the rest. Not a tab to another stop, which what
+            // is before it may move a stop back: zh-6a4fc013's Thai
+            // answers "ตอบ :<tab><tab>…" ran a page long on the Mac with
+            // their space held, and zh-ab1ea005's contents lines with a
+            // right stop's.)
             let lastTab = theme.wordRules ? (a ..< piece.b).last(where: { units[$0] == 0x09 && leftTabs.contains($0) }) : nil
             if lastTab != nil {
                 marks = []
