@@ -1884,7 +1884,8 @@ public final class RichLayout {
         var m = 0.0, first = 0.0   // the pieces after the first; the first
         let units = Array(p.text.utf16)
         if !units.isEmpty {
-            let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: 100_000)
+            var gaps: [Int: Double] = [:]
+            let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: 100_000, autoSpaces: { gaps[$0] = $1 })
             let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
             if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: 100_000)
@@ -1907,6 +1908,13 @@ public final class RichLayout {
                 for box in probe.getBoxesForSelection(TextSelection(baseOffset: map.painter(a), extentOffset: map.painter(e - 1) + 1)) {
                     w += box.right - box.left
                 }
+                // (Less the automatic space after it, which is no part of
+                // it: zh-e329b438's label cells "接聽速度30分" (mode 15, 14pt)
+                // set their column at 28.08 in Word's print, "30" bare —
+                // 17.2 — between its margins, and the "3" and "0" a line
+                // each; ours took "30" and the space after it, 20.8, and
+                // widened the column to 31.6.)
+                if theme.wordRules, let gap = gaps[e - 1] { w -= gap }
                 return w
             }
             var start = 0
@@ -9743,6 +9751,15 @@ public final class RichLayout {
                 // next was over: see `breaks` below.)
                 if last > a, let end = (0 ..< a).last(where: { !isSpace(units[$0]) }) {
                     breaks.append((end, a ..< piece.b, x + w - after - width))
+                }
+                // (A piece that opens the next line and is wider than it
+                // by no more than the automatic space after it gives that
+                // up, as one that ends a line does: the engine would set
+                // it on this line, over the margin. zh-e329b438's 17.3pt
+                // label cells hold "度" a line — 14pt and its 3.5 before
+                // "30" — in Word's print; ours set "速度" on one line.)
+                if theme.wordRules, last > a, after > 0, w > width, w - after <= width + hair {
+                    adjust[last - 1, default: 0] -= min(after, w - width + 0.02)
                 }
                 x = 0
                 marks = []

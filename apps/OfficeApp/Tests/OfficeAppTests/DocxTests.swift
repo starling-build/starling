@@ -1960,6 +1960,42 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(try firstLine(text, width: 341, language: "zh-TW", documentLanguage: "zh-TW").length, text.utf16.count)
     }
 
+    func testAutofitsNarrowestPieceLeavesOutTheAutomaticSpaceAfterIt() throws {
+        try requireFitterWidths()
+        // zh-e329b438's label cells "接聽速度30分" (mode 15, 14pt) set their
+        // column at 28.08 in Word's print: "30" bare between the margins,
+        // where ours took it and the automatic space before "分" and
+        // widened the column to 31.6. At 12pt: "30" is 12, its space 3.
+        var style = CharStyle()
+        style.fontFamily = "宋体"
+        style.eastAsiaFontFamily = "宋体"
+        style.fontSize = 12
+        let label = "接聽速度30分", body = String(repeating: "內", count: 20)
+        var a = RichParagraph(text: label, runs: [Run(length: label.utf16.count, style: style)])
+        var b = RichParagraph(text: body, runs: [Run(length: body.utf16.count, style: style)])
+        a.cell = CellRef(table: "T", row: 0, column: 0)
+        b.cell = CellRef(table: "T", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [20, 400]
+        doc.tableStyles["T"] = TableStyle()
+        doc.compatibilityMode = 15
+        doc.usesEastAsianLayout = true
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 500 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let first = try XCTUnwrap(l.columnWidths(of: "T")?.first)
+        XCTAssertLessThan(first, 12 + 10.8 + 1, "the column holds \"30\" bare, its margins beside it")
+        XCTAssertGreaterThan(first, 12 + 10.8 - 1)
+        // (… and "度", its space given up at the line's end, a line alone:
+        // the engine set the two on one line over the margin.)
+        XCTAssertEqual(l.geometry(0).painter.computeLineMetrics().count, 6)
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its
