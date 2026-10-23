@@ -106,6 +106,16 @@ URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('page')" 
 T=(); while IFS= read -r l; do T+=("$l"); done < <(evals "$OUT/drive6.log")
 check "a page opens at its first page" "${T[0]:-}" '"1"'
 check "a finger drag scrolls the document" "${T[1]:-}" true
+# On a phone the tree is behind the brand header's Pages button
+# (x≈336), its rows from y≈285, 27px apart. A finger dragged over a row
+# scrolls the list and must not open the row (the press is dropped once
+# the finger moves past the tap slop); a tap on the row still opens it.
+W=390 H=844 URL="$URL/" "${DRIVE[@]}" wait 9000 click 336 36 wait 1000 shot "$OUT/6-phone-pages.png" \
+    touchdrag 100 312 0 -150 wait 1000 eval "starling.debug('slug')" \
+    click 100 312 wait 1500 eval "starling.debug('slug')" > "$OUT/drive6b.log" 2>&1
+M=(); while IFS= read -r l; do M+=("$l"); done < <(evals "$OUT/drive6b.log")
+check "a finger dragged over the phone's page list opens nothing" "${M[0]:-}" '"index"'
+check "a tap on a row still opens it" "${M[1]:-}" '"getting-started"'
 # Find: the Find button opens a field after PDF; typing selects the first
 # match. Copy: a double-click selects a word, Ctrl+C puts it on the system
 # clipboard (stubbed here: the page's writeText records what it was given).

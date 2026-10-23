@@ -144,6 +144,13 @@ public class HoverButton: StatefulWidget {
 class HoverButtonState: State<StatefulWidget> {
     private var _hovering = false
     private var _pressing = false
+    // Where the pointer went down, while a press is live. A pointer that
+    // moves past the tap slop from here is a drag — a finger scrolling the
+    // list this button sits in — and the press is dropped, as a
+    // TapGestureRecognizer would lose it to the scroll: the up then fires
+    // nothing. Without this a touch drag over a list opened the row under
+    // the finger (the Site's Pages panel on a phone).
+    private var _downAt: Offset?
     // Focus tracking deferred — always false for now.
     private var _shouldShowFocus = false
 
@@ -178,13 +185,23 @@ class HoverButtonState: State<StatefulWidget> {
         // Wrap with Listener for pointer-down / pointer-up (press detection).
         // Since GestureDetector is unavailable, we use raw pointer events.
         w = Listener(
-            onPointerDown: { [weak self] _ in
+            onPointerDown: { [weak self] event in
                 guard let self = self, self.enabled else { return }
+                self._downAt = event.position
                 self.setState { self._pressing = true }
                 widget.onTapDown?()
             },
+            onPointerMove: { [weak self] event in
+                guard let self = self, let down = self._downAt else { return }
+                let slop = event.kind == .mouse ? kPrecisePointerHitSlop * 4 : kTouchSlop
+                guard (event.position - down).distance > slop else { return }
+                self._downAt = nil
+                self.setState { self._pressing = false }
+            },
             onPointerUp: { [weak self] _ in
                 guard let self = self, self.enabled else { return }
+                guard self._downAt != nil else { return }   // dragged away: no press
+                self._downAt = nil
                 widget.onTapUp?()
                 widget.onPressed?()
                 // The handler may have rebuilt an ancestor and dropped this
@@ -196,6 +213,7 @@ class HoverButtonState: State<StatefulWidget> {
             },
             onPointerCancel: { [weak self] _ in
                 guard let self = self else { return }
+                self._downAt = nil
                 self.setState { self._pressing = false }
             },
             behavior: widget.hitTestBehavior,
