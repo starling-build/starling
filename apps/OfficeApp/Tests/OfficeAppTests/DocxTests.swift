@@ -2677,6 +2677,37 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    func testANotoJoinerAfterADigitKeepsTheBreakBeforeItsIdeograph() throws {
+        try requireFitterWidths()
+        // zh-72da925e's "…經行政院於79年9月" ends a line "於79" in Word's
+        // print, "年" — U+F98E, a compatibility ideograph set in Noto —
+        // opening the next. The word joiner that gives its line Noto's
+        // height held "79年" whole, and ours ended the line "於".
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-72da925e") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("嗣後臺北市政府") })
+        let shown = Array(l.geometry(i).painter.plainText.unicodeScalars.map(\.value))
+        // "79", then the joiner before "年" U+F98E — with a break before it.
+        let at = try XCTUnwrap((0 ..< shown.count - 3).first { shown[$0] == 0x37 && shown[$0 + 1] == 0x39 && shown[$0 + 2] != 0x39 && shown[$0 ..< min(shown.count, $0 + 5)].contains(0xF98E) })
+        let after = Array(shown[(at + 2) ..< min(shown.count, at + 5)])
+        guard after.contains(0x2060) else { throw XCTSkip("no Noto joiner under this platform's faces") }
+        XCTAssertEqual(after.first, 0x200B, after.map { String($0, radix: 16) }.joined(separator: " "))
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its

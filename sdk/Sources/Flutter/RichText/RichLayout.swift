@@ -7811,7 +7811,12 @@ public final class RichLayout {
                     // zh-5b7ae054's "…基本抗災能力" ends its line at "能" in
                     // Word's print, "力" U+F98A opening the next; ours
                     // carried "能力" over and lost a character a line.)
-                    if let b = before, Self.isEastAsian(b, hinted: true), !Self._openingMarks.contains(b) {
+                    // (After a Latin letter, a digit or a Latin closer too:
+                    // zh-72da925e's "…經行政院於79年" ends a line "於79" in
+                    // Word's print, "年" U+F98E opening the next; the joiner
+                    // held "79年" whole and ours ended the line "於".)
+                    if let b = before, Self.isEastAsian(b, hinted: true) ? !Self._openingMarks.contains(b)
+                        : b.isASCII && (b.isLetter || b.isNumber || ")]}%.,;:!?".contains(b)) {
                         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                         inserts.append(offset)
                     }
