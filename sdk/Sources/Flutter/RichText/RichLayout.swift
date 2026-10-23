@@ -11892,6 +11892,14 @@ public final class RichLayout {
         // print. Every anchor in a cell in the corpus is `layoutInCell`.)
         if theme.wordRules, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
            i < _cells.count, let d = _cells[i], !d.vertical, y < d.rowTop { y = d.rowTop }
+        // (Nor further left than the cell's edge, its effect extent
+        // inside: drawing.docx p9's icon, 85.05pt left of its column, is
+        // at 86.6 in Word's print — its cell's 85.05 and a 1.5pt effect —
+        // where ours stood at the page's edge.)
+        if theme.wordRules, float.wraps, float.horizontalAlign == nil, float.horizontalFrom != "page",
+           i < _cells.count, let d = _cells[i], !d.vertical, x < d.colLeft + _px(image.effectLeft) {
+            x = d.colLeft + _px(image.effectLeft)
+        }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4

@@ -3523,7 +3523,11 @@ fitter dropped the paragraph's tail).
   and held to the row it cost a line (82.4 -> 82.2). Every anchor in a
   cell in the corpus says `layoutInCell="1"`, so it is not read. Only
   five documents anchor a picture in a cell above its paragraph; no line
-  score moves. drawing's icon still stands at x 0 (Word 86.6).
+  score moves. Nor further left than the cell's edge: drawing's icon,
+  85.05pt left of its column, now stands at the cell's 85.1 (Word 86.6,
+  the cell and its 1.5pt left effect, which the reader does not keep for
+  an anchored picture; ours had it at the page's edge, x 0). Word's
+  text then wraps beside it (91.9); ours runs under it.
 
 - **An autofit cell grows to its picture, and to a table nested in it
   (2026-10-22).** `_minContent` counted text only, so an inline picture
