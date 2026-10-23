@@ -269,6 +269,12 @@ the same base; the commits give the numbers):
   (lo-forum-mso-en4-134670 4.29 -> 2.60, lo-tdf113271 5.75 -> 4.29).
   Open: bold Calibri is set between the two, 57890's "Amount
   UnsignedInt" as far past Excel's as it fell short before.
+- *Verdana* is set at its own widths in its stand-in, DejaVu Sans, as
+  Word and Slides set it (`OfficeFonts.verdanaAdvances`), in what is
+  drawn and in where lines break: 28 workbooks in Verdana, 17 better,
+  one 0.01 worse (DateFormatTests 4.90 -> 4.00). A line of 40 letters
+  then ends 0.46 pt past Excel's; at the printer's 9.96 it would end as
+  far short, so it keeps the font's size.
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs

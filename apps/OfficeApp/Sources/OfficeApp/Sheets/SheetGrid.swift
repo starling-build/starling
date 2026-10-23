@@ -2896,13 +2896,15 @@ final class _TextCache {
     /// `NumberFormat` marks it): each pad a space spaced out to x's width,
     /// blank on the page and nothing in its text but the space.
     private func _span(_ text: String, _ style: GridTextStyle) -> TextSpan {
-        guard text.contains(NumberFormat.padMark) else { return TextSpan(text: text, style: style.flutter) }
+        guard text.contains(NumberFormat.padMark) else {
+            return _owns(style) ? TextSpan(children: _spaced(text, style)) : TextSpan(text: text, style: style.flutter)
+        }
         // (A lone space measures as its advance only between letters.)
-        let space = _width("a a", style) - _width("aa", style)
+        let space = _measure("a a", style) - _measure("aa", style)
         var spans: [InlineSpan] = [], run = "", padding = false
         for ch in text {
             if padding {
-                if !run.isEmpty { spans.append(TextSpan(text: run, style: style.flutter)); run = "" }
+                if !run.isEmpty { spans += _spaced(run, style); run = "" }
                 spans.append(TextSpan(text: " ", style: style.flutter.copyWith(letterSpacing: _width(String(ch), style) - space)))
                 padding = false
             } else if ch == NumberFormat.padMark {
@@ -2911,8 +2913,31 @@ final class _TextCache {
                 run.append(ch)
             }
         }
-        if !run.isEmpty { spans.append(TextSpan(text: run, style: style.flutter)) }
+        if !run.isEmpty { spans += _spaced(run, style) }
         return TextSpan(children: spans)
+    }
+
+    /// The face's own widths, where its stand-in has other ones: Verdana's,
+    /// drawn in DejaVu Sans (a few per cent wider in its letters, narrower
+    /// in its space — the format tests' lines ran past Excel's), in ems.
+    private func _own(_ ch: Character, _ style: GridTextStyle) -> Double? {
+        guard style.family == OfficeFonts.verdana, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value else { return nil }
+        if v >= 0x20, v <= 0x7E { return (style.bold ? OfficeFonts.verdanaBoldAdvances : OfficeFonts.verdanaAdvances)[Int(v - 0x20)] }
+        return (style.bold ? OfficeFonts.verdanaBoldOtherAdvances : OfficeFonts.verdanaOtherAdvances)[v]
+    }
+    private func _owns(_ style: GridTextStyle) -> Bool { style.family == OfficeFonts.verdana }
+
+    /// A run as spans, each character of a face with its own widths
+    /// spaced out (or in) to them.
+    private func _spaced(_ run: String, _ style: GridTextStyle) -> [InlineSpan] {
+        guard _owns(style) else { return [TextSpan(text: run, style: style.flutter)] }
+        // (A lone space measures as its advance only between letters.)
+        let space = _measure("a a", style) - _measure("aa", style)
+        return run.map { ch -> InlineSpan in
+            guard let em = _own(ch, style) else { return TextSpan(text: String(ch), style: style.flutter) }
+            let natural = ch == " " ? space : _measure(String(ch), style)
+            return TextSpan(text: String(ch), style: style.flutter.copyWith(letterSpacing: em * style.size - natural))
+        }
     }
 
     /// Wrapped text broken where Excel breaks it: a word that does not
@@ -2976,7 +3001,13 @@ final class _TextCache {
     }
 
     private var _widths: [Key: Double] = [:]
+    /// The width `s` is set to: its face's own widths where it has them.
     private func _width(_ s: String, _ style: GridTextStyle) -> Double {
+        guard _owns(style) else { return _measure(s, style) }
+        return s.reduce(0) { $0 + (_own($1, style).map { $0 * style.size } ?? _measure(String($1), style)) }
+    }
+    /// The stand-in's own width of `s`.
+    private func _measure(_ s: String, _ style: GridTextStyle) -> Double {
         let k = Key(text: s, style: style, width: -1, align: .left)
         if let w = _widths[k] { return w }
         if _widths.count > 20000 { _widths.removeAll() }
