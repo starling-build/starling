@@ -4760,7 +4760,16 @@ public final class RichLayout {
                         y = band.bottom; guardSteps += 1
                     }
                 }
-                if y > contentH - 0.01 { newPage() }
+                // (Not for an empty paragraph that only ends a section: it
+                // takes no room, and stays on the full page, as in Word's
+                // print — zh-12c4f07a's contents fill page 2 to its last
+                // empty line, and a page opened at their section break took
+                // their 56.7pt margins where Word's page 3 has the next
+                // section's 90. A page the break itself opens, blank, is
+                // still that section's: zh-7488a70f's page 2.)
+                let ender = theme.wordRules && _heights[i] == 0 && document.paragraphs[i].style.sectionXML != nil
+                    && document.paragraphs[i].cell == nil && document.paragraphs[i].text.isEmpty
+                if y > contentH - 0.01, !ender { newPage() }
                 var mine = _wrapBoxes(i)
                 for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height), $0.above, $0.below) : $0 } } }
                 if !mine.isEmpty {

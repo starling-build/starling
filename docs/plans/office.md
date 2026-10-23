@@ -7422,6 +7422,20 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   (the comma, unmeasured there, does not). Paired sweep n403 vs n402:
   zh-28416dc9 78.9 -> 100, nothing else moved (zh, POI).
 
+- **An empty paragraph that only ends a section stays on a full page (2026-10-23).**
+  zh-12c4f07a's contents (section 2, 56.7pt margins) fill page 2 to its
+  last empty line; the empty paragraph that carries their sectPr, which
+  takes no room, was then sent to page 3 by the full-page check, and page 3
+  — opened at it — took section 2's margins and header place, where Word's
+  page 3 has the next section's 90pt margins. Such a paragraph no longer
+  triggers that page; the next section's own break opens page 3 at its
+  first paragraph. (Taking the next section's setup for any page opened at
+  such a paragraph was wrong: zh-7488a70f's blank page 2, opened by the
+  break itself, is section 1's in Word — no folio, the next page "1" — and
+  zh-1a3c7aa0, numbered from 1 per section under even/odd headers, gained a
+  blank page, 100 -> 29.3.) Paired sweep n409 vs n408: zh-12c4f07a 81.6 ->
+  82.6, zh-f47b8a74 69.0 -> 70.7, nothing down.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and
