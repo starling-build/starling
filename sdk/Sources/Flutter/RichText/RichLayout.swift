@@ -12396,12 +12396,26 @@ public final class RichLayout {
                 : (section.index < _sectionSetups.count ? _sectionSetups[section.index].pageNumberStart : nil)
         }
         guard _sectionSetups.count > 1 else { return p + (document.pageNumberStart ?? 1) }
+        // (A section that begins down a page counts that page its first,
+        // though the page's footer is the section it began in: zh-b5359de4's
+        // body, continuous from start 1 under its contents on page 4, is
+        // "2" on page 5 in Word's print, page 4 keeping the contents' "2".)
+        func begins(_ index: Int) -> Int? {
+            guard theme.wordRules, let k = _sectionOf.firstIndex(of: index), k < _pieceStart.count,
+                  _pieceStart[k] < _allPieces.count else { return nil }
+            return _allPieces[_pieceStart[k]].page / _columns
+        }
         var number = 0
         var previous = -1
         for q in 0 ... max(0, p) where !_blankPages.contains(q) || q == 0 {
             let section = _headerFooterSection(q)
             if q == 0 || section.index != previous {
-                number = start(section) ?? (q == 0 ? 1 : number + 1)
+                if let first = start(section), let at = begins(section.index), at < q, at >= 0, q > 0,
+                   _headerFooterSection(at).index != section.index {
+                    number = first + (q - at)
+                } else {
+                    number = start(section) ?? (q == 0 ? 1 : number + 1)
+                }
             } else {
                 number += 1
             }
