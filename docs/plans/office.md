@@ -7256,6 +7256,24 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   98.0 (its p71 box from y228 to Word's 72); shapes that moved, 60316,
   zh-06c46ba9 and zh-01071d55, now stand where Word's do.
 
+- **A right-aligned line's trailing-space joiner has height only where the spaces wrap (2026-10-23).**
+  `roomyTrail`'s U+2060 after a right-aligned paragraph's closing spaces
+  makes the engine part them rather than hang them; its style was the
+  first of [the ideographs', the Latin] that added under half a point to
+  the line. On the Mac neither adds nothing — the joiner falls back to a
+  face of its own: 0.78pt in the ideographs' style, 0.39 in the Latin —
+  so zh-6e653ca0's and zh-e2dc2598's footer, "X隆阳区人民政府发布" and six
+  spaces on one line in Word's print (bold 宋体 14pt), stood 18.6 where
+  Word's is 18.2, and p8's "第四章" heading went to p9. zh-c5b5087b's same
+  footer, whose spaces run past the line and end on a line of their own
+  in Word's print as in ours, needs that height for the spaces' line
+  (held to 0.05pt, or U+FEFF, or a pinned height, it lost it: 53.0 ->
+  43.4; Linux's ideographs add nothing and never showed either). Now the
+  paragraph is probed at the line's width: where its last character ends
+  inside, the joiner is set at no height; where past, as before. Paired
+  sweep n395 vs n394: zh-6e653ca0 and zh-e2dc2598 53.6 -> 100, zh-ae79c618
+  88.4 -> 99.2, nothing down.
+
 - **An embedded SimSun with bitmaps, under another face's name, is an em a glyph (2026-10-23).**
   zh-a031fa16 (sample 26, 55.9) embeds as 仿宋_GB2312 a file that is
   SimSun (its `name` table says so), with Windows' bitmaps (`EBDT`), and

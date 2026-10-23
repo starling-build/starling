@@ -8052,8 +8052,25 @@ public final class RichLayout {
                 // of the spaces alone — zh-c5b5087b's four — takes none,
                 // where Word's is a line of the text; on Linux the
                 // ideographs' adds nothing and the Latin 1.2.)
-                style = [own.copyWith(letterSpacing: 0), latin].first { height([glyph, TextSpan(text: "\u{2060}", style: $0)]) <= alone + _px(0.5) }
-                    ?? latin.copyWith(height: 0.01)
+                // (Where the spaces fit the line, the joiner keeps them on it
+                // and is no part of its height: on the Mac either style adds
+                // to it — the Latin 0.4pt, which made zh-6e653ca0's footer,
+                // "X隆阳区人民政府发布" and its spaces on one line in Word's
+                // print (bold 宋体 14pt), 18.6 where Word's is 18.2, and sent
+                // p8's "第四章" heading over. Where they run past the line,
+                // the joiner parts them and a line of them alone takes its
+                // height, as above: zh-c5b5087b's.)
+                let probe = TextPainter(text: TextSpan(children: children), textAlign: .left, textDirection: .ltr)
+                if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+                probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
+                let count = probe.plainText.utf16.count
+                let end = probe.getBoxesForSelection(TextSelection(baseOffset: max(0, count - 1), extentOffset: count)).map(\.right).max() ?? 0
+                probe.dispose()
+                let overflows = end > textWidth + _px(0.01)
+                style = !theme.wordRules || overflows
+                    ? [own.copyWith(letterSpacing: 0), latin].first { height([glyph, TextSpan(text: "\u{2060}", style: $0)]) <= alone + _px(0.5) }
+                        ?? latin.copyWith(height: 0.01)
+                    : latin.copyWith(height: 0.01)
             }
             children.append(TextSpan(text: "\u{2060}", style: style))
             inserts.append(p.text.utf16.count)
