@@ -295,6 +295,10 @@ the same base; the commits give the numbers):
   vertical inset either (6.81 -> 7.90); lo-tdf91332's border 0.76 low;
   a centred page still stands about 0.4 pt right of Excel's
   (45540_*, 45544, simple-monthly-budget).
+  With the cells in place, right-aligned text keeps the left side's
+  margin (0.48 + a quarter digit): the 0.4 pt the right had stood closer
+  was measured against cells 0.48 left of Excel's. 0.918 -> 0.902 (277
+  better, 20 worse; bug62181 5.53 -> 4.37, 49609 +1.25).
   A drawing's anchor offset on paper is not its share of the cell (as
   from 2026-10-12) but its points scaled as Excel scales its 192 dpi
   screen: across by the printer's digit over the screen's (Calibri 11

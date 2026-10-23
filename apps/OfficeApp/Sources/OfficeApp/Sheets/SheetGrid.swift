@@ -2543,12 +2543,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // faces at ten sizes, 1.50 pt for Calibri 8 to 4.26 for Verdana 24,
         // within a printer dot), where ours stood a flat 1.5. (Wrapping
         // keeps the cell's margin `pad`: its widths are Excel's.) The
-        // right side stands 0.4 pt closer: a lab of right-aligned 3750 in
-        // the same fifty fonts measured it 0.34 to 0.43 under the left.
+        // right side the same: a lab of right-aligned 3750 had measured it
+        // 0.34 to 0.43 under the left, against cells that stood 0.48 left
+        // of Excel's (SheetPrint's inset) — with the cells in place,
+        // bug62181's right-aligned numbers stood 0.45 right of Excel's.
         let margin = printing
             ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
             : pad
-        let rightMargin = printing ? margin - 0.4 : margin
+        let rightMargin = margin
         let tx: Double
         switch align {
         case .right: tx = right - rightMargin - inset - tp.width
