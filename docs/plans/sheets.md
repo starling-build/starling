@@ -285,6 +285,16 @@ the same base; the commits give the numbers):
   are drawn. A sheet's chart title (and plot under it) stands 2.5 pt
   lower than PowerPoint's; a pie whose labels stand round it gives them a
   line a side.
+  A printed page's cells stand 0.48 pt (four printer dots) in from the
+  left and top margins, its drawings not (2026-10-22): Excel's first
+  fills at (+0.48, +0.48) from ours in 140 of 210 workbooks, any face
+  and size — the rest had a drawing first. Not along an axis the page is
+  centred on. Every workbook: 1.148 -> 0.918 (468 better, 83 worse;
+  lo-forum-mso-en4-134670 9.76 -> 4.34, NumberFormatApproxTests 12.65 ->
+  7.34). Open: lo-tdf58243 (fit to page, centred across) wants no
+  vertical inset either (6.81 -> 7.90); lo-tdf91332's border 0.76 low;
+  a centred page still stands about 0.4 pt right of Excel's
+  (45540_*, 45544, simple-monthly-budget).
   A drawing's anchor offset on paper is not its share of the cell (as
   from 2026-10-12) but its points scaled as Excel scales its 192 dpi
   screen: across by the printer's digit over the screen's (Calibri 11
