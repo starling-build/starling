@@ -147,7 +147,10 @@ enum Xlsx {
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
 
-        // Defined names (print areas and other built-ins are not formulas to evaluate).
+        // Defined names (print areas and other built-ins are not formulas to
+        // evaluate). A sheet's own name is read from `fileNames` by that
+        // sheet; the book's table has it only where the book has none.
+        var bookWide = Set<String>()
         for n in wbNode.child("definedNames")?.kids("definedName") ?? [] {
             guard let name = n["name"] else { continue }
             var attrs = n.attrs
@@ -155,8 +158,10 @@ enum Xlsx {
             let local = attrs.removeValue(forKey: "localSheetId").flatMap { Int($0) }
             book.fileNames.append(DefinedName(name: name, localSheet: local, attrs: attrs, text: n.text))
             guard !name.hasPrefix("_xlnm.") else { continue }
-            book.names[name.uppercased()] = n.text
-            book.nameSpellings[name.uppercased()] = name
+            let key = name.uppercased()
+            if local == nil { bookWide.insert(key) } else if bookWide.contains(key) { continue }
+            book.names[key] = n.text
+            book.nameSpellings[key] = name
         }
         return book
     }

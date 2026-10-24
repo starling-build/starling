@@ -308,7 +308,7 @@ final class CalcEngine {
                 var names: [String] = []
                 Formula.names(f, into: &names)
                 for n in names {
-                    if let t = book.nameText(n), let e = try? Formula.parse(t) {
+                    if let t = book.nameText(n, sheet: k.sheet), let e = try? Formula.parse(t) {
                         Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs, indexed: &indexed)
                     }
                 }
@@ -484,8 +484,8 @@ final class CalcEngine {
         case .array(let rows): return .array(rows.map { $0.map { scalar(evaluate($0, ctx), ctx) } })
         case .name(let n):
             if let local = ctx.locals[n.uppercased()] { return local }
-            if let target = book.nameText(n), target.containsSubstring("#REF!") { return .error(.ref) }
-            guard let target = book.nameText(n),
+            if let target = book.nameText(n, sheet: ctx.sheet), target.containsSubstring("#REF!") { return .error(.ref) }
+            guard let target = book.nameText(n, sheet: ctx.sheet),
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).
                 if book.sheets.contains(where: { $0.tables.contains { $0.name.lowercased() == n.lowercased() } }) {

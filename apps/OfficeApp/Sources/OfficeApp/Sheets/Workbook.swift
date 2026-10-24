@@ -413,11 +413,21 @@ final class Workbook {
         self.sheets = sheets
     }
 
-    /// A defined name's formula. `Sheet!Name` is read by its name: the
-    /// book keeps one table of them, sheet-local ones included.
-    func nameText(_ n: String) -> String? {
-        let bare = n.lastIndex(of: "!").map { String(n[n.index(after: $0)...]) } ?? n
-        return names[bare.uppercased()]
+    /// A defined name's formula, as `sheet` reads it: that sheet's own
+    /// name of it (`localSheetId`), else the book's. `Sheet!Name` is the
+    /// named sheet's. (lo-named-ranges-global's Sheet1 reads its own
+    /// Local1, 3, where the book's table held another sheet's, 5.)
+    func nameText(_ n: String, sheet: Int? = nil) -> String? {
+        var bare = n, home = sheet
+        if let bang = n.lastIndex(of: "!") {
+            bare = String(n[n.index(after: bang)...])
+            var s = String(n[..<bang])
+            if s.hasPrefix("'"), s.hasSuffix("'"), s.count >= 2 { s = String(s.dropFirst().dropLast()).replacingAll("''", with: "'") }
+            home = self.sheet(named: s)
+        }
+        let key = bare.uppercased()
+        if let home, let own = fileNames.last(where: { $0.localSheet == home && $0.name.uppercased() == key }) { return own.text }
+        return names[key]
     }
 
     func sheet(named name: String) -> Int? {

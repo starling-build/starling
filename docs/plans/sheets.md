@@ -329,6 +329,11 @@ the same base; the commits give the numbers):
   scaled number made 939.01382419233744 ...338 at 12 places. Every
   formula of lo-functions-excel-2010 now agrees with Excel's (128
   differed; 4.35 -> 4.19); no other of the 720 changed.
+- *A sheet's own names.* A name with a localSheetId is that sheet's:
+  each sheet reads its own before the book's, and `Sheet!Name` the
+  named sheet's (lo-named-ranges-global's two Local1s, 3 and 5, both
+  read 5). On reading, a book-wide name is never overwritten by a
+  sheet's of the same name.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

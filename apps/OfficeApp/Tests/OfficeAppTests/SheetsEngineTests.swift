@@ -183,6 +183,20 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "A1"), .number(42))
     }
 
+    func testSheetLocalNames() {
+        // Each sheet reads its own Local1; Sheet1's from the other reads it
+        // by its sheet (lo-named-ranges-global).
+        let c = book(["A1": "3"], sheets: ["Data": ["A1": "5"]])
+        c.book.names["LOCAL1"] = "Data!$A$1"
+        c.book.fileNames = [DefinedName(name: "Local1", localSheet: 0, attrs: [:], text: "Sheet1!$A$1"),
+                            DefinedName(name: "Local1", localSheet: 1, attrs: [:], text: "Data!$A$1")]
+        c.setInputs([(CellAddress("B1")!, "=Local1*2")])
+        c.setInputs([(CellAddress("B1")!, "=Local1*2"), (CellAddress("C1")!, "=Sheet1!Local1")], sheet: 1)
+        XCTAssertEqual(v(c, "B1"), .number(6))
+        XCTAssertEqual(v(c, "B1", sheet: 1), .number(10))
+        XCTAssertEqual(v(c, "C1", sheet: 1), .number(3))
+    }
+
     func testAggregateOptionsAndMode() {
         // Options 4-7 keep nested SUBTOTAL/AGGREGATE cells, 0-3 leave them
         // out; 13 is MODE.SNGL, the first of a tie (lo-functions-excel-2010).
