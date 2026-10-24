@@ -179,8 +179,12 @@ enum SheetFunctions {
             if case .array = v { multi = true }
             if c.dynamic, case .range(_, let r) = v, !r.isSingle { multi = true }
             if multi {
+                // (Not `x.error.map(hit) == true`: Swift 6.2's release
+                // SILCombine crashes on that closure, signal 6, and every
+                // macOS release build died.)
                 return c.engine._elementwise(v, c.engine.evaluate(a[1], c), c) { x, y in
-                    .scalar(x.error.map(hit) == true ? y : x)
+                    if let e = x.error, hit(e) { return .scalar(y) }
+                    return .scalar(x)
                 }
             }
             if let e = c.engine.scalar(v, c).error, hit(e) { return c.engine.evaluate(a[1], c) }
