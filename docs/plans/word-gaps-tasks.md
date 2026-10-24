@@ -555,6 +555,14 @@ zh-984846dc, zh-a031fa16, zh-c2229d4a, zh-d9b085b1, zh-e68a2f57 (NUL share 0.46-
 other nine embedding files have older prints with real glyphs. 42848c6a (an embedded
 SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted (see office.md; zh-a031fa16 89.0 -> 55.9 against its set-aside reference, nothing else moved).
 
+### Looked at (Mac 0fcba326, 2026-10-23, later): zh-291fcea7 40.3 — page 3's table, hairlines, released
+At the tip (n425): p3's continued table opens at 56.95 against Word's 56.64 (+0.31), and its rows run
+28.62/127.60/71.43 against 28.56/127.44/71.28, so the table ends 284.60 against 283.92 (+0.68). With 28
+empty 18pt-pitch paragraphs after it, Word fits 14 on p3 and ours 13, and pp4-12 run one paragraph
+apart (p4's "金門縣政府人事處作業流程圖" 617 against 581). Several small sources, none alone a rule: the
+continuation's top (the rule's place at the page head) and ~0.1pt a row. p5's floating nested tables
+are T133, still open.
+
 ### Looked at (Mac 0fcba326, 2026-10-23): zh-92373179 65.9 — reader, released
 From p5 its lines stand where Word's do (within 1-2pt, same breaks), but Word's print maps its
 embedded 仿宋_GB2312 subset's glyphs to wrong characters ("满足"→"7F", "评价"→"4价", "不少于"→"S少于"),
