@@ -556,6 +556,12 @@ zh-984846dc, zh-a031fa16, zh-c2229d4a, zh-d9b085b1, zh-e68a2f57 (NUL share 0.46-
 other nine embedding files have older prints with real glyphs. 42848c6a (an embedded
 SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted (see office.md; zh-a031fa16 89.0 -> 55.9 against its set-aside reference, nothing else moved).
 
+### Reprinted (Mac 0fcba326, 2026-10-24): zh-6e7ff836's reference
+macOS-doc found its Word print broken: pages 2 and 19-22 blank Letter pages in an A4 document, a
+page tree PyMuPDF rejects, 16,645 characters of text. Reprinted with Word for Mac 16.113 (no embedded
+fonts, so today's Word prints it with real glyphs): 34 A4 pages, none blank, 24,847 characters, no
+NUL. Against it the tip scores 98.0 (1107/1130, was 94.9 against the broken print).
+
 ### Looked at (Mac 0fcba326, 2026-10-23, later): zh-291fcea7 40.3 — page 3's table, hairlines, released
 At the tip (n425): p3's continued table opens at 56.95 against Word's 56.64 (+0.31), and its rows run
 28.62/127.60/71.43 against 28.56/127.44/71.28, so the table ends 284.60 against 283.92 (+0.68). With 28
