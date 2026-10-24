@@ -4478,6 +4478,15 @@ marks' count, against what is left of the line) takes it — unsolved, released.
   Word gives 78.0 and wraps the last "8", so rows run short and the document fell 14.1 -> 13.7
   (31 pages). Taking the rise by room over the narrowest (raised columns too) was worse. The
   missing rule: why Word sets that noWrap column 0.4 under its line. Reverted.
+  Lab `mob` (Mac 01Xgpbk5, ~/starling-word-check/lab/mob, the whole document, every mobile
+  number one digit shorter (b) or longer (c)), Word's column widths:
+    a 62.6/52.3/41.1/50.8/98.4/56.9/54.3/78.0/55.2/151.2 (33 pp)
+    b 62.6/52.8/41.3/51.1/98.6/56.9/54.5/75.6/55.4/152.0 (32 pp) — the mobile column SHRINKS
+      below its 76.7 share to its own line (75.6), the rest gaining
+    c 61.9/52.1/40.5/50.4/97.5/56.1/53.5/84.3/54.7/149.8 (33 pp) — it grows to 84.3 of its
+      89.7 line, every other column giving 0.4-1.4
+  So shares are preferences pulled by content, not floors; pure content fit (our contentFit
+  path) is far off (the email column 84.5 to Word's 151.2). Formula not found.
 
 ### T152. zh-6a4fc013 p14 on: a justified line stretches only what follows its last tab — DONE (2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check (the
