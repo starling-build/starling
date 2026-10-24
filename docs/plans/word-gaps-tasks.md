@@ -4256,9 +4256,17 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   shows Word DROPS the before at the page top as we do — the chart's 9pt
   was our anchor origin, measured from the dropped space; and the line
   stays over a float it ends above. Both fixed (see the commit after
-  ab27640e); nothing down in n213. Next here: text pushed under a float
-  steps by whole lines of a fixed height (zh-27a874b7's caption, 36pt
-  grid lines from 108 -> 324 in Word's print, ours at the float's foot).
+  ab27640e); nothing down in n213. RELEASED (Mac 01Xgpbk5) with what is
+  left: zh-27a874b7's caption "圖1…" stands at 374.8 (baseline) in ours,
+  355.7 in Word's print, and its "資料來源" box (anchored 38.9pt above it)
+  20pt low with it — the empty anchor paragraph's line goes under the
+  chart in ours through the picture-only path (`_anchorsOnly` /
+  `anchorRun`, whose lineTop counts the 9pt the page top drops). Tried
+  and withdrawn: (a) that lineTop less the dropped space — the caption
+  went 9pt LOWER (383.8), so the line's place is not all of it; (b) text
+  under a float stepping by whole fixed (exact/grid) lines from its
+  start — no effect here. A lab with a marker in the caption paragraph
+  and the anchor's line made visible would tell where Word sets each.
 
 ### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — CLAIMED (Linux office1, 2026-10-23)
 Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
