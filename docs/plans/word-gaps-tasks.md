@@ -4217,8 +4217,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   it is not drawn through that clip; not found, reverted. Seen too in
   zh-073c9234 p15 ("書" cut at the foot). pp13-17 then run
   a line or two apart (p14 holds one line more than Word's).
-- zh-9c162f26 (97.2, 1331 lines to Word's 1364; CLAIMED Linux 017F2GnT
-  2026-10-24).
+- zh-9c162f26 (97.2 -> 99.8; DONE Linux 017F2GnT 2026-10-24, released): its
+  footer box's "— 10 —" wrapped the closing dash on every two-digit page —
+  the box widened by the left indent alone.
+- Linux 017F2GnT CLAIMED 2026-10-24 (handed by the Mac 7bd18d8e, lab `pct`):
+  a 5000-pct table's outer rules stand inside its share, one rule width
+  narrower than a dxa table of the same column; ours spans the share and
+  sets cells 0.25-0.4pt wide on the right (zh-147bdae0 p45).
 - zh-147bdae0 (92.8 -> 95.5; Linux 017F2GnT 2026-10-24, from the Mac's
   re-check, released). Not row parting: (1) its rows state cell spacing
   nil (`w:tblPrEx`) under the table's 0, and Word collapses their lines
