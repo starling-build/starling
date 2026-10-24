@@ -3474,9 +3474,17 @@ public final class RichLayout {
             // at y -2 does not. Most page numbers are auto-sized frames at
             // y 1, centred on the margin, and their rows part: taken for any
             // frame the rule cost some forty documents.)
+            // (So does an auto-sized frame, wrapped round, where raised over
+            // its anchor, in Word for Mac's prints: lab `wr` (the Mac, zh-9462c6d6's package), its
+            // "- N -" frame at y -15 reaching 8.3pt over the 851 margin —
+            // the row goes whole at 17, 20 and 33pt above the margin in
+            // modes 14 and 15, and parts at 20 without the footer. Not a
+            // frame wrapped "auto": zh-7654804a's, raised 955 twips, parts
+            // its p16 row in Word's print.)
             // (A row under nothing but repeated header rows is at the page's top.)
             if theme.wordRules, !atTop, !_pages[page].allSatisfy({ $0.repeated }), let footer = _headerFooter(.footer, page: page, document, pageCount: 1),
-               footer.document.paragraphs.contains(where: { p in p.cell == nil && p.style.frame.map { $0.width != nil && $0.y < 0 } == true }),
+               footer.document.paragraphs.contains(where: { p in
+                   p.cell == nil && p.style.frame.map { $0.y < 0 && ($0.width != nil || (p.style.frameXML ?? "").contains("w:wrap=\"around\"")) } == true }),
                _bodyInsets(page: page, document).bottom > _px(pageSetup(forPage: page).marginBottom) + 0.01 {
                 return false
             }

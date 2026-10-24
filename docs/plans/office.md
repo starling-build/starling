@@ -6137,6 +6137,18 @@ fitter dropped the paragraph's tail).
   its first row, was drawn nowhere; zh-291fcea7's flow chart, text boxes
   anchored in a form's cells, lost nine of its labels on p5. zh-291fcea7
   38.9 -> 40.2, zh-e49d7943 +0.2; nothing else moved.
+- **A raised footer frame wrapped round parts no row, sized or not
+  (2026-10-23).** Rows part at a page's foot except under a footer
+  holding a frame raised over its anchor that reaches above the bottom
+  margin (labs `rw`/`rw2`, Windows) — but only a frame of a stated width.
+  Lab `wr` (Word 16 Mac, zh-9462c6d6's package — the Mac printed it): its
+  footer's auto-sized "- N -" frame, wrapped round and raised 15 twips,
+  reaching 8.3pt over the 851 margin, sends a row of 16pt lines whole to
+  the next page at 17, 20 and 33pt above the margin in modes 14 and 15;
+  without the footer it parts from 20 (mode 14). A frame wrapped "auto"
+  is not such a frame: zh-7654804a's, raised 955 twips, parts its p16 row
+  in Word's print (Linux b2). A raised frame now counts where it has a
+  width or wraps round. zh-9462c6d6 66.4 -> 100; nothing else moved.
 - **A picture's line off its section's grid takes its multiple's extra
   (2026-10-23).** Off the grid, a multiple on a picture's line adds what
   it adds to its mark's single line, under the picture (lab `hp`) — but

@@ -4540,6 +4540,57 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(back.document.paragraphs[1].cell)
     }
 
+    func testARaisedFooterFrameWrappedRoundPartsNoRow() throws {
+        // Lab `wr` (Word 16 Mac, zh-9462c6d6's package): its footer's
+        // "- N -" frame, auto-sized, wrapped round and raised 15 twips over
+        // its anchor, reaches over the bottom margin, and a row of 16pt
+        // lines with room for two at the page's foot goes to the next page
+        // whole — where without the footer it parts. A frame wrapped
+        // "auto" (zh-7654804a's, raised 955 twips) parts its rows.
+        func firstPageHoldsRow(wrap: String) throws -> Bool {
+            var source = RichDocument(paragraphs: [RichParagraph(text: "a")])
+            source.footer = "x"
+            var entries = try Zip.read(try DocxFormat.write(source, pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            func exact(_ text: String, _ twips: Int) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            // (Widow control off, so that only the frame decides.)
+            let lines = (1 ... 10).map { exact("row \($0)", 320) }.joined().replacingAll("<w:pPr><w:spacing", with: "<w:pPr><w:widowControl w:val=\"0\"/><w:spacing")
+            // (A spacer leaving 120pt over the bottom margin, A4, 851 margins —
+            // room for some lines of the row, not all ten, under the footer.)
+            let room = 841.9 - 42.55 * 2 - 120
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: exact("spacer", Int((room * 20).rounded()))
+                + "<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"8000\"/></w:tblGrid>"
+                + "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"8000\" w:type=\"dxa\"/></w:tcPr>\(lines)</w:tc></w:tr></w:tbl><w:p/>")
+            let margins = try XCTUnwrap(xml.range(of: "<w:pgMar [^>]*/>", options: .regularExpression))
+            xml.replaceSubrange(margins, with: "<w:pgMar w:top=\"851\" w:right=\"851\" w:bottom=\"851\" w:left=\"851\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let fi = try XCTUnwrap(entries.firstIndex { $0.name.hasPrefix("word/footer") })
+            var footer = String(decoding: entries[fi].data, as: UTF8.self)
+            let fb = try XCTUnwrap(footer.range(of: "<w:p>") ?? footer.range(of: "<w:p "))
+            let fe = try XCTUnwrap(footer.range(of: "</w:ftr>"))
+            footer.replaceSubrange(fb.lowerBound ..< fe.lowerBound, with:
+                "<w:p><w:pPr><w:framePr w:wrap=\"\(wrap)\" w:vAnchor=\"text\" w:hAnchor=\"margin\" w:xAlign=\"center\" w:y=\"-15\"/></w:pPr><w:r><w:t>- 1 -</w:t></w:r></w:p><w:p/>")
+            entries[fi] = ZipEntry(name: entries[fi].name, data: Data(footer.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let row = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("row 1") })
+            return l.pieces[0].contains { $0.paragraph == row && $0.part != .rules }
+        }
+        XCTAssertFalse(try firstPageHoldsRow(wrap: "around"), "the row goes over whole")
+        XCTAssertTrue(try firstPageHoldsRow(wrap: "auto"), "it parts under a frame wrapped auto")
+    }
+
     func testDocxHeaderFooterRoundTrip() throws {
         var doc = RichDocument(plainText: "Body")
         doc.header = "Quarterly report"
