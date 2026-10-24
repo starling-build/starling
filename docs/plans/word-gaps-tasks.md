@@ -4206,3 +4206,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   now groups across table cells instead. zh-bfe04e2f exposed primes and
   degrees as break points (0f7b3de8), 85.0 -> 100.
   A peer's "reader, not layout" note may be worth a second look now.
+- Chart labels and legends (Mac 01Xgpbk5, CLAIMED 2026-10-23, routed by
+  bd): zh-61aaad09 p1's pie labels ("109646, 15.85%" from the chart's
+  number format, ours "16%") and its legend; zh-d62da4dd p4's two pie
+  charts' 41 labels; zh-27a874b7 p3's chart labels.
