@@ -1417,6 +1417,27 @@ enum DocxFormat {
                         style.contentFitFixed = fixed
                     }
                 }
+                // (A spaced table of a stated share whose cells state shares
+                // of it, column by column: zh-045c5a75's article table,
+                // 85% with cells of 12% and 2% and one auto.)
+                if style.widthPercent != nil, (style.cellSpacing ?? 0) > 0, !style.fixedLayout {
+                    var shares: [Int: Double] = [:], noWrap = Set<Int>(), mixed = false
+                    for tr in unwrapped(node, "w:tr") {
+                        var col = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
+                        for tc in unwrapped(tr, "w:tc") {
+                            let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if w?["w:type"] == "pct", span == 1, let v = Double((w?["w:w"] ?? "").replacingOccurrences(of: "%", with: "")) {
+                                let share = (w?["w:w"] ?? "").hasSuffix("%") ? v : v / 50
+                                if let had = shares[col], abs(had - share) > 0.01 { mixed = true }
+                                shares[col] = share
+                                if tc.first("w:tcPr")?.first("w:noWrap") != nil { noWrap.insert(col) }
+                            } else if w != nil, w?["w:type"] != "auto" { mixed = true }
+                            col += span
+                        }
+                    }
+                    if !mixed, !shares.isEmpty { style.columnPercents = shares; style.noWrapColumns = noWrap }
+                }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.

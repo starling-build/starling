@@ -1693,6 +1693,9 @@ public final class RichLayout {
                 if theme.wordRules, !_nestedInFixedTable, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                    !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
                     widths[c.table] = _autofit(c.table, base, document)
+                } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
+                          !ts.fixedLayout, (ts.cellSpacing ?? 0) > 0, !ts.columnPercents.isEmpty, let base = widths[c.table] {
+                    widths[c.table] = _pctColumns(c.table, base, ts, document)
                 }
             } else {
                 widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
@@ -1835,6 +1838,46 @@ public final class RichLayout {
     /// column at one character and its margins). zh-0aac9d1a's first
     /// form: 34.6/187.6/110.5/156.4pt in Word's print, from a grid of
     /// 67.5/151.1/76.3/134.0, for its stamp line's 444pt piece.
+    /// A spaced table of a stated share whose cells state shares of it
+    /// (`TableStyle.columnPercents`): each such column its share of the
+    /// table — the grid as scaled to the table's share — or what its
+    /// cells' text needs, whole where they do not wrap; the rest of the
+    /// width to the other columns, as the grid shares it among them.
+    /// (Lab nt, Word for Mac — zh-045c5a75's article table, 85% with
+    /// cells of 12% noWrap, 2% and auto, over a grid of 1375/146/7571
+    /// that puts its first column at 15%: column 1 stands 54pt wide, 12%
+    /// of its 450pt, in a one-row copy, and the text of column 3 from
+    /// 127.2 where the grid's put it at 135.7; in the document, whose
+    /// first column holds "第 9-1 條" unbroken, from 138.24.)
+    private func _pctColumns(_ table: String, _ base: [Double], _ style: TableStyle, _ document: RichDocument) -> [Double] {
+        let total = base.reduce(0, +)
+        guard total > 0, style.columnPercents.keys.allSatisfy({ $0 < base.count }) else { return base }
+        let ins = _cellInsets(table, document)
+        var need = Array(repeating: 0.0, count: base.count)
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == table, c.span == 1, c.column < base.count, style.columnPercents[c.column] != nil else { continue }
+            // (Its text, its margins, and the cell spacing it gives up.)
+            let sides = (c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right) + _px(style.cellSpacing ?? 0)
+            let w = sides + (style.noWrapColumns.contains(c.column) ? _maxContent(i, p, document) : _minContent(i, p, document))
+            need[c.column] = max(need[c.column], w)
+        }
+        var out = base
+        var taken = 0.0
+        for (k, share) in style.columnPercents {
+            out[k] = (max(total * share / 100, need[k]) + 0.001).rounded(.up)
+            taken += out[k]
+        }
+        let rest = (0 ..< base.count).filter { style.columnPercents[$0] == nil }
+        let restBase = rest.reduce(0) { $0 + base[$1] }
+        guard !rest.isEmpty, restBase > 0, total - taken > 0 else { return base }
+        for k in rest { out[k] = ((total - taken) * base[k] / restBase + 0.001).rounded(.down) }
+        if Self.debugAutofit {
+            let pt = theme.pixelsPerPoint * scale
+            FileHandle.standardError.write(Data("pct columns \(table): \(base.map { ($0 / pt * 10).rounded() / 10 }) -> \(out.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
+        }
+        return out
+    }
+
     private func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
         struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
@@ -6222,6 +6265,13 @@ public final class RichLayout {
             _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
+            // (A cell that does not wrap (`w:noWrap`) keeps its text on
+            // its line, over its spacing if it must: zh-045c5a75's
+            // "第 15-1 條" is whole in Word's print, in a column its widest
+            // such text sizes — `_pctColumns`.)
+            if theme.wordRules, c.span == 1, document.tableStyles[c.table]?.noWrapColumns.contains(c.column) == true {
+                textWidth = max(textWidth, _maxContent(i, p, document) + 1)
+            }
             if c.textDirection != .horizontal {
                 // Turned text runs along the row's height, which the row's
                 // other cells decide: laid out provisionally at the rows'

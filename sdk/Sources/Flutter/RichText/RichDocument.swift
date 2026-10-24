@@ -1174,6 +1174,11 @@ public struct TableStyle: Hashable, Sendable {
     /// … but for these columns, by grid index, which keep the width their
     /// cells state (points).
     public var contentFitFixed: [Int: Double] = [:]
+    /// Columns whose cells state a share of the table's width (`w:tcW`
+    /// in pct; 12 = 12%), and those whose cells do not wrap (`w:noWrap`):
+    /// a spaced table of a stated share sizes them so (`_pctColumns`).
+    public var columnPercents: [Int: Double] = [:]
+    public var noWrapColumns: Set<Int> = []
     /// Space between cells in points (w:tblCellSpacing, HTML's
     /// cellspacing); nil when the file says nothing. Zero is kept apart
     /// from nil: Word draws a table that states it with separate borders.
