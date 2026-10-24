@@ -3406,8 +3406,8 @@ All three in: the number takes the paragraph style's size where the mark has non
 an East Asian family's Latin side falls back to its CJK face before the symbol face. Same-base sweep, 377 docs:
 zh-117cf7c6 92.0 -> 100.0, nothing else moved.
 
-### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — part (a) done, released
-Owner: — (released by starling-office1-df, 2026-10-18; the Mac's measurements, 01Xgpbk5)
+### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — part (a) done, (b) claimed
+Owner: Linux b2 01JsizVV, part (b), from 2026-10-23 (released by starling-office1-df, 2026-10-18; the Mac's measurements, 01Xgpbk5)
 Documents: zh-ab1ea005 (12%: its TOC runs a line behind and the body a page behind).
 Known (Mac, Word's print): toc 2, a dotted right stop at 8844 twips (519.2pt), compressPunctuation, mode 14, 方正楷体
 14pt. (a) "51.…解除劳动合同？<tab>20": Word keeps the commas whole and puts "20" 4.3pt past the margin (entry 55 the
