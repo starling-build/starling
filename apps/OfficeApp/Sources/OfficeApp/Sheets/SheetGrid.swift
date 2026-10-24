@@ -623,7 +623,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .shape(let shape):
             shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
-            _paintPicture(canvas, path, data, in: r, crop: d.crop)
+            // A turned picture: its anchor holds the turned box, its sides
+            // swapped between 45° and 135° (lo-twoCellAnchor_editAs_oneCell's
+            // at 240°, a 330 by 352 pt box in Excel's print, where ours drew
+            // it upright in 218 by 284).
+            guard d.rotation != 0 else { _paintPicture(canvas, path, data, in: r, crop: d.crop); return }
+            let turn = (d.rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
+            let box = turn >= 45 && turn < 135 ? Rect.fromCenter(center: r.center, width: r.height, height: r.width) : r
+            canvas.save()
+            canvas.translate(r.center.dx, r.center.dy)
+            canvas.rotate(d.rotation * .pi / 180)
+            canvas.translate(-r.center.dx, -r.center.dy)
+            _paintPicture(canvas, path, data, in: box, crop: d.crop)
+            canvas.restore()
         case .chart:
             guard let chart else { return }
             // Excel's chart area: its own fill and outline where the chart

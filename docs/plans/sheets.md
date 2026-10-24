@@ -376,6 +376,11 @@ the same base; the commits give the numbers):
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse
   by 0.02 at most (lo-tdf105272 2.08 -> 1.22, 54288 3.86 -> 3.43).
+- *A turned picture* is drawn turned (`a:xfrm@rot`), its anchor the
+  turned box with its sides swapped between 45° and 135°, as a shape's:
+  lo-twoCellAnchor_editAs_oneCell's at 240° prints 330 by 352 pt in
+  Excel's print, ours had stood upright in 218 by 284. The three such
+  workbooks: 4.01 -> 0.17, 0.73 -> 0.00, 0.19 -> 0.05.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

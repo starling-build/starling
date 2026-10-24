@@ -94,6 +94,8 @@ struct SheetDrawing: Equatable {
     /// its left, top, right and bottom — lo-cell-anchored-hidden-shapes'
     /// logo is the middle quarter of its image.
     var crop: [Double]? = nil
+    /// A picture's turn (`a:xfrm@rot`), in degrees clockwise.
+    var rotation = 0.0
     var screenOnly = false
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
@@ -138,6 +140,7 @@ enum SheetDrawingsXML {
                 d.name = pic.child("nvPicPr")?.child("cNvPr")?["name"] ?? "Picture"
                 d.kind = .picture(path: path, data: data)
                 d.relId = embed
+                d.rotation = (Double(pic.child("spPr")?.child("xfrm")?["rot"] ?? "") ?? 0) / 60_000
                 if let src = pic.child("blipFill")?.child("srcRect") {
                     let c = ["l", "t", "r", "b"].map { max(0, Double(src[$0] ?? "") ?? 0) / 100_000 }
                     if c.contains(where: { $0 > 0 }), c[0] + c[2] < 1, c[1] + c[3] < 1 { d.crop = c }
