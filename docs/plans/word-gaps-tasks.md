@@ -4237,8 +4237,12 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   Word's. "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced paragraph whose
   first line reaches 2.9pt past the foot by its extra; the keep check took
   the extra as room it needed and sent both to p29.
-- zh-0060058e (97.2, 1718 lines to Word's 1708; CLAIMED Linux 017F2GnT
-  2026-10-24).
+- zh-0060058e (97.2; Linux 017F2GnT 2026-10-24, looked, released): every
+  page opens on Word's line; the misses are the reader's grouping of p12's
+  dense header row and invisible text (Word's spaces on empty lines). One
+  real: p12's centred merged "设施类型", one line beside "序号"'s two, stands
+  at the second line (521.5) in Word's print, ours centred (515.2) — why
+  is not known.
 - zh-cec9d337 (90.5 -> 99.8; DONE Linux 017F2GnT 2026-10-24, released):
   by the cell — a row opening a page the table goes on over takes the
   table's top line where a cell of it states no top of its own (p19,
