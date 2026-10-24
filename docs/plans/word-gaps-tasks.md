@@ -4487,6 +4487,7 @@ marks' count, against what is left of the line) takes it — unsolved, released.
       89.7 line, every other column giving 0.4-1.4
   So shares are preferences pulled by content, not floors; pure content fit (our contentFit
   path) is far off (the email column 84.5 to Word's 151.2). Formula not found.
+  [CLAIMED Windows 01QbbApP 2026-10-24: Word for Windows labs on the share/need rule]
 
 ### T152. zh-6a4fc013 p14 on: a justified line stretches only what follows its last tab — DONE (2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check (the
