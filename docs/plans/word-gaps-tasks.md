@@ -4568,7 +4568,7 @@ digits set in an East Asian face (counted as wide characters? on the grid of
 the line's ems?), not about the line's faces. Patch kept at
 ~/tmp/office1/t188-tried.patch (Linux office1). Released.
 
-### T154. zh-efd9229a p4: a mark in text of a non-CJK East Asian language gives nothing — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
+### T154. zh-efd9229a p4: a mark in text of a non-CJK East Asian language gives nothing — DROPPED (Linux office1, 2026-10-24): no such rule
 Owner: Linux office1 (starling-office1-df). macOS-doc's lab `sq14`-efd (Word 16
 Mac, the document's "2024年我街道…但还存在一些", mode 14, compressPunctuation,
 Normal's eastAsia en-US, the comma's run stating none): Word takes "一" up to
@@ -4597,6 +4597,18 @@ Built so (pause marks and quotes muted, brackets give), same-base sweep of 756:
 zh-efd9229a 96.6 -> 100, zh-264d7516 96.0 -> 99.5, zh-51af781b 98.7 -> 99.6;
 zh-c5b5087b 53.5 -> 26.8 (11 pages to the print's 10). Held for a fresh full
 print of zh-c5b5087b (asked of macOS-doc). Patch: ~/tmp/office1/t154-final.patch.
+DROPPED. Round 4 (macOS-doc, README ROUND 4): the premise was two artefacts.
+(1) A print-timing trap in many-copy labs: printed straight after opening, Word
+had laid out only the first ~14 copies of a paragraph, and later copies came out
+unsqueezed; after a 45-60 s wait all squeeze, en-US exactly as zh-CN, for
+，。、；：（）「」 alike. Rounds 1-3 above are void. (2) zh-efd9229a's reference
+(10-23, the long-running Word, 仿宋_GB2312) is stale: fresh Word ends p4's line
+"…但还存在一", as ours did before. zh-c5b5087b's reference holds (fresh Word
+"…对粮"), so the "suspect print" note above is wrong. Real long documents print
+the same straight and after a wait (zh-ab9cbe66, zh-06c46ba9), so corpus prints
+are not hit by the timing. T154's other gains, zh-264d7516 and zh-51af781b, are
+_GB2312 documents too: likely stale references, worth a fresh reprint before
+anything is read into their line ends. Patches kept, not to be used.
 
 ### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). p9's form (tblpPr vertAnchor page,
