@@ -3309,11 +3309,15 @@ enum DocxFormat {
             if pPr.first("w:pageBreakBefore") != nil, !_isOff(pPr.first("w:pageBreakBefore")!) {
                 style.pageBreakBefore = true
             }
-            // (Not a style's break on a paragraph that is only a section's
-            // end, with no run in it: zh-499adba6's contents section ends in
-            // an empty Heading 2, and Word's print has no page for it — the
-            // next section's page is the break; ours set it on a page alone.)
-            if styleBreak, pPr.first("w:pageBreakBefore") == nil, pPr.first("w:sectPr") != nil {
+            // (Not a break before a paragraph that is only a section's end,
+            // with no run in it: zh-499adba6's contents section ends in an
+            // empty Heading 2, and Word's print has no page for it — the
+            // next section's page is the break; ours set it on a page alone.
+            // A direct w:pageBreakBefore too: zh-ae2dd08d's landscape
+            // 附表三 section ends in such a paragraph, and Word goes on to
+            // the portrait 附表四 with no page between; ours printed one
+            // with only its footer, and every page after was one late.)
+            if style.pageBreakBefore, pPr.first("w:sectPr") != nil {
                 func hasRun(_ n: XNode) -> Bool { n.children.contains { $0.name == "w:r" || hasRun($0) } }
                 if !p.children.contains(where: { $0.name != "w:pPr" && ($0.name == "w:r" || hasRun($0)) }) { style.pageBreakBefore = false }
             }
@@ -3605,6 +3609,14 @@ enum DocxFormat {
                                let rect = g.textRect {
                                 l += rect.left * w; t += rect.top * h
                                 r += (1 - rect.right) * w; bottom += (1 - rect.bottom) * h
+                            } else if let geom = b.first("wps:spPr")?.first("a:custGeom"), w > 0, h > 0,
+                                      // (A freeform's own text rectangle, its `a:rect` over
+                                      // its guides: zh-ae2dd08d's flowchart diamonds wrap
+                                      // "是否通過TTQS評核" in their middle half in Word's
+                                      // print, three lines where the whole box held one.)
+                                      let rect = FreeformGeometry.parse(geom, width: w * 12700, height: h * 12700)?.textRect {
+                                l += rect.left * w; t += rect.top * h
+                                r += (1 - rect.right) * w; bottom += (1 - rect.bottom) * h
                             }
                             let first = n == 0 ? 0 : inside.count
                             if n > 0 { read(b.descendant("w:txbxContent")!) }
@@ -3687,6 +3699,13 @@ enum DocxFormat {
                            let g = PresetGeometry.geometry(prst, width: att.width * 12700, height: att.height * 12700,
                                                            adjustments: PresetGeometry.adjustments(geom)),
                            let r = g.textRect {
+                            box.insetLeft += r.left * att.width
+                            box.insetTop += r.top * att.height
+                            box.insetRight += (1 - r.right) * att.width
+                            box.insetBottom += (1 - r.bottom) * att.height
+                        } else if node.descendant("a:prstGeom") == nil, let geom = node.descendant("a:custGeom"),
+                                  att.width > 0, att.height > 0,
+                                  let r = FreeformGeometry.parse(geom, width: att.width * 12700, height: att.height * 12700)?.textRect {
                             box.insetLeft += r.left * att.width
                             box.insetTop += r.top * att.height
                             box.insetRight += (1 - r.right) * att.width

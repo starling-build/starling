@@ -1757,7 +1757,9 @@ public final class RichLayout {
     /// (`mixed`: what is not an ideograph is drawn too, turned with the
     /// line as Word's `eaVert` sets Latin text — zh-6d402586's "(" and its
     /// spaces lie on their sides between upright ideographs in Word's
-    /// print.)
+    /// print. A vertical cell's too: zh-74b34f3b's tbRlV "東引鄉活動中心
+    /// 2樓" keeps its ideographs upright and lays the "2" on its side,
+    /// where its "2" had turned ours whole.)
     private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, mixed: Bool = false) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
@@ -11607,7 +11609,6 @@ public final class RichLayout {
     /// sake: before an opening one that follows East Asian text or a
     /// closing mark, after a closing one that East Asian text or an
     /// opening mark follows.
-    // TMPDBG: A/B gate for the sweep pair; removed once measured.
     private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false, timesEastAsian: Bool = true) -> Bool {
         func wide(_ c: Character) -> Bool { (c.unicodeScalars.first?.value ?? 0) >= 0x2E80 }
         // (And before a percent sign after a full-width character, where
@@ -12564,7 +12565,7 @@ public final class RichLayout {
                 - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i])
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
-               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute") {
+               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", mixed: true) {
                 canvas.restore()
                 return
             }

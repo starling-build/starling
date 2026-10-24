@@ -93,6 +93,9 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// Those labels' own number format (`c:dLbls/c:numFmt`, not linked
+    /// to the source); else they show the line's numbers' (`format`).
+    var labelCode: String? = nil
 }
 
 struct Chart: Equatable {
@@ -1200,6 +1203,8 @@ enum ChartXML {
             s.valueLabels = (own?.first("c:showVal") ?? group?.first("c:showVal"))?["val"] == "1"
                 && own?.first("c:delete")?["val"] != "1"
             if s.valueLabels, let d = own {
+                if let f = d.first("c:numFmt"), !["1", "true"].contains(f["sourceLinked"] ?? ""), let code = f["formatCode"],
+                   !code.isEmpty, code.lowercased() != "general" { s.labelCode = code }
                 for one in d.all("c:dLbl") {
                     guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                           let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
@@ -2359,6 +2364,7 @@ enum ChartPainter {
     /// (line-chart's 8.2, where eight made it 0 to 10 in twos) — and no
     /// deck's axis tells nine from ten. Across the page, eight.
     static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10) -> (lo: Double, hi: Double, step: Double) {
+        if let s = _offZero(lo0, hi0, intervals: intervals) { return s }
         var lo = min(0, lo0), hi = max(0, hi0)
         if hi == lo { hi = lo + 1 }
         let span = hi - lo
@@ -2369,6 +2375,28 @@ enum ChartPainter {
         let norm = rough / mag
         let step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
         return (floor(lo / step) * step, ceil(hi / step) * step, step)
+    }
+
+    /// Excel's automatic axis leaves zero out where the values lie close
+    /// together: all of one sign, the nearest to zero more than 5/6 of the
+    /// farthest. It then starts half their spread short of the nearest and
+    /// runs 5% past the farthest, rounded out to its step. zh-b8de3ae2's
+    /// rates 92.05 to 94.99 run 90.5 to 95.5 by 0.5 in Word's print; ours
+    /// ran 0 to 100 and the line lay flat along the top. (Against a fixed
+    /// far end where the file gives one: zh-547fc43c's 28.35 to 33.5 under
+    /// a maximum of 40 start at 0, as Word's.)
+    static func _offZero(_ lo0: Double, _ hi0: Double, intervals: Int) -> (lo: Double, hi: Double, step: Double)? {
+        let neg = hi0 < 0
+        let a = neg ? -hi0 : lo0, b = neg ? -lo0 : hi0
+        guard a > 0, b > a, a > b * 5 / 6 else { return nil }
+        let d = b - a
+        let lo = a - d / 2, hi = b + d * 0.05
+        let rough = (hi - lo) / Double(max(1, intervals))
+        let mag = pow(10, floor(log10(rough)))
+        let norm = rough / mag
+        let step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+        let l = floor(lo / step) * step, h = ceil(hi / step) * step
+        return neg ? (-h, -l, step) : (l, h, step)
     }
 
     /// An axis with bounds or a step the file fixes; what it leaves open
@@ -2511,7 +2539,7 @@ enum ChartPainter {
             let room = area0.height - Double(c.series.count + c.lineSeries.count + 1) * row
             return max(2, min(10, Int(room / (labelSize * k))))
         }()
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: tableSteps ?? (c.type == .bar ? 8 : 10))
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? (c.type == .bar ? 8 : 10))
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
@@ -2540,7 +2568,7 @@ enum ChartPainter {
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, !horizontal {
             let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
-            var s2 = scale(min(0, all.min() ?? 0), max(0, all.max() ?? 1), intervals: tableSteps ?? 10)
+            var s2 = scale(all.min() ?? 0, max(all.max() ?? 1, second.max ?? -Double.infinity), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
                 s2 = fixedScale(auto: s2, min: second.min, max: second.max, step: second.step)
             }
@@ -3052,7 +3080,12 @@ enum ChartPainter {
                 if l.valueLabels {
                     for i in 0 ..< n {
                         guard let q = at(i), let v = l.values[safe: i] ?? nil else { continue }
-                        let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
+                        // (In the line's own format, not the columns': zh-b8de3ae2's
+                        // rates are General, 92.05 in Word's print, under columns
+                        // in "#,##0" that made ours "92".)
+                        let code = l.labelCode ?? l.format
+                        let shown = code.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
+                        let tp = TextPainter(text: TextSpan(text: shown.isEmpty ? label(v, percent: false) : shown, style: Flutter.TextStyle(
                             color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
                             fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)

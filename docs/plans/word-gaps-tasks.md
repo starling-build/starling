@@ -598,7 +598,19 @@ After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout
 - Now 99-100, nothing left: zh-e029cf49, zh-bfe04e2f, zh-ad224275, zh-727812d5, zh-190d730c (100); zh-e37f8d40, zh-81aa310b (99.7); zh-785d6dff (99.5); zh-625b6374 (99.4).
 - Real layout, now visible: zh-15f60bac (98.1) — a Latin word longer than the line (a URL in a narrow cell, "http://www.tri.org.tw/page/consumer.php)") starts a fresh line in Word's print and parts where that line fills; ours parts it after "http://ww" on the line it began on (4 runs, 16 lines). Not `_looseWordOffsets` (tried: breaking only at full-line points moved nothing there and cost 9 lines) — the break comes from the East Asian fitter: lenovo-3's ground. zh-77079ee8 (94.9) — a turned cell's one-character lines stand 10pt high (p4 "宣導說明"). zh-31d580df (98.6) — p25/p38 blocks 5-7pt off (its entry's known leftover).
 - Not layout: zh-6e7ff836 (94.9) — its p20 run (+44 lines) is the REFERENCE: Word's print has pages 19-22 as blank Letter pages with no text (the document is A4), and PyMuPDF reports a broken page tree there; reprint before chasing. zh-7dd5643e, zh-d8247da5, zh-454e2e29, zh-afdd4a7e — one line each, still the reader grouping cells.
-- Lower (65-93), not re-read line by line: zh-ad1e59ac 94.8, zh-8f70b676 94.1, zh-160a5e81 93.6, zh-74b34f3b 93.3, zh-11709c74 92.9, zh-147bdae0 92.7, zh-cd8987db 90.6, zh-7773163d 89.9, zh-20c1d74a 89.6, zh-5c7787f5 79.5, zh-b5359de4 77.3, zh-b8de3ae2 71.2, zh-6a4fc013 69.4, zh-92373179 65.9, zh-ae2dd08d 55.2.
+- Lower (55-95), re-read line by line (Mac 7bd18d8e, 2026-10-24, sweeps n23-n27):
+  - DONE here (pair n24/n25, then n24/n27; nothing dropped):
+    - zh-ae2dd08d 55.2 → 95.1, 94/94 pages: a direct w:pageBreakBefore on an empty section-end paragraph makes no page.
+    - zh-74b34f3b 93.3 → 97.8 (zh-32f4ad9f +0.6): a tbRlV cell with a Latin "2" keeps its ideographs upright and lays the "2" on its side.
+    - zh-ab9cbe66 +0.4, and zh-ae2dd08d p17: a custGeom's own a:rect is its text rectangle (the flowchart diamonds).
+    - zh-b8de3ae2 71.2 → 72.1, three chart fixes. First, an auto value axis leaves zero out where the values lie within 5/6 of the far end, measured against a fixed max if the file gives one. Second, a combination line's labels use the line's own format. The chart's "%" second-axis title is still missing, and its labels' nudged places are still off.
+  - Reader, confirmed: zh-8f70b676, zh-160a5e81, zh-11709c74, zh-5c7787f5, all within 2pt. zh-92373179 is a reference-text problem: it embeds four fonts, and Word's print of them has no text mapping. zh-7773163d's p2 is blank in both prints.
+  - Routed:
+    - lenovo-3, line fit: zh-20c1d74a p44 (ours hangs "）" past the margin where Word sends "等）" down); zh-cd8987db p7 (Word wraps "中。", and ours shows a gap after "°"); zh-6a4fc013 (Thai justification stretches the spaces before a tab, 27 pages against 26).
+    - lenovo-2: zh-147bdae0 p17/23/46, a splittable row continuing a vMerge moves whole.
+    - windows: zh-ad1e59ac p10, a text-anchored floating table's tblpY at a page top (taken).
+    - macos-ios: zh-b5359de4, one column count per document (taken).
+  - Open, paint only: zh-ad1e59ac p10, a row's white run shading painted over the table's top rule (see windows' note).
 
 ### Drawing leftovers [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: all three, plus arrow ends by flips (zh-ae2dd08d's were reversed) and zero-width lines; pair n15/n16 moved no line score and every changed document gains segments in Word's print. Released]
 (1) zh-2e7ef069 p9: a DrawingML group connector's arrowhead; (2) lone VML boxes' edges (zh-7773163d p35); (3) pictures inside a VML group (zh-7773163d's footer logo).
