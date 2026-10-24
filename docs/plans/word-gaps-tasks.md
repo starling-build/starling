@@ -4422,3 +4422,4 @@ hanging, the mark gives its half like any other and the share test refuses
 both. Fits zh-505b9619's labs u5/u6 ("。" drawn inside the margin) and
 zh-7488a70f (doNotCompress, hangs whole); b2's "？" rule (zh-ab1ea005, labs
 qh/qe) is the same thing for one mark.
+- zh-b0401810 (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): the tbRlV merged cell "职业资格证书、职业技能等级证书", spacing 51 — its characters 3pt low and 4pt right of Word's.
