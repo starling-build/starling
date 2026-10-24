@@ -4929,6 +4929,15 @@ public final class RichLayout {
                         var top = cy > 0.01 ? cy + gap : 0
                         var rest = (from: piece.flowTop, to: piece.flowBottom)
                         while true {
+                            // (A piece that starts at the even length starts the
+                            // next column: zh-b5359de4's cover, two empty 36pt
+                            // lines in two columns, one in each in Word's print —
+                            // its title one line down; ours cut the second at its
+                            // own line and stood the title two down.)
+                            if c < _columns - 1, top > 0.01, top >= target - 0.5 {
+                                c += 1; top = 0; cy = 0
+                                continue
+                            }
                             if c == _columns - 1 || top + (rest.to - rest.from) <= target + 0.5 {
                                 out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
                                 cy = top + (rest.to - rest.from)
@@ -4938,10 +4947,21 @@ public final class RichLayout {
                             // the first line that reaches the even length ends
                             // the column.)
                             let g = geometry(piece.paragraph)
-                            let cuts = Self._lineBottoms(g.painter).map { g.textTop + $0 }
-                                .filter { $0 > rest.from + 0.5 && $0 < rest.to - 0.5 }
+                            let bottoms = Self._lineBottoms(g.painter).map { g.textTop + $0 }
+                            let cuts = bottoms.filter { $0 > rest.from + 0.5 && $0 < rest.to - 0.5 }
                             if let cut = cuts.first(where: { top + ($0 - rest.from) >= target - 0.5 }) ?? cuts.last,
                                top + (cut - rest.from) <= contentH + 0.01 {
+                                // (At its last line the paragraph ends here, the
+                                // space under that line with it: zh-b5359de4's empty
+                                // 36pt cover paragraphs, a line of 54.2 in 62.2, sent
+                                // that 8pt on as a piece and the next column started
+                                // under it.)
+                                if let lastLine = bottoms.last, abs(cut - lastLine) < 0.01,
+                                   top + (rest.to - rest.from) <= contentH + 0.01 {
+                                    out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
+                                    c += 1; cy = 0
+                                    break
+                                }
                                 out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: cut, page: first + c, pageY: top))
                                 rest = (cut, rest.to)
                             } else if top < 0.01 {
