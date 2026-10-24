@@ -354,6 +354,12 @@ the same base; the commits give the numbers):
   (0.12 pt; its thin ones 0.96): ours drew 0.96 at half strength, a
   grid of them heavy and black. The 12 workbooks with hair borders: 7
   better, none worse (lo-tdf85617 3.55 -> 0.25, 54206 4.82 -> 1.62).
+- *Dashed and dotted borders* print Excel's runs, on and off in printer
+  dots (lo-cell-borders, a row of each kind): dotted 4 and 4, dashed 24
+  and 8, a dash-dot's dash 72 and dot 24 with gaps of 24, the medium
+  kinds the same at 16 dots wide, slantDashDot as mediumDashDot. Ours
+  were 25 and 17 for all. Open: mediumDashed starts 33 dots into its
+  run in Excel's.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

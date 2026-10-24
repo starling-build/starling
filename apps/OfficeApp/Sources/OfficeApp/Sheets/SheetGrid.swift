@@ -2380,6 +2380,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     canvas.drawLine(a + inward * 2, z + inward * 2, border)
                     return
                 }
+                if printing, let pattern = Self._printDashes[kind.hasPrefix("slant") ? "mediumDashDot" : kind] {
+                    // On paper Excel's own runs, on and off in printer dots
+                    // (lo-cell-borders' lab of every kind, measured at 600 dpi).
+                    if kind.hasPrefix("slant") { border.strokeWidth = 2 * 0.96 }
+                    let length = (z - a).distance
+                    guard length > 0 else { return }
+                    let step = (z - a) / length
+                    var at = 0.0, i = 0
+                    while at < length {
+                        let run = pattern[i % pattern.count] * 72 / 600
+                        if i % 2 == 0 { canvas.drawLine(a + step * at, a + step * min(length, at + run), border) }
+                        at += run; i += 1
+                    }
+                    return
+                }
                 if kind.containsSubstring("ash") || kind.containsSubstring("otted") {
                     // Dashes and dots, drawn as short runs along the side.
                     let dash = kind.containsSubstring("otted") ? 1.0 : 3.0, gap = kind.containsSubstring("otted") ? 2.0 : 2.0
@@ -2744,6 +2759,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static func shown(_ text: String) -> String {
         text.count > 1024 ? String(text.prefix(1024)) : text
     }
+
+    /// A dashed or dotted border's runs on paper, on and off, in printer
+    /// dots from the side's start: dotted 4 and 4, dashed 24 and 8, a
+    /// dash 72, a dot 24 and the gaps 24 (lo-cell-borders in Excel's print).
+    static let _printDashes: [String: [Double]] = [
+        "dotted": [4, 4], "dashed": [24, 8], "dashDot": [24, 24, 72, 24], "dashDotDot": [24, 24, 72, 24, 24, 24],
+        "mediumDashed": [72, 24], "mediumDashDot": [24, 24, 72, 24], "mediumDashDotDot": [24, 24, 72, 24, 24, 24],
+    ]
 
     /// The columns a text too long for its cell runs over, as `_paintCell`
     /// lets it: empty neighbours to the right of left-aligned text, to the
