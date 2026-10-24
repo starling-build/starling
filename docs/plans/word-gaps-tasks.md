@@ -4397,6 +4397,13 @@ the body.
   (lab ah, ~/starling-word-check/lab/ah: marks off, it stays under its heading). Mode is the
   inference from zh-e37f8d40 (mode 14, same kind of table, stays) — the two also differ in jc
   (centre vs indent); a lab flipping zh-e37f8d40's mode would confirm. Released.
+- zh-b5359de4's cover (Mac 01Xgpbk5, 2026-10-24, from macOS-doc, RELEASED): the title, a cover's
+  one-column section in a two-column file, is now set across the page, one line as Word's
+  (`_fullWidthCover`; n220 nothing down). Score holds at 95.1: the title stands 55pt under
+  Word's — the cover's first section, three empty 36pt paragraphs in two columns (continuous),
+  is one column of three lines in ours, balanced in Word's (two and one, presumably); the
+  balancing at a continuous break (ac1e1954) does not reach the document's first section. Per-
+  section column counts would settle this and p9-14.
 
 ### T151. A paragraph's last mark does not hang from 2013's layout where marks are compressed — CLAIMED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
