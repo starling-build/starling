@@ -390,6 +390,26 @@ the same base; the commits give the numbers):
   scores even (5 better, 8 worse by 0.12 at most, 3.735 -> 3.738): the
   45540 forms' rows already stand 0.5 to 0.9 high, and the lift takes
   their merged text with them.
+- *A cell's text against its row, by face* (open). Measured in Excel's
+  prints, from a cell's own thin bottom border (bottom-aligned) or the
+  rule above (top-aligned), unmerged and unwrapped. Ours sits on our
+  line's height, which is whole 96-dpi pixels, so it lands in whole
+  points: 4.00 for Calibri 11, 3.00 for Arial 10 and the small faces.
+  Excel, at the foot (baseline to border): Calibri 11 3.96, Calibri 10
+  3.60, Arial 10 3.12, Arial 10 bold 3.60, Times New Roman 7 2.52,
+  Lucida Sans Typewriter 10 3.30, Verdana 10 3.10. A point plus the
+  face's usWinDescent fits Calibri 11, Arial 10, Times 7 and Verdana to
+  0.02, but not Lucida or bold Arial (0.26 and 0.49 short), nor
+  bug62181's Arial 9 (0.15 over). Taken whole, it cost bug62181 1.08
+  and was taken back. Small text also stands on its row's larger font
+  at times: Tahoma 8 and Times 7 at Calibri 11's 3.96 where the row
+  has unstyled columns (conditional_formatting_with_formula_on_second_
+  sheet, lo-tdf118668), 57523's Calibri 10 on its row's empty Calibri
+  11 cells; but 45540_form's Times 7 keeps its own 2.52 beside Times 9
+  cells with values. At the head (rule to baseline): Calibri 11 11.04,
+  Calibri 10 9.96 (each its em), Verdana 10 10.38 (ours 11.00, the
+  format tests' text 0.6 low), Lucida 10.02. A lab of each face at a
+  few sizes, set at foot and head, under a border, would settle both.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the
