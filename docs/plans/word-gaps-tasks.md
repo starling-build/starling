@@ -4369,11 +4369,14 @@ test instead dropped zh-db07d44e 17 and zh-12db188f 5. Same-base sweep of 756:
 zh-d746674a 92.2 -> 100, zh-db07d44e 98.0 -> 98.1, zh-e0ca7252 98.7 -> 98.9,
 nothing down.
 
-### T150. zh-15f60bac p11: a word wider than the line opens a line of its own after a space in a cell — CLAIMED (Linux office1, 2026-10-24)
+### T150. zh-15f60bac p11: a word wider than the line opens a line of its own after a space in a cell — DONE (2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
 "台灣綜合研究院(網址: http://www.tri.org.tw/page/consumer.php)及…" in a
 282pt cell (標楷體 16pt): Word ends line 1 at "(網址: ", sets
 "http://www.tri.org.tw/page/consumer" alone on line 2 and ".php)及…" after;
 ours parts the address "…http://ww" on the first line. `_wideWordStarts`
 moves such a word only in a narrow cell, or after an ideograph or a full-width mark.
-- zh-8628cfbe again (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): 57.4, Word 46 pages to our 45 — the p24 drift.
+Now under East Asian layout after any space in a cell of any width too (20
+characters or more). Same-base sweep of 756: zh-15f60bac 97.8 -> 98.7 (p11
+Word's line for line), nothing else moved. Left: p22's "(https://www.moea…" in
+the body.

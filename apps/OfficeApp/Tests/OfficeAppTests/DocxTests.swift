@@ -3727,6 +3727,26 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [], "under East Asian layout, parted where it stands")
     }
 
+    func testACellWordWiderThanTheLineOpensALineAfterASpace() throws {
+        // zh-15f60bac's 282pt cell "…研究院(網址: http://www.tri.org.tw/page/
+        // consumer.php)及…" ends its first line at "(網址: " in Word's print,
+        // the address opening the next and parted at its margin; ours parted
+        // it "…http://ww" where it stood. (The rule, not a line: the test
+        // process has no ICU to part lines by.)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        var p = RichParagraph(text: "研究院(網址: http://www.tri.org.tw/page/consumer.php)及中央大學")
+        p.cell = CellRef(table: "t", row: 0, column: 0)
+        var doc = RichDocument(paragraphs: [p])
+        doc.usesEastAsianLayout = true
+        let at = "研究院(網址: ".utf16.count
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 200 * theme.pixelsPerPoint), [at], "the address opens a line")
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 1000 * theme.pixelsPerPoint), [], "not where it fits")
+        doc.usesEastAsianLayout = false
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 200 * theme.pixelsPerPoint), [], "a wide cell outside East Asian layout, as before")
+    }
+
     func testAGroupsBoxesApartKeepTheirOwnPlaces() throws {
         // shapes-with-text: a group of an arrow with text in it and a text
         // box under it, at other places and widths. Word sets each box's

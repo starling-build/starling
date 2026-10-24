@@ -11396,8 +11396,13 @@ public final class RichLayout {
             var before = k - 1
             while before > 0, units[before] == 0x20 { before -= 1 }
             let spaceAfterIdeograph = before >= 0 && units[before] >= 0x2E80
+            // (… and in a cell of any width under East Asian layout, after
+            // any space: zh-15f60bac's 282pt cell "…研究院(網址: http://www.tri.
+            // org.tw/page/consumer.php)及…" ends its line at "(網址: " in Word's
+            // print, the address opening the next and parted at its margin.)
             let afterSpace = k > 0 && units[k - 1] == 0x20
-                && (narrowCell || p.cell == nil && (!document.usesEastAsianLayout || spaceAfterIdeograph))
+                && (narrowCell || p.cell != nil && document.usesEastAsianLayout
+                    || p.cell == nil && (!document.usesEastAsianLayout || spaceAfterIdeograph))
             let afterIdeograph = k > 0 && units[k - 1] >= 0x2E80
             if afterSpace || afterIdeograph, part - k >= (narrowCell && afterSpace ? 3 : 20),
                !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {
