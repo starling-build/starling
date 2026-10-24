@@ -4237,3 +4237,12 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   1.2pt taller in Word, and p2 ends a line early, 19 lines on p3; (5)
   zh-61aaad09's plot over its table stands at the frame's top + 6.7 in
   Word's print, zh-2a241df1's + 11.1 — rule not found.
+  (zh-27a874b7's 52.7 -> 51.6 is real but one line: 44 missed to 43,
+  all chart labels, now set as Word's lab sets them relative to the pie
+  but on a chart that still stands 9pt high — item (2); kept for
+  zh-d62da4dd's +2.1 and the rule's agreement with lab p3d.)
+- Space before at a section's first page top (Mac 01Xgpbk5, CLAIMED
+  2026-10-23, routed by bd): when Word keeps it — zh-27a874b7 p3 keeps
+  9pt; keeping it always broke zh-b0207333, zh-34a6519a, zh-8f9b19f4,
+  zh-fe536967, zh-c8eb6e92, zh-64044a1d, zh-5dc5ce34, zh-9e08ed28,
+  zh-6d1afa56, zh-147bdae0 (sweep n212). Labs first.
