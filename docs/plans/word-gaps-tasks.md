@@ -4176,3 +4176,15 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   and "，" whole, both curly quotes an em — where ours squeezes "、" to
   ~9.3 and takes "“市" more on the line (37 to Word's 35). Untested: no
   compression in runs with letter spacing, or left-set.
+- Type3 text (Mac 01Xgpbk5, CLAIMED 2026-10-23): every ideograph in our
+  Mac PDFs is a Skia Type3 font (42,416 of them in 40 documents) because
+  the system draws them in PingFang UI, whose outlines are Apple's `hvgl`
+  (neither glyf nor CFF), so Skia can only paint them; PDFKit then groups
+  them badly — the "reader, not layout" notes above (zh-afdd4a7e,
+  zh-15f60bac, …). Under OFFICE_WORD_FONTS=mac, registering the faces
+  Word carries (DFonts msyh/Simsun/SimHei/Kaiti/Fangsong/mingliu/Deng,
+  all glyf, fsType 8) and naming the one Word draws each family in as
+  its fallback turns them Type0. Five-document check: zh-b8de3ae2 67.8
+  -> 71.2, zh-ab9cbe66 94.4 -> 96.2 (also "※": YaHei's 0.84 em, as Word
+  prints it, where PingFang's was an em). Sweeping. Fake bold still goes
+  Type3 (Skia treats an emboldened outline as modified) — engine work.
