@@ -4589,6 +4589,14 @@ Word's chain is per run, as tried, and zh-c5b5087b / zh-06c46ba9 differ from
 efd in something else (not theme font language, grid or hints). Round 3 sent:
 those two paragraphs into the stepped setup. Patches: ~/tmp/office1/t191-all.patch
 (per run), t192-all.patch (a document-level try, wrong by round 2).
+Round 3 (macOS-doc, g1-g9): under a non-CJK East Asian language Word still
+compresses brackets of every kind (（）「」『』【】〔〕《》) and not "，。、；：！？" or the
+curly quotes; zh-06c46ba9 squeezes on brackets; zh-c5b5087b's paragraph in fresh
+Word ends "…对" as T154 has it (its print is 仿宋_GB2312, in the suspect window).
+Built so (pause marks and quotes muted, brackets give), same-base sweep of 756:
+zh-efd9229a 96.6 -> 100, zh-264d7516 96.0 -> 99.5, zh-51af781b 98.7 -> 99.6;
+zh-c5b5087b 53.5 -> 26.8 (11 pages to the print's 10). Held for a fresh full
+print of zh-c5b5087b (asked of macOS-doc). Patch: ~/tmp/office1/t154-final.patch.
 
 ### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). p9's form (tblpPr vertAnchor page,
