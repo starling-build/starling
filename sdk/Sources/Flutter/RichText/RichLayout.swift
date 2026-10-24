@@ -2863,6 +2863,9 @@ public final class RichLayout {
         // come: where the text stood, to go on from there round it.
         var tableReturn: (table: String, y: Double, page: Int, top: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
+        // A page whose columns were balanced at a continuous section break:
+        // its physical page and where the next section's columns start.
+        var columnFloor: (physical: Int, y: Double)? = nil
         var besideTable: (bottom: Double, page: Int)? = nil
         var reordered = false
         var i = 0
@@ -3044,10 +3047,12 @@ public final class RichLayout {
             }
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
-            _pages.append(fresh)
-            page += 1
+            if page + 1 < _pages.count { page += 1 } else { _pages.append(fresh); page += 1 }
             prevY = y
             y = 0
+            // (A column of a page whose columns were balanced at a
+            // continuous break starts under the balanced block.)
+            if let floor = columnFloor, floor.physical == page / max(1, _columns) { y = floor.y }
             prevContentH = contentH
             openPage()
             loadPins()
@@ -4767,6 +4772,70 @@ public final class RichLayout {
                 y = 0
                 pageFresh = true
                 markOnPage = false
+            }
+            // Columns balanced at a continuous section break: Word sets
+            // the section before it in columns of even length on the page
+            // the break is on, and the next section under them. zh-b5359de4
+            // p4: the preface's last lines stand half in each column in
+            // Word's print, its contents under them, 44.3pt higher than
+            // ours, which filled the first column and went on in the second.
+            // (Plain paragraphs only: no table rows, no notes on the page.)
+            if theme.wordRules, _columns > 1, !_pageBreak[i], i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
+               _cells[i] == nil, resumeCursor == nil, !notesOn || pageNotes.isEmpty {
+                let first = (page / _columns) * _columns
+                var seq: [PagePiece] = []
+                for s in first ... page { seq += _pages[s] }
+                let tail = Array(_allPieces.suffix(seq.count))
+                if !seq.isEmpty, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
+                   seq.allSatisfy({ _cells[$0.paragraph] == nil && !$0.repeated && $0.part == .all }) {
+                    let total = (first ... page).reduce(0.0) { acc, s in acc + (_pages[s].map { $0.pageY + $0.height }.max() ?? 0) }
+                    let target = total / Double(_columns)
+                    var out: [[PagePiece]] = Array(repeating: [], count: _columns)
+                    var c = 0, cy = 0.0
+                    var lastBottom: [Int: Double] = [:]
+                    for piece in seq {
+                        let gap = max(0, piece.pageY - (lastBottom[piece.page] ?? 0))
+                        lastBottom[piece.page] = piece.pageY + piece.height
+                        var top = cy > 0.01 ? cy + gap : 0
+                        var rest = (from: piece.flowTop, to: piece.flowBottom)
+                        while true {
+                            if c == _columns - 1 || top + (rest.to - rest.from) <= target + 0.5 {
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
+                                cy = top + (rest.to - rest.from)
+                                break
+                            }
+                            // (The first columns at least as long as the rest:
+                            // the first line that reaches the even length ends
+                            // the column.)
+                            let g = geometry(piece.paragraph)
+                            let cuts = Self._lineBottoms(g.painter).map { g.textTop + $0 }
+                                .filter { $0 > rest.from + 0.5 && $0 < rest.to - 0.5 }
+                            if let cut = cuts.first(where: { top + ($0 - rest.from) >= target - 0.5 }) ?? cuts.last,
+                               top + (cut - rest.from) <= contentH + 0.01 {
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: cut, page: first + c, pageY: top))
+                                rest = (cut, rest.to)
+                            } else if top < 0.01 {
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
+                                cy = top + (rest.to - rest.from)
+                                c += 1; cy = 0
+                                break
+                            }
+                            c += 1
+                            top = 0
+                            cy = 0
+                        }
+                    }
+                    let blockBottom = out.map { $0.map { $0.pageY + $0.height }.max() ?? 0 }.max() ?? 0
+                    if blockBottom <= contentH + 0.01 {
+                        _allPieces.removeLast(seq.count)
+                        while _pages.count < first + _columns { _pages.append([]) }
+                        for k in 0 ..< _columns where first + k <= max(page, first + _columns - 1) { _pages[first + k] = out[k] }
+                        _allPieces.append(contentsOf: out.flatMap { $0 }.sorted { ($0.paragraph, $0.flowTop) < ($1.paragraph, $1.flowTop) })
+                        page = first
+                        y = blockBottom
+                        columnFloor = (first / _columns, blockBottom)
+                    }
+                }
             }
             if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 // (A page the line before hung past the foot of has no
