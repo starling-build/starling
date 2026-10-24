@@ -7057,6 +7057,27 @@ fitter dropped the paragraph's tail).
   upright with its "(" turned. Ours had read no `eaVert` and set both
   across: zh-c4f2be3b 95.4 to 99.7, zh-6d402586 91.3 to 96.7,
   zh-2e7ef069 90.0 to 92.8, nothing else moved (pair n5/n6).
+- **VML groups drawn.** A `v:group`'s shapes are drawn as a DrawingML
+  group's are (`WriterGroups.registerVML`): `v:line` from its `from` to
+  its `to` (a `flip` takes the ends across), boxes, ovals and shapes of
+  a known type (`o:spt` as the preset it is: 109 a process, 117 a
+  preparation, 202 a text box's rectangle…), connectors (32 straight,
+  33 an elbow) and free paths (`m … l … c … x e`), each in the group's
+  `coordorigin`/`coordsize` through every nested group; `stroked`,
+  `filled`, `strokecolor`, `fillcolor`, `strokeweight` and the
+  `v:stroke`/`v:fill` children; arrows (`startarrow`/`endarrow`) on
+  lines and open paths only — Word draws none on a closed box whose
+  stroke names one (zh-6e6b9821's side notes); WPS's turned connectors
+  in 65536ths of a degree ("rotation:-5898240f"). A shape is a picture
+  only where its `v:imagedata` names one: WPS writes an empty one into
+  every shape, and zh-e9f256c1's whole flowchart was skipped as
+  pictures. Before, a VML group printed its text alone. zh-6e6b9821,
+  zh-e9f256c1 and zh-7773163d now draw their flowcharts as Word does,
+  and WordWithAttachments its "Словарь" box; no line score moved (pair
+  n7/n8). Left: dashed strokes (`dashstyle`) are drawn solid, a
+  picture inside a group (`v:imagedata` with an `r:id`) is not drawn,
+  and lone VML boxes outside groups still draw no edges
+  (zh-7773163d's p35 middle boxes).
 
 ### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
 
