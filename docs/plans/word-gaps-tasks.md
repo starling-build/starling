@@ -4275,3 +4275,10 @@ Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
 brackets of 華康雅風體W3(P) (alternate JhengHei UI Light) in that face, whose
 digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
 0.58 (bold 0.6), and "…開始前一個月" left "月" for the next line.
+- zh-6a4fc013 Thai (Mac 01Xgpbk5, CLAIMED 2026-10-23, routed by bd):
+  under OFFICE_WORD_FONTS=mac, Thai drawn in Word's DFonts Cordia New
+  (cordia.ttc; bold from its 2nd face) at Browallia New's per-letter
+  widths measured from Word's print, in place of Thonburi at 0.75 —
+  Thonburi's text layer lost whole clusters ("คำ" of every "คำถาม"); and
+  Thai kept unbroken between spaces where a stretch fits a line. In
+  progress: 54.2 -> 69.4 on the document alone, sweeping.
