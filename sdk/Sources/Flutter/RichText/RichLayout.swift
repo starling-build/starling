@@ -67,6 +67,9 @@ public final class RichTextTheme {
     /// where a ⌘ in a Liberation run otherwise draws as a missing glyph and
     /// lays its line out a pixel shorter than everywhere else.
     public nonisolated(unsafe) static var glyphFallback: [String] = []
+    /// Whether Thai text breaks only where it has spaces, as Word for Mac
+    /// sets it (see `_span`); the engine otherwise breaks it by word.
+    public nonisolated(unsafe) static var thaiBreaksAtSpaces = false
     /// Taken off every paragraph's line spacing: PowerPoint's shrink-to-fit
     /// reduces the spacing of a whole body (`lnSpcReduction`) without
     /// touching what the paragraphs say — 90% less 20% is 70%, not 72.
@@ -7531,6 +7534,33 @@ public final class RichLayout {
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
         let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
+        // (`thaiBreaksAtSpaces`: the offsets inside a stretch of Thai with
+        // no space in it that a line can hold — one longer than a line is
+        // broken where the line fills, as in Word's print: zh-6a4fc013's
+        // "1.กระทรวงแรงงาน…" starts its line and breaks in it.)
+        var thaiJoins: Set<Int> = []
+        if theme.wordRules, RichTextTheme.thaiBreaksAtSpaces, p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
+            let units = Array(p.text.utf16)
+            let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+            var k = 0
+            while k < units.count {
+                guard units[k] != 0x20, units[k] != 0x3000, units[k] != 0x0A else { k += 1; continue }
+                var end = k, thai = false, width = 0.0
+                while end < units.count, units[end] != 0x20, units[end] != 0x3000, units[end] != 0x0A {
+                    let u = units[end]
+                    if (0x0E01 ... 0x0E5B).contains(u) {
+                        thai = true
+                        width += [0x0E31, 0x0E34, 0x0E35, 0x0E36, 0x0E37, 0x0E38, 0x0E39, 0x0E3A, 0x0E47, 0x0E48, 0x0E49, 0x0E4A, 0x0E4B, 0x0E4C, 0x0E4D, 0x0E4E].contains(u) ? 0 : 0.42 * em
+                    } else { width += 0.5 * em }
+                    end += 1
+                }
+                // (The first stretch against the first line's room, after
+                // its indent and number: that one is where it would stand.)
+                let room = k == 0 ? textWidth - max(0, lead) : textWidth
+                if thai, width <= room { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
+                k = end
+            }
+        }
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
             // `RichParagraphStyle.markUnderNestedTable`.)
@@ -8067,6 +8097,19 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
+                // (Thai, under `thaiBreaksAtSpaces`, kept together between
+                // its spaces: Word for Mac's print of zh-6a4fc013 ends its
+                // Thai lines only at spaces — "…ในประเทศต้นทาง" / "และพิจารณา…",
+                // a justified line's gaps stretched for it — where the
+                // engine's dictionary broke inside words and set 596 lines
+                // to Word's 614.)
+                else if thaiJoins.contains(offset), let b = before,
+                        let pb = b.unicodeScalars.first?.value, let pc = ch.unicodeScalars.first?.value,
+                        (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
                 // A zero-width space where Word may break the line and
                 // the engine would not: after spaces set as no-break
                 // ones (`heldSpaces`), and before an opening curly
@@ -8325,8 +8368,11 @@ public final class RichLayout {
                     let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
                     let g = grid * theme.pixelsPerPoint * scale
                     if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
-                } else if !ea, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value,
+                } else if !ea, let u = ch.unicodeScalars.first?.value,
                           let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
+                          // (A letter with its marks, where the table has each:
+                          // Thai's "ต่", "คำ" — `OfficeFonts.browalliaAdvances`.)
+                          ch.unicodeScalars.count == 1 || (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.allSatisfy { face.otherAdvances?[$0.value] != nil }),
                           // (Not a no-break space after an ordinary one, through
                           // others: that is the Latin text's, the space's half
                           // em — zh-f3802561's "第一条" + U+00A0, U+0020, U+00A0,
@@ -8345,7 +8391,9 @@ public final class RichLayout {
                     // hAnsi is 宋体 are SimSun's, an em each in Word's print.)
                     let s = style(kind)
                     let own = face.family == latinFace?.family
-                    if let w = (s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances)?[u], let px = s.fontSize, px > 0.5 {
+                    let table = s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances
+                    let each = ch.unicodeScalars.map { table?[$0.value] }
+                    if !each.contains(where: { $0 == nil }), let w = Optional(each.reduce(0) { $0 + ($1 ?? 0) }), let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
                         var target = own ? w * px / (face.sizeScale * classScale) : w * em
                         // (On the print's grid, where the theme has one.)

@@ -838,6 +838,14 @@ enum OfficeFonts {
         0.3276, 0.1455, 0.5457, 0.3645, 0.3645, 0.3645, 0.3645, 0.2183, 0.3276, 0.1821, 0.3645, 0.3276, 0.4731, 0.3276, 0.3276,
         0.3276, 0.2188, 0.1702, 0.2188, 0.3826,
     ]
+    /// Browallia New's Thai widths, in ems, regular and bold: the face
+    /// Word for Mac draws "TH Sarabun New" in, measured from its print of
+    /// zh-6a4fc013 (the median step from each letter to the next, over
+    /// 19,801 Thai characters; marks none; "ำ" as "า", which the print
+    /// reads as "ํา"). Cordia New, which draws them, is within a few per
+    /// cent letter by letter and 0.5% over a line.
+    static let browalliaAdvances: [UInt32: Double] = [0x0E01: 0.418, 0x0E02: 0.407, 0x0E04: 0.417, 0x0E07: 0.3216, 0x0E08: 0.3702, 0x0E09: 0.434, 0x0E0A: 0.4132, 0x0E0B: 0.446, 0x0E0D: 0.5592, 0x0E0E: 0.4599, 0x0E0F: 0.453, 0x0E10: 0.3521, 0x0E13: 0.5907, 0x0E14: 0.421, 0x0E15: 0.425, 0x0E16: 0.4245, 0x0E17: 0.46, 0x0E18: 0.373, 0x0E19: 0.4441, 0x0E1A: 0.45, 0x0E1B: 0.4512, 0x0E1C: 0.427, 0x0E1D: 0.426, 0x0E1E: 0.495, 0x0E20: 0.467, 0x0E21: 0.4302, 0x0E22: 0.4062, 0x0E23: 0.3246, 0x0E25: 0.3864, 0x0E27: 0.3635, 0x0E28: 0.4161, 0x0E29: 0.4831, 0x0E2A: 0.3952, 0x0E2B: 0.456, 0x0E2D: 0.3931, 0x0E2F: 0.389, 0x0E30: 0.3236, 0x0E31: 0.0, 0x0E32: 0.3322, 0x0E33: 0.3322, 0x0E34: 0.0, 0x0E35: 0.0, 0x0E36: 0.0, 0x0E37: 0.0, 0x0E38: 0.0, 0x0E39: 0.0, 0x0E3A: 0.0, 0x0E40: 0.223, 0x0E41: 0.3882, 0x0E42: 0.2769, 0x0E43: 0.2599, 0x0E44: 0.3056, 0x0E46: 0.4688, 0x0E47: 0.0, 0x0E48: 0.0, 0x0E49: 0.0, 0x0E4A: 0.0, 0x0E4B: 0.0, 0x0E4C: 0.0, 0x0E4D: 0.0, 0x0E4E: 0.0]
+    static let browalliaBoldAdvances: [UInt32: Double] = [0x0E01: 0.4518, 0x0E02: 0.443, 0x0E04: 0.472, 0x0E07: 0.3416, 0x0E08: 0.408, 0x0E0A: 0.4387, 0x0E0B: 0.467, 0x0E0D: 0.5913, 0x0E10: 0.4071, 0x0E13: 0.644, 0x0E14: 0.4698, 0x0E15: 0.482, 0x0E16: 0.4441, 0x0E17: 0.486, 0x0E18: 0.435, 0x0E19: 0.4965, 0x0E1A: 0.4805, 0x0E1B: 0.484, 0x0E1C: 0.454, 0x0E1E: 0.502, 0x0E20: 0.4557, 0x0E21: 0.4815, 0x0E22: 0.4397, 0x0E23: 0.3692, 0x0E25: 0.4436, 0x0E27: 0.3969, 0x0E28: 0.4688, 0x0E29: 0.5004, 0x0E2A: 0.442, 0x0E2B: 0.4786, 0x0E2D: 0.4489, 0x0E30: 0.3561, 0x0E31: 0.0, 0x0E32: 0.3624, 0x0E33: 0.3624, 0x0E34: 0.0, 0x0E35: 0.0, 0x0E36: 0.0, 0x0E37: 0.0, 0x0E38: 0.0, 0x0E39: 0.0, 0x0E3A: 0.0, 0x0E40: 0.241, 0x0E41: 0.4348, 0x0E42: 0.2609, 0x0E43: 0.3027, 0x0E44: 0.3066, 0x0E47: 0.0, 0x0E48: 0.0, 0x0E49: 0.0, 0x0E4A: 0.0, 0x0E4B: 0.0, 0x0E4C: 0.0, 0x0E4D: 0.0, 0x0E4E: 0.0]
     static let arialBlackAdvances: [Double] = [
         0.3335, 0.333, 0.5, 0.6602, 0.667, 1, 0.8892, 0.2778, 0.3892, 0.3892, 0.5562, 0.6602, 0.333, 0.333, 0.333,
         0.2778, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.333, 0.333, 0.6602, 0.6602,
@@ -1503,7 +1511,15 @@ enum OfficeFonts {
                 face.advances = cordiaNewAdvances
                 face.boldAdvances = cordiaNewBoldAdvances
                 #if os(macOS)
-                face.classScales = [1, 1, 1, 1, 0.75]
+                // (Under OFFICE_WORD_FONTS=mac, with Word's Cordia New loaded,
+                // the Thai itself in Cordia, at its own widths: drawn by
+                // Thonburi, scaled, PDFKit read whole clusters of it — the
+                // "คำ" of every "คำถาม" — back as nothing.)
+                if _cordiaLoaded {
+                    face.fallback = [cordiaNew]
+                    face.otherAdvances = (face.otherAdvances ?? [:]).merging(browalliaAdvances) { $1 }
+                    face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
+                } else { face.classScales = [1, 1, 1, 1, 0.75] }
                 #elseif os(Windows)
                 face.classScales = [1, 1, 1, 1, 0.729]
                 #else
@@ -1696,8 +1712,50 @@ enum OfficeFonts {
             where FileManager.default.fileExists(atPath: dir + file) {
             for family in families { _ = flutter.swift_bridge.LoadFontFromFile(dir + file, family) }
         }
+        // (Thai: Cordia New, whose widths are Browallia New's, the face
+        // Word for Mac draws "TH Sarabun New" in — `thaiWordFaces`. Its
+        // bold is the collection's second face, which the engine's loader
+        // does not reach: taken out as a face of its own.)
+        if let cordia = FileManager.default.contents(atPath: dir + "cordia.ttc") {
+            var ok = flutter.swift_bridge.LoadFontFromFile(dir + "cordia.ttc", cordiaNew)
+            if ok, let bold = _collectionFace(cordia, 1) {
+                ok = bold.withUnsafeBytes { buffer in
+                    buffer.baseAddress.map { flutter.swift_bridge.LoadFontFromList($0.assumingMemoryBound(to: UInt8.self), buffer.count, cordiaNew) } ?? false
+                }
+            }
+            _cordiaLoaded = ok
+        }
         _wordMacFacesLoaded = true
         return true
+    }
+    static let cordiaNew = "Cordia New"
+    nonisolated(unsafe) static var _cordiaLoaded = false
+    /// Face `index` of a TrueType collection as a font file of its own:
+    /// its table directory, with each table copied after it.
+    static func _collectionFace(_ data: Data, _ index: Int) -> Data? {
+        let b = [UInt8](data)
+        func u32(_ o: Int) -> Int { o + 4 <= b.count ? Int(b[o]) << 24 | Int(b[o + 1]) << 16 | Int(b[o + 2]) << 8 | Int(b[o + 3]) : 0 }
+        func u16(_ o: Int) -> Int { o + 2 <= b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        guard b.count > 12, b[0] == 0x74, b[1] == 0x74, b[2] == 0x63, b[3] == 0x66, index < u32(8) else { return nil }
+        let face = u32(12 + 4 * index), n = u16(face + 4)
+        guard n > 0, face + 12 + 16 * n <= b.count else { return nil }
+        var out = [UInt8](b[face ..< face + 12])
+        var body: [UInt8] = []
+        let start = 12 + 16 * n
+        var records: [UInt8] = []
+        for t in 0 ..< n {
+            let r = face + 12 + 16 * t, off = u32(r + 8), len = u32(r + 12)
+            guard off + len <= b.count else { return nil }
+            records += b[r ..< r + 8]
+            let at = start + body.count
+            records += [UInt8(at >> 24 & 0xFF), UInt8(at >> 16 & 0xFF), UInt8(at >> 8 & 0xFF), UInt8(at & 0xFF)]
+            records += b[r + 12 ..< r + 16]
+            body += b[off ..< off + len]
+            while body.count % 4 != 0 { body.append(0) }
+        }
+        out += records
+        out += body
+        return Data(out)
     }
     /// The Word face that draws a name's ideographs (`registerWordMacFaces`);
     /// nil for YaHei's stand-ins, which the glyph fallback draws.
@@ -1942,6 +2000,7 @@ enum OfficeFonts {
         RichTextTheme.glyphFallback = ["PingFang SC"]
         // (Under OFFICE_WORD_FONTS=mac, Word's own: `registerWordMacFaces`.)
         if wordOnMac, registerWordMacFaces() { RichTextTheme.glyphFallback = ["Microsoft YaHei", "PingFang SC"] }
+        if wordOnMac { RichTextTheme.thaiBreaksAtSpaces = true }
         #endif
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
