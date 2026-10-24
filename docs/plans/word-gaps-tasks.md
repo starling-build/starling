@@ -4194,7 +4194,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   it is not drawn through that clip; not found, reverted. Seen too in
   zh-073c9234 p15 ("書" cut at the foot). pp13-17 then run
   a line or two apart (p14 holds one line more than Word's).
-- zh-147bdae0 (92.7; Linux 017F2GnT 2026-10-23, looked, released): p17's
+- zh-147bdae0 (92.7; CLAIMED again Linux 017F2GnT 2026-10-24, from the
+  Mac's re-check: the merged group's parting, p17/18, p23/24, p46/47.
+  Linux 017F2GnT 2026-10-23, looked, released): p17's
   last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) parts at the
   foot in Word's print, two of its four names there; ours takes it whole
   to p18 (49.3 with its line against 49.17 left). The room is the cause:
