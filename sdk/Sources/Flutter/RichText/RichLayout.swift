@@ -6771,7 +6771,13 @@ public final class RichLayout {
                     var end = k
                     while end < stop, units[end] == 0x20 { end += 1 }
                     let before = k > 0 && units[k - 1] != 0x20 ? size : 0
-                    if _px(Double(end - k) * space + before) > textWidth { underHeld.formUnion(k ..< end) }
+                    // (And one a closing mark follows, which may not open a
+                    // line: zh-f47b8a74's "…将罚款缴至", 19 underlined spaces
+                    // and "，账号" go down whole in Word's print, "至" opening
+                    // the line; hanging, ours began the next with the "，".)
+                    let closed = end < units.count && Unicode.Scalar(units[end]).map { Self._closingMarks.contains(Character($0)) } == true
+                        && document.usesEastAsianLayout && p.style.eastAsian["w:kinsoku"] != "0"
+                    if _px(Double(end - k) * space + before) > textWidth || closed { underHeld.formUnion(k ..< end) }
                     k = end
                 }
             }
@@ -8306,7 +8312,7 @@ public final class RichLayout {
                 // ones (`heldSpaces`), and before an opening curly
                 // quote or after a closing one, as at any bracket —
                 // the engine breaks on neither side of a quote.
-                if afterHeld, ch != " " {
+                if afterHeld, ch != " ", !(breaksAtQuotes && !lineRulesOff && Self._closingMarks.contains(ch)) {
                     flush(i)
                     // (In the held spaces' own style, not the East Asian
                     // text's after them: there its glyph is the Latin base
@@ -8322,6 +8328,16 @@ public final class RichLayout {
                     // of years: zh-b378d8c4's "（2021—2030年）" goes down whole
                     // in Word's print, its "（" unable to end a line; the
                     // engine parted it at the dash.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, breaksAtQuotes, !lineRulesOff, before == " ", Self._closingMarks.contains(ch) {
+                    // (Nor before a closing mark after spaces, which may no
+                    // more start a line there than anywhere: zh-f47b8a74's
+                    // "…将罚款缴至" and 19 underlined spaces, then "，账号",
+                    // go down whole in Word's print, "至" opening the line;
+                    // the engine broke after the spaces, and the line after
+                    // began with the "，".)
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -10294,9 +10310,14 @@ public final class RichLayout {
             // its five marks giving 4.9pt each and "）" hanging; parted,
             // ours ended the line "（" and set "）" a line down.)
             let opens = endsOpening(pieces.last)
+            // (And a closing mark with what its spaces follow, as `_span`
+            // keeps it: zh-f47b8a74's "至" and 19 underlined spaces go down
+            // with the "，账号" after them in Word's print.)
+            let closesAfterSpaces = wordRules && document.usesEastAsianLayout && !kinsokuOff && !runRulesOff(a) && a < units.count
+                && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
-               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) {
-                if opens && last > a { g.w += g.trail; g.trail = 0 }
+               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a) {
+                if (opens || closesAfterSpaces) && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
                 g.b = b
                 if last > a { g.last = last }
@@ -10810,7 +10831,7 @@ public final class RichLayout {
                         .map { Self._isLatinWordUnit(units[$0]) ? 1 : 2 } == [1]
                         && !(a > 0 && Self._isLatinWordUnit(units[a - 1]))
                     let latinBefore = a > 0 && Self._isLatinWordUnit(units[a - 1]) || a > 0 && units[a - 1] == 0x2D
-                    let taken = modern
+                    let takenFirst = modern
                         ? latinWord || (!lineOther && lineWide > 1 && room > 0 && hang == 0
                             // (A sixty-fourth of each gap's em: of the line's
                             // characters as they are sized. zh-84702a67 sets
@@ -10947,6 +10968,11 @@ public final class RichLayout {
                             // it leaves it from 5 over, the "7"'s half.)
                             || (!opening && a > 0 && isSpace(units[a - 1])
                                 && need <= all.filter { !(document.marksCentred && Self._centredUnits.contains(units[$0])) }.reduce(0.0) { $0 + half($1) } + hair)
+                    // (A stretch with spaces inside it — a closing mark kept
+                    // with what its spaces follow — only where the marks can
+                    // give all it needs: zh-f47b8a74's "至", 19 spaces and
+                    // "，" are 104pt over with 24.5 to give.)
+                    let taken = takenFirst && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
