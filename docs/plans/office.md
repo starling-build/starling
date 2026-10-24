@@ -7047,6 +7047,16 @@ fitter dropped the paragraph's tail).
   in Word's print with notes 34 and 35 at its foot; ours kept the line
   with 34 and set 35 first on 43, and pages 43-51 ran a line ahead —
   85.2 to 95.2, the same-base pair (n3/n4) moving no other document.
+- **East Asian vertical text boxes.** A text box whose body says
+  `vert="eaVert"` runs its text down as `vert` does, but an ideograph
+  stands upright in it, with the vertical form of a mark ("︓", "︐"),
+  while Latin text, digits and spaces lie on their sides, each where
+  the line sets it. zh-c4f2be3b's landscape pages number themselves in
+  such a box at the page's left, "- 33 -" reading down in Word's print,
+  and zh-6d402586's side note "通知書一式兩聯：…(備註：…)" stands
+  upright with its "(" turned. Ours had read no `eaVert` and set both
+  across: zh-c4f2be3b 95.4 to 99.7, zh-6d402586 91.3 to 96.7,
+  zh-2e7ef069 90.0 to 92.8, nothing else moved (pair n5/n6).
 
 ### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
 
