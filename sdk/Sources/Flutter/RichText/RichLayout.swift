@@ -8704,7 +8704,12 @@ public final class RichLayout {
                         // addition. Ours kept the whole addition, and
                         // zh-eb54d3b0's "…政策》，助推茶" took "产" 7.81 over
                         // where Word's is 7.91 and goes down.)
-                        extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0)) / 2
+                        // (A spaced closing quote gives half its spaced width:
+                        // lab `p01`, zh-01bbcd4d's "…组织成员”。" at 16pt spaced
+                        // to 17 sets the "”" 8.49 before the "。" in Word's
+                        // print; ours, half the em off, 9.0.)
+                        let quoteAdd = theme.wordRules && (ch == "\u{201D}" || ch == "\u{2019}") ? max(0, spacing) * (doubles ? 2 : 1) : 0
+                        extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0) + quoteAdd) / 2
                     }
                 }
                 if heldSpaces.contains(offset) {
@@ -10603,7 +10608,10 @@ public final class RichLayout {
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
-                    ? min(ems[tail] * (closesUp(tail) || document.hangsHalf || closedUpTo ? 0.5 : 1), boxes(tail, tail + 1)) : 0
+                    ? (closesUp(tail) || document.hangsHalf || closedUpTo ? min(ems[tail] * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
+                // (Whole, a spaced mark hangs its spaced width: lab `p01`
+                // (macOS-doc, zh-01bbcd4d's package, 16pt spaced to 17) hangs
+                // the "。" of "…组织成员”。" from the margin on, 17 past it.)
                 // (No hair over the hang: lab `hc`, a two-character indent
                 // and 28 ideographs and "。" on zh-d68ac84a's grid, the
                 // mark 0.003pt past its em at 586 twips of indent, is
@@ -10763,8 +10771,11 @@ public final class RichLayout {
                     // grid half of its em and of the grid's addition:
                     // two marks on a grid of 1.008 gave 8.5pt each, a
                     // line 16.9 over at 16pt, zh-457a8d62. A full-width
-                    // quote is its glyph and a blank: half its em.)
-                    func half(_ k: Int) -> Double { wideQuote(k) ? ems[k] / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2 }
+                    // quote is its glyph and a blank: half its em —
+                    // spaced, half its spaced width: lab `p01` (macOS-doc,
+                    // Word for Mac, zh-01bbcd4d's package, 16pt spaced to
+                    // 17) sets the "“" of "…注记“该权利人…" 8.51 narrower.)
+                    func half(_ k: Int) -> Double { wideQuote(k) ? (ems[k] + quoteSpacing(k)) / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2 }
                     let markRoom = all.reduce(0.0) { $0 + half($1) }
                     var room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
                     let need = over - hang - after
