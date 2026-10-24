@@ -5899,6 +5899,7 @@ public final class RichLayout {
         func spaceAfter(_ j: Int) -> Double {
             let s = document.paragraphs[j].style
             let listGoesOn = j + 1 < document.paragraphs.count && oneList(s, document.paragraphs[j + 1].style)
+                && !(theme.wordRules && document.paragraphs[j + 1].cell != document.paragraphs[j].cell)
             return web && s.spaceAfterAuto ? (s.list == nil || !listGoesOn ? 14.0 : 0.0) : inLines(s, "w:afterLines") ?? s.spaceAfter
         }
         var spaceBefore = web && style.spaceBeforeAuto ? autoGap : inLines(style, "w:beforeLines") ?? style.spaceBefore
@@ -5906,10 +5907,16 @@ public final class RichLayout {
         // does: none before a cell's first paragraph, none after its
         // last — zh-a4b0f6ea's cover form, whose every cell is auto
         // spaced, has its title row 14pt shorter in Word's print.)
+        // (But a list's last item keeps its space after, as a list in
+        // a cell of a web page keeps its bottom margin: zh-147bdae0's
+        // numbered commitments stand 14pt over their cells' bottom
+        // lines in Word's print, the next row's text 36pt under their
+        // last line, where its one-paragraph cells have none — the
+        // item's space before at the cell's top goes as any does.)
         var dropAfter = false
         if theme.wordRules, web, let c = p.cell {
             if style.spaceBeforeAuto, i == 0 || document.paragraphs[i - 1].cell != c { spaceBefore = 0 }
-            if style.spaceAfterAuto, i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c { dropAfter = true }
+            if style.spaceAfterAuto, style.list == nil, i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c { dropAfter = true }
         }
         if theme.wordRules, web {
             if i == 0 {

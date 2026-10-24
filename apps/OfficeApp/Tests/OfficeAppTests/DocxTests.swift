@@ -1825,6 +1825,48 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(unspaced.1.contains("<w:tblPrEx><w:tblCellSpacing w:type=\"nil\" w:w=\"0\"/>"), "the rows' own spacing goes back")
     }
 
+    func testAListsLastItemInACellKeepsItsAutomaticSpaceAfter() throws {
+        // zh-147bdae0's numbered commitments, automatically spaced, end
+        // their cells 14pt over the bottom line in Word's print, where a
+        // cell's one plain paragraph so spaced has none under it.
+        func gap(numbered: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let num = numbered ? "<w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr>" : ""
+            func p(_ text: String, _ list: String) -> String {
+                "<w:p><w:pPr>\(list)<w:spacing w:before=\"100\" w:beforeAutospacing=\"1\" w:after=\"100\" w:afterAutospacing=\"1\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            func cell(_ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr>\(content)</w:tc>" }
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid>"
+                + "<w:tr>\(cell(p("one", num) + p("two", num)))</w:tr><w:tr>\(cell(p("next", "")))</w:tr></w:tbl><w:p/>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: table + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.\"/><w:pPr><w:ind w:left=\"480\" w:hanging=\"480\"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+            let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+            entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            func drawn(_ text: String) throws -> Double {
+                let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+                let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+                return piece.pageY + l.geometry(k).textTop - piece.flowTop
+            }
+            return (try drawn("next") - drawn("two")) / theme.pixelsPerPoint
+        }
+        let plain = try gap(numbered: false), listed = try gap(numbered: true)
+        XCTAssertEqual(plain, 20, accuracy: 0.05, "a plain paragraph's space after gives way at the cell's end")
+        XCTAssertEqual(listed - plain, 14, accuracy: 0.05, "the list's last item keeps its 14pt")
+    }
+
     func testAPartedRowOpensWithItsOwnTopLine() throws {
         // Lab `tb` (Word 16 Mac, zh-13552a3a's package): cells of top nil
         // and bottom single, a row parted at page 1's foot — page 2 opens

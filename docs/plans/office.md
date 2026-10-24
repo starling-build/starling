@@ -6171,6 +6171,19 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A list's last item in a cell keeps its automatic space after
+  (2026-10-24).** Automatic spacing gives way at a cell's edges
+  (a5df0942: zh-a4b0f6ea's cover form). Not under a list: zh-147bdae0's
+  numbered commitments (Normal (Web), before and after automatic) stand
+  14pt over their cells' bottom lines in Word's print — p24's "dex.html )"
+  at 370.1, the next row's text at 406.1, where its one-paragraph cells,
+  so spaced too, step 22.1 a row. The item's space before at the cell's
+  top still goes (p44's "1." at 469.4 in both). Ours dropped both, and
+  p45 stood 14pt high from its first row on, the table a page short of
+  Word's by p46. A list item at a cell's end now keeps its 14pt, and a
+  list "goes on" (no space between items) only within one cell.
+  Sweep h143: zh-147bdae0 93.3 -> 95.5, p45 within 0.1pt of Word's;
+  nothing else moved (the corpus's one file with such cells).
 - **A row that states no cell spacing collapses its lines (2026-10-24).**
   Cell spacing was read for the table alone: one that states any, even
   0, rules each cell on its own, a row its own top and bottom line.
