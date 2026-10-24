@@ -3521,7 +3521,10 @@ logical in ours). Wants a face whose joined forms map back (or ActualText spans)
 Times New Roman, which has Arabic — not tried there.
 
 ### Note from macOS-doc (2026-10-23): four line-end cases — CLAIMED Linux office1 01Ak4ibJ
-- zh-f6886fbb 94.7: p7 y496 Word "…省级及以上重", ours a character short ("…以").
+- zh-f6886fbb 94.7: p7 y496 Word "…省级及以上重", ours a character short ("…以"). [office1, measured, RELEASED: the
+  line before ("3、“重要程度”…★★★、★★、★三级。★★★…", 方正楷体简体 bold → YaHei Bold) steps each "★" 9.83 in
+  Word's print (0.8193 em) and 12.25 in ours. A boldOtherAdvances entry for U+2605 brought ours to 11.32, not
+  9.83 — 1.49 more from somewhere not found — and moved no score; reverted.]
 - zh-08e95de4 96.1 (mode 14, compressPunctuation, grid -0.25): p3 y524 Word opens "征地补偿安置决定的…", ours keeps
   "征地" above; p7 y207 Word "R6地块…", ours "地块…".
 - zh-4a90bb2f 95.5: p9 y546 Word opens "分，每增加1个月…", ours "每增加…".
