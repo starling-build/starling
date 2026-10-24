@@ -4577,3 +4577,10 @@ nothing; every run eastAsia zh-CN, through 6.94 as ours; doNotUseEastAsianBreakR
 makes no difference. zh-c5b5087b's en-US Normal is no counter-case: its runs say
 zh-CN. Plan: a mark whose run's East Asian language (run, else style, else
 defaults) is not zh/ja/ko gives nothing.
+
+### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). p9's form (tblpPr vertAnchor page,
+tblpY 1322 against a 1440 top margin) follows the cover that fills p8; Word's
+print has its top line at 66.0, ours at the margin, 72.0, every line of p9 6pt
+low. The offset is applied where a page break opens the table's page and where
+it opens an empty one, not where its first row goes over for want of room.
