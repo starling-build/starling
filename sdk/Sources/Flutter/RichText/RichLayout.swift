@@ -6144,9 +6144,16 @@ public final class RichLayout {
                         // "AAAA" starts 76.56 in cells ruled 0.5, 1 and 3pt
                         // alike, where mode 15 sets it 82.08, 82.56, 83.52;
                         // ours stood a quarter point in at 0.5.)
+                        // (And on the right never under the line: zh-8628cfbe's
+                        // last column, 1.4pt margins inside a 2.25pt right line,
+                        // ends its text 1.26 short of the line's middle in Word's
+                        // print — ours, its margin less half the line, 0.275, set
+                        // "…相同者得基準分" on a line Word wraps before "分". A
+                        // cell of no margin keeps none: zh-15ecc2c6's outset
+                        // lines over 0-twip margins have their text to the line.)
                         let modern = (document.compatibilityMode ?? 12) >= 15
                         pad = modern
-                            ? EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, 0), bottom: pad.bottom)
+                            ? EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
                             : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
                     }
                 }
