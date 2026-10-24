@@ -3351,7 +3351,12 @@ public final class RichLayout {
                 return Array(rows.sorted().dropLast()) + [_tops[k] + _heights[k]]
             }
             var lines = Self._lineBottoms(g.painter).map { g.textTop + $0 }
-            if (document.compatibilityMode ?? 12) >= 15, document.paragraphs[k].style.widowControl, !document.widowControlSuspended {
+            // (Whatever a raised footer frame does to the body's widows
+            // — `widowControlSuspended` — a cell keeps its own: zh-7654804a,
+            // whose footer frame stands 47.75pt up, parts its p16 row
+            // "…再召開協商會" / "議。" two lines over in Word's print, the
+            // cell's "議。" no widow on p17.)
+            if (document.compatibilityMode ?? 12) >= 15, document.paragraphs[k].style.widowControl {
                 lines = lines.count >= 4 ? Array(lines[1 ..< lines.count - 2]) : []
             } else if !lines.isEmpty {
                 lines.removeLast()
