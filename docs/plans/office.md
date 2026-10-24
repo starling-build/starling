@@ -7037,6 +7037,12 @@ fitter dropped the paragraph's tail).
   Ours set all three an em, 10.5pt more an article, and the first line
   of each lost a character. zh-f3802561 69.4 -> 99.8; nothing else moved
   (s347 -> s348).
+  The same holds after a Latin letter or digit (2026-10-23): zh-a7a889eb's
+  "3.5" + U+00A0 + U+0020 in a 12pt 宋体 run hinted East Asian is 6 and 6
+  in Word's print, and its line "3.5  拟派…专业 贰 级" took the last three
+  characters ours left for the next. After a "." the no-break space stays
+  an em — zh-17749c13's "1." + U+00A0 + "船" (its own run) is 14 at 14pt —
+  so only a letter, a digit or a space before it makes it the Latin's.
 
 - **Notes at the foot, counted once.** A body line's notes are set on
   the page with the line that marks them, and a later note of the same

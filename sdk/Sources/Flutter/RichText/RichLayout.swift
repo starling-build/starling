@@ -8296,7 +8296,12 @@ public final class RichLayout {
                           // U+00A0 in a 10.5pt 仿宋 run sets them 10.5, 5.25,
                           // 5.25 and 5.25 in Word's print; ours set every
                           // no-break one an em, and the line lost its "发".)
-                          !(theme.wordRules && u == 0xA0 && text[..<i].reversed().first(where: { $0 != "\u{00A0}" }) == " ") {
+                          // (Nor one after a Latin letter or digit: zh-a7a889eb's
+                          // 12pt 宋体 "3.5" + U+00A0 + U+0020 sets them 6 and 6,
+                          // and its line took "业 贰 级" ours left for the next.
+                          // After a "." it is an em still — zh-17749c13's
+                          // "1." + U+00A0 + "船" is 14 at 14pt.)
+                          !(theme.wordRules && u == 0xA0 && text[..<i].reversed().first(where: { $0 != "\u{00A0}" }).map({ $0 == " " || ($0.isASCII && ($0.isLetter || $0.isNumber)) }) == true) {
                     // … and the width it gives one the stand-in lacks.
                     // (Past ASCII, the `w:hAnsi` face's, where it has its own:
                     // zh-17749c13's no-break spaces in 仿宋_GB2312 runs whose

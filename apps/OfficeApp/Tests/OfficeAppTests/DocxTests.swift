@@ -2935,6 +2935,34 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
     }
 
+    func testANoBreakSpaceAfterALatinDigitIsTheSpacesHalfEm() throws {
+        // zh-a7a889eb p5: "3.5" + U+00A0 + U+0020 + "拟派…" in a 12pt 宋体 run
+        // hinted East Asian — Word sets the no-break space 6pt, the space's
+        // half em, where ours set it an em and the line lost "业 贰 级".
+        // After an ideograph or a "." it is an em still (lab `nb1`;
+        // zh-17749c13's "1." + U+00A0 + "船").
+        func width(_ text: String) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontHint = "eastAsia"
+            style.fontSize = 12
+            let doc = RichDocument(paragraphs: [RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 4000
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / l.theme.pixelsPerPoint
+        }
+        XCTAssertEqual(width("3.5\u{00A0} 拟") - width("3.5 拟"), 6, accuracy: 0.3, "after a digit, half an em")
+        XCTAssertEqual(width("条\u{00A0}拟") - width("条拟"), 12, accuracy: 0.3, "after an ideograph, an em")
+        XCTAssertEqual(width("1.\u{00A0}船") - width("1.船"), 12, accuracy: 0.3, "after a full stop, an em")
+    }
+
     func testABareMarksNumberIsItsParagraphStylesSize() throws {
         // zh-117cf7c6 p3: "※ 每人每月補助…", 12pt text under a "※" bullet
         // whose paragraph mark says nothing, in Normal's 14pt — Word sets
