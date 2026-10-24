@@ -4140,10 +4140,10 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
 - zh-22ecbdc8 (96.1; Linux 017F2GnT 2026-10-23, looked, released): p5 "…办节费用在2—5 万元（含）、5—10" is one line in
   Word's print (YaHei for 仿宋_GB2312, 16pt, compressPunctuation): Word squeezes "，" and "（" 3.7pt each to hold
   "5—10". That is the Mac's squeeze, which the user chose not to model (see USER DECISION above).
-- zh-1eeb9f9a (95.1): CLAIMED Linux 017F2GnT 2026-10-23 — p8 DONE (bc22d64a: a centred cell set whole in a part
+- zh-1eeb9f9a (95.1 -> 99.4; Linux 017F2GnT 2026-10-23) — p8 DONE (bc22d64a: a centred cell set whole in a part
   keeps the parting row for a merge above — 95.1 -> 96.2; with it zh-65e6c317 84.2 -> 100, zh-9ba2ead7 90.9 -> 92.6,
-  eleven more up a little, none down). Now on p11: Word parts row "2 行政处罚" at the foot with the first two lines
-  of its centred merged "■政府网站…" cell; ours sends the row over whole.
+  eleven more up a little, none down). p11 DONE (81183750: a line of spaces alone is set in its mark's Latin face —
+  its "　" cells were two grid pitches, Word's one — 96.2 -> 99.4, zh-4a90bb2f 96.5 -> 98.8, none down). Released.
 - zh-499adba6 / zh-9932bd83 (87.9 after 7e4dfc99) [p90 DONE Linux 017F2GnT 2026-10-23, 8664ba24: a row's note with no room under its mark parts as a paragraph's — 87.9 -> 97.9 on a tree before 10eb779a] [p25 DONE Linux office1 01Ak4ibJ 2026-10-23: "%"/"％" may start a line under Taiwan's default list — 89.8 on Linux; pages Word's to p90, released]: pages Word's to p25; on
   p25 the paragraph "在社會組織中，根據內政部…" (jc both, line 440 exact,
   標楷體 12pt, compressPunctuation, zh-TW) ends its tenth line "…權力分配。" in
