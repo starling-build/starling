@@ -10641,7 +10641,16 @@ public final class RichLayout {
                 // review table (zh-TW list, no mode) ends a cell line
                 // "…施作項目與數量。" 2.7pt over in Word's print, the "。"
                 // squeezed; ours sent "量。" down.)
-                let holdsFinal = (listed && !inCell || centredFinal) && p.style.eastAsian["w:overflowPunct"] != "0"
+                // (Not under `w:useAltKinsokuLineBreakRules`: there the
+                // paragraph's last mark gives up to its half — lab `hangp`
+                // (macOS-doc, Word for Mac): zh-12c4f07a's "…物產館)。"
+                // (Taiwan's list, alternative rules) holds to its "。"
+                // 6.39pt narrower and goes down from 6.59, in modes 11, 12
+                // and 14, with a "？" on the line or not; zh-ae3d78ee's
+                // "…你花最多的。" gives nothing as it is and its half with
+                // the switch set; ours sent "館)。" down at 1.39.)
+                let altFinal = theme.wordRules && document.hangsHalf && squeezes
+                let holdsFinal = (listed && !inCell || centredFinal) && p.style.eastAsian["w:overflowPunct"] != "0" && !altFinal
                     && (document.compatibilityMode ?? 12) < 15
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
                 // (From 2013's layout on a Latin comma hangs too, whole:
@@ -10796,7 +10805,7 @@ public final class RichLayout {
                     // zh-749cb15a's "…人民利益攸關之功能性及專業性國際組織；"
                     // and the Mac's "…等，" with two commas are carried.)
                     let alone = !(marks + own).contains { $0 != tail }
-                    let centredKept = centredEnd && (paragraphEnd ? alone && p.style.eastAsian["w:overflowPunct"] != "0" : true)
+                    let centredKept = centredEnd && (paragraphEnd ? alone && p.style.eastAsian["w:overflowPunct"] != "0" && !altFinal : true)
                     let kept = centredKept || (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     // (A mark in text whose East Asian language is stated
                     // as none gives nothing: zh-0513f641's body style "ad"
