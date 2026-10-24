@@ -4517,3 +4517,13 @@ whole in Word's prints, so lab cdend's line differs in something else. The
 lab's own numbers also make Word's need at the margin about 15.2 (it squeezes
 15.15 at -2) where ours is 12.67, so the natural lines differ by ~2.5pt
 before any squeeze; that comes first. Reverted.
+(The ~2.5pt was the justified line's stretch, macOS-doc's -200 being a
+stretched line: the natural lines agree.) Then lab `cd2` (macOS-doc, the same
+paragraph without the space after "5.5.1"): Word hangs the "。" half up to 5.2
+over, and squeezed — the "。" whole inside — takes the line to 13.0 over and
+refuses 13.1: two commas' halves (10.5) and a quarter em (2.6) of the four
+automatic spaces; ours to 17.45. Tried that as the rule for a paragraph's last
+pause mark from mode 15 under compression (half hang, else no hang and that
+capacity): zh-20c1d74a 90.9 -> 6.1, zh-c2c92639 98.0 -> 86.7, zh-cd8987db 91.8
+-> 87.7. Most documents' final marks take more than that in Word's prints, so
+the capacity in cd2 is this line's, not the rule. Reverted; released.
