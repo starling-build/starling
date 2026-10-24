@@ -4232,10 +4232,17 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   zh-147bdae0 p45's cause: Word's own limit there (499.08) holds the "人"
   (ending 498.5), and Word wraps before it all the same — not found.
   Patch kept at ~/tmp/word/pct-right-rule.patch on Linux.
-- zh-34a6519a (90.9; CLAIMED Linux 017F2GnT 2026-10-24, from Linux b2):
-  表5-3-2's last row parts at p27's foot; its centred first cell (9 empty,
-  "Ⅲ级", 5 empty) is set whole in the part over the page, and p28 runs
-  long.
+- zh-34a6519a (90.9 -> 99.8; DONE Linux 017F2GnT 2026-10-24, e6d3af0a,
+  released; from Linux b2): not the row — its p28 part ends at 438.0 as
+  Word's. "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced paragraph whose
+  first line reaches 2.9pt past the foot by its extra; the keep check took
+  the extra as room it needed and sent both to p29.
+- zh-cec9d337 (90.5; CLAIMED Linux 017F2GnT 2026-10-24, from Linux b2):
+  p19/p25, where a table goes on, Word draws its thinThickSmallGap sz 24
+  top (insideH single 4 stated) at the page's head and its first line
+  3.9pt lower than ours. The Mac's 10-18 try (draw every table's top
+  there) cost this file's single sz 18 tops (no insideH): compound only,
+  or insideH stated only, to be swept.
 - zh-147bdae0 (92.8 -> 95.5; Linux 017F2GnT 2026-10-24, from the Mac's
   re-check, released). Not row parting: (1) its rows state cell spacing
   nil (`w:tblPrEx`) under the table's 0, and Word collapses their lines
