@@ -183,6 +183,17 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "A1"), .number(42))
     }
 
+    func testIndexOverItsOwnColumn() {
+        // INDEX reads only the cell it picks: from its own column, another
+        // cell is no loop (lo-tdf171828's G13); itself is.
+        let c = book(["A1": "4", "A2": "=A1*2", "A5": "=ISNUMBER(INDEX(A:A,2))", "A6": "=INDEX(A:A,6)+1", "B1": "=A5"])
+        XCTAssertEqual(v(c, "A5"), .bool(true))
+        XCTAssertEqual(v(c, "B1"), .bool(true))
+        XCTAssertEqual(v(c, "A6"), .number(0))
+        XCTAssertTrue(c.engine.circular.contains(CalcEngine.SheetCell(sheet: 0, cell: CellAddress("A6")!)))
+        XCTAssertFalse(c.engine.circular.contains(CalcEngine.SheetCell(sheet: 0, cell: CellAddress("A5")!)))
+    }
+
     func testRelativeAndSheetNames() {
         // A name's relative references are kept from A1 and read from the
         // cell that uses it, round the sheet's edge (lo-tdf171828).

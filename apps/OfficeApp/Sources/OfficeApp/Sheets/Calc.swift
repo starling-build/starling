@@ -302,17 +302,17 @@ final class CalcEngine {
             case .cell(let k):
                 guard let f = book.sheets[k.sheet].cells[k.cell]?.formula else { return [] }
                 if Formula.isVolatile(f) { graph.volatile.insert(k) }
-                var refs: [FormulaRef] = []
-                Formula.references(f, into: &refs)
+                var refs: [FormulaRef] = [], indexed: [FormulaRef] = []
+                Formula.references(f, into: &refs, indexed: &indexed)
                 // Defined names read cells too.
                 var names: [String] = []
                 Formula.names(f, into: &names)
                 for n in names {
                     if let t = book.nameText(n), let e = try? Formula.parse(t) {
-                        Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs)
+                        Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs, indexed: &indexed)
                     }
                 }
-                return refs.compactMap { ref in
+                func read(_ ref: FormulaRef) -> _Node? {
                     let si = ref.sheet.flatMap { book.sheet(named: $0) } ?? k.sheet
                     guard si >= 0, si < book.sheets.count else { return nil }
                     let r = ref.range
@@ -323,6 +323,11 @@ final class CalcEngine {
                     }
                     return .range(si, r)
                 }
+                // What INDEX picks from is read when it changes, but is not
+                // walked for loops: a loop through the one cell it picks is
+                // found as value() comes back to it.
+                for ref in indexed { _ = read(ref) }
+                return refs.compactMap(read)
             }
         }
         var graph = _Graph(order: [], formulaCells: Set(all))

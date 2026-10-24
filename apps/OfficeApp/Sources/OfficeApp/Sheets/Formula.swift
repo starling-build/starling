@@ -213,6 +213,24 @@ enum Formula {
         }
     }
 
+    /// The same, with the areas INDEX picks a cell from apart (`indexed`):
+    /// it reads only the cell it picks, so its area is no loop by itself —
+    /// lo-tdf171828's G13 asks ISNUMBER(INDEX(G:G, …)) of the column it is
+    /// in, and Excel prints it blank, not a loop's 0.
+    static func references(_ e: FormulaExpr, into out: inout [FormulaRef], indexed: inout [FormulaRef]) {
+        switch e {
+        case .ref(let r), .spill(let r): out.append(r)
+        case .negate(let x), .plus(let x), .percent(let x), .paren(let x): references(x, into: &out, indexed: &indexed)
+        case .binary(_, let a, let b): references(a, into: &out, indexed: &indexed); references(b, into: &out, indexed: &indexed)
+        case .call(let n, let args):
+            let index = unprefixed(n).uppercased() == "INDEX"
+            for (i, a) in args.enumerated() {
+                if index, i == 0, case .ref(let r) = a { indexed.append(r) } else { references(a, into: &out, indexed: &indexed) }
+            }
+        default: break
+        }
+    }
+
     /// The formula with every reference passed through `f` — for moving,
     /// copying and inserting. `f` returns nil for a reference that no
     /// longer exists (it becomes #REF!).

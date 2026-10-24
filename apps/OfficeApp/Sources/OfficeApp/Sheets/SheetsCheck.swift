@@ -56,6 +56,15 @@ enum SheetsCheck {
             }
             print(String(format: "%5d ok %4d kept %3d volatile %4d DIFF  %@", counts.ok, counts.kept, counts.volatile, counts.diff, name))
             for d in diffs { print(d) }
+            // XLSX_CHECK_EVAL="Sheet!A1 =formula|…": each formula as that
+            // cell would compute it, after everything else.
+            for item in (ProcessInfo.processInfo.environment["XLSX_CHECK_EVAL"] ?? "").split(separator: "|") {
+                let parts = item.split(separator: " ", maxSplits: 1)
+                guard parts.count == 2, let bang = parts[0].lastIndex(of: "!"),
+                      let si = c.book.sheet(named: String(parts[0][..<bang])),
+                      let at = CellAddress(String(parts[0][parts[0].index(after: bang)...])) else { print("  eval? \(item)"); continue }
+                print("  eval \(parts[0]) \(parts[1]) -> \(show(c.engine.evaluate(String(parts[1]), sheet: si, at: at)))")
+            }
             total.ok += counts.ok; total.kept += counts.kept; total.volatile += counts.volatile; total.diff += counts.diff
         }
         if paths.count > 1 {

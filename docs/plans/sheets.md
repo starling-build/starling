@@ -286,6 +286,14 @@ the same base; the commits give the numbers):
   row above, and `XFD1`, the column to the left. `Sheet!Name` is a name
   (its `Hitab!Divisor`); it failed to parse, and every name using it was
   #NAME? (5.16 -> 4.89; its #NUM! totals are still open).
+- *INDEX is no loop by its area.* It reads the one cell it picks, so
+  lo-tdf171828's G13, ISNUMBER(INDEX(G:G, MATCH(…))) in column G, is
+  blank in Excel's print, and its "Letzte Rate" the last payment's
+  12/31/2044; the static walk for loops took the whole column as read
+  and made G13 a loop's 0 (and the date 1/0/1900). The area still
+  marks it for recalculation; a pick of its own cell is a loop when
+  value() comes back to it. `--xlsx-check` with XLSX_CHECK_EVAL="Sheet!A1
+  =formula|…" evaluates formulas as that cell would.
 - *Rows past 18 pt.* Excel's print shows Times New Roman 20 fitted at 67
   screen pixels and its bold at 66 (Tables' "Exp2 (2)" at 49%, rows a
   whole printer dot: 99 and 98), where in proportion to 18 they were 68
