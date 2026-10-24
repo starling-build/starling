@@ -4270,6 +4270,11 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   under a float stepping by whole fixed (exact/grid) lines from its
   start — no effect here. A lab with a marker in the caption paragraph
   and the anchor's line made visible would tell where Word sets each.
+  [Mac 01Xgpbk5, 2026-10-23, after macOS-doc's lab cap: lab cap2 (~/starling-word-check/lab/cap2,
+  README) — with no grid the caption's line steps under the chart by its
+  own height (27.9) from the page's top margin (72 + n x 27.93); under the
+  18pt grid its place (B top 330.9) holds over 15pt of chart growth and
+  fits no origin tried. RELEASED with that; next lab in the README.]
 
 ### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — CLAIMED (Linux office1, 2026-10-23)
 Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
