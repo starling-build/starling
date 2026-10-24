@@ -8054,3 +8054,23 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   zh-ad1e59ac 93.6 -> 99.1, zh-4a90bb2fd 96.5 -> 98.8, zh-9ba2ead7
   90.9 -> 92.6, zh-cec9d337 90.3 -> 90.5, nothing lower.
 
+- **Under `w:useAltKinsokuLineBreakRules`, before 2013's layout, a
+  centred mark at a line's end does not hang (2026-10-24; Windows
+  01QbbApP, lab `pc` on Word for Windows, routed by the Mac).**
+  zh-12c4f07a p11 sets "…其他可能影響履行本契" and sends "約、" to the next
+  line. That paragraph's line is 標楷體 13pt in 311.85pt, so "約、" is
+  0.15pt over. The document has no compatibility mode, compresses
+  punctuation, is zh-TW, and sets that switch. Ours hung the "、" by
+  half an em (`hangsHalf`) and took it. Lab `pc` sweeps w:right on the
+  line with its "、" at the end (E), inside the line (M) or absent (N).
+  In the file's own settings Word takes E only to 0.15 over (no hang,
+  no squeeze), M to 6.15 (the inner mark's half) and N not at all. The
+  same holds justified (pcJ). Without the switch (pcA), E hangs whole,
+  to 12.5. Under mode 15 (pc15) all three already matched ours. A
+  centred mark has no blank half to hang by, so where marks hang only
+  half (Word's "ink" half), it now hangs nothing anywhere in the
+  paragraph, as it already did at the paragraph's end. Of the five
+  corpus documents with these settings (pair pc-base/pc-new, same
+  base): zh-12c4f07a 83.7 -> 84.3, zh-64044a1d 99.3 -> 99.4, the rest
+  unmoved.
+

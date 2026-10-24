@@ -10502,7 +10502,15 @@ public final class RichLayout {
                 // 15.91, as zh-eccb2003's "…共識？" does at 14pt to 13.95. With
                 // text after it the "？" hangs as any: zh-ae3d78ee's "…這回
                 // 事嘛？" and zh-424775e4's "…不说为好？", compressed both.)
-                let hang = hangs && !holdsFinal && !(centredEnd && paragraphEnd) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                // (Nor, where it may hang only half of itself — the half
+                // that is ink, `w:useAltKinsokuLineBreakRules` — a centred
+                // mark anywhere: it has no blank half to hang by. Lab `pc`
+                // (Word for Windows, zh-12c4f07a's package, no mode,
+                // zh-TW, 標楷體 13pt): "…履行本契約、" sends "約、" down from
+                // 0.15pt over, left or justified, while "、" inside the
+                // line gives its half; without that switch the "、" hangs
+                // whole, to 12.5 over. zh-12c4f07a p11 so; ours hung it.)
+                let hang = hangs && !holdsFinal && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf || closedUpTo ? 0.5 : 1), boxes(tail, tail + 1)) : 0
