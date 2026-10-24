@@ -11835,8 +11835,10 @@ public final class RichLayout {
         // zh-21421b7d's "法人/其他组织", two characters a line in a narrow
         // cell, is "法人", "/其", "他组", "织" in Word's print — the
         // engine kept "人/" together and left "法" alone on the first.)
+        // (After a full-width colon too: zh-40fe33a3's cell "…103年：-8.4%"
+        // ends a line "…年：" in Word's print and opens the next "-8.4%".)
         if b == "-" || b == "/" {
-            return wide(a) && !_openingMarks.contains(a) && !_closingMarks.contains(a)
+            return wide(a) && !_openingMarks.contains(a) && (!_closingMarks.contains(a) || b == "-" && a == "：")
         }
         // (And between two geometric shapes, which Word parts as it does
         // ideographs: zh-7654804a's "…民間機構○" ends a line in Word's
