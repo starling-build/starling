@@ -4237,7 +4237,11 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   Word's. "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced paragraph whose
   first line reaches 2.9pt past the foot by its extra; the keep check took
   the extra as room it needed and sent both to p29.
-- zh-cec9d337 (90.5; CLAIMED Linux 017F2GnT 2026-10-24, from Linux b2):
+- zh-cec9d337 (90.5 -> 99.8; DONE Linux 017F2GnT 2026-10-24, released):
+  by the cell — a row opening a page the table goes on over takes the
+  table's top line where a cell of it states no top of its own (p19,
+  p25, p26); rows whose cells all state theirs keep their line (p20-24).
+  Was (CLAIMED, from Linux b2):
   p19/p25, where a table goes on, Word draws its thinThickSmallGap sz 24
   top (insideH single 4 stated) at the page's head and its first line
   3.9pt lower than ours. The Mac's 10-18 try (draw every table's top
