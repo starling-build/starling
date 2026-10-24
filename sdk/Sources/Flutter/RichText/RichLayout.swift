@@ -4284,6 +4284,13 @@ public final class RichLayout {
                 // 4.35pt under the line before it in Word's print).
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
                    let down = document.tableStyles[c.table]?.floatOffsetY {
+                    // (Where the offset leaves it no room on this page, it
+                    // stands that offset down the next: zh-ad1e59ac's form,
+                    // tblpY 205 twips under an empty line that ends page 9,
+                    // has its top rule 10.3pt under page 10's margin in
+                    // Word's print; ours parted its first row at page 9's
+                    // foot and set the rest at page 10's margin.)
+                    if y > 0.01, y + _px(down) > contentH - 0.01 { newPage() }
                     textFloatTop = (c.table, page, y, _px(down), false)
                     y += _px(down)
                 }

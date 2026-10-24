@@ -8023,3 +8023,19 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   zh-291fcea7 40.2 -> 61.5 and 12 pages as Word's; zh-ad224275 98.1 ->
   100. They are the only two with such tables (pair tf-base/tf-new3).
 
+- **A text-anchored floating table whose offset finds no room goes to
+  the next page and keeps its offset there (2026-10-24; Windows
+  01QbbApP, from the Mac's re-check).** zh-ad1e59ac's form is
+  `w:tblpPr` vertAnchor="text", tblpY 205 twips, and it follows an empty
+  "Normal (Web)" line that ends page 9 at 695.95 of 697.9. The 10.25pt
+  offset puts the first row's top past the foot. Ours let `splitRow`
+  part the row there: nothing stayed on page 9, and the rest opened
+  page 10 at the margin, so every row stood 10pt high. Word's print has
+  the table's top rule at 82.32-83.04, 10.25pt under page 10's margin.
+  Now, where the offset would leave the row's top at or past the foot,
+  the row goes to a new page first and takes the offset there. Ours is
+  82.62 to Word's 82.68 centre. Over the 63 corpus documents with a
+  text-anchored tblpY > 0 (pair ad-base/ad-new, same base):
+  zh-ad1e59ac 93.6 -> 99.1, zh-4a90bb2fd 96.5 -> 98.8, zh-9ba2ead7
+  90.9 -> 92.6, zh-cec9d337 90.3 -> 90.5, nothing lower.
+
