@@ -7455,6 +7455,10 @@ public final class RichLayout {
             ?? (!p.text.isEmpty && !p.inlineImages.isEmpty && p.text.unicodeScalars.allSatisfy { $0 == "\u{FFFC}" }
                 && p.inlineImages.values.allSatisfy(clear))
         if theme.wordRules, (p.text.isEmpty && p.image == nil) || onlyFloats, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
+        // (So does a floating table nested in a cell: Word gives it no
+        // paragraph of its own, only its place — see the reader's
+        // `w:tblpPr`.)
+        if theme.wordRules, p.cell != nil, let image = p.image, image.name == "table", image.float != nil { _heights[i] = 0; _spaceBefore[i] = 0 }
         // (So does one wholly hidden, its mark too: see `_vanishes`.)
         if _vanishes(p, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
         // A floating frame takes no room either: the text that follows
@@ -13185,6 +13189,14 @@ public final class RichLayout {
             let margins = floatsFrames ? frameMargins : (setup.marginLeft + setup.gutter, setup.marginRight)
             bandLeft -= _px(margins.0)
             bandWidth += _px(margins.0 + margins.1)
+        }
+        // (From a cell's own edges, not its text's: a floating table nested
+        // in a cell — see the reader's `w:tblpPr`.)
+        // (Not from its paragraph's line, which floats before it may have
+        // moved: the cell's place itself.)
+        if float.horizontalFrom == "cell", let d = _cells[i] {
+            bandLeft = d.colLeft
+            bandWidth = d.colWidth
         }
         var x: Double
         // ("Outside" is the page's outer edge — the right on an odd page,

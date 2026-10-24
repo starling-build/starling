@@ -1031,6 +1031,30 @@ enum DocxFormat {
                 let gridWidth = (node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.reduce(0, +) ?? 0) / 20
                 var image = ImageAttachment(data: Data(), width: max(1, gridWidth), height: 1, name: "table")
                 image.textBox = box
+                // (One placed as it floats, `w:tblpPr`, stands where it says,
+                // from the cell, and the text goes round it — lab `tf` on
+                // Word for Windows: zh-291fcea7 p5's flowchart boxes, placed
+                // against the "page" at 29.25 and 320.85pt and centred on the
+                // "margin", stand 29.5 and 321.2pt from the cell's left edge
+                // and centred on the cell, side by side; ours stacked them
+                // down the cell.)
+                if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
+                    var f = ImageFloat()
+                    f.horizontalFrom = "cell"
+                    f.verticalFrom = "paragraph"
+                    if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
+                    f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
+                    f.wraps = true
+                    image.float = f
+                    // (Placed so, it stands at its box's corner inside it: the
+                    // box's copy of its style floats it no further.)
+                    for (key, var st) in box.tableStyles {
+                        st.floatOffsetY = nil; st.floatRaiseY = nil; st.floatX = nil; st.floatXAnchor = nil
+                        st.pageAnchored = false; st.pageOffsetY = nil; st.floatsOverText = false; st.alignment = .left
+                        box.tableStyles[key] = st
+                    }
+                    image.textBox = box
+                }
                 var para = RichParagraph(image: image, style: cellBase)
                 if let frag = _keptFragment(node, notes) {
                     keptTableCount += 1

@@ -7962,3 +7962,21 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   at the table's top-left; ours, now drawing it, puts it under the
   table, where our flow sets that paragraph.
 
+- **A floating table nested in a cell floats there (2026-10-23, T133;
+  Windows 01QbbApP, lab `tf` on Word for Windows).** zh-291fcea7 p5's
+  flowchart is one cell holding wps shapes and four small tables with
+  `w:tblpPr`: "page" at 29.25 and 320.85pt, "margin" centred, text-
+  anchored 25.75, -57.2, -125.1 and 67.1pt from their paragraphs. Word
+  sets them side by side, measured from the cell, not the page: their
+  left rules at 29.5 and 321.2pt from the cell's left edge (60.98), the
+  centred two centred on the cell. Ours read each as a block in the flow
+  and stacked them down the page. A small nested table with `w:tblpPr`
+  is now read as a floating box (`ImageFloat` from the cell, its
+  `horizontalFrom` "cell" and the cell's own edges, its y from the
+  paragraph, wrapped). Its paragraph takes no room, as Word gives the
+  table none, and the box's copy of its style floats it no further
+  inside the box. The four boxes' text stands within 0.3pt of Word's
+  print (96.1/243.1/387.8/244.7 to ours 95.9/243.2/387.5/245.0).
+  zh-291fcea7 40.2 -> 61.5 and 12 pages as Word's; zh-ad224275 98.1 ->
+  100. They are the only two with such tables (pair tf-base/tf-new3).
+
