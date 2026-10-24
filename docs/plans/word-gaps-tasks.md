@@ -586,7 +586,7 @@ Each owner claims its item below as usual; this only says who was asked.
 
 ### Mac 01Xgpbk5 (2026-10-23): zh-11709c74 92.9 [Mac 01Xgpbk5 2026-10-23, looked, released: 5 of 70 lines, the reader grouping a scoring table's cells ("1评分总得", "2评分报价"), lines within 2pt of Word's]; zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
 
-### Drawing leftovers [CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23]
+### Drawing leftovers [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: all three, plus arrow ends by flips (zh-ae2dd08d's were reversed) and zero-width lines; pair n15/n16 moved no line score and every changed document gains segments in Word's print. Released]
 (1) zh-2e7ef069 p9: a DrawingML group connector's arrowhead; (2) lone VML boxes' edges (zh-7773163d p35); (3) pictures inside a VML group (zh-7773163d's footer logo).
 
 ### VML group shapes drawn [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: zh-6e6b9821, zh-e9f256c1, zh-7773163d flowcharts and WordWithAttachments' box drawn as in Word's prints; pair n7/n8 moved no line score, drawings changed only in those (and one clusterfuzz copy of the box). Left: dashes, pictures inside groups, lone VML boxes' edges — see office.md. Released]

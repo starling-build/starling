@@ -7109,10 +7109,21 @@ fitter dropped the paragraph's tail).
   such as "1 1" — and a DrawingML group's `a:prstDash`/`a:custDash`), cut
   by Slides' `SlidePainter.dashed`: zh-6e6b9821's dotted leaders and
   zh-2e7ef069's dashed stage frames as in Word's prints (pair n9/n10: no
-  line score moved, drawings changed only in zh-2e7ef069). Left: a
-  picture inside a group (`v:imagedata` with an `r:id`) is not drawn,
-  and lone VML boxes outside groups still draw no edges
-  (zh-7773163d's p35 middle boxes).
+  line score moved, drawings changed only in zh-2e7ef069). Then the
+  leftovers: a picture inside a group (`v:imagedata` naming one, decoded
+  once and drawn over its box — zh-7773163d's footer logo); a lone VML
+  shape (`v:rect`, `v:roundrect`, `v:oval`, `v:shape`) as a group of
+  itself, its edges and fill drawn (zh-7773163d p35's steps,
+  zh-60c80728's whole incident flowchart); and a lone DrawingML line with
+  an arrow at an end drawn by the group painter, not the plain outline,
+  which has none (zh-2e7ef069 p9). Two traps on the way: a line's arrow
+  ends follow its flips — a "flipH" line runs from its top right, so its
+  tail is at the foot; ours put every rising line's tail at the top,
+  which also reversed zh-ae2dd08d's existing arrows — and an upright or
+  level line is `cx="0"` or `cy="0"`, which the group reader refused
+  (zh-e2dc9dce's connectors vanished); a system colour (`a:sysClr`) is
+  its `lastClr`. Pair n15/n16: no line score moved; in every changed
+  document the segments added match Word's print (PyMuPDF, ±2.5pt).
 
 ### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
 
