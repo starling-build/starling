@@ -293,13 +293,16 @@ the same base; the commits give the numbers):
   carrying 18's row up by the font's own pixel line fits both, but
   predicts 16 from 14 and 18 from 16 no better than proportion (22 of
   76 exact either way).
-- *Where the format tests' cells start* (open). Their text stands 0.24
-  pt left of Excel's, as far as their bordered columns' rules: Excel
-  draws a cell's border 0.27 pt left of the gridline beside it (the
-  B column's border at 204.92, its gridline at 205.19, its text 1.98
-  past the gridline, as our margin has it). Whole-dot advances took
-  away the extra width that had carried their text back over Excel's;
-  the eight format-test workbooks lost 0.07 to 0.93 for it.
+- *Printed headings' strip* (open). The format tests' columns stand
+  0.20 pt left of Excel's, their text with them: whole-dot advances took
+  away the extra width that had carried it back over Excel's, and the
+  eight format-test workbooks lost 0.07 to 0.93 for it. Excel's frame
+  starts at the margin (54.0, 14.16; 0.96 where the margin is 0), ours
+  0.48 in; and its strip, to column A's gridline, is three digits and
+  4.88 pt in Verdana 10, 4.38 in Calibri 11 (lo-tdf136721), 3.9 in
+  Arial 8 (lo-tdf131575) — ours three digits and 0.42 of the size
+  (4.2, 4.62, 3.36). No one rule fits the three yet: a lab of the
+  strip in a few faces and sizes would.
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs
