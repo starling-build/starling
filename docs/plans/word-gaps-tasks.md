@@ -608,9 +608,9 @@ After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout
   - Routed:
     - lenovo-3, line fit: zh-20c1d74a p44 (ours hangs "）" past the margin where Word sends "等）" down); zh-cd8987db p7 (Word wraps "中。", and ours shows a gap after "°"); zh-6a4fc013 (Thai justification stretches the spaces before a tab, 27 pages against 26).
     - lenovo-2: zh-147bdae0 p17/23/46, a splittable row continuing a vMerge moves whole.
-    - windows: zh-ad1e59ac p10, a text-anchored floating table's tblpY at a page top (taken).
+    - windows: zh-ad1e59ac p10, a text-anchored floating table's tblpY at a page top. DONE (Windows 01QbbApP, 8d1082c4): its offset left no room under page 9's last line, so ours parted the first row at the foot and lost the offset. It now goes over first and keeps the offset: 93.6 -> 99.1, and zh-4a90bb2f +2.3, zh-9ba2ead7 +1.7, zh-cec9d337 +0.2 over the 63 with such tables (nothing lower). Released.
     - macos-ios: zh-b5359de4, one column count per document (taken).
-  - Open, paint only: zh-ad1e59ac p10, a row's white run shading painted over the table's top rule (see windows' note).
+  - Open, paint only: zh-ad1e59ac p10, a row's white run shading painted over the table's top rule (see windows' note): Word paints that row's white shading 27.6pt tall inside the row (84.96-112.56) and under the rules; ours paints the whole 31.2pt grid line from 80.03, over the top rule (Windows 01QbbApP).
 
 ### Drawing leftovers [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: all three, plus arrow ends by flips (zh-ae2dd08d's were reversed) and zero-width lines; pair n15/n16 moved no line score and every changed document gains segments in Word's print. Released]
 (1) zh-2e7ef069 p9: a DrawingML group connector's arrowhead; (2) lone VML boxes' edges (zh-7773163d p35); (3) pictures inside a VML group (zh-7773163d's footer logo).
