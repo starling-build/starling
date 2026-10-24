@@ -6517,6 +6517,15 @@ public final class RichLayout {
                     stop = s
                     atMargin.insert(t)
                 }
+                // (No stop to go to — no stops of its own and no default
+                // distance, `w:defaultTabStop` 0 — and the tab takes no
+                // room: zh-77079ee8's 28pt cell "<tab>宣導說明會" sets "宣"
+                // on the tab's line in Word's print, five lines centred in
+                // the row; ours gave the tab its own and stood 10pt low.
+                // Only a paragraph's or line's leading tab: zh-c15af02e's
+                // mid-line "多，<tab>顯有未合" keeps its width in Word.)
+                if stop == nil, step <= 0.01, theme.wordRules,
+                   t == 0 || units[t - 1] == 0x0A || units[t - 1] == 0x2028 { tabs[t] = -own; continue }
                 guard let stop else { continue }
                 // What follows, up to the next tab or the line's end.
                 var end = t + 1
@@ -11545,6 +11554,7 @@ public final class RichLayout {
     /// sake: before an opening one that follows East Asian text or a
     /// closing mark, after a closing one that East Asian text or an
     /// opening mark follows.
+    // TMPDBG: A/B gate for the sweep pair; removed once measured.
     private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false, timesEastAsian: Bool = true) -> Bool {
         func wide(_ c: Character) -> Bool { (c.unicodeScalars.first?.value ?? 0) >= 0x2E80 }
         // (And before a percent sign after a full-width character, where
