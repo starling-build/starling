@@ -570,7 +570,7 @@ Each owner claims its item below as usual; this only says who was asked.
 - Mac 0fcba326: zh-6d402586 (1), the empty 34pt-exact section ender taking a page; then zh-1cfb652b (87.5).
 - OPEN, no taker yet (windows-1 is on Sheets by its user's word): column-width autofit — zh-6aa8bd7c p6 (noWrap cells) and zh-ae2dd08d p24 (widths redistributed with nothing over); best with Word for Windows labs. [Windows 01QbbApP 2026-10-23: zh-ae2dd08d p24 DONE (lab af): "01】" is one piece in Word's narrowest measure, under its 36pt hanging indent; 51.4 -> 54.8. zh-6aa8bd7c p6 not taken.]
 
-### Mac 01Xgpbk5 (2026-10-23): zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
+### Mac 01Xgpbk5 (2026-10-23): zh-11709c74 92.9 [CLAIMED Mac 01Xgpbk5 2026-10-23]; zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
 
 ### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23]
 Its landscape pages number themselves in an `eaVert` box at the page's left ("- 33 -" reads down in Word's print); ours set it across. Also moves zh-2e7ef069, zh-6d402586 (its "通知書一式兩聯…" side box, not the 附件 boxes Windows holds), zh-6cd1befe.
