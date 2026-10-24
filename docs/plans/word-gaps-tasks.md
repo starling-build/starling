@@ -4292,3 +4292,6 @@ digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
   down) scored 62.5. A lab varying a stretch's length after a space
   would find the rule; Word for Windows may differ (its Uniscribe
   dictionary) — the flag is the Mac's only.
+- zh-045c5a75 nested article table's column widths (Mac 01Xgpbk5,
+  CLAIMED 2026-10-23, routed by bd; lenovo released): Word's autofit of
+  the 85% inner table — lab nt (bd) first.
