@@ -3237,6 +3237,49 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(h.ideograph, h.ideographicSpace + 1, "an ideograph's is taller")
     }
 
+    func testALineOfSpacesAloneIsSetInItsMarksLatinFace() throws {
+        // zh-1eeb9f9a p11: cells holding "　" alone, 9pt with 仿宋_GB2312 as
+        // their Latin face, under a 12pt Times New Roman mark, are one
+        // 15.6pt pitch in Word's print — Times' 12pt line. Ours set the
+        // space at the mark's size in the run's 仿宋, two pitches, and the
+        // row they stand in went over whole where Word parts it.
+        func heights(pitch: Double) -> (empty: Double, songLine: Double, ideographicSpace: Double) {
+            var mark = CharStyle()
+            mark.fontSize = 12
+            mark.fontFamily = "Times New Roman"
+            mark.eastAsiaFontFamily = "仿宋_GB2312"
+            var run = CharStyle()
+            run.fontSize = 9
+            run.fontFamily = "仿宋_GB2312"
+            run.eastAsiaFontFamily = "仿宋_GB2312"
+            run.fontHint = "eastAsia"
+            func para(_ text: String, _ style: CharStyle) -> RichParagraph {
+                var p = RichParagraph(text: text)
+                if !text.isEmpty { p.runs = [Run(length: text.utf16.count, style: style)] }
+                p.style.mark = mark
+                return p
+            }
+            var song = run
+            song.fontSize = 12
+            var doc = RichDocument(paragraphs: [para("", mark), para("a", song), para("\u{3000}", run)])
+            doc.lineGridPitch = pitch
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: 3)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).height, l.geometry(1).height, l.geometry(2).height)
+        }
+        // (A pitch over the mark's 12pt Times line, 13.8, as the document's
+        // 15.6 is, where the run's face's 12pt line takes more of it.)
+        guard let pitch = stride(from: 14.0, through: 24.0, by: 0.5).first(where: { heights(pitch: $0).songLine > heights(pitch: $0).empty + 1 }) else {
+            throw XCTSkip("no pitch here parts the two faces' lines")
+        }
+        let h = heights(pitch: pitch)
+        XCTAssertEqual(h.ideographicSpace, h.empty, accuracy: 0.5, "the mark's line, in the mark's face, at a pitch of \(pitch)")
+    }
+
     func testRubyIsReadDrawnRoomForAndSaved() throws {
         // 61470: "東京" with "とうきょう" over it (w:ruby). The reader
         // skipped the whole of it, base and all, and the page was blank.

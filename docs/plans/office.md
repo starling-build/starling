@@ -6171,6 +6171,16 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A line of spaces alone is set in its mark's Latin face
+  (2026-10-23).** Such a line takes the mark's size (prints of
+  2026-10-13) and, for "　", the run's Latin face (8cc05b33). Where that
+  face is the run's own — zh-1eeb9f9a's "　" cells, 9pt in a run whose
+  `w:ascii` is 仿宋_GB2312, under a 12pt Times New Roman mark — the line
+  was 仿宋's (YaHei to Word on a Mac) at 12pt, 15.84, two of the 15.6pt
+  pitches; Word's print has them one pitch, Times' 12pt line. On p11 the
+  row they stand in then went over whole, where Word parts it with two
+  lines on the page. The line is now the mark's own face's. Sweep h141:
+  zh-1eeb9f9a 96.2 -> 99.4, zh-4a90bb2f 96.5 -> 98.8; nothing else moved.
 - **A centred cell set whole in the part keeps the parting row for a
   merge above (2026-10-23).** `partingKept` counts the parting row only
   where every one of its cells keeps something on the page, and read a

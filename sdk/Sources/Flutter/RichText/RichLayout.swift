@@ -7944,6 +7944,14 @@ public final class RichLayout {
                     } else if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
                         var sized = run
                         sized.fontSize = lineSize.size
+                        // (The mark's line in the mark's Latin face, where
+                        // the line is of spaces alone: zh-1eeb9f9a's "　"
+                        // cells, 9pt in 仿宋_GB2312 under a 12pt Times New
+                        // Roman mark, are one 15.6pt pitch in Word's print —
+                        // Times' 12pt line; in the run's 仿宋 (YaHei to
+                        // Word on a Mac) ours were two, and p11's row they
+                        // stand in went over whole where Word parts it.)
+                        if theme.wordRules, lineSize.blank, let face = p.style.mark?.fontFamily { sized.fontFamily = face }
                         let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                 eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
                                                 characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
