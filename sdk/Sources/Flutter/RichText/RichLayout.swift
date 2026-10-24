@@ -10284,7 +10284,16 @@ public final class RichLayout {
                 // 項）。" is one line in its print. u5's blanks as "某" left
                 // Word's limit where it was and ours lower: not found.)
                 let closedUpTo = theme.wordRules && !legacy && lineOther && tail > a && closesUp(tail - 1)
-                let hang = hangs && !holdsFinal && !(centredEnd && paragraphEnd)
+                // (Nor a full-width "？" that ends the paragraph where the
+                // marks are compressed: labs `qh`/`qe` (Word for Windows) keep
+                // zh-ab1ea005's heading "…税收优惠？" (mode 14, zh-CN, 16pt) to
+                // 7.91pt over, the line's half-em squeeze, and refuse it from
+                // 8.01 — under zh-TW, jc both, hint eastAsia, 標楷體 or kern 2
+                // the same — while with doNotCompress it hangs whole, to
+                // 15.91, as zh-eccb2003's "…共識？" does at 14pt to 13.95. With
+                // text after it the "？" hangs as any: zh-ae3d78ee's "…這回
+                // 事嘛？" and zh-424775e4's "…不说为好？", compressed both.)
+                let hang = hangs && !holdsFinal && !(centredEnd && paragraphEnd) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf || closedUpTo ? 0.5 : 1), boxes(tail, tail + 1)) : 0
