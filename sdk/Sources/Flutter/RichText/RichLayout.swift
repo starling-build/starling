@@ -10794,6 +10794,16 @@ public final class RichLayout {
                             || ((a ..< last).contains { units[$0] >= 0x2E80 }
                                 && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
                             || x + min(lead, w) - width <= before / 2 + edge
+                            // (Under `w:kinsoku` off, where it does not hang, the
+                            // paragraph's last mark gives its blank half besides:
+                            // lab `lab7b` k0 (macOS-doc, Word for Mac,
+                            // zh-7b125a21's package: mode 14, SimSun 10.5pt)
+                            // keeps "…决定。" with the "。" set inside the margin
+                            // up to 10.48pt over — half the "定" and half the
+                            // "。" — and sends it down alone from there; ours
+                            // left it from 5.25.)
+                            || (kinsokuOff && hang == 0 && a == tail && endsParagraph && Self._closingUnits.contains(units[a])
+                                && x + min(lead, w) - width <= before / 2 + half(a) + edge && need <= room + hair)
                             // (In the body a Latin word is taken wherever the
                             // marks and automatic spaces can give what it
                             // needs, with no half of what stands before it
