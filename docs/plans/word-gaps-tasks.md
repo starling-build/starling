@@ -4127,7 +4127,10 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   footer (lab `oi` in the body wraps).
 
 ### Note from Linux 017F2GnT (2026-10-23): two fitter lines, unclaimed
-- zh-a7a889eb (96.3): CLAIMED Linux 017F2GnT 2026-10-23 — p5 "3.5" + U+00A0 + U+0020: Word sets the no-break space 6pt, ours 12.
+- zh-a7a889eb (96.3) [DONE Linux 017F2GnT 2026-10-23, 00ceaa67: a no-break space after a Latin letter or digit is the
+  space's half em — 96.3 -> 97.4, nothing else moved; released].
+- zh-625b6374 (96.1; Linux 017F2GnT 2026-10-23, looked, released): p7's header cells stand within 3pt of Word's;
+  the misses are the reader grouping the dense header.
 - zh-22ecbdc8 (96.1; Linux 017F2GnT 2026-10-23, looked, released): p5 "…办节费用在2—5 万元（含）、5—10" is one line in
   Word's print (YaHei for 仿宋_GB2312, 16pt, compressPunctuation): Word squeezes "，" and "（" 3.7pt each to hold
   "5—10". That is the Mac's squeeze, which the user chose not to model (see USER DECISION above).
