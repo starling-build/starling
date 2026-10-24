@@ -4251,3 +4251,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   9pt; keeping it always broke zh-b0207333, zh-34a6519a, zh-8f9b19f4,
   zh-fe536967, zh-c8eb6e92, zh-64044a1d, zh-5dc5ce34, zh-9e08ed28,
   zh-6d1afa56, zh-147bdae0 (sweep n212). Labs first.
+
+### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — CLAIMED (Linux office1, 2026-10-23)
+Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
+brackets of 華康雅風體W3(P) (alternate JhengHei UI Light) in that face, whose
+digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
+0.58 (bold 0.6), and "…開始前一個月" left "月" for the next line.
