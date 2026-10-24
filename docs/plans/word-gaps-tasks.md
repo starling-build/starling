@@ -78,6 +78,7 @@ before the tab that takes a first line's label to its hanging indent (zh-499adba
 sweep, 597 documents: nothing moves on Linux's fonts (zh-499adba6 / zh-9932bd83 hold 27.0; zh-6a4fc013 is 26/26
 pages here either way) — the Mac's fonts are the ones that show the page.
 Mac 0fcba326 at 6ee23008 (OFFICE_WORD_FONTS=mac, PDFKit): zh-6a4fc013 54.2%, 614/614 lines, 26/26 pages
+Windows 01QbbApP 2026-10-23 (from the Mac, for macos-ios): zh-6a4fc013 printed as-is on Word for Windows, ~/starling-doc-check/lab/th/win.pdf. It runs 28 pages to the Mac print's 26. The Thai is in Browallia New (and Leelawadee UI Bold); there is no TH Sarabun New on Windows either. No dictionary breaking: of the Thai lines found in the source, 179 end at a space or a paragraph end, and 17 inside a spaceless stretch, every one of them a stretch of 61-93 characters (longer than a line, about 45-50), broken at the last character that fits ("ต่างชา|ติ", "ของแ|รงงาน"). An overlong stretch after "ตอบ :" starts on the next line. Tool: lab/th/breaks.py PDF SRC.docx.
 (n383: 51.5, 27); zh-499adba6 and zh-9932bd83 unchanged at 26.8 (99/96 pages).
 
 ### T145. A number that fits may part after its hyphen under East Asian layout — DONE (2026-10-22)
