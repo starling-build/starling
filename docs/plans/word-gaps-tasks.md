@@ -4380,7 +4380,11 @@ Now under East Asian layout after any space in a cell of any width too (20
 characters or more). Same-base sweep of 756: zh-15f60bac 97.8 -> 98.7 (p11
 Word's line for line), nothing else moved. Left: p22's "(https://www.moea…" in
 the body.
-- zh-8628cfbe again (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): 57.4, Word 46 pages to our 45 — the p24 drift.
+- zh-8628cfbe again (Mac 01Xgpbk5, DONE 2026-10-24, routed by bd): 57.4 -> 87.7, 46 pages as
+  Word's — annex 3's table, all 28 rows tblHeader, starts on a page it fits under 2013's layout
+  (lab ah, ~/starling-word-check/lab/ah: marks off, it stays under its heading). Mode is the
+  inference from zh-e37f8d40 (mode 14, same kind of table, stays) — the two also differ in jc
+  (centre vs indent); a lab flipping zh-e37f8d40's mode would confirm. Released.
 
 ### T151. A paragraph's last mark does not hang from 2013's layout where marks are compressed — CLAIMED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
