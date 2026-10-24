@@ -205,6 +205,8 @@ enum WriterGroups {
         var flipV: Bool
         var headEnd: LineEnd?
         var tailEnd: LineEnd?
+        /// Its line's dash (`SlidePainter.dashPattern`'s names), nil solid.
+        var dash: String? = nil
     }
     private struct Entry {
         let width: Double
@@ -294,7 +296,8 @@ enum WriterGroups {
                                         fill: fill, line: line, lineWidth: lineWidth ?? 0.75, isLine: isLine, rising: flipH != flipV,
                                         geometry: geometry, rotation: (Double(xfrm["rot"] ?? "") ?? 0) / 60000,
                                         flipH: flipH, flipV: flipV,
-                                        headEnd: PptxReader.lineEnd(ln?.first("a:headEnd")), tailEnd: PptxReader.lineEnd(ln?.first("a:tailEnd"))))
+                                        headEnd: PptxReader.lineEnd(ln?.first("a:headEnd")), tailEnd: PptxReader.lineEnd(ln?.first("a:tailEnd")),
+                                        dash: PptxReader.dash(ln)))
                 default: continue
                 }
             }
@@ -382,6 +385,17 @@ enum WriterGroups {
             func size(_ v: String?) -> Double { v == "narrow" || v == "short" ? 2 : v == "wide" || v == "long" ? 5 : 3 }
             return LineEnd(kind: map[kind] ?? "triangle", width: size(w), length: size(len))
         }
+        // (VML's dash names as DrawingML's, a list of numbers as its own
+        // pattern: zh-6e6b9821's leaders "1 1", dotted in Word's print.)
+        func dash(_ v: String?) -> String? {
+            guard let v = v?.trimmingWhitespace(), !v.isEmpty, v != "solid" else { return nil }
+            let names = ["shortdash": "sysDash", "shortdot": "sysDot", "shortdashdot": "sysDashDot", "shortdashdotdot": "sysDashDotDot",
+                         "dot": "dot", "dash": "dash", "longdash": "lgDash", "dashdot": "dashDot", "longdashdot": "lgDashDot",
+                         "longdashdotdot": "lgDashDotDot"]
+            if let n = names[v.lowercased()] { return n }
+            let nums = v.split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Double($0) }
+            return nums.count >= 2 ? "cust:" + nums.map { String($0) }.joined(separator: ",") : nil
+        }
         let g = style(group)
         guard let gw = points(g["width"]), let gh = points(g["height"]), gw > 0, gh > 0 else { return false }
         var shapes: [Shape] = []
@@ -414,7 +428,7 @@ enum WriterGroups {
                     let end = arrow(stroke?["endarrow"], stroke?["endarrowwidth"], stroke?["endarrowlength"])
                     shapes.append(Shape(rect: r, fill: nil, line: line, lineWidth: weight, isLine: true, rising: rising, geometry: nil,
                                         rotation: 0, flipH: false, flipV: false,
-                                        headEnd: fromStart ? start : end, tailEnd: fromStart ? end : start))
+                                        headEnd: fromStart ? start : end, tailEnd: fromStart ? end : start, dash: dash(stroke?["dashstyle"])))
                     continue
                 }
                 guard let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
@@ -466,7 +480,7 @@ enum WriterGroups {
                     let fromStart = rising ? (startsLeft && !startsTop) : (startsLeft && startsTop)
                     shapes.append(Shape(rect: pt, fill: nil, line: line, lineWidth: weight, isLine: true, rising: rising,
                                         geometry: nil, rotation: rotation, flipH: flipH, flipV: flipV,
-                                        headEnd: fromStart ? start : end, tailEnd: fromStart ? end : start))
+                                        headEnd: fromStart ? start : end, tailEnd: fromStart ? end : start, dash: dash(stroke?["dashstyle"])))
                     continue
                 }
                 var geometry: FreeformGeometry? = nil
@@ -496,7 +510,7 @@ enum WriterGroups {
                 let open = (spt.map { _vmlConnectors.contains($0) } ?? false) || (path.map { !$0.contains("x") } ?? false)
                 shapes.append(Shape(rect: pt, fill: fill, line: line, lineWidth: weight, isLine: false, rising: false,
                                     geometry: geometry, rotation: rotation, flipH: flipH, flipV: flipV,
-                                    headEnd: open ? start : nil, tailEnd: open ? end : nil))
+                                    headEnd: open ? start : nil, tailEnd: open ? end : nil, dash: dash(stroke?["dashstyle"])))
             }
         }
         let size = pair(group["coordsize"], (1000, 1000))
@@ -613,7 +627,14 @@ enum WriterGroups {
                         let back = min(len / 2, e.length * base * 0.8)
                         return Offset(tip.dx - d.dx / len * back, tip.dy - d.dy / len * back)
                     }
-                    canvas.drawLine(pulled(a0, from: b0, s.headEnd), pulled(b0, from: a0, s.tailEnd), stroke)
+                    let p0 = pulled(a0, from: b0, s.headEnd), p1 = pulled(b0, from: a0, s.tailEnd)
+                    if s.dash != nil {
+                        let line = Path()
+                        line.moveTo(p0.dx, p0.dy); line.lineTo(p1.dx, p1.dy)
+                        canvas.drawPath(SlidePainter.dashed(line, s.dash, width: stroke.strokeWidth), stroke)
+                    } else {
+                        canvas.drawLine(p0, p1, stroke)
+                    }
                     if let e = s.headEnd { SlidePainter.lineEnd(e, tip: a0, from: b0, base: base, paint: stroke, canvas) }
                     if let e = s.tailEnd { SlidePainter.lineEnd(e, tip: b0, from: a0, base: base, paint: stroke, canvas) }
                 }
@@ -627,7 +648,7 @@ enum WriterGroups {
                 }
                 if s.line != nil {
                     for sub in g.subpaths where sub.stroke {
-                        canvas.drawPath(FreeformGeometry.path(sub, in: r), stroke)
+                        canvas.drawPath(SlidePainter.dashed(FreeformGeometry.path(sub, in: r), s.dash, width: stroke.strokeWidth), stroke)
                         if s.headEnd != nil || s.tailEnd != nil, let ends = SlidePainter.pathEnds(sub, in: r) {
                             if let e = s.headEnd { SlidePainter.lineEnd(e, tip: ends.start, from: ends.startFrom, base: base, paint: stroke, canvas) }
                             if let e = s.tailEnd { SlidePainter.lineEnd(e, tip: ends.end, from: ends.endFrom, base: base, paint: stroke, canvas) }
