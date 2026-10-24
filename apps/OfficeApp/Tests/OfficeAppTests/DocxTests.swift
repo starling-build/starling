@@ -760,6 +760,35 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.fitsOnce), [true, true])
     }
 
+    /// A lone VML shape sets its text in its type's text rectangle:
+    /// zh-60c80728 p35's "alternate process" boxes (o:spt 176, inset 0,
+    /// no shapetype in the file) set "由港区专" a line in 54.25pt at
+    /// 10.5pt in Word's print, where the whole width took "由港区专项". A
+    /// text box (202) keeps the whole box.
+    func testALoneVMLShapeSetsItsTextInItsTypesTextRectangle() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let text = "<w:txbxContent><w:p><w:r><w:t>由港区专项指挥机构</w:t></w:r></w:p></w:txbxContent>"
+        func shape(_ spt: Int) -> String {
+            "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" o:spt=\"\(spt)\" type=\"#_x0000_t\(spt)\" "
+                + "style=\"position:absolute;margin-top:0pt;height:102.55pt;width:54.25pt\" filled=\"f\">"
+                + "<v:textbox inset=\"0mm,0mm,0mm,0mm\">\(text)</v:textbox></v:shape></w:pict></w:r></w:p>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: shape(176) + shape(202))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
+        XCTAssertEqual(boxes.count, 2)
+        // 2700 x 0.2929 of 21600 a side: 1.99pt across, 3.77 down.
+        XCTAssertEqual(boxes[0].insetLeft, 54.25 * 2700 * 0.2929 / 21600, accuracy: 0.01)
+        XCTAssertEqual(boxes[0].insetRight, 54.25 * 2700 * 0.2929 / 21600, accuracy: 0.01)
+        XCTAssertEqual(boxes[0].insetTop, 102.55 * 2700 * 0.2929 / 21600, accuracy: 0.01)
+        XCTAssertEqual(boxes[1].insetLeft, 0, accuracy: 0.001)
+        XCTAssertEqual(boxes[1].insetTop, 0, accuracy: 0.001)
+    }
+
     /// An equation is kept and drawn: zh-20ff844e's display formulas were
     /// gone from the page and from a save. Read, it has a size and a
     /// baseline, its paragraph is centred, and it is written back as the

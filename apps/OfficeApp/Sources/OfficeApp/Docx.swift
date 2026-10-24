@@ -2403,6 +2403,39 @@ enum DocxFormat {
                              (x - origin.0 + w) * kx - at(2, 7.2), (y - origin.1 + h) * ky - at(3, 3.6))
     }
 
+    /// A lone VML shape's text rectangle, as fractions of its box: its
+    /// `v:shapetype`'s `textboxrect` (among `types`, by id) where that
+    /// is plain numbers, else VML's own for the type (`o:spt`) — nil for
+    /// a rectangle or a type not known here. The rounded ones inset by
+    /// 0.2929 of their corner (`adj`, 2700 of 21600 for the alternate
+    /// process, 5400 for the round rectangle).
+    static func _vmlTextRect(_ node: XNode, types: [XNode]) -> Rect? {
+        guard let shape = node.name == "v:shape" ? node : node.descendant("v:shape") else { return nil }
+        let typeId = shape["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
+        if let id = typeId, let type = types.first(where: { $0["id"] == id }),
+           let raw = type.first("v:path")?["textboxrect"]?.split(separator: ";").first {
+            let v = raw.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            let cs = (type["coordsize"] ?? "21600,21600").split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            guard v.count == 4, cs.count == 2, cs[0] > 0, cs[1] > 0, v[2] > v[0], v[3] > v[1] else { return nil }
+            return Rect.fromLTRB(v[0] / cs[0], v[1] / cs[1], v[2] / cs[0], v[3] / cs[1])
+        }
+        let spt = shape["o:spt"].flatMap { Int(Double($0) ?? -1) }
+            ?? typeId.flatMap { $0.hasPrefix("_x0000_t") ? Int($0.dropFirst(8)) : nil }
+        guard let spt else { return nil }
+        let adj = (shape["adj"] ?? "").split(separator: ",", omittingEmptySubsequences: false).first.flatMap { Double($0.trimmingWhitespace()) }
+        let box: (Double, Double, Double, Double)
+        switch spt {
+        case 2, 176:
+            let k = (adj ?? (spt == 2 ? 5400 : 2700)) * 0.2929
+            box = (k, k, 21600 - k, 21600 - k)
+        case 3, 120: box = (3163, 3163, 18437, 18437)
+        case 110: box = (5400, 5400, 16200, 16200)
+        case 116: box = (1018, 3163, 20582, 18437)
+        default: return nil
+        }
+        return Rect.fromLTRB(box.0 / 21600, box.1 / 21600, box.2 / 21600, box.3 / 21600)
+    }
+
     /// Every text box in a VML group, nested groups' too, in document
     /// order: its content, where its text stands in the outermost group
     /// in points from its top left (`_vmlTextPlace`'s reckoning, through
@@ -3741,6 +3774,20 @@ enum DocxFormat {
                         if parts.count > 1, let v = parts[1] { box.insetTop = v }
                         if parts.count > 2, let v = parts[2] { box.insetRight = v }
                         if parts.count > 3, let v = parts[3] { box.insetBottom = v }
+                    }
+                    // (A lone VML shape that is not a rectangle sets its text
+                    // in its type's text rectangle, as one in a group does —
+                    // the file's `v:shapetype`, else VML's own: zh-60c80728
+                    // p35's flowchart is 22 lone "alternate process" boxes
+                    // (o:spt 176, inset 0, no shapetype in the file), and
+                    // Word's print sets "由港区专" a line in the 54.25pt one at
+                    // 10.5pt, where the whole width took "由港区专项".)
+                    if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
+                       att.width > 0, att.height > 0, let r = Self._vmlTextRect(node, types: notes.shapeTypes) {
+                        box.insetLeft += r.left * att.width
+                        box.insetTop += r.top * att.height
+                        box.insetRight += (1 - r.right) * att.width
+                        box.insetBottom += (1 - r.bottom) * att.height
                     }
                     // (A box fitted to its text's height: zh-a78d52e7's
                     // second paragraph holds a 78.75pt one round an empty
