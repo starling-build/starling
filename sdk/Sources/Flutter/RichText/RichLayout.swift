@@ -9910,6 +9910,14 @@ public final class RichLayout {
         }
         guard ems.count == units.count else { return [:] }
         func wideQuote(_ k: Int) -> Bool { wideQuotes[k] && (units[k] == 0x201C || units[k] == 0x201D || units[k] == 0x2018 || units[k] == 0x2019) }
+        // (The spacing a full-width quote is set wider by: its run's, twice
+        // where the widths are balanced — the quote is set in the Latin
+        // face, so its box does not hold it as an ideograph's does.)
+        func quoteSpacing(_ k: Int) -> Double {
+            guard theme.wordRules, k < runOf.count else { return 0 }
+            let sp = (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0)
+            return max(0, sp) * theme.pixelsPerPoint * scale * (document.balancesSpaceWidth ? 2 : 1)
+        }
         // (A no-break space of the text's own is a character like any
         // other: it is not what a line may end with for nothing.)
         func isSpace(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
@@ -10301,6 +10309,10 @@ public final class RichLayout {
                     // compatibility mode, 16pt on a grid of -0.21) takes
                     // "级，" where "级" ends half "升"'s cell past the
                     // margin to the twip, 0.21 short of its em.)
+                    // (A full-width quote too: zh-e5eb092a's runs spaced +0.4 set
+                    // it 12.8 at 12pt, and its "“市" after "…统一修改为" is left
+                    // for the next line in Word's print — the quote 6.8 over,
+                    // past half "为"; at its em alone, 6.4, ours took it.)
                     // (An ideograph off the grid is its em and half the spacing
                     // that widens it — the half after it is not over the
                     // margin. zh-01bbcd4d's 16pt, spaced to 17, takes "理。" with
@@ -10309,7 +10321,7 @@ public final class RichLayout {
                     // "期" 7.55 past so, over half "長"'s 14.6.)
                     let plain = theme.wordRules && units[a] >= 0x3400 && !Self._closingUnits.contains(units[a]) && !Self._openingUnits.contains(units[a])
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : plain ? em + max(0, boxes(a, a + 1) - (gaps[a] ?? 0) - em) / 2 : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em + quoteSpacing(a) / 2 : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : plain ? em + max(0, boxes(a, a + 1) - (gaps[a] ?? 0) - em) / 2 : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
                     // (And where the character before it is over the margin
                     // itself, the paragraph's last mark gives nothing toward
                     // taking the two: the line's other marks must. zh-cfb32050

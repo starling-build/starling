@@ -2708,6 +2708,38 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(after.first, 0x200B, after.map { String($0, radix: 16) }.joined(separator: " "))
     }
 
+    func testASpacedFullWidthQuoteIsOverTheMarginByHalfItsSpacingToo() throws {
+        try requireFitterWidths()
+        // zh-e5eb092a's runs say `w:spacing` 8 (+0.4pt): Word's print leaves
+        // "“市" for the next line after "…统一修改为", the quote 6.8 past the
+        // margin with half its spacing, over half "为"'s 6.4; at its em
+        // alone, 6.4, ours took it.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-e5eb092a") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("统一修改为“市交通") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let at = try XCTUnwrap(shown.range(of: "统一修改为"))
+        let line = painter.getLineBoundary(TextPosition(offset: shown.utf16.distance(from: shown.utf16.startIndex, to: at.lowerBound.samePosition(in: shown.utf16)!)))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+        let clean = text.filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        XCTAssertFalse(clean.contains("修改为“"), text)
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its
