@@ -11157,8 +11157,12 @@ public final class RichLayout {
     /// "Table Text" style says `w:eastAsia` en-US, and Word's print ends
     /// a cell's line "…得1 分" and opens the next with ")", where ours
     /// squeezed the line's "；" to keep "分)" together.
+    /// (And Latin punctuation: zh-7b125a21's "Body Text" turns `w:kinsoku`
+    /// off, and Word's print ends a line "…抑制作用" and opens the next
+    /// with the Times "," after it; ours kept "用," together, squeezing
+    /// the line's "：" and "，", and every page from 90 on ran behind.)
     static func _latinCloser(_ before: Character, _ ch: Character) -> Bool {
-        ")]}".contains(ch) && (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
+        ")]},.;:!?".contains(ch) && (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
     }
 
     /// Whether `run`'s East Asian line-breaking rules hold: by its own
