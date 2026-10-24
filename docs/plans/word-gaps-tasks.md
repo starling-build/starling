@@ -568,6 +568,12 @@ From p5 its lines stand where Word's do (within 1-2pt, same breaks), but Word's 
 embedded 仿宋_GB2312 subset's glyphs to wrong characters ("满足"→"7F", "评价"→"4价", "不少于"→"S少于"),
 so the four-character edges miss though the lines match. Not layout; nothing to fix here.
 
+### USER DECISION 2026-10-23 (later): the punctuation squeeze limit follows Word for Windows
+windows' lab zq: Word for Windows squeezes a line-end up to exactly half an em (12-20pt, 1-3 marks;
+none with 0 marks), which our rule already does. Word for Mac's prints stop near 7.30pt at 16pt
+(labs zz), likely its substitute faces' metrics. The user chose to keep the Windows rule: do not
+model the Mac's limit. zh-884c6e3e and the like keep those Mac misses.
+
 ### Assignments from the Mac (0fcba326), 2026-10-23, at the user's request
 Each owner claims its item below as usual; this only says who was asked.
 - lenovo-3: zh-72da925e p5 — the fit takes "79", the final layout breaks before it.
