@@ -2369,7 +2369,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 border.color = (printing && printMono ? nil : b.colors[side]).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.ink
                 // (On paper 8, 16 and 24 printer dots, as Excel prints them.)
                 border.strokeWidth = (kind == "medium" || kind.hasPrefix("medium") ? 2 : kind == "thick" ? 3 : 1) * (printing ? 0.96 : 1)
-                if kind == "hair" { border.color = border.color.withAlpha(140) }
+                // A hair line is one printer dot on paper, solid (54206's
+                // grid of them, 0.12 pt in Excel's print, where ours drew
+                // 0.96 at half strength); a faint pixel on a screen.
+                if kind == "hair" {
+                    if printing { border.strokeWidth = 72.0 / 600 } else { border.color = border.color.withAlpha(140) }
+                }
                 if kind == "double" {
                     canvas.drawLine(a, z, border)
                     canvas.drawLine(a + inward * 2, z + inward * 2, border)

@@ -350,6 +350,10 @@ the same base; the commits give the numbers):
   IFERROR(IF(…, MATCH(B:B,B:B,0)),""), ROW(…)))), were 0: 153 cells now
   Excel's. CEILING and FLOOR of a positive number by a negative step
   are #NUM! (lo-ceiling-floor, every cell now Excel's).
+- *A hair border is one printer dot*, solid, as Excel prints it
+  (0.12 pt; its thin ones 0.96): ours drew 0.96 at half strength, a
+  grid of them heavy and black. The 12 workbooks with hair borders: 7
+  better, none worse (lo-tdf85617 3.55 -> 0.25, 54206 4.82 -> 1.62).
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the
