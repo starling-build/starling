@@ -658,7 +658,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 stated.textSize = 10 * 4.0 / 3
                 if stated.titleSize == nil { stated.titleSize = 18 * 4.0 / 3 }
             }
-            if !chart.series.isEmpty { ChartPainter.paint(stated, canvas, r, pxPerPt: scale * 0.75, theme: theme) }
+            // Nothing of it outside its area, as Excel draws none: 45540's
+            // pie labels set below the frame printed over the cells there.
+            if !chart.series.isEmpty {
+                canvas.save()
+                canvas.clipRect(r)
+                ChartPainter.paint(stated, canvas, r, pxPerPt: scale * 0.75, theme: theme)
+                canvas.restore()
+            }
         }
     }
 
@@ -2545,6 +2552,20 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                       right - clipLeft < tp.width + pad * 2 + inset {
                     clipLeft -= ca.size(col); col -= 1
                 }
+            } else if align == .center {
+                // Centred, half of what it lacks to each side, as far as
+                // that side's neighbours are empty (lo-tdf171828's I14 runs
+                // over H and J).
+                let side = (tp.width + pad * 2 - width) / 2
+                var col = a.col - 1
+                while col >= 0, left - clipLeft < side, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
+                    clipLeft -= ca.size(col); col -= 1
+                }
+                col = a.col + 1
+                while col < CellAddress.maxCols, col <= a.col + (printing ? 255 : 30), clipRight - right < side,
+                      ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
+                    clipRight += ca.size(col); col += 1
+                }
             }
         }
         // On paper the text stands in from its side half a point and a
@@ -2721,7 +2742,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// The columns a text too long for its cell runs over, as `_paintCell`
     /// lets it: empty neighbours to the right of left-aligned text, to the
-    /// left of right-aligned. Nil when it stays in its own cell.
+    /// left of right-aligned, to both sides of centred. Nil when it stays
+    /// in its own cell.
     func textReach(_ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook) -> ClosedRange<Int>? {
         guard case .text(let raw) = cell.value else { return nil }
         let st = book.style(cell.style)
@@ -2732,7 +2754,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the wrong bound — and let only text five times too long run over:
         // NumberFormatTests' "Improper Fractions" in column D printed no
         // column E, where Excel prints five pages of it.)
-        guard width > 0, !st.wrap, st.hAlign != .center, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
+        guard width > 0, !st.wrap, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
         let text = Self.shown(NumberFormat.display(cell.value, st.numberFormat, width: 255).text)
         var need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
@@ -2742,7 +2764,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         guard need > width else { return nil }
         var have = width, lo = a.col, hi = a.col
-        if st.hAlign == .right {
+        if st.hAlign == .center {
+            let side = (need - width) / 2
+            var l = 0.0, r = 0.0
+            while lo > 0, l < side, ws.cells[CellAddress(row: a.row, col: lo - 1)]?.value.isEmpty ?? true {
+                lo -= 1; l += ca.size(lo)
+            }
+            while hi < CellAddress.maxCols - 1, hi < a.col + 255, r < side,
+                  ws.cells[CellAddress(row: a.row, col: hi + 1)]?.value.isEmpty ?? true {
+                hi += 1; r += ca.size(hi)
+            }
+        } else if st.hAlign == .right {
             while lo > 0, have < need, ws.cells[CellAddress(row: a.row, col: lo - 1)]?.value.isEmpty ?? true {
                 lo -= 1; have += ca.size(lo)
             }

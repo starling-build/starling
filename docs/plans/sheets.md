@@ -301,6 +301,18 @@ the same base; the commits give the numbers):
   carrying 18's row up by the font's own pixel line fits both, but
   predicts 16 from 14 and 18 from 16 no better than proportion (22 of
   76 exact either way).
+- *Centred text runs over its empty neighbours*, half what it lacks to
+  each side, each side as far as its cells are empty (lo-tdf171828's
+  I14, "unter Berücksichtung der Sondertilgungen", 376.8 to 562.7 where
+  Excel's is 377.3 to 563.2; ours stopped at its cell). The columns it
+  crosses count as printed, as left and right text's do: 45540_classic's
+  pie labels then print, but below Excel's (+0.15 each, the chart's own
+  layout). A chart draws nothing outside its frame.
+- *A face Excel has none of prints in Arial* (HelveticaNeue LightExt,
+  Frutiger 45 Light, Clear Sans, FreeSans, GE Inspira Sans,
+  BernhardFashion BT in lo-tdf171828's header; "Arial Cyr" too), where
+  Word's rule had made it Cambria: 48495 0.76 -> 0.51, 47862 0.19 ->
+  0.08, lo-orderOfCNumFmtElements' cells to within 0.01 pt of Excel's.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

@@ -346,9 +346,13 @@ enum OfficeFonts {
 
     /// The clone of `sheetFace`, whatever the platform has: the face whose
     /// measures the sheet's print metrics borrow for a face nobody measured.
+    /// A name Excel has no face for prints in Arial, where Word's guess
+    /// was Cambria: HelveticaNeue LightExt (47862), Frutiger 45 Light,
+    /// Clear Sans, FreeSans, lo-tdf171828's header in BernhardFashion BT.
     static func sheetClone(_ family: String) -> String {
         let face = substitute(family)
-        if face == cambria, family.lowercased().containsSubstring("sans") { return sans }
+        let n = family.trimmingWhitespace().lowercased()
+        if face == cambria, !n.hasPrefix("cambria"), n != "caladea" { return sans }
         return face
     }
 
