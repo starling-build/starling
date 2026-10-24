@@ -372,6 +372,10 @@ the same base; the commits give the numbers):
   On Windows Verdana is Verdana, not DejaVu Sans at Verdana's widths:
   its 28 workbooks 15 better, 4 worse by 0.05 at most (atp 0.68 ->
   0.16, the format tests 0.03 to 0.24 better).
+- *A run of one fill down the rows is one rect*, as Excel's page has
+  it (54288's grey blocks, one rect each in Excel's print, showed a pale
+  seam under every row of ours): all 720 workbooks, 8 better, 4 worse
+  by 0.02 at most (lo-tdf105272 2.08 -> 1.22, 54288 3.86 -> 3.43).
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

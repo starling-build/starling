@@ -2117,8 +2117,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Fills, in reading order, each run of one colour along a row drawn as
     /// one rect: cell by cell, anti-aliasing leaves a pale seam at every
     /// edge between two (lo-pivottable_invalid_formats' table header),
-    /// and Excel's page has a rect per run.
+    /// and Excel's page has a rect per run. A run continues down the rows
+    /// it spans alike, as one rect too (54288's grey blocks, one rect each
+    /// in Excel's print, showed a seam under every row of ours).
     private func _fillRuns(_ canvas: any Canvas, _ p: Paint, _ fills: [(Rect, UInt32)]) {
+        var runs: [(Rect, UInt32)] = []
+        var open: [String: Int] = [:]   // left, right and colour → the run whose foot is open
         var i = 0
         while i < fills.count {
             var r = fills[i].0
@@ -2129,9 +2133,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 r = Rect.fromLTRB(r.left, r.top, fills[j].0.right, r.bottom)
                 j += 1
             }
+            let key = "\((r.left * 100).rounded()) \((r.right * 100).rounded()) \(f)"
+            if let k = open[key], abs(runs[k].0.bottom - r.top) < 0.01 {
+                runs[k].0 = Rect.fromLTRB(r.left, runs[k].0.top, r.right, r.bottom)
+            } else {
+                open[key] = runs.count
+                runs.append((r, f))
+            }
+            i = j
+        }
+        for (r, f) in runs {
             p.color = Color(Int64(0xFF00_0000) | Int64(f))
             canvas.drawRect(r, p)
-            i = j
         }
     }
 
