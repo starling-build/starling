@@ -4342,3 +4342,11 @@ of 122.3: "、" at its half (7) and all four automatic spaces from 3.5 to 2.8.
 Ours lets only the space before "季" give (room 8.75 of 9.68) and wraps
 "季)". zh-6e7ff836's "…(80分)比較，相", whose one space is not beside "相",
 stays as it is.
+
+### T150. zh-15f60bac p11: a word wider than the line opens a line of its own after a space in a cell — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
+"台灣綜合研究院(網址: http://www.tri.org.tw/page/consumer.php)及…" in a
+282pt cell (標楷體 16pt): Word ends line 1 at "(網址: ", sets
+"http://www.tri.org.tw/page/consumer" alone on line 2 and ".php)及…" after;
+ours parts the address "…http://ww" on the first line. `_wideWordStarts`
+moves such a word only in a narrow cell, or after an ideograph or a full-width mark.
