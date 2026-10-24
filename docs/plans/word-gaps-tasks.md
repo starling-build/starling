@@ -4381,3 +4381,14 @@ characters or more). Same-base sweep of 756: zh-15f60bac 97.8 -> 98.7 (p11
 Word's line for line), nothing else moved. Left: p22's "(https://www.moea…" in
 the body.
 - zh-8628cfbe again (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): 57.4, Word 46 pages to our 45 — the p24 drift.
+
+### T151. A paragraph's last mark does not hang from 2013's layout where marks are compressed — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
+zh-20c1d74a p44 "…督導考核及管理等）" (mode 15, compressPunctuation, 12.5pt):
+Word sends "等）" down; ours hangs the "）" a whole em and takes "等" 9.55
+over. zh-cd8987db p7 "…肥料随翻耕作业埋入土中。" (mode 15, compressPunctuation):
+Word sends "中。" down; ours hangs the "。" and takes "中" 2.17 over. Not
+hanging, the mark gives its half like any other and the share test refuses
+both. Fits zh-505b9619's labs u5/u6 ("。" drawn inside the margin) and
+zh-7488a70f (doNotCompress, hangs whole); b2's "？" rule (zh-ab1ea005, labs
+qh/qe) is the same thing for one mark.
