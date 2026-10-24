@@ -7086,7 +7086,11 @@ fitter dropped the paragraph's tail).
   pictures. Before, a VML group printed its text alone. zh-6e6b9821,
   zh-e9f256c1 and zh-7773163d now draw their flowcharts as Word does,
   and WordWithAttachments its "Словарь" box; no line score moved (pair
-  n7/n8). Left: dashed strokes (`dashstyle`) are drawn solid, a
+  n7/n8). Dashes too (`v:stroke dashstyle` — "dash", "shortdash", a list
+  such as "1 1" — and a DrawingML group's `a:prstDash`/`a:custDash`), cut
+  by Slides' `SlidePainter.dashed`: zh-6e6b9821's dotted leaders and
+  zh-2e7ef069's dashed stage frames as in Word's prints (pair n9/n10: no
+  line score moved, drawings changed only in zh-2e7ef069). Left: a
   picture inside a group (`v:imagedata` with an `r:id`) is not drawn,
   and lone VML boxes outside groups still draw no edges
   (zh-7773163d's p35 middle boxes).
