@@ -402,6 +402,11 @@ enum OfficeFonts {
             (["arial"], "Arial", "arial.ttf"),
             (["times new roman"], "Times New Roman", "times.ttf"),
             (["calibri"], "Calibri", "calibri.ttf"),
+            (["cambria"], "Cambria", "cambria.ttc"),
+            (["courier new"], "Courier New", "cour.ttf"),
+            (["candara"], "Candara", "Candara.ttf"),
+            (["constantia"], "Constantia", "constan.ttf"),
+            (["corbel"], "Corbel", "corbel.ttf"),
         ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
         return m
     }()
