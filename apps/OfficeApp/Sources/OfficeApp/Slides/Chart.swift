@@ -1396,7 +1396,11 @@ enum ChartXML {
             l.series = on(d, "c:showSerName"); l.category = on(d, "c:showCatName")
             l.value = on(d, "c:showVal"); l.percent = on(d, "c:showPercent")
             l.separator = d.first("c:separator")?.text
-            let pos = d.first("c:dLblPos")?["val"]
+            // (None written is a best fit, Excel's default for a pie:
+            // zh-d62da4dd's 3-D pies give no position, and Word's print of
+            // them with their moves taken out, lab p3d, sets the big slices'
+            // labels inside and the small ones' beside them on leaders.)
+            let pos = d.first("c:dLblPos")?["val"] ?? (type == .pie ? "bestFit" : nil)
             l.outside = pos == "outEnd" || pos == "bestFit"
             var ends = pos == "outEnd"
             for one in d.all("c:dLbl") {
@@ -2496,7 +2500,18 @@ enum ChartPainter {
         // (A value axis across the page — a bar chart's — keeps to eight:
         // its labels stand side by side, and bar-chart's 8.2 runs 0 to 10
         // in twos there where the same data up the page goes by ones.)
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: c.type == .bar ? 8 : 10)
+        // (Over a data table the plot is short, and its value axis takes
+        // as many steps as its labels have room for, a label's height
+        // each: zh-61aaad09's 45pt plot over its table goes 0 to 800000 in
+        // 200000s and 0 to 80% in 20s in Word's print, where ten steps
+        // stood ours a third of a label apart.)
+        let tableSteps: Int? = {
+            guard let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            let row = 1.64 * (dt.size ?? c.baseTextSize) * k
+            let room = area0.height - Double(c.series.count + c.lineSeries.count + 1) * row
+            return max(2, min(10, Int(room / (labelSize * k))))
+        }()
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: tableSteps ?? (c.type == .bar ? 8 : 10))
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
@@ -2525,7 +2540,7 @@ enum ChartPainter {
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, !horizontal {
             let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
-            var s2 = scale(min(0, all.min() ?? 0), max(0, all.max() ?? 1), intervals: 10)
+            var s2 = scale(min(0, all.min() ?? 0), max(0, all.max() ?? 1), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
                 s2 = fixedScale(auto: s2, min: second.min, max: second.max, step: second.step)
             }
@@ -2584,7 +2599,12 @@ enum ChartPainter {
         // Where the file places the plot: itself (`inner`), or a box the
         // plot and its labels share — aascu 5864's census chart stands at
         // 9%/3%, 91% × 76% of its frame, ours under a title band.
-        let placed = c.plotLayout.map {
+        // (Not a plot placed itself over a data table: Word lays that one
+        // out as if unplaced — zh-61aaad09's columns, "inner" at 17%/9%,
+        // 71% × 70% of a 415 × 137pt frame, stand 164.8-450.6 × 281.9-326.9
+        // in its print, the table's rows to the frame's foot under them,
+        // where the placed rect ran the plot down over the table.)
+        let placed = c.dataTable != nil && c.plotLayoutInner ? nil : c.plotLayout.map {
             Rect.fromLTWH(frame.left + $0.left * frame.width, frame.top + $0.top * frame.height,
                           $0.width * frame.width, $0.height * frame.height)
         }
@@ -4020,7 +4040,39 @@ extension ChartPainter {
             let dx = cos(s.mid), dy = sin(s.mid)
             // Where the label stands before its own move: its box's middle.
             var at: Offset
-            if l.outside {
+            // (A best fit is decided label by label: inside where its box
+            // fits in its slice, else outside. zh-61aaad09's pie, one label
+            // moved by its own layout: "582054, 84.15%" stands inside its
+            // 303° slice in Word's print, where ours took it out under the
+            // pie and past the frame's foot; "109646, 15.85%", whose 57°
+            // slice cannot hold it, goes out and its move brings it back.)
+            let share = s.value / sum
+            // (As far out as it fits, from 0.6 of the radius in: Word's
+            // stands 0.41 out.)
+            // (A label the file moves is moved from beside its slice, fit
+            // or not: zh-d62da4dd's "經濟" stands inside its 53% slice in
+            // lab p3d, its move taken out, and its move of -24% of the
+            // frame lands it where Word's print has it only from outside;
+            // "文化"'s from beside its slice in both.)
+            let insideAt: Double? = {
+                guard l.fitted, l.outside, inner == 0, l.moves[s.index] == nil else { return nil }
+                let half = share * .pi
+                return stride(from: 0.6, through: 0.3, by: -0.05).first { f in
+                    let c0 = on(s.mid, f)
+                    return [(-w / 2, -h / 2), (w / 2, -h / 2), (-w / 2, h / 2), (w / 2, h / 2)].allSatisfy { cx, cy in
+                        let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
+                        guard hypot(x, y) < 1 else { return false }
+                        var d = atan2(y, x) - s.mid
+                        while d > .pi { d -= 2 * .pi }
+                        while d < -.pi { d += 2 * .pi }
+                        return abs(d) < half
+                    }
+                }
+            }()
+            let fitsInside = insideAt != nil
+            if let f = insideAt {
+                at = on(s.mid, f)
+            } else if l.outside {
                 let gap = 4 * k
                 let edge = on(s.mid, 1)
                 at = Offset(edge.dx + dx * gap + (dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
@@ -4030,10 +4082,17 @@ extension ChartPainter {
             }
             let moved = l.moves[s.index]
             if let m = moved { at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height) }
+            // (Kept inside the frame: Word's labels over a 3-D pie's top
+            // stand under the frame's edge in lab p3d, where ours were cut.)
+            if l.fitted {
+                at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
+                            min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+            }
             let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
+            let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
-            if l.leaders, moved != nil || l.outside {
+            if l.leaders, moved != nil || leftOut {
                 let from = on(s.mid, 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
                 if hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
