@@ -2211,7 +2211,20 @@ public final class RichLayout {
         // "18 連江縣" a column too narrow to hold it.)
         var unparted: Double
         if theme.wordRules, _wordList(p, document) == nil {
-            m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + firstLineIndent(p, document)) + first, 0) + _px(sides.right)
+            // (Before 2013's layout every piece is measured from where a
+            // hanging line starts, and a first line set further in asks
+            // nothing. Lab `af` on Word for Windows, mode 12 and 14: "表現"
+            // under a 48pt indent hanging 24, "3樓/4樓" under 42.55
+            // hanging all of it (zh-12c4f07a p19's floor column), and "表"
+            // after a 75pt first line all keep a 51.1pt grid, where mode
+            // 15 widens each, the later pieces set at the indent; a 100pt
+            // indent, and a Latin word past the column from the hanging
+            // start, widen it in both.)
+            if (document.compatibilityMode ?? 12) < 15 {
+                m = max(_px(sides.left + min(firstLineIndent(p, document), 0)) + max(m, first), 0) + _px(sides.right)
+            } else {
+                m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + firstLineIndent(p, document)) + first, 0) + _px(sides.right)
+            }
             unparted = max(widest > 0 ? _px(sides.left) + widest : 0, _px(sides.left + firstLineIndent(p, document)) + opening, 0) + _px(sides.right)
         } else {
             m = max(m, first) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)

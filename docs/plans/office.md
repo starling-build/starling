@@ -8098,3 +8098,25 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   base): zh-12c4f07a 83.7 -> 84.3, zh-64044a1d 99.3 -> 99.4, the rest
   unmoved.
 
+
+- **Before 2013's layout, an autofit cell's pieces are measured from
+  where a hanging line starts, and a positive first-line indent asks
+  nothing (2026-10-24; Windows 01QbbApP, lab `af` on Word for
+  Windows).** zh-12c4f07a p19's floor column is 63pt on the grid. It
+  holds "樓層" and "3樓/4樓" under 42.55pt indents that hang all the
+  way. Word keeps the grid. Ours asked for the indent and an ideograph,
+  66.4, and the column beside it lost a character a line from p19 to
+  p28. Lab `af` puts one column-0 paragraph in each copy of a 3-column
+  auto table with a 51.1pt first column, under modes 15, 14 and 12. In
+  mode 15, "表現" under a 48pt indent hanging 24, "3樓/4樓" hanging all
+  of 42.55, and "表" after a 75pt first line all widen the column, as
+  ours already did. That is zh-1661a432's "表現" (100.0 in the base).
+  In modes 12 and 14 each keeps the grid. A 100pt left indent, a 70pt
+  right one, and a Latin word wider than the column from the hanging
+  start widen it in every mode, by the same amount. The minimum is
+  now, before mode 15, the left indent less any hanging indent, plus
+  the widest piece, plus the right indent. A first try had capped
+  one-line paragraphs in every mode, and it took zh-1661a432 to 95.7
+  and zh-ae2dd08d down 0.8, both mode 15. On the 236 corpus documents
+  with indented cells in autofit tables (pair afbase/af2, same base):
+  zh-12c4f07a 84.3 -> 90.4, nothing else moved.
