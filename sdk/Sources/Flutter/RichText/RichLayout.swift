@@ -4271,8 +4271,19 @@ public final class RichLayout {
                 }
             }
             func raiseAtHead(_ c: _CellGeo) {
+                // (At the head too under nothing but what takes no room in
+                // Word's flow: frames, and tables floating by the text.
+                // zh-76700e5f's ICS/CCS table comes after the cover's
+                // floating "3311" table and two frames, and stands at
+                // 34.5 in Word's print; ours set it under the "3311"
+                // table, at 177.7.)
+                let floatsOnly = !_pages[page].isEmpty && _pages[page].allSatisfy { piece in
+                    let q = document.paragraphs[piece.paragraph]
+                    if let d = _cells[piece.paragraph] { return d.table != c.table && document.tableStyles[d.table]?.floatsOverText == true }
+                    return q.style.frameXML != nil
+                }
                 guard theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
-                      let up = document.tableStyles[c.table]?.floatRaiseY, y < 0.01 else { return }
+                      let up = document.tableStyles[c.table]?.floatRaiseY, y < 0.01 || floatsOnly else { return }
                 let physical = page / _columns
                 let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                 y = max(-insetTop, -_px(up))
@@ -7523,7 +7534,19 @@ public final class RichLayout {
             // descent counted ours gave 54 four and 69-72 five, and the
             // road signs' rows ran a pitch tall.)
             let snapped = ((bodyHeight + (p.image != nil ? 0 : descent)) / px - 0.002).rounded(.up) * px
-            if snapped > bodyHeight + 0.01 {
+            // (Pictures in a line of text: as many pitches as the tallest
+            // picture is tall, the text's descent not counted. Lab `pic3`
+            // (Word 16 Mac, zh-76700e5f's package, a 15.6pt grid): three
+            // pictures in a centred paragraph of spaces take four pitches
+            // up to 62pt and five from 63; ours counted the line's descent
+            // and took five from 58.5, the document's own figure 4, and
+            // every page after it ran a line late.)
+            let tallest = (painter.inlinePlaceholderBoxes ?? []).map { $0.bottom - $0.top }.max() ?? 0
+            if p.image == nil, !combined, tallest > px + 0.01 {
+                let own = (tallest / px - 0.002).rounded(.up) * px
+                _inkShift[i] += own - bodyHeight
+                bodyHeight = own
+            } else if snapped > bodyHeight + 0.01 {
                 // (A picture's own paragraph centres it, effects and all, in
                 // its pitches: zh-547fc43c's charts and pictures stand half
                 // their lines' spare room down in Word's print — 7.05pt of a
