@@ -3695,13 +3695,31 @@ enum DocxFormat {
             // and a shape alone that the outline above does not draw — an
             // ellipse, a triangle, a box filled from the theme
             // (shapes-with-text's, whose white text stood on nothing).
+            // (And a lone line with an arrow at an end, which the outline
+            // draws without: zh-2e7ef069's flowchart connectors, each a
+            // `wps:wsp` line with `a:tailEnd type="arrow"`, printed as bare
+            // lines.)
+            let arrowed = node.descendant("wpg:wgp") == nil && (node.descendant("wps:spPr")?.first("a:ln").map { ln in
+                [ln.first("a:headEnd"), ln.first("a:tailEnd")].contains { ($0?["type"]).map { $0 != "none" } ?? false }
+            } ?? false)
+            if arrowed, att.outline?.kind == .line { att.outline = nil }
             if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
             } else if node.descendant("wpg:wgp") == nil, let group = _vmlTop(node), group.name == "v:group" {
                 // (A VML group's lines and boxes likewise: zh-6e6b9821's
                 // flowchart printed its text alone, no arrows or edges.)
-                WriterGroups.registerVML(group, types: notes.shapeTypes, for: att.id)
+                WriterGroups.registerVML(group, types: notes.shapeTypes, for: att.id, picture: { rid in
+                    guard let rel = notes.rels[rid], !rel.external, let data = notes.part(_resolvePath("word", rel.target)),
+                          Self._isRasterImage(data) else { return nil }
+                    return data
+                })
+            } else if node.descendant("wpg:wgp") == nil, node.descendant("wps:wsp") == nil, att.outline == nil,
+                      let shape = _vmlTop(node), ["v:rect", "v:roundrect", "v:oval", "v:shape"].contains(shape.name),
+                      !(shape.first("v:imagedata").map { $0["r:id"] != nil || $0["o:relid"] != nil } ?? false) {
+                // (A VML shape alone: its edges and fill — zh-7773163d's
+                // framed steps on p35 printed their text alone.)
+                WriterGroups.registerVMLShape(shape, types: notes.shapeTypes, for: att.id)
             }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.

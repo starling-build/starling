@@ -207,6 +207,8 @@ enum WriterGroups {
         var tailEnd: LineEnd?
         /// Its line's dash (`SlidePainter.dashPattern`'s names), nil solid.
         var dash: String? = nil
+        /// A picture's bytes and its decode key: drawn over its box.
+        var picture: (key: String, data: Data)? = nil
     }
     private struct Entry {
         let width: Double
@@ -215,6 +217,37 @@ enum WriterGroups {
     }
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
     private static let lock = NSLock()
+    private nonisolated(unsafe) static var decoded: [String: Image] = [:]
+    private nonisolated(unsafe) static var decoding: Set<String> = []
+
+    /// Whether a group's picture is still being decoded.
+    static var hasPendingImages: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !decoding.isEmpty
+    }
+
+    /// A group's picture, decoded once; nil while it decodes.
+    private static func image(_ key: String, _ data: Data) -> Image? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let image = decoded[key] { return image }
+        guard !decoding.contains(key), !data.isEmpty else { return nil }
+        decoding.insert(key)
+        let bytes = [UInt8](data)
+        Task { @MainActor in
+            var image: Image? = nil
+            if let codec = try? await instantiateImageCodec(bytes) {
+                image = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
+            lock.lock()
+            decoding.remove(key)
+            if let image { decoded[key] = image }
+            lock.unlock()
+        }
+        return nil
+    }
 
     /// Reads the shapes of `group` (a `wpg:wgp`) — straight lines, and
     /// every preset `PresetGeometry` defines — in points from its top
@@ -229,7 +262,9 @@ enum WriterGroups {
         guard let top = (lone ? group.first("wps:spPr") : group.first("wpg:grpSpPr"))?.first("a:xfrm") else { return false }
         func number(_ n: XNode?, _ key: String) -> Double { Double(n?[key] ?? "") ?? 0 }
         let width = number(top.first("a:ext"), "cx"), height = number(top.first("a:ext"), "cy")
-        guard width > 0, height > 0 else { return false }
+        // (A level or upright line is no width or no height: zh-e2dc9dce's
+        // arrowed connectors, `cx="0"`, drew nothing.)
+        guard width > 0 || height > 0, width >= 0, height >= 0 else { return false }
         // Child space → the group's, in EMU from its top left.
         typealias Map = (Rect) -> Rect
         func map(_ xfrm: XNode, outer: @escaping Map) -> Map {
@@ -277,14 +312,22 @@ enum WriterGroups {
                     var fill: Color? = nil
                     if !isLine {
                         if sp.first("a:noFill") != nil { fill = nil }
-                        else if let f = sp.first("a:solidFill") { fill = colors.color(in: f) }
+                        else if let f = sp.first("a:solidFill") { fill = colors.color(in: f) ?? f.first("a:sysClr")?["lastClr"].flatMap { Int64($0, radix: 16) }.map { Color(0xFF00_0000 | $0) } }
                         else { fill = styled("a:fillRef").0 }
                     }
                     let ln = sp.first("a:ln")
                     var line: Color? = nil
                     var lineWidth = (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 }
+                    // (A system colour by its last value, and a fill named but
+                    // not read black, as the outline drew it: zh-e2dc9dce's
+                    // connectors say `a:sysClr val="windowText"`.)
+                    func solid(_ f: XNode) -> Color? {
+                        if let c = colors.color(in: f) { return c }
+                        if let v = f.first("a:sysClr")?["lastClr"], let n = Int64(v, radix: 16) { return Color(0xFF00_0000 | n) }
+                        return Color(0xFF000000)
+                    }
                     if ln?.first("a:noFill") != nil { line = nil }
-                    else if let f = ln?.first("a:solidFill") { line = colors.color(in: f) }
+                    else if let f = ln?.first("a:solidFill") { line = solid(f) }
                     else {
                         let (c, idx) = styled("a:lnRef")
                         line = c
@@ -292,11 +335,20 @@ enum WriterGroups {
                     }
                     guard fill != nil || line != nil else { continue }
                     let flipH = xfrm["flipH"] == "1", flipV = xfrm["flipV"] == "1"
+                    // (A line runs from its box's top left, each flip taking
+                    // that corner across; the painter runs a rising line from
+                    // its bottom left, a falling one from its top left. So the
+                    // head is the painter's start only where the line starts
+                    // there: zh-2e7ef069's "flipH" connectors run down, their
+                    // tail arrows at the foot, where ours stood at the top.)
+                    let head = PptxReader.lineEnd(ln?.first("a:headEnd")), tail = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+                    let rising = flipH != flipV
+                    let fromStart = !isLine || (rising ? (!flipH && flipV) : (!flipH && !flipV))
                     shapes.append(Shape(rect: Rect.fromLTWH(at.left / 12700, at.top / 12700, at.width / 12700, at.height / 12700),
-                                        fill: fill, line: line, lineWidth: lineWidth ?? 0.75, isLine: isLine, rising: flipH != flipV,
+                                        fill: fill, line: line, lineWidth: lineWidth ?? 0.75, isLine: isLine, rising: rising,
                                         geometry: geometry, rotation: (Double(xfrm["rot"] ?? "") ?? 0) / 60000,
                                         flipH: flipH, flipV: flipV,
-                                        headEnd: PptxReader.lineEnd(ln?.first("a:headEnd")), tailEnd: PptxReader.lineEnd(ln?.first("a:tailEnd")),
+                                        headEnd: fromStart ? head : tail, tailEnd: fromStart ? tail : head,
                                         dash: PptxReader.dash(ln)))
                 default: continue
                 }
@@ -342,7 +394,7 @@ enum WriterGroups {
     /// boxes' text is the layout's (`_vmlTextPlaces`); this draws their
     /// edges and fills.
     @discardableResult
-    static func registerVML(_ group: XNode, types: [XNode], for id: String) -> Bool {
+    static func registerVML(_ group: XNode, types: [XNode], for id: String, picture: (String) -> Data? = { _ in nil }) -> Bool {
         func style(_ n: XNode) -> [String: String] {
             var out: [String: String] = [:]
             for pair in (n["style"] ?? "").split(separator: ";") {
@@ -448,8 +500,15 @@ enum WriterGroups {
                 // (A picture is not a line drawing: one whose `v:imagedata`
                 // names a picture. WPS writes an empty one into every shape
                 // — zh-e9f256c1's whole flowchart, which printed as text.)
-                let picture = child.first("v:imagedata").map { $0["r:id"] != nil || $0["o:relid"] != nil } ?? false
-                if picture || (spt == 75 && child.first("v:textbox") == nil) { continue }
+                // (A picture in the group — zh-7773163d's footer logo, a
+                // PNG under its text — drawn over its box, a raster one.)
+                if let data = child.first("v:imagedata").flatMap({ $0["r:id"] ?? $0["o:relid"] }).flatMap(picture) {
+                    shapes.append(Shape(rect: r, fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
+                                        rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil,
+                                        picture: (id + "#" + String(shapes.count), data)))
+                    continue
+                }
+                if spt == 75 && child.first("v:textbox") == nil { continue }
                 let path = child["path"] ?? (spt == nil ? type?["path"] : nil)
                 let straight = spt.map { _vmlStraight.contains($0) } ?? false
                 let filled = !(off(child["filled"]) || off(fillNode?["on"])) && !(spt.map { _vmlConnectors.contains($0) } ?? false)
@@ -522,6 +581,39 @@ enum WriterGroups {
         lock.unlock()
         WriterCharts.installHooks()
         return true
+    }
+
+    /// A VML shape alone (`v:rect`, `v:roundrect`, `v:oval`, `v:shape`)
+    /// as a group of itself: its edges and fill over its whole box —
+    /// zh-7773163d's p35 steps, framed text boxes with no group, printed
+    /// as their text alone.
+    @discardableResult
+    static func registerVMLShape(_ shape: XNode, types: [XNode], for id: String) -> Bool {
+        var st: [String: String] = [:]
+        for pair in (shape["style"] ?? "").split(separator: ";") {
+            let kv = pair.split(separator: ":", maxSplits: 1)
+            if kv.count == 2 { st[kv[0].trimmingWhitespace()] = String(kv[1]).trimmingWhitespace() }
+        }
+        func pt(_ v: String?) -> Double? {
+            guard var t = v?.trimmingWhitespace(), !t.isEmpty else { return nil }
+            var k = 1.0
+            for (unit, f) in [("pt", 1.0), ("px", 0.75), ("in", 72.0), ("cm", 72 / 2.54), ("mm", 72 / 25.4)] where t.hasSuffix(unit) {
+                t = String(t.dropLast(unit.count)); k = f; break
+            }
+            return Double(t).map { $0 * k }
+        }
+        guard let w = pt(st["width"]), let h = pt(st["height"]), w > 0, h > 0 else { return false }
+        // Its own box in hundredths of a point, the group's frame the same.
+        let cw = Int((w * 100).rounded()), ch = Int((h * 100).rounded())
+        var keep = st.filter { ["rotation", "flip"].contains($0.key) }.map { "\($0.key):\($0.value)" }
+        keep += ["left:0", "top:0", "width:\(cw)", "height:\(ch)"]
+        var attrs = shape.attrs
+        attrs["style"] = keep.joined(separator: ";")
+        let copy = XNode(name: shape.name, attrs: attrs)
+        copy.children = shape.children
+        let frame = XNode(name: "v:group", attrs: ["style": "width:\(w)pt;height:\(h)pt", "coordorigin": "0,0", "coordsize": "\(cw),\(ch)"])
+        frame.children = [copy]
+        return registerVML(frame, types: types, for: id)
     }
 
     /// A VML path (`m x,y l x,y … c … x e`, and their relative `t r v`)
@@ -599,9 +691,15 @@ enum WriterGroups {
         let entry = entries[attachment.id]
         lock.unlock()
         guard let entry else { return false }
-        let sx = rect.width / entry.width, sy = rect.height / entry.height
+        let sx = entry.width > 0 ? rect.width / entry.width : 1, sy = entry.height > 0 ? rect.height / entry.height : 1
         for s in entry.shapes {
             let r = Rect.fromLTWH(rect.left + s.rect.left * sx, rect.top + s.rect.top * sy, s.rect.width * sx, s.rect.height * sy)
+            if let pic = s.picture {
+                if let img = image(pic.key, pic.data) {
+                    canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(img.width), Double(img.height)), r, Paint())
+                }
+                continue
+            }
             canvas.save()
             // (Turned about its centre, and mirrored there: a shape's
             // outline is its preset's, unflipped.)
