@@ -3379,10 +3379,23 @@ public final class RichLayout {
         // under that, and keeps all four from 20; ours, leaving the top
         // line's 0.5, took the fourth for a line that fits, had nothing
         // left to send over, and took the row over whole at 18 and 19.
+        // (In any row, not only the last: zh-e1b09977's p14 parts a row in
+        // the table's middle, and Word's print closes the part with the
+        // table's 2.25pt bottom line, 759.12-761.28 under its last line;
+        // ours asked the 0.5 top line and kept a line more.)
         func ruleClosing(_ c: _CellGeo) -> Double {
             let own = ruleUnder(c, parted: true)
-            guard theme.wordRules, c.ruleBelow > 0, (document.compatibilityMode ?? 12) >= 14 else { return own }
-            return max(own, c.ruleBelow)
+            guard theme.wordRules, (document.compatibilityMode ?? 12) >= 14 else { return own }
+            if c.ruleBelow > 0 { return max(own, c.ruleBelow) }
+            // (Only a bottom line heavier than the table's inside ones, and
+            // only under a cell that states no bottom of its own:
+            // zh-cec9d337's cells, half-point lines of their own inside a
+            // table whose bottom is a 3pt double, part as they did.)
+            guard c.edges?.bottom == nil, let ts = document.tableStyles[c.table],
+                  ts.edges?.bottom ?? (ts.borders && !ts.bordersFromCells) else { return own }
+            let bottomWidth = ts.edgeWidths["bottom"] ?? ts.borderWidth ?? 0.5
+            guard bottomWidth > (ts.edgeWidths["insideH"] ?? ts.borderWidth ?? 0.5) + 0.01 else { return own }
+            return max(own, _px(Self._ruleRoom(ts.edgeStyles["bottom"] ?? ts.borderStyle, bottomWidth)))
         }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
