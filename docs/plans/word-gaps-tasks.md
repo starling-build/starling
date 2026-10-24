@@ -4313,4 +4313,11 @@ digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
   the rest; noWrap cells there stay whole. Left: p36's form; lab nt C
   (no inner spacing) still has Word's col 3 at 123.1 and ours at the
   grid's 134.9 — the rule likely holds unspaced too (untried).
-- zh-8628cfbe (Mac 01Xgpbk5, CLAIMED 2026-10-23): 49.8, 46 pages to Word's 45 — its tables' row breaks from p24 (Linux b2's note).
+- zh-8628cfbe (Mac 01Xgpbk5, 2026-10-23, looked, RELEASED): 49.8, 46 pages to Word's 45. Its
+  columns are Word's to 0.2pt (the tables ~0.7pt left, which moves no wrap). The real misses
+  are cell lines a character apart, and the one measured is the squeeze limit: p16 "2.與去年實際數
+  比較，相同者得基準分" (mode 15, compressPunctuation, YaHei 11.5) — ours gives its "，" half an em
+  (5.77) and takes "分", Word for Mac gives nothing and wraps it; under the USER DECISION above
+  (Windows' half-em rule) ours is right. Asked windows for a Word for Windows print: if it ends
+  those lines as ours do, the document's Mac misses are the decision's, and the p24 drift with
+  them.
