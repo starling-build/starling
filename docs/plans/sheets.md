@@ -390,6 +390,11 @@ the same base; the commits give the numbers):
   in Arial, as Excel's does — Arial itself, with Arial's widths, where
   it had been Liberation Sans: all 720, 11 better, 3 worse by 0.01
   (lo-column-style-autofilter 0.83 -> 0.73).
+- *Malgun Gothic 6* fits a row of 23 pixels on the 192-dpi screen, where
+  in proportion to its 8 pt it was 26 (its 8 and 9 are both 35): the
+  bordered box at the foot of style-alternate-content, rows of 6, 10,
+  set 16.5, 10 and 6 pt, prints 64.32 pt tall in Excel's print and was
+  66.60 in ours (5.05 -> 4.74; no other workbook has Malgun under 8).
 - *A run of one fill down the rows is one rect*, as Excel's page has
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse
