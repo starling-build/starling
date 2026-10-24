@@ -7124,6 +7124,15 @@ fitter dropped the paragraph's tail).
   (zh-e2dc9dce's connectors vanished); a system colour (`a:sysClr`) is
   its `lastClr`. Pair n15/n16: no line score moved; in every changed
   document the segments added match Word's print (PyMuPDF, ±2.5pt).
+- **A table style's header borders.** A table style's `firstRow` cell
+  borders (`w:tblStylePr w:type="firstRow"`'s `w:tcBorders`) stand for the
+  header row's unstated sides, as a row's `w:tblPrEx` does: zh-61aaad09's
+  "浅色网格" style rules its header's foot 2.25pt, and Word gives each row
+  either side of it half that — 29.6pt rows where the rest are 29, ours
+  28.5 — and ended page 2 a line sooner. Not the foot of a header cell
+  merged on down (its merge ends on the inside line in Word's print).
+  56.8 -> 83.8, nothing else moved (pair n17/n18). The line itself is
+  still painted at the table's 1pt.
 
 ### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
 

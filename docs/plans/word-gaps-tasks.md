@@ -4227,7 +4227,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   degrees as break points (0f7b3de8), 85.0 -> 100.
   A peer's "reader, not layout" note may be worth a second look now.
 - Chart labels and legends (Mac 01Xgpbk5, 2026-10-23, routed by bd —
-  part done, RELEASED) [its leftovers (1)-(5) CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23, assigned by 0fcba326]: zh-61aaad09's labels already read "109646, 15.85%"
+  part done, RELEASED) [its leftovers (1)-(5) CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23, assigned by 0fcba326; (4) DONE: the header row takes the table style's firstRow borders, zh-61aaad09 56.8 -> 83.8; (3) measured, lab ~/starling-word-check/lab/cap: the caption's start under the wrapTight chart depends on the line grid (chart foot + 8.5 with no grid, +18.3 at 18pt, +50.5 at 20pt), not a plain snap — still open]: zh-61aaad09's labels already read "109646, 15.85%"
   (the note was stale). Done: a data table under an `inner`-placed plot
   gets its own room and the axis steps a label's height allows; best-fit
   pie labels in or out label by label, moved ones from outside, none
