@@ -6152,6 +6152,10 @@ public final class RichLayout {
                     let width = said?.width ?? sideWidth(d, tableSide)
                     return _px(Self._ruleRoom(style, width))
                 }
+                // (Separated where the row has the table's cell spacing:
+                // one that states none of its own collapses — see
+                // `rowsUnspaced`.)
+                func spaced(_ row: Int) -> Bool { ts.cellSpacing != nil && !(theme.wordRules && ts.rowsUnspaced.contains(row)) }
                 var l = sideLine(c, "left"), r = sideLine(c, "right")
                 // (A side the cell leaves bare that its neighbour rules is
                 // ruled all the same: the line stands on the edge they
@@ -6171,7 +6175,7 @@ public final class RichLayout {
                 if l == 0, c.column > 0, let d = neighbour(true) { l = sideLine(d, "right") }
                 if r == 0, c.column + c.span < widths.count, let d = neighbour(false) { r = sideLine(d, "left") }
                 if l > 0 || r > 0 {
-                    if ts.cellSpacing != nil {
+                    if spaced(c.row) {
                         // (Separated, each cell's lines lie inside its own
                         // box, both of them: bib-chernigovka's 51pt year
                         // column of outset lines holds "90 лет" on one line
@@ -6204,7 +6208,7 @@ public final class RichLayout {
                 // header row rules its last cell's top 1.5pt and the rest
                 // 0.5, and every cell's text is 1pt lower in Word's print
                 // than under its own line — 序 at 109.4, ours 108.2.)
-                if theme.wordRules, ts.cellSpacing == nil {
+                if theme.wordRules, !spaced(c.row) {
                     var k = i - 1
                     while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row == c.row { top = max(top, rule(d, "top")); k -= 1 }
                     k = i + 1
@@ -6224,7 +6228,7 @@ public final class RichLayout {
                 // tables (cell spacing 0, each cell's top nil, its bottom
                 // 1pt, no margin above) step 23.8pt a one-line row in
                 // Word's print, ours 24.8, the line taken twice.)
-                if c.row > 0, !(theme.wordRules && ts.cellSpacing != nil) {
+                if c.row > 0, !(theme.wordRules && (spaced(c.row) || spaced(c.row - 1))) {
                     var k = i - 1
                     while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row + d.rowSpan - 1 >= c.row - 1 {
                         if d.row + d.rowSpan - 1 == c.row - 1 { top = max(top, rule(d, "bottom") - pad.top) }
@@ -6252,7 +6256,7 @@ public final class RichLayout {
                 // and each stands that much taller; ours took no room for
                 // either, and page 11 ran 2.7pt short by its foot.)
                 func frame(_ side: String) -> Double {
-                    guard theme.wordRules, ts.cellSpacing != nil,
+                    guard theme.wordRules, spaced(c.row),
                           (side == "top" ? c.edges?.top : c.edges?.bottom) == false,
                           (side == "top" ? ts.edges?.top : ts.edges?.bottom) ?? ts.borders else { return 0 }
                     let style = ts.edgeStyles[side] ?? ts.borderStyle
@@ -6272,7 +6276,7 @@ public final class RichLayout {
                 // 23.36pt apart, 0.75pt lines 24.88 — single or outset
                 // alike — where a table of no cell spacing gains the one
                 // line. bug59058's state list had a row more a page.)
-                let separated = theme.wordRules && ts.cellSpacing != nil
+                let separated = theme.wordRules && (spaced(c.row) || spaced(c.row + c.rowSpan))
                 if c.row + c.rowSpan - 1 >= rows || separated {
                     let bottom = rule(c, "bottom") + (c.row + c.rowSpan - 1 >= rows ? frame("bottom") : 0)
                     if bottom > 0 { pad = EdgeInsets(left: pad.left, top: pad.top, right: pad.right, bottom: pad.bottom + bottom) }

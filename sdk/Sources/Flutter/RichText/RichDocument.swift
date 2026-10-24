@@ -1183,6 +1183,10 @@ public struct TableStyle: Hashable, Sendable {
     /// cellspacing); nil when the file says nothing. Zero is kept apart
     /// from nil: Word draws a table that states it with separate borders.
     public var cellSpacing: Double? = nil
+    /// Rows that say they have no cell spacing (`w:tblCellSpacing` of
+    /// type nil, in their `w:tblPrEx` or `w:trPr`) in a table that has
+    /// some: their borders collapse, as a table's of none do.
+    public var rowsUnspaced: Set<Int> = []
     /// How far left of its place the table's edge stands so that its
     /// first column's text lines up with the paragraphs' (points): its
     /// left cell margin — the table's own, else its style's, else

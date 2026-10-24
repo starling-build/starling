@@ -6171,6 +6171,21 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A row that states no cell spacing collapses its lines (2026-10-24).**
+  Cell spacing was read for the table alone: one that states any, even
+  0, rules each cell on its own, a row its own top and bottom line.
+  zh-147bdae0's commitment tables state 0 and most of their rows
+  `w:tblCellSpacing` of type nil in their `w:tblPrEx`; Word's print
+  steps those rows one 0.5pt line apart, 21.1pt a one-line row (its
+  first rows, 0 again in `w:trPr`, stand their lines in pairs), where
+  ours took the line twice, 21.6. By p17's foot that was 3.7pt, and
+  the last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) found no
+  room for its stated height and went over whole — Word parts it, two
+  names on the page. Such a row now collapses its lines as a table of
+  no spacing does (`rowsUnspaced`), and its `w:tblCellSpacing` goes
+  back with the row's other exceptions. Sweep h142: zh-147bdae0
+  92.8 -> 93.3, p17 within 0.4pt of Word's; nothing else moved (it is
+  the corpus's one file with such rows).
 - **A line of spaces alone is set in its mark's Latin face
   (2026-10-23).** Such a line takes the mark's size (prints of
   2026-10-13) and, for "　", the run's Latin face (8cc05b33). Where that

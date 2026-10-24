@@ -1783,6 +1783,48 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(down, 30, accuracy: 3, "centred down to the parted row's kept lines")
     }
 
+    func testARowOfNoCellSpacingInASpacedTableCollapsesItsLines() throws {
+        // zh-147bdae0's commitment tables state a cell spacing of 0 and
+        // most of their rows nil (`w:tblPrEx`): those rows step one 0.5pt
+        // line apart in Word's print, 21.1pt a one-line row, where ours
+        // took the line twice, 21.6, and p17's last row went over whole.
+        func step(_ rowSpacing: String) throws -> (Double, String) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let borders = "<w:tcBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/></w:tcBorders>"
+            func row(_ text: String) -> String {
+                "<w:tr>\(rowSpacing)<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/>\(borders)</w:tcPr><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p></w:tc></w:tr>"
+            }
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblCellSpacing w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid>"
+                + row("r1") + row("r2") + row("r3") + "</w:tbl><w:p/>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: table + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            func drawn(_ text: String) throws -> Double {
+                let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+                let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+                return piece.pageY + l.geometry(k).textTop - piece.flowTop
+            }
+            let saved = try Zip.read(try DocxFormat.write(doc, pageSetup: setup)).first { $0.name == "word/document.xml" }!
+            return ((try drawn("r3") - drawn("r2")) / theme.pixelsPerPoint, String(decoding: saved.data, as: UTF8.self))
+        }
+        let spaced = try step("")
+        XCTAssertEqual(spaced.0, 21, accuracy: 0.05, "each row its own two lines")
+        let unspaced = try step("<w:tblPrEx><w:tblCellSpacing w:w=\"0\" w:type=\"nil\"/></w:tblPrEx>")
+        XCTAssertEqual(unspaced.0, 20.5, accuracy: 0.05, "the rows share their line")
+        XCTAssertTrue(unspaced.1.contains("<w:tblPrEx><w:tblCellSpacing w:type=\"nil\" w:w=\"0\"/>"), "the rows' own spacing goes back")
+    }
+
     func testAPartedRowOpensWithItsOwnTopLine() throws {
         // Lab `tb` (Word 16 Mac, zh-13552a3a's package): cells of top nil
         // and bottom single, a row parted at page 1's foot — page 2 opens

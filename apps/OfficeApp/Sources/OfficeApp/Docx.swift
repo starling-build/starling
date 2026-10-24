@@ -1376,11 +1376,22 @@ enum DocxFormat {
                         if h["w:hRule"] == "exact" { style.rowsExactHeight.insert(r) }
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
+                    // (A row's own cell spacing of none: zh-147bdae0's
+                    // commitment tables state 0 and most of their rows
+                    // nil, and those rows step a line apart in Word's print
+                    // — 21.1pt a one-line row, ours 21.6, the 0.5pt line
+                    // taken twice — where its first rows, 0 again, stand
+                    // their lines in pairs.)
+                    if style.cellSpacing != nil,
+                       let sp = tr.first("w:trPr")?.first("w:tblCellSpacing") ?? tr.first("w:tblPrEx")?.first("w:tblCellSpacing"),
+                       sp["w:type"] == "nil" {
+                        style.rowsUnspaced.insert(r)
+                    }
                     if let v = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? ""), v > 0 { style.rowsGridBefore[r] = v }
-                    // Its borders and its cell margins (the table's own
+                    // Its cell spacing, borders and cell margins (the table's own
                     // and each cell's go back beside them).
                     if let ex = tr.first("w:tblPrEx") {
-                        let kept = ["w:tblBorders", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
+                        let kept = ["w:tblCellSpacing", "w:tblBorders", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
                         if !kept.isEmpty { style.rowExceptions[r] = "<w:tblPrEx>" + kept + "</w:tblPrEx>" }
                     }
                 }
