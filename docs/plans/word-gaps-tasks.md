@@ -586,6 +586,23 @@ From p5 its lines stand where Word's do (within 1-2pt, same breaks), but Word's 
 embedded 仿宋_GB2312 subset's glyphs to wrong characters ("满足"→"7F", "评价"→"4价", "不少于"→"S少于"),
 so the four-character edges miss though the lines match. Not layout; nothing to fix here.
 
+### USER DECISION 2026-10-24: re-baseline every reference against a FRESH Word
+Cause found (macos-ios, read-only): one Word process ran from 2026-10-18 13:17 without a restart,
+and its font state drifted — embedded fonts printed as blank one-em glyphs from ~20:57 that day,
+and 楷体_GB2312 / 仿宋_GB2312 fell back to Arial Unicode MS / YaHei. With the user's approval Word was
+restarted (2026-10-24 06:42): embedded fonts print real (zh-a031fa16 NUL 2241 -> 1, zh-529fa492's
+digits 6.0 apart as Word for Windows), and 楷体_GB2312 / 仿宋_GB2312 print in Word's own DFonts KaiTi
+and FangSong. Documents without those faces reprint identically (zh-12c4f07a, zh-9462c6d6,
+zh-b5359de4 100%); with them, very differently (zh-1a3c7aa0 61 pages fresh against 90; zh-0aac9d1a
+33% of lines alike). The user chose to re-baseline ALL references: the Mac (0fcba326) is reprinting
+every one into ~/starling-word-check/fresh-all, restarting Word every 40 prints, then replaces them
+in one commit. After that the Mac-mode font rules (楷体_GB2312 -> Arial Unicode MS, 仿宋_GB2312 -> YaHei
+stand-in) are refit to KaiTi / FangSong (macos-ios). Until the new references land: do not build
+rules from lines set in 楷体_GB2312 / 仿宋_GB2312, and do not replace references piecemeal. The
+"USER DECISION 2026-10-23: embedded fonts" note is superseded — the ten set-aside references get
+real reprints. Prints: restart Word every ~40 documents from now on (the reprint loop does);
+many-copy labs need Word opened and left ~60s before printing (macOS-doc, lab sq14).
+
 ### USER DECISION 2026-10-23 (later): the punctuation squeeze limit follows Word for Windows
 windows' lab zq: Word for Windows squeezes a line-end up to exactly half an em (12-20pt, 1-3 marks;
 none with 0 marks), which our rule already does. Word for Mac's prints stop near 7.30pt at 16pt
