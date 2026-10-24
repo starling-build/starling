@@ -4444,3 +4444,12 @@ qh/qe) is the same thing for one mark.
   p1's rows match span by span to 0.6pt. 85.7 is the reader: PDFKit groups the codes, names and
   numbers of a row into lines differently — Word's spans carry their trailing spaces ("2 ", "A ",
   "4-04-04-02 "), ours do not. Not layout.
+- zh-6aa8bd7c p6 (Mac 01Xgpbk5, 2026-10-24, tried, RELEASED, nothing pushed): the contact table
+  states every column's share (448/380/298/369/705/363/393/547/401/1096 of 5000, the title row a
+  5000 span). Tried: each column its share of the table, raised to its need (noWrap's unparted
+  line, else its narrowest), the rise taken from the others in proportion and none under its
+  need — 62.8/52.2/41.0/50.8/98.8/57.0/54.0/78.4/55.1/150.6 to Word's 62.6/52.3/41.1/50.8/98.4/
+  56.9/54.3/78.0/55.2/151.2, all within 0.4 — but the mobile column stays at its 78.4 line where
+  Word gives 78.0 and wraps the last "8", so rows run short and the document fell 14.1 -> 13.7
+  (31 pages). Taking the rise by room over the narrowest (raised columns too) was worse. The
+  missing rule: why Word sets that noWrap column 0.4 under its line. Reverted.
