@@ -386,6 +386,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(f(0, "0.00;-0.00;\"zero\""), "zero")
         XCTAssertEqual(f(12.3, "0.###"), "12.3")
         XCTAssertEqual(f(1500000, "#,##0,,\"M\""), "2M")
+        // Literals among the digits stay among them (lo-tdf76115).
+        XCTAssertEqual(f(1234567, "###\".\"###\".\"##0"), "1.234.567")
+        XCTAssertEqual(f(0, "#\".\"##0"), ".0")
+        XCTAssertEqual(f(5551234567, "(###) ###-####"), "(555) 123-4567")
+        XCTAssertEqual(f(123456789, "00000-0000"), "12345-6789")
+        XCTAssertEqual(f(1234.5, "0\" \"00.0\"x\"0"), "12 34.5x0")
         XCTAssertEqual(NumberFormat.display(.text("abc"), "\"<\"@\">\"").text, "<abc>")
         // A pad (`_x`) is a space, except to the grid, which is told x.
         XCTAssertEqual(f(3750, "#,##0_)"), "3,750 ")

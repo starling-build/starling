@@ -313,6 +313,12 @@ the same base; the commits give the numbers):
   BernhardFashion BT in lo-tdf171828's header; "Arial Cyr" too), where
   Word's rule had made it Cambria: 48495 0.76 -> 0.51, 47862 0.19 ->
   0.08, lo-orderOfCNumFmtElements' cells to within 0.01 pt of Excel's.
+- *Literals among the digits stay among them.* `###"."###"."##0` puts
+  1234567 as "1.234.567" and 0 as "..0"'s ".0" in `#"."##0` (lo-tdf76115's
+  account numbers, which printed "0."), `(###) ###-####` a phone number,
+  `00\ 00\ 00` (lo-tdf81939); the integer fills its placeholders from
+  the right, any more digits before the first, the fraction from the
+  left. Three such workbooks, all better.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

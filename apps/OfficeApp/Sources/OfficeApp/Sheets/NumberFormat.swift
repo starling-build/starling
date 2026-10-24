@@ -419,6 +419,7 @@ enum NumberFormat {
     private static func _formatNumber(_ value: Double, _ code: String) -> String {
         let toks = _tokens(code)
         let hasExp = toks.contains { if case .exp = $0 { return true }; return false }
+        if !hasExp, let s = _interleaved(value, toks) { return s }
         // Literals land before the digits, between the mantissa and the E,
         // between the E and its digits, or after everything.
         var before = "", mid = "", expMid = "", after = ""
@@ -486,6 +487,82 @@ enum NumberFormat {
             return before + m + mid + String(expLetter) + expMid + sign + es + after
         }
         return before + _digits(v, intPattern, fracPattern, thousands: thousands) + after
+    }
+
+    /// A code with literals among its digit placeholders, `###"."###"."##0`
+    /// (lo-tdf76115's account numbers): the integer's digits fill its
+    /// placeholders from the right, any more before the first, and each
+    /// literal stays where it stands among them — 1234567 is "1.234.567",
+    /// and 0 in `#"."##0` ".0", as Excel prints it. The fraction's digits
+    /// fill from the left. Nil when no literal stands between digits.
+    private static func _interleaved(_ value: Double, _ toks: [Tok]) -> String? {
+        let isDigit: (Tok) -> Bool = { if case .digit = $0 { return true }; return false }
+        guard let first = toks.firstIndex(where: isDigit), let last = toks.lastIndex(where: isDigit),
+              toks[first ... last].contains(where: { if case .lit = $0 { return true }; return false }) else { return nil }
+        enum Item { case digit(Character), lit(String) }
+        var before = "", after = ""
+        var intItems: [Item] = [], fracItems: [Item] = []
+        var inFrac = false, hadPoint = false, thousands = false, percent = 0, scaleCommas = 0
+        for (i, t) in toks.enumerated() {
+            let edge = i < first ? 0 : i > last ? 2 : 1
+            switch t {
+            case .digit(let d): if inFrac { fracItems.append(.digit(d)) } else { intItems.append(.digit(d)) }
+            case .point:
+                if inFrac { if edge == 1 { fracItems.append(.lit(".")) } else if edge == 0 { before += "." } else { after += "." } }
+                else { inFrac = true; hadPoint = true }
+            case .comma:
+                if edge == 1, !inFrac, i + 1 < toks.count, isDigit(toks[i + 1]) { thousands = true }
+                else if edge >= 1 { scaleCommas += 1 }
+                else { before += "," }
+            case .percent:
+                percent += 1
+                if edge == 0 { before += "%" } else if edge == 2 { after += "%" } else if inFrac { fracItems.append(.lit("%")) } else { intItems.append(.lit("%")) }
+            case .lit(let s):
+                if edge == 0 { before += s } else if edge == 2 { after += s } else if inFrac { fracItems.append(.lit(s)) } else { intItems.append(.lit(s)) }
+            case .exp: return nil
+            }
+        }
+        var v = value
+        for _ in 0 ..< percent { v *= 100 }
+        for _ in 0 ..< scaleCommas { v /= 1000 }
+        let fracCount = fracItems.reduce(0) { if case .digit = $1 { return $0 + 1 }; return $0 }
+        let parts = fixed(v, decimals: fracCount).split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        var digits = Array(parts[0] == "0" ? "" : parts[0])
+        let frac = Array(parts.count > 1 ? parts[1] : "")
+        // The integer, right to left.
+        var out: [String] = []
+        var emitted = 0
+        func emit(_ ch: Character) {
+            if thousands, emitted > 0, emitted % 3 == 0 { out.append(",") }
+            out.append(String(ch)); emitted += 1
+        }
+        let firstDigit = intItems.firstIndex { if case .digit = $0 { return true }; return false }
+        for (k, item) in intItems.enumerated().reversed() {
+            switch item {
+            case .lit(let s): out.append(s)
+            case .digit(let d):
+                if let ch = digits.popLast() { emit(ch) }
+                else if d == "0" { emit("0") }
+                else if d == "?" { out.append(" ") }
+                if k == firstDigit { while let ch = digits.popLast() { emit(ch) } }
+            }
+        }
+        var s = before + out.reversed().joined()
+        // The fraction, left to right: an unused trailing # is nothing, ? a space.
+        if hadPoint {
+            var fr = "", j = 0
+            let lastSignificant = frac.lastIndex { $0 != "0" } ?? -1
+            for item in fracItems {
+                switch item {
+                case .lit(let t): fr += t
+                case .digit(let d):
+                    if j <= lastSignificant || d == "0" { fr.append(frac[j]) } else if d == "?" { fr += " " }
+                    j += 1
+                }
+            }
+            s += "." + fr
+        }
+        return s + after
     }
 
     /// "# ?/?", "#/8", "0 00/00": a "/" with a digit placeholder before it.
