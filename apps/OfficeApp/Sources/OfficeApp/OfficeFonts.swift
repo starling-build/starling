@@ -408,7 +408,22 @@ enum OfficeFonts {
             (["constantia"], "Constantia", "constan.ttf"),
             (["corbel"], "Corbel", "corbel.ttf"),
         ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
+        for (face, _) in cloudFaces { m[face.lowercased()] = face }
         return m
+    }()
+
+    /// Faces Office downloads for itself, into its own font cache, which
+    /// Windows does not list — Excel prints Aptos Narrow, the default
+    /// font of today's workbooks, in Aptos Narrow — with the files of each.
+    /// Registered by `register`.
+    static let cloudFaces: [(face: String, files: [String])] = {
+        let cache = (ProcessInfo.processInfo.environment["LOCALAPPDATA"] ?? "") + "/Microsoft/FontCache/4/CloudFonts/"
+        return ["Aptos", "Aptos Narrow", "Aptos Display"].compactMap { face in
+            let dir = cache + face + "/"
+            let files = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [])
+                .filter { $0.lowercased().hasSuffix(".ttf") }.sorted().map { dir + $0 }
+            return files.isEmpty ? nil : (face, files)
+        }
     }()
     #endif
 
@@ -2029,6 +2044,9 @@ enum OfficeFonts {
         // Word's has not. YaHei is the face Word for Mac sets these in.
         cjkFallback = ["Microsoft YaHei"]
         RichTextTheme.glyphFallback += cjkFallback
+        for (face, files) in cloudFaces {
+            for file in files { _ = flutter.swift_bridge.LoadFontFromFile(file, face) }
+        }
         #elseif os(Linux)
         // Chinese text, named: the engine's Linux font manager reads
         // /usr/share/fonts but finds no face for a character itself, so
