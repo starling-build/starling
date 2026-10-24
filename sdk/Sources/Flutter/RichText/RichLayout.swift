@@ -4259,6 +4259,24 @@ public final class RichLayout {
                 y = max(-insetTop, -_px(up))
             }
             if let c = _cells[i] {
+                // A table every row of which is marked a header (see
+                // `headerRows`) starts on a page of its own where it does
+                // not fit the rest of this one: zh-8628cfbe's annex 3, 28
+                // rows all marked, after its heading at the top of page 30,
+                // opens page 31 in Word's print, the heading alone on 30;
+                // ours set it under the heading and ran a page short. Lab
+                // `ah` (Word 16 Mac): the marks taken off, it stays under
+                // the heading; a pageBreakBefore for the in-paragraph break
+                // changes nothing. (From 2013's layout: zh-e37f8d40's forms,
+                // 16 rows all marked, mode 14, stay under their headings.)
+                if theme.wordRules, (document.compatibilityMode ?? 12) >= 15,
+                   c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, y > 0.01,
+                   let ts = document.tableStyles[c.table], ts.headerRow, ts.headerRowCount > (_tableRows[c.table] ?? 0),
+                   document.tableStyles[c.table]?.floatX == nil {
+                    var last = i
+                    while last + 1 < count, _cells[last + 1]?.table == c.table { last += 1 }
+                    if last < _tops.count, _tops[last] + _heights[last] - _tops[i] > contentH - y { newPage() }
+                }
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
                 // 4.35pt under the line before it in Word's print).
