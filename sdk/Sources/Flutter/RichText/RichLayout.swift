@@ -11159,7 +11159,14 @@ public final class RichLayout {
                         // carries a full-width mark of its own keeps the room
                         // test: zh-06c46ba9's "（詳參附錄1）" takes "1）" 9pt
                         // over in Word's print.)
-                        : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25)
+                        // (Not, on a line with spaces, one that starts past the
+                        // margin, the automatic space before it already over,
+                        // as in the body: zh-51af781b's mode-14 scoring cells
+                        // end "…干湿区分离，得" in Word's print and open the next
+                        // line "1分；…", where ours took the "1" 9.2pt over,
+                        // starting 1.4 past, five marks and three spaces able
+                        // to give.)
+                        : (!wide && inCell && ((lineBlank && x < width) || need < set / 2 - _px(0.25)
                             // (… up to half an em and what its own marks give:
                             // zh-d35cbbdb's cell takes no "1333、" 35pt over,
                             // its six marks able to give 44, where Word's

@@ -3016,6 +3016,37 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(piece.pageY / theme.pixelsPerPoint, -3, "the table's first row stands up in the top margin, at its offset")
     }
 
+    func testACellsLatinWordThatStartsPastTheMarginIsNotTaken() throws {
+        try requireFitterWidths()
+        // zh-51af781b's mode-14 scoring cell "70%及以上客房卫生间有浴缸，得1分；
+        // 所有卫生间淋浴…干湿区分离，得1分；…" ends its first line "…分离，得" in
+        // Word's print. Ours took the "1" over the margin, the automatic
+        // space before it already past it, the line's marks and spaces giving.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-51af781b") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("所有卫生间淋浴、恭桶、面盆干湿区分离") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let line = painter.getLineBoundary(TextPosition(offset: 0))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+            .filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        XCTAssertTrue(text.filter { !$0.isWhitespace }.hasSuffix("分离，得"), text)
+    }
+
     func testAJustifiedLineStretchesNothingBeforeItsLastTab() throws {
         // zh-6a4fc013's "คำถามที่  2 ：<tab>การเปิดนำเข้า…" (justified, a default
         // stop) leaves the spaces before the tab as they are in Word's

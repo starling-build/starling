@@ -4632,10 +4632,13 @@ Done: `_vmlTextRect` — the shapetype's textboxrect, else VML's own for types
 2/176 (0.2929 of adj), 3/120, 110, 116. Same-base sweep of 756: zh-60c80728
 97.7 -> 99.6, nothing else moved.
 
-### T157. zh-51af781b p57 on: a Latin word that starts past the margin is not taken in a cell either — CLAIMED (Linux office1, 2026-10-24)
+### T157. zh-51af781b p57 on: a Latin word that starts past the margin is not taken in a cell either — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). Mode 14 cells of scoring rules,
 "…干湿区分离，得" / "1分；…" in Word's print (its reference holds — macOS-doc's
 fresh reprint is identical); ours takes the "1" 9.2pt over, the automatic space
 before it already 1.4 past the margin, its five marks and three spaces giving.
 The body rule leaves such a word (zh-9dd9ce6d's "3"); the cell rule on a line
 with spaces (lab `ovc`) has no start test.
+Done: the cell rule on a line with spaces takes a Latin word only where it
+starts inside the margin. Same-base sweep of 756: zh-51af781b 98.7 -> 99.0,
+nothing else moved.
