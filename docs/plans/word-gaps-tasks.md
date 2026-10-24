@@ -4292,7 +4292,19 @@ digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
   stretch shorter than a line. Joining every stretch (moving long ones
   down) scored 62.5. A lab varying a stretch's length after a space
   would find the rule; Word for Windows may differ (its Uniscribe
-  dictionary) — the flag is the Mac's only.
+  dictionary) — the flag is the Mac's only. Windows 01QbbApP printed it
+  on Word for Windows (~/starling-doc-check/lab/th/win.pdf, 28 pages,
+  Browallia New too): no stretch that fits a line is broken (as ours);
+  an overlong one starts on the next line, not beside "ตอบ :", and breaks
+  at the last character that fits — which ours does not (it breaks by
+  dictionary), and which, tried, scored 62.5 against the Mac's print.
+  Open: Mac and Windows prints differ on overlong stretches only; under
+  the Windows tiebreak rule switching is the user's call.
 - zh-045c5a75 nested article table's column widths (Mac 01Xgpbk5,
   CLAIMED 2026-10-23, routed by bd; lenovo released): Word's autofit of
-  the 85% inner table — lab nt (bd) first.
+  the 85% inner table — lab nt (bd) first. DONE, 58.9 -> 95.7 (n215,
+  nothing down): a spaced pct table's pct cells take their share of the
+  table or their text's need (noWrap's widest + the spacing), auto cells
+  the rest; noWrap cells there stay whole. Left: p36's form; lab nt C
+  (no inner spacing) still has Word's col 3 at 123.1 and ours at the
+  grid's 134.9 — the rule likely holds unspaced too (untried).
