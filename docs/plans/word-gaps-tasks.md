@@ -580,6 +580,9 @@ Each owner claims its item below as usual; this only says who was asked.
 
 ### Mac 01Xgpbk5 (2026-10-23): zh-11709c74 92.9 [Mac 01Xgpbk5 2026-10-23, looked, released: 5 of 70 lines, the reader grouping a scoring table's cells ("1评分总得", "2评分报价"), lines within 2pt of Word's]; zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
 
+### VML group shapes drawn [CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23]
+Shapes inside a VML `v:group` draw only their text — no outlines, fills or arrows (zh-6e6b9821, 5e452e14). Checked by eye against Word's prints, plus a pair sweep.
+
 ### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: 99.7; zh-6d402586 91.3 -> 96.7, zh-2e7ef069 90.0 -> 92.8, nothing down (pair n5/n6). Released]
 Its landscape pages number themselves in an `eaVert` box at the page's left ("- 33 -" reads down in Word's print); ours set it across. Also moves zh-2e7ef069, zh-6d402586 (its "通知書一式兩聯…" side box, not the 附件 boxes Windows holds), zh-6cd1befe.
 
