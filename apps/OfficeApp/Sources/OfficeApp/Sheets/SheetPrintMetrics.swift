@@ -81,7 +81,10 @@ struct SheetPrintMetrics {
         return px * 72 / 192
     }
 
-    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double] }
+    /// `beyond`: screen rows at sizes past 18, where Excel's print showed
+    /// them — Tables' rows of Times New Roman 20 print 67 px, of its bold
+    /// 66, where in proportion to 18 they were 68 and 67.
+    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double], beyond: [Double: Double] = [:] }
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
     private static let faces: [String: Face] = [
         "calibri": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
@@ -91,7 +94,7 @@ struct SheetPrintMetrics {
         "verdana": Face(digit: [43, 48, 53, 56, 58, 64, 74, 85, 95], row: [88, 100, 108, 114, 122, 129, 150, 169, 189], screenRow: [26, 30, 33, 35, 36, 39, 47, 53, 61],
             screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31]),
         "times new roman": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 96, 106, 112, 116, 126, 145, 165, 184], screenRow: [27, 31, 35, 36, 37, 41, 47, 54, 61],
-            screenDigit: [11, 12, 14, 14, 14, 16, 19, 22, 24]),
+            screenDigit: [11, 12, 14, 14, 14, 16, 19, 22, 24], beyond: [20: 67]),
         "courier new": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [79, 88, 96, 103, 107, 115, 133, 151, 167], screenRow: [28, 32, 35, 37, 38, 42, 48, 56, 62],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
         "tahoma": Face(digit: [37, 41, 45, 48, 50, 55, 64, 73, 82], row: [89, 98, 108, 114, 119, 129, 149, 168, 189], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
@@ -161,7 +164,7 @@ struct SheetPrintMetrics {
         "verdana bold": Face(digit: [48, 53, 59, 63, 65, 71, 83, 95, 107], row: [88, 100, 108, 114, 122, 129, 150, 169, 189], screenRow: [26, 30, 33, 35, 36, 39, 47, 53, 61],
             screenDigit: [15, 17, 19, 20, 21, 23, 26, 31, 34]),
         "times new roman bold": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 96, 105, 111, 116, 126, 146, 165, 184], screenRow: [27, 30, 34, 35, 36, 40, 46, 53, 60],
-            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24], beyond: [20: 66]),
         "tahoma bold": Face(digit: [43, 48, 53, 56, 59, 64, 75, 85, 96], row: [89, 98, 108, 114, 119, 129, 149, 168, 189], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31]),
         "courier new bold": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [84, 93, 100, 109, 113, 122, 142, 158, 178], screenRow: [28, 32, 36, 37, 39, 43, 49, 57, 63],
@@ -224,7 +227,7 @@ struct SheetPrintMetrics {
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)
         let between = size > sizes[0] && size < sizes[sizes.count - 1]
         let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded(between ? .up : .toNearestOrAwayFromZero)
-        let screenRow = max(1, at(f.screenRow, size).rounded())
+        let screenRow = max(1, (f.beyond[size] ?? at(f.screenRow, size)).rounded())
         // The default column, as that Excel's screen made it: the digit there
         // in whole pixels, its padding, and the sum up to a multiple of 8.
         let screenDigit = max(1, at(f.screenDigit, size).rounded())

@@ -308,7 +308,9 @@ final class CalcEngine {
                 var names: [String] = []
                 Formula.names(f, into: &names)
                 for n in names {
-                    if let t = book.names[n.uppercased()], let e = try? Formula.parse(t) { Formula.references(e, into: &refs) }
+                    if let t = book.nameText(n), let e = try? Formula.parse(t) {
+                        Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs)
+                    }
                 }
                 return refs.compactMap { ref in
                     let si = ref.sheet.flatMap { book.sheet(named: $0) } ?? k.sheet
@@ -477,8 +479,8 @@ final class CalcEngine {
         case .array(let rows): return .array(rows.map { $0.map { scalar(evaluate($0, ctx), ctx) } })
         case .name(let n):
             if let local = ctx.locals[n.uppercased()] { return local }
-            if let target = book.names[n.uppercased()], target.containsSubstring("#REF!") { return .error(.ref) }
-            guard let target = book.names[n.uppercased()],
+            if let target = book.nameText(n), target.containsSubstring("#REF!") { return .error(.ref) }
+            guard let target = book.nameText(n),
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).
                 if book.sheets.contains(where: { $0.tables.contains { $0.name.lowercased() == n.lowercased() } }) {
@@ -486,7 +488,10 @@ final class CalcEngine {
                 }
                 return .error(.name)
             }
-            return evaluate(parsed, ctx)
+            // Its relative references are kept from A1 and read from the
+            // cell that uses it, round the sheet's edge: lo-tdf171828's
+            // `$G1048576` in G19 is G18, the row above.
+            return evaluate(Formula.shifted(parsed, rows: ctx.cell.row, cols: ctx.cell.col, wrapping: true), ctx)
         case .negate(let x):
             let ex = evaluate(x, ctx)
             if ctx.dynamic, _isMulti(ex) {

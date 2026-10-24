@@ -275,6 +275,26 @@ the same base; the commits give the numbers):
   one 0.01 worse (DateFormatTests 4.90 -> 4.00). A line of 40 letters
   then ends 0.46 pt past Excel's; at the printer's 9.96 it would end as
   far short, so it keeps the font's size.
+- *Names that move.* A defined name's relative references are kept
+  from A1 and read from the cell that uses it, round the sheet's edge:
+  lo-tdf171828's sheet-local `rechne.Restkredit` reads `$G1048576`, the
+  row above, and `XFD1`, the column to the left. `Sheet!Name` is a name
+  (its `Hitab!Divisor`); it failed to parse, and every name using it was
+  #NAME? (5.16 -> 4.89; its #NUM! totals are still open).
+- *Rows past 18 pt.* Excel's print shows Times New Roman 20 fitted at 67
+  screen pixels and its bold at 66 (Tables' "Exp2 (2)" at 49%, rows a
+  whole printer dot: 99 and 98), where in proportion to 18 they were 68
+  and 67 (Tables 6.93 -> 6.66, p2 9.07 -> 6.90). Measured, not modelled:
+  carrying 18's row up by the font's own pixel line fits both, but
+  predicts 16 from 14 and 18 from 16 no better than proportion (22 of
+  76 exact either way).
+- *Whole-dot advances* (open). Excel's print advances every character
+  a whole 600-dpi dot: Lucida Sans Typewriter 10, at 83 dots an em,
+  steps 50 dots (0.6 em is 49.8), Verdana's digits 53 (52.77). The
+  printed size alone, extended to the faces Windows has (Malgun Gothic
+  11 at 11.04, style-alternate-content -0.07), cost the format tests up
+  to 0.48, their monospaced lines ending short; it waits for the
+  advances to go with it.
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs

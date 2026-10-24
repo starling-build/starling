@@ -413,6 +413,13 @@ final class Workbook {
         self.sheets = sheets
     }
 
+    /// A defined name's formula. `Sheet!Name` is read by its name: the
+    /// book keeps one table of them, sheet-local ones included.
+    func nameText(_ n: String) -> String? {
+        let bare = n.lastIndex(of: "!").map { String(n[n.index(after: $0)...]) } ?? n
+        return names[bare.uppercased()]
+    }
+
     func sheet(named name: String) -> Int? {
         let n = name.lowercased()
         return sheets.firstIndex { $0.name.lowercased() == n }

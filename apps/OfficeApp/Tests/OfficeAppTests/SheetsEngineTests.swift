@@ -183,6 +183,21 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "A1"), .number(42))
     }
 
+    func testRelativeAndSheetNames() {
+        // A name's relative references are kept from A1 and read from the
+        // cell that uses it, round the sheet's edge (lo-tdf171828).
+        let c = book(["A1": "5", "A2": "=Above*2", "A3": "=Above+1", "B3": "=Left", "C1": "=Data!Rate"], sheets: ["Data": ["B2": "21"]])
+        c.book.names["ABOVE"] = "$A1048576"
+        c.book.names["LEFT"] = "XFD1"
+        c.book.names["RATE"] = "Data!$B$2"
+        c.engine.recalculate()
+        XCTAssertEqual(v(c, "A2"), .number(10))
+        XCTAssertEqual(v(c, "A3"), .number(11))
+        XCTAssertEqual(v(c, "B3"), .number(11))
+        XCTAssertEqual(v(c, "C1"), .number(21))
+        XCTAssertEqual(c.input(CellAddress("C1")!), "=Data!Rate")
+    }
+
     // MARK: Functions
 
     func testAggregates() {
