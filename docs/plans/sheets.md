@@ -365,6 +365,10 @@ the same base; the commits give the numbers):
   worse (Excel_file_with_trash_item 4.71 -> 4.24). Open: bottom-aligned,
   Excel's Tahoma 10 stands on its row's Calibri 11 baseline, a point
   over ours, which puts a cell's descent a point over its foot.
+  Segoe UI, Georgia, Consolas, Book Antiqua and Calibri Light print in
+  their own faces too (Segoe UI's and Georgia's hinted widths with
+  them): the 16 workbooks in them, 3 better, none worse (lo-tdf76115
+  4.46 -> 4.03).
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

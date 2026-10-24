@@ -378,6 +378,11 @@ enum OfficeFonts {
             // (Excel_file_with_trash_item's Tahoma 10 stood a point under
             // its row's Calibri in Liberation Sans.)
             (["tahoma"], "Tahoma", "tahoma.ttf"),
+            (["segoe ui"], "Segoe UI", "segoeui.ttf"),
+            (["georgia"], "Georgia", "georgia.ttf"),
+            (["consolas"], "Consolas", "consola.ttf"),
+            (["book antiqua"], "Book Antiqua", "BKANT.TTF"),
+            (["calibri light"], "Calibri Light", "calibril.ttf"),
             (["lucida sans", "lucida sans regular"], "Lucida Sans", "LSANS.TTF"),
             (["lucida sans unicode"], "Lucida Sans Unicode", "l_10646.ttf"),
             (["comic sans ms"], "Comic Sans MS", "comic.ttf"),
