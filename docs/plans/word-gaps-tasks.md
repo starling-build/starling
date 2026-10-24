@@ -4213,14 +4213,15 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   last row found no room for its stated 48.8 (90a3ed76, 92.8 -> 93.3);
   (2) a list's last item in a cell keeps its automatic 14pt after, a
   plain paragraph's gives way (df930369, -> 95.5; p45 within 0.1pt).
-  Left, for a lab: the 5000-pct tables (cell spacing 0, mode 15) are
-  drawn inset by the row's left/right cell margin on each side in Word's
-  print — p45 91.2..504.2 under 24-twip margins (text 90..505.3), p17
-  90.5..509.5 under 10-twip ones (89.85..510.25); ours spans the text
-  width. So ours fits a character more a line: p45's "…經理人" (Word
-  wraps before "人", the line ending 498.7) and p46/47 a page apart, 7
-  lines fewer than Word's in all. Is a spaced pct table's width the room
-  less its outer cell margins?
+  Left: p45's "我國於108年…經理人" (12pt YaHei, a cell of 108-twip
+  margins under spacing 0) ends its "人" at 498.7 in ours and Word wraps
+  before it. Not the table's extent — lab `pct` (Mac 7bd18d8e, 2026-10-24):
+  a pct table spans the text width whatever its margins, spacing 0 only
+  doubling the rules 0.24 apart (ours agrees, 90.03..505.27). Word's
+  right rules there are a 0.72 pair at 504.24, so the cell's text ends
+  about 498.8 — within a few tenths of "人"'s end. Asked the Mac for a
+  lab of the right text limit, spaced 0 against none; p46/47 stay a
+  page apart until then (7 lines fewer than Word's in all).
   Earlier (Linux 017F2GnT 2026-10-23, looked, released): p17's
   last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) parts at the
   foot in Word's print, two of its four names there; ours takes it whole
