@@ -10713,9 +10713,21 @@ public final class RichLayout {
                     // "理" 8.3pt past the margin so, inside half "办"'s 17 (8.8
                     // as spaced); zh-749cb15a's 14pt, spaced to 14.6, leaves
                     // "期" 7.55 past so, over half "長"'s 14.6.)
+                    // (Condensed — its run spaced less — it is as wide as it is set: zh-51af781b's
+                    // runs spaced -0.75 set "舒适；" 14.5 apart at 16pt, and
+                    // Word's print takes "…柔软舒适；" with "适" 6.0pt over by
+                    // that, inside half "舒"'s 14.5; counted at its em, 7.5
+                    // over, ours sent "适；" down and pages 31-34 ran late.
+                    // Not in a cell: zh-cc7a08e8's header "1000米跑（分′秒）"
+                    // (mode 11, its bracket run spaced -1 at 14pt) leaves
+                    // "秒）" a line down in Word's print, where the set width
+                    // took it. Why, not found.)
+                    func condensed(_ k: Int) -> Bool {
+                        k < runOf.count && (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0) < 0
+                    }
                     let plain = theme.wordRules && units[a] >= 0x3400 && !Self._closingUnits.contains(units[a]) && !Self._openingUnits.contains(units[a])
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em + quoteSpacing(a) / 2 : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : plain ? em + max(0, boxes(a, a + 1) - (gaps[a] ?? 0) - em) / 2 : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em + quoteSpacing(a) / 2 : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : plain ? (condensed(a) && !inCell ? min(em, boxes(a, a + 1) - (gaps[a] ?? 0)) : em + max(0, boxes(a, a + 1) - (gaps[a] ?? 0) - em) / 2) : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
                     // (And where the character before it is over the margin
                     // itself, the paragraph's last mark gives nothing toward
                     // taking the two: the line's other marks must. zh-cfb32050
