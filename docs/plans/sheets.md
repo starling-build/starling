@@ -360,6 +360,11 @@ the same base; the commits give the numbers):
   kinds the same at 16 dots wide, slantDashDot as mediumDashDot. Ours
   were 25 and 17 for all. Open: mediumDashed starts 33 dots into its
   run in Excel's.
+- *Tahoma* prints in Tahoma on Windows, at its hinted widths (it had
+  been Liberation Sans): the 38 workbooks in it, 5 better, one 0.01
+  worse (Excel_file_with_trash_item 4.71 -> 4.24). Open: bottom-aligned,
+  Excel's Tahoma 10 stands on its row's Calibri 11 baseline, a point
+  over ours, which puts a cell's descent a point over its foot.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

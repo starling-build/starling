@@ -375,6 +375,9 @@ enum OfficeFonts {
             (["微軟正黑體", "microsoft jhenghei"], "Microsoft JhengHei", "msjh.ttc"),
             (["游ゴシック", "yu gothic"], "Yu Gothic", "YuGothR.ttc"),
             (["lucida sans typewriter"], "Lucida Sans Typewriter", "LTYPE.TTF"),
+            // (Excel_file_with_trash_item's Tahoma 10 stood a point under
+            // its row's Calibri in Liberation Sans.)
+            (["tahoma"], "Tahoma", "tahoma.ttf"),
             (["lucida sans", "lucida sans regular"], "Lucida Sans", "LSANS.TTF"),
             (["lucida sans unicode"], "Lucida Sans Unicode", "l_10646.ttf"),
             (["comic sans ms"], "Comic Sans MS", "comic.ttf"),
