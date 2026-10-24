@@ -4540,3 +4540,13 @@ pause mark from mode 15 under compression (half hang, else no hang and that
 capacity): zh-20c1d74a 90.9 -> 6.1, zh-c2c92639 98.0 -> 86.7, zh-cd8987db 91.8
 -> 87.7. Most documents' final marks take more than that in Word's prints, so
 the capacity in cd2 is this line's, not the rule. Reverted; released.
+Then macOS-doc's bisects (cd3/cd4/cd5): the tight limit follows run 1's own
+ascii face — "5.5.1" in 黑体 (SimHei digits, from style 95's rFonts) holds to
+~13, "5.5.1" in Calibri to ~18 (ours 17.45); not the paragraph mark's face,
+not outlineLvl, spacing, numPr, lang or widowControl. Tried the rule only on
+lines no Latin face draws anything on: zh-20c1d74a still 90.9 -> 6.1,
+zh-505b9619 99.1 -> 49.6, zh-e0ca7252 98.9 -> 35.7 — their all-Chinese lines'
+final marks hang more than that in Word's prints. So it is something about
+digits set in an East Asian face (counted as wide characters? on the grid of
+the line's ems?), not about the line's faces. Patch kept at
+~/tmp/office1/t188-tried.patch (Linux office1). Released.
