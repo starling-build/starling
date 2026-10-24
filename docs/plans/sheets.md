@@ -334,6 +334,13 @@ the same base; the commits give the numbers):
   named sheet's (lo-named-ranges-global's two Local1s, 3 and 5, both
   read 5). On reading, a book-wide name is never overwritten by a
   sheet's of the same name.
+- *Header and footer lines.* Excel's header stands 1.2 pt below the
+  line of its margin and its footer 1.75 above, measured on the first
+  pages of the corpus (a Times 12 header 12.18 under the header margin,
+  ours 11.0; a Times 12 footer's baseline 4.64 over the footer margin,
+  ours 3.05; Arial 9.96 and Calibri 11.04 the same within 0.15). 94
+  workbooks with either: 83 better, 2 worse by 0.02 at most. Open:
+  Arial 11.04 footers (5 workbooks) stand 0.65 over Excel's with it.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

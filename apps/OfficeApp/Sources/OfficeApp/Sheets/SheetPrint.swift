@@ -653,7 +653,13 @@ extension SheetGridState {
                                      textAlign: i == 0 ? .left : i == 1 ? .center : .right, textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 let x = i == 0 ? setup.left : i == 1 ? setup.left + (innerW - tp.width) / 2 : size.width - setup.right - tp.width
-                let y = top ?? (bottom! - tp.height)
+                // Excel's header stands 1.2 pt below its margin's line, its
+                // footer 1.75 above: on the first pages of the corpus a header
+                // at Times 12 is 12.18 under the header margin (ours 11.0),
+                // Arial 9.96 10.14 (ours 9.0); a footer's baseline 4.64 over
+                // the footer margin at Times 12 (ours 3.05), 3.92 at Arial
+                // 9.96 (2.05), 4.8 at Calibri 11.04 (3.0).
+                let y = top.map { $0 + 1.2 } ?? (bottom! - tp.height - 1.75)
                 tp.paint(canvas, Offset(x, y))
                 tp.dispose()
             }
