@@ -314,8 +314,8 @@ the same base; the commits give the numbers):
   Word's rule had made it Cambria: 48495 0.76 -> 0.51, 47862 0.19 ->
   0.08, lo-orderOfCNumFmtElements' cells to within 0.01 pt of Excel's.
 - *Literals among the digits stay among them.* `###"."###"."##0` puts
-  1234567 as "1.234.567" and 0 as "..0"'s ".0" in `#"."##0` (lo-tdf76115's
-  account numbers, which printed "0."), `(###) ###-####` a phone number,
+  1234567 as "1.234.567", and `#"."##0` puts 0 as ".0" (lo-tdf76115's
+  account numbers, which printed "0."); `(###) ###-####` is a phone number,
   `00\ 00\ 00` (lo-tdf81939); the integer fills its placeholders from
   the right, any more digits before the first, the fraction from the
   left. Three such workbooks, all better.
