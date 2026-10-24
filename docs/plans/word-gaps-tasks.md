@@ -4348,13 +4348,20 @@ sweep of 756: zh-167ee06c 88.1 -> 91.0, nothing else moved.
   rebase — at the tip it scores 83.8 with c8c6cff8's inset or without it; c8c6cff8's commit
   message credits it wrongly. The two touch different sides and do not undo each other.
 
-### T149. zh-d746674a p16: a cell line's automatic spaces all give once the one before what is taken does — CLAIMED (Linux office1, 2026-10-23)
+### T149. zh-d746674a p16: a cell line's automatic spaces all give once the one before what is taken does — DONE (2026-10-24)
 Owner: Linux office1 (starling-office1-df). The cell "每年2次(第2、4季)"
 (mode 15, zh-HK, YaHei 14pt, jc both) is one line in Word's print, 122.15
 of 122.3: "、" at its half (7) and all four automatic spaces from 3.5 to 2.8.
 Ours lets only the space before "季" give (room 8.75 of 9.68) and wraps
 "季)". zh-6e7ff836's "…(80分)比較，相", whose one space is not beside "相",
-stays as it is.
+stays as it is. Now: in a cell (mode 15), where the space just before what
+is taken gives and the marks cannot give all of it, every automatic space of
+the line gives the rest, weighed against the line's stretch as marks are
+(need less the marks' room, times a 64th of the line's ems and the spaces, at
+most half the spaces times the stretch). Letting every space into the old
+test instead dropped zh-db07d44e 17 and zh-12db188f 5. Same-base sweep of 756:
+zh-d746674a 92.2 -> 100, zh-db07d44e 98.0 -> 98.1, zh-e0ca7252 98.7 -> 98.9,
+nothing down.
 
 ### T150. zh-15f60bac p11: a word wider than the line opens a line of its own after a space in a cell — CLAIMED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.

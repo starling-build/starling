@@ -10526,7 +10526,7 @@ public final class RichLayout {
                     // side of "80" set at 2.2 of their 3.0 and "，" at its half.)
                     var wordStart = a
                     while wordStart > 0, units[wordStart - 1] < 0x2E80, !isSpace(units[wordStart - 1]) { wordStart -= 1 }
-                    let given = legacy || !inCell ? spaces + ownSpaces
+                    var given = legacy || !inCell ? spaces + ownSpaces
                         : spaces.filter { $0 == a - 1 || (wordStart < a && $0 == wordStart - 1) }
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
@@ -10575,8 +10575,25 @@ public final class RichLayout {
                     // quote is its glyph and a blank: half its em.)
                     func half(_ k: Int) -> Double { wideQuote(k) ? ems[k] / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2 }
                     let markRoom = all.reduce(0.0) { $0 + half($1) }
-                    let room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
+                    var room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
                     let need = over - hang - after
+                    // (In a cell, where the space just before it gives and the
+                    // marks cannot give it all, every space of the line gives
+                    // the rest — weighed against the line's stretch, as marks
+                    // are: zh-d746674a's cell "每年2次(第2、4季)" (mode 15, zh-HK,
+                    // YaHei 14pt) is 9.68 over and a line in Word's print, "、"
+                    // at its half, 7, and all four spaces 2.8 of 3.5 — 2.68 of
+                    // their 7, a share the 9pt stretch over 15.75 allows.)
+                    let cellRest: Bool = {
+                        guard inCell, !legacy, spaces.contains(a - 1), need > markRoom else { return false }
+                        let spaced = (spaces + ownSpaces).reduce(0.0) { $0 + (gaps[$1] ?? 0) }
+                        return (need - markRoom) * (lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64 + spaced)
+                            <= spaced / 2 * (width - x + hair)
+                    }()
+                    if cellRest {
+                        given = spaces + ownSpaces
+                        room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
+                    }
                     // From Word 2013's layout on the test is another:
                     // what each mark must give is no more than the
                     // line would have to stretch by without the
@@ -10704,7 +10721,7 @@ public final class RichLayout {
                                 ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
                                     <= markRoom * (width - x + hair)
                                 : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
-                                    <= room * (width - x + hair))
+                                    <= room * (width - x + hair) || cellRest)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)

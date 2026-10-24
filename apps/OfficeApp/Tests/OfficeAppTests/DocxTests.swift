@@ -2764,6 +2764,35 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    func testACellLinesSpacesAllGiveWhereTheOneBeforeWhatIsTakenDoes() throws {
+        try requireFitterWidths()
+        // zh-d746674a's cell "每年2次(第2、4季)" (mode 15, zh-HK, 14pt, justified)
+        // is one line in Word's print, 122.15 of 122.3: "、" at its half and
+        // all four automatic spaces at 2.8 of 3.5. Ours let only the space
+        // before "季" give, and "季)" went to a line of its own.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-d746674a") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let cells = doc.paragraphs.indices.filter { ["每年2次(第2、4季)", "每年2次(第1、3季)"].contains(doc.paragraphs[$0].text) }
+        XCTAssertEqual(cells.count, 2)
+        for i in cells {
+            XCTAssertEqual(l.geometry(i).painter.computeLineMetrics().count, 1, doc.paragraphs[i].text)
+        }
+    }
+
     func testANotoJoinerAfterADigitKeepsTheBreakBeforeItsIdeograph() throws {
         try requireFitterWidths()
         // zh-72da925e's "…經行政院於79年9月" ends a line "於79" in Word's
