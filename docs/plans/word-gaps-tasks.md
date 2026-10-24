@@ -4339,7 +4339,11 @@ sweep of 756: zh-167ee06c 88.1 -> 91.0, nothing else moved.
   (5.77) and takes "分", Word for Mac gives nothing and wraps it; under the USER DECISION above
   (Windows' half-em rule) ours is right. Asked windows for a Word for Windows print: if it ends
   those lines as ours do, the document's Mac misses are the decision's, and the p24 drift with
-  them.
+  them. CORRECTED, same day: windows' print (46 pages, as the Mac's here) wraps "分" too, and its
+  labs zq (mode 15) and cf say the squeeze gives half an em there as ours; the cell was 1.2pt
+  wider in ours — under mode 15 our right inset was the margin less half a 2.25pt right line.
+  Fixed (text clear of the line, up to the margin): 49.8 -> 54.5, zh-61aaad09 -> 83.8. Released
+  with the rest (cell lines a character apart elsewhere; the p24 drift).
 
 ### T149. zh-d746674a p16: a cell line's automatic spaces all give once the one before what is taken does — CLAIMED (Linux office1, 2026-10-23)
 Owner: Linux office1 (starling-office1-df). The cell "每年2次(第2、4季)"
