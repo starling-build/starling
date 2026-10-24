@@ -4471,3 +4471,11 @@ marks' count, against what is left of the line) takes it — unsolved, released.
   Word gives 78.0 and wraps the last "8", so rows run short and the document fell 14.1 -> 13.7
   (31 pages). Taking the rise by room over the narrowest (raised columns too) was worse. The
   missing rule: why Word sets that noWrap column 0.4 under its line. Reverted.
+
+### T152. zh-6a4fc013 p14 on: a justified line stretches only what follows its last tab — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check (the
+document's Thai is the Mac 01Xgpbk5's; this is only the tab). "คำถามที่  2 ：<tab>
+การเปิดนำเข้า…" (jc both, default stop): Word's line ends short at 380, the
+spaces before the tab unstretched, the Thai after it spaceless; ours stretches
+them and sets "2 ：" at x 265. A line the tab ends ("…3 ：<tab>", the Thai on the
+next line) is stretched across in Word's print.
