@@ -1729,6 +1729,60 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(down, 30, "centred down the part on the page, not in its first row")
     }
 
+    func testACentredCellSetWholeInAPartKeepsItsRowForAMergeAbove() throws {
+        // zh-1eeb9f9a p8: "公开渠道和载体", centred and merged down into a row
+        // that parts at the foot, stands centred down to that row's kept
+        // lines in Word's print. Beside them the row's "其他政策文件", two
+        // lines centred in the whole row, would end past the foot there —
+        // but it is set whole in the part, so the row does part; ours read
+        // it as keeping nothing and centred the merge over the rows above
+        // alone, 8pt low.
+        // Here: "merged" over two rows of one line and a third that parts
+        // with two of ten lines on page 1, a centred two-line cell beside.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func p(_ text: String) -> String {
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+        }
+        func cell(_ props: String, _ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"2600\" w:type=\"dxa\"/>\(props)</w:tcPr>\(content)</w:tc>" }
+        let centre = "<w:vAlign w:val=\"center\"/>"
+        let restart = "<w:vMerge w:val=\"restart\"/>\(centre)", goesOn = "<w:vMerge/>\(centre)"
+        let borders = "<w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+        var parts: [String] = []
+        parts.append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"12000\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>")
+        parts.append("<w:tbl><w:tblPr><w:tblW w:w=\"7800\" w:type=\"dxa\"/>\(borders)</w:tblPr><w:tblGrid><w:gridCol w:w=\"2600\"/><w:gridCol w:w=\"2600\"/><w:gridCol w:w=\"2600\"/></w:tblGrid>")
+        parts.append("<w:tr>\(cell(restart, p("merged")))\(cell("", p("first")))\(cell("", p("x")))</w:tr>")
+        parts.append("<w:tr>\(cell(goesOn, "<w:p/>"))\(cell("", p("second")))\(cell("", p("y")))</w:tr>")
+        let long = (1 ... 10).map { n -> String in p("long \(n)") }.joined()
+        parts.append("<w:tr>\(cell(goesOn, "<w:p/>"))\(cell(centre, p("label one") + p("label two")))\(cell("", long))</w:tr>")
+        parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        XCTAssertGreaterThan(l.pageCount, 1, "the last row parts over the page")
+        let merged = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "merged" })
+        let first = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "first" })
+        let long2 = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "long 2" })
+        XCTAssertTrue(l.pieces[0].contains { $0.paragraph == long2 }, "two of the long cell's lines on page 1")
+        func drawn(_ k: Int) throws -> Double {
+            let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+            return piece.pageY + l.geometry(k).textTop - piece.flowTop
+        }
+        // (Centred in 20 + 20 + 40: 30pt down; over the two rows alone, 10.)
+        let down = (try drawn(merged) - drawn(first)) / theme.pixelsPerPoint
+        XCTAssertEqual(down, 30, accuracy: 3, "centred down to the parted row's kept lines")
+    }
+
     func testAPartedRowOpensWithItsOwnTopLine() throws {
         // Lab `tb` (Word 16 Mac, zh-13552a3a's package): cells of top nil
         // and bottom single, a row parted at page 1's foot — page 2 opens

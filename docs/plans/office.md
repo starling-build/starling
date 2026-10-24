@@ -6171,6 +6171,19 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A centred cell set whole in the part keeps the parting row for a
+  merge above (2026-10-23).** `partingKept` counts the parting row only
+  where every one of its cells keeps something on the page, and read a
+  centred cell's keeping from its cuts as the whole row's middle places
+  them. zh-1eeb9f9a p8's "其他政策文件" — two lines centred in a 102pt row
+  that parts with 68 left — ends past the foot there, though `splitRow`
+  sets it whole in the part. So the row was counted as keeping nothing,
+  and "公开渠道和载体", centred and merged down into it, was centred over the
+  two rows above alone: 8pt below Word's, which centres it down to the
+  row's four kept lines (62.4). A centred cell that fits the part whole
+  now keeps it. Sweep h140: fourteen documents up, none down —
+  zh-65e6c317 84.2 -> 100, zh-9ba2ead7 90.9 -> 92.6, zh-4197e764
+  98.3 -> 99.6, zh-1eeb9f9a 95.1 -> 96.2, and ten by 0.1-0.7.
 - **A parted row opens its next page with its own top line
   (2026-10-23).** A row's part that goes over to a new page was opened
   with the line above it and stood its text that line's width down. Lab

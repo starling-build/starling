@@ -4604,10 +4604,18 @@ public final class RichLayout {
                                     while m > first, let h = _cells[m - 1], h.table == c.table, h.row == r, h.column == f.column { m -= 1 }
                                     while m < count, let h = _cells[m], h.table == c.table, h.row == r, h.column == f.column { block += _heights[m]; m += 1 }
                                     let centred = f.verticalAlign == "center" || f.verticalAlign == "bottom"
-                                    if centred, block + f.pad.top + f.pad.bottom <= limit - e.rowTop {
+                                    let whole = centred && block + f.pad.top + f.pad.bottom <= limit - e.rowTop
+                                    if whole {
                                         kept = max(kept, block + f.pad.top + f.pad.bottom)
                                     } else if let cut { kept = max(kept, cut - e.rowTop + f.pad.bottom) }
-                                    columns[f.column] = (columns[f.column] ?? false) || cut != nil || document.paragraphs[n].text.isEmpty
+                                    // (One set whole in the part keeps it, though the
+                                    // whole row's middle puts its last line past the
+                                    // foot: zh-1eeb9f9a's "其他政策文件", two lines
+                                    // centred in a 102pt row that parts with 68 on
+                                    // page 8 — ours, finding no cut of it there,
+                                    // centred "公开渠道和载体", merged down into that
+                                    // row, over the rows above alone, 8pt low.)
+                                    columns[f.column] = (columns[f.column] ?? false) || cut != nil || whole || document.paragraphs[n].text.isEmpty
                                 }
                                 n += 1
                             }
