@@ -1082,6 +1082,20 @@ enum OfficeFonts {
         0.5322, 0.2593, 0.9263, 0.6084, 0.6309, 0.6323, 0.6338, 0.3721, 0.4561, 0.3628, 0.6084, 0.5127, 0.7749, 0.4893, 0.5186,
         0.4863, 0.3208, 0.252, 0.3208, 0.7373
     ]
+    // JhengHei UI Light's, where its print gives them: zh-167ee06c's
+    // embedded subset has the space, "(", ")", "-", "." and the digits
+    // but 7 and 9 (taken as the rest's 0.558; its "1" is 0.387 and its
+    // "4" 0.575). The rest are JhengHei's. Word for Mac emboldens the
+    // Light, so its bold is these and the face's spread.
+    private static let jhengHeiUILightAdvances: [Double] = [
+        0.296, 0.3042, 0.416, 0.6382, 0.5796, 0.8804, 0.8608, 0.2441, 0.306, 0.306, 0.4473, 0.7373, 0.2305, 0.43, 0.239,
+        0.417, 0.558, 0.387, 0.558, 0.558, 0.575, 0.558, 0.558, 0.558, 0.558, 0.558, 0.2305, 0.2305, 0.7373, 0.7373,
+        0.7373, 0.4844, 1.0312, 0.6929, 0.6143, 0.668, 0.7549, 0.5444, 0.5249, 0.7388, 0.7627, 0.2842, 0.3789, 0.6216, 0.5054,
+        0.9653, 0.8052, 0.814, 0.6011, 0.814, 0.6421, 0.5718, 0.5615, 0.7397, 0.6675, 1.0039, 0.6328, 0.5933, 0.6133, 0.3208,
+        0.4053, 0.3208, 0.7373, 0.4482, 0.2861, 0.5474, 0.6323, 0.4976, 0.6338, 0.5635, 0.333, 0.6338, 0.6089, 0.2593, 0.2588,
+        0.5322, 0.2593, 0.9263, 0.6084, 0.6309, 0.6323, 0.6338, 0.3721, 0.4561, 0.3628, 0.6084, 0.5127, 0.7749, 0.4893, 0.5186,
+        0.4863, 0.3208, 0.252, 0.3208, 0.7373
+    ]
     private static let jhengHeiBoldAdvances: [Double] = [
         0.25, 0.4824, 0.4619, 0.6387, 0.5957, 0.9023, 0.8828, 0.272, 0.3511, 0.3511, 0.4648, 0.7476, 0.2544, 0.4341, 0.2544,
         0.4414, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.2544, 0.2544, 0.7476, 0.7476,
@@ -1142,7 +1156,8 @@ enum OfficeFonts {
         // cannot give the 14pt it is over.)
         if has("jhenghei ui") {
             return EastAsianFace(height: 1.651, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
-                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns,
+                                 latinAdvances: has("light") ? jhengHeiUILightAdvances : jhengHeiAdvances,
+                                 latinBoldAdvances: has("light") ? jhengHeiUILightAdvances : jhengHeiBoldAdvances, latinKerns: jhengHeiKerns,
                                  fakeBold: has("light"), boldWiden: 1.0 / 50, baseline: 1.206)
         }
         if has("jhenghei", "微軟正黑") {

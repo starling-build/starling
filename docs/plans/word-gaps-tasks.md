@@ -4277,11 +4277,16 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   18pt grid its place (B top 330.9) holds over 15pt of chart growth and
   fits no origin tried. RELEASED with that; next lab in the README.]
 
-### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — CLAIMED (Linux office1, 2026-10-23)
+### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — DONE (2026-10-23)
 Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
 brackets of 華康雅風體W3(P) (alternate JhengHei UI Light) in that face, whose
 digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
-0.58 (bold 0.6), and "…開始前一個月" left "月" for the next line.
+0.58 (bold 0.6), and "…開始前一個月" left "月" for the next line. The Light's
+widths are the /Widths of the subset its print embeds (space ( ) - . and the
+digits; 7 and 9 taken as the others' 0.558, the rest JhengHei's); its bold is
+the same widths and the face's 1/50 spread, as Word emboldens it. Same-base
+sweep of 756: zh-167ee06c 88.1 -> 91.0, nothing else moved.
+
 - zh-6a4fc013 Thai (Mac 01Xgpbk5, CLAIMED 2026-10-23, routed by bd):
   under OFFICE_WORD_FONTS=mac, Thai drawn in Word's DFonts Cordia New
   (cordia.ttc; bold from its 2nd face) at Browallia New's per-letter

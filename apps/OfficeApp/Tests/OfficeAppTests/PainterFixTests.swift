@@ -111,6 +111,28 @@ final class PainterFixTests: XCTestCase {
         XCTAssertNil(OfficeFonts.face("Arial", eastAsian: false)?.advances, "Arial is its stand-in's own width")
     }
 
+    func testJhengHeiUILightIsSetAtItsOwnWidths() throws {
+        // zh-167ee06c's 華康雅風體W3(P), alternate JhengHei UI Light: Word's
+        // print sets its digits and brackets in that face, its "1" 0.387 em
+        // and the rest 0.558 (the /Widths of the subset it embeds), and
+        // "…開始前一個月" is one line. At JhengHei's 0.58 — bold, 0.6 — the
+        // "月" went to the next. The Light has no bold: Word emboldens it,
+        // so its bold is the same widths and the face's spread.
+        let face = try XCTUnwrap(OfficeFonts.face("Microsoft JhengHei UI Light", eastAsian: false))
+        for table in [try XCTUnwrap(face.advances), try XCTUnwrap(face.boldAdvances)] {
+            XCTAssertEqual(table.count, 95, "U+0020 to U+007E")
+            func width(_ c: Character) -> Double { table[Int(c.asciiValue!) - 0x20] }
+            XCTAssertEqual(width("1"), 0.387)
+            XCTAssertEqual(width("2"), 0.558)
+            XCTAssertEqual(width("4"), 0.575)
+            XCTAssertEqual(width(" "), 0.296)
+            XCTAssertEqual(width("("), 0.306)
+            XCTAssertEqual(width("."), 0.239)
+        }
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Microsoft JhengHei", eastAsian: false)?.advances)[0x31 - 0x20], 0.5796,
+                       "JhengHei itself keeps its own")
+    }
+
     func testMathPresetsDrawAsOnePiece() {
         let r = Rect.fromLTWH(0, 0, 200, 200)
         for name in ["mathEqual", "mathNotEqual", "mathMultiply", "mathDivide"] {
