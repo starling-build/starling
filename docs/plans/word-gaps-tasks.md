@@ -3412,7 +3412,7 @@ overflowPunct 0 its half (lab pe_off; zh-749cb15a's "…活動。"), and with an
 (zh-64044a1d's "…措施事宜。"). First built for every no-mode file it sank 18 documents: the mainland's and the
 uncompressed ones hang their final marks as any, and a cell's last bracket gives its half (zh-fec5fa30 "民政局
 （處）"). Same-base sweep, 397 docs: zh-749cb15a 90.3 -> 99.8, zh-d62da4dd 55.7 -> 57.7, zh-06c46ba9 97.3 -> 98.1,
-zh-12c4f07a 78.6 -> 79.3, zh-5b7ae054 and zh-e0ca7252 +0.1-0.2, nothing lower. zh-ff93733d stays 97.0.
+zh-12c4f07a 78.6 -> 79.3 [Linux b2 01JsizVV 2026-10-24: 90.4 -> 97.3 by e87b5ebf — lab hangp (macOS-doc): under useAltKinsokuLineBreakRules a paragraph's last mark gives up to its half; without it, nothing, whatever the mode], zh-5b7ae054 and zh-e0ca7252 +0.1-0.2, nothing lower. zh-ff93733d stays 97.0.
 
 ### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
