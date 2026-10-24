@@ -2054,7 +2054,7 @@ public final class RichLayout {
             let breakBefore = Set(inserts.filter { o in
                 guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
                 return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
-                                           timesEastAsian: units[o - 1] != 0xD7 || _setEastAsian(p, document, at: o - 1))
+                                           timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1))
             }).union(_looseWordOffsets(p, document, textWidth: 100_000, named: _named(p, document),
                                        pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
             func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
@@ -9897,7 +9897,7 @@ public final class RichLayout {
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
-                                       timesEastAsian: units[o - 1] != 0xD7 || _setEastAsian(p, document, at: o - 1))
+                                       timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
@@ -10915,6 +10915,9 @@ public final class RichLayout {
     }
 
     private static let _pauseMarks = Set("，。、；：！？".utf16)
+    /// The signs a line may end after only where they are set East Asian
+    /// (`_breaksBetween`): "×", "°" and the primes.
+    private static let _eastAsianSigns: Set<UInt16> = [0xD7, 0xB0, 0x2032, 0x2033]
     private static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
     private static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)
@@ -10930,7 +10933,10 @@ public final class RichLayout {
     private static let _cornerUnits = Set("「」『』".utf16)
     private static let _openingUnits = Set(_openingMarks.flatMap { String($0).utf16 })
     /// The marks that may hang past the margin at a line's end.
-    private static let _hangingUnits = _closingUnits.union("？”’％".utf16)
+    // (The primes too, which Word's line rules keep from a line's start:
+    // zh-bfe04e2f's "…31°10′48″N/122°10′43.2″" ends its line with the "″"
+    // set at the margin, an em of FangSong past it, and "E；" a line down.)
+    private static let _hangingUnits = _closingUnits.union("？”’％′″".utf16)
 
     /// Punctuation whose ink keeps to the left half of its em, and to
     /// the right half: Word takes half an em off the first of two that
@@ -11401,6 +11407,13 @@ public final class RichLayout {
         // ends a line "…用人費用" and opens the next "×100%" in Word's
         // print, the sign a letter of the number there.)
         if a == "\u{00D7}" { return timesEastAsian && b != " " }
+        // (And after a degree sign or a prime, the same way: zh-bfe04e2f's
+        // "31°10′48″N/122°10′43.2″E" in FangSong ends one line of Word's
+        // print "…43.2″" and starts the next "E；", and another "…31°"
+        // before "04′08.9″N…"; the engine keeps the whole as one word.)
+        if a == "°" || a == "\u{2032}" || a == "\u{2033}" {
+            return timesEastAsian && b != " " && !_closingMarks.contains(b) && !(b.utf16.first.map { _noStart.contains($0) } ?? false)
+        }
         // (And after a percent sign before an opening mark a number
         // follows, which Unicode keeps together as one number's sign:
         // zh-20d0e98f's cell ends a line "…）×100%" and opens the next
