@@ -383,6 +383,7 @@ enum OfficeFonts {
             (["consolas"], "Consolas", "consola.ttf"),
             (["book antiqua"], "Book Antiqua", "BKANT.TTF"),
             (["calibri light"], "Calibri Light", "calibril.ttf"),
+            (["verdana"], "Verdana", "verdana.ttf"),
             (["lucida sans", "lucida sans regular"], "Lucida Sans", "LSANS.TTF"),
             (["lucida sans unicode"], "Lucida Sans Unicode", "l_10646.ttf"),
             (["comic sans ms"], "Comic Sans MS", "comic.ttf"),

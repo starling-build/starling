@@ -369,6 +369,9 @@ the same base; the commits give the numbers):
   their own faces too (Segoe UI's and Georgia's hinted widths with
   them): the 16 workbooks in them, 3 better, none worse (lo-tdf76115
   4.46 -> 4.03).
+  On Windows Verdana is Verdana, not DejaVu Sans at Verdana's widths:
+  its 28 workbooks 15 better, 4 worse by 0.05 at most (atp 0.68 ->
+  0.16, the format tests 0.03 to 0.24 better).
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the
