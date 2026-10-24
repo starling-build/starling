@@ -7834,6 +7834,11 @@ public final class RichLayout {
             // `RichParagraphStyle.markUnderNestedTable`.)
             var mark = p.runs[0].style
             if theme.wordRules, p.style.markUnderNestedTable { mark.fontSize = 0.5 }
+            // (A raised or lowered mark is its whole size to the line: lab
+            // `sup` (macOS-doc, Word for Mac) — zh-4a2ab598's empty
+            // paragraph whose mark is 黑体 12pt superscript is 18.00pt tall
+            // in Word, plain 18.24; ours, shrunk to 0.65, 11.75.)
+            if theme.wordRules { mark.script = .normal }
             return (TextSpan(text: " ", style: theme.textStyle(for: mark, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), [], [])
         }
         // Ruby wider than its base spreads the base across it, as Word's
@@ -8220,6 +8225,49 @@ public final class RichLayout {
                 guard shownCaps else { return c }
                 let up = String(c).uppercased()
                 return up.utf16.count == String(c).utf16.count && up.count == 1 ? Character(up) : c
+            }
+            // (A raised or lowered run's line is its whole size's, unshifted,
+            // as if it were not raised: lab `sup` (macOS-doc, Word for Mac)
+            // — a 12pt 宋体 line with a 10pt YaHei superscript is 17.28pt
+            // in Word, as with it plain (17.04), ours 15.57; a footnote's
+            // mark the same; zh-7654804a's rows of "105" and a superscript
+            // "註3" stand 3pt taller in Word's print. Its glyphs are drawn
+            // shrunk and shifted; a zero-width non-joiner of its whole
+            // size holds the line — part of what stands before it to the
+            // line breaking, where a word joiner kept zh-424775e4's note mark
+            // from opening a line after "韩国。" as Word's print has it.)
+            // (Only where that line is taller than the rest of the paragraph's:
+            // a Times note mark in YaHei text changes nothing, and its joiner
+            // only stirred the line fitting.)
+            if theme.wordRules, run.script != .normal, NativeParagraphBuilder.supportsBaselineShift, let first = text.first,
+               let ownLine = theme.naturalLine(for: { var w = run; w.script = .normal; return w }(), named: named, eastAsian: RichLayout.isEastAsian(first, hinted: hinted)),
+               ownLine > ({ () -> Double in
+                   var most = 0.0, at = 0
+                   let units = Array(p.text.utf16)
+                   for r in p.runs {
+                       defer { at += r.length }
+                       guard r.style.script == .normal, r.length > 0, at + r.length <= units.count else { continue }
+                       let part = String(decoding: units[at ..< at + r.length], as: UTF16.self)
+                       let rh = (r.style.fontHint ?? named?.char.fontHint) == "eastAsia"
+                       let hasEA = part.contains { RichLayout.isEastAsian($0, hinted: rh) }
+                       let hasLatin = part.contains { !RichLayout.isEastAsian($0, hinted: rh) && !$0.isWhitespace }
+                       if hasEA { most = max(most, theme.naturalLine(for: r.style, named: named, eastAsian: true) ?? 0) }
+                       if hasLatin { most = max(most, theme.naturalLine(for: r.style, named: named, eastAsian: false) ?? 0) }
+                   }
+                   return most
+               }()) + 0.01 {
+                var whole = run
+                whole.script = .normal
+                let s = theme.textStyle(for: whole, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        eastAsian: RichLayout.isEastAsian(first, hinted: hinted), gridPitch: pitch, scriptHidden: true)
+                // (No width of its own: shaped alone, as it is set, it has
+                // one, and a line at its limit took a character less.)
+                let alone = TextPainter(text: TextSpan(text: "\u{200C}", style: s), textDirection: .ltr)
+                alone.layout(minWidth: 0, maxWidth: 100_000)
+                let own = alone.width
+                alone.dispose()
+                spans.append(TextSpan(text: "\u{200C}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) - own)))
+                inserts.append(offset)
             }
             while i < text.endIndex {
                 let ch = shown(text[i])
