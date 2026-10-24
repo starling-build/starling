@@ -772,7 +772,7 @@ pages; Mac 01Xgpbk5, looked, released: not Chinese — a Greek/Turkish/Arabic no
 84.5 (Mac 01Xgpbk5, looked, released: the tables lay out as Word's — the same column edges to 0.4pt, the same lines — and Word's text layer drops characters in them, "序号", "项目名称"'s 目名, "面积"'s 积), zh-2e7ef069 87.5 (Mac 01Xgpbk5, looked, released: its footer box (wrap none, spAutoFit, sized by "- 1 -", the dashes inside the PAGE \\* MERGEFORMAT result) prints "-10-" whole in Word, where ours wraps the closing dash on every two-digit page — sent to Mac 011uWpmC beside lab ftD — Mac 011uWpmC, 89.0 now: lab `ft` (the file's footer over 11 pages, and with the dashes typed round a plain PAGE) prints "- 10 -" whole either way, so a fitted box's paragraph with no East Asian character is one piece; the rest is form cells' "（签章）"/"年月日" a few points off).
 
 ### T133. Shapes anchored in a table cell (zh-291fcea7 p5's flowchart) — measured, released
-CLAIMED Windows 01QbbApP 2026-10-23 (from the Mac 0fcba326): floating tables nested in a cell, with Word for Windows labs.
+Windows 01QbbApP 2026-10-23 (from the Mac 0fcba326): (1) DONE, lab tf. Nested floating tables are floating boxes from the cell, and the four boxes stand within 0.3pt of Word's. zh-291fcea7 40.2 -> 61.5, zh-ad224275 98.1 -> 100. (2), the hexagon's text, is drawn in lab tf's page; not checked further. Released.
 Owner: Mac 011uWpmC (session starling-bd), from 2026-10-19
 Documents: zh-291fcea7 (30.9; p5 holds 18 of 23 lines missed there).
 Known: the flowchart is wps shapes (a hexagon, rounded boxes) anchored to paragraphs inside a one-column
