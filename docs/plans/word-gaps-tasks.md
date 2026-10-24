@@ -4280,5 +4280,15 @@ digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
   (cordia.ttc; bold from its 2nd face) at Browallia New's per-letter
   widths measured from Word's print, in place of Thonburi at 0.75 —
   Thonburi's text layer lost whole clusters ("คำ" of every "คำถาม"); and
-  Thai kept unbroken between spaces where a stretch fits a line. In
-  progress: 54.2 -> 69.4 on the document alone, sweeping.
+  Thai kept unbroken between spaces where a stretch fits a line.
+  DONE as far as it goes, RELEASED: 54.2 -> 69.4 (sweep n214, nothing
+  else moves), per-page line counts as Word's to p22; now 27 pages to
+  Word's 26 (lines drift from p23). Word's Thai breaking is not simply
+  "at spaces": p14's "ตอบ : 1. " and p23's "ตอบ : " end their lines and a
+  stretch longer than a line starts the next (breaking where it fills,
+  "อนุ"/"ญาต"); p15's numbered "1.กระทรวง…" (a list label, no space)
+  starts on its line; but p17's "…ใช้วิธีคำนวณ…" is broken inside a
+  stretch shorter than a line. Joining every stretch (moving long ones
+  down) scored 62.5. A lab varying a stretch's length after a space
+  would find the rule; Word for Windows may differ (its Uniscribe
+  dictionary) — the flag is the Mac's only.
