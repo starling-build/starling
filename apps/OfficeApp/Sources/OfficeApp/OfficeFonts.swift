@@ -1564,8 +1564,15 @@ enum OfficeFonts {
             // "…場域實證‧共創解題」補", fills its text box in Word's print,
             // the dot 3.37pt at 14pt; ours set it half an em and wrapped
             // "補".)
+            // (And its white circle "○", 0.604 em as its "■": zh-7654804a's
+            // "○○公司", placeholders in 標楷體 hinted East Asian, step 10.17
+            // at 16pt on a grid of +1.0076 in Word's print — 9.66 and half
+            // the grid, as a symbol of its own width takes — where the
+            // stand-in fell back to Liberation Sans's glyph and the whole
+            // addition, 10.67.)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
+                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604,
+                                      0x25CB: 0.604].merging(circled(1.0)) { $1 }
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
             }
             // (PMingLiU's en dash is an em, where the run sets it East
