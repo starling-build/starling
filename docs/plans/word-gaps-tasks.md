@@ -4567,3 +4567,13 @@ final marks hang more than that in Word's prints. So it is something about
 digits set in an East Asian face (counted as wide characters? on the grid of
 the line's ems?), not about the line's faces. Patch kept at
 ~/tmp/office1/t188-tried.patch (Linux office1). Released.
+
+### T154. zh-efd9229a p4: a mark in text of a non-CJK East Asian language gives nothing — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). macOS-doc's lab `sq14`-efd (Word 16
+Mac, the document's "2024年我街道…但还存在一些", mode 14, compressPunctuation,
+Normal's eastAsia en-US, the comma's run stating none): Word takes "一" up to
+1.56pt over and not 1.76 — half the "4→年" automatic space, the comma giving
+nothing; every run eastAsia zh-CN, through 6.94 as ours; doNotUseEastAsianBreakRules
+makes no difference. zh-c5b5087b's en-US Normal is no counter-case: its runs say
+zh-CN. Plan: a mark whose run's East Asian language (run, else style, else
+defaults) is not zh/ja/ko gives nothing.
