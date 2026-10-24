@@ -369,6 +369,10 @@ public struct RichTextBox: Hashable, Sendable {
     /// its top, stacking leftwards from its right. Turned, its lines are
     /// as long as the box is tall.
     public var textDirection: CellRef.CellTextDirection = .horizontal
+    /// East Asian vertical writing (`eaVert`): the text runs down as
+    /// `vert` does, but an ideograph stands upright in it — as a cell's
+    /// `uprightIdeographs`.
+    public var uprightIdeographs = false
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 

@@ -1742,12 +1742,16 @@ public final class RichLayout {
         "\u{FE10}": 0.52, "\u{FE11}": 0.56, "\u{FE35}": -0.19, "\u{FE36}": 0.19,
     ]
 
-    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false) -> Bool {
+    /// (`mixed`: what is not an ideograph is drawn too, turned with the
+    /// line as Word's `eaVert` sets Latin text — zh-6d402586's "(" and its
+    /// spaces lie on their sides between upright ideographs in Word's
+    /// print.)
+    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, mixed: Bool = false) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         func wide(_ u: UInt16) -> Bool { u >= 0x2E80 && !(u >= 0xD800 && u <= 0xDFFF) && u != 0xFFFC }
         func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x200B || u == 0x2060 || u == 0xFEFF || u == 0x3000 }
-        guard text.contains(where: wide), text.allSatisfy({ wide($0) || blank($0) }) else { return false }
+        guard text.contains(where: wide), mixed || text.allSatisfy({ wide($0) || blank($0) }) else { return false }
         // The style each offset is set in, the spans' own over those
         // they are in.
         var styles: [TextStyle?] = []
@@ -1763,6 +1767,22 @@ public final class RichLayout {
         walk(root, nil)
         guard styles.count == text.count else { return false }
         let shown = text.indices.filter { wide(text[$0]) }
+        if mixed {
+            // The rest on its side, where the line set it, on its baseline.
+            let lines = painter.computeLineMetrics()
+            for k in text.indices where !wide(text[k]) && !blank(text[k]) && !(text[k] >= 0xD800 && text[k] <= 0xDBFF && k + 1 < text.count && wide(text[k + 1])) {
+                guard let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
+                let unit = text[k]
+                let end = (unit >= 0xD800 && unit <= 0xDBFF && k + 1 < text.count) ? k + 2 : k + 1
+                let piece = String(decoding: text[k ..< end], as: UTF16.self)
+                let glyph = TextPainter(text: TextSpan(text: piece, style: styles.indices.contains(k) ? styles[k]?.copyWith(letterSpacing: 0) : nil), textDirection: .ltr)
+                glyph.layout()
+                let mid = (box.top + box.bottom) / 2
+                let baseline = lines.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 })?.baseline ?? box.bottom
+                glyph.paint(canvas, Offset(origin.dx + box.left, origin.dy + baseline - glyph.computeDistanceToActualBaseline(.alphabetic)))
+                glyph.dispose()
+            }
+        }
         for (n, k) in shown.enumerated() {
             guard var box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first,
                   let ch = Unicode.Scalar(text[k]) else { continue }
@@ -12543,8 +12563,35 @@ public final class RichLayout {
             canvas.translate(rect.right - _px(text.insetRight), rect.top + _px(text.insetTop))
             canvas.rotate(Double.pi / 2)
         }
+        // (Upright ideographs, `eaVert`: each paragraph of ideographs
+        // stood up in its place, as a cell's — and the whole turned, as
+        // `vert`, where any line holds something else.)
+        if text.uprightIdeographs, text.textDirection == .down, inside.beside.isEmpty,
+           _paintUprightBox(inside, canvas) {
+            canvas.restore()
+            return
+        }
         _paintBoxText(inside, canvas)
         canvas.restore()
+    }
+
+    /// A box's paragraphs with their ideographs upright, if every
+    /// paragraph that holds text is ideographs and blanks.
+    private func _paintUprightBox(_ inside: _HeaderFooter, _ canvas: any Canvas) -> Bool {
+        let layout = inside.layout
+        let n = inside.document.paragraphs.count
+        guard n > 0, layout._painters.count >= n else { return false }
+        // (Every paragraph with an ideograph in it stood up — the rest of
+        // it on its side — or none, the box turned whole as `vert`.)
+        let texts = (0 ..< n).map { inside.document.paragraphs[$0].text }
+        guard texts.contains(where: { $0.utf16.contains { $0 >= 0x2E80 && !($0 >= 0xD800 && $0 <= 0xDFFF) } }) else { return false }
+        for i in 0 ..< n where !texts[i].isEmpty {
+            let g = layout.geometry(i)
+            if !layout._paintUpright(g.painter, at: Offset(g.textLeft, g.textTop), canvas, mixed: true) {
+                g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+            }
+        }
+        return true
     }
 
     private func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas) {

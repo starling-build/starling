@@ -3600,9 +3600,15 @@ enum DocxFormat {
                         // "36" and "297" are `vert270` boxes 10.5pt wide and
                         // 21 tall, read upward in Word's print; across, "297"
                         // wrapped in the 10.5pt.)
+                        // (And `eaVert`, East Asian vertical writing: down as
+                        // `vert`, an ideograph upright in it. zh-c4f2be3b's
+                        // landscape pages number themselves in an `eaVert`
+                        // box at the page's left, "- 33 -" reading down in
+                        // Word's print; ours set it across.)
                         switch body["vert"] {
                         case "vert270": box.textDirection = .up
                         case "vert": box.textDirection = .down
+                        case "eaVert": box.textDirection = .down; box.uprightIdeographs = true
                         default: break
                         }
                         // (A shape that is not a rectangle sets its text in
