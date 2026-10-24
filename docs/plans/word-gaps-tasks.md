@@ -4251,6 +4251,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   9pt; keeping it always broke zh-b0207333, zh-34a6519a, zh-8f9b19f4,
   zh-fe536967, zh-c8eb6e92, zh-64044a1d, zh-5dc5ce34, zh-9e08ed28,
   zh-6d1afa56, zh-147bdae0 (sweep n212). Labs first.
+  RESOLVED, not the rule it looked like: lab ss (~/starling-word-check/
+  lab/ss, a marker in the anchor paragraph, with and without its before)
+  shows Word DROPS the before at the page top as we do — the chart's 9pt
+  was our anchor origin, measured from the dropped space; and the line
+  stays over a float it ends above. Both fixed (see the commit after
+  ab27640e); nothing down in n213. Next here: text pushed under a float
+  steps by whole lines of a fixed height (zh-27a874b7's caption, 36pt
+  grid lines from 108 -> 324 in Word's print, ours at the float's foot).
 
 ### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — CLAIMED (Linux office1, 2026-10-23)
 Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
