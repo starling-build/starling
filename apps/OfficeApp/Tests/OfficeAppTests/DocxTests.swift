@@ -2958,6 +2958,35 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text.hasSuffix("管理"), text)
     }
 
+    func testAPageAnchoredTableThatGoesOverStandsAtItsOffsetOnTheNextPage() throws {
+        // zh-0513f641's p9 form (vertAnchor page, tblpY 1322 against a
+        // 1440 top margin) follows the cover that fills p8. Word's print
+        // has its top line at 66.0, 6pt up into the margin; ours stood it
+        // at the margin, its first row having gone over for want of room.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-0513f641") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let title = try XCTUnwrap(doc.paragraphs.indices.first { i in
+            doc.paragraphs[i].text == "原住民族委員會" && doc.paragraphs[i].cell != nil
+                && (i + 1 < doc.paragraphs.count && doc.paragraphs[i + 1].text.contains("綜合資料表"))
+        })
+        let piece = try XCTUnwrap(l.pieces.flatMap { $0 }.first { $0.paragraph == title })
+        XCTAssertLessThan(piece.pageY / theme.pixelsPerPoint, -3, "the table's first row stands up in the top margin, at its offset")
+    }
+
     func testAJustifiedLineStretchesNothingBeforeItsLastTab() throws {
         // zh-6a4fc013's "คำถามที่  2 ：<tab>การเปิดนำเข้า…" (justified, a default
         // stop) leaves the spaces before the tab as they are in Word's

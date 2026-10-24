@@ -4631,6 +4631,23 @@ public final class RichLayout {
                        let down = document.tableStyles[c.table]?.floatOffsetY, !(document.tableStyles[c.table]?.pageAnchored ?? false) {
                         y += _px(down)
                     }
+                    // (And one placed against the page stands at its offset
+                    // on the page it went to — up into the top margin too:
+                    // zh-0513f641's p9 form, tblpY 1322 against a 1440
+                    // margin after the cover that fills p8, has its top line
+                    // at 66.0 in Word's print; ours stood it at the margin.)
+                    if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
+                       let off = document.tableStyles[c.table]?.pageOffsetY, _pages[page].isEmpty {
+                        let physical = page / _columns
+                        let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                        let target = _px(off) - insetTop
+                        if target > y + 0.01, target < contentH - 0.01 {
+                            tableReturn = (c.table, y, page, target)
+                            y = target
+                        } else if target < -0.01, target > -insetTop {
+                            y = target
+                        }
+                    }
                     goOn()
                     underPins(c.ownRowHeight)
                     shown = pageHeight()

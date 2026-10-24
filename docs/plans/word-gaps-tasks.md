@@ -4590,9 +4590,12 @@ efd in something else (not theme font language, grid or hints). Round 3 sent:
 those two paragraphs into the stepped setup. Patches: ~/tmp/office1/t191-all.patch
 (per run), t192-all.patch (a document-level try, wrong by round 2).
 
-### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — CLAIMED (Linux office1, 2026-10-24)
+### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). p9's form (tblpPr vertAnchor page,
 tblpY 1322 against a 1440 top margin) follows the cover that fills p8; Word's
 print has its top line at 66.0, ours at the margin, 72.0, every line of p9 6pt
 low. The offset is applied where a page break opens the table's page and where
 it opens an empty one, not where its first row goes over for want of room.
+Done: where the first row goes over for want of room and opens an empty page,
+the offset is applied there as where a break opens it (into the top margin
+too). Same-base sweep of 756: zh-0513f641 94.6 -> 98.7, nothing else moved.
