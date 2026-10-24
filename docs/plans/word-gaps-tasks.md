@@ -587,6 +587,13 @@ Each owner claims its item below as usual; this only says who was asked.
 
 ### Mac 01Xgpbk5 (2026-10-23): zh-11709c74 92.9 [Mac 01Xgpbk5 2026-10-23, looked, released: 5 of 70 lines, the reader grouping a scoring table's cells ("1评分总得", "2评分报价"), lines within 2pt of Word's]; zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
 
+### Reader releases re-checked at the tip (Mac 7bd18d8e, macOS-doc, 2026-10-24, asked by 0fcba326)
+After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout" releases (32 documents, the ten embedded-font references left out), rescored on the Mac (sweep n19):
+- Now 99-100, nothing left: zh-e029cf49, zh-bfe04e2f, zh-ad224275, zh-727812d5, zh-190d730c (100); zh-e37f8d40, zh-81aa310b (99.7); zh-785d6dff (99.5); zh-625b6374 (99.4).
+- Real layout, now visible: zh-15f60bac (98.1) — a Latin word longer than the line (a URL in a narrow cell, "http://www.tri.org.tw/page/consumer.php)") starts a fresh line in Word's print and parts where that line fills; ours parts it after "http://ww" on the line it began on (4 runs, 16 lines). Not `_looseWordOffsets` (tried: breaking only at full-line points moved nothing there and cost 9 lines) — the break comes from the East Asian fitter: lenovo-3's ground. zh-77079ee8 (94.9) — a turned cell's one-character lines stand 10pt high (p4 "宣導說明"). zh-31d580df (98.6) — p25/p38 blocks 5-7pt off (its entry's known leftover).
+- Not layout: zh-6e7ff836 (94.9) — its p20 run (+44 lines) is the REFERENCE: Word's print has pages 19-22 as blank Letter pages with no text (the document is A4), and PyMuPDF reports a broken page tree there; reprint before chasing. zh-7dd5643e, zh-d8247da5, zh-454e2e29, zh-afdd4a7e — one line each, still the reader grouping cells.
+- Lower (65-93), not re-read line by line: zh-ad1e59ac 94.8, zh-8f70b676 94.1, zh-160a5e81 93.6, zh-74b34f3b 93.3, zh-11709c74 92.9, zh-147bdae0 92.7, zh-cd8987db 90.6, zh-7773163d 89.9, zh-20c1d74a 89.6, zh-5c7787f5 79.5, zh-b5359de4 77.3, zh-b8de3ae2 71.2, zh-6a4fc013 69.4, zh-92373179 65.9, zh-ae2dd08d 55.2.
+
 ### Drawing leftovers [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: all three, plus arrow ends by flips (zh-ae2dd08d's were reversed) and zero-width lines; pair n15/n16 moved no line score and every changed document gains segments in Word's print. Released]
 (1) zh-2e7ef069 p9: a DrawingML group connector's arrowhead; (2) lone VML boxes' edges (zh-7773163d p35); (3) pictures inside a VML group (zh-7773163d's footer logo).
 
