@@ -4206,9 +4206,22 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   it is not drawn through that clip; not found, reverted. Seen too in
   zh-073c9234 p15 ("書" cut at the foot). pp13-17 then run
   a line or two apart (p14 holds one line more than Word's).
-- zh-147bdae0 (92.7; CLAIMED again Linux 017F2GnT 2026-10-24, from the
-  Mac's re-check: the merged group's parting, p17/18, p23/24, p46/47.
-  Linux 017F2GnT 2026-10-23, looked, released): p17's
+- zh-147bdae0 (92.8 -> 95.5; Linux 017F2GnT 2026-10-24, from the Mac's
+  re-check, released). Not row parting: (1) its rows state cell spacing
+  nil (`w:tblPrEx`) under the table's 0, and Word collapses their lines
+  — ours took each 0.5pt line twice, 21.6 a row to Word's 21.1, and p17's
+  last row found no room for its stated 48.8 (90a3ed76, 92.8 -> 93.3);
+  (2) a list's last item in a cell keeps its automatic 14pt after, a
+  plain paragraph's gives way (df930369, -> 95.5; p45 within 0.1pt).
+  Left, for a lab: the 5000-pct tables (cell spacing 0, mode 15) are
+  drawn inset by the row's left/right cell margin on each side in Word's
+  print — p45 91.2..504.2 under 24-twip margins (text 90..505.3), p17
+  90.5..509.5 under 10-twip ones (89.85..510.25); ours spans the text
+  width. So ours fits a character more a line: p45's "…經理人" (Word
+  wraps before "人", the line ending 498.7) and p46/47 a page apart, 7
+  lines fewer than Word's in all. Is a spaced pct table's width the room
+  less its outer cell margins?
+  Earlier (Linux 017F2GnT 2026-10-23, looked, released): p17's
   last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) parts at the
   foot in Word's print, two of its four names there; ours takes it whole
   to p18 (49.3 with its line against 49.17 left). The room is the cause:
