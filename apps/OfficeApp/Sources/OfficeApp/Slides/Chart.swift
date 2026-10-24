@@ -4032,6 +4032,34 @@ extension ChartPainter {
     /// has left it. `slices`: each point's index, middle angle, value and
     /// colour; `rx`, `ry` the pie's radii (`ry` smaller when tilted),
     /// `inner` the doughnut's hole's.
+    /// Whole percentages that add up to 100, by largest remainder: each
+    /// share's floor, then a point each to the largest remainders until the
+    /// sum is 100 — ties to the smaller value. Word's prints of zh-d62da4dd's
+    /// pies: 50 of 400 is "12%" (12.5, the rest going to three 0.75s), and
+    /// of seven slices at x.75 with six points to give, 103's 25.75 is the
+    /// one left "25%". (Smaller value or later point: the file cannot tell.)
+    static func wholePercents(_ points: [(key: Int, value: Double)]) -> [Int: Int] {
+        let sum = points.reduce(0) { $0 + max(0, $1.value) }
+        guard sum > 0 else { return [:] }
+        var out: [Int: Int] = [:]
+        var rest: [(key: Int, frac: Double, value: Double, order: Int)] = []
+        for (n, p) in points.enumerated() {
+            let exact = max(0, p.value) / sum * 100
+            out[p.key] = Int(exact.rounded(.down))
+            rest.append((p.key, exact - exact.rounded(.down), p.value, n))
+        }
+        var left = 100 - out.values.reduce(0, +)
+        let ordered = rest.sorted { a, b in
+            if abs(a.frac - b.frac) > 1e-9 { return a.frac > b.frac }
+            return a.value != b.value ? a.value < b.value : a.order < b.order
+        }
+        for r in ordered where left > 0 {
+            out[r.key, default: 0] += 1
+            left -= 1
+        }
+        return out
+    }
+
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
@@ -4043,6 +4071,7 @@ extension ChartPainter {
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return }
+        let whole = Self.wholePercents(slices.map { (key: $0.index, value: $0.value) })
         for s in slices {
             let size = max(3, (l.sizes[s.index] ?? c.series[0].labelSize ?? c.baseTextSize) * k)
             var parts: [String] = []
@@ -4053,7 +4082,7 @@ extension ChartPainter {
                 let share = s.value / sum
                 if let code = c.labelFormat, code.contains("%") {
                     parts.append(NumberFormat.format(share, code, width: 40).text.trimmingWhitespace())
-                } else { parts.append("\(Int((share * 100).rounded()))%") }
+                } else { parts.append("\(whole[s.index] ?? Int((share * 100).rounded()))%") }
             }
             guard !parts.isEmpty || l.texts[s.index] != nil else { continue }
             let text = l.texts[s.index] ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
