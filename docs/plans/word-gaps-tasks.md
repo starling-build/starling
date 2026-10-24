@@ -4342,8 +4342,11 @@ sweep of 756: zh-167ee06c 88.1 -> 91.0, nothing else moved.
   them. CORRECTED, same day: windows' print (46 pages, as the Mac's here) wraps "分" too, and its
   labs zq (mode 15) and cf say the squeeze gives half an em there as ours; the cell was 1.2pt
   wider in ours — under mode 15 our right inset was the margin less half a 2.25pt right line.
-  Fixed (text clear of the line, up to the margin): 49.8 -> 54.5, zh-61aaad09 -> 83.8. Released
-  with the rest (cell lines a character apart elsewhere; the p24 drift).
+  Fixed (text clear of the line, up to the margin): 49.8 -> 54.5. Released with the rest (cell
+  lines a character apart elsewhere; the p24 drift). CORRECTION (bd's check): zh-61aaad09's 56.8
+  -> 83.8 is macOS-doc's 7db0af76 (the style's firstRow borders), which came into sweep n217 by
+  rebase — at the tip it scores 83.8 with c8c6cff8's inset or without it; c8c6cff8's commit
+  message credits it wrongly. The two touch different sides and do not undo each other.
 
 ### T149. zh-d746674a p16: a cell line's automatic spaces all give once the one before what is taken does — CLAIMED (Linux office1, 2026-10-23)
 Owner: Linux office1 (starling-office1-df). The cell "每年2次(第2、4季)"
