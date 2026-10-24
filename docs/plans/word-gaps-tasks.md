@@ -4327,3 +4327,11 @@ sweep of 756: zh-167ee06c 88.1 -> 91.0, nothing else moved.
   (Windows' half-em rule) ours is right. Asked windows for a Word for Windows print: if it ends
   those lines as ours do, the document's Mac misses are the decision's, and the p24 drift with
   them.
+
+### T149. zh-d746674a p16: a cell line's automatic spaces all give once the one before what is taken does — CLAIMED (Linux office1, 2026-10-23)
+Owner: Linux office1 (starling-office1-df). The cell "每年2次(第2、4季)"
+(mode 15, zh-HK, YaHei 14pt, jc both) is one line in Word's print, 122.15
+of 122.3: "、" at its half (7) and all four automatic spaces from 3.5 to 2.8.
+Ours lets only the space before "季" give (room 8.75 of 9.68) and wraps
+"季)". zh-6e7ff836's "…(80分)比較，相", whose one space is not beside "相",
+stays as it is.
