@@ -401,6 +401,7 @@ enum OfficeFonts {
             // Excel's everywhere and 9.9% apart in its glyphs.)
             (["arial"], "Arial", "arial.ttf"),
             (["times new roman"], "Times New Roman", "times.ttf"),
+            (["calibri"], "Calibri", "calibri.ttf"),
         ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
         return m
     }()

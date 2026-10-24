@@ -377,7 +377,9 @@ the same base; the commits give the numbers):
   half a point of Excel's and 9.9% apart, in the letters. All 720
   workbooks: 98 better, 8 worse by 0.08 at most, 0.864 -> 0.856
   (lo-tdf100034 4.27 -> 3.67, bug62181 4.15 -> 3.56, 46535 1.03 ->
-  0.48).
+  0.48). And Calibri, over Carlito: 366 better, 8 worse by 0.02 at
+  most, 0.856 -> 0.816 (56702 3.84 -> 2.04, 51710 2.98 -> 1.91,
+  lo-forum-mso-de-104083 5.75 -> 4.74).
 - *A run of one fill down the rows is one rect*, as Excel's page has
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse
