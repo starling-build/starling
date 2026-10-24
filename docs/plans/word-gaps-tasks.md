@@ -4374,3 +4374,4 @@ Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
 "http://www.tri.org.tw/page/consumer" alone on line 2 and ".php)及…" after;
 ours parts the address "…http://ww" on the first line. `_wideWordStarts`
 moves such a word only in a narrow cell, or after an ideograph or a full-width mark.
+- zh-8628cfbe again (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): 57.4, Word 46 pages to our 45 — the p24 drift.
