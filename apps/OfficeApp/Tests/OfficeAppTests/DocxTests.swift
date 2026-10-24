@@ -2740,6 +2740,37 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(clean.contains("修改为“"), text)
     }
 
+    func testALinesOpeningSpacesDoNotMakeItASpacedLine() throws {
+        try requireFitterWidths()
+        // zh-753cd6a8's cell paragraph "  前一年度建筑业产值（…）排名，第1名得100分…"
+        // (mode 14) ends its first line "…第" in Word's print, the "1" 9.1
+        // over left for the next; its two leading spaces made it a line with
+        // spaces in it to ours, which then took the digit as a spaced line's word.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-753cd6a8") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("排名，第1名得100分") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let line = painter.getLineBoundary(TextPosition(offset: 0))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self).filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        guard text.hasSuffix("第") || text.hasSuffix("第1") else { throw XCTSkip("the line ends elsewhere under this platform's faces: \(text)") }
+        XCTAssertTrue(text.hasSuffix("第"), text)
+    }
+
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
         // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
         // starting 8.2pt short of the margin: over by its em and half its

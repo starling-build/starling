@@ -10755,7 +10755,13 @@ public final class RichLayout {
             let lineOpener = lineWide == 0 && !lineRaised ? (a ..< last).first { units[$0] != 0x20 && units[$0] != 0x09 } : nil
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
-            if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }
+            // (Not the spaces it opens with: zh-753cd6a8's cell paragraph
+            // "  前一年度…排名，第1名…" ends its first line "…第" in Word's
+            // print, the "1" 9.1 over left for the next; counted, its two
+            // leading spaces let ours take it as a spaced line's word.)
+            if (a ..< piece.b).contains(where: { k in
+                units[k] == 0x20 && (lineWide > 0 || (a ..< k).contains { !isSpace(units[$0]) })
+            }) { lineBlank = true }
             // (What stands before the tab that takes a first line's label
             // to its hanging indent gives nothing to what comes after it:
             // the tab takes the text to the indent however narrow the
