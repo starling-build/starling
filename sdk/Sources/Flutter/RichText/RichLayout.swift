@@ -6521,6 +6521,7 @@ public final class RichLayout {
         let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
         var leftTabs: Set<Int> = []    // tabs that take a first line's label to its hanging indent
+        var beforeTabs: Set<Int> = []  // spaces a justified line does not stretch: before its last tab
         _leaders[i] = []
         // (PowerPoint's the same way: its stops from the text's left, the
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
@@ -6712,6 +6713,22 @@ public final class RichLayout {
                     wraps = found
                     measure(wraps)
                 }
+                // (A justified line stretches only what follows its last
+                // tab, where anything does: zh-6a4fc013's "คำถามที่  2 ：<tab>
+                // การเปิดนำเข้า…", the Thai after the tab with no space in it,
+                // ends short of the margin in Word's print with its two
+                // spaces as they are; ours stretched them and set "2 ：" 30pt
+                // on. A line the tab ends is stretched as any — its "คำถามที่
+                // 3 ：<tab>", the Thai on the next line.)
+                if theme.wordRules, style.alignment == .justify {
+                    let starts = [0] + wraps
+                    for (n, from) in starts.enumerated() where n + 1 < starts.count {
+                        let to = starts[n + 1]
+                        guard let t = (from ..< to).last(where: { units[$0] == 0x09 }),
+                              (t + 1 ..< to).contains(where: { units[$0] != 0x20 && units[$0] != 0x09 }) else { continue }
+                        beforeTabs.formUnion((from ..< t).filter { units[$0] == 0x20 })
+                    }
+                }
             }
             probe.dispose()
         }
@@ -6782,7 +6799,7 @@ public final class RichLayout {
                 }
             }
         }
-        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld)
+        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs)
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts

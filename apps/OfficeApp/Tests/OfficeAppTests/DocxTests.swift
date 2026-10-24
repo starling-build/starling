@@ -2909,6 +2909,31 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text.hasSuffix("管理"), text)
     }
 
+    func testAJustifiedLineStretchesNothingBeforeItsLastTab() throws {
+        // zh-6a4fc013's "คำถามที่  2 ：<tab>การเปิดนำเข้า…" (justified, a default
+        // stop) leaves the spaces before the tab as they are in Word's
+        // print, the text after it taking the line's stretch; ours
+        // stretched them and set "2 ：" on. (A line the tab ends is
+        // stretched as any.)
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        func x(justified: Bool) throws -> Double {
+            var p = RichParagraph(text: "Question  2 :\tthe answer runs on over more words than one line holds at this width")
+            p.style.alignment = justified ? .justify : .left
+            let doc = RichDocument(paragraphs: [p])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 300 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let painter = l.geometry(0).painter
+            XCTAssertGreaterThan(painter.computeLineMetrics().count, 1)
+            let at = try XCTUnwrap(Array(painter.plainText.utf16).firstIndex(of: 0x32))
+            let box = try XCTUnwrap(painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1)).first)
+            return box.left / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try x(justified: true), try x(justified: false), accuracy: 0.05, "\"2\" where it stands unjustified")
+    }
+
     func testANotoJoinerAfterADigitKeepsTheBreakBeforeItsIdeograph() throws {
         try requireFitterWidths()
         // zh-72da925e's "…經行政院於79年9月" ends a line "於79" in Word's
