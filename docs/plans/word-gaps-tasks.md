@@ -4289,6 +4289,10 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   own height (27.9) from the page's top margin (72 + n x 27.93); under the
   18pt grid its place (B top 330.9) holds over 15pt of chart growth and
   fits no origin tried. RELEASED with that; next lab in the README.]
+- zh-e1b09977 (Mac 01Xgpbk5, DONE 2026-10-24): 82.0 -> 99.7 — a row parted anywhere in a table is
+  closed at the foot with the table's bottom line when that is heavier than its inside ones and
+  the cell states no bottom (Word's print, p14: the 2.25pt line under the part). Lab hv
+  (~/starling-word-check/lab/hv): heavy lines between rows already as Word's.
 
 ### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — DONE (2026-10-23)
 Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
