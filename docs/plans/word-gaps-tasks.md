@@ -4422,4 +4422,9 @@ hanging, the mark gives its half like any other and the share test refuses
 both. Fits zh-505b9619's labs u5/u6 ("。" drawn inside the margin) and
 zh-7488a70f (doNotCompress, hangs whole); b2's "？" rule (zh-ab1ea005, labs
 qh/qe) is the same thing for one mark.
-- zh-b0401810 (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): the tbRlV merged cell "职业资格证书、职业技能等级证书", spacing 51 — its characters 3pt low and 4pt right of Word's.
+- zh-b0401810 (Mac 01Xgpbk5, 2026-10-24, routed by bd, looked, RELEASED): at the tip (with windows'
+  fa888b3a and macOS-doc's c5fc20eb) the tbRlV cell's characters stand within 0.6pt across and
+  0.2 down of Word's (职 101.87/382.92 to 101.28/382.74, every character after it the same), and
+  p1's rows match span by span to 0.6pt. 85.7 is the reader: PDFKit groups the codes, names and
+  numbers of a row into lines differently — Word's spans carry their trailing spaces ("2 ", "A ",
+  "4-04-04-02 "), ours do not. Not layout.
