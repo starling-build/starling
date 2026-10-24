@@ -4403,7 +4403,14 @@ the body.
   Word's — the cover's first section, three empty 36pt paragraphs in two columns (continuous),
   is one column of three lines in ours, balanced in Word's (two and one, presumably); the
   balancing at a continuous break (ac1e1954) does not reach the document's first section. Per-
-  section column counts would settle this and p9-14.
+  section column counts would settle this and p9-14. [Mac 01Xgpbk5, same day, from bd: the title's
+  55pt was the balancing itself — fixed without per-section counts (a piece at the even length
+  starts the next column; a last-line cut keeps the paragraph whole): p1 as Word's, 95.9; n221
+  nothing down. p9-14 left; per-section counts still declined.]
+- zh-6a4fc013 Thai, from windows 01QbbApP (2026-10-24): Word for Windows breaks as the Mac print on
+  52 of 54 matched lines (spaces; overlong stretches at the last character that fits), so the
+  committed rule is both's; Windows draws bold Thai in Leelawadee UI Bold (the Mac Browallia New
+  Bold) and runs 28 pages — the gap there is widths and line heights. For lenovo-3 if wanted.
 
 ### T151. A paragraph's last mark does not hang from 2013's layout where marks are compressed — CLAIMED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
