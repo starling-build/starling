@@ -556,6 +556,17 @@ zh-984846dc, zh-a031fa16, zh-c2229d4a, zh-d9b085b1, zh-e68a2f57 (NUL share 0.46-
 other nine embedding files have older prints with real glyphs. 42848c6a (an embedded
 SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted (see office.md; zh-a031fa16 89.0 -> 55.9 against its set-aside reference, nothing else moved).
 
+LIKELY CAUSE (Mac 01Xgpbk5, 2026-10-24, read-only, for bd): not a Word or macOS update (Word 16.113.3
+unchanged since Oct 1; good and bad prints both macOS 27.0 26A428; no fonts installed). The bad prints
+embed the docx's own faces as 432-540-byte subsets of 1-3 EMPTY glyphs (zh-a031fa16's, zh-529fa492's
+FangSong_GB2312 / FZXBSJW) where zh-92373179's good print (Oct 18 01:27 UTC) has a 224-glyph one. And
+the printing Word is one process, pid 98509, started Oct 18 13:17:46 and running since; before it the
+log shows Word restarted under other pids. 20:57 is 7.5h into that process — font state drifting in a
+long-lived Word (embedded faces of one name reused across documents; the 楷体_GB2312 fallback switch the
+same night). PROPOSED, the user's call: quit and relaunch Word, reprint zh-a031fa16 to check, then have
+the print loop restart Word every N documents and reprint the ten. Office's caches are TCC-protected
+(not inspected).
+
 ### Reprinted (Mac 0fcba326, 2026-10-24): zh-6e7ff836's reference
 macOS-doc found its Word print broken: pages 2 and 19-22 blank Letter pages in an A4 document, a
 page tree PyMuPDF rejects, 16,645 characters of text. Reprinted with Word for Mac 16.113 (no embedded
