@@ -3511,6 +3511,13 @@ regression for a document the line match scores 0 either way (its Arabic is read
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
 
+### Note from macOS-doc (2026-10-23): four line-end cases — CLAIMED Linux office1 01Ak4ibJ
+- zh-f6886fbb 94.7: p7 y496 Word "…省级及以上重", ours a character short ("…以").
+- zh-08e95de4 96.1 (mode 14, compressPunctuation, grid -0.25): p3 y524 Word opens "征地补偿安置决定的…", ours keeps
+  "征地" above; p7 y207 Word "R6地块…", ours "地块…".
+- zh-4a90bb2f 95.5: p9 y546 Word opens "分，每增加1个月…", ours "每增加…".
+- zh-753cd6a8 94.1: p1 y288 cell "1名得100分，第2名得99分，以此类推，100名以后不" / "得20%"; ours takes "得".
+
 ### T147. zh-db07d44e p22: a display equation wider than its cell breaks over lines — DONE (2026-10-23)
 Owner: none (Linux office1 01Ak4ibJ built it)
 Documents: zh-db07d44e (54.8 on Linux; p22 on is a page behind).
