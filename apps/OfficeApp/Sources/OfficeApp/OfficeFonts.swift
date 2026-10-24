@@ -1325,6 +1325,20 @@ enum OfficeFonts {
             face.baseline = 0.867 + 1.164 * 0.15
             return face
         }
+        // (SimSun's line is 1.2972 em, not 1.3: lab `f` (macOS-doc, Word
+        // for Mac, zh-7b125a21's package) sets its 10.5pt lines 13.614
+        // apart on the mean (1.2958-1.2973 em by the 0.24pt raster its
+        // print rounds to) and 12pt ones 15.559, by 宋体, SimSun or the
+        // CESI宋体 that stands for it alike; zh-0978dee9's 10pt cells are
+        // 12.976 apart over 30 lines (1.2972-1.2980), and their page foot
+        // takes a line by that. Ours, 13.65 at 10.5, fitted a line less
+        // to zh-7b125a21's page 90, and the fifteen pages after ran behind.)
+        if has("simsun", "宋体") {
+            var face = square
+            face.height = 1.2972
+            face.baseline = 1.005 - (1.3 - 1.2972) / 2
+            return face
+        }
         return square
     }
 
