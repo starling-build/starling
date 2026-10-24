@@ -2725,6 +2725,10 @@ public final class RichLayout {
     /// for three of its last four, and the last's three columns set all
     /// fourteen of Word's pages in seven.
     private var _oneColumn = false
+    /// Paragraphs of a cover's one-column section in a file of more
+    /// columns (see where `_oneColumn` is decided): set across the page,
+    /// from the first column's edge.
+    private var _fullWidthCover: Set<Int> = []
     private func _pxColumnW(_ page: Int) -> Double { _px(pageSetup(forPage: page).columnWidth) }
     private func _pxColumnStride(_ page: Int) -> Double {
         let s = pageSetup(forPage: page)
@@ -2786,6 +2790,7 @@ public final class RichLayout {
     /// its section's column to the document's.
     private func _flowWidth(_ i: Int) -> Double {
         guard let base = pageSetup, _sectionSetups.count > 1, base.columnWidth > 0 else { return width }
+        if _fullWidthCover.contains(i) { return width * _setup(ofParagraph: i).contentWidth / base.columnWidth }
         return width * _setup(ofParagraph: i).columnWidth / base.columnWidth
     }
 
@@ -2867,6 +2872,18 @@ public final class RichLayout {
         let cover = document.paragraphs.firstIndex { $0.cell == nil && $0.style.sectionPage != nil && $0.style.sectionBreaksPage == true } ?? -1
         _oneColumn = last.columns > 1 && document.paragraphs.enumerated().contains { i, p in
             p.cell == nil && i > cover && i < document.paragraphs.count - 1 && p.style.sectionPage.map { max(1, $0.columns) != last.columns } == true
+        }
+        // (… but its one-column section is set across the page: zh-b5359de4's
+        // title "龙泉市城镇老旧小区改造十四五规划" is one line centred on the
+        // page in Word's print, where ours wrapped it in a half-page column.)
+        _fullWidthCover = []
+        if theme.wordRules, !_oneColumn, last.columns > 1, cover > 0 {
+            var from = 0
+            for (i, p) in document.paragraphs.enumerated() where p.cell == nil && i <= cover {
+                guard let own = p.style.sectionPage else { continue }
+                if max(1, own.columns) == 1 { for k in from ... i where document.paragraphs[k].cell == nil { _fullWidthCover.insert(k) } }
+                from = i + 1
+            }
         }
         for (i, p) in document.paragraphs.enumerated() where p.cell == nil {
             guard var setup = p.style.sectionPage, i < document.paragraphs.count - 1 else { continue }
@@ -14227,9 +14244,14 @@ public final class RichLayout {
                     let left = _pxMarginLeft(p) + Double(column) * _pxColumnStride(p)
                     // One column clips to its own width; a lone column keeps
                     // the page, so a table wider than the text can still show.
-                    let clipL = _columns > 1 ? left - 1 : 0
-                    let clipR = _columns > 1 ? left + _pxColumnW(p) + 1 : _pxPageW(p)
+                    let columnClipL = _columns > 1 ? left - 1 : 0
+                    let columnClipR = _columns > 1 ? left + _pxColumnW(p) + 1 : _pxPageW(p)
                     for piece in _pages[slot] {
+                        // (A cover's one-column section, set across the page:
+                        // `_fullWidthCover`.)
+                        let across = _fullWidthCover.contains(piece.paragraph)
+                        let clipL = across ? 0 : columnClipL
+                        let clipR = across ? _pxPageW(p) : columnClipR
                         let top = pageTop + piece.pageY
                         let bottom = top + piece.height
                         if bottom < visible.top || top > visible.bottom { continue }
