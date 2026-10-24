@@ -2127,10 +2127,6 @@ public struct RichDocument: Hashable, Sendable {
     /// line's end too — text, not the blank a line may hang past its
     /// margin. A run of them wraps as characters do.
     public var underlinesTrailingSpaces = false
-    /// Word's `w:doNotUseEastAsianBreakRules`: where it is said, an
-    /// underlined blank that fits a line hangs past the margin as plain
-    /// spaces do (zh-621d8756); where not, Word wraps every one.
-    public var ignoresEastAsianBreakRules = false
     /// Word's `w:adjustLineHeightInTable`: a table's text keeps to the
     /// section's line grid as body text does. Without it Word sets a
     /// cell's lines off the grid (zh-117cf7c6's 12pt rows on an 18.25pt

@@ -2315,7 +2315,13 @@ public final class RichLayout {
                                 // 121.9 to 755.0 between its lines; from the
                                 // row's very top ours was 632.3, and the next
                                 // row parted where Word's goes over whole.)
-                                case "page", "margin": top = cell.pad.top
+                                // (And 0.72pt more, whatever its rules: lab
+                                // `rb` (Mac, Word 16, zh-ab9cbe66's chart row
+                                // alone, borders of ¼, ½, 1½pt and none) has
+                                // the row's inside 633.12 every time, the
+                                // 632.4pt extent and 0.72 — not the effect
+                                // extent's 2.1.)
+                                case "page", "margin": top = cell.pad.top + _px(0.72)
                                 default: continue
                                 }
                                 rowHeight = max(rowHeight, top + h)
@@ -6475,12 +6481,7 @@ public final class RichLayout {
                     var end = k
                     while end < stop, units[end] == 0x20 { end += 1 }
                     let before = k > 0 && units[k - 1] != 0x20 ? size : 0
-                    // (Every one where the document keeps East Asian break
-                    // rules: zh-f47b8a74's blanks that fit a line wrap in
-                    // Word's print too — the four documents a hold of every
-                    // blank cost all say w:doNotUseEastAsianBreakRules, and
-                    // those it helped none.)
-                    if !document.ignoresEastAsianBreakRules || _px(Double(end - k) * space + before) > textWidth { underHeld.formUnion(k ..< end) }
+                    if _px(Double(end - k) * space + before) > textWidth { underHeld.formUnion(k ..< end) }
                     k = end
                 }
             }
