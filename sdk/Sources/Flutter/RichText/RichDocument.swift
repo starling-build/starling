@@ -2132,6 +2132,10 @@ public struct RichDocument: Hashable, Sendable {
     /// — unless it stands between two Latin words. The spaces that push
     /// a signature across the page are then twice as wide in most faces.
     public var balancesSpaceWidth = false
+    /// Word's `w:spaceForUL`: an exact line's text set by its middle
+    /// (`w:textAlignment` "center") has its own line centred in the exact
+    /// one. Without it the middle stands where the baseline would be.
+    public var spacesForUnderline = true
     /// Word's `w:ulTrailSpace`: underlined spaces are underlined at a
     /// line's end too — text, not the blank a line may hang past its
     /// margin. A run of them wraps as characters do.

@@ -1967,6 +1967,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try kept(note: true), 33, "but not into the notes")
     }
 
+    func testACentredExactLineIsSetByTheBaselineWithoutSpaceForUL() throws {
+        // Lab `ctr` (Word for Mac): zh-ee9d81b3, which lacks `w:spaceForUL`,
+        // sets its 16pt YaHei in 35pt exact lines of `w:textAlignment`
+        // "center" 34.53pt down — the baseline's place, 28.05, and the
+        // text's middle more — where zh-1563bd74, which has it, centres
+        // the text's own line in the exact one.
+        func baseline(spaceForUL: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!, si = entries.firstIndex { $0.name == "word/settings.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+                "<w:p><w:pPr><w:spacing w:line=\"700\" w:lineRule=\"exact\"/><w:textAlignment w:val=\"center\"/></w:pPr>"
+                + "<w:r><w:rPr><w:rFonts w:ascii=\"Microsoft YaHei\" w:eastAsia=\"Microsoft YaHei\" w:hAnsi=\"Microsoft YaHei\"/><w:sz w:val=\"32\"/></w:rPr>"
+                + "<w:t>三、配合參加</w:t></w:r></w:p>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let settings = "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:compat>"
+                + (spaceForUL ? "<w:spaceForUL/>" : "") + "</w:compat></w:settings>"
+            entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+            let doc = try DocxFormat.read(Zip.write(entries)).document
+            XCTAssertEqual(doc.spacesForUnderline, spaceForUL)
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let p = doc.paragraphs[0]
+            return try XCTUnwrap(theme.baseline(for: p.runs[0].style, in: p.style, named: nil, eastAsian: true, gridPitch: nil,
+                                                centresInLine: doc.spacesForUnderline))
+        }
+        let centred = try baseline(spaceForUL: true), low = try baseline(spaceForUL: false)
+        XCTAssertEqual(centred, 23.94, accuracy: 0.3, "the text's own line centred in the exact one")
+        XCTAssertEqual(low, 34.53, accuracy: 0.6, "the baseline's place and the text's middle")
+    }
+
     func testAPageFootLineReachesByItsOwnFaces() throws {
         // zh-c15af02e's p11: a paragraph with a "%" in another face on its
         // second line, whose one pitch leaves 1pt, keeps its fifteenth

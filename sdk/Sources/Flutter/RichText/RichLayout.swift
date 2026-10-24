@@ -371,7 +371,7 @@ public final class RichTextTheme {
     /// sets the line) and its first run otherwise — or nil where the
     /// face's own is not known.
     public func baseline(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
-                         eastAsian: Bool, gridPitch: Double?) -> Double? {
+                         eastAsian: Bool, gridPitch: Double?, centresInLine: Bool = true) -> Double? {
         let size = style.fontSize ?? named?.char.fontSize ?? fontSize
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
         let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
@@ -385,9 +385,15 @@ public final class RichTextTheme {
             // own line stands in the middle of the exact one: zh-1563bd74's
             // articles, 16pt in 30pt exact lines, have their baselines
             // 21.7pt down in Word's print, not 24.4.)
+            // (Only under `w:spaceForUL`: without it the middle stands
+            // where the baseline would — lab `ctr` (Word for Mac): zh-ee9d81b3's
+            // 16pt YaHei in 35pt exact lines, which lacks it, is set 34.53
+            // down (28.05 by the baseline and 6.45 more), at 30pt 30.45;
+            // its paragraphs with the switch added, 23.97, and zh-1563bd74's
+            // with it taken out, 30.54 for 21.66.)
             if paragraph.eastAsian["w:textAlignment"] == "center",
                let middle = lineMiddle(for: style, named: named, eastAsian: eastAsian) {
-                return points / 2 + middle
+                return (centresInLine ? points / 2 : lineBox(size: size, natural: 1, baseline: 0, in: paragraph, gridPitch: gridPitch).baseline ?? points / 2) + middle
             }
             // (Set by its foot — "bottom" — the text's own line ends at the
             // exact one's: zh-d3d3f266's 22pt YaHei titles in 28pt exact
@@ -6951,7 +6957,7 @@ public final class RichLayout {
                     break search
                 }
             }
-            if var target = theme.baseline(for: lead.0, in: style, named: named, eastAsian: lead.1, gridPitch: pitch) {
+            if var target = theme.baseline(for: lead.0, in: style, named: named, eastAsian: lead.1, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                 // (The line's baseline is its tallest run's, where the
                 // text is Latin: form_footnotes' "D - " box in Symbol
                 // after 11pt spaces sets "Concessão" a point lower than
@@ -6967,7 +6973,7 @@ public final class RichLayout {
                         let from = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(start, p.text.utf16.count))
                         let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
                         if p.text[from ..< to].allSatisfy(Self._setsNoLine) { continue }
-                        if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch) {
+                        if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                             target = max(target, b)
                         }
                     }
@@ -6994,7 +7000,7 @@ public final class RichLayout {
                             guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, !covers.contains(u) else { continue }
                             var r = run.style
                             r.eastAsiaFontFamily = alt
-                            if let b = theme.baseline(for: r, in: style, named: named, eastAsian: true, gridPitch: pitch) { target = max(target, b) }
+                            if let b = theme.baseline(for: r, in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) { target = max(target, b) }
                             break scan
                         }
                     }
@@ -7015,7 +7021,7 @@ public final class RichLayout {
                         guard start < end else { continue }
                         let text = String(decoding: units[start ..< end], as: UTF16.self)
                         if text.contains(where: { !Self._setsNoLine($0) && Self.isEastAsian($0, hinted: hinted) }) {
-                            if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: true, gridPitch: pitch) { target = max(target, b) }
+                            if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) { target = max(target, b) }
                             tallest = max(tallest, theme.naturalLine(for: run.style, named: named, eastAsian: true) ?? .infinity)
                         }
                         if text.contains(where: { !Self._setsNoLine($0) && !Self.isEastAsian($0, hinted: hinted) }) { latin.append(run.style) }
@@ -7029,7 +7035,7 @@ public final class RichLayout {
                     // under them.)
                     for r in latin {
                         guard let own = theme.naturalLine(for: r, named: named, eastAsian: false), own > tallest + 0.01,
-                              let b = theme.baseline(for: r, in: style, named: named, eastAsian: false, gridPitch: pitch) else { continue }
+                              let b = theme.baseline(for: r, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) else { continue }
                         target = max(target, b)
                     }
                 }
@@ -8898,7 +8904,7 @@ public final class RichLayout {
                let box = _combineBox(chars, run.style, p, named: named, document) {
                 let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
                 let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-                let baseline = theme.baseline(for: run.style, in: p.style, named: named, eastAsian: true, gridPitch: nil) ?? size * 0.88
+                let baseline = theme.baseline(for: run.style, in: p.style, named: named, eastAsian: true, gridPitch: nil, centresInLine: document.spacesForUnderline) ?? size * 0.88
                 let dims = PlaceholderDimensions(size: Size(_px(box.width).rounded(), _px(box.height).rounded()), alignment: PlaceholderAlignment.baseline,
                                                  baseline: TextBaseline.alphabetic, baselineOffset: _px(baseline))
                 children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
