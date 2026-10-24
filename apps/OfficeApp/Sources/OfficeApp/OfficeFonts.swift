@@ -1329,7 +1329,9 @@ enum OfficeFonts {
     /// stays sans, as YaHei is. It draws only what the stand-in lacks,
     /// so letters and digits keep their widths and the lines their breaks.
     private static func serifIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
-        #if os(Linux)
+        #if os(macOS)
+        return wordMacIdeographs(family, ea)
+        #elseif os(Linux)
         guard abs(ea.height - square.height) < 0.01 else { return nil }
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
@@ -1663,6 +1665,50 @@ enum OfficeFonts {
     /// what the Latin side of an East Asian family falls back to first.
     nonisolated(unsafe) static var cjkFallback: [String] = []
 
+    /// The Chinese faces Word for Mac carries (its DFonts), registered
+    /// under their family names when OFFICE_WORD_FONTS=mac finds Word
+    /// installed: the ideographs of a print to compare are then drawn in
+    /// the face Word drew them in, where they were the system's PingFang
+    /// — whose outlines (`hvgl`, neither TrueType nor CFF) the PDF can
+    /// only carry as Type 3 glyphs, one font per few characters. PDFKit
+    /// read those back as lines broken where no line breaks, and
+    /// zh-b8de3ae2 scored 2 points under its own layout. Its symbols
+    /// are Word's too: "※" is 0.84 em in YaHei, an em in PingFang.
+    nonisolated(unsafe) static var _wordMacFacesLoaded = false
+    static func registerWordMacFaces() -> Bool {
+        let dir = "/Applications/Microsoft Word.app/Contents/Resources/DFonts/"
+        guard FileManager.default.fileExists(atPath: dir + "msyh.ttc") else { return false }
+        // (A collection's first face: SimSun's, YaHei's, MingLiU's — whose
+        // ideographs are PMingLiU's.)
+        for (file, families) in [("msyh.ttc", ["Microsoft YaHei"]), ("msyhbd.ttc", ["Microsoft YaHei"]), ("Simsun.ttc", ["SimSun"]),
+                                 ("SimHei.ttf", ["SimHei"]), ("Kaiti.ttf", ["KaiTi"]), ("Fangsong.ttf", ["FangSong"]),
+                                 ("mingliu.ttc", ["PMingLiU"]), ("Deng.ttf", ["DengXian"]), ("Dengb.ttf", ["DengXian"]),
+                                 ("STZHONGS.ttf", ["STZhongsong"]), ("STXINWEI.ttf", ["STXinwei"])]
+            where FileManager.default.fileExists(atPath: dir + file) {
+            for family in families { _ = flutter.swift_bridge.LoadFontFromFile(dir + file, family) }
+        }
+        _wordMacFacesLoaded = true
+        return true
+    }
+    /// The Word face that draws a name's ideographs (`registerWordMacFaces`);
+    /// nil for YaHei's stand-ins, which the glyph fallback draws.
+    private static func wordMacIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
+        guard _wordMacFacesLoaded, ea.height != yaHei.height else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        if has("明體", "mingliu") { return "PMingLiU" }
+        if has("黑体", "simhei") { return "SimHei" }
+        if has("楷体", "kaiti") { return "KaiTi" }
+        if has("仿宋", "fangsong") { return "FangSong" }
+        if has("华文中宋", "stzhongsong") { return "STZhongsong" }
+        if has("华文新魏", "stxinwei") { return "STXinwei" }
+        if has("等线", "dengxian") { return "DengXian" }
+        // (宋体 and the names Word sets in it: FZXiaoBiaoSong by its ASCII
+        // name, and a Latin alternate's.)
+        if ea.height == square.height || has("宋", "simsun", "song") { return "SimSun" }
+        return nil
+    }
+
     /// Starling FangSong: Zhuque Fangsong (OFL) set to FangSong's metrics —
     /// its Latin half an em, its curly quotes and full-width forms an em,
     /// a line of one em (Resources/fonts/README.md). Whether it loaded.
@@ -1678,8 +1724,9 @@ enum OfficeFonts {
     /// document shown as its author had it, those too. (华文仿宋 is a
     /// face of its own, and keeps its own.)
     static func fangSongFamily(_ family: String) -> String? {
-        guard _fangSongLoaded else { return nil }
         let n = family.trimmingWhitespace().lowercased()
+        if _wordMacFacesLoaded, n == "仿宋" || n == "fangsong" { return "FangSong" }
+        guard _fangSongLoaded else { return nil }
         if n == "仿宋" || n == "fangsong" { return starlingFangSong }
         guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }
         // (As Word for Windows sets it: a name it lacks is FangSong only
@@ -1884,6 +1931,8 @@ enum OfficeFonts {
         // whatever was asked: no bold heading was bold. Named as a
         // fallback family it is matched like one, weight and all.
         RichTextTheme.glyphFallback = ["PingFang SC"]
+        // (Under OFFICE_WORD_FONTS=mac, Word's own: `registerWordMacFaces`.)
+        if wordOnMac, registerWordMacFaces() { RichTextTheme.glyphFallback = ["Microsoft YaHei", "PingFang SC"] }
         #endif
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
