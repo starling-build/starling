@@ -7071,6 +7071,22 @@ public final class RichLayout {
         // of the line below. (Lines set beside a narrower one are not
         // built: the text then runs over it, as before.)
         var push = 0.0
+        // Whether the paragraph's first line ends above a float that many
+        // pixels down from its top: its space before as pagination keeps it
+        // where the paragraph opens a section on a new page (less the space
+        // after the paragraph before), then the line.
+        let lineEndsAbove: (Double) -> Bool = { [self] down in
+            guard theme.wordRules, let first = painter.computeLineMetrics().first else { return false }
+            var top = before
+            if i > 0, let xml = document.paragraphs[i - 1].style.sectionXML, !xml.contains("\"continuous\""), _cells[i - 1] == nil {
+                top = max(0, before - _spacing(i - 1, document).after)
+            }
+            // (An empty line's height is its exact one, else its size's.)
+            var line = first.height
+            if let exact = style.lineHeightPoints, !style.lineHeightIsMinimum, exact > 0 { line = _px(exact) }
+            else if line < 1 { line = _px(p.runs.first?.style.fontSize ?? theme.fontSize) }
+            return top + line <= down + 0.01
+        }
         if theme.wordRules, p.cell == nil {
             let column = _flowWidth(i)
             let firstLine = max(0, lead) + (left - (frameLeft ?? 0))
@@ -7113,7 +7129,15 @@ public final class RichLayout {
                 let bare = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
                 let gap = _px(9), em = theme.wordRules && bare ? 0.0 : _px(p.runs.first?.style.fontSize ?? theme.fontSize)
                 let leftRoom = x - gap - firstLine, rightRoom = column - (x + w) - gap - (em > 0 ? max(0, lead) : 0) - right
-                if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0) { push = max(push, _px(float.y) + _px(image.height)) }
+                // (Not where the line ends above it: zh-27a874b7's page 3
+                // opens a section with the same empty anchor as zh-d62da4dd's,
+                // its 27pt exact line, its chart 27.3pt down — but there the
+                // page's top takes its 9pt before away, the line ends at 27,
+                // and Word's print keeps it, and the box that goes with it,
+                // over the chart (lab ss); in zh-d62da4dd, mid-page, the
+                // line from 9 to 36 goes under.)
+                if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0),
+                   !lineEndsAbove(_px(float.y)) { push = max(push, _px(float.y) + _px(image.height)) }
             }
         }
         // (In a table cell too, across the cell's text — lab `wc` on Word
@@ -13225,7 +13249,15 @@ public final class RichLayout {
         // pages' first paragraphs with 14pt of space before them, 18pt
         // above the margin — ours stood 15.5pt lower, measured from the
         // text under that space.)
-        if theme.wordRules, float.verticalAlign == nil, float.verticalFrom == "paragraph" { y = g.top + _px(float.y) }
+        // (But not from space a page's top took away: zh-27a874b7's page 3
+        // opens with a paragraph 9pt before, dropped there, and its chart,
+        // 27.3pt down, stands 27.3 under the margin in Word's print, with
+        // the before or without it (lab ss); ours stood 9pt higher.)
+        if theme.wordRules, float.verticalAlign == nil, float.verticalFrom == "paragraph" {
+            var top = g.top
+            if let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }), piece.flowTop > top { top = piece.flowTop }
+            y = top + _px(float.y)
+        }
         // (… where the paragraph's own line went under a float of its that
         // left it no room, one in front of the text goes with the line:
         // zh-d62da4dd's empty paragraphs each hold a chart wrapped tight,
