@@ -4380,3 +4380,4 @@ Now under East Asian layout after any space in a cell of any width too (20
 characters or more). Same-base sweep of 756: zh-15f60bac 97.8 -> 98.7 (p11
 Word's line for line), nothing else moved. Left: p22's "(https://www.moea…" in
 the body.
+- zh-8628cfbe again (Mac 01Xgpbk5, CLAIMED 2026-10-24, routed by bd): 57.4, Word 46 pages to our 45 — the p24 drift.
