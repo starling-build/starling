@@ -4220,10 +4220,22 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
 - zh-9c162f26 (97.2 -> 99.8; DONE Linux 017F2GnT 2026-10-24, released): its
   footer box's "— 10 —" wrapped the closing dash on every two-digit page —
   the box widened by the left indent alone.
-- Linux 017F2GnT CLAIMED 2026-10-24 (handed by the Mac 7bd18d8e, lab `pct`):
-  a 5000-pct table's outer rules stand inside its share, one rule width
-  narrower than a dxa table of the same column; ours spans the share and
-  sets cells 0.25-0.4pt wide on the right (zh-147bdae0 p45).
+- Lab `pct` (the Mac 7bd18d8e; Linux 017F2GnT 2026-10-24, PARKED): a
+  5000-pct table's right rule centre stands half a rule inside its share
+  (504.96 in a column to 505.3), a dxa table's of the same width at
+  505.44. Set so — ours narrower by half the right rule — the corpus does
+  not move at all (eleven likely documents rescored, all as before); by
+  half of both outer rules four rose (zh-147bdae0 95.5 -> 96.9,
+  zh-4ea36aa8 97.1 -> 99.3) and zh-301618c5/zh-c0e22afc fell 100 -> 99.3,
+  their zero-margin cells' text starting 0.25 right of Word's (ours a
+  rule in from the left line's centre, Word half a rule). Not
+  zh-147bdae0 p45's cause: Word's own limit there (499.08) holds the "人"
+  (ending 498.5), and Word wraps before it all the same — not found.
+  Patch kept at ~/tmp/word/pct-right-rule.patch on Linux.
+- zh-34a6519a (90.9; CLAIMED Linux 017F2GnT 2026-10-24, from Linux b2):
+  表5-3-2's last row parts at p27's foot; its centred first cell (9 empty,
+  "Ⅲ级", 5 empty) is set whole in the part over the page, and p28 runs
+  long.
 - zh-147bdae0 (92.8 -> 95.5; Linux 017F2GnT 2026-10-24, from the Mac's
   re-check, released). Not row parting: (1) its rows state cell spacing
   nil (`w:tblPrEx`) under the table's 0, and Word collapses their lines
