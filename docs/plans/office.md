@@ -6171,6 +6171,24 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A shape Word sets in Segoe UI Symbol gives its line that face's
+  ascent (2026-10-24).** Lab `picln` (the Mac 7bd18d8e, Word 16,
+  zh-e68a2f57's package; ~/starling-word-check/lab/picln): p7's 9pt note
+  under its chart — 楷体_GB2312 over Times New Roman, 1.1 lines — stands
+  its first baseline 10.89 under the picture in Word's print, ours 10.21,
+  and its third line goes to p8 in Word's, every page after a line
+  apart. Not the picture's line (it matches Word's to 0.1 at every mark
+  tried): the note's "◎". Word sets the shapes of an unhinted run in its
+  Latin face, and where Times has none — "◎◇◆★☆" — in Segoe UI Symbol
+  (hhea 2210/-514 of 2048), whose ascent lifts the line: 0.48pt at 9pt,
+  0.96 at 12, at single and 1.1 lines alike, in Word's 0.24 steps.
+  "●□▲○■※" (Times has them) and "①△" (Cambria Math) lift nothing. Ours
+  drew them all in YaHei, the line as any. Now the line holding one is
+  as tall as Segoe's ascent asks: a joiner of Segoe's line where the
+  engine sets the line, the first line's target baseline (and the
+  paragraph, and its cuts, `_firstLineLift`) where a strut does.
+  zh-e68a2f57's p7: 471.13 / Word 471.12, the third line on p8, 63 pages.
+  Sweep h148: zh-e68a2f57 18.2 -> 92.1, 63 pages; nothing else moved.
 - **A row opening a page under a cell of no top line takes the table's
   top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
   thinThickSmallGap top (sz 24) over single half-point inside lines, its

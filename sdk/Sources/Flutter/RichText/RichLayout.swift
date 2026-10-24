@@ -1111,6 +1111,10 @@ public final class RichLayout {
     /// How far each paragraph's last line on a page may reach past the
     /// page's foot (px; `RichTheme.gridOverhang`).
     private var _overhang: [Double] = []
+    /// How much taller each paragraph's first line is than its painter's
+    /// for a shape set in Segoe UI Symbol (px; `_segoeSymbolShapes`): its
+    /// lines' cuts stand as much lower.
+    private var _firstLineLift: [Double] = []
     /// … line by line, where its faces differ from line to line (px; empty
     /// where only the paragraph's `_overhang` is known).
     private var _lineOverhang: [[Double]] = []
@@ -1260,6 +1264,7 @@ public final class RichLayout {
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
         _overhang = Array(repeating: 0, count: n)
+        _firstLineLift = Array(repeating: 0, count: n)
         _lineOverhang = Array(repeating: [], count: n)
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
@@ -1333,6 +1338,7 @@ public final class RichLayout {
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _overhang.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _firstLineLift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _lineOverhang.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -1370,6 +1376,7 @@ public final class RichLayout {
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
                 _overhang.removeSubrange(at ..< end)
+                _firstLineLift.removeSubrange(at ..< end)
                 _lineOverhang.removeSubrange(at ..< end)
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
@@ -5542,7 +5549,8 @@ public final class RichLayout {
                 }
                 if cuts == nil {
                     let g = geometry(i)
-                    cuts = Self._lineBottoms(g.painter).map { g.textTop + $0 }
+                    let lift = i < _firstLineLift.count ? _firstLineLift[i] : 0
+                    cuts = Self._lineBottoms(g.painter).map { g.textTop + $0 + lift }
                     if Self.debugPagination {
                         let m = g.painter.computeLineMetrics()
                         let desc = "para \(i) top \(g.top) textTop \(g.textTop) bottom \(g.bottom) painterH \(g.painter.height) lines \(m.count) heights \(m.map { $0.height }) baselines \(m.map { $0.baseline }) asc/desc \(m.first.map { "\($0.ascent)/\($0.descent)" } ?? "-") cursor \(cursor) y \(y) available \(available)\n"
@@ -7150,6 +7158,7 @@ public final class RichLayout {
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
         _inkShift[i] = 0
+        var segoeLift = 0.0   // what a Segoe UI Symbol shape adds over the first line (`_segoeSymbolShapes`)
         // (A paragraph whose runs differ only by a raised or lowered one
         // has no strut, and its lines are each as tall as one of its own
         // text: its baseline wants the same correction — endnotes' "A
@@ -7254,6 +7263,26 @@ public final class RichLayout {
                         guard let own = theme.naturalLine(for: r, named: named, eastAsian: false), own > tallest + 0.01,
                               let b = theme.baseline(for: r, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) else { continue }
                         target = max(target, b)
+                    }
+                    // (… and Segoe UI Symbol's, where the line holds a shape
+                    // Word sets in it — see `_segoeSymbolShapes`: its
+                    // ascent, 2210 of 2048, over the baseline.)
+                    if style.lineHeightPoints == nil || style.lineHeightIsMinimum {
+                        start = 0
+                        for run in p.runs where run.length > 0 {
+                            defer { start += run.length }
+                            guard start < firstEnd else { break }
+                            let end = min(start + run.length, firstEnd, units.count)
+                            guard start < end, run.style.fontHint != "eastAsia",
+                                  theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true,
+                                  units[start ..< end].contains(where: { Self._segoeSymbolShapes.contains(UInt32($0)) }) else { continue }
+                            let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                            // (The line as much taller: what stands under it
+                            // goes as much lower — p7's third note line to
+                            // p8, as in Word's print.)
+                            segoeLift = max(segoeLift, size * 2210 / 2048 - target)
+                            target = max(target, size * 2210 / 2048)
+                        }
                     }
                 }
                 _inkShift[i] = _px(target) - line.baseline
@@ -7456,7 +7485,8 @@ public final class RichLayout {
         }
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
-        var bodyHeight = painter.height
+        var bodyHeight = painter.height + _px(segoeLift)
+        if i < _firstLineLift.count { _firstLineLift[i] = _px(segoeLift) }
         // A paragraph of nothing but floating objects stands as one of a
         // single floating picture does (25pt in zh-37b6536f, where the
         // two photos' 0-high places made a line of 0.8, and the next
@@ -8143,6 +8173,10 @@ public final class RichLayout {
                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true).flatMap { face in
                     face.uncoveredFamily.flatMap { alt in face.covers.map { (alt, $0) } }
                 } : nil
+            // (Whether the run's shapes are its Latin face's — no East
+            // Asian hint, a Latin face that is not an East Asian one.)
+            let latinShapes = theme.wordRules && run.fontHint != "eastAsia"
+                && theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true
             func style(_ kind: Int) -> TextStyle {
                 if let s = styles[kind] { return s }
                 var styled = run
@@ -8223,6 +8257,7 @@ public final class RichLayout {
             // zh-b00fef0d's "…改革决策部署" lost "署" to the next line.)
             func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0) }
             var notoStyle: TextStyle? = nil
+            var segoeStyle: TextStyle? = nil
             var spans: [TextSpan] = []
             var start = text.startIndex
             var current: Int? = nil
@@ -8408,6 +8443,31 @@ public final class RichLayout {
                     }
                     spans.append(TextSpan(text: "\u{2060}", style: notoStyle!))
                     inserts.append(offset)
+                }
+                // A shape Word sets in the run's Latin face (no East Asian
+                // hint), which has none, and its fallback in Segoe UI Symbol,
+                // gives its line that face's ascent and descent (its hhea,
+                // 2210 and 514 of 2048): a joiner sized so before it. Lab
+                // `picln` (the Mac 7bd18d8e, Word 16, zh-e68a2f57's package):
+                // its 9pt note, 楷体_GB2312 over Times New Roman, holding "◎"
+                // stands 0.48pt lower under the line above, 0.96 at 12pt, at
+                // single and 1.1 lines alike — its embedded 楷体 has the
+                // glyph; "◇◆★☆" as "◎", "●□▲○■※" (Times has them) and
+                // "①△" (Cambria Math) nothing. Ours drew them in YaHei, its
+                // line as any, and p7's third note line stayed on the page.
+                if latinShapes, let u = ch.unicodeScalars.first?.value, Self._segoeSymbolShapes.contains(u) {
+                    flush(i)
+                    if segoeStyle == nil { segoeStyle = _segoeJoiner(run, named, style(-1), p.style, pitch, scale) }
+                    if let joiner = segoeStyle {
+                        // (Its break before kept: see the Noto joiner's.)
+                        if let b = before, Self.isEastAsian(b, hinted: true) ? !Self._openingMarks.contains(b)
+                            : b.isASCII && (b.isLetter || b.isNumber || ")]}%.,;:!?".contains(b)) {
+                            spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                            inserts.append(offset)
+                        }
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
                 }
                 // (Not where the face gives the quote a width of its own
                 // (`otherAdvances`): Arial Unicode MS's are narrow, and Word
@@ -10045,6 +10105,33 @@ public final class RichLayout {
     /// share its ascent less its descent is fixed by the size alone, so
     /// the size sets that and the height the rest. Nil where either
     /// face's baseline is not known, or the line's height is exact.
+    /// A zero-width joiner whose line is Segoe UI Symbol's — its hhea
+    /// ascent and descent, 2210 and 514 of 2048, at the run's size — in
+    /// Noto Sans SC, a face that has the joiner (as `_notoJoiner`'s).
+    private func _segoeJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle,
+                              _ pitch: Double?, _ scale: Double) -> TextStyle? {
+        guard paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum, let px = own.fontSize, px > 0.5 else { return nil }
+        var noto = run
+        noto.eastAsiaFontFamily = "Noto Sans SC"
+        let joinerStyle = theme.textStyle(for: noto, in: paragraph, named: named, normal: nil, scale: scale, fontScale: fontScale,
+                                          eastAsian: true, gridPitch: pitch, scriptHidden: true)
+        let probe = joinerStyle.copyWith(fontSize: 100, letterSpacing: 0, height: 1, leadingDistribution: .even)
+        let t = TextPainter(text: TextSpan(text: "\u{2060}", style: probe), textDirection: .ltr)
+        t.layout(minWidth: 0, maxWidth: 100_000)
+        defer { t.dispose() }
+        guard let line = t.computeLineMetrics().first else { return nil }
+        let split = (line.ascent - line.descent) / 100
+        let ascent = px * 2210 / 2048, descent = px * 514 / 2048
+        guard split > 0.05 else { return nil }
+        let size = (ascent - descent) / split
+        return joinerStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)
+    }
+
+    /// The shapes Word's fallback sets in Segoe UI Symbol where the run's
+    /// Latin face has none — Times New Roman, Arial, Calibri (lab
+    /// `picln`): ◇ ◆ ◎ ★ ☆.
+    static let _segoeSymbolShapes: Set<UInt32> = [0x25C7, 0x25C6, 0x25CE, 0x2605, 0x2606]
+
     private func _notoJoiner(_ noto: CharStyle, _ notoStyle: TextStyle, _ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle,
                              _ paragraph: RichParagraphStyle, _ pitch: Double?, _ scale: Double) -> TextStyle? {
         guard paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum,

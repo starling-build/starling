@@ -3310,6 +3310,45 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(none - own, 4, accuracy: 0.1, "under the table's top line")
     }
 
+    func testAShapeWordSetsInSegoeUISymbolGivesItsLineThatFacesAscent() throws {
+        // Lab `picln` (Word 16 Mac, zh-e68a2f57's package): a 9pt note over
+        // Times New Roman holding "◎" stands 0.48pt lower under the line
+        // above than one holding "兼" — Word sets the shape in Segoe UI
+        // Symbol, the run's Latin face having none — and "●", which Times
+        // has, as "兼". Ours drew them all in YaHei, the line as any, and
+        // p7's third note line stayed on the page.
+        func nextTop(_ shape: String) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let run = "<w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:eastAsia=\"宋体\"/><w:sz w:val=\"18\"/></w:rPr>"
+            let note = "<w:p><w:pPr><w:snapToGrid w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"264\" w:lineRule=\"auto\"/></w:pPr><w:r>\(run)<w:t>注：\(shape)兼容比例不超过</w:t></w:r></w:p>"
+            let next = "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r>\(run)<w:t>next</w:t></w:r></w:p>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: note + next
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "next" })
+            return l.geometry(k).top / theme.pixelsPerPoint
+        }
+        let plain = try nextTop("兼"), segoe = try nextTop("◎"), times = try nextTop("●")
+        XCTAssertEqual(times, plain, accuracy: 0.05, "a shape Times has lifts nothing")
+        // (Segoe's ascent, 1.079 em, over the line's own: 0.48 in Word's
+        // 0.24 steps at 9pt.)
+        XCTAssertGreaterThan(segoe - plain, 0.3, "the line holding ◎ is taller")
+        XCTAssertLessThan(segoe - plain, 1.0)
+    }
+
     func testANumberThatFitsMayPartAfterItsHyphenUnderEastAsianLayout() throws {
         // zh-b58b4f0c (mode 12, doNotCompress): a cell line ends "…8年（104-"
         // and the next opens "111年）計畫" in Word's print; zh-b2e0f286's
