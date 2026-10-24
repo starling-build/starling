@@ -4486,3 +4486,10 @@ stretched) where text follows the tab on that line, the lines as the tab
 measure's wrap loop finds them. Same-base sweep of 756: nothing moved either
 way (on Linux "2 ：" stood only 5.7pt on: 124.8 -> 119.1); the Mac's larger
 shift is for the Mac to re-score.
+
+### T153. zh-cd8987db p7: a paragraph's last pause mark hangs half an em at most from 2013's layout where marks compress — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). macOS-doc's lab `cdend` (Word 16
+Mac, the document's own "5.5.1 …埋入土中。", mode 15, compressPunctuation, the
+right indent stepped): the "。" hangs by its blank half at most; needing more,
+Word squeezes it inside the margin with the line's other marks, and from the
+margin itself "中。" goes down. Ours hangs it whole and takes "中".
