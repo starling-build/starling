@@ -6341,6 +6341,10 @@ public final class RichLayout {
         // there), by the offset of its last character: drawn there,
         // taking no room.
         var hangs: [Int: Double] = [:]
+        // The tabs to a right stop at the margin (or set there): what
+        // follows one that starts inside it may run past the margin, and
+        // the line fitting is told so.
+        var runsPast: Set<Int> = []
         let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
         var leftTabs: Set<Int> = []    // tabs that take a first line's label to its hanging indent
@@ -6387,6 +6391,7 @@ public final class RichLayout {
             func measure(_ wraps: [Int]) {
             tabs = [:]
             hangs = [:]
+            runsPast = []
             atMargin = []
             leftTabs = []
             _leaders[i] = []
@@ -6471,6 +6476,7 @@ public final class RichLayout {
                 // ours sent "23" to a line of its own, and the contents ran
                 // a line behind. Only where the tab starts inside its stop:
                 // one past it goes down with what follows, T127.)
+                if theme.wordRules, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1) { runsPast.insert(t) }
                 if theme.wordRules, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1), x + own < stop.x - 0.01,
                    let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }),
                    case let over = x + own + edge(last + 1) - after - (ownLeft + textWidth), over > 0.01 {
@@ -6767,7 +6773,7 @@ public final class RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs)
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast)
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
@@ -9805,7 +9811,8 @@ public final class RichLayout {
     /// In a table's cell no mark hangs; the marks inside a line give
     /// there as anywhere.
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
-                                    first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = []) -> [Int: Double] {
+                                    first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
+                                    runsPast: Set<Int> = []) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
@@ -10052,6 +10059,7 @@ public final class RichLayout {
         var lineBlank = false   // a space character (U+0020) on the line so far
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
         var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
+        var pastFrom: (x: Double, tab: Int)? = nil   // where a tab to a right stop at the margin starts, the piece before ending with it
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
             if lineSpaced, last > a { lineOther = true }
@@ -10082,6 +10090,29 @@ public final class RichLayout {
             let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !isSpace(units[$0]) }
             let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045)) : _px(0.0001)
             var fits = x + w - after <= width + hair
+            // (What follows a tab to a right stop at the margin that
+            // starts inside it runs on past the margin — `runsPast`, T127:
+            // zh-ab1ea005's "123.…救济途径？<tab>52" is one line in Word's
+            // print, "52" at the margin; ours, counting "52" 16pt over,
+            // sent "径？" down with it.)
+            let runsOn = !fits && last > a && (pastFrom.map { $0.x < width - 0.01 } ?? false)
+            if runsOn, let from = pastFrom {
+                fits = true
+                // (Set as `measure`'s hang sets it, which the line it was
+                // measured on did not reach: the tab takes nothing, and
+                // what follows stands on from where it starts, its overrun
+                // off the last character's advance. What that cannot give
+                // comes off the tab, the number drawn that much into the
+                // mark before it — a full-width "？" is blank on its right —
+                // rather than its digits over one another.)
+                adjust[from.tab, default: 0] -= boxes(from.tab, from.tab + 1)
+                let over = from.x + w - width + _px(0.05)
+                let lastGives = max(0, boxes(last - 1, last) - _px(0.5))
+                if over > 0 {
+                    adjust[last - 1, default: 0] -= min(over, lastGives)
+                    if over > lastGives { adjust[from.tab, default: 0] -= over - lastGives }
+                }
+            }
             let traced = Self.debugFit.map { p.text.firstRange(of: $0) != nil } ?? false
             if traced {
                 let pt = theme.pixelsPerPoint * scale
@@ -10090,7 +10121,7 @@ public final class RichLayout {
             }
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
-            if fits, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
+            if fits, !runsOn, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
             // (A piece that opens its line hangs its closing mark all the
             // same: zh-69bbcc3c's paragraph of 48 spaces and "）。", 416pt
             // in a column of 415.6, is one line in Word's print, its "。"
@@ -10810,6 +10841,7 @@ public final class RichLayout {
                 }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
+            pastFrom = (last ..< piece.b).last(where: { units[$0] == 0x09 }).flatMap { runsPast.contains($0) ? (x + w, $0) : nil }
             x += w + piece.trail
             opening = false
             if squeezesSpaces, piece.trail > 0, last < piece.b {
