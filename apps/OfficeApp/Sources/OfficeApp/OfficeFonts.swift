@@ -335,6 +335,15 @@ enum OfficeFonts {
         return sheetClone(family)
     }
 
+    /// Whether `sheetFace` is the named face itself, not a stand-in.
+    static func sheetFaceIsOwn(_ family: String) -> Bool {
+        #if os(Windows)
+        return windowsFaces[family.trimmingWhitespace().lowercased()] != nil
+        #else
+        return false
+        #endif
+    }
+
     /// The clone of `sheetFace`, whatever the platform has: the face whose
     /// measures the sheet's print metrics borrow for a face nobody measured.
     static func sheetClone(_ family: String) -> String {

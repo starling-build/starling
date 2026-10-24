@@ -2435,9 +2435,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
+        // (On a page, its printer dots and its face's hinted widths:
+        // Arial's and Times' in their clones, which have their advances,
+        // and those of the faces Windows draws in their own files.)
+        let dots = printing && printTextScale > 0 ? printTextScale / scale * 600 / 72 : 0
+        var hint = ""
+        if dots > 0 {
+            let name = book.fontName(st).trimmingWhitespace().lowercased()
+            let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
+            if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
+        }
         return GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)),
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
-                             underline: st.underline, strike: st.strike, color: c)
+                             underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
@@ -2474,22 +2484,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
         if cell.value.isText { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
-        // On paper the font is a whole number of the printer's pixels
-        // high: Excel's Calibri 11 prints at 11.04 pt, 92 of 600 dpi, and
-        // Arial 10 at 9.96 — its text wider than ours by a part in 300,
-        // lo-forum-mso-de-104083's right-aligned "5,740.0000" begun 0.6
-        // pt left of ours, its "Werkauftrag: WA14-46314 / 3" ending 0.75
-        // pt right. The text is laid out at the font's own size and drawn
-        // that much larger about where its alignment holds it, on its
-        // baseline. (Laid out at 11.04, its baselines fell a point.) Only
-        // where ours is the face's twin, its advances the face's: DejaVu
-        // Sans for Verdana is wider than Verdana, and at Excel's 9.96 the
-        // format tests' lines came out the shorter for it.
-        var grow = 1.0
-        if printing, printTextScale > 0, Self._twins.contains(book.fontName(st).trimmingWhitespace().lowercased()) {
-            let dots = (style.size / scale * printTextScale * 600 / 72).rounded()
-            if dots > 0 { grow = dots * 72 / 600 / (style.size / scale * printTextScale) }
-        }
         // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
         // their characters' width ahead of it. (Spaced out as `_TextCache`
         // spaces the rest, the text after them was drawn half the spacing
@@ -2583,19 +2577,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // (Whole pixels on a screen; on paper a page has no pixels, and a
         // row's rounding would show as uneven lines of text.)
         func at(_ x: Double) -> Offset { printing ? Offset(x, ty) : Offset(x.rounded(), ty.rounded()) }
-        /// `p` painted at `o`, grown to the printer's size about `anchor`
-        /// on its baseline.
-        func draw(_ p: TextPainter, _ o: Offset, anchor: Double) {
-            guard grow != 1 else { p.paint(canvas, o); return }
-            let base = o.dy + p.computeDistanceToActualBaseline(.alphabetic)
-            canvas.save()
-            canvas.translate(anchor, base)
-            canvas.scale(grow, grow)
-            canvas.translate(-anchor, -base)
-            p.paint(canvas, o)
-            canvas.restore()
-        }
-        func anchor(_ x: Double, _ w: Double) -> Double { align == .right ? x + w : align == .center ? x + w / 2 : x }
         // A format that fills its cell (`*x`) spans it, whatever the
         // alignment: what is before the fill at the left, what is after it
         // at the right, the character repeated between — Accounting's "$"
@@ -2608,11 +2589,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let one = texts.painter(String(parts.fill), style).width
                 if one > 0 {
                     let fp = texts.painter(String(repeating: String(parts.fill), count: Int((x1 - x0) / one)), style)
-                    draw(fp, at(x1 - fp.width), anchor: x1)
+                    fp.paint(canvas, at(x1 - fp.width))
                 }
             }
-            draw(lp, at(left + margin), anchor: left + margin)
-            draw(rp, at(x1), anchor: x1 + rp.width)
+            lp.paint(canvas, at(left + margin))
+            rp.paint(canvas, at(x1))
             canvas.restore()
             return
         }
@@ -2644,20 +2625,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     case .center: x = left + (width - lead - lp.width) / 2 + lead
                     default: x = left + margin + inset + lead
                     }
-                    draw(lp, Offset(x, y0 + Double(i) * pitch), anchor: anchor(x, lp.width))
+                    lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
                 }
                 canvas.restore()
                 return
             }
         }
-        draw(tp, at(tx), anchor: anchor(tx, tp.width))
+        tp.paint(canvas, at(tx))
         canvas.restore()
     }
-
-    /// The faces whose shipped clones have their advances to the unit.
-    static let _twins: Set<String> = ["calibri", "carlito", "arial", "liberation sans", "arimo", "times new roman",
-                                      "liberation serif", "tinos", "courier new", "liberation mono", "cousine",
-                                      "cambria", "caladea"]
 
     /// A cell's font's line on paper, in points: the row Excel fits to
     /// it in this workbook (`m`, the metrics of its default font).
@@ -2848,6 +2824,16 @@ struct GridTextStyle: Hashable {
     var underline = false
     var strike = false
     var color: Int64
+    /// On a page, the printer's dots in a unit of its layout; 0 on a
+    /// screen. Excel prints a font a whole number of 600-dpi dots an em
+    /// (Calibri 11 at 11.04 pt, 92 dots; Arial and Times 10 at 9.96, 83)
+    /// and each character a whole number of dots on from the last: Lucida
+    /// Sans Typewriter 10 steps 50 dots, its 0.6 em of 83 being 49.8, and
+    /// Verdana's digits 53 (52.77). `_TextCache` sets each character so.
+    var dots = 0.0
+    /// The face whose hinted widths it is set to (`SheetHinting`), where
+    /// what draws it has that face's advances; "" for none.
+    var hint = ""
 
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
@@ -2897,7 +2883,7 @@ final class _TextCache {
     /// blank on the page and nothing in its text but the space.
     private func _span(_ text: String, _ style: GridTextStyle) -> TextSpan {
         guard text.contains(NumberFormat.padMark) else {
-            return _owns(style) ? TextSpan(children: _spaced(text, style)) : TextSpan(text: text, style: style.flutter)
+            return _spaces(text, style) ? TextSpan(children: _spaced(text, style)) : TextSpan(text: text, style: style.flutter)
         }
         // (A lone space measures as its advance only between letters.)
         let space = _measure("a a", style) - _measure("aa", style)
@@ -2925,18 +2911,39 @@ final class _TextCache {
         if v >= 0x20, v <= 0x7E { return (style.bold ? OfficeFonts.verdanaBoldAdvances : OfficeFonts.verdanaAdvances)[Int(v - 0x20)] }
         return (style.bold ? OfficeFonts.verdanaBoldOtherAdvances : OfficeFonts.verdanaOtherAdvances)[v]
     }
-    private func _owns(_ style: GridTextStyle) -> Bool { style.family == OfficeFonts.verdana }
+    /// Whether `run` is set character by character: in a face with its
+    /// own widths, or on a page (`GridTextStyle.dots`) — save where its
+    /// script joins or stacks its letters, which only the whole run shapes.
+    private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
+        guard style.family == OfficeFonts.verdana || style.dots > 0 else { return false }
+        return !run.unicodeScalars.contains { v in
+            let x = v.value
+            return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)
+                || (0x1000 ... 0x109F).contains(x) || (0x1780 ... 0x17FF).contains(x) || (0x200C ... 0x200F).contains(x)
+                || (0xFB1D ... 0xFDFF).contains(x) || (0xFE70 ... 0xFEFF).contains(x)
+        }
+    }
 
-    /// A run as spans, each character of a face with its own widths
-    /// spaced out (or in) to them.
+    /// One character's advance as set: its face's own, or the stand-in's
+    /// (`natural`); on a page, at the font's whole dots an em, to the
+    /// whole dot, or its face's hinted width there.
+    private func _advance(_ ch: Character, _ natural: Double, _ style: GridTextStyle) -> Double {
+        let a = _own(ch, style).map { $0 * style.size } ?? natural
+        guard style.dots > 0, style.size > 0 else { return a }
+        let em = (style.size * style.dots).rounded()
+        let hinted = style.hint.isEmpty ? 0 : SheetHinting.departure(style.hint, em: Int(em), ch)
+        return ((a / style.size * em).rounded() + Double(hinted)) / style.dots
+    }
+
+    /// A run as spans, each character spaced out (or in) to its advance.
     private func _spaced(_ run: String, _ style: GridTextStyle) -> [InlineSpan] {
-        guard _owns(style) else { return [TextSpan(text: run, style: style.flutter)] }
+        guard _spaces(run, style) else { return [TextSpan(text: run, style: style.flutter)] }
         // (A lone space measures as its advance only between letters.)
         let space = _measure("a a", style) - _measure("aa", style)
         return run.map { ch -> InlineSpan in
-            guard let em = _own(ch, style) else { return TextSpan(text: String(ch), style: style.flutter) }
             let natural = ch == " " ? space : _measure(String(ch), style)
-            return TextSpan(text: String(ch), style: style.flutter.copyWith(letterSpacing: em * style.size - natural))
+            let a = _advance(ch, natural, style)
+            return TextSpan(text: String(ch), style: a == natural ? style.flutter : style.flutter.copyWith(letterSpacing: a - natural))
         }
     }
 
@@ -3001,10 +3008,12 @@ final class _TextCache {
     }
 
     private var _widths: [Key: Double] = [:]
-    /// The width `s` is set to: its face's own widths where it has them.
+    /// The width `s` is set to: each character's advance, where it is
+    /// set character by character.
     private func _width(_ s: String, _ style: GridTextStyle) -> Double {
-        guard _owns(style) else { return _measure(s, style) }
-        return s.reduce(0) { $0 + (_own($1, style).map { $0 * style.size } ?? _measure(String($1), style)) }
+        guard _spaces(s, style) else { return _measure(s, style) }
+        let space = s.contains(" ") ? _measure("a a", style) - _measure("aa", style) : 0
+        return s.reduce(0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) }
     }
     /// The stand-in's own width of `s`.
     private func _measure(_ s: String, _ style: GridTextStyle) -> Double {

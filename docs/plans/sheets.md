@@ -259,16 +259,21 @@ the same base; the commits give the numbers):
   better, 3 worse by 0.01; lo-forum-mso-de-104083 6.70 -> 6.16,
   CVLKRA-KYC 4.16 -> 3.69, lo-tdf113271 6.22 -> 5.75).
 - *Printed size.* Excel prints a cell's font a whole number of 600-dpi
-  pixels high (Calibri 11 at 11.04 pt, Arial and Times 10 at 9.96, at
-  the page's scale), its text that much wider: numbers right-aligned
-  began 0.06 pt a digit left of ours. Ours is laid out at the font's own
-  size and drawn grown about its aligned end, on its baseline (laid out
-  at 11.04 it sat a point low), and only in faces whose clone has their
-  advances (DejaVu Sans is wider than Verdana; the format tests lost
-  0.5). All 720 workbooks: 200 better, 56 worse, mean 0.928 -> 0.909
-  (lo-forum-mso-en4-134670 4.29 -> 2.60, lo-tdf113271 5.75 -> 4.29).
-  Open: bold Calibri is set between the two, 57890's "Amount
-  UnsignedInt" as far past Excel's as it fell short before.
+  pixels an em (Calibri 11 at 11.04 pt, 92; Arial and Times 10 at 9.96,
+  83; at the page's scale), and each character a whole number of those
+  pixels on from the last: its advance at that size rounded, or the
+  face's own hinted width where its hdmx lists one (Arial's W is 83 at
+  83 an em, its 0.9 em being 78.3; `SheetHinting`, generated from the
+  Windows faces). Lucida Sans Typewriter 10 steps 50 (49.8), Verdana's
+  digits 53 (52.77), Calibri 11's "Open - Not" 61, 48, 46, 48, 21. Ours
+  sets each character so (`GridTextStyle.dots`), in what it draws and
+  where it wraps, save in scripts that join their letters. All 720
+  workbooks against the size alone, drawn grown: 233 better, 61 worse,
+  mean 0.906 -> 0.890 (lo-forum-mso-en4-134670 2.60 -> 1.74, 56702 and
+  dataValidationTableRange -0.47). Rounded without the hinting, Arial
+  lost: FormulaEvalTestData_Copy 2.16 -> 2.60, now 2.20. Open: Verdana
+  has no hdmx and its hinting widens some letters ("l" 24, rounded 23;
+  1.5 dots in 30 letters).
 - *Verdana* is set at its own widths in its stand-in, DejaVu Sans, as
   Word and Slides set it (`OfficeFonts.verdanaAdvances`), in what is
   drawn and in where lines break: 28 workbooks in Verdana, 17 better,
@@ -288,13 +293,13 @@ the same base; the commits give the numbers):
   carrying 18's row up by the font's own pixel line fits both, but
   predicts 16 from 14 and 18 from 16 no better than proportion (22 of
   76 exact either way).
-- *Whole-dot advances* (open). Excel's print advances every character
-  a whole 600-dpi dot: Lucida Sans Typewriter 10, at 83 dots an em,
-  steps 50 dots (0.6 em is 49.8), Verdana's digits 53 (52.77). The
-  printed size alone, extended to the faces Windows has (Malgun Gothic
-  11 at 11.04, style-alternate-content -0.07), cost the format tests up
-  to 0.48, their monospaced lines ending short; it waits for the
-  advances to go with it.
+- *Where the format tests' cells start* (open). Their text stands 0.24
+  pt left of Excel's, as far as their bordered columns' rules: Excel
+  draws a cell's border 0.27 pt left of the gridline beside it (the
+  B column's border at 204.92, its gridline at 205.19, its text 1.98
+  past the gridline, as our margin has it). Whole-dot advances took
+  away the extra width that had carried their text back over Excel's;
+  the eight format-test workbooks lost 0.07 to 0.93 for it.
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs
