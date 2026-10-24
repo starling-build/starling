@@ -5151,7 +5151,17 @@ public final class RichLayout {
                     let lines = g.painter.computeLineMetrics()
                     if st.keepLines || lines.count <= 1 || (st.widowControl && !document.widowControlSuspended && lines.count <= 3) { return _heights[k] }
                     let bottoms = Self._lineBottoms(g.painter)
-                    return (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl && !document.widowControlSuspended ? 1 : 0)]
+                    let n = min(bottoms.count - 1, st.widowControl && !document.widowControlSuspended ? 1 : 0)
+                    // (Its last line there may reach past the foot as it
+                    // would set on its own — see the overhang below:
+                    // zh-34a6519a's "5.2.3 防台风Ⅱ级应急响应" keeps with a
+                    // 1.5-spaced paragraph whose first line ends 2.9pt past
+                    // p28's foot by its extra, and Word sets both there;
+                    // ours took the line's extra as room it needed and sent
+                    // the heading on.)
+                    var reach = theme.wordRules && pageNotes.isEmpty && k < _overhang.count ? _overhang[k] : 0
+                    if theme.wordRules, pageNotes.isEmpty, k < _lineOverhang.count, n < _lineOverhang[k].count { reach = max(reach, _lineOverhang[k][n]) }
+                    return (g.textTop - g.top) + bottoms[n] - reach
                 }
                 let room = contentH - y
                 var cum = 0.0

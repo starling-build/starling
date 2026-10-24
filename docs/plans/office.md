@@ -6171,6 +6171,19 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A kept heading lets the next paragraph's first line reach past the
+  foot (2026-10-24).** Off the grid, a multiple-spaced paragraph's last
+  line on a page may reach past the foot by its extra (`_overhang`,
+  zh-8112041b). The keep-with-next check asked for the next paragraph's
+  first lines whole, extra and all. zh-34a6519a's "5.2.3 防台风Ⅱ级应急响应"
+  (Heading 3, keepNext) stands under 表5-3-2's parted row on landscape
+  p28 with 72.1pt left; it takes 44.3 and its paragraph's first 1.5-spaced
+  line 30.9, 2.9 past the foot — inside it by the line's 10.3 of extra.
+  Word sets both on p28 (456.2, 497.5); ours sent the heading and the
+  paragraph to p29, and every page after ran a page-part late (Linux b2
+  found it, reading it as the row's part). The check now allows the line
+  its overhang, as the line set alone has it. Sweep h146: zh-34a6519a
+  90.9 -> 99.8; nothing else moved.
 - **A fitted box widened for a longer number keeps its right indent
   (2026-10-24).** A header's or footer's box fit to its text is sized
   once, on its first page (lab `ftD`), and widened on a later page for a

@@ -3190,6 +3190,48 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(lines(text, raised: false, width: natural - 10), 2, "a plain \"2\" and its space are a word: the brackets give nothing")
     }
 
+    func testAHeadingKeptWithAMultipleSpacedLineLetsThatLineReachPastTheFoot() throws {
+        // zh-34a6519a p28: "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced
+        // paragraph whose first line ends 2.9pt past the foot by its
+        // extra, which the line may reach past it by; Word sets both on
+        // the page. Ours counted the extra as room the keep needed.
+        func laidOut(fillerTwips: Int?) throws -> (RichLayout, RichDocument, Double) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let filler = fillerTwips.map { "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\($0)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>" } ?? ""
+            let heading = "<w:p><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>heading</w:t></w:r></w:p>"
+            let words = (1 ... 60).map { "word\($0)" }.joined(separator: " ")
+            let spaced = "<w:p><w:pPr><w:widowControl w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"360\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t>\(words)</w:t></w:r></w:p>"
+            let section = "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: filler + heading + spaced + section)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l, doc, setup.height - setup.marginTop - setup.marginBottom)
+        }
+        // The spaced paragraph's first line, extra and all, alone.
+        let (probe, probed, contentH) = try laidOut(fillerTwips: nil)
+        let k = try XCTUnwrap(probed.paragraphs.firstIndex { $0.text.hasPrefix("word1 ") })
+        let line = try XCTUnwrap(probe.geometry(k).painter.computeLineMetrics().first).height / probe.theme.pixelsPerPoint
+        XCTAssertGreaterThan(probe.geometry(k).painter.computeLineMetrics().count, 2)
+        // Room for the heading and that line less a sixth of it: short of
+        // the whole line, with its text (two thirds of it) inside.
+        let room = 20 + line * 5 / 6
+        let (l, doc, _) = try laidOut(fillerTwips: Int(((contentH - room) * 20).rounded()))
+        XCTAssertGreaterThan(l.pageCount, 1)
+        let heading = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "heading" })
+        XCTAssertTrue(l.pieces[0].contains { $0.paragraph == heading }, "the heading stays with the line on page 1")
+    }
+
     func testANumberThatFitsMayPartAfterItsHyphenUnderEastAsianLayout() throws {
         // zh-b58b4f0c (mode 12, doNotCompress): a cell line ends "…8年（104-"
         // and the next opens "111年）計畫" in Word's print; zh-b2e0f286's
