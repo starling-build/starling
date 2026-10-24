@@ -319,6 +319,16 @@ the same base; the commits give the numbers):
   `00\ 00\ 00` (lo-tdf81939); the integer fills its placeholders from
   the right, any more digits before the first, the fraction from the
   left. Three such workbooks, all better.
+- *Functions to Excel's last digit.* AGGREGATE's options 4-7 keep the
+  SUBTOTAL and AGGREGATE cells they cover (0-3 leave them out), and
+  0, 2, 4, 6 the filtered rows; its 13 is MODE.SNGL, the first of a
+  tie, where ours took MEDIAN. A logical argument of 0 is FALSE
+  (NORM.S.DIST(x,0) is the density; ADDRESS's style). A variance is
+  taken as one, not a deviation squared. ROUND goes through the
+  number's 15 significant digits, as Excel's: an ulp's nudge of the
+  scaled number made 939.01382419233744 ...338 at 12 places. Every
+  formula of lo-functions-excel-2010 now agrees with Excel's (128
+  differed; 4.35 -> 4.19); no other of the 720 changed.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

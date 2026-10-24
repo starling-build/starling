@@ -183,6 +183,25 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "A1"), .number(42))
     }
 
+    func testAggregateOptionsAndMode() {
+        // Options 4-7 keep nested SUBTOTAL/AGGREGATE cells, 0-3 leave them
+        // out; 13 is MODE.SNGL, the first of a tie (lo-functions-excel-2010).
+        let c = book(["A1": "15", "A2": "77", "A3": "28", "A4": "28", "A5": "77", "A6": "=SUBTOTAL(9,A1:A2)"])
+        XCTAssertEqual(num(c, "=AGGREGATE(2,4,A1:A6)"), 6)
+        XCTAssertEqual(num(c, "=AGGREGATE(2,0,A1:A6)"), 5)
+        XCTAssertEqual(num(c, "=AGGREGATE(13,4,A1:A5)"), 77)
+        XCTAssertEqual(num(c, "=NORM.S.DIST(0,0)"), 1 / (2 * Double.pi).squareRoot(), accuracy: 1e-12)
+        XCTAssertEqual(eval(c, "=ADDRESS(2,3,1,0)"), .text("R2C3"))
+        // ROUND through 15 significant digits, as Excel's.
+        XCTAssertEqual(num(c, "=ROUND(2.675,2)"), 2.68)
+        XCTAssertEqual(eval(c, "=ROUND(939.01382419233744,12)=ROUND(939.0138241923366,12)"), .bool(true))
+        XCTAssertEqual(num(c, "=ROUNDUP(0.0001,2)"), 0.01)
+        XCTAssertEqual(num(c, "=ROUND(1250,-2)"), 1300)
+        XCTAssertEqual(num(c, "=ROUND(-2.5,0)"), -3)
+        XCTAssertEqual(num(c, "=ROUNDDOWN(-2.59,1)"), -2.5)
+        XCTAssertEqual(num(c, "=ROUND(0.004,2)"), 0)
+    }
+
     func testIndexOverItsOwnColumn() {
         // INDEX reads only the cell it picks: from its own column, another
         // cell is no loop (lo-tdf171828's G13); itself is.

@@ -30,7 +30,7 @@ enum SheetFunctions {
         t["STDEV"] = { a, c in _aggregate(a, c) { _stdev($0, sample: true) } }
         t["STDEV.S"] = t["STDEV"]
         t["STDEV.P"] = { a, c in _aggregate(a, c) { _stdev($0, sample: false) } }
-        t["VAR"] = { a, c in _aggregate(a, c) { _stdev($0, sample: true).map { $0 * $0 } } }
+        t["VAR"] = { a, c in _aggregate(a, c) { _variance($0, sample: true) } }
         t["VAR.S"] = t["VAR"]
         t["COUNT"] = { a, c in
             var n = 0
@@ -793,11 +793,18 @@ enum SheetFunctions {
     }
 
     static func _stdev(_ xs: [Double], sample: Bool) -> Double? {
+        _variance(xs, sample: sample)?.squareRoot()
+    }
+
+    /// The variance itself, not a standard deviation squared, which lost
+    /// the last digit: lo-functions-excel-2010's VAR.P 573.9375 came back
+    /// 573.9374999999999.
+    static func _variance(_ xs: [Double], sample: Bool) -> Double? {
         let n = Double(xs.count)
         guard xs.count >= (sample ? 2 : 1) else { return nil }
         let mean = xs.reduce(0, +) / n
         let ss = xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) }
-        return (ss / (sample ? n - 1 : n)).squareRoot()
+        return ss / (sample ? n - 1 : n)
     }
 
     static func _num1(_ a: [FormulaExpr], _ c: EvalContext, _ f: (Double) -> Double) -> EvalValue {
@@ -815,12 +822,41 @@ enum SheetFunctions {
         }
     }
 
+    /// Rounded as Excel rounds: the number it holds to 15 significant
+    /// digits, then those decimally — 2.675 is 2.68 at 2, and
+    /// 939.01382419233744 is 939.013824192337 at 12 (an ulp's nudge of the
+    /// scaled number, 0.5 at that size, made it ...338).
     static func _round(_ x: Double, _ digits: Int, _ rule: FloatingPointRoundingRule) -> Double {
-        let p = pow(10.0, Double(digits))
-        // Nudge by an ulp so 2.675 rounds as Excel shows it.
-        let scaled = x * p
-        let nudged = scaled + (scaled >= 0 ? 1 : -1) * scaled.ulp * 4
-        return (rule == .toNearestOrAwayFromZero ? nudged : scaled).rounded(rule) / p
+        guard x.isFinite, x != 0 else { return x }
+        let a = abs(x)
+        var e = Int(floor(log10(a)))
+        var m = (a * pow(10, Double(14 - e))).rounded()
+        if m >= 1e15 { m = (m / 10).rounded(); e += 1 }
+        if m < 1e14 { m = (m * 10).rounded(); e -= 1 }
+        let keep = e + 1 + digits   // the mantissa's digits that stay
+        guard keep < 15 else { return x }
+        let mi = UInt64(m)
+        var q: UInt64
+        if keep <= 0 {
+            let lead = mi / 100_000_000_000_000
+            switch rule {
+            case .toNearestOrAwayFromZero: q = keep == 0 && lead >= 5 ? 1 : 0
+            case .awayFromZero: q = 1
+            default: q = 0
+            }
+        } else {
+            var div: UInt64 = 1
+            for _ in 0 ..< 15 - keep { div *= 10 }
+            q = mi / div
+            let r = mi % div
+            switch rule {
+            case .toNearestOrAwayFromZero: if r * 2 >= div { q += 1 }
+            case .awayFromZero: if r > 0 { q += 1 }
+            default: break
+            }
+        }
+        let v = digits >= 0 ? Double(q) / pow(10, Double(digits)) : Double(q) * pow(10, Double(-digits))
+        return x < 0 ? -v : v
     }
 
     static func _is(_ a: [FormulaExpr], _ c: EvalContext, _ test: (CellValue) -> Bool) -> EvalValue {
