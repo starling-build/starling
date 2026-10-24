@@ -3674,6 +3674,10 @@ enum DocxFormat {
             if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+            } else if node.descendant("wpg:wgp") == nil, let group = _vmlTop(node), group.name == "v:group" {
+                // (A VML group's lines and boxes likewise: zh-6e6b9821's
+                // flowchart printed its text alone, no arrows or edges.)
+                WriterGroups.registerVML(group, types: notes.shapeTypes, for: att.id)
             }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.

@@ -314,6 +314,266 @@ enum WriterGroups {
         return true
     }
 
+    // MARK: VML groups
+
+    /// VML's shape types (`o:spt`) as the DrawingML presets they draw.
+    private static let _vmlPresets: [Int: String] = [
+        1: "rect", 2: "roundRect", 3: "ellipse", 4: "diamond", 5: "triangle", 6: "rtTriangle", 7: "parallelogram",
+        8: "trapezoid", 9: "hexagon", 10: "octagon", 13: "rightArrow", 15: "homePlate", 66: "leftArrow", 67: "downArrow",
+        68: "upArrow", 109: "flowChartProcess", 110: "flowChartDecision", 111: "flowChartInputOutput",
+        112: "flowChartPredefinedProcess", 113: "flowChartInternalStorage", 114: "flowChartDocument",
+        115: "flowChartMultidocument", 116: "flowChartTerminator", 117: "flowChartPreparation",
+        118: "flowChartManualInput", 119: "flowChartManualOperation", 120: "flowChartConnector",
+        176: "flowChartAlternateProcess", 202: "rect",
+        33: "bentConnector2", 34: "bentConnector3", 35: "bentConnector4", 37: "curvedConnector2", 38: "curvedConnector3",
+    ]
+    /// Connectors: lines, never filled.
+    private static let _vmlConnectors: Set<Int> = [20, 32, 33, 34, 35, 36, 37, 38, 39, 40]
+    /// Connectors drawn as a straight line from corner to corner.
+    private static let _vmlStraight: Set<Int> = [20, 32]
+
+    /// Reads the shapes of a VML group (`v:group`) — lines (`v:line`),
+    /// boxes and ovals, shapes of a known type (`o:spt`, `types` by id)
+    /// and free paths (`path`) — in points from its top left, for the
+    /// object attachment `id`; false where it has none to draw. Its text
+    /// boxes' text is the layout's (`_vmlTextPlaces`); this draws their
+    /// edges and fills.
+    @discardableResult
+    static func registerVML(_ group: XNode, types: [XNode], for id: String) -> Bool {
+        func style(_ n: XNode) -> [String: String] {
+            var out: [String: String] = [:]
+            for pair in (n["style"] ?? "").split(separator: ";") {
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                if kv.count == 2 { out[kv[0].trimmingWhitespace()] = String(kv[1]).trimmingWhitespace() }
+            }
+            return out
+        }
+        func pair(_ raw: String?, _ fallback: (Double, Double)) -> (Double, Double) {
+            let v = (raw ?? "").split(separator: ",", omittingEmptySubsequences: false).map { Double($0.trimmingWhitespace()) }
+            return (v.count > 0 ? v[0] ?? fallback.0 : fallback.0, v.count > 1 ? v[1] ?? fallback.1 : fallback.1)
+        }
+        func points(_ v: String?) -> Double? {
+            guard var t = v?.trimmingWhitespace(), !t.isEmpty else { return nil }
+            var k = 1.0
+            for (unit, f) in [("pt", 1.0), ("px", 0.75), ("in", 72.0), ("cm", 72 / 2.54), ("mm", 72 / 25.4), ("emu", 1 / 12700.0)] where t.hasSuffix(unit) {
+                t = String(t.dropLast(unit.count)); k = f; break
+            }
+            return Double(t).map { $0 * k }
+        }
+        func off(_ v: String?) -> Bool { v == "f" || v == "false" || v == "0" }
+        let named: [String: Int64] = ["black": 0x000000, "white": 0xFFFFFF, "red": 0xFF0000, "green": 0x008000, "lime": 0x00FF00,
+                                      "blue": 0x0000FF, "yellow": 0xFFFF00, "gray": 0x808080, "grey": 0x808080, "silver": 0xC0C0C0,
+                                      "navy": 0x000080, "maroon": 0x800000, "purple": 0x800080, "teal": 0x008080, "olive": 0x808000,
+                                      "aqua": 0x00FFFF, "fuchsia": 0xFF00FF, "windowText": 0x000000, "window": 0xFFFFFF]
+        func color(_ v: String?) -> Color? {
+            guard var t = v?.trimmingWhitespace(), !t.isEmpty else { return nil }
+            if let b = t.firstIndex(of: " ") { t = String(t[..<b]) }
+            if t.hasPrefix("#") {
+                var hex = String(t.dropFirst())
+                if hex.count == 3 { hex = hex.map { "\($0)\($0)" }.joined() }
+                guard hex.count == 6, let n = Int64(hex, radix: 16) else { return nil }
+                return Color(0xFF00_0000 | n)
+            }
+            return named[t].map { Color(0xFF00_0000 | $0) }
+        }
+        func arrow(_ kind: String?, _ w: String?, _ len: String?) -> LineEnd? {
+            guard let kind, kind != "none" else { return nil }
+            let map = ["block": "triangle", "classic": "stealth", "open": "arrow", "oval": "oval", "diamond": "diamond"]
+            func size(_ v: String?) -> Double { v == "narrow" || v == "short" ? 2 : v == "wide" || v == "long" ? 5 : 3 }
+            return LineEnd(kind: map[kind] ?? "triangle", width: size(w), length: size(len))
+        }
+        let g = style(group)
+        guard let gw = points(g["width"]), let gh = points(g["height"]), gw > 0, gh > 0 else { return false }
+        var shapes: [Shape] = []
+        typealias Map = (Rect) -> Rect
+        func walk(_ group: XNode, _ map: @escaping Map) {
+            let origin = pair(group["coordorigin"], (0, 0)), size = pair(group["coordsize"], (1000, 1000))
+            guard size.0 > 0, size.1 > 0 else { return }
+            for child in group.children {
+                let sh = style(child)
+                let stroke = child.first("v:stroke"), fillNode = child.first("v:fill")
+                let line: Color? = (off(child["stroked"]) || off(stroke?["on"])) ? nil : (color(stroke?["color"]) ?? color(child["strokecolor"]) ?? Color(0xFF000000))
+                let weight = points(child["strokeweight"]) ?? points(stroke?["weight"]) ?? 0.75
+                if child.name == "v:line" {
+                    guard line != nil, child["from"] != nil || child["to"] != nil else { continue }
+                    var a = pair(child["from"], (0, 0)), b = pair(child["to"], (0, 0))
+                    // (A flip takes the ends across: zh-6e6b9821's dashed
+                    // leader "flip:y" from 8393,42687 to 8993,43122 rises to
+                    // the right in Word's print.)
+                    let lineFlip = sh["flip"] ?? ""
+                    if lineFlip.contains("x") { (a.0, b.0) = (b.0, a.0) }
+                    if lineFlip.contains("y") { (a.1, b.1) = (b.1, a.1) }
+                    let pa = map(Rect.fromLTWH(a.0 - origin.0, a.1 - origin.1, 0, 0)).topLeft
+                    let pb = map(Rect.fromLTWH(b.0 - origin.0, b.1 - origin.1, 0, 0)).topLeft
+                    let r = Rect.fromLTRB(min(pa.dx, pb.dx), min(pa.dy, pb.dy), max(pa.dx, pb.dx), max(pa.dy, pb.dy))
+                    let rising = (pb.dx - pa.dx) * (pb.dy - pa.dy) < 0
+                    // (The painter runs a line from its left end: the arrow
+                    // at `from` is its head when `from` is that end.)
+                    let fromStart = rising ? (pa.dx <= pb.dx) : (pa.dx < pb.dx || (pa.dx == pb.dx && pa.dy <= pb.dy))
+                    let start = arrow(stroke?["startarrow"], stroke?["startarrowwidth"], stroke?["startarrowlength"])
+                    let end = arrow(stroke?["endarrow"], stroke?["endarrowwidth"], stroke?["endarrowlength"])
+                    shapes.append(Shape(rect: r, fill: nil, line: line, lineWidth: weight, isLine: true, rising: rising, geometry: nil,
+                                        rotation: 0, flipH: false, flipV: false,
+                                        headEnd: fromStart ? start : end, tailEnd: fromStart ? end : start))
+                    continue
+                }
+                guard let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
+                      let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { continue }
+                let r = map(Rect.fromLTWH(x - origin.0, y - origin.1, w, h))
+                if child.name == "v:group" {
+                    let inner = pair(child["coordsize"], (1000, 1000))
+                    guard inner.0 > 0, inner.1 > 0 else { continue }
+                    walk(child) { q in Rect.fromLTWH(r.left + q.left * r.width / inner.0, r.top + q.top * r.height / inner.1,
+                                                     q.width * r.width / inner.0, q.height * r.height / inner.1) }
+                    continue
+                }
+                // What it is: a known type, else its kind, else its path.
+                let typeID = child["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
+                let type = typeID.flatMap { id in types.first(where: { $0["id"] == id }) }
+                let spt = Int(child["o:spt"] ?? type?["o:spt"] ?? "") ?? typeID.flatMap { t in t.hasPrefix("_x0000_t") ? Int(t.dropFirst(8)) : nil }
+                // (A picture is not a line drawing: one whose `v:imagedata`
+                // names a picture. WPS writes an empty one into every shape
+                // — zh-e9f256c1's whole flowchart, which printed as text.)
+                let picture = child.first("v:imagedata").map { $0["r:id"] != nil || $0["o:relid"] != nil } ?? false
+                if picture || (spt == 75 && child.first("v:textbox") == nil) { continue }
+                let path = child["path"] ?? (spt == nil ? type?["path"] : nil)
+                let straight = spt.map { _vmlStraight.contains($0) } ?? false
+                let filled = !(off(child["filled"]) || off(fillNode?["on"])) && !(spt.map { _vmlConnectors.contains($0) } ?? false)
+                let fill: Color? = filled ? (color(fillNode?["color"]) ?? color(child["fillcolor"]) ?? Color(0xFFFFFFFF)) : nil
+                // (In degrees, or in 65536ths of one with an "f": WPS writes
+                // its turned connectors "rotation:-5898240f", -90.)
+                let rotation: Double = {
+                    guard let raw = sh["rotation"]?.trimmingWhitespace() else { return 0 }
+                    if raw.hasSuffix("f") { return (Double(raw.dropLast()) ?? 0) / 65536 }
+                    return Double(raw) ?? 0
+                }()
+                let flip = sh["flip"] ?? ""
+                let flipH = flip.contains("x"), flipV = flip.contains("y")
+                let pt = Rect.fromLTWH(r.left, r.top, r.width, r.height)
+                let start = arrow(stroke?["startarrow"], stroke?["startarrowwidth"], stroke?["startarrowlength"])
+                let end = arrow(stroke?["endarrow"], stroke?["endarrowwidth"], stroke?["endarrowlength"])
+                if straight {
+                    guard line != nil else { continue }
+                    // (From its box's top left to its bottom right, each flip
+                    // taking that corner across: a "flip:x" line runs from
+                    // the top right down — zh-e9f256c1's arrows between its
+                    // steps, "flip:x" and one wide, point down. The painter
+                    // runs a rising line from its bottom left, a falling one
+                    // from its top left: the arrow at the line's start is the
+                    // painter's head where the start is that end.)
+                    let rising = flipH != flipV
+                    let startsLeft = !flipH, startsTop = !flipV
+                    let fromStart = rising ? (startsLeft && !startsTop) : (startsLeft && startsTop)
+                    shapes.append(Shape(rect: pt, fill: nil, line: line, lineWidth: weight, isLine: true, rising: rising,
+                                        geometry: nil, rotation: rotation, flipH: flipH, flipV: flipV,
+                                        headEnd: fromStart ? start : end, tailEnd: fromStart ? end : start))
+                    continue
+                }
+                var geometry: FreeformGeometry? = nil
+                let preset: String? = {
+                    switch child.name {
+                    case "v:rect": return "rect"
+                    case "v:roundrect": return "roundRect"
+                    case "v:oval": return "ellipse"
+                    default: return spt.flatMap { _vmlPresets[$0] }
+                    }
+                }()
+                if let preset, path == nil || spt != nil {
+                    geometry = PresetGeometry.geometry(preset, width: max(1, pt.width * 12700), height: max(1, pt.height * 12700), adjustments: [:])
+                    // (An elbow, `bentConnector2`: across its top, then down
+                    // its right side — zh-e9f256c1's return line.)
+                    if geometry == nil, spt == 33 {
+                        geometry = _vmlPath("m0,0l21600,0,21600,21600e", origin: (0, 0), size: (21600, 21600), width: pt.width, height: pt.height)
+                    }
+                } else if let path {
+                    let cs = pair(child["coordsize"] ?? type?["coordsize"], (21600, 21600)), co = pair(child["coordorigin"], (0, 0))
+                    geometry = _vmlPath(path, origin: co, size: cs, width: pt.width, height: pt.height)
+                }
+                guard let geometry, fill != nil || line != nil else { continue }
+                // (Arrows only on a line: a connector, or a path left open.
+                // zh-6e6b9821's side notes are text boxes whose stroke says
+                // `endarrow`, and Word draws them as plain boxes.)
+                let open = (spt.map { _vmlConnectors.contains($0) } ?? false) || (path.map { !$0.contains("x") } ?? false)
+                shapes.append(Shape(rect: pt, fill: fill, line: line, lineWidth: weight, isLine: false, rising: false,
+                                    geometry: geometry, rotation: rotation, flipH: flipH, flipV: flipV,
+                                    headEnd: open ? start : nil, tailEnd: open ? end : nil))
+            }
+        }
+        let size = pair(group["coordsize"], (1000, 1000))
+        guard size.0 > 0, size.1 > 0 else { return false }
+        walk(group) { r in Rect.fromLTWH(r.left * gw / size.0, r.top * gh / size.1, r.width * gw / size.0, r.height * gh / size.1) }
+        guard !shapes.isEmpty else { return false }
+        lock.lock()
+        entries[id] = Entry(width: gw, height: gh, shapes: shapes)
+        lock.unlock()
+        WriterCharts.installHooks()
+        return true
+    }
+
+    /// A VML path (`m x,y l x,y … c … x e`, and their relative `t r v`)
+    /// as a freeform in a box `width` by `height` points, its numbers in
+    /// the shape's `coordorigin`/`coordsize` space.
+    private static func _vmlPath(_ path: String, origin: (Double, Double), size: (Double, Double), width: Double, height: Double) -> FreeformGeometry? {
+        guard size.0 > 0, size.1 > 0 else { return nil }
+        var tokens: [String] = []
+        var cur = ""
+        for ch in path {
+            if ch.isLetter { if !cur.isEmpty { tokens.append(cur); cur = "" }; tokens.append(String(ch)) }
+            else if ch == "," || ch == " " { if !cur.isEmpty { tokens.append(cur) }; cur = "" ; if ch == "," { tokens.append(",") } }
+            else if ch == "-", !cur.isEmpty, cur != "-" { tokens.append(cur); cur = "-" }
+            else { cur.append(ch) }
+        }
+        if !cur.isEmpty { tokens.append(cur) }
+        // Numbers, an empty slot (",,") standing for 0.
+        var xml = "<a:custGeom xmlns:a=\"a\"><a:pathLst><a:path w=\"\(Int(size.0))\" h=\"\(Int(size.1))\">"
+        var i = 0, cmd = "", pos = (0.0, 0.0), open = false, any = false
+        func numbers(_ n: Int) -> [Double]? {
+            var out: [Double] = []
+            var expectValue = true
+            while out.count < n, i < tokens.count {
+                let t = tokens[i]
+                if t == "," { if expectValue { out.append(0) }; expectValue = true; i += 1; continue }
+                guard let v = Double(t) else { break }
+                out.append(v); expectValue = false; i += 1
+            }
+            if i < tokens.count, tokens[i] == ",", out.count == n { i += 1 }
+            return out.count == n ? out : nil
+        }
+        func ptXML(_ p: (Double, Double)) -> String { "<a:pt x=\"\(Int((p.0 - origin.0).rounded()))\" y=\"\(Int((p.1 - origin.1).rounded()))\"/>" }
+        while i < tokens.count {
+            let t = tokens[i]
+            if t.count == 1, t.first!.isLetter { cmd = t; i += 1 }
+            switch cmd {
+            case "m", "t":
+                guard let v = numbers(2) else { i += 1; continue }
+                pos = cmd == "m" ? (v[0], v[1]) : (pos.0 + v[0], pos.1 + v[1])
+                xml += "<a:moveTo>\(ptXML(pos))</a:moveTo>"; open = true; any = true
+            case "l", "r":
+                guard let v = numbers(2) else { i += 1; continue }
+                pos = cmd == "l" ? (v[0], v[1]) : (pos.0 + v[0], pos.1 + v[1])
+                if !open { xml += "<a:moveTo>\(ptXML(pos))</a:moveTo>"; open = true } else { xml += "<a:lnTo>\(ptXML(pos))</a:lnTo>" }
+                any = true
+            case "c", "v":
+                guard let v = numbers(6) else { i += 1; continue }
+                let base = cmd == "c" ? (0.0, 0.0) : pos
+                let p1 = (base.0 + v[0], base.1 + v[1]), p2 = (base.0 + v[2], base.1 + v[3]), p3 = (base.0 + v[4], base.1 + v[5])
+                xml += "<a:cubicBezTo>\(ptXML(p1))\(ptXML(p2))\(ptXML(p3))</a:cubicBezTo>"; pos = p3; any = true
+            case "x":
+                xml += "<a:close/>"; open = false; cmd = ""
+            case "e":
+                cmd = ""
+            case "n", "f", "s":   // nofill, nostroke, and an end of a subpath: not ours to draw here
+                cmd = ""
+            default:
+                i += 1
+            }
+            if cmd == "" , i < tokens.count, !(tokens[i].count == 1 && tokens[i].first!.isLetter) { i += 1 }
+        }
+        xml += "</a:path></a:pathLst></a:custGeom>"
+        guard any, let node = XNode.parse(Data(xml.utf8)) else { return nil }
+        return FreeformGeometry.parse(node, width: max(1, width * 12700), height: max(1, height * 12700))
+    }
+
     static func has(_ attachment: ImageAttachment) -> Bool {
         lock.lock()
         defer { lock.unlock() }
