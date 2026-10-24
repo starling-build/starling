@@ -4218,7 +4218,22 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   now groups across table cells instead. zh-bfe04e2f exposed primes and
   degrees as break points (0f7b3de8), 85.0 -> 100.
   A peer's "reader, not layout" note may be worth a second look now.
-- Chart labels and legends (Mac 01Xgpbk5, CLAIMED 2026-10-23, routed by
-  bd): zh-61aaad09 p1's pie labels ("109646, 15.85%" from the chart's
-  number format, ours "16%") and its legend; zh-d62da4dd p4's two pie
-  charts' 41 labels; zh-27a874b7 p3's chart labels.
+- Chart labels and legends (Mac 01Xgpbk5, 2026-10-23, routed by bd —
+  part done, RELEASED): zh-61aaad09's labels already read "109646, 15.85%"
+  (the note was stale). Done: a data table under an `inner`-placed plot
+  gets its own room and the axis steps a label's height allows; best-fit
+  pie labels in or out label by label, moved ones from outside, none
+  written = best fit (lab p3d: zh-d62da4dd's 3-D pies printed with their
+  moves stripped, ~/starling-word-check/lab/p3d). Left, for whoever:
+  (1) Excel's outside labels avoid each other — zh-d62da4dd chart 2's
+  left labels stack apart in Word's print, ours overlap; (2) zh-27a874b7
+  p3's charts stand 9pt high: the anchor paragraph opens a section, 9pt
+  before after the last section's 9pt after, and Word keeps the 9pt —
+  keeping a new section's before at the page top for all (tried) took
+  zh-b0207333 100 -> 59, zh-34a6519a 91 -> 62, eight more down: narrower
+  than that; (3) zh-27a874b7's caption under the charts 20pt low (text
+  around a wrapTight chart); (4) zh-61aaad09 p2: the table's first header
+  row (a diagonal line drawn as an anchored shape in its first cell) is
+  1.2pt taller in Word, and p2 ends a line early, 19 lines on p3; (5)
+  zh-61aaad09's plot over its table stands at the frame's top + 6.7 in
+  Word's print, zh-2a241df1's + 11.1 — rule not found.
