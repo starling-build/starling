@@ -2489,15 +2489,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let book = controller.book
         // (On a page, its printer dots and its face's hinted widths:
         // Arial's and Times' in their clones, which have their advances,
-        // and those of the faces Windows draws in their own files.)
+        // and those of the faces Windows draws in their own files — Arial's
+        // for a face it has no file for, which it draws in Arial.)
         let dots = printing && printTextScale > 0 ? printTextScale / scale * 600 / 72 : 0
+        let face = OfficeFonts.sheetFace(book.fontName(st))
         var hint = ""
         if dots > 0 {
-            let name = book.fontName(st).trimmingWhitespace().lowercased()
+            var name = book.fontName(st).trimmingWhitespace().lowercased()
+            if face == "Arial" { name = "arial" }
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
             if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
         }
-        return GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)),
+        return GridTextStyle(family: face,
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
     }

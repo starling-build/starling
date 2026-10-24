@@ -331,8 +331,14 @@ enum OfficeFonts {
         // Malgun; the format tests' Lucida Sans Typewriter is monospaced,
         // and Liberation Sans was not.
         if let face = windowsFaces[family.trimmingWhitespace().lowercased()] { return face }
-        #endif
+        // (And a face it has no file for is Arial's, as Excel prints it —
+        // Arial itself, where the clone's letters are Liberation Sans'.)
+        let clone = sheetClone(family)
+        if clone == sans, let arial = windowsFaces["arial"] { return arial }
+        return clone
+        #else
         return sheetClone(family)
+        #endif
     }
 
     /// Whether `sheetFace` is the named face itself, not a stand-in.

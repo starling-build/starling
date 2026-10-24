@@ -386,6 +386,10 @@ the same base; the commits give the numbers):
   naming them, 13 better, none worse, 0.526 -> 0.300. (The cache also
   holds Dotum, Gulim, Meiryo, SimHei, MS Mincho and others, left out:
   every print of a 돋움 workbook but 1_NoIden's is in Malgun Gothic.)
+  A face Windows has no file for (Helvetica Neue, Clear Sans, …) prints
+  in Arial, as Excel's does — Arial itself, with Arial's widths, where
+  it had been Liberation Sans: all 720, 11 better, 3 worse by 0.01
+  (lo-column-style-autofilter 0.83 -> 0.73).
 - *A run of one fill down the rows is one rect*, as Excel's page has
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse
