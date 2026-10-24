@@ -4607,3 +4607,12 @@ it opens an empty one, not where its first row goes over for want of room.
 Done: where the first row goes over for want of room and opens an empty page,
 the offset is applied there as where a break opens it (into the top margin
 too). Same-base sweep of 756: zh-0513f641 94.6 -> 98.7, nothing else moved.
+
+### T156. zh-60c80728 p35: a lone VML shape sets its text in its type's text rectangle — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). p35's flowchart is 22 lone VML
+"alternate process" boxes (o:spt 176, inset 0, no v:shapetype in the file,
+WPS-written); ours takes a character a line more than Word's print in box
+after box ("由港区专" / ours "由港区专项", 54.25pt wide at 10.5pt). The text
+rectangle of a file's shapetype is read only for shapes in a group; a lone
+shape, and a type the file does not define, use none. Plan: VML's built-in
+textboxrects for the common types (176: @3 = adj 2700 x 0.2929 of 21600).
