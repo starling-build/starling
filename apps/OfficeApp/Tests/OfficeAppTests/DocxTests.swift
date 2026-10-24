@@ -2877,6 +2877,38 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    func testAParagraphsClosingBracketDoesNotHangFrom2013sLayoutWhereMarksCompress() throws {
+        try requireFitterWidths()
+        // zh-20c1d74a's "二、專案單位服務規劃（…督導考核及管理等）" (mode 15,
+        // compressPunctuation, justified) ends its first line "…管理" in
+        // Word's print and sends "等）" down. Ours hung the "）" a whole em
+        // and took "等" 9.55pt over with the line's marks; not hung, the
+        // "）" gives its half with them and the share test refuses it.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-20c1d74a") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("二、專案單位服務規劃（包括徵選方式") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let line = painter.getLineBoundary(TextPosition(offset: 0))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+            .filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        XCTAssertTrue(text.hasSuffix("管理"), text)
+    }
+
     func testANotoJoinerAfterADigitKeepsTheBreakBeforeItsIdeograph() throws {
         try requireFitterWidths()
         // zh-72da925e's "…經行政院於79年9月" ends a line "於79" in Word's

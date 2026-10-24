@@ -10561,7 +10561,16 @@ public final class RichLayout {
                 // 0.15pt over, left or justified, while "、" inside the
                 // line gives its half; without that switch the "、" hangs
                 // whole, to 12.5 over. zh-12c4f07a p11 so; ours hung it.)
+                // (Nor, from 2013's layout, a closing bracket that ends the
+                // paragraph where marks are compressed: it gives its half as
+                // any other. zh-20c1d74a's "…督導考核及管理等）" (mode 15,
+                // 12.5pt) sends "等）" down in Word's print, which ours took
+                // 9.55 over with the "）" hung. Not the pause marks: with
+                // every final "。" kept so the same document ran a page long.
+                // Nor a Latin ")": zh-e0ca7252's "…免載於招標文件)" hangs it.)
                 let hang = hangs && !holdsFinal && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                    && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
+                         && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf || closedUpTo ? 0.5 : 1), boxes(tail, tail + 1)) : 0

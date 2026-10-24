@@ -4439,7 +4439,7 @@ the body.
   committed rule is both's; Windows draws bold Thai in Leelawadee UI Bold (the Mac Browallia New
   Bold) and runs 28 pages — the gap there is widths and line heights. For lenovo-3 if wanted.
 
-### T151. A paragraph's last mark does not hang from 2013's layout where marks are compressed — CLAIMED (Linux office1, 2026-10-24)
+### T151. A paragraph's last full-width bracket does not hang from 2013's layout where marks are compressed — DONE (2026-10-24)
 Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
 zh-20c1d74a p44 "…督導考核及管理等）" (mode 15, compressPunctuation, 12.5pt):
 Word sends "等）" down; ours hangs the "）" a whole em and takes "等" 9.55
@@ -4449,6 +4449,13 @@ hanging, the mark gives its half like any other and the share test refuses
 both. Fits zh-505b9619's labs u5/u6 ("。" drawn inside the margin) and
 zh-7488a70f (doNotCompress, hangs whole); b2's "？" rule (zh-ab1ea005, labs
 qh/qe) is the same thing for one mark.
+Done for the closing brackets only (full-width, not the pause marks or "．"):
+with every final mark kept from hanging zh-20c1d74a ran a page long (90.2 ->
+6.1) and zh-505b9619 fell to 56; a Latin ")" still hangs (zh-e0ca7252's
+"…免載於招標文件)" fell 98.9 -> 70.3 without it). Same-base sweep of 756:
+zh-20c1d74a 90.2 -> 90.9, nothing else moved. zh-cd8987db's "中。" is NOT
+this: its line has word spaces, and the older spaced-line test (need over the
+marks' count, against what is left of the line) takes it — unsolved, released.
 - zh-b0401810 (Mac 01Xgpbk5, 2026-10-24, routed by bd, looked, RELEASED): at the tip (with windows'
   fa888b3a and macOS-doc's c5fc20eb) the tbRlV cell's characters stand within 0.6pt across and
   0.2 down of Word's (职 101.87/382.92 to 101.28/382.74, every character after it the same), and
