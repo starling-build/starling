@@ -2632,10 +2632,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .center: tx = left + (width - lead - tp.width) / 2 + lead
         default: tx = left + margin + inset + lead
         }
+        // On paper a merged area centres its text four printer dots higher
+        // than a lone cell does: Tables' "PRSI Liability" over its "GROSS",
+        // simple-monthly-budget's "Balance", style-alternate-content's
+        // labels, 0.48 pt in Excel's prints at 80% and at 100%. (A merge
+        // set at its foot stands where a lone cell's text does.)
+        let lift = printing && !spill && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let ty: Double
         switch st.vAlign {
         case .top: ty = top + 1
-        case .center: ty = top + (bottom - top - tp.height) / 2
+        case .center: ty = top + (bottom - top - tp.height) / 2 - lift
         case .bottom: ty = bottom - tp.height - 1
         }
         canvas.save()
@@ -2680,7 +2686,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let y0: Double
                 switch st.vAlign {
                 case .top: y0 = top + 1
-                case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch
+                case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch - lift
                 case .bottom: y0 = bottom - one - 1 - n * pitch
                 }
                 for (i, line) in lines.enumerated() {

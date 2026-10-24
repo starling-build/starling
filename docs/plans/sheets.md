@@ -381,6 +381,15 @@ the same base; the commits give the numbers):
   lo-twoCellAnchor_editAs_oneCell's at 240° prints 330 by 352 pt in
   Excel's print, ours had stood upright in 218 by 284. The three such
   workbooks: 4.01 -> 0.17, 0.73 -> 0.00, 0.19 -> 0.05.
+- *A merged area centres its text four printer dots higher* than a
+  lone cell in its row: 0.48 pt in Excel's prints of nine workbooks,
+  at 80% and at 100%, where ours stood level (Tables' "PRSI Liability"
+  over "GROSS", simple-monthly-budget, the 45540 forms). Set at the
+  foot, a merge stands level. The 33 workbooks with a centred merge:
+  the merged text now within 0.2 of Excel's against its row, the pixel
+  scores even (5 better, 8 worse by 0.12 at most, 3.735 -> 3.738): the
+  45540 forms' rows already stand 0.5 to 0.9 high, and the lift takes
+  their merged text with them.
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the
@@ -493,7 +502,12 @@ the same base; the commits give the numbers):
   fillRef reaches the theme's fill style (a gradient of the accent). A
   page printing gridlines or headings is framed, 0.96 pt inside its edge
   at any scale. The POI fuzzer workbook prints on Letter in Excel though
-  it asks for A4: Excel repaired it; not ours to follow.
+  it asks for A4, every sheet at 0.92 of its scale (87% as 80%, 95%
+  as 87%), though neither printerSettings part says so: Excel repaired
+  it (sheet8's CRC is bad); not ours to follow. 1_NoIden's reference
+  is another machine's: it embeds Dotum, which every other print of a
+  돋움 workbook sets in Malgun Gothic, and its narrower columns put D
+  on a page of its own.
 - *Packages* (2026-10-18). Zip64 sizes and offsets are read
   (lo-tdf82984_zip64XLSXImport). An encrypted package (OLE compound
   file: EncryptionInfo, EncryptedPackage) opens where Excel's built-in
