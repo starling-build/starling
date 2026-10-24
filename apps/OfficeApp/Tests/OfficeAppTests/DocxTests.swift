@@ -3232,6 +3232,55 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(l.pieces[0].contains { $0.paragraph == heading }, "the heading stays with the line on page 1")
     }
 
+    func testARowOpeningAPageUnderACellOfNoTopLineTakesTheTablesTopLine() throws {
+        // zh-cec9d337's assignments table: a 3pt thinThickSmallGap top over
+        // half-point inside lines, every cell stating its own top but some
+        // middle ones. Where a row opens a page the table goes on over, Word
+        // draws the table's top line over such a cell and sets the row
+        // under it (p19, p25, p26: 4pt lower than ours); a row whose cells
+        // all state theirs opens under its half-point line (p20-p24).
+        func opening(middleTop: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let top = "<w:top w:val=\"single\" w:sz=\"4\"/>"
+            func cell(_ text: String, ownTop: Bool) -> String {
+                "<w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/><w:tcBorders>\(ownTop ? top : "")<w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/></w:tcBorders></w:tcPr>"
+                    + "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p></w:tc>"
+            }
+            let borders = "<w:tblBorders><w:top w:val=\"thinThickSmallGap\" w:sz=\"24\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+            let filler = "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"12000\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>"
+            let row = "<w:tr>\(cell("one", ownTop: true))\(cell("two", ownTop: true))\(cell("three", ownTop: true))</w:tr>"
+            // The last row cannot part and does not fit page 1's foot: it opens page 2.
+            let tall = (1 ... 12).map { "line \($0)" }
+            let last = "<w:tr><w:trPr><w:cantSplit/></w:trPr>\(cell("left", ownTop: true))\(cell("middle", ownTop: middleTop))"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/><w:tcBorders>\(top)</w:tcBorders></w:tcPr>"
+                + tall.map { "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\($0)</w:t></w:r></w:p>" }.joined() + "</w:tc></w:tr>"
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"9000\" w:type=\"dxa\"/>\(borders)<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"3000\"/><w:gridCol w:w=\"3000\"/><w:gridCol w:w=\"3000\"/></w:tblGrid>\(row)\(row)\(last)</w:tbl><w:p/>"
+            let section = "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: filler + table + section)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            XCTAssertGreaterThan(l.pageCount, 1)
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "left" })
+            let piece = try XCTUnwrap(l.pieces[1].first { $0.paragraph == k && $0.part != .rules }, "the last row opens page 2")
+            return (piece.pageY + l.geometry(k).textTop - piece.flowTop) / theme.pixelsPerPoint
+        }
+        let own = try opening(middleTop: true), none = try opening(middleTop: false)
+        // (The compound line's 3 and its 1.5 gap, less the half-point line.)
+        XCTAssertEqual(none - own, 4, accuracy: 0.1, "under the table's top line")
+    }
+
     func testANumberThatFitsMayPartAfterItsHyphenUnderEastAsianLayout() throws {
         // zh-b58b4f0c (mode 12, doNotCompress): a cell line ends "…8年（104-"
         // and the next opens "111年）計畫" in Word's print; zh-b2e0f286's

@@ -6171,6 +6171,23 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A row opening a page under a cell of no top line takes the table's
+  top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
+  thinThickSmallGap top (sz 24) over single half-point inside lines, its
+  cells stating single tops of their own but for some middle cells. Where
+  a row opens a page the table goes on over — parted from the page before
+  (p25, p26), or taken over whole because no line of it fitted the foot
+  (p19) — Word draws the table's compound top line over such a cell
+  (rects at 56.64 and 60.24 over p19's middle column alone) and sets the
+  row's text under it, 4pt lower than ours; rows whose cells all state
+  their tops open under their half-point line (p20-p24). The Mac's 10-18
+  try, the table's top for every row at a page's head, cost this file
+  84 -> 67; by the cell it is `headLift`, on the three ways a row opens
+  such a page. Linux b2 found it. Sweep h147: zh-cec9d337 90.5 -> 99.8,
+  zh-16e0a12a 99.4 -> 99.8. Same-base exception: zh-9c5d0c3f 100 -> 99.0,
+  its ink moved to Word's — p4's table rows, 0.66-0.72pt high before
+  (讓路 166.62 / Word 167.28), now within 0.15 (167.37), all but 單行道
+  (461.9 before, 462.6 now, Word 458.6), which the scorer pairs anew.
 - **A kept heading lets the next paragraph's first line reach past the
   foot (2026-10-24).** Off the grid, a multiple-spaced paragraph's last
   line on a page may reach past the foot by its extra (`_overhang`,

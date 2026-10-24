@@ -3416,6 +3416,18 @@ public final class RichLayout {
         // the table's middle, and Word's print closes the part with the
         // table's 2.25pt bottom line, 759.12-761.28 under its last line;
         // ours asked the 0.5 top line and kept a line more.)
+        // The extra room a row opening a page the table goes on over
+        // takes for the table's top line, where a cell of it states no top
+        // line of its own: zh-cec9d337's p19, p25 and p26 — see where a
+        // part goes over in `splitRow`.
+        func headLift(_ i: Int, _ j: Int, _ c: _CellGeo) -> Double {
+            guard theme.wordRules, c.row > 0, let ts = document.tableStyles[c.table],
+                  ts.edges?.top ?? (ts.borders && !ts.bordersFromCells),
+                  (i ..< j).contains(where: { k in
+                      document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").contains("<w:top ") && d.edges?.top == nil } ?? false
+                  }) else { return 0 }
+            return max(0, _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)) - max(0, c.rules - c.ruleBelow))
+        }
         func ruleClosing(_ c: _CellGeo) -> Double {
             let own = ruleUnder(c, parted: true)
             guard theme.wordRules, (document.compatibilityMode ?? 12) >= 14 else { return own }
@@ -3931,6 +3943,8 @@ public final class RichLayout {
                             fresh = true
                             if repeats { repeatHeader(of: c.table, before: i) }
                             if c.row > 0 { continueSpans(into: i, c) }
+                            // (Under the table's top line there: see `headLift`.)
+                            if y < 0.01 { y += headLift(i, j, c) }
                             continue
                         }
                         // (A line taller than a page: placed, and over the foot.)
@@ -4051,7 +4065,20 @@ public final class RichLayout {
                 // a top line stated the line is drawn there and the text
                 // stands its 0.48 lower. zh-13552a3a's parted rows opened
                 // their pages 0.8pt low, and p28's last line went over.)
-                if theme.wordRules { lift = Self._rowOpensBare(i, j, document) ? 0 : ruleUnder(c, parted: true); y += lift }
+                // (At the page's head, with no header row over it, a cell
+                // that states no top line of its own opens under the table's
+                // top line, as the table's edge there: zh-cec9d337's
+                // assignments table, a 3pt thinThickSmallGap top over
+                // half-point inside lines, opens p25 and p26 under the
+                // compound line in Word's print, where the row going on has
+                // a cell of no top line, its text 4pt lower than ours; p20
+                // to p24, whose rows' cells all state theirs, open under
+                // their half-point line as ours.)
+                if theme.wordRules {
+                    lift = Self._rowOpensBare(i, j, document) ? 0 : ruleUnder(c, parted: true)
+                    if lift > 0, !repeats { lift = max(lift, lift + headLift(i, j, c)) }
+                    y += lift
+                }
                 // (The notes marked in what this page will hold of the row.)
                 if theme.wordRules, !rowPending.isEmpty {
                     let width = _px(pageSetup(forPage: page / _columns).contentWidth)
@@ -4636,6 +4663,17 @@ public final class RichLayout {
                         goOn()
                         shown = pageHeight()
                     }
+                }
+                // (A row that opens a page the table goes on over, with no
+                // header row over it, stands under the table's top line where
+                // a cell of it states no top line of its own — as a part
+                // going on does, see `splitRow`: zh-cec9d337's p19 opens with
+                // row 四, its middle cell of no top line, and Word draws the
+                // table's 3pt compound line over that cell and sets the row's
+                // text under it, 3.9pt lower than ours.)
+                if theme.wordRules, y < 0.01, c.firstInRow, case let extra = headLift(i, j, c), extra > 0.01,
+                   shown + extra + ruleUnder(c) <= contentH + 0.01 {
+                    y += extra
                 }
                 if abs(shown - c.ownRowHeight) > 0.01 {
                     // Its cells' text from where each stands in a row of
