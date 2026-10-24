@@ -4295,7 +4295,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   moves stripped, ~/starling-word-check/lab/p3d). Left, for whoever:
   (0) DONE Mac 7bd18d8e 2026-10-24 (274b2d7d): pie percentages sum to 100 by largest remainder, ties to
   the smaller value — zh-d62da4dd's and zh-27a874b7's labels now all Word's.
-  (1) Excel's outside labels avoid each other — zh-d62da4dd chart 2's
+  (1) [CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-24] Excel's outside labels avoid each other — zh-d62da4dd chart 2's
   left labels stack apart in Word's print, ours overlap; (2) zh-27a874b7
   p3's charts stand 9pt high: the anchor paragraph opens a section, 9pt
   before after the last section's 9pt after, and Word keeps the 9pt —
