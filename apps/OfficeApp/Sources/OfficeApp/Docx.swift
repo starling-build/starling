@@ -506,6 +506,7 @@ enum DocxFormat {
                         case "firstRow":
                             if cond.headerFill == nil { cond.headerFill = fill }
                             if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
+                            if cond.headerBorders == nil { cond.headerBorders = part.first("w:tcPr")?.first("w:tcBorders") }
                         case "firstCol":
                             if cond.firstColChar == nil, let rPr = part.first("w:rPr") { cond.firstColChar = _charStyle(rPr, base: CharStyle()) }
                         case "band1Horz": if cond.band1 == nil { cond.band1 = fill }
@@ -1500,6 +1501,23 @@ enum DocxFormat {
                             for (side, from) in [("top", r == 0 ? "top" : "insideH"), ("left", column == 0 ? "left" : "insideV"),
                                                  ("bottom", lastRowHere ? "bottom" : "insideH"), ("right", lastColHere ? "right" : "insideV")] {
                                 guard said?.first("w:" + side) == nil, let e = rex.first("w:" + from) else { continue }
+                                made.children.append(XNode(name: "w:" + side, attrs: e.attrs))
+                            }
+                            if !made.children.isEmpty { rowSides = made }
+                        }
+                        // (The header row's own lines from the table style's
+                        // `firstRow`, where the cell states none: zh-61aaad09's
+                        // "浅色网格" header rules its foot 2.25pt, drawn so in
+                        // Word's print and the two rows either side of it each
+                        // half that taller; ours drew 1pt and stood 1.2 short.
+                        // Not the foot of a cell merged on down: Word ends the
+                        // merged "销售方式" cell on the inside line.)
+                        if r == 0, firstRowOn, let hb = cond.headerBorders {
+                            let said = tcPr?.first("w:tcBorders")
+                            let mergesOn = tcPr?.first("w:vMerge")?["w:val"] == "restart"
+                            let made = rowSides ?? XNode(name: "w:tcBorders", attrs: [:])
+                            for side in ["top", "left", "bottom", "right"] where !(side == "bottom" && mergesOn) {
+                                guard said?.first("w:" + side) == nil, made.first("w:" + side) == nil, let e = hb.first("w:" + side) else { continue }
                                 made.children.append(XNode(name: "w:" + side, attrs: e.attrs))
                             }
                             if !made.children.isEmpty { rowSides = made }
@@ -2950,6 +2968,8 @@ enum DocxFormat {
         var firstColChar: CharStyle? = nil
         var band1: Color? = nil
         var band2: Color? = nil
+        /// The header row's cell borders (`firstRow`'s `w:tcBorders`).
+        var headerBorders: XNode? = nil
     }
 
     /// Whether `data` is a picture the image codec reads: PNG, JPEG,
