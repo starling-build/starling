@@ -4568,7 +4568,7 @@ digits set in an East Asian face (counted as wide characters? on the grid of
 the line's ems?), not about the line's faces. Patch kept at
 ~/tmp/office1/t188-tried.patch (Linux office1). Released.
 
-### T154. zh-efd9229a p4: a mark in text of a non-CJK East Asian language gives nothing — CLAIMED (Linux office1, 2026-10-24)
+### T154. zh-efd9229a p4: a mark in text of a non-CJK East Asian language gives nothing — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). macOS-doc's lab `sq14`-efd (Word 16
 Mac, the document's "2024年我街道…但还存在一些", mode 14, compressPunctuation,
 Normal's eastAsia en-US, the comma's run stating none): Word takes "一" up to
@@ -4577,6 +4577,18 @@ nothing; every run eastAsia zh-CN, through 6.94 as ours; doNotUseEastAsianBreakR
 makes no difference. zh-c5b5087b's en-US Normal is no counter-case: its runs say
 zh-CN. Plan: a mark whose run's East Asian language (run, else style, else
 defaults) is not zh/ja/ko gives nothing.
+Tried per run (run, else style, else defaults: the marks of a run whose East
+Asian language is not zh/ja/ko give nothing), same-base sweep of 756:
+zh-efd9229a 96.6 -> 99.2, zh-264d7516 96.0 -> 99.5, zh-51af781b 98.7 -> 99.6;
+zh-c5b5087b 53.5 -> 26.8 (Normal en-US, its comma runs saying nothing, and its
+commas squeeze in Word's print), zh-06c46ba9 99.0 -> 98.3 (Body Text en-US under
+zh-TW defaults; lab `sp`'s brackets give), zh-bdae17c0 -0.5, zh-fec5fa30 -0.1.
+Not committed. Round 2 (macOS-doc, lab files q4/q5): kinsoku 0 is no exemption,
+and a paragraph style saying en-US over a zh-CN Normal turns the comma off — so
+Word's chain is per run, as tried, and zh-c5b5087b / zh-06c46ba9 differ from
+efd in something else (not theme font language, grid or hints). Round 3 sent:
+those two paragraphs into the stepped setup. Patches: ~/tmp/office1/t191-all.patch
+(per run), t192-all.patch (a document-level try, wrong by round 2).
 
 ### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — CLAIMED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). p9's form (tblpPr vertAnchor page,
