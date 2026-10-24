@@ -1316,6 +1316,55 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(again.contains("<w:footerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/>"), again)
     }
 
+    func testAFittedFooterBoxWidenedForItsNumberKeepsItsRightIndent() throws {
+        // zh-9c162f26's "— PAGE —", in a DrawingML box fit to its text
+        // and sized once, a character in from each side, its runs Times
+        // hinted "default": Word prints "— 10 —" whole on page 10, where
+        // ours widened the box by the left indent alone and wrapped the
+        // closing dash.
+        var doc = RichDocument(paragraphs: (1 ... 10).map { n in
+            var p = RichParagraph(text: "page \(n)")
+            p.style.pageBreakBefore = n > 1
+            return p
+        })
+        doc.footer = "x"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+        let fi = entries.firstIndex { $0.name == "word/footer1.xml" }!
+        var fxml = String(decoding: entries[fi].data, as: UTF8.self)
+        let inner = fxml[fxml.range(of: "<w:p>")!.lowerBound ..< fxml.range(of: "</w:p>")!.upperBound]
+        let run = "<w:rPr><w:rFonts w:hint=\"default\" w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"28\"/></w:rPr>"
+        let text = "<w:txbxContent><w:p><w:pPr><w:ind w:left=\"210\" w:leftChars=\"100\" w:right=\"210\" w:rightChars=\"100\"/></w:pPr>"
+            + "<w:r>\(run)<w:t xml:space=\"preserve\">— </w:t></w:r><w:r>\(run)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(run)<w:instrText xml:space=\"preserve\"> PAGE </w:instrText></w:r>"
+            + "<w:r>\(run)<w:fldChar w:fldCharType=\"separate\"/></w:r><w:r>\(run)<w:t>1</w:t></w:r><w:r>\(run)<w:fldChar w:fldCharType=\"end\"/></w:r><w:r>\(run)<w:t xml:space=\"preserve\"> —</w:t></w:r></w:p></w:txbxContent>"
+        let box = "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:align>left</wp:align></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"1828800\" cy=\"1828800\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"2\" name=\"b\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:prstGeom prst=\"rect\"/></wps:spPr><wps:txbx>\(text)</wps:txbx>"
+            + "<wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        fxml = fxml.replacingAll(String(inner), with: box)
+        if !fxml.contains("xmlns:wp=") { fxml = fxml.replacingAll("<w:ftr ", with: "<w:ftr xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" ") }
+        entries[fi] = ZipEntry(name: "word/footer1.xml", data: Data(fxml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let back = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(back)
+        XCTAssertEqual(l.pageCount, 10)
+        // (Page 1 first, as an export paints them: its box sets the width.)
+        l.paint(ParagraphHeightCanvas(), visible: l.pageRect(0), document: back, selection: nil, caret: nil)
+        let canvas = ParagraphHeightCanvas()
+        l.paint(canvas, visible: l.pageRect(9), document: back, selection: nil, caret: nil)
+        // (14pt Times: a line is some 16pt; two lines over 30.)
+        XCTAssertFalse(canvas.heights.isEmpty)
+        XCTAssertLessThan((canvas.heights.max() ?? 0) / theme.pixelsPerPoint, 24, "\"— 10 —\" on one line")
+    }
+
     func testDocumentBackgroundKeptWithItsPicture() throws {
         // bib-chernigovka: a tiled parchment background. Word lays the
         // document out differently with it, so it is kept, picture and all.
@@ -5572,6 +5621,50 @@ final class DocxTests: XCTestCase {
 
 /// Records, for each quarter turn, the translate just before it (a
 /// turned cell's corner, in the flow's terms).
+/// Records the height of each paragraph drawn.
+private final class ParagraphHeightCanvas: Canvas {
+    var heights: [Double] = []
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { heights.append(paragraph.height) }
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+}
+
 private final class TurnedTextCanvas: Canvas {
     var turns: [Double] = []
     private var lastDy = 0.0

@@ -13478,7 +13478,13 @@ public final class RichLayout {
                 let g = layout.geometry(k)
                 let para = sub.paragraphs[k]
                 let named = layout._named(para, sub)
-                let line = g.painter.maxIntrinsicWidth + g.textLeft
+                // (With its right indent, as the box fitted each time
+                // takes it — below: zh-9c162f26's "— PAGE —", a character
+                // in from each side, its runs Times hinted "default", is
+                // whole on every page of Word's print; widened for "— 10 —"
+                // by its left indent alone, ours wrapped the closing dash.)
+                let right = k < layout._textWidth.count ? max(0, layout.width - g.textLeft - layout._textWidth[k]) : 0
+                let line = g.painter.maxIntrinsicWidth + g.textLeft + right
                 let units = Array(para.text.utf16)
                 var hintedAt = Set<Int>(), latinAt = Set<Int>(), eastAsianFace = false, at = 0
                 for run in para.runs {
@@ -13511,7 +13517,7 @@ public final class RichLayout {
                     }
                 }
                 if !anyEastAsian || line - spaces / 2 <= room + 0.5 { whole = max(whole, line) }
-                else { need = max(need, g.painter.minIntrinsicWidth + g.textLeft) }
+                else { need = max(need, g.painter.minIntrinsicWidth + g.textLeft + right) }
             }
             layout.width = max(1, room, need.rounded(.up) + (need > 0 ? 1 : 0), whole.rounded(.up) + (whole > room + 0.5 ? 1 : 0))
             layout.ensureLaidOut(sub)

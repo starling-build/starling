@@ -6171,6 +6171,17 @@ fitter dropped the paragraph's tail).
   down to that part's foot in Word's print (333.1), ours in its first row
   alone (289.9). Such a row now keeps the last ghost bound that fits:
   332.6. zh-9ef811c8 39.3 -> 40.7; nothing else moved (sweep h133).
+- **A fitted box widened for a longer number keeps its right indent
+  (2026-10-24).** A header's or footer's box fit to its text is sized
+  once, on its first page (lab `ftD`), and widened on a later page for a
+  longer field result where Word lets the paragraph run on whole. The
+  first page's width takes the paragraph's right indent; the widening
+  measured the line with its left indent alone. zh-9c162f26's "— PAGE —"
+  (Times, hinted "default", a character in from each side) is sized by
+  "— 2 —" at 61.65; "— 10 —" needs 68.5 with both indents, 58.2 without,
+  so the box stayed 61.65 and the closing dash wrapped on every two-digit
+  page — 33 extra lines. Both measures now take the right indent.
+  Sweep h144: zh-9c162f26 97.2 -> 99.8; nothing else moved.
 - **A list's last item in a cell keeps its automatic space after
   (2026-10-24).** Automatic spacing gives way at a cell's edges
   (a5df0942: zh-a4b0f6ea's cover form). Not under a list: zh-147bdae0's
