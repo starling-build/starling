@@ -341,6 +341,15 @@ the same base; the commits give the numbers):
   ours 3.05; Arial 9.96 and Calibri 11.04 the same within 0.15). 94
   workbooks with either: 83 better, 2 worse by 0.02 at most. Open:
   Arial 11.04 footers (5 workbooks) stand 0.65 over Excel's with it.
+- *Arrays, element by element.* A one-number function (SIGN, ABS…)
+  takes an array element by element in any formula, a range in a
+  dynamic one; so do IFERROR and IFNA, MATCH over an array of keys
+  (exact keys through a table of first places), IF over an array of
+  conditions, and in a dynamic formula ROW and COLUMN of a range.
+  lo-forum-mso-en4-134670's distinct counts, SUM(SIGN(FREQUENCY(
+  IFERROR(IF(…, MATCH(B:B,B:B,0)),""), ROW(…)))), were 0: 153 cells now
+  Excel's. CEILING and FLOOR of a positive number by a negative step
+  are #NUM! (lo-ceiling-floor, every cell now Excel's).
 - *Printed headings' strip* (open). The format tests' columns stand
   0.20 pt left of Excel's, their text with them: whole-dot advances took
   away the extra width that had carried it back over Excel's, and the

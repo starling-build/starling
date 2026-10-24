@@ -462,9 +462,9 @@ final class CalcEngine {
 
     /// Evaluate a formula that is not in a cell (the formula bar's preview,
     /// a test), as if it were in `cell` on `sheet`.
-    func evaluate(_ text: String, sheet: Int = 0, at cell: CellAddress = CellAddress(row: 0, col: 0)) -> CellValue {
+    func evaluate(_ text: String, sheet: Int = 0, at cell: CellAddress = CellAddress(row: 0, col: 0), dynamic: Bool = false) -> CellValue {
         guard let f = try? Formula.parse(text) else { return .error(.name) }
-        let ctx = EvalContext(engine: self, sheet: sheet, cell: cell)
+        let ctx = EvalContext(engine: self, sheet: sheet, cell: cell, dynamic: dynamic)
         let v = scalar(evaluate(f, ctx), ctx)
         return v.isEmpty ? .number(0) : v
     }

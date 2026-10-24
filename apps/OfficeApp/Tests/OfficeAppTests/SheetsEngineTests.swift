@@ -206,6 +206,19 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(num(c, "=AGGREGATE(13,4,A1:A5)"), 77)
         XCTAssertEqual(num(c, "=NORM.S.DIST(0,0)"), 1 / (2 * Double.pi).squareRoot(), accuracy: 1e-12)
         XCTAssertEqual(eval(c, "=ADDRESS(2,3,1,0)"), .text("R2C3"))
+        // A one-number function takes an array element by element.
+        XCTAssertEqual(num(c, "=SUM(SIGN(FREQUENCY({1,1,3},{1,2,3})))"), 2)
+        XCTAssertEqual(num(c, "=SUM(ABS({-1,2,-3}))"), 6)
+        XCTAssertEqual(num(c, "=SUM(MATCH({\"B\",\"a\",3},{\"a\";\"b\";3},0))"), 6)
+        // In an array formula: IF picks element by element, ROW is the rows.
+        func arr(_ f: String) -> CellValue { c.engine.evaluate(f, sheet: 0, at: CellAddress("Z99")!, dynamic: true) }
+        XCTAssertEqual(arr("=SUM(ROW(A1:A5))"), .number(15))
+        XCTAssertEqual(arr("=SUM(IF(A1:A5>20,A1:A5))"), .number(77 + 28 + 28 + 77))
+        XCTAssertEqual(arr("=SUM(SIGN(FREQUENCY(IFERROR(IF(A1:A5>20,MATCH(A1:A5,A1:A5,0)),\"\"),ROW(A1:A5))))"), .number(2))
+        XCTAssertEqual(num(c, "=SUM(IFERROR(MATCH({\"z\",\"a*\"},{\"x\";\"ab\"},0),0))"), 2)
+        XCTAssertEqual(num(c, "=CEILING(-2.5,2)"), -2)
+        XCTAssertEqual(eval(c, "=CEILING(23.5,-1)"), .error(.num))
+        XCTAssertEqual(eval(c, "=FLOOR(23.5,-1)"), .error(.num))
         // ROUND through 15 significant digits, as Excel's.
         XCTAssertEqual(num(c, "=ROUND(2.675,2)"), 2.68)
         XCTAssertEqual(eval(c, "=ROUND(939.01382419233744,12)=ROUND(939.0138241923366,12)"), .bool(true))
