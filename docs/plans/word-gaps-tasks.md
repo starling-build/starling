@@ -4642,3 +4642,10 @@ with spaces (lab `ovc`) has no start test.
 Done: the cell rule on a line with spaces takes a Latin word only where it
 starts inside the margin. Same-base sweep of 756: zh-51af781b 98.7 -> 99.0,
 nothing else moved.
+
+### T158. zh-0daa510e p5: PMingLiU's "×" is half an em — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). Taken up from Windows 01QbbApP's
+open note (zh-05699f05, 10-22): "（A）×75%＋我國籍民" is one line in Word's print
+of a 12pt PMingLiU cell, "×" 5.95 wide; ours sets it 6.91 and leaves "民", and
+the cell's next four lines follow. Set alone in 10-22's code it cost
+zh-e061a08e and 31 others a line (the "）×" gap there); trying it on today's.
