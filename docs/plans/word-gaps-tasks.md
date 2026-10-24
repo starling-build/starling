@@ -4124,6 +4124,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   footer (lab `oi` in the body wraps).
 
 ### Note from Linux 017F2GnT (2026-10-23): two fitter lines, unclaimed
+- zh-a7a889eb (96.3) and zh-22ecbdc8 (96.1): CLAIMED Linux 017F2GnT 2026-10-23 — Word fits two to four characters more on a line (p5 of each).
 - zh-499adba6 / zh-9932bd83 (87.9 after 7e4dfc99) [p90 DONE Linux 017F2GnT 2026-10-23, 8664ba24: a row's note with no room under its mark parts as a paragraph's — 87.9 -> 97.9 on a tree before 10eb779a] [p25 DONE Linux office1 01Ak4ibJ 2026-10-23: "%"/"％" may start a line under Taiwan's default list — 89.8 on Linux; pages Word's to p90, released]: pages Word's to p25; on
   p25 the paragraph "在社會組織中，根據內政部…" (jc both, line 440 exact,
   標楷體 12pt, compressPunctuation, zh-TW) ends its tenth line "…權力分配。" in
