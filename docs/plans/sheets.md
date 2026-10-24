@@ -372,6 +372,12 @@ the same base; the commits give the numbers):
   On Windows Verdana is Verdana, not DejaVu Sans at Verdana's widths:
   its 28 workbooks 15 better, 4 worse by 0.05 at most (atp 0.68 ->
   0.16, the format tests 0.03 to 0.24 better).
+  Arial and Times New Roman too, though their clones have their
+  measures: lo-pivottable_invalid_formats' page of Arial 10 stood within
+  half a point of Excel's and 9.9% apart, in the letters. All 720
+  workbooks: 98 better, 8 worse by 0.08 at most, 0.864 -> 0.856
+  (lo-tdf100034 4.27 -> 3.67, bug62181 4.15 -> 3.56, 46535 1.03 ->
+  0.48).
 - *A run of one fill down the rows is one rect*, as Excel's page has
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse

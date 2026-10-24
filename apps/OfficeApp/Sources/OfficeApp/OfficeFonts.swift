@@ -396,6 +396,11 @@ enum OfficeFonts {
             (["garamond"], "Garamond", "GARA.TTF"),
             (["palatino linotype"], "Palatino Linotype", "pala.ttf"),
             (["britannic bold"], "Britannic Bold", "BRITANIC.TTF"),
+            // (Their clones have their measures, not their letters: a page of
+            // Arial 10, lo-pivottable_invalid_formats', within half a point of
+            // Excel's everywhere and 9.9% apart in its glyphs.)
+            (["arial"], "Arial", "arial.ttf"),
+            (["times new roman"], "Times New Roman", "times.ttf"),
         ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
         return m
     }()
