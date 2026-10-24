@@ -4492,9 +4492,19 @@ measure's wrap loop finds them. Same-base sweep of 756: nothing moved either
 way (on Linux "2 ：" stood only 5.7pt on: 124.8 -> 119.1); the Mac's larger
 shift is for the Mac to re-score.
 
-### T153. zh-cd8987db p7: a paragraph's last pause mark hangs half an em at most from 2013's layout where marks compress — CLAIMED (Linux office1, 2026-10-24)
+### T153. zh-cd8987db p7: a paragraph's last pause mark hangs half an em at most from 2013's layout where marks compress — RELEASED (Linux office1, 2026-10-24, tried and reverted)
 Owner: Linux office1 (starling-office1-df). macOS-doc's lab `cdend` (Word 16
 Mac, the document's own "5.5.1 …埋入土中。", mode 15, compressPunctuation, the
 right indent stepped): the "。" hangs by its blank half at most; needing more,
 Word squeezes it inside the margin with the line's other marks, and from the
 margin itself "中。" goes down. Ours hangs it whole and takes "中".
+Tried: the paragraph's last mark hanging half an em from mode 15 under
+compression — the same room as not hanging it, its half given — and it fell
+zh-20c1d74a 90.9 -> 6.1 (a page long), zh-505b9619 99.1 -> 56.1, zh-e0ca7252
+98.9 -> 35.8; zh-cd8987db did not move, since its line has word spaces
+("5.5.1 ") and the older spaced-line test (need over the marks' count against
+what is left of the line) takes "中" whatever the hang. Most final marks hang
+whole in Word's prints, so lab cdend's line differs in something else. The
+lab's own numbers also make Word's need at the margin about 15.2 (it squeezes
+15.15 at -2) where ours is 12.67, so the natural lines differ by ~2.5pt
+before any squeeze; that comes first. Reverted.
