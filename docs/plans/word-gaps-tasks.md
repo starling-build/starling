@@ -4313,3 +4313,4 @@ digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
   the rest; noWrap cells there stay whole. Left: p36's form; lab nt C
   (no inner spacing) still has Word's col 3 at 123.1 and ours at the
   grid's 134.9 — the rule likely holds unspaced too (untried).
+- zh-8628cfbe (Mac 01Xgpbk5, CLAIMED 2026-10-23): 49.8, 46 pages to Word's 45 — its tables' row breaks from p24 (Linux b2's note).
