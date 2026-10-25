@@ -4887,3 +4887,13 @@ This is about 5.0 of T161's 5.4-point POI gap between the Mac and Windows series
 - **Result:** POI 85.5 → 89.0. testComment and 58067 0 → 100, Tika-792 0 → 66.7, WordWithAttachments 10.5 → 73.7, delins 11.9 → 69.5, zh-3fe252ff 33.3 → 99.4. Nothing lower.
 - **comment.docx:** scores 0 by construction and is not a line-gate target. Its comment has an empty scope in an empty body, and Word for Windows prints no balloon and no text (reprinted twice).
 - **Possible follow-up (windows):** skip the pane when no comment has a non-empty anchor.
+
+### T164. zh-cf8b03a5 p3: Word for Windows fits a line on its 600-dpi grid — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). A 118.2pt cell (PMingLiU 12pt,
+spacing -0.8, doNotCompress, zh-TW) holds "指標1×50%＋指標2×50%" in Word's
+print (word-win); ours ends its "%" at 118.208 and parts it before "%" (zh-TW
+lets a line start with it), and the cell's next eleven lines follow. Word's
+advances there stand on a 0.12pt (1/600 in) grid — 11.16, 13.92, 4.8/4.92,
+5.16, 8.52 — the cumulative positions rounded; so rounded, the "%" ends at
+985 units, the cell's width to the unit. Trying: in Windows mode a character
+fits where its end, rounded to 1/600 in, is inside the line.
