@@ -5835,5 +5835,6 @@ ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair)
   zh-cec9d337 (T187), zh-ae2dd08d (T189), zh-f2835e26 (a raised run's line height), zh-8e8d4c40 (lines 0.9 high from
   a table title), zh-6a4fc013 (Thai), zh-bdae17c0 87.1 (not yet read).
 - POI under 90: ten 0/0 documents with no text in Word's print, WordWithAttachments (WordArt extent), delins (parked).
-CLAIMED from it: zh-34a6519a (Mac 01Xgpbk5).
+CLAIMED from it: zh-34a6519a — already 89.3 at 49/49 on the tip by lenovo-2's 725ef49d (T185), released. Now CLAIMED: the
+page-top pair zh-7eba7349 and zh-20c1d74a (Mac 01Xgpbk5).
 
