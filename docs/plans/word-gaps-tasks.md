@@ -5342,3 +5342,5 @@ zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
   - The lab fits one zh-TW PMingLiU paragraph. bd is asking windows for a broader lab.
 - DFKai-SB: back with lenovo-2.
 - Next for Mac 01Xgpbk5: zh-8e8d4c40's label fallback (Mincho for CJK in a Latin label face), then the charts: zh-b8de3ae2, zh-d62da4dd, zh-27a874b7.
+
+### Latin text in a missing East Asian ascii face (Calibri digits in word-win, zh-5450d509) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
