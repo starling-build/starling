@@ -5218,7 +5218,11 @@ engine parted it. Now the joiner after U+00A0 is the stretch before's. w31 -> w3
 nothing else moved. Same base: zh-e8d4c046 100 on its fresh reprint (the MS Gothic title was the batch artefact),
 zh-1cfb652b 87.5.
 
-### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, from lenovo-2's queue)
+### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — CLAIMED, step 1 landed (Mac 7bd18d8e, macOS-doc, 2026-10-25)
+Step 1: the Windows fallback chain for an embedded 仿宋_GB2312's missing characters (MS Gothic → Yu Gothic → JhengHei,
+sticky, by the faces' cmaps, each on its own 1.3 x win line). w33 -> w34: 5.0 -> 10.9 (61 pages), zh-5450d509 +1.8,
+zh-8d72961c +27.7, nothing lower. Left (still claimed): Word's lines hold a character more here — "〕" set in Cambria at
+0.33 em beside digits ("〔2023〕234"), fallback characters narrowed in justified lines (JhengHei "发" 15.6, "〔" 15.24 at 16pt).
 
 ### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
