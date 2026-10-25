@@ -5643,7 +5643,7 @@ digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without 
 - (3) without the four spaces (N 392.23): 6.20.
 - (4) without the "，" (N 406.27): 2.74.
 So the comma gives about 1.7 (4.41 vs 2.74), the four automatic spaces about 1.0 (4.41 vs 3.42), and the four word spaces take away about 1.8: without them Word takes "線" further over (6.20). The same direction as T170's halfStretch and t175 (word spaces on the line lower what the marks may give). Not additive, so one cap per kind will not fit.]
-### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLAIMED, WAITING ON WINDOWS (fresh-process prints, queued by macos) (Linux 01F2SWc8, 2026-10-25)
+### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLOSED by windows' reprint 0012bc50: 56.5 -> 99.7 with no code change (its title is SimHei on both sides) (Linux 01F2SWc8, 2026-10-25)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
 MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): p12 45 misses, then p15-p25. p12's lines all agree but stand 9-16pt
 high, from its title "宁波市工程研究中心评价指标及评分标准" (方正小标宋简体 20pt, atLeast 21pt, afterLines 50, docGrid
@@ -5660,9 +5660,9 @@ ignore their alt (or alt=黑体 does) and ours should follow; if SimHei, the ref
 
 [Windows 01QbbApP 2026-10-25, asked by macos. zh-2f9463d6 and zh-ee2d19e6, each the first document of a fresh Word with no warm-up: their 方正小标宋简体 titles print in SimHei, by the entry's altName 黑体. With the standard warm-up first (the reference protocol), all 16 of the 19 alt-黑体 references that show YaHei reprint in YaHei again, pages unchanged. The cause is the warm-up document itself: test/docx-word-win-warm.docx's font table carries stray entries from the package it was made from, and they name missing faces. Among them is 方正小标宋简体 with altName "Arial Unicode MS" (absent here, so YaHei), plus FZFS, 方正大标宋简体 and FZKT with altName 宋体. Word settles a missing name once per process, from the first font table that names it, so the warm-up fixed 方正小标宋简体 as YaHei for every batch. With those entries removed (20 entries down to 15; the _GB2312 four and the faces the box has kept), zh-2f9463d6's title prints in SimHei after the warm-up.
 Affected: every word-win reference with text in those names. 方正小标宋简体: 195 documents. 方正大标宋简体: 4. FZFS and FZKT: 1 each, the same 195 in all (list in ~/starling-doc-check/lab/t182/warm-affected.txt on the Windows box). Each prints the name by the warm-up's entry, not its own. The Windows missing-face map (99f9f05e, from these prints) is suspect for 方正小标宋简体 too. Fix: clean the warm-up, then reprint those references, each alone in a fresh Word after the clean warm-up, since a batch would let its first document decide for the rest. About 35 minutes. Waiting on macos for the timing, since it moves baselines for everyone.]
-### T183. zh-72da925e: 57.6 against word-win, 39/39 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos, while T181/T182 wait on windows)
+### T183. zh-72da925e: 57.6 against word-win, 39/39 pages — DONE 56f9dcab (Linux 01F2SWc8, 2026-10-25, routed by macos): 57.6 -> 60.5; the rest is T181's kind
 From the low list at d9aabe26 (1228/1246 lines). First: its first miss.
-BUILT, waiting for the word-win reprint to pair (Linux 01F2SWc8; patch t183-kinsoku.patch, Linux ~/tmp/word): p4's first
+DONE 56f9dcab, same-base pair h159 after the 0012bc50 reprint, nothing lower (Linux 01F2SWc8): p4's first
 line "…研究案（下稱「" ends on the "「" in Word's print, 0.008 over (21 characters of 17.0075 in 357.15), "中" opening the
 next; its paragraph says w:kinsoku 0 in zh-TW text. Ours took "「中" as one piece and squeezed four marks 17pt. Rule:
 under w:kinsoku 0 in text of an East Asian language (zh/ja/ko; zh-c5b5087b's en-US still carries "（" over) an opening
