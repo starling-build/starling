@@ -5501,3 +5501,6 @@ From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wro
 - Result: zh-b8de3ae2 76.2 → 82.8, nothing lower (w17 / w19 / w20).
 - Turning the rule off outright cost zh-15728c84 −43, zh-9ba2ead7 −17.6, zh-9ef811c8 −16.5, so Word for Windows keeps it for rows merged whole.
 - What's left of zh-b8de3ae2 is its charts (p9, p12, p15, p18, p20–23).
+
+### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2. Was 91.0 against the Mac prints (T148). Its 華康 names are JhengHei UI Light on Windows (421ac17d's note).
