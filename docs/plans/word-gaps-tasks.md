@@ -4787,6 +4787,14 @@ Lab kai, in the document's own package, Word for Windows:
   841.9 - 49.6 - 24.5, about 767.9, above the 769.9 bottom margin. So the body limit is min(bottom margin,
   footer top), with no clearance.
 
+- Linux 017F2GnT, 2026-10-24, MEASURED, PARKED for a Windows lab: ours already ends the body at the footer's
+  top (footer 24.4, limit 767.9; row tops within 0.05 of Word's). DFKai-SB's baseline 0.951 is right (our glyphs
+  then sit 0.0-0.45 off Word's; tried locally, no page moves) — lenovo carries the one face definition (T169).
+  The break is Word's line placement: its 14pt lines step 18.24/18.24/18.12 and its 27.2 paragraph steps 27.24
+  (1/600" units, biased up), so p2's baselines run 0.37 under ours by the foot and "3." ends 767.67 + a 0.48
+  rule past 767.85. Ours step 18.2 exactly and keep it (767.30 + 0.5). Lab asked of windows: 40 single 14pt
+  lines, and the same with paragraphs, each baseline read — how Word rounds a line to its device grid.
+
 ### word-win: 13 references that embed a face reprinted fresh — re-score them (Windows 01QbbApP, 2026-10-24)
 Word for Windows keeps an embedded face it has loaded for the rest of its process. A later document in the same
 batch that names the face prints in that copy or falls back.
