@@ -5773,3 +5773,6 @@ Beside T181 (lenovo-3's squeeze-capacity lab, 9cb560da): if the misses are that 
 
 ### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
+
+### T188. zh-b00fef0d: 74.6 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
+Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab.
