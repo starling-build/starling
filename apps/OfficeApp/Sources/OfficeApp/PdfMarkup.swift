@@ -325,13 +325,18 @@ struct PdfMarkup {
         let page = layout.pageRect(p)
         let textRight = setup.width - setup.marginRight
         // (Word for Windows, lab bp: its boxes stand 31.5 to 261.8pt past
-        // the text, a line 1pt under the box's top and 1.8 over its foot;
-        // the line from the anchor turns 4.6pt past the text and meets the
-        // box 6pt under its top. Word for Mac's: 32.1 to 262.4, 2.7 and
-        // 2.7, 9.1 and 5.5.)
+        // the text; the line from the anchor turns 4.6pt past the text and
+        // meets the box 6pt under its top. Its lines are 2.2pt inside the
+        // box top and foot, and a box stacked under another stands 1.1pt
+        // clear of it: lab bh's nine stacked deletions, 1.07-1.21 apart,
+        // 2.15-2.3 over and under their lines at 8, 10 and 14pt; word-win's
+        // Tika-792, 16.2-16.5pt boxes of a Segoe UI 9pt line, 1.2 apart, and
+        // delins, 13.8-13.9 boxes of a Tahoma 8pt line, 1.2-1.3 apart.
+        // Word for Mac's: 32.1 to 262.4, 9.1 and 5.5, 2.7 and 2.7, edge
+        // to edge.)
         let windows = DocxFormat.wordOnWindows
         let boxLeft = textRight + (windows ? 31.5 : 32.1), boxRight = textRight + (windows ? 261.8 : 262.4), inset = 4.5
-        let padTop = windows ? 1.0 : 2.7, padBottom = windows ? 1.8 : 2.7
+        let padTop = windows ? 2.2 : 2.7, padBottom = windows ? 2.2 : 2.7, gap = windows ? 1.1 : 0
         let turn = textRight + (windows ? 4.6 : 9.1), meet = windows ? 6.0 : 5.5
         var authors: [String] = []
         for n in notes where !authors.contains(n.author) { authors.append(n.author) }
@@ -373,8 +378,11 @@ struct PdfMarkup {
             tp.fractionalLineHeights = true
             // (A deletion's text stands 8.8pt further in: delins's "Deleted:"
             // lines start at 424.0 where its "Formatted:" ones do at 417.9,
-            // scaled, and part where Word's do.)
-            let indent = note.label == "Deleted:" ? 8.8 : 0
+            // scaled, and part where Word's do. Word for Windows indents only
+            // deleted list items, delins's "<#>" ones: Tika-792's "Deleted:
+            // s.", 58067's "Deleted: This is another Test.¶" and lab bp's
+            // stand with the other balloons.)
+            let indent = note.label == "Deleted:" && (!windows || note.paragraphs.contains { $0.hasPrefix("<#>") }) ? 8.8 : 0
             tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent)
             defer { tp.dispose() }
             // (Whole paragraphs deleted stand a little above the line they
@@ -397,7 +405,7 @@ struct PdfMarkup {
             let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + padTop + padBottom)
             // (Stacked edge to edge: delins's one-line balloons stand
             // 15.1pt apart, an 8pt line and the padding.)
-            floor = box.bottom
+            floor = box.bottom + gap
             let colour = PdfMarkup.colours[(authors.firstIndex(of: note.author) ?? 0) % PdfMarkup.colours.count]
             let fill = Paint()
             fill.color = Color(note.isComment ? colour.fill : 0xFFFFFFFF)
