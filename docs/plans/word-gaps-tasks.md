@@ -4777,6 +4777,10 @@ font-table entry, C with its second where it has one, A with no entry. For each 
   warmed: FangSong/KaiTi.
 macos-ios fits facemap from it.
 
+### zh-3fe252ff (31.3) and zh-8e8d4c40 (47.5) on word-win, w1 at 452660de — CLAIMED (Windows 01QbbApP, 2026-10-25)
+zh-3fe252ff: p6, Word's "Deleted:截止" balloon and the next paragraph a line out. zh-8e8d4c40: a p2 cell's lines 3pt low in
+Word. Word-side labs here; fixes go to a builder.
+
 ### zh-e2dc9dce (6.2) and zh-c399c91a (18.1) on word-win: two face changes (Windows 01QbbApP, 2026-10-24)
 Both references reprint identically fresh.
 - zh-e2dc9dce: its 標楷體 is DFKai-SB on Windows since the font pack; the Mac print had YaHei, 52 pages, against
