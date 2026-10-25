@@ -5259,6 +5259,14 @@ print, its "〕" the same 0.35 em, wraps before "署": an unexplained Word fit t
 runs of w:spacing -6 under balanceSingleByteDoubleByteWidth and fit neither -0.3 nor -0.6. Also seen: ①-⑬ in Cambria Math at
 ~1.19-1.23 em across many word-win prints (zh-18cb2079, zh-6cd1befe, zh-7b125a21, zh-92373179…), not only fallback documents.
 
+[LAB Windows 01QbbApP 2026-10-25, lab e6p (~/starling-doc-check/lab/e6p on the Windows box), asked by macos for macOS-doc: zh-e68a2f57's package, p6's picture paragraph (57EFB3DC) and its note (1D7BF17C) alone in the landscape section; each a fresh Word after the warm-up, 60s after opening; ours the tip (8337b1d0) in Windows mode. Picture foot, then the note's first baseline minus it, Word / ours:
+- (a) as is: foot 460.23/460.25; gap 10.39/10.88; lines 12.84/12.87 apart. Ours sends the third line to p2.
+- (b) picture paragraph line 240: 9.43/9.84.
+- (c) without its snapToGrid 0: foot 461.88/461.90; gap 11.02/11.49.
+- (d) section without docGrid: same as (a) in both, 10.39/10.88.
+- (e) mark sz 32: 11.23/11.68.
+- (f) as (a) with the note's symbols ①×▲△◎●□ each 甲: Word 10.39 (unchanged), ours 10.21.
+So the +0.45-0.5 is not the picture line's grid rule (c77fd89d tracks Word within 0.08 across b, c, d, e). It is the note's first line: Word for Windows sets ①△◎ in Cambria Math and ×▲●□ in Times New Roman, which do not lift a 9pt line of SimHei/楷体; ours sets ①△◎ in DejaVu Sans and ×▲●□ in Liberation Serif, and their ascent lifts it about 0.67.]
 ### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
 
