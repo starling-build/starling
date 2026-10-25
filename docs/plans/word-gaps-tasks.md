@@ -4781,7 +4781,20 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - bug57031  99.7  339 lines  14/14
   - 52288 100.0  2 lines  1/1
 
-### T160. zh-f6686f89: 75.8 against the Windows references — CLAIMED (Linux office1, 2026-10-24)
+### T160. zh-f6686f89: 75.8 against the Windows references — MEASURED, PARKED for a Windows lab (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), routed by macos. 100 against the
 Mac's prints, 75.8 against word-win; outside the font-reprint list. Its old note:
 a "（TSG S7001-2013）…" line whose "）" sat on a hair.
+Measured: the Mac and Windows prints hold the same 571 lines; Windows' p1 takes
+two more ("1、根据《客运索道…", "索道监督检验是在…") and every page to p6 starts two
+lines on, re-synced at p7's break. The cause is the cover, all FZShuTi (no
+font-table entry, on neither box): Word for Windows sets it in MS Mincho — the
+theme's Jpan major font, themeFontLang eastAsia ja-JP — with the ideographs
+Mincho lacks (单 总 监 题 库 编 组) in JhengHei and the date's digits and spaces
+in Cambria (the major Latin). Its 18pt date line stands 40.8 under the line
+before in Word's print, ours (YaHei, the Windows-mode stand-in from lab fsw)
+45.5; by "判断题" ours is 6.6pt low, and p1 cannot take the two lines. Not built:
+lab fsw's three zh-CN-theme documents give YaHei for a missing face, so the rule
+(theme language? major font?) needs a Windows lab: (a) this cover with
+themeFontLang eastAsia zh-CN; (b) with the theme's Jpan major font changed;
+(c) a missing face in a zh-CN document whose theme Hans font is 宋体.
