@@ -1508,11 +1508,14 @@ enum OfficeFonts {
         // 209 and 98 documents of the reprint. Word fixes a missing
         // name's face once a process, from the first file that names it,
         // and the first run, unwarmed, flipped between these and YaHei.)
-        // (Not where the file carries the face: what its subset lacks
+        // (Not where the file carries 仿宋_GB2312: what its subset lacks
         // Word for Windows sets on YaHei's lines, as before the font
         // packs — zh-5450d509's embedded 仿宋_GB2312 stands 31.2pt a
-        // 1.5-spaced 12pt line in word-win, YaHei's, not FangSong's 23.4.)
-        if wordOnWindows, !isEmbedded(family) {
+        // 1.5-spaced 12pt line in word-win, YaHei's, not FangSong's 23.4,
+        // fresh-process print or not (db46d815). An embedded 楷体_GB2312's
+        // missing characters are KaiTi's, its lines the square face's:
+        // zh-1cfb652b 67.9 -> 87.5 with that; YaHei there, nothing better.)
+        if wordOnWindows, !isEmbedded(family) || (ignoringEmbedding && has("楷体_gb2312", "kaiti_gb2312")) {
             if has("仿宋_gb2312", "fangsong_gb2312") { return eastAsianFace("仿宋", ignoringEmbedding: ignoringEmbedding) }
             if has("楷体_gb2312", "kaiti_gb2312") { return eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding) }
             // (And 標楷體 is its DFKai-SB, a square face like KaiTi: its
