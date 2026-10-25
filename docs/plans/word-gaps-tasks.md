@@ -5294,6 +5294,12 @@ characters' advances there; over = natural - measure. 25 documents, two per mode
 - Mode 15 compressPunctuation also squeezes CJK punctuation: zh-7eba7349 11.3 over 6 marks, zh-fd4c6b86 5.5 over 3.
   zh-5b7ae054's 858 lines look like a pairing artefact.
 Suggested: an allowance in mode 15 only, ½ of each automatic space, plus punctuation under compressPunctuation.]
+[Windows 01QbbApP, lab t170d. Lines in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12pt, jc both) with k
+automatic CJK-digit spaces of about 2.64pt each. The largest over Word still takes:
+  0 spaces 0; 2 spaces 2.50 (a short 11-character line 3.00); 3 spaces 3.00; 4 spaces 3.25; 6 spaces 3.50; 8 spaces 3.50.
+It saturates near 3.5pt a line, roughly min(about ½ × Σ automatic spaces, 3.5), ±0.25. "、2" carries no automatic space
+(with 、 → 丁 the natural width grows 3.0), so (a)'s line has 3, not 4. t170b's 6.0 for zh-4ea36aa8 was inflated by
+punctuation and is superseded by this series.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
