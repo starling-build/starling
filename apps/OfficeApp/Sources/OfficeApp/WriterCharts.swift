@@ -496,7 +496,7 @@ enum WriterGroups {
                   !off(path["on"] ?? type?.first("v:textpath")?["on"] ?? "f"),
                   let spt, (136 ... 175).contains(spt) else { return nil }
             let st = style(path)
-            let family = (st["font-family"] ?? "Arial").trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+            let family = (st["font-family"] ?? "Arial").trimming(charactersIn: "\"' ")
             let filled = !(off(shape["filled"]) || off(fillNode?["on"]))
             let opacity = fraction(fillNode?["opacity"]) ?? 1
             func faded(_ c: Color) -> Color { c.withAlpha(Int((Double(c.alpha) * max(0, min(1, opacity))).rounded())) }
@@ -553,7 +553,7 @@ enum WriterGroups {
                 default: return .center
                 }
             }()
-            return WordArtText(lines: text.components(separatedBy: "\n"), warp: TextWarp(preset: _vmlTextWarps[spt - 136], xml: ""),
+            return WordArtText(lines: text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init), warp: TextWarp(preset: _vmlTextWarps[spt - 136], xml: ""),
                                family: family, bold: st["font-weight"] == "bold", italic: st["font-style"] == "italic",
                                color: base, look: look.isPlain ? nil : look, shadow: shadow, alignment: align)
         }
