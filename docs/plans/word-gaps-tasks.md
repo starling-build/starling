@@ -5946,3 +5946,5 @@ strip right of the table (x 504.8–532.2); ours sets it full width at p2's top.
 
 ### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). Check whether ours carries two, or sizes them taller.
+
+### zh-61aaad09 83.8 (word-win, 3/3 pages): its chart over a data table — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
