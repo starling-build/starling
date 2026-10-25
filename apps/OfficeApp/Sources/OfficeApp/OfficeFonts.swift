@@ -1472,11 +1472,21 @@ enum OfficeFonts {
         // title, centred in them, has its baseline at 117.84 in Word's
         // print. Taken for YaHei's, ours was two pitches and every page
         // after it ran 15.6pt early.)
+        // (Word for Windows sets each 华文 face on its OS/2 win line at
+        // 1.3, the baseline its win ascent and 0.15 of that line's ems
+        // over — windows' lab t179, every face at 12 and 22pt fresh,
+        // within 0.06pt: 新魏 .781 + .236, 仿宋 and 楷体 .86 + .26. See
+        // 华文中宋 above.)
         if has("stxinwei", "华文新魏") {
+            if wordOnWindows { return EastAsianFace(height: 1.322, latin: serif, latinScale: 1.0, fakeBold: true, baseline: 0.934) }
             return EastAsianFace(height: 1.036 * 1.3, latin: serif, latinScale: 1.0, fakeBold: true, baseline: 0.8 + (1.036 * 1.3 - 1.036) / 2)
         }
-        if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
-        if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
+        if has("stfangsong", "华文仿宋") {
+            return EastAsianFace(height: wordOnWindows ? 1.456 : 1.71, latin: serif, latinScale: 1.0, fakeBold: false, baseline: wordOnWindows ? 1.028 : nil)
+        }
+        if has("stkaiti", "华文楷体") {
+            return EastAsianFace(height: wordOnWindows ? 1.456 : 1.7, latin: serif, latinScale: 1.04, fakeBold: true, baseline: wordOnWindows ? 1.028 : nil)
+        }
         if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
         if has("arial unicode") { return arialUnicode }
         // (Noto Sans SC, which Word's fallback takes for some CJK
