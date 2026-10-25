@@ -5837,4 +5837,14 @@ ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair)
 - POI under 90: ten 0/0 documents with no text in Word's print, WordWithAttachments (WordArt extent), delins (parked).
 CLAIMED from it: zh-34a6519a — already 89.3 at 49/49 on the tip by lenovo-2's 725ef49d (T185), released. Now CLAIMED: the
 page-top pair zh-7eba7349 and zh-20c1d74a (Mac 01Xgpbk5).
+MEASURED, WAITING ON A WINDOWS LAB (Mac 01Xgpbk5): both are an empty paragraph at a page's foot that Word keeps and
+ours carries to the next page's top. zh-7eba7349 p1: after "…2023年10月7日印发" (exact 16pt, before/after 50) comes an
+empty paragraph whose mark is 仿宋 18pt bold (Normal: 宋体 10.5), under docGrid lines 326 (16.3). Ours sizes it at two grid
+lines (32.6, from FangSong's ascent and descent) with 17.15 left, and pushes it (STARLING_RICHTEXT_PERF: para 18,
+available 343 of 652 twentieths). Word's p2 title stands at the top margin, so Word kept it on p1, which means at most one
+grid line, though Word's own 16pt FangSong body lines take two (32.6). p2-p3's misses are that one line's drift.
+zh-20c1d74a p15/16: three empty paragraphs (mark: Normal's font, snapToGrid 0) after p15's last line; ours carries one
+to p16 (13 low). Lab wanted: a page filled to 17pt from its foot, then an empty paragraph whose mark is FangSong 18pt bold
+under docGrid lines 326. Does it stay? And the same with the mark at 10.5pt, with the grid off, and with text in the
+paragraph.
 
