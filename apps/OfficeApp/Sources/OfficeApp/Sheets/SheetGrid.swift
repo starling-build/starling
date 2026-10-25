@@ -2629,10 +2629,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
             : pad
         let rightMargin = margin
+        // And centred text four printer dots right of the middle: 0.45 pt
+        // on the median in Excel's prints of 56 workbooks, merged or not, at
+        // page scales 53% to 100% alike, and of a General TRUE or #N/A in 27
+        // of 30. (lo-ceiling-floor's stood in the middle — and its
+        // right-aligned numbers 0.33 right of Excel's: its columns, open.)
+        let centre = printing && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let tx: Double
         switch align {
         case .right: tx = right - rightMargin - inset - tp.width
-        case .center: tx = left + (width - lead - tp.width) / 2 + lead
+        case .center: tx = left + (width - lead - tp.width) / 2 + lead + centre
         default: tx = left + margin + inset + lead
         }
         // On paper a merged area centres its text four printer dots higher
@@ -2697,7 +2703,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     let x: Double
                     switch align {
                     case .right: x = right - rightMargin - inset - lp.width
-                    case .center: x = left + (width - lead - lp.width) / 2 + lead
+                    case .center: x = left + (width - lead - lp.width) / 2 + lead + centre
                     default: x = left + margin + inset + lead
                     }
                     lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
