@@ -5820,6 +5820,11 @@ Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab
   so it may be the closing line that hangs, not the after (ours reserves 0.97 for it, ruleUnder(parted:)). WAITING ON A LAB:
   zh-b00fef0d's package, the p17 row with 27.5 / 26.5 / 26.2 / 25.8 left above the foot: does Word part it, and where do the
   closing line and "2" stand?
+- LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t188, its own package, fresh Word, warm-up first; the row above, "1 / 330219157001", given an atLeast height to move the row's top). FIRST, THE FOOT: the table is in section 2 (sectPr after block 44): A4 16838, bottom 1440, so the margin's foot is 769.92. It has no footer of its own and inherits section 1's footer1, one exact 5.7pt paragraph 992 twips up (top 786.6), which does not reach it. So Word's foot is 769.92, and ours (768.58) stands 1.34 high. Rooms below are from 769.92. The row's top rule / room left / result:
+  742.42 / 27.50 (as is): parts. "2" 744.71-756.71 and "对侵占…有关" 748.8-760.8 on p17, the part closed by the 0.48 rule at 768.94 (to 769.42).
+  743.02 / 26.90: parts, the same shape; closing rule 769.54-770.02, 0.10 past the foot.
+  743.14 / 26.78: whole row to p18. 743.50 / 26.42, 743.74 / 26.18, 743.86 / 26.06, 744.10 / 25.82, 744.22 / 25.70, 744.58 / 25.34: whole row to p18.
+  So the part needs its 26.52 (top rule, line, space after) plus its 0.48 closing rule, 27.0, within 0.1. Neither the space after nor the closing rule hangs past the foot. Word parts the as-is row because it has 27.5, not 26.16: the gap is our foot for this section, 1.34 too high, not the reservation.
 
 ### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
