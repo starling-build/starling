@@ -4808,7 +4808,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - zh-043aab43  84.4    514 lines    12/12  (mac  85.6)
   - zh-61a05efc  90.3    155 lines      4/4  (mac 100.0)  [DONE 2026-10-24: 100 after be77c1fa (bold not widened in Windows mode); nothing left — Linux 017F2GnT, h150]
   - zh-a7a889eb  90.4   1107 lines    41/41  (mac  97.3)  [DONE Linux 017F2GnT 2026-10-24: 97.9 — YaHei Light's win-ascent line (its metrics from windows) and Segoe UI Symbol's own line, the p9 checklist's "☑" rows 0.8 short a line; pairs h149/h150 vs word-win, nothing else moved]
-  - zh-424775e4  92.7    370 lines    13/13  (mac  97.6)
+  - zh-424775e4  92.7    370 lines    13/13  (mac  97.6)  [CLAIMED Linux b2 01JsizVV 2026-10-24: p5 "…政治动机，" takes "机，" in Word 0.05pt past our column — Word for Windows sets the paper to 1/600 inch (10319 twips print 516.0) and the text follows; same-base pair of that rule running]
   - zh-9db183d5  95.0    260 lines    11/11  (mac  96.5)
   - zh-4ea36aa8  95.1    715 lines    17/17  (mac  97.1)
   - zh-b5359de4  96.1    511 lines    14/14  (mac  95.9)
