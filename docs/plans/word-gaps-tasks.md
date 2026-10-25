@@ -5863,3 +5863,5 @@ Not a mark-versus-run size effect: about 30 documents with a 9pt mark under a 14
 lone paragraphs by `_layout`'s "a paragraph of nothing but floating objects" rule (zh-1a3c7aa0's footer), from the mark's
 look. Lab wanted: zh-884c6e3e's footer alone, the number's baseline with (a) as is, (b) an empty paragraph added under
 it, (c) the paragraph's mark at 14pt; and the same for zh-1cfb652b.
+
+### zh-2a241df1 81.9 (word-win, 4/4 pages): its charts' labels — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
