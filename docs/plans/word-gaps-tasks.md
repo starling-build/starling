@@ -4780,6 +4780,12 @@ macos-ios fits facemap from it.
 ### zh-3fe252ff (31.3) and zh-8e8d4c40 (47.5) on word-win, w1 at 452660de — CLAIMED (Windows 01QbbApP, 2026-10-25)
 zh-3fe252ff: p6, Word's "Deleted:截止" balloon and the next paragraph a line out. zh-8e8d4c40: a p2 cell's lines 3pt low in
 Word. Word-side labs here; fixes go to a builder.
+- zh-8e8d4c40, MEASURED, released to a builder. Word's labelled list lines step 16.2, other lines 15.6 (DFKai-SB). In the
+  label, "2" is Calibri and "、" is MS Mincho (a per-character fallback, since Calibri lacks it); the space is Arial. The
+  line takes MS Mincho's ascent (0.859 + 0.15 em = 12.11) and DFKai-SB's descent (0.199 + 0.15 = 4.19): 16.3. That is
+  +0.6 a label, 3pt by the cell's foot. Ours keeps such lines at 15.6.
+- zh-3fe252ff: Word's p6 is ordinary. The deletion's balloon takes no room, and "11.…" stands at the normal pitch
+  (433.2). Waiting on our p6 lines to compare.
 
 ### zh-e2dc9dce (6.2) and zh-c399c91a (18.1) on word-win: two face changes (Windows 01QbbApP, 2026-10-24)
 Both references reprint identically fresh.
