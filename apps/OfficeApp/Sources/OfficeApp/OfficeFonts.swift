@@ -796,7 +796,14 @@ enum OfficeFonts {
                    "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
                    "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "_gb2312", "华文", "stsong", "stkaiti",
                    "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
-        guard !has.contains(where: { n.containsSubstring($0) }) else { return nil }
+        // (A name that lists faces, as LibreOffice writes them — "新細明體,
+        // PMingLiU" — is no face Word for Windows has, whatever it lists:
+        // it goes by its own entry, zh-8e8d4c40's alternate Times New Roman
+        // at charset 00, Mincho — its list labels' "、" in MS Mincho in
+        // word-win, their lines topped by Mincho's ascent (macos-ios'
+        // measurement).)
+        let listed = n.containsSubstring(",")
+        guard listed || !has.contains(where: { n.containsSubstring($0) }) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
            has.contains(where: { alt.containsSubstring($0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
