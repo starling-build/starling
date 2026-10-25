@@ -5608,3 +5608,15 @@ digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without 
 
 ### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, while T181 waits on a lab)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
+MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): p12 45 misses, then p15-p25. p12's lines all agree but stand 9-16pt
+high, from its title "宁波市工程研究中心评价指标及评分标准" (方正小标宋简体 20pt, atLeast 21pt, afterLines 50, docGrid
+lines 312): Word's print draws it in Microsoft YaHei, baseline 195.98; ours in SimHei (its font-table altName 黑体,
+the "alternate Word has wins" rule of word-win-missing-faces-map.txt), baseline 187.42 and the table 16pt high.
+The map's 方正小标宋简体 rows only probed alt=- (YaHei). Every word-win document whose 方正小标宋简体 says alt=黑体
+(about 17: zh-23ee8575, zh-419ea527, zh-547fc43c, zh-5c6ff0d7, zh-6c568ae9, zh-6de512cb, zh-76cb73e2, zh-788e9dae,
+zh-875759ff, zh-d0a207ac, zh-d89c3840, zh-ee2d19e6, zh-eec0747a, …) has YaHei for its text in the print (by matching
+its runs' text, noisy). But the map's own alt=黑体 names (文星黑体, 华文黑体 Light, ABCDEE+黑体) print SimHei, and
+Word fixes a missing name's face once per process from the first document naming it — 方正小标宋简体 is in 195
+documents, so a batch reference could carry an earlier document's YaHei. Wanted from windows: zh-2f9463d6 printed as
+the FIRST document of a fresh Word (and one more alt=黑体 one, e.g. zh-ee2d19e6). If the title is YaHei, 方正 names
+ignore their alt (or alt=黑体 does) and ours should follow; if SimHei, the references are batch artifacts to reprint.
