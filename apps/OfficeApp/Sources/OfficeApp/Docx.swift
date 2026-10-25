@@ -2149,7 +2149,11 @@ enum DocxFormat {
             }
             var faces: [String: String] = [:]
             for font in table.all("w:font") {
-                guard let name = font["w:name"], OfficeFonts.isEastAsianFace(name),
+                // (And, in Word for Windows, one with a Latin name whose entry
+                // names an East Asian charset, for its line: zh-1cfb652b's
+                // GWZT-EN, charset 86 — see `OfficeFonts.face`.)
+                guard let name = font["w:name"],
+                      OfficeFonts.isEastAsianFace(name) || Self.wordOnWindows && ["86", "88", "80", "81"].contains(font.first("w:charset")?["w:val"]?.uppercased() ?? ""),
                       let embed = font.first("w:embedRegular") ?? font.first("w:embedBold"),
                       let rid = embed["r:id"], let key = embed["w:fontKey"], let target = faceTargets[rid] else { continue }
                 let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target

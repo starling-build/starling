@@ -1974,6 +1974,25 @@ enum OfficeFonts {
                 face.classScales = [1, 1, 1, 1, 0.66]
                 #endif
             }
+            // (An embedded face whose font-table entry names an East Asian
+            // charset keeps Word for Windows' East Asian line though its
+            // name is Latin: 1.3 of its own ascent and descent, the extra
+            // split evenly. Lab ft/ft2 (windows, zh-1cfb652b's footer: an
+            // embedded GWZT-EN, charset 86, 0.863 + 0.250): its 14pt mark
+            // stands 14.45 over the baseline at 471 auto and 14.53 single —
+            // 12.08 + 2.34 — and its page number, a box hung from the
+            // paragraph, 6.07 higher than ours at the face's bare 1.113.)
+            if wordOnWindows, let registered = embeddedFamily(family), let entry = fontEntry(family),
+               ["86", "88", "80", "81"].contains(entry.charset.uppercased()) {
+                declaredLock.lock()
+                let line = embeddedLines[registered]
+                declaredLock.unlock()
+                if let line, line.ascent + line.descent > 0.5 {
+                    let h = line.ascent + line.descent
+                    face.naturalHeight = h * 1.3
+                    face.baseline = line.ascent + h * 0.15
+                }
+            }
             return face
         }
         // (A name the table declares Latin still sets East Asian text
