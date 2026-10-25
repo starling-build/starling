@@ -5037,3 +5037,6 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
   - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
+
+### T166. zh-7773163d: 14.3 at w9, Word for Windows 66 pages against ours 61 — CLAIMED (Mac 01Xgpbk5, 2026-10-24), waiting on a windows lab
+The first drift is p3, and it's a line break, not height. Each "⚫案例N：…" list item breaks on Windows right after "案例 ": ListParagraph with a Wingdings bullet, tab 1162, ind left 2438 hanging 1757, run 1 "案例 " (spacing 13, w 95), run 2 "2：公務人員…" (w 95). "2：…" then starts line 2 at the hanging indent, so each item takes one more line. Word for Mac and ours set the first line full. It recurs on p3, 4, 10, 11 and 13. The faces aren't the cause: the reprint uses Ming-Lt-HKSCS, the same as the Mac. A 7-variant lab is requested from windows: w 95, the space, "2"→"二", spacing 13, the bullet, jc.
