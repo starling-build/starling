@@ -4798,6 +4798,7 @@ Lab kai, in the document's own package, Word for Windows:
   841.9 - 49.6 - 24.5, about 767.9, above the 769.9 bottom margin. So the body limit is min(bottom margin,
   footer top), with no clearance.
 
+- [Windows lab DONE: lab round, see "Word for Windows sets baselines on a 1/600-inch grid…" above — DFKai-SB 1332/1024 em, running-total rounding.]
 - Linux 017F2GnT, 2026-10-24, MEASURED, PARKED for a Windows lab: ours already ends the body at the footer's
   top (footer 24.4, limit 767.9; row tops within 0.05 of Word's). DFKai-SB's baseline 0.951 is right (our glyphs
   then sit 0.0-0.45 off Word's; tried locally, no page moves) — lenovo carries the one face definition (T169).
@@ -5126,7 +5127,7 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
 
-### T167. zh-7773163d: 14.3 at w9, Word for Windows 66 pages against ours 61 — CLAIMED (Mac 01Xgpbk5, 2026-10-24), waiting on a windows lab
+### T167. zh-7773163d: 14.3 at w9, Word for Windows 66 pages against ours 61 — CLAIMED (Mac 01Xgpbk5, 2026-10-24), Windows labs DONE (t167, t167b, t167c); engine side with macos-ios
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t167, each variant fresh: **the legacy compat mode**, an empty <w:compat>
 with no compatibilityMode. In it, Word for Windows treats Han text after a breakable space (ASCII or U+3000) as one
 unbreakable word. So the line breaks at the space, then force-breaks by characters.
@@ -5169,6 +5170,8 @@ p4's "3.2" read with its leader. Released.
   table) would end that line ~767.67, yet Word moves it. Ours sets 標楷體 as the square KaiTi stand-in (baseline
   1.005 em). Needs a Windows lab: DFKai-SB's 14pt line exactly (baselines step 18.24/18.12), PMingLiU's 10pt
   footer line, any clearance between body and footer.
+  [Labs DONE, Windows 01QbbApP: kai — 1.3 em with an even split, Calibri footer, body limit min(margin, footer top);
+  round — 1/600in running-total baselines, DFKai-SB 1332/1024 em.]
 
 ### zh-c6ab068c (36.9 word-win) — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24): 100
 A no-break space's em rides on a word joiner after it; the East Asian fit gave that joiner's width to what follows
