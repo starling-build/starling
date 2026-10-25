@@ -5468,6 +5468,16 @@ STARLING_RICHTEXT_FIT trace) still sets "第4、6、" on the line, so something 
 (patch t175-nohang-tried.patch, Linux ~/tmp/word). Open: what tells t170e's package (no hang) from zh-021b8feb's (hang +
 squeeze) — both mode 15, compressPunctuation, zh-TW, 標楷體, balanceSingleByteDoubleByteWidth; and why the second pass
 re-takes "6、".
+[LAB Windows 01QbbApP 2026-10-25, lab t175 (~/starling-doc-check/lab/t175 on the Windows box), asked by macos: zh-021b8feb's p9 paragraph whole (its runs and hanging indent, w:rightChars dropped), w:right swept -419 to 381 twips in 10s, the line "日內完成審查，其申請者補正資料時間、安排訪視時間與輔具試用、" read at each. As the measure narrows (14pt; the line's marks are "，", the inner "、" and the last "、"):
+- First, over 0-3: the last "、" squeezed a quarter em (it starts 10.4 inside the measure).
+- Then, over 3.5-17: the "，" and the inner "、" squeezed up to about half an em each (6.7), the last "、" back wholly inside.
+- Then, over 17.5-20.5: those, plus the last "、" a quarter em.
+- Then, over about 21-23 (right -59 to -19, the document's own -19 among them): the last "、" HUNG whole (starting 1.3-1.7 inside the margin), and the other marks relaxed to 1.4-2.0 each.
+- Then "用、" goes down (right -9).
+So Word hangs only after squeezing everything it can, at about 1.5 em over. The body copies (first line, indent 0) follow the same stages through 20 over, where that sweep stopped. One run instead of five changes nothing.
+- (b) "6" for "用" ("試6、"): no hang stage at all. The "、" is squeezed a quarter em for 1pt, then "6、" goes down. Word takes it only to about 12.5 over, against 23 with "用". So macos's guess holds: after a digit, Word does not hang the "、", and squeezes less (t170e's ~5pt).
+- (c) at 16pt: the paragraph breaks elsewhere, so there is no reading. The 16pt body copy matches (a)'s stages to 20 over.
+Rule for ours: hang a last mark only after the marks have given all they can (squeeze before hang). And never hang one after a digit (or a Latin letter, presumably: untested).]
 
 ### T176. zh-045c5a75: 37.1 against word-win, 23 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
