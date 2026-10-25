@@ -5127,8 +5127,9 @@ explicitly in 細明體_HKSCS:
 In the corpus, only zh-7773163d combines legacy mode with a Latin East Asian default.]
 The first drift is p3, and it's a line break, not height. Each "⚫案例N：…" list item breaks on Windows right after "案例 ": ListParagraph with a Wingdings bullet, tab 1162, ind left 2438 hanging 1757, run 1 "案例 " (spacing 13, w 95), run 2 "2：公務人員…" (w 95). "2：…" then starts line 2 at the hanging indent, so each item takes one more line. Word for Mac and ours set the first line full. It recurs on p3, 4, 10, 11 and 13. The faces aren't the cause: the reprint uses Ming-Lt-HKSCS, the same as the Mac. A 7-variant lab is requested from windows: w 95, the space, "2"→"二", spacing 13, the bullet, jc.
 
-### T168. zh-dc9e54ca: 45.4 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
+### T168. zh-dc9e54ca: 45.4 against word-win — DONE (Linux b2 01JsizVV, 2026-10-24)
 Owner: Linux b2 (starling-b2), routed by macos. 4 pages, off the missing-faces list, no earlier notes.
+f27dd6ac: Windows mode sets 標楷體's U+00A0 at half an em (DFKai-SB's), not KaiTi's em (lab nb1). p3's centred "附件一" + 37 U+00A0 + 23 spaces + "單位：新臺幣元" (12pt) is one 480pt line in word-win, every space 6.0; ours wrapped "單位" and the form fell a line. Same-base pair (74dc412d): zh-dc9e54ca 45.4 -> 96.9, nothing else moved. Left: three checkbox lines in p3's form ("申請補助計畫書…", "附經費概算表…", "活動中心土地…"), not looked at.
 
 ### zh-90e0cea8 (word-win) — DONE as far as it goes (Mac 7bd18d8e, macOS-doc, 2026-10-24)
 75.3 -> 98.5 by be77c1fa (bold not widened in Windows mode). a29fa1e2: a list number takes its level's
