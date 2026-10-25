@@ -5761,3 +5761,6 @@ the Mac print; this starts from the word-win print after 0012bc50.
 
 ### zh-6d402586: 71.8 against word-win (reprint 0012bc50), 35 pages for 36 — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; this is the Windows print's gap.
+
+### zh-e0ca7252 68.8 (word-win, 50/50 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+Beside T181 (lenovo-3's squeeze-capacity lab, 9cb560da): if the misses are that squeeze, it goes to lenovo-3.
