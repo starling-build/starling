@@ -5958,7 +5958,7 @@ strip right of the table (x 504.8–532.2); ours sets it full width at p2's top.
 ### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). Check whether ours carries two, or sizes them taller.
 
-### zh-61aaad09 83.8 (word-win, 3/3 pages): its chart over a data table — MEASURED, RELEASED for a lab (Mac 01Xgpbk5, 2026-10-25)
+### zh-61aaad09 83.8 (word-win, 3/3 pages): its chart over a data table — DONE after windows' lab, 83.8 -> 94.1 (Mac 01Xgpbk5, 2026-10-25)
 After f436158c its table's rows are Word's (header 36.7/36.8, rows 17.7). Left: the plot's margins. Word stands the plot
 6.7 under the frame's top (275.2) and the table's foot ON the frame's foot (412.0); ours uses zh-2a241df1's 11.1 and 4.9
 (the existing constants), so our plot is 10pt shorter and the axis labels drift 4 to 6pt. This chart (unlike
@@ -5994,4 +5994,15 @@ Both are the capacity rule refusing what Word takes (STARLING_RICHTEXT_FIT at w3
   spaces, and is refused. Word ends the line with "3".
 With T181's too-generous witnesses (zh-e0ca7252, zh-57f1de0d, zh-505b9619, zh-cd48112c), they bound the model on both sides.
 
-### zh-bdae17c0 87.1 (word-win, 71 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-bdae17c0 87.1 (word-win, 71 pages) — DONE, 87.1 -> 98.8 (Mac 01Xgpbk5, 2026-10-25)
+Its p48-56 drift was w:mirrorIndents on a numbered list: the mirror swapped the paragraph's side indents, but a list's
+text edge is its level's, so the list was never mirrored. Fixed in RichLayout (pair w32 -> w33).
+
+### A full-width middle dot gives in a line's fit — OPEN (from the Mac 01Xgpbk5 and lenovo-3, 2026-10-25)
+Word sets a hinted "·" (U+00B7) in SimSun at an em, and gives some of it where a line needs room: zh-b9af65b5's cell
+line "元/建筑平米·月" (10.5pt) has the dot's glyph 10.56 wide and "月" 8.16 after it (2.4 given, about a quarter em).
+zh-3f871b7d's "…在青岛·上合…" has room and keeps the full em. Our fitter has no middle-dot class (opening and closing marks
+only). Kept out of T181 at lenovo-3's ask. It unblocks the parked SimSun widths (zh-3f871b7d 87.8 -> 100; patch
+~/starling-word-check/lab/wwface/simsun-latin-widths.patch on the Mac), which without it take zh-b9af65b5 100 -> 2.3.
+Probably the same for "・" (U+30FB). Witnesses: zh-3f871b7d and zh-b9af65b5. Unclaimed; lenovo-3 may take it after T181.
+
