@@ -4757,6 +4757,23 @@ embedded PMingLiU (every print of the corpus): of its symbols only "×" (500),
 "÷" (591, 98 prints), "｢｣" (500) and "Å" (709) are not an em. Ours sets "÷" in
 the stand-in at 0.584. "÷" sits in the "）÷（" formula cells of ~98 documents.
 
+### delins 74.6: Word for Windows' balloon order at one anchor — PARKED (Windows 01QbbApP, 2026-10-24)
+At 8309c3f8 the pitch matches Word's to 1pt, and only the order of the x428 column is left. Word's
+print (word-win), with each box paired to its connector by draw order, shows the following.
+- Every link item draws its balloons in document order: Field Code Changed (the field code's
+  rPrChange), then Formatted (the result's), then Formatted (the text after the field).
+- The first two anchor at exactly the same x, 88.0080pt to the PDF's precision on every item.
+- They stack as Formatted, Formatted, Field Code Changed on every item except item 18
+  ("Advanced Indexing…"), which stacks Field Code Changed first.
+- The other differences macos read in the misses follow from that one flip: the "FCC FCC" pair is item
+  17's last balloon and item 18's first, and the four-Formatted run is a real item with no field change.
+Lab fo (~/starling-doc-check/lab/fo, delins's own package, Word for Windows) tried these runs:
+item 17 alone or wrapping; item 18 alone or trimmed to one line; items 17-18, 14-21, 16-21, 17-19 and
+10-21. Every one gives Formatted before Field Code Changed at every item. Only paragraphs 0-23, with the
+87pt "Deleted:" balloon at the head pushing the stack down (and not off the page), reproduce the flip.
+Formatted first is the rule, and ours already follows it. The flip is Word's tie-break between two
+balloons at one anchor, and nothing in the document predicts it. Parked; delins stays at 74.6.
+
 ### Windows baseline (Mac 01Xgpbk5, 2026-10-24): word-win, sweep-win.sh w4 at 9e957126 — the list to work from
 
 Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=windows against test/corpus/docx/word-win, output w/wp under the per-checkout root. **R** marks the 444 zh documents on windows' font-pack reprint list (_GB2312, 方正 and 標楷體 names, plus zh-7773163d). Their prints flip between FangSong/KaiTi and YaHei in runs, a state outside Word, so treat their scores as provisional.
