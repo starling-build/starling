@@ -5538,6 +5538,15 @@ of Word's. Same-base Linux pair against word-win, 756 documents, 96.19 -> 96.30:
 zh-a78d52e7 95.2 -> 99.3, nothing lower. The other 华文 faces (STXinwei, STKaiti, STSong, STFangsong) may want the same;
 not measured.
 
+[LAB Windows 01QbbApP 2026-10-25, lab t179 (~/starling-doc-check/lab/t179 on the Windows box), asked by macos.
+- Census: only two 华文 names carry text in word-win documents: 华文中宋 (835 characters, 14 documents) and 华文仿宋 (96, 2: zh-4a2ab598 prints it in STFangsong; zh-e5709b89's print has no STFangsong). None of the 华文 faces are in C:\Windows\Fonts. Office's cloud cache holds five: STZhongsong, STFangsong, STKaiti, STXihei and STXinwei. In each, OS/2 win equals hhea, typo is 0.8/0.2+0.144, USE_TYPO_METRICS is off, and upem is 1000. win ascent/descent: STZhongsong .912/.225, STFangsong .86/.26, STKaiti .86/.26, STXihei .871/.208, STXinwei .781/.236.
+- Probe: each face (by its 华文 name) at 12pt and 22pt, 3 paragraphs each, single, snapToGrid 0, no docGrid, each a fresh Word. Word sets the line at 1.3 x (win ascent + descent) and the first baseline at win ascent + 0.15 x (ascent + descent), within 0.06pt. 12pt step / 22pt step / first baseline at 12pt:
+  华文中宋 STZhongsong 17.76 / 32.52 / 12.98 (1.478 em, baseline 1.083)
+  华文仿宋 STFangsong  17.40-17.52 / 32.04 / 12.38 (1.456, 1.028)
+  华文楷体 STKaiti     17.40-17.52 / 32.04 / 12.38 (1.456, 1.028)
+  华文细黑 STXihei     16.80-16.92 / 30.84 / 12.38 (1.403, 1.033)
+  华文新魏 STXinwei    15.86-15.96 / 29.16 / 11.16 (1.322, 0.934)
+Ours at 8337b1d0 (before T179) sets all five in YaHei: 20.4-20.7 a 12pt line. Widths not measured (all are square CJK faces).]
 ### zh-dc25c47e: 47.8 against word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 
 - **zh-8e8d4c40 label lift, retry notes (Mac 01Xgpbk5):** label-target.patch (Mac) puts the label's baseline into the first-line target of `_layoutParagraph`'s lead block. It used `marker.computeDistanceToActualBaseline`, which is in pixels, while `target` is in points (`_px(target)`): the lines were shoved out of their cells (177 → 143). Convert by `/ (theme.pixelsPerPoint * scale)`. Lift the line as the Segoe UI Symbol case does, `segoeLift = max(segoeLift, labelBaseline − target)`, rather than `target` alone.
