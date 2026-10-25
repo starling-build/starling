@@ -5085,3 +5085,6 @@ explicitly in 細明體_HKSCS:
   compression make no difference.
 In the corpus, only zh-7773163d combines legacy mode with a Latin East Asian default.]
 The first drift is p3, and it's a line break, not height. Each "⚫案例N：…" list item breaks on Windows right after "案例 ": ListParagraph with a Wingdings bullet, tab 1162, ind left 2438 hanging 1757, run 1 "案例 " (spacing 13, w 95), run 2 "2：公務人員…" (w 95). "2：…" then starts line 2 at the hanging indent, so each item takes one more line. Word for Mac and ours set the first line full. It recurs on p3, 4, 10, 11 and 13. The faces aren't the cause: the reprint uses Ming-Lt-HKSCS, the same as the Mac. A 7-variant lab is requested from windows: w 95, the space, "2"→"二", spacing 13, the bullet, jc.
+
+### T168. zh-dc9e54ca: 45.4 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
+Owner: Linux b2 (starling-b2), routed by macos. 4 pages, off the missing-faces list, no earlier notes.
