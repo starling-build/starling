@@ -5687,3 +5687,5 @@ Word's own WordArt render (its EMF) to read the ink extent from.
 ### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.456/1.028 in Windows mode, as T179 did for 中宋.
 Written; the pair waits for windows' reprint sha, and for its note on whether Word fetches the 华文 cloud faces on demand.
+
+### zh-6a4fc013 49.5 (word-win): the Thai document, 27 pages to 26 — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
