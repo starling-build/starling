@@ -6329,11 +6329,22 @@ public final class RichLayout {
         // `w:mirrorIndents` on a page Word mirrors: the right indent is
         // the left one and the first line's, the left the right one and
         // a hanging indent's depth (measured: `office.md`).
+        // (A list paragraph's text edge is its level's, `_wordList`, and is
+        // mirrored the same way: zh-bdae17c0's "․" list, left 1162 hanging
+        // 425 and right 108, sets its lines 26.65pt in and ends them 36.85
+        // short of the margin on its even pages in Word for Windows' print,
+        // where ours kept the level's 58.1 and lost the right indent.)
+        var listLeft = wordList?.left
         if _mirrored.contains(i) {
-            let first = firstLineIndent(p, at: i, document)
-            sides = (left: sides.right + max(0, -first), right: sides.left + first)
+            if let wl = wordList {
+                listLeft = sides.right + max(0, -wl.first)
+                sides = (left: sides.left, right: wl.left + wl.first)
+            } else {
+                let first = firstLineIndent(p, at: i, document)
+                sides = (left: sides.right + max(0, -first), right: sides.left + first)
+            }
         }
-        let ownLeft = wordList.map { _px($0.left) } ?? _px(sides.left)
+        let ownLeft = listLeft.map { _px($0) } ?? _px(sides.left)
         var left = wordList != nil ? ownLeft
             : ownLeft + (style.list != nil ? _px(_listIndents(p, document)?.left ?? theme.listIndent * Double(style.listLevel + 1)) : 0)
         let right = _px(sides.right)
