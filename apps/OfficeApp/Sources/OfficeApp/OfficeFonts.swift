@@ -198,7 +198,7 @@ enum OfficeFonts {
     /// The font table's whole say on each name: its alternate, its
     /// `w:family` and whether its PANOSE is all zeros — what Word on a
     /// Mac goes by for a Latin name it has no face for (`substitute`).
-    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool }
+    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = "" }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
     static func noteFontEntries(_ entries: [String: FontEntry]) {
         declaredLock.lock()
@@ -752,6 +752,56 @@ enum OfficeFonts {
     // came out a thousandth of an em wide — 20 on zh-f6686f89's line
     // "…（TSG S7001-2013）…。（      ）" put the "）" 0.02pt past the
     // margin, a line down, where Word's ends on it.)
+    /// Word for Windows' face for a Latin-named East Asian face it lacks
+    /// that the file's table does not describe (lab t160, Windows
+    /// 01QbbApP, each print the first of a fresh Word, after the font
+    /// packs): MS Mincho, a square face (its hhea .859 + .141 at Word's
+    /// 1.3), its letters and digits in Cambria, and the ideographs it
+    /// lacks in Microsoft JhengHei, on JhengHei's line. zh-f6686f89's
+    /// FZShuTi cover in word-win: the 36pt lines, each with a 单 or 总,
+    /// stand 1.73 em (JhengHei's) under 1.15 spacing, the 18pt date,
+    /// Mincho and Cambria only, 1.30. An invented name prints the same.
+    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 1.005)
+    /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
+    /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
+    /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
+    /// there.
+    static let windowsMinchoCovers: Set<UInt32>? = {
+        var out = Set<UInt32>()
+        for u in UInt32(0x2E80) ... 0xFFFF {
+            guard let scalar = Unicode.Scalar(u) else { continue }
+            if String(Character(scalar)).data(using: .shiftJIS) != nil { out.insert(u) }
+        }
+        return out.isEmpty ? nil : out
+    }()
+    /// The face Word for Windows sets an East Asian name it lacks in,
+    /// where that is not YaHei (nil): "mincho" (`windowsMincho`) or
+    /// "jhenghei". By the file's own font-table entry, as the map
+    /// test/corpus/docx/word-win-missing-faces-map.txt reads (Windows
+    /// 01QbbApP, 135 names, each the first document of a fresh Word):
+    /// an alternate it has wins (taken further on); with none, charset
+    /// 86 (GB2312) is YaHei, 88 (Big5) JhengHei, 80 (Shift-JIS) Yu
+    /// Gothic — YaHei's pitch to a third of a point, so left to it — and
+    /// any other charset Mincho with JhengHei; with no entry a Latin
+    /// name is Mincho with JhengHei (FZShuTi, FZXiaoBiaoSong-B05S) and a
+    /// Chinese one Yu Gothic, left to YaHei.
+    private static func windowsMissingFallback(_ family: String) -> String? {
+        let n = family.trimmingWhitespace().lowercased()
+        guard !n.isEmpty else { return nil }
+        let has = ["simsun", "宋体", "新宋体", "nsimsun", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
+                   "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
+                   "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "_gb2312", "华文", "stsong", "stkaiti",
+                   "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
+        guard !has.contains(where: { n.containsSubstring($0) }) else { return nil }
+        guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
+        if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
+           has.contains(where: { alt.containsSubstring($0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
+        switch e.charset.uppercased() {
+        case "86", "80", "": return nil
+        case "88": return "jhenghei"
+        default: return "mincho"
+        }
+    }
     private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 1024.0 / 1229.0, fakeBold: true, baseline: 1.005)
     // (YaHei's bold, msyhbd.ttc, is a face of its own and a line of it
     // is taller: Word sets bold YaHei lines 1.73 ems apart — 24.21 at
@@ -1323,6 +1373,7 @@ enum OfficeFonts {
     private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { return fallback == "mincho" ? windowsMincho : eastAsianFace("Microsoft JhengHei") }
         if has("yahei ui") {
             return EastAsianFace(height: 1.67, latin: sans, latinScale: 1.07, latinAdvances: yaHeiUIAdvances, latinBoldAdvances: yaHeiUIBoldAdvances,
                                  latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns,
@@ -1360,8 +1411,16 @@ enum OfficeFonts {
                                  fakeBold: has("light"), boldWiden: 1.0 / 50, baseline: 1.206)
         }
         if has("jhenghei", "微軟正黑") {
-            return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
-                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false)
+            // (Word for Windows sets it at its hhea's 1.0757 + 0.2544 times
+            // 1.3, 1.729 — zh-cb57eaad's 12pt lines step 20.76 in word-win,
+            // the Mac's 1.74 20.88 — its baseline half the extra over the
+            // ascent, 1.275: zh-f6686f89's 36pt cover lines, JhengHei for
+            // what Mincho lacks (`windowsMincho`), stand their baselines
+            // 46pt under the line's top; without one the line took the
+            // drawing face's, Mincho's, 9.8pt high.)
+            return EastAsianFace(height: wordOnWindows ? 1.3301 * 1.3 : 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
+                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false,
+                                 baseline: wordOnWindows ? (1.3301 * 1.3 - 1.3301) / 2 + 1.0757 : nil)
         }
         if has("dengxian", "等线") {
             return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91],
@@ -1842,6 +1901,13 @@ enum OfficeFonts {
             // 1.5-spaced 16pt lines that hold one are 41.2pt apart in
             // Word's print, YaHei's, where the subset's square line made
             // them 31.2.)
+            // (The ideographs Mincho lacks, in JhengHei on its line:
+            // `windowsMincho`.)
+            if wordOnWindows, !isEmbedded(family), ea.height == windowsMincho.height, ea.baseline == windowsMincho.baseline, ea.latin == cambria,
+               let covered = windowsMinchoCovers {
+                face.covers = covered
+                face.uncoveredFamily = "Microsoft JhengHei"
+            }
             if own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered),
                eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
                 face.covers = covered

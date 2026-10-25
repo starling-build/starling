@@ -2154,7 +2154,7 @@ enum DocxFormat {
                 if let alt, !alt.isEmpty { alts[name] = alt }
                 let panose = font.first("w:panose1")?["w:val"] ?? ""
                 entries[name] = OfficeFonts.FontEntry(alt: alt, family: font.first("w:family")?["w:val"] ?? "auto",
-                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" })
+                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" }, charset: charset)
             }
             OfficeFonts.noteAltNames(alts)
             OfficeFonts.noteFontEntries(entries)
