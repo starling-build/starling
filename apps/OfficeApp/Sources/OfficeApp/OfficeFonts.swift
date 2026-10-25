@@ -2109,8 +2109,24 @@ enum OfficeFonts {
             face.otherAdvances = [0xA0: nbsp]
             face.boldOtherAdvances = [0xA0: nbsp]
         }
+        // (Word for Windows sets the letters and digits an embedded subset
+        // lacks in Calibri, at Calibri's widths, and those it holds in the
+        // subset: zh-92373179's 仿宋_GB2312 holds four digits — its 155
+        // held letters and digits print in the subset, the 133 others in
+        // Calibri — and zh-5450d509's holds none, its "2017", "42" 6.12
+        // and 6.08 at 12pt in word-win where ours, the stand-in's half em,
+        // set 6.0, and its p1 line took "署，" Word's leaves.)
+        if wordOnWindows, own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered) {
+            for (u, w) in Self.calibriAlnumAdvances where !covered.contains(u) { face.otherAdvances = (face.otherAdvances ?? [:]).merging([u: w]) { $1 } }
+            for (u, w) in Self.calibriBoldAlnumAdvances where !covered.contains(u) { face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([u: w]) { $1 } }
+        }
         return face
     }
+
+    /// Calibri's advances (ems, its hmtx: Word 16's Calibri.ttf and
+    /// Calibrib.ttf) for the ASCII letters and digits.
+    static let calibriAlnumAdvances: [UInt32: Double] = [0x30: 0.5068, 0x31: 0.5068, 0x32: 0.5068, 0x33: 0.5068, 0x34: 0.5068, 0x35: 0.5068, 0x36: 0.5068, 0x37: 0.5068, 0x38: 0.5068, 0x39: 0.5068, 0x41: 0.5786, 0x42: 0.5439, 0x43: 0.5332, 0x44: 0.6152, 0x45: 0.4883, 0x46: 0.4595, 0x47: 0.6309, 0x48: 0.6230, 0x49: 0.2520, 0x4A: 0.3188, 0x4B: 0.5195, 0x4C: 0.4204, 0x4D: 0.8550, 0x4E: 0.6455, 0x4F: 0.6621, 0x50: 0.5166, 0x51: 0.6729, 0x52: 0.5430, 0x53: 0.4595, 0x54: 0.4873, 0x55: 0.6416, 0x56: 0.5674, 0x57: 0.8896, 0x58: 0.5190, 0x59: 0.4873, 0x5A: 0.4683, 0x61: 0.4790, 0x62: 0.5254, 0x63: 0.4229, 0x64: 0.5254, 0x65: 0.4976, 0x66: 0.3052, 0x67: 0.4707, 0x68: 0.5254, 0x69: 0.2295, 0x6A: 0.2393, 0x6B: 0.4546, 0x6C: 0.2295, 0x6D: 0.7988, 0x6E: 0.5254, 0x6F: 0.5273, 0x70: 0.5254, 0x71: 0.5254, 0x72: 0.3486, 0x73: 0.3911, 0x74: 0.3350, 0x75: 0.5254, 0x76: 0.4517, 0x77: 0.7148, 0x78: 0.4331, 0x79: 0.4526, 0x7A: 0.3950]
+    static let calibriBoldAlnumAdvances: [UInt32: Double] = [0x30: 0.5068, 0x31: 0.5068, 0x32: 0.5068, 0x33: 0.5068, 0x34: 0.5068, 0x35: 0.5068, 0x36: 0.5068, 0x37: 0.5068, 0x38: 0.5068, 0x39: 0.5068, 0x41: 0.6060, 0x42: 0.5605, 0x43: 0.5293, 0x44: 0.6304, 0x45: 0.4878, 0x46: 0.4590, 0x47: 0.6372, 0x48: 0.6309, 0x49: 0.2666, 0x4A: 0.3311, 0x4B: 0.5469, 0x4C: 0.4229, 0x4D: 0.8740, 0x4E: 0.6587, 0x4F: 0.6763, 0x50: 0.5322, 0x51: 0.6860, 0x52: 0.5630, 0x53: 0.4727, 0x54: 0.4951, 0x55: 0.6528, 0x56: 0.5913, 0x57: 0.9062, 0x58: 0.5508, 0x59: 0.5195, 0x5A: 0.4780, 0x61: 0.4937, 0x62: 0.5366, 0x63: 0.4185, 0x64: 0.5366, 0x65: 0.5034, 0x66: 0.3164, 0x67: 0.4741, 0x68: 0.5366, 0x69: 0.2456, 0x6A: 0.2554, 0x6B: 0.4800, 0x6C: 0.2456, 0x6D: 0.8135, 0x6E: 0.5366, 0x6F: 0.5376, 0x70: 0.5366, 0x71: 0.5366, 0x72: 0.3555, 0x73: 0.3989, 0x74: 0.3467, 0x75: 0.5366, 0x76: 0.4731, 0x77: 0.7451, 0x78: 0.4595, 0x79: 0.4736, 0x7A: 0.3975]
 
     /// The faces this platform draws Chinese in where the named one is
     /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
