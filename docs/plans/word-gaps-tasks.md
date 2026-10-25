@@ -5185,3 +5185,8 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - Gains: zh-f6686f89 76 → 100, zh-8d72961c +38.3, zh-d97c5474 +34.8, Tika-792 +33.3, delins +5.1, zh-b8de3ae2 +4.6, zh-202582e2 +1.4, zh-117cf7c6 +1.3, zh-cb57eaad +1.2, zh-a7a889eb +0.6.
 - Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
+
+### T166. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
+"二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
+print, ours takes "高", and the cell and page run a line short after it.
