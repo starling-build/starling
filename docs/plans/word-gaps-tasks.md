@@ -6044,3 +6044,6 @@ only). Kept out of T181 at lenovo-3's ask. It unblocks the parked SimSun widths 
 ~/starling-word-check/lab/wwface/simsun-latin-widths.patch on the Mac), which without it take zh-b9af65b5 100 -> 2.3.
 Probably the same for "・" (U+30FB). Witnesses: zh-3f871b7d and zh-b9af65b5. Unclaimed; lenovo-3 may take it after T181.
 
+
+### T196. zh-b8de3ae2 p24-25: table 9 "109年歲出預決算分析－工作計畫" stands ~8pt off Word's — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
+Owner: Linux lenovo-2 (the table only; macos-ios keeps the document's charts). Its header row stacks "預算/金額", "決算/金額", "增減數(元)" in the narrow second column; 10 misses on p24, 23 on p25 (macos-ios's w35).
