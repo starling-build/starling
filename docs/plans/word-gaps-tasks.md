@@ -5892,7 +5892,11 @@ LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/ft, footer1 edi
 - zh-1cfb652b (footer 569, line 471 auto, mark GWZT-EN 14 embedded): (a) as is: number 788.14 = mark 788.14 — the reference's; (b) an empty paragraph added: number 748.30 (up 39.84), marks 748.42 / 788.14; (c) mark 9pt: number 802.32 (down 14.18), mark 797.40; (d) the 471 line removed (single): number 807.60 (down 19.46), mark 807.72.
 So the box rides on its paragraph: a paragraph under it lifts it by that paragraph's height, and the box paragraph's own height moves it. With a 14pt mark the number's baseline sits on the paragraph's first baseline (1cfb a/b/d within 0.12; 884 c 1.20 under); with a 9pt mark it sits 5.90 (884 a) / 4.92 (1cfb c) under it. Box top (number - 12.03) against the mark line's top (baseline - winAscent): 884 a +1.89, c +1.64.
 
-### zh-2a241df1 81.9 (word-win, 4/4 pages): its charts' labels — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-2a241df1 81.9 (word-win, 4/4 pages): its charts' labels — DONE f436158c, 81.9 -> 100 (Mac 01Xgpbk5, 2026-10-25)
+Its two charts' data tables: Word for Windows sets a chart's text in MS Mincho and JhengHei where the theme's a:ea is
+"", and a row with a JhengHei character stands on JhengHei's line (20.4/20.6 against 16.4), so the plot over it is 8pt
+shorter. Rows are now 3.4pt and their deepest label, line by line, in Windows mode. Pair w28 -> w29: zh-2a241df1
+-> 100, zh-61aaad09 82.4 -> 83.8 (its rest is open: plot steps and widths), nothing else moved.
 
 ### T190. zh-e1b09977: 82.2 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
 Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differently. zh-4c5da793 and zh-38d26944 next.
