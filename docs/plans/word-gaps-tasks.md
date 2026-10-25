@@ -4822,6 +4822,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - 52288 100.0  2 lines  1/1
 
 ### T160. zh-f6686f89: 75.8 against the Windows references — MEASURED, PARKED for a Windows lab (Linux office1, 2026-10-24)
+[CLAIMED Windows 01QbbApP 2026-10-24: missing-face labs, each the first document of a fresh Word, three processes; with zh-8f9b19f4 p13's bare-paragraph pitch.]
 Owner: Linux office1 (starling-office1-df), routed by macos. 100 against the
 Mac's prints, 75.8 against word-win; outside the font-reprint list. Its old note:
 a "（TSG S7001-2013）…" line whose "）" sat on a hair.
