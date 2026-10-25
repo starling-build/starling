@@ -5972,4 +5972,11 @@ opening and closing marks) and wraps "月". So it lands with a middle-dot squeez
 dot unsqueezed, the line has room) and zh-b9af65b5 (squeezed 2.4 in a full cell line).
 From lenovo-3's T181 check: p1's "…在青岛·上" — Word sets "·" (U+00B7) 15.96 wide in SimSun, ours 5.33 in Liberation Sans.
 
-### zh-33aa9899 82.2 / zh-1b74ed91 89.4 (word-win): line fit, ours takes less than Word — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-33aa9899 82.2 / zh-1b74ed91 89.4 (word-win): line fit, ours takes less than Word — MEASURED, to T181 (lenovo-3) as its too-strict witnesses (Mac 01Xgpbk5, 2026-10-25)
+Both are the capacity rule refusing what Word takes (STARLING_RICHTEXT_FIT at w31):
+- zh-33aa9899 p5 (標楷體 14, mode 15, compressPunctuation, jc both): "…須上傳「台灣社區通」": "通」" is over 2.97 with 14 of room
+  in 2 marks ("「" mid-line, "」" at the end), "other true" (the "(五)" head and its spaces), and is refused. Word takes it,
+  "」" halved to end on the margin (538.8).
+- zh-1b74ed91 p9 (DFKai-SB 16): "…包含建議3項(…": "3" is over 10.75, needs 6.75, with 24 of room in 2 marks and 4 word
+  spaces, and is refused. Word ends the line with "3".
+With T181's too-generous witnesses (zh-e0ca7252, zh-57f1de0d, zh-505b9619, zh-cd48112c), they bound the model on both sides.
