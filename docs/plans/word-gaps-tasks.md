@@ -6046,7 +6046,7 @@ With T181's too-generous witnesses (zh-e0ca7252, zh-57f1de0d, zh-505b9619, zh-cd
 Its p48-56 drift was w:mirrorIndents on a numbered list: the mirror swapped the paragraph's side indents, but a list's
 text edge is its level's, so the list was never mirrored. Fixed in RichLayout (pair w32 -> w33).
 
-### A full-width middle dot gives in a line's fit — OPEN (from the Mac 01Xgpbk5 and lenovo-3, 2026-10-25)
+### A full-width middle dot gives in a line's fit — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-25, routed by macos; from the Mac 01Xgpbk5 and lenovo-3)
 Word sets a hinted "·" (U+00B7) in SimSun at an em, and gives some of it where a line needs room: zh-b9af65b5's cell
 line "元/建筑平米·月" (10.5pt) has the dot's glyph 10.56 wide and "月" 8.16 after it (2.4 given, about a quarter em).
 zh-3f871b7d's "…在青岛·上合…" has room and keeps the full em. Our fitter has no middle-dot class (opening and closing marks
