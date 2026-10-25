@@ -70,6 +70,10 @@ public final class RichTextTheme {
     /// Whether Thai text breaks only where it has spaces, as Word for Mac
     /// sets it (see `_span`); the engine otherwise breaks it by word.
     public nonisolated(unsafe) static var thaiBreaksAtSpaces = false
+    /// Pages break as Word for Windows breaks them where it differs from
+    /// Word for Mac (OFFICE_WORD_FONTS=windows): an "at least" line that
+    /// stands at its minimum ties on the foot as an exact line does.
+    public nonisolated(unsafe) static var wordWindowsPages = false
     /// Taken off every paragraph's line spacing: PowerPoint's shrink-to-fit
     /// reduces the spacing of a whole body (`lnSpcReduction`) without
     /// touching what the paragraphs say — 90% less 20% is 70%, not 72.
@@ -5526,7 +5530,17 @@ public final class RichLayout {
                 // Word's print; ours took each page's last to the next.)
                 let tieFits: Bool = {
                     let st = document.paragraphs[i].style
-                    guard let h = st.lineHeightPoints, !st.lineHeightIsMinimum else { return false }
+                    // (An "at least" line ties too in Word for Windows,
+                    // where every line of the paragraph is its minimum:
+                    // bug59058's page 28 ends in eight lines of
+                    // at-least 15pt Times that fill the page to the twip,
+                    // and Word for Windows keeps the eighth (word-win);
+                    // Word for Mac takes it over, as ours did.)
+                    guard let h = st.lineHeightPoints else { return false }
+                    if st.lineHeightIsMinimum {
+                        guard RichTextTheme.wordWindowsPages,
+                              geometry(i).painter.computeLineMetrics().allSatisfy({ abs($0.height - _px(h)) < _px(0.01) }) else { return false }
+                    }
                     let quarters = h * 4
                     return abs(quarters - quarters.rounded()) < 0.0001
                 }()
