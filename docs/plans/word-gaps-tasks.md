@@ -586,6 +586,17 @@ From p5 its lines stand where Word's do (within 1-2pt, same breaks), but Word's 
 embedded 仿宋_GB2312 subset's glyphs to wrong characters ("满足"→"7F", "评价"→"4价", "不少于"→"S少于"),
 so the four-character edges miss though the lines match. Not layout; nothing to fix here.
 
+### USER DECISION 2026-10-24 (later): Windows references in the FangSong/KaiTi state; DFKai-SB installed
+The re-baseline was done on Word for Windows (test/corpus/docx/word-win, all 756, markup on;
+scored with lab/tools/sweep-win.sh, OFFICE_WORD_FONTS=windows). macos-ios's facemap found
+仿宋_GB2312 / 楷体_GB2312 (and some 方正 names) flipping between YaHei and FangSong/KaiTi in long runs
+in print order — Word sets a missing name in the closest face it currently has loaded. The user
+chose the FangSong/KaiTi state (as a real zh-CN Windows with SimFang/SimKai has), and approved
+installing DFKai-SB (Chinese Traditional Supplemental Fonts) for the 154 標楷體 documents. windows
+reprints all _GB2312/方正/標楷體 documents in that stable state (installs need the user's admin there);
+macos-ios refits the Windows-mode rule (仿宋_GB2312 -> FangSong, 楷体_GB2312 -> KaiTi). Until then,
+w-series scores of those documents are provisional.
+
 ### USER DECISION 2026-10-24: re-baseline every reference against a FRESH Word
 Cause found (macos-ios, read-only): one Word process ran from 2026-10-18 13:17 without a restart,
 and its font state drifted — embedded fonts printed as blank one-em glyphs from ~20:57 that day,
