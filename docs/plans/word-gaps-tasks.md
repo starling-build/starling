@@ -4903,7 +4903,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - bug57031  99.7  339 lines  14/14
   - 52288 100.0  2 lines  1/1
 
-### T160. zh-f6686f89: 75.8 against the Windows references — BUILT, NOT LANDED (Mac 01Xgpbk5, 2026-10-24): waits on windows' per-name map and a foot lab
+### T160. zh-f6686f89: 75.8 against the Windows references — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24): 100
 [LAB DONE Windows 01QbbApP 2026-10-24, lab foot: Word for Windows lets exactly the multiple's extra hang past the foot.
 Measured overhangs, with the extra each multiple adds:
 - SimSun 12 (single line 15.56): at 1.15 the extra is 2.33, kept to +2.12, dropped at +2.51; at 1.5, 7.78, kept to
@@ -5155,3 +5155,18 @@ p4's "3.2" read with its leader. Released.
 
 ### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
+
+### Windows missing-face rule from the map — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24)
+Windows mode, for a missing East Asian name, by the document's own entry (windows' word-win-missing-faces-map.txt):
+- An alternate the box has wins.
+- Otherwise, by charset:
+  - 86 → YaHei
+  - 88 → JhengHei
+  - 80 → Yu Gothic, left on YaHei. Its 12pt pitch is 31.32 against YaHei's 31.8. Watch for wrapping, since widths may differ. It covers 4 documents: zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977, all ヒラギノ角ゴ Pro W3 / Heiti TC Light.
+  - Any other charset → square MS Mincho with Cambria Latin and JhengHei for what Mincho lacks. Coverage is Shift_JIS's.
+- No entry: a Latin name → Mincho/JhengHei (FZShuTi, FZXiaoBiaoSong-B05S). A Chinese name → Yu Gothic, left on YaHei; none in the corpus.
+- JhengHei, Windows mode: 1.729 em (hhea × 1.3; the Mac's 1.74 drifted 0.13pt a 12pt line), baseline 1.275.
+Same references, w9 → w12, also checked on db46d815's fresh embedding prints. None worse.
+- Gains: zh-f6686f89 76 → 100, zh-8d72961c +38.3, zh-d97c5474 +34.8, Tika-792 +33.3, delins +5.1, zh-b8de3ae2 +4.6, zh-202582e2 +1.4, zh-117cf7c6 +1.3, zh-cb57eaad +1.2, zh-a7a889eb +0.6.
+- Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
+- T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
