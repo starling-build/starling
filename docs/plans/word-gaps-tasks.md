@@ -6075,15 +6075,22 @@ holds a run raised r taller by r; ours sets the shift (d972fe9f) and keeps the h
 Report: ~/dev/starling/starling-office-benchmark/docs/perf/office-comparison (uncommitted): Starling and LibreOffice against fresh
 Windows Office PDFs, SSIM. docx 0.897 / 0.825, pptx 0.632 / 0.896, xlsx 0.977 / 0.728. Showcase: test/corpus/docx/feature-showcase
 in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs beside them).
-- T199. Windows stack overflow — CLAIMED windows. lo-tdf93830, lo-smartart-preserve and 63200 (pptx) die on Windows with 0xC00000FD.
+- T199. Windows stack overflow — DONE 5c48c6ed (windows' d43acae4: `-Xlinker /STACK:16777216` in the Windows link; all three
+  export, exit 0). Windows-only flag: the Mac and Linux builds are unchanged, so no sweep can see it. lo-tdf93830, lo-smartart-preserve and 63200 (pptx) die on Windows with 0xC00000FD.
   Checked on the Mac (bd): all three render at `ulimit -s 8192` and segfault at 1024. Windows' main thread gets 1 MB and nothing in our
   build raises it. Fix: a bigger stack for OfficeApp on Windows (a /STACK link flag, or the export on a thread with its own stack).
-- T200. Showcase crash on Windows — CLAIMED windows. starling-office-rendering-challenge.docx dies with 0xC0000005 (two fresh runs);
+- T200. Showcase crash on Windows — CLAIMED windows: NOT the stack. The PDF is written whole, then exit faults: CRT teardown
+  destroys SkShaper's HarfBuzz face cache before SwiftFontCollectionManager, whose destructor purges it. Fix in the engine
+  (font_collection_bridge.cc: the manager is never destroyed), to starling mainline; windows rebuilds the Windows engine. starling-office-rendering-challenge.docx dies with 0xC0000005 (two fresh runs);
   every F section alone exports. On the Mac it converts to Word's 19 pages, even at a 1 MB stack, so it is Windows-only. Not diagnosed.
 - T201. Charts — CLAIMED macos-ios (after zh-b8de3ae2): F07 a three-ring doughnut drawn as one ring; F04 a deleted legend entry
   still shown (also xlsx chart-deleted_legend_entry2's "First"); F09 a 3-D surface drawn as an empty gray box; F03 major unit 2
   where Word's is 1; F10 data-table borders darker and legend keys wider than Word's.
 - T202. WordArt and shape effects — CLAIMED macOS-doc (after zh-38d26944): F13 Arch Up (VML WordArt) collapses to a small mark,
   Wave and Curve Up differ; F14 blur, fill overlay and inner shadow dropped.
-- Open, the user's call: on Windows ours embeds Carlito / Caladea / Liberation for Calibri / Cambria / TNR though the real faces are
+- T203. Installed fonts by default — CLAIMED office1, the user's decision (2026-10-25): "give user the choice, default to local
+  font". A document's face that the machine has is drawn in it; a setting (kept across launches) picks the bundled stand-ins
+  instead; an env override (e.g. OFFICE_FONT_SOURCE=bundled) pins every harness to bundled, so no baseline moves. The
+  stand-in corrections (SimSun Latin widths, the Mincho baseline, …) apply only to stand-ins. windows checks local mode on Windows.
+  Found: on Windows ours embeds Carlito / Caladea / Liberation for Calibri / Cambria / TNR though the real faces are
   installed; F01's Georgia, Garamond, Century Gothic and Consolas come out at other sizes or widths (0.84 against LibreOffice's 0.98).
