@@ -4842,7 +4842,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - testComment   0.0  1 lines  1/1
   - WordWithAttachments  13.2  38 lines  2/2
   - delins  13.6  59 lines  1/1
-  - 60329  15.3  98 lines  3/3  [MEASURED Windows 01QbbApP 2026-10-24, released to the autofit-table owner. Word for Windows prints it
+  - 60329  15.3  98 lines  3/3  [CLAIMED macOS-doc (Mac 01G9VUDS) 2026-10-24: the reader flattens a nested table over 600 characters into its cell; fix extends the invisible-wrapper path to wrappers whose extra columns are empty and undrawn. MEASURED Windows 01QbbApP 2026-10-24, released to the autofit-table owner. Word for Windows prints it
     unclipped on landscape Letter, 792x612, as the docx sets; the Mac's portrait print was the clipped one.
     The outer table's grid is 678.75 + 82.35pt; each row's first cell holds one nested table and the second
     is empty. Each nested table keeps its own grid width from the outer cell's left (x 7.3):
