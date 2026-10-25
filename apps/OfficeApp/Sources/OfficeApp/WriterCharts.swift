@@ -43,8 +43,15 @@ enum WriterCharts {
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: pptxTheme)
         let chartex = space.name == "cx:chartSpace"
-        guard let chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
+        guard var chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
         else { return false }
+        // (Word for Windows sets a theme's East Asian text in Mincho and
+        // JhengHei where the theme names no East Asian face: zh-2a241df1's
+        // and zh-61aaad09's tables, whose `a:ea` is "".)
+        if RichTextTheme.wordWindowsPages,
+           let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
+            chart.windowsMinchoText = true
+        }
         var theme = DeckTheme()
         theme.headingFont = pptxTheme.major
         theme.bodyFont = pptxTheme.minor

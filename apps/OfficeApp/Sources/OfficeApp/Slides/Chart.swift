@@ -394,6 +394,11 @@ struct Chart: Equatable {
     /// properties): Word sets such a chart's labels higher
     /// (`_wordLabelRise`).
     var eastAsianText = false
+    /// Its East Asian text is set as Word for Windows sets a theme with no
+    /// East Asian face: in MS Mincho, and Microsoft JhengHei for what
+    /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
+    /// table's rows stand on those faces' lines (`_tableRows`).
+    var windowsMinchoText = false
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -2300,34 +2305,82 @@ enum ChartPainter {
         return Color(0xFF00_0000 | Int64((m(16) << 16) | (m(8) << 8) | m(0)))
     }
 
+    /// The data table's rows, the categories' first, then a series' each.
+    /// 1.64 em apiece: Word for Mac's print of zh-2a241df1's two tables,
+    /// 16.4pt at 10pt. Where Word for Windows sets the text in Mincho and
+    /// JhengHei (`Chart.windowsMinchoText`), 3.4pt and the row's deepest
+    /// label, line by line wrapped as drawn: Mincho's line (1.3 em) or,
+    /// for a line holding a character Mincho lacks, JhengHei's (1.729 em).
+    /// Word for Windows' prints: zh-2a241df1's "2022年" rows 16.4 at 10pt
+    /// and its "举报"/"总" categories' and "同比增长率" rows 20.4 and 20.6;
+    /// zh-61aaad09's rows 17.6 at 11pt and its wrapped "投诉举报总量"
+    /// categories 36.8 (a JhengHei line and a Mincho one).
+    static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
+        let count = c.series.count + c.lineSeries.count + 1
+        guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers else {
+            return Array(repeating: 1.64 * size * k, count: count)
+        }
+        func depth(_ s: String, _ width: Double) -> Double {
+            let tp = text(s, size, width)
+            defer { tp.dispose() }
+            let units = Array(s.utf16)
+            var total = 0.0, start = 0
+            repeat {
+                let range = tp.getLineBoundary(TextPosition(offset: start))
+                let end = max(start + 1, min(units.count, range.end))
+                let line = String(decoding: units[start ..< end], as: UTF16.self)
+                let lacks = line.unicodeScalars.contains { (0x2E80 ... 0x9FFF).contains($0.value) && !covers.contains($0.value) }
+                total += (lacks ? 1.3301 * 1.3 : 1.3) * size * k
+                start = end
+            } while start < units.count
+            return total
+        }
+        // (A category wraps inside its column less 3.6pt a side: Word for
+        // Windows breaks zh-61aaad09's 11pt "投诉举报总量" after five in a
+        // 71pt column.)
+        var rows = [3.4 * k + (c.categories.map { depth($0, max(1, slot - 7.2 * k)) }.max() ?? 1.3 * size * k)]
+        for s in c.series + c.lineSeries {
+            let values = s.values.compactMap { $0 }.map { label($0, percent: false) }
+            rows.append(3.4 * k + ([depth(s.name, .infinity)] + values.map { depth($0, slot) }).max()!)
+        }
+        return rows
+    }
+
     /// A data table under `plot` (see `Chart.dataTable`): the categories
     /// over the plot's columns, then a row for each series — its key and
     /// name from `left`, its numbers centred under their categories — in
     /// grey rules.
-    private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, row: Double, left: Double,
+    private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, rows heights: [Double], left: Double,
                                    size: Double, n: Int, k: Double, theme: DeckTheme, text: (String, Double, Double) -> TextPainter) {
         let rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
-        let bottom = top + Double(rows.count + 1) * row
+        /// Row `j`'s top (0 the categories') and height.
+        func rowTop(_ j: Int) -> Double { top + heights.prefix(j).reduce(0, +) }
+        func rowHeight(_ j: Int) -> Double { heights[safe: j] ?? heights.last ?? 0 }
+        let bottom = rowTop(heights.count)
         let slot = plot.width / Double(max(1, n))
         // Each row's text on one baseline, 0.27 em under the row's middle,
         // whatever its face: Word's print of zh-2a241df1's tables sets
         // Calibri digits and SimSun names 10.9pt into a 16.4pt row at
         // 10pt, where centring each line's own box set the digits 0.7pt
         // and the names (a YaHei-tall line) 1.3pt lower.
-        func textTop(_ tp: TextPainter, _ y: Double) -> Double {
-            y + row / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
+        // (Under Word for Windows' faces, a label of several lines
+        // centred as a block: zh-61aaad09's wrapped categories.)
+        func textTop(_ tp: TextPainter, _ j: Int) -> Double {
+            let lines = c.windowsMinchoText ? tp.computeLineMetrics().count : 1
+            return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
+                - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
-        func centred(_ s: String, _ cx: Double, _ y: Double) {
-            let tp = text(s, size, slot)
-            tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, y)))
+        func centred(_ s: String, _ cx: Double, _ j: Int) {
+            let tp = text(s, size, j == 0 && c.windowsMinchoText ? max(1, slot - 7.2 * k) : slot)
+            tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
         }
-        for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, top) }
+        for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, 0) }
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
         for (j, (s, line)) in rows.enumerated() {
-            let y = top + Double(j + 1) * row
+            let y = rowTop(j + 1), row = rowHeight(j + 1)
             let colour = s.color ?? c.color(series: j, accents: theme.accents)
             var x = left + 3.2 * k
             if dt.keys {
@@ -2345,12 +2398,12 @@ enum ChartPainter {
                 x += 21.2 * k
             }
             let name = text(s.name, size, .infinity)
-            name.paint(canvas, Offset(x, textTop(name, y)))
+            name.paint(canvas, Offset(x, textTop(name, j + 1)))
             name.dispose()
             for i in 0 ..< n {
                 guard let v = s.values[safe: i] ?? nil else { continue }
                 let shown = s.format.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
-                centred(shown.isEmpty ? label(v, percent: false) : shown, plot.left + (Double(i) + 0.5) * slot, y)
+                centred(shown.isEmpty ? label(v, percent: false) : shown, plot.left + (Double(i) + 0.5) * slot, j + 1)
             }
         }
         let rule = Paint()
@@ -2360,7 +2413,7 @@ enum ChartPainter {
         // Across: under the categories' row and between the series'; the
         // categories' row starts at the plot, the series' at their names.
         if dt.horizontalRules {
-            for j in 1 ... rows.count { canvas.drawLine(Offset(left, top + Double(j) * row), Offset(plot.right, top + Double(j) * row), rule) }
+            for j in 1 ... rows.count { canvas.drawLine(Offset(left, rowTop(j)), Offset(plot.right, rowTop(j)), rule) }
         }
         if dt.verticalRules {
             for i in 1 ..< max(1, n) { canvas.drawLine(Offset(plot.left + Double(i) * slot, top), Offset(plot.left + Double(i) * slot, bottom), rule) }
@@ -2369,7 +2422,7 @@ enum ChartPainter {
         if dt.outline {
             canvas.drawLine(Offset(plot.left, top), Offset(plot.right, top), rule)
             canvas.drawLine(Offset(plot.right, top), Offset(plot.right, bottom), rule)
-            canvas.drawLine(Offset(left, top + row), Offset(left, bottom), rule)
+            canvas.drawLine(Offset(left, rowTop(1)), Offset(left, bottom), rule)
             canvas.drawLine(Offset(left, bottom), Offset(plot.right, bottom), rule)
         }
     }
@@ -2556,6 +2609,9 @@ enum ChartPainter {
         // stood ours a third of a label apart.)
         let tableSteps: Int? = {
             guard let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            // (On rows of 1.64 em whatever their faces: the steps were read
+            // off Word for Mac's prints, and Word for Windows' zh-61aaad09
+            // keeps the same four over its taller table.)
             let row = 1.64 * (dt.size ?? c.baseTextSize) * k
             let room = area0.height - Double(c.series.count + c.lineSeries.count + 1) * row
             return max(2, min(10, Int(room / (labelSize * k))))
@@ -2822,25 +2878,26 @@ enum ChartPainter {
         // 16.1, the last 4.9pt over the frame's foot; the names' column
         // 17pt in from its left, the key 3.2 into it, 19.2 long, the name
         // 2 after it and 2.5 clear of the plot.)
-        var table: (top: Double, row: Double, left: Double, size: Double)? = nil
+        var table: (top: Double, rows: [Double], left: Double, size: Double)? = nil
         if let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie {
             let size = dt.size ?? c.baseTextSize
-            let row = 1.64 * size * k
             let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
             let column = (dt.keys ? 24.4 : 3.2) * k + (names.map(\.width).max() ?? 0) + 2.5 * k
             for t in names { t.dispose() }
             // (Over a legend at the foot, the table stops where the
             // legend's band begins: chart-ChartDataTable's in Excel's print.)
             let foot = c.legend && c.legendBox == nil && c.legendPosition == "b" ? area.bottom : frame.bottom - 4.9 * k
-            let top = foot - Double(c.series.count + c.lineSeries.count + 1) * row
+            let left = max(plot.left, frame.left + 17 * k + column)
+            let rows = Self._tableRows(c, size: size, k: k, slot: (plot.right - left) / Double(max(1, n)), text: text)
+            let top = foot - rows.reduce(0, +)
             // (Its plot's top 11.1pt under the frame's in both, where ours
             // stood half a label line under the area's, 4.3 lower: so
             // measured only with a table.)
             // (On a sheet too, 11.1 pt: chart-ChartDataTable's in Excel's
             // print, where 11.1 px stood 2.6 pt high.)
             let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * (c.onSheet ? k / 0.75 : k)
-            plot = Rect.fromLTRB(max(plot.left, frame.left + 17 * k + column), head, plot.right, top)
-            table = (top, row, plot.left - column, size)
+            plot = Rect.fromLTRB(left, head, plot.right, top)
+            table = (top, rows, plot.left - column, size)
         }
         if let placed, c.plotLayoutInner { plot = placed }
         // A 3-D chart stands in a box whose floor and walls run back, up
@@ -3056,7 +3113,7 @@ enum ChartPainter {
         }
         for t in valueLabels + catLabels { t.dispose() }
         if let table, let dt = c.dataTable {
-            Self._dataTable(c, dt, canvas, plot: plot, top: table.top, row: table.row, left: table.left, size: table.size,
+            Self._dataTable(c, dt, canvas, plot: plot, top: table.top, rows: table.rows, left: table.left, size: table.size,
                             n: n, k: k, theme: theme, text: text)
         }
 
