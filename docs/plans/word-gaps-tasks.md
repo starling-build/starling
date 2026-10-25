@@ -5751,3 +5751,6 @@ Owner: Linux lenovo-2 (starling-d6), first on the coordinator's refreshed unheld
 ### T186. zh-77bd4900: 67.2 against word-win, 42/42 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier work (Linux 017F2GnT, 97.4 then) was against
 the Mac print; this starts from the word-win print after 0012bc50.
+
+### zh-6d402586: 71.8 against word-win (reprint 0012bc50), 35 pages for 36 — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; this is the Windows print's gap.
