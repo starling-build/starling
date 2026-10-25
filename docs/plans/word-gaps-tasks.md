@@ -5960,5 +5960,14 @@ table. It doesn't give Word's numbers directly either: y would put the plot 12.2
 and 6.6 inside the layout's (162.0-457.6). Lab wanted: this chart with the manual layout removed, and with y and h varied.
 Does the head follow y, and where does the foot go? Its other misses (p1 y616-700) are chart 2's pie labels.
 
-### zh-3f871b7d 87.8 (word-win): a middle dot set a full em — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
+### zh-3f871b7d 87.8 (word-win): a middle dot set a full em — BUILT, PARKED on the middle dot's squeeze (Mac 01Xgpbk5, 2026-10-25)
+Word sets a hinted "·" (U+00B7) in SimSun, whose U+00B7 is an em: SimSun is fixed-pitch, and of what it maps from
+U+00A1 to U+024F, eight are an em (¤ § ¨ ° ± · × ÷) and 110 half one (read from Word's Simsun.ttc). Built: SimSun's
+face takes those widths where a run sets them East Asian (EastAsianFace.otherAdvances). zh-3f871b7d 87.8 -> 100.
+Not landed, from the same-base pair (w30 -> w31): zh-b9af65b5 100 -> 2.3 (11 -> 12 pages), zh-a7a889eb 98.1 -> 99.6.
+zh-b9af65b5's cell line "元/建筑平米·月" (10.5pt): Word's "·" glyph is 10.56 but "月" follows it at 8.16, so Word
+squeezed the dot 2.4 (about a quarter em) to keep "月" on the line; our fitter has no middle-dot class (only the
+opening and closing marks) and wraps "月". So it lands with a middle-dot squeeze in the fitter, which is T181's ground
+(lenovo-3). Patch: ~/starling-word-check/lab/wwface/simsun-latin-widths.patch (the Mac). Witnesses: zh-3f871b7d (the
+dot unsqueezed, the line has room) and zh-b9af65b5 (squeezed 2.4 in a full cell line).
 From lenovo-3's T181 check: p1's "…在青岛·上" — Word sets "·" (U+00B7) 15.96 wide in SimSun, ours 5.33 in Liberation Sans.
