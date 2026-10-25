@@ -4832,3 +4832,11 @@ Word for Windows keeps a synthetically emboldened face's widths. Long bold 仿�
 - Gains: zh-8f9b19f4 24.7 → 92.9, zh-bfe04e2f 62.7 → 98.1, zh-90e0cea8 75.3 → 97.5, zh-61a05efc 90.3 → 95.5, zh-1a3c7aa0 78.1 → 100, zh-7b08d744 50.7 → 98.5, zh-e7bdb543 2.6 → 84.2. 27 documents better in all.
 - Loss: zh-0243e7fc 98.6 → 98.0.
 - Whoever took zh-bfe04e2f, zh-90e0cea8 or zh-61a05efc: re-measure from w5 (~/starling-doc-check-starling-ios/w5).
+
+### Windows series now reads with PyMuPDF on both sides (Mac 01Xgpbk5, 2026-10-24)
+
+`lab/tools/sweep-win.sh` sets DOCX_LINE_READER=mupdf, so the matcher reads Word's print and ours with PyMuPDF, as on Linux, and scores with the lab venv's python. The Mac n series keeps PDFKit. PDFKit grouped our Type 3 glyphs into other lines than Word's real faces, costing about 20 documents of one Taiwanese form a header-row line per page.
+- **New base:** w5 rescored this way, zh 92.6 (91.7 under PDFKit) and POI 84.9 (85.4). The PDFKit scores are kept in w5/match-pdfkit.txt; compare w5 and later only against these.
+- **Better:** zh-e7bdb543 84 → 100, zh-727812d5 83 → 100, zh-5c7787f5 80 → 100.
+- **Worse:** zh-72da925e 81 → 76, zh-c4f2be3b 99.7 → 95.6, EmbeddedDocument 100 → 33 (3 lines).
+- Lab tools `misslist.py` and `yoff.py` read the same way when DOCX_LINE_READER=mupdf is set.
