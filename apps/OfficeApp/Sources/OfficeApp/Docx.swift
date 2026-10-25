@@ -1908,7 +1908,7 @@ enum DocxFormat {
                     // 24pt that mark is 24pt, and without the background it
                     // is gone and the body starts at the margin. The footer
                     // stays as it is.)
-                    if hf.kind == .header, !made.isEmpty, root.first("w:background") != nil { made += paragraphsOf("phantom:mark") }
+                    if hf.kind == .header, !made.isEmpty, root.first("w:background") != nil, !Self.wordOnWindows { made += paragraphsOf("phantom:mark") }
                     if !made.isEmpty {
                         headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: made, section: numbered ? s : nil))
                     }
@@ -1924,7 +1924,11 @@ enum DocxFormat {
             // to 793. bib-chernigovka matched none of Word's lines, each
             // page's text 18 to 50pt higher than Word's. (So do 61991
             // and 51921-Word-Crash067, whose margins happen to hold it.)
-            if root.first("w:background") != nil {
+            // (Word for Mac's only: Word for Windows lays such a file out
+            // with no marks at all — its prints (word-win) of zh-b875d786,
+            // zh-c599aaa1, zh-15f67ef1 and zh-4adfcce2 start the body at
+            // the margin, 7 to 29pt above the Mac's.)
+            if root.first("w:background") != nil, !Self.wordOnWindows {
                 for kind in [KeptHeaderFooter.Kind.header, .footer] where !headerFooters.contains(where: { $0.kind == kind }) {
                     let made = paragraphsOf(kind == .header ? "phantom:header" : "phantom:footer")
                     if !made.isEmpty { headerFooters.append(RichHeaderFooter(kind: kind, type: "default", paragraphs: made)) }
@@ -2349,6 +2353,9 @@ enum DocxFormat {
     /// measures of `w:ind` and `w:spacing`.
     /// Settings kept as written (`RichDocument.keptSettings`), in four
     /// groups by where the schema puts them.
+    /// `OFFICE_WORD_FONTS=windows`: laid out as Word for Windows does where
+    /// it differs from Word for Mac (the background's header marks).
+    static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
     static let _keptSettingNames: [[String]] = [
         ["w:embedTrueTypeFonts", "w:embedSystemFonts", "w:saveSubsetFonts",
          "w:alignBordersAndEdges", "w:bordersDoNotSurroundHeader", "w:bordersDoNotSurroundFooter"],
