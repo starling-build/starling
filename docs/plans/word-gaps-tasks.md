@@ -5885,3 +5885,10 @@ it, (c) the paragraph's mark at 14pt; and the same for zh-1cfb652b.
 
 ### T190. zh-e1b09977: 82.2 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
 Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differently. zh-4c5da793 and zh-38d26944 next.
+- Measured: p11's 8 are text-less lines in Word's print. The gap is p13's foot (mode 14): t4's row 14 ("經濟部" vMerge | "演習災害想定" |
+  items 一…五, exact 18pt, widowControl 0) needs 252.5 from 529.5, ending 782.0 + a 0.5 line; the footer (one 12pt 標楷體 line, 856
+  twips up) tops out at 783.5. Line breaks identical. Ours keeps the row; Word parts item 五 1+1 and sends "措施。" to p14, as if its
+  foot were above 782.5. WAITING ON A LAB (asked of macos): content raised 0.5/1/2pt, and the footer emptied.
+
+### T191. zh-4c5da793: 82.5 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
+Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
