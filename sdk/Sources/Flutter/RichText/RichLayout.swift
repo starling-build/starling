@@ -7508,6 +7508,29 @@ public final class RichLayout {
                             target = max(target, size * 2210 / 2048)
                         }
                     }
+                    // (… and its list label's, in Word for Windows, where the
+                    // label stands lower under the line's top than the text:
+                    // the line as much taller, as for a Segoe UI Symbol shape.
+                    // zh-6d402586's numbered items, 14pt 標楷體 at 1.629 lines
+                    // under "%1." in 微軟正黑體 12pt, open each 2.1pt lower in
+                    // Word's print than ours; zh-8e8d4c40's "2、" (MS Mincho)
+                    // over 12pt DFKai-SB, 0.6.)
+                    if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
+                       p.style.list != nil, let label = listLabel(i, document), !label.isEmpty {
+                        let markerChar = _markerChar(p, document)
+                        let ea = label.contains(where: { Self.isEastAsian($0, hinted: true) })
+                        // (Only a label set in an East Asian face: zh-de073ee5's
+                        // "2." in SimSun 14pt stands lower than its 標楷體 text
+                        // and lifts the line, though its own line is no taller;
+                        // zh-74ef1528's "6." in Normal's Latin face and
+                        // zh-c399c91a's in LinTimes set nothing in Word's print.)
+                        if ea || theme.faceResolver?(markerChar.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian == true,
+                           let b = theme.baseline(for: markerChar, in: style, named: named, eastAsian: ea, gridPitch: pitch, centresInLine: document.spacesForUnderline),
+                           b > target + 0.01 {
+                            segoeLift = max(segoeLift, b - target)
+                            target = b
+                        }
+                    }
                 }
                 _inkShift[i] = _px(target) - line.baseline
             }
@@ -10492,7 +10515,8 @@ public final class RichLayout {
     }()
 
     /// A list paragraph's marker, laid out at its own width.
-    private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
+    /// The character style a list label is set in (`_marker`).
+    private func _markerChar(_ p: RichParagraph, _ document: RichDocument) -> CharStyle {
         var markerChar = p.runs[0].style
         // (In the paragraph mark's formatting where the file gives the
         // mark any, not the text's, and underlined only where its level
@@ -10531,6 +10555,11 @@ public final class RichLayout {
         if let k = p.style.bulletScale {
             markerChar.fontSize = (markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) * k
         }
+        return markerChar
+    }
+
+    private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
+        let markerChar = _markerChar(p, document)
         let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
         let named = _named(p, document)
         // East Asian numbers in the run's East Asian face, as the text.
