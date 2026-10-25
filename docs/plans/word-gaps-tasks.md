@@ -4784,8 +4784,11 @@ Word. Word-side labs here; fixes go to a builder.
   label, "2" is Calibri and "、" is MS Mincho (a per-character fallback, since Calibri lacks it); the space is Arial. The
   line takes MS Mincho's ascent (0.859 + 0.15 em = 12.11) and DFKai-SB's descent (0.199 + 0.15 = 4.19): 16.3. That is
   +0.6 a label, 3pt by the cell's foot. Ours keeps such lines at 15.6.
-- zh-3fe252ff: Word's p6 is ordinary. The deletion's balloon takes no room, and "11.…" stands at the normal pitch
-  (433.2). Waiting on our p6 lines to compare.
+- zh-3fe252ff, MEASURED, released to the line breaker. p6 matches except a balloon 3.6 low. The split is p22, and it is a
+  line break, not markup. Word's line 2 ends "…28~31 行3", natural width 308.76 (the paragraph set jc left), and "栏"
+  would end it at about 323 inside the 334.1 measure, yet Word sends 栏 down with ">0,". Lab lan, one character after
+  "28~31行3栏" changed in the document: ">" and "%" send 栏 down, "=" keeps it. So ">" and "%" may not start a line
+  (Word's Simplified Chinese no-line-start set). Ours breaks before ">" and keeps 栏.
 
 ### zh-e2dc9dce (6.2) and zh-c399c91a (18.1) on word-win: two face changes (Windows 01QbbApP, 2026-10-24)
 Both references reprint identically fresh.
