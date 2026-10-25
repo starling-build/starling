@@ -5782,6 +5782,11 @@ Beside T181 (lenovo-3's squeeze-capacity lab, 9cb560da): if the misses are that 
 
 ### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
+Lab t187 (Windows 01QbbApP, 2026-10-25), part 1 of 3: zh-cec9d337's own package, the empty paragraph above t6 (Word sets it 13.76pt) made an exact line, so row 四 ends 3.0 / 1.0 / 0.3pt above the foot (780.8, the footer's top); fresh Word, warm-up first, 60 s. Bottom border as is (thinThickSmallGap 24):
+- 3.0 left: row 四 stays on p16; the page closes with the 0.48 single line at y 777.82, no bottom border.
+- 1.0 left: stays; closes with the 0.48 line at 779.74, no bottom border.
+- 0.3 left: Word splits the row (no cantSplit): "四、演練完畢…" stays, "五、其他協辦事宜。" opens p17, and p16 closes with the 0.48 line at 763.42. p17's piece opens with the table's top border (3.0 + 0.72 at 56.64/60.36).
+So Word reserves no bottom border at a page-closing row; the row needs only its own line height plus the 0.48 rule, somewhere between 0.3 and 1.0. The single sz24 / single sz4 runs and a 0.0-left run were stopped by a low-memory reap and are not printed yet.
 
 ### T188. zh-b00fef0d: 74.6 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab.
