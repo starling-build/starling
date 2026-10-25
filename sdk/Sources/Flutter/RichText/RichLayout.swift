@@ -8472,6 +8472,22 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, document.usesEastAsianLayout, ch == ">", let b = before,
+                          let v = b.unicodeScalars.first?.value, (0x3400...0x9FFF).contains(v) || (0xF900...0xFAFF).contains(v) || v >= 0x20000,
+                          !Self._traditionalChinese(document) {
+                    // (">" may not begin a line in Word's Simplified
+                    // Chinese list, and the engine parts it from an
+                    // ideograph before it: zh-3fe252ff's "…28~31行3栏>0,"
+                    // sends "栏" down with it in Word for Windows' print
+                    // (lab `lan`), ours kept "栏" and every page after p22
+                    // ran a line short. Not under Traditional Chinese,
+                    // whose list lacks it — see `_looseWordOffsets`. And
+                    // after an ideograph only: held to a closing bracket,
+                    // zh-4c884684's "…2022年）>" went down whole where
+                    // Word's print ends its line with it.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, !document.usesEastAsianLayout, let b = before, Self._breaksAfterHyphen(beforeBefore, b, ch) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
