@@ -5772,6 +5772,8 @@ carries in its margin.
 31717217: the check adds the table's insideH line (any table, not Windows mode only). Same-base Linux pair against
 word-win, 756 documents: zh-77bd4900 67.2 -> 99.0, nothing else moved. zh-8d1a3d99, zh-6cd1befe and zh-60173bb6,
 the rule's earlier cases, are unchanged. Rechecked on the tip after 451d6fc1.
+Mac-mode check (macos asked, since it applies in all modes): Linux sweep against the Mac references (word/), on 31717217's
+tip with and without it, 756 documents: nothing moved (96.776 both).
 
 ### zh-6d402586: 71.8 against word-win (reprint 0012bc50), 35 pages for 36 — step 1 DONE 146dd517: 89.7, 35/35 (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 DONE 146dd517: the extra page was p29, blank but for a page-placed note: the paragraph after p28's last line is that note, a page break and the next notice, and the empty part before the break got its exact 22pt line a page of its own; Word keeps it (note and all) at p28's foot — lab brk's rule, beside the break-under-a-table rule. Pair w48 -> w49: 71.8 -> 89.7, nothing else moved; zh-167ee06c 100, zh-0aac9d1a 85.0, zh-60c80728 98.3, zh-4a2ab598 99.6, zh-6d1afa56 97.1 held. Left, still CLAIMED: p30's numbered list (1.629-line 標楷體 14pt, labels "%1." in 微軟正黑體 12pt) sets each item's first line ~2.1pt lower in Word — the label lift. LABEL LIFT CLAIMED (Mac 7bd18d8e, 2026-10-25, routed by macos; witnesses zh-8e8d4c40, zh-de073ee5, zh-6d402586), from macos-ios's parked notes.
