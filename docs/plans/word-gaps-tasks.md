@@ -5949,6 +5949,12 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differe
   parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
 
 ### T192. zh-38d26944: 84.7 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, the table group)
+MOVED (macos): the merged-cell half is now part of the entry below. lenovo-2's ″ (U+2033) width work stays with lenovo-2.
+
+### T195. A vertically merged cell parting across a page (zh-8e8d4c40 p2->3, zh-38d26944 p12->13) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+- zh-8e8d4c40 p2->3: Word sends the merged cell's line that would cross the last row fitting the page over with the next row; ours grows that row (778.54 in Word, 779.7 in ours).
+- zh-38d26944 p12->13 (from T192): the merged cell goes on onto p13, and Word grows the p13 rows to hold the rest of its text (53.2); ours stays 45.2.
+Pairs after windows' 880b1031 (ruleUnder, a first cell with rowSpan > 1) lands.
 Owner: Linux lenovo-2. Found: not the cell's centring — Word's 仿宋 sets ″ (U+2033) an em (10.44-10.56 at 10.5pt); Starling
 FangSong's is 3.32, so p13's "…方位角闭合差在20″～30″扣5分，＜20″不扣分" takes the "＜". Trying ′ ″ as GB2312 em symbols.
 
