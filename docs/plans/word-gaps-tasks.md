@@ -5314,6 +5314,10 @@ punctuation and is superseded by this series.]
   2 spaces 2.50 / 2.50 / 3.25; 4 spaces 3.00 / 3.25 / 4.00; 6 spaces 3.00 / 3.50 / 4.50; 8 spaces 3.25 / 3.50 / 4.50.
 In em that is 2 spaces about 0.21 and a cap of about 0.29 (0.28-0.31). The 12pt values ÷ 12 fit all three sizes within
 the ±0.25pt step.]
+[Windows 01QbbApP 2026-10-25, at the tip (8337b1d0) in Windows mode: zh-4ea36aa8's p14 "高" is right now (the fit leaves it, as Word does). Its first miss is p13: "二、校舍興建…雙語部12班、國小部32班（含" is one line in Word's print, ours sends "（含" down. need 5.71 after the automatic space after 含; four automatic spaces, two 、 and the （ itself, doNotCompress. Spaces alone give about 3.3 there (t170d), so under doNotCompress in mode 15 the marks give too.]
+[Windows 01QbbApP, lab t170e (zh-15f60bac's package: mode 15, compressPunctuation, 標楷體 16, justified, its own runs). zh-15f60bac p8 "…類型包含建議5項(詳表5第4、" ends there in both Words' prints. Ours takes "6、", hanging the "、" whole and squeezing 2.75. The measure was swept in 0.5pt steps; this is the most over N (natural width to the "、" after 6) at which Word still takes "6、":
+  A as is 15.0; B "六" for 6, 20.0; C no automatic spaces (五 for 5, 四 for 4), 20.0; D no "，" or "(" (two 、 only), 13.5.
+Word hangs nothing in any of them: the last "、" ends at the measure. It squeezes the marks: in A at 15.0, the "，" by 6, the "、" after 4 by 6 and the last "、" by 3; in B at 20.0, by 7.9, 7.9 and 4.1. The automatic spaces barely give (about 0.2 each, in D). So a digit over-character on a line with automatic spaces gets about 5pt less than a Han one, or than a line with none. Our fitter's full hang of the "、" plus a squeeze is what takes "6、" here.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
