@@ -5152,6 +5152,10 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
     per-size rounding). DFKai-SB has upem 1024: at 20pt bold steps +0.017 over regular (1/1024 em is 0.0195),
     and zh-aa3f29a0's title stays one line as in Word. A flat 0.0038 em adds 1.6pt and wraps 畫. Microsoft
     JhengHei, which has a real bold, adds nothing: 18.8923 bold and regular.]
+    [Windows 01QbbApP: zh-dc9cfa34's early wrap is not the bold. Its "填表单位（盖章）：" + 33 spaces + "单位：…" line
+    (eastAsia 楷体_GB2312, ascii Times New Roman, bold 12pt) sets the spaces 198.69 in all, 6.02 each. That is KaiTi's
+    0.5 em space, not Times New Roman bold's 3.0, though the PDF draws them as TimesNewRomanPS-BoldMT. Word measures
+    spaces between East Asian characters with the East Asian face's space: 99pt on this line.]
   - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
