@@ -551,25 +551,33 @@ extension SheetGridState {
                     // The strips: a ruled cell per column and per row, its
                     // letter or number centred across it and at its foot,
                     // in the default font (NumberFormatTests' "2" at the
-                    // foot of its 26 pt row, where ours stood in the middle).
+                    // foot of its 26 pt row, where ours stood in the middle)
+                    // — set as a centred cell's text is, at a cell's foot
+                    // and four printer dots right of the middle: the
+                    // headings of twelve workbooks stood 0.6 to 2 pt lower
+                    // in their own style, where their cells' text was on
+                    // Excel's baselines.
                     let rule = Paint()
                     rule.style = .stroke
                     rule.strokeWidth = 0.96   // eight printer dots, as Excel rules its headings
                     rule.color = Color(0xFF000000)
-                    func label(_ text: String, in r: Rect) {
+                    let headStyle = _textStyle(book.style(0), color: nil, ink: Color(0xFF000000))
+                    let centre = 4 * 72 / 600 * scale / s
+                    // (The column letters four dots lower again: 0.5 to 0.7 pt
+                    // over Excel's in Verdana, Arial and Calibri, where the
+                    // row numbers were on its baselines.)
+                    func label(_ text: String, in r: Rect, drop: Double = 0) {
                         canvas.drawRect(r, rule)
-                        let tp = TextPainter(text: TextSpan(text: text, style: hfFont.flutter), textAlign: .center, textDirection: .ltr)
-                        tp.layout(minWidth: 0, maxWidth: .infinity)
+                        let tp = texts.painter(text, headStyle)
                         canvas.save()
                         canvas.clipRect(r)
-                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2, r.bottom - tp.height + 0.3))
+                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2 + centre, r.bottom - tp.height - 1 + drop))
                         canvas.restore()
-                        tp.dispose()
                     }
                     canvas.drawRect(Rect.fromLTWH(0, 0, head.width, head.height), rule)
                     var x = head.width
                     for col in tCols + page.cols {
-                        label(CellAddress.columnName(col), in: Rect.fromLTWH(x, 0, ca.size(col), head.height))
+                        label(CellAddress.columnName(col), in: Rect.fromLTWH(x, 0, ca.size(col), head.height), drop: centre)
                         x += ca.size(col)
                     }
                     var y = head.height
