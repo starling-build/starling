@@ -6047,3 +6047,10 @@ Probably the same for "・" (U+30FB). Witnesses: zh-3f871b7d and zh-b9af65b5. Un
 
 ### T196. zh-b8de3ae2 p24-25: table 9 "109年歲出預決算分析－工作計畫" stands ~8pt off Word's — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (the table only; macos-ios keeps the document's charts). Its header row stacks "預算/金額", "決算/金額", "增減數(元)" in the narrow second column; 10 misses on p24, 23 on p25 (macos-ios's w35).
+
+- Measured (lenovo-2): table 9 (p24) MATCHES — all 78 numbers within 0.2pt of Word's, fonts and widths alike. Its p24 misses
+  are the scorer's: Word's PDF writes "652,167,000" into the same text line as the label's second line "年 金額" 7.8pt below,
+  so the matcher pairs them otherwise. p25 is chart 10, not the table: its data labels (macos-ios's), and under its
+  "資料來源：本所會計室" three empty paragraphs each ending a continuous section (before 151 + line 223 auto 10pt; 4.5pt with
+  a tab; before 60, 10pt, the next section 3 columns). Word keeps ~36pt for them; ours almost none, so "109年歲出決算數…"
+  stands a line + 2.3pt high and p25-p27 run ahead. A section-mark rule, not a table one — asked macos who takes it.
