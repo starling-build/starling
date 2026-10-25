@@ -5152,3 +5152,6 @@ p4's "3.2" read with its leader. Released.
   footer line, any clearance between body and footer.
 
 ### zh-c6ab068c (36.9 word-win) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, routed by macos)
+
+### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
+Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
