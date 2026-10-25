@@ -5419,8 +5419,6 @@ prints; this starts again from the word-win reference on the current tip.
 - (c) as (a) with "（" for the comma: the 28th is taken through 8 over, the bracket's blank left half squeezed (题's advance 16 -> 8.0). So an opening mark gives under en-US, and a closing one does not.
 - (d) as (a) with doNotUseEastAsianBreakRules taken out of settings: identical to (a). Not the flag.
 Caution: the line above records Word's print squeezing commas in other en-US paragraphs of this file (p2-p5). Check those runs' own w:lang (or their style's) before making en-US a general no-squeeze rule for closing marks.]
-  - A rise box for the label's ascent (label-rise.patch) moves our labelled line's baseline 0.4 against Word's 0.6, but the line stays 15.6. DFKai-SB's height is held by a strut, so nothing below moves, and zh-8e8d4c40 stays at 47.5 on 52008403.
-  - Needed: a strut-held line that takes a taller ascent from its label, as the rise does for a larger number. Open to anyone.
 - **T170 k-table (Mac 01Xgpbk5, 2026-10-25): tried twice, released.** windows' t170d table, Windows mode, mode 15 only, by automatic-space count, in em. Base w17 at 52008403, pair w18.
   - Result: zh-38078fb3, zh-7cf85f15, zh-c2b13410 100 → 78; zh-ae2dd08d 79.3 → 68.9; zh-b13d0fb4 99.7 → 93.1; the target zh-4ea36aa8 97.1 → 95.9.
   - Narrowed to lines with no word spaces: the three 78s and the target unchanged.
