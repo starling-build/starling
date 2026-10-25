@@ -4842,7 +4842,18 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - testComment   0.0  1 lines  1/1
   - WordWithAttachments  13.2  38 lines  2/2
   - delins  13.6  59 lines  1/1
-  - 60329  15.3  98 lines  3/3  [CLAIMED Windows 01QbbApP 2026-10-24: Word for Windows prints it unclipped, landscape Letter 792x612 as the docx; finding the 17 lines]
+  - 60329  15.3  98 lines  3/3  [MEASURED Windows 01QbbApP 2026-10-24, released to the autofit-table owner. Word for Windows prints it
+    unclipped on landscape Letter, 792x612, as the docx sets; the Mac's portrait print was the clipped one.
+    The outer table's grid is 678.75 + 82.35pt; each row's first cell holds one nested table and the second
+    is empty. Each nested table keeps its own grid width from the outer cell's left (x 7.3):
+    - Study Design: one column, 339.35pt, to 346.6.
+    - Objectives: 158 + 519.85, to 165 and 685.2. The grid wins over its tcW (3163/10411).
+    - Endpoints: 159.2 + 259.75, to 166.1 and 426.2.
+    No nested row uses gridBefore or gridSpan. The labels ("Primary:" right-aligned) are column 1 and
+    their content column 2, on the same row. Prose starts at x 9.6 (outer cell 7.2 + tcMar 1.95). Most
+    line ends are hard breaks (40 w:br in one cell), and the 4 preserved spaces after each break print
+    (glyph 11pt in). Ours: labels at x 645 with content on the next line at x 25, so the nested tables'
+    columns are not side by side.]
   - bug59058  53.3  1556 lines  52/52
   - rtl  85.7  7 lines  1/1
   - form_footnotes  98.9  87 lines  3/3
