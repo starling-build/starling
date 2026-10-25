@@ -4821,3 +4821,10 @@ Word. The user's font-pack install may settle it; fsw's YaHei is no firmer than 
 Owner: Linux office1 (starling-office1-df), routed by macos. 62.7 against
 word-win, 100 against the Mac's; the same SimSun/FangSong faces in both prints,
 and Windows' lines take one more ("…引领除LNG 船舶和5", "…以及引航机构报告，：").
+
+### Windows mode: no synthetic-bold widening — DONE be77c1fa (Mac 01Xgpbk5, 2026-10-24)
+
+Word for Windows keeps a synthetically emboldened face's widths. Long bold 仿宋/宋体/楷体/黑体 runs (34 documents) advance 1.00–1.007 em in word-win, against 1.025–1.03 in the Mac prints. The rule this splits off, 4e1beb1d, was fitted to the Mac. zh w5 is 91.7, up from 91.0.
+- Gains: zh-8f9b19f4 24.7 → 92.9, zh-bfe04e2f 62.7 → 98.1, zh-90e0cea8 75.3 → 97.5, zh-61a05efc 90.3 → 95.5, zh-1a3c7aa0 78.1 → 100, zh-7b08d744 50.7 → 98.5, zh-e7bdb543 2.6 → 84.2. 27 documents better in all.
+- Loss: zh-0243e7fc 98.6 → 98.0.
+- Whoever took zh-bfe04e2f, zh-90e0cea8 or zh-61a05efc: re-measure from w5 (~/starling-doc-check-starling-ios/w5).
