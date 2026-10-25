@@ -5560,6 +5560,10 @@ Ours at 8337b1d0 (before T179) sets all five in YaHei: 20.4-20.7 a 12pt line. Wi
 
 - **zh-8e8d4c40 label lift, retry notes (Mac 01Xgpbk5):** label-target.patch (Mac) puts the label's baseline into the first-line target of `_layoutParagraph`'s lead block. It used `marker.computeDistanceToActualBaseline`, which is in pixels, while `target` is in points (`_px(target)`): the lines were shoved out of their cells (177 → 143). Convert by `/ (theme.pixelsPerPoint * scale)`. Lift the line as the Segoe UI Symbol case does, `segoeLift = max(segoeLift, labelBaseline − target)`, rather than `target` alone.
 
+[LAB Windows 01QbbApP 2026-10-25, lab dcs (~/starling-doc-check/lab/dcs on the Windows box), asked by macos for macOS-doc: zh-dc25c47e whole, with only the p6 cell paragraph (paraId 34A90D56) changed. Each print was a fresh Word after the warm-up, 60s after opening. In that cell the paragraph's <w:br w:type="page"/>s are ignored and the text runs on; the row shows two lines and clips the rest. Line 1 is "■政府网站   □政府公报■两微" (452.0-584.1, spaces 5.04). Line 2:
+- (a) as is, (b) that "□" made "甲", (c) made "（", (e) made "※": all identical. Line 2 is "一端   □发布会□广播电视" plus its spaces, ending at 593.2: the three after 一端 are 7.55, 7.67, 7.58, and the trailing ones run past the 584.1 edge. The character after them, whatever it is, goes to the clipped third line.
+- (d) the three spaces before it removed: line 2 is "一端   □发布会□广播电视□纸", ending 584.1, its spaces 5.04.
+So the line does not end because "□" is a geometric shape (25A0-25FF), nor any East Asian symbol: it ends because of the three spaces before the character. Of note: line 2's first three spaces print 7.6 wide (line 1's are 5.04), on the line where the ignored page breaks fall.]
 ### zh-419ea527 (71.1 at w20) — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
 
 ### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
