@@ -5437,6 +5437,7 @@ Owner: Linux lenovo-2 (starling-d6), given it by the Mac coordinator. The DFKai-
 So Word for Windows ignores a page break in the paragraph that carries a section mark when the next section is continuous, whether or not the paragraph has text. With nextPage there is still only the one new page.]
 
 ### zh-8e8d4c40 (and zh-de073ee5): a 、-labelled list line's Mincho lift — MEASURED, PARKED (Mac 01Xgpbk5, 2026-10-25)
+- **CLAIMED (Mac 7bd18d8e, 2026-10-25, routed by macos):** zh-8e8d4c40 at 46.3 after the label lift (ba45b9f7, zh-de073ee5 100): its lines stand 0.9pt high from p1's table title on, before any label.
 - **Face:** the label takes the style's East Asian face, "新細明體, PMingLiU", a LibreOffice comma list Word for Windows lacks. Its entry (alternate Times New Roman, charset 00) gives MS Mincho by the map, which is what Word prints for the "、".
   - Ours matched "新細明體" inside the name. Patch: ~/starling-word-check/lab/wwface/comma-names.patch (Mac): a comma-list name goes by its own entry.
 - **Line:** Word's line is Mincho's ascent over DFKai-SB's descent: 16.2 against 15.6.
