@@ -4956,3 +4956,17 @@ fits where its end, rounded to 1/600 in, is inside the line.
 Owner: Linux office1 (starling-office1-df), routed by macos from Windows 01QbbApP's lab
 bp13 (above): every Normal line steps 20.06-20.08 (Arial's 1.149 em at 10.5pt and the 8pt
 after of a styles part with no pPrDefault); ours steps 20.3-20.4, the Mac's.
+
+### T166. zh-b8de3ae2 p14: a cell of no margin sets its text half an inside line in — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24, 6c8dcf54)
+Word's prints (Mac and Windows alike) of zh-5bfac68f and zh-b8de3ae2: in 0-margin cells (mode 15) the text
+starts 0.24 past a 0.5pt inside line's middle; ours stood a whole line in. zh-b8de3ae2 p14's last cell
+(1223 twips, indents 389/346, no right line) has 24.4pt for "其他收入" at 12pt: Word sets two a line, ours one,
+and the table's header row grew. Fixed for inside left lines; the right inside line takes its half only where
+the left is inside too — the halves on both sides are needed by bug65649 (100 -> 85 without), and none on the
+right by zh-e51c31a7's first column (its outer double left line; "未來運用規劃" wraps with it). That split fits
+the three documents rather than a lab; a Windows lab on a 0-margin first column would settle the right side.
+word-win (mupdf reader), w11 -> w14: zh-b8de3ae2 71.6 -> 76.2, nothing else moved. (The outer right line
+mirrored from the left — "margin and half, never inside" — took zh-c6da60a9 99.6 -> 38.8: not that.)
+Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title).
+Also: the "Lab c5" note in the zh-c5b5087b entry above (footer floats turning the squeeze off) was the print-timing
+trap — a 60s-waited Mac print squeezes through p10 (lab/sqcut); see lab/tools/squeeze-cutoff.py.
