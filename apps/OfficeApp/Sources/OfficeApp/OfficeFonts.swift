@@ -1659,6 +1659,18 @@ enum OfficeFonts {
             face.baseline = 1.005 - (1.3 - 1.2972) / 2
             return face
         }
+        // (And FangSong's, in Word for Windows: zh-b00fef0d's 12pt
+        // 仿宋_GB2312 cells, FangSong in word-win, step 18.0 and 18.12 on the
+        // 1/600in raster, 18.03 on the mean — SimSun's 1.2972 em under the
+        // 278/240 lines of a styles part with no defaults; the square's 1.3
+        // made them 18.07, every three-line row 0.19 taller, and by p17's
+        // foot a row went over that Word parts.)
+        if wordOnWindows, has("仿宋", "fangsong") {
+            var face = square
+            face.height = 1.2972
+            face.baseline = 1.005 - (1.3 - 1.2972) / 2
+            return face
+        }
         return square
     }
 
