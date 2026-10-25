@@ -24,15 +24,14 @@
 #   .stage-web/                   (.stage-web-<Package> for --package)
 #     index.html  starling.js     web/host/, verbatim
 #     app.wasm                    the Swift module
-#     skwasm/skwasm.{js,wasm}     Flutter's renderer, fetched prebuilt
+#     skwasm/skwasm.{js,wasm}     Flutter's renderer, built from our engine
 #     fonts/                      skwasm cannot see system fonts
 #
-# skwasm is fetched rather than built. Google publishes it per engine commit,
-# and the one taken is the upstream commit our engine fork branched from, so
-# the binary matches the sources in engine/src/flutter/lib/web_ui/skwasm —
-# which is where sdk/Sources/CSkwasm/include/skwasm.h's signatures come from.
-# Building it ourselves needs emsdk (`download_emsdk` in .gclient) and is only
-# worth it once we change that C++.
+# skwasm is built from starling-engine, not fetched: ours carries Starling's
+# additions — PDF export (lib/web_ui/skwasm/pdf.cpp) and Word's fractional
+# line heights (text/paragraph_style.cpp over patches/skia-fractional-line-
+# heights.patch), without which a document's lines round to whole units and
+# break pages unlike the native app. See below and docs/BUILDING.md §1.7.
 #
 # --check is the size gate (docs/plans/wasm-size.md): the link records why
 # each archive member was pulled in, and the build FAILS if the legacy
@@ -242,21 +241,29 @@ fi
     echo "]"
 } > "$STAGE/fonts/manifest.json"
 
-# A skwasm built from our engine, when there is one: it carries Starling's
-# additions (PDF export — lib/web_ui/skwasm/pdf.cpp), which Google's does
-# not, and the page turns those features off without it. Build it with
+# skwasm, built from our engine (docs/BUILDING.md §1.7 has emsdk):
 #     cd engine/src && ./flutter/tools/gn --wasm --runtime-mode release
 #     ./flutter/third_party/gn/gn --root=. gen out/wasm_release
 #     ninja -C out/wasm_release flutter_web_sdk/canvaskit/skwasm.{js,wasm}
-# (docs/BUILDING.md has the Emscripten half). STARLING_SKWASM_DIR names
-# another directory holding the pair; STARLING_SKWASM_DIR=published insists
-# on Google's.
+# STARLING_SKWASM_DIR names another directory holding the pair (a worktree
+# whose engine link is an iOS checkout points it at the desktop engine's).
+# STARLING_SKWASM_DIR=published takes Google's prebuilt one instead: the app
+# starts, but PDF export is off and lines round to whole units, so
+# test/office-layout.sh fails against native — for a quick look only.
+# A build of ours older than the exports this app calls is refused, not
+# staged: it would load, and quietly lay text out as Google's does.
 OWN="${STARLING_SKWASM_DIR:-$REPO/engine/src/out/wasm_release/flutter_web_sdk/canvaskit}"
-if [ "$OWN" != published ] && [ -s "$OWN/skwasm.wasm" ] && [ -s "$OWN/skwasm.js" ]; then
+if [ "$OWN" != published ]; then
+    if [ ! -s "$OWN/skwasm.wasm" ] || [ ! -s "$OWN/skwasm.js" ]; then
+        echo "no skwasm built at $OWN — build it (docs/BUILDING.md §1.7), or set STARLING_SKWASM_DIR" >&2
+        exit 1
+    fi
+    for export in pdf_write paragraphStyle_setFractionalLineHeights; do
+        grep -q "$export" "$OWN/skwasm.js" || { echo "skwasm at $OWN predates $export — rebuild it (docs/BUILDING.md §1.7)" >&2; exit 1; }
+    done
     CACHE="$OWN"
-    SKWASM_LABEL="skwasm built here, with PDF"
+    SKWASM_LABEL="skwasm built here"
 else
-    [ -z "${STARLING_SKWASM_DIR:-}" ] || [ "$OWN" = published ] || { echo "no skwasm.js/.wasm in $OWN" >&2; exit 1; }
     # Keyed by revision, so changing SKWASM_REV refetches and nothing else does.
     CACHE="$REPO/web/.skwasm/$SKWASM_REV"
     if [ ! -s "$CACHE/skwasm.wasm" ] || [ ! -s "$CACHE/skwasm.js" ]; then
@@ -266,7 +273,7 @@ else
                 "https://www.gstatic.com/flutter-canvaskit/$SKWASM_REV/$f"
         done
     fi
-    SKWASM_LABEL="skwasm ${SKWASM_REV:0:11}, published: no PDF export"
+    SKWASM_LABEL="skwasm ${SKWASM_REV:0:11}, published: no PDF export, lines rounded"
 fi
 install -m 644 "$CACHE/skwasm.js" "$CACHE/skwasm.wasm" "$STAGE/skwasm/"
 

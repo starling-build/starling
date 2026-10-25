@@ -37,15 +37,6 @@ else
     DEFAULT_CHROME="$(command -v google-chrome || command -v chromium || echo google-chrome)"
 fi
 BIN="${OFFICE_BIN:-$DEFAULT_BIN}"
-# INTERIM: the browser rounds each line's height to a whole unit, natively
-# a Word document's lines keep their fraction (7ee9e843, through the
-# engine's patches/skia-fractional-line-heights.patch) — and the browser
-# runs Google's prebuilt skwasm, which lacks that patch. While it does,
-# a browser layout passes when every line breaks and reads the same, each
-# line's height within one unit of native, and each paragraph's block within
-# a unit for each of its lines; any break or text difference still fails. Remove this
-# (and the comparison it gates) once skwasm is built with the patch.
-WEB_ROUNDS_LINE_HEIGHTS="${WEB_ROUNDS_LINE_HEIGHTS:-1}"
 STAGE="$REPO/.stage-web-OfficeApp"
 PORT="${PORT:-8137}"
 DRIVE="$REPO/build/tools/web-drive.mjs"
@@ -94,35 +85,6 @@ for doc in "${DOCS[@]}"; do
     lines="$(grep -c '^p' "$native")"
     if diff -q "$native" "$web" >/dev/null; then
         echo "  ✔ $name: browser lays out as native ($pages, $lines lines)"
-    elif [ "$WEB_ROUNDS_LINE_HEIGHTS" = 1 ] && python3 - "$native" "$web" <<'PY'
-import re, sys
-def parse(path):
-    lines = open(path, encoding="utf-8").read().rstrip("\n").split("\n")
-    out = []
-    for l in lines:
-        m = re.match(r"^¶(\d+) block ([\d.]+) text@([\d.]+)$", l)
-        if m: out.append(("block", m[1], float(m[2]), m[3])); continue
-        m = re.match(r"^p(\d+) ¶(\d+) ([\d.]+) (\|.*\|)$", l)
-        if m: out.append(("line", (m[1], m[2], m[4]), float(m[3]), None)); continue
-        out.append(("other", l, 0.0, None))
-    return out
-a, b = parse(sys.argv[1]), parse(sys.argv[2])
-if len(a) != len(b): sys.exit(f"    {len(a)} entries natively, {len(b)} in the browser")
-# Each line's height within one unit; each block within a unit a line.
-drift, block = {}, {}
-for x, y in zip(a, b):
-    if x[0] != y[0] or x[1] != y[1] or x[3] != y[3]: sys.exit(f"    {x} | {y}")
-    if x[0] == "line":
-        d = abs(x[2] - y[2])
-        if d > 1.0 + 1e-6: sys.exit(f"    line height {x[2]} vs {y[2]}: {x[1][2][:60]}")
-        drift[x[1][1]] = drift.get(x[1][1], 0.0) + 1.0
-    elif x[0] == "block":
-        block[x[1]] = abs(x[2] - y[2])
-for k, d in block.items():
-    if d > drift.get(k, 0.0) + 0.05: sys.exit(f"    ¶{k} block differs {d:.2f}, more than a unit for each of its {drift.get(k, 0.0):.0f} lines")
-PY
-    then
-        echo "  ✔ $name: browser breaks every line as native ($pages, $lines lines; heights within skwasm's rounding)"
     else
         echo "  ✘ $name: browser differs from native — $(diff "$native" "$web" | grep -c '^[<>]') lines"
         diff "$native" "$web" | head -12
