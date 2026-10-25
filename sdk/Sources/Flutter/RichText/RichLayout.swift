@@ -1898,7 +1898,7 @@ public final class RichLayout {
     }
 
     private func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
-        struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
+        struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool; var noWrap = false; var width: String? = nil }
         var cells: [Cell] = []
         var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
         let ins = _cellInsets(table, document)
@@ -1918,7 +1918,8 @@ public final class RichLayout {
                 cells[k].max = max(cells[k].max, widest)
             } else {
                 at[key] = cells.count
-                cells.append(Cell(column: c.column, span: c.span, min: w, max: widest, picture: picture))
+                cells.append(Cell(column: c.column, span: c.span, min: w, max: widest, picture: picture,
+                                  noWrap: c.keptPropertiesXML?.contains("w:noWrap") == true, width: c.widthXML))
             }
         }
         // A table that states no width, nor any of its cells, is fitted
@@ -1977,6 +1978,55 @@ public final class RichLayout {
                 if fitted.count == base.count, zip(fitted, base).allSatisfy({ abs($0 - $1) <= _px(1) }) { return base }
                 return fitted
             }
+        }
+        // A table of a stated share whose columns' cells state theirs
+        // (lab `mob` on Word for Windows; zh-6aa8bd7c's contact table, 100%
+        // over ten columns of 448/380/…/1096 fiftieths). Each column needs
+        // its cells' narrowest, or the whole line of one that does not
+        // wrap, and a span's need is shared over its columns as their
+        // widths are. A column whose need passes its share takes it, and
+        // the others give it back equally, each down to its own need:
+        // three columns of 2000/1500/1500 with 34 digits unwrapped in the
+        // first set 242.2/88.0/88.1 of 418.3, the digits' 241.8 and the
+        // rest halved. Where the needs pass the table, each is set as far
+        // short of it as the others: under a title row of 30 ideographs,
+        // unwrapped across all three, they are 241.8/108.8/108.8 and come
+        // out 220.1/99.0/99.2 — and zh-6aa8bd7c's title, its spaces and
+        // name 693pt unwrapped, sets its mobile column at 78.0 to the
+        // number's 78.4, and Word parts "0932-83889" / "8".
+        if theme.wordRules, _nestedCap == nil, document.tableStyles[table]?.widthPercent != nil, case let shares = Set(cells.filter {
+            $0.span == 1 && $0.width?.contains("\"pct\"") == true }.map(\.column)), shares.count == base.count,
+           !cells.contains(where: { $0.width.map { !$0.contains("\"pct\"") && !$0.contains("\"auto\"") } == true }) {
+            var need = Array(repeating: 0.0, count: base.count)
+            for c in cells where c.span == 1 { need[c.column] = max(need[c.column], c.noWrap ? c.max : c.min) }
+            for c in cells where c.span > 1 {
+                let cols = c.column ..< c.column + c.span
+                let has = cols.reduce(0) { $0 + base[$1] }
+                guard has > 0 else { continue }
+                for k in cols { need[k] = max(need[k], (c.noWrap ? c.max : c.min) * base[k] / has) }
+            }
+            let total = base.reduce(0, +), needs = need.reduce(0, +)
+            var widths = base
+            if needs > total {
+                widths = need.map { $0 * total / needs }
+            } else {
+                var owed = 0.0
+                for k in base.indices where need[k] > base[k] { owed += need[k] - base[k]; widths[k] = need[k] }
+                var givers = base.indices.filter { need[$0] <= base[$0] }
+                while owed > 0.001, !givers.isEmpty {
+                    let each = owed / Double(givers.count)
+                    let short = givers.filter { widths[$0] - need[$0] < each }
+                    guard !short.isEmpty else { for k in givers { widths[k] -= each }; break }
+                    for k in short { owed -= widths[k] - need[k]; widths[k] = need[k] }
+                    givers.removeAll { short.contains($0) }
+                }
+            }
+            let fitted = widths.map { ($0 + 0.001).rounded(.down) }
+            if Self.debugAutofit {
+                let pt = theme.pixelsPerPoint * scale
+                FileHandle.standardError.write(Data("autofit \(table): shares \(base.map { ($0 / pt * 10).rounded() / 10 }) needs \(need.map { ($0 / pt * 10).rounded() / 10 }) -> \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
+            }
+            return fitted
         }
         func room(_ c: Cell) -> Double { base[c.column ..< c.column + c.span].reduce(0, +) }
         // (Over by a point at least: ours are Word's widths to within a
