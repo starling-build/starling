@@ -6054,3 +6054,5 @@ Owner: Linux lenovo-2 (the table only; macos-ios keeps the document's charts). I
   "資料來源：本所會計室" three empty paragraphs each ending a continuous section (before 151 + line 223 auto 10pt; 4.5pt with
   a tab; before 60, 10pt, the next section 3 columns). Word keeps ~36pt for them; ours almost none, so "109年歲出決算數…"
   stands a line + 2.3pt high and p25-p27 run ahead. A section-mark rule, not a table one — asked macos who takes it.
+### T197. zh-b8de3ae2 p25: three empty continuous-section marks under chart 10 — Word keeps ~36pt, ours almost none — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
+Owner: Linux lenovo-2. From T196: under "資料來源：本所會計室" three empty paragraphs each end a continuous section (the next one 3 columns); the body after runs a line + 2.3pt high.
