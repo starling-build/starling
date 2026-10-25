@@ -5580,7 +5580,7 @@ With T178's zh-167ee06c (its paragraph 52, the break then "附件二之一", at 
 DONE for zh-0aac9d1a (Windows 01QbbApP, next commit): the existing rule that set a break-only paragraph back under its table where less than a quarter of its line was left now does so only under 2.5pt (zh-60c80728's table leaves 1.3 and Word keeps the break; zh-0aac9d1a's leaves 3.4 and Word gives it a page). Pair of the 29 documents with a break-only paragraph after a table: 94.93 -> 96.03, zh-0aac9d1a 72.2 -> 85.0, zh-4a2ab598 80.4 -> 99.5, none down. zh-0aac9d1a's rest is open. The break-then-text half (zh-167ee06c) is lenovo-2's 9fde89a6, by another route.
 zh-0aac9d1a at 85.0, next miss (Windows 01QbbApP, measured, RELEASED): page 10's table (its 4th, autofit, tblW 8518, grid 1762/2580/1515/2661, no borders, cell margins 0). Word sets column 1 two characters a line ("物业/服务/企业/名称"), and ours sets it at its grid width ("物业服务企业"). Its twin, table 2 on page 8 (grid 1732/2610/1515/2661), matches Word in ours. Table 4 differs by one more row, "申辩权利告知情况", whose 3-span cell holds "(36 spaces)年  (nbsp) 月 … 日". So Word's autofit narrows column 1 for that row's content: T1's content-width redistribution, which our autofit trace does not reproduce. CLAIMED Windows 01QbbApP 2026-10-25 (macos): T1's redistribution, from a lab of the twin tables.
 
-### zh-419ea527 (71.1 at w20) — PARKED (Mac 01Xgpbk5, 2026-10-25)
+### zh-419ea527 (71.1 at w20) — DONE by the 0012bc50 reprint: 98.6 at w23, no code change; the 方正 patch was dropped (Mac 01Xgpbk5, 2026-10-25)
 Page 5's title is 方正小标宋简体 (alternate 黑体, charset 86). The word-win print sets it in YaHei; our Windows
 alternate rule picks SimHei, putting page 5 13-14pt high. Ignoring the alternate for 方正 names at charset 86 gave
 71.1 -> 98.6 with no document dropping (w21 vs w20). Not landed: windows found the warm-up document (fixed in
@@ -5699,7 +5699,15 @@ no entry of ours, and no word-win print sets text in it. Same-base Linux pair ag
 documents: nothing moved (zh-4a2ab598, the one print in STFangsong, 80.4 either way). It is the lab's rule with no
 corpus gain yet.
 
-### zh-6a4fc013 49.5 (word-win): the Thai document, 27 pages to 26 — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-6a4fc013 49.5 (word-win): the Thai document, 27 pages to 26 — DONE c356987b, 49.5 -> 61.2 (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+On the Mac, Windows mode drew the Thai in Thonburi at 0.75, whose text layer extracts as garbage, and broke it by
+dictionary. Mac mode's Cordia New (Browallia's widths) and thaiBreaksAtSpaces now apply in Windows mode too; the rule is
+gated on Cordia being loaded, since on Linux's Noto Sans Thai at 0.66 it lost 2.3 (office1: 91.7 -> 89.4, 638 lines to
+614), so Linux is unchanged. Same-base pair w22 -> w23 after 0012bc50: only zh-6a4fc013 moved, 27/27 pages, 616/616 lines.
+Left: one line of drift through p15-24. Word breaks an over-long stretch at the last character that fits
+("…การพัฒ|นา"); ours breaks by dictionary ("การ|พัฒนา"). Character breaks inside over-long stretches were built and
+change no score, because Word still fits about 3pt more on such a line (widths of letters missing from
+browalliaAdvances, such as ฒ?). Moving every over-long stretch to the next line scored 52.3. Released.
 
 ### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
 396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
