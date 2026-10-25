@@ -94,7 +94,11 @@ extension PdfExport {
     /// scaled together to the paper's width, with 36.5pt to spare
     /// (k 0.693-0.737); the page 8.6pt from the paper's left and 5.2pt
     /// under the middle top to bottom; a grey pane over the markup area
-    /// from 9.1pt past the text, 257.3pt wide (unscaled).
+    /// from 9.1pt past the text, 257.3pt wide (unscaled). Word for Windows
+    /// (lab bp on the Windows box, and word-win's five pane prints, within
+    /// 0.3pt) leaves nothing to spare: the page and the 3.7in area fill the
+    /// paper's width, the page at the paper's left edge and centred top to
+    /// bottom, the pane from 9pt past the text to the paper's edge, 257.4pt.
     struct MarkupFrame {
         let scale: Double
         let left: Double
@@ -102,6 +106,13 @@ extension PdfExport {
         let pane: Rect
         init(_ setup: PageSetup) {
             let textRight = setup.width - setup.marginRight
+            if DocxFormat.wordOnWindows {
+                scale = setup.width / (textRight + 266.4)
+                left = 0
+                top = (setup.height - scale * setup.height) / 2
+                pane = Rect.fromLTWH(scale * (textRight + 9), top, scale * 257.4, scale * setup.height)
+                return
+            }
             scale = setup.width / (textRight + 266.4 + 36.5)
             left = 8.6
             top = (setup.height - scale * setup.height) / 2 + 5.2

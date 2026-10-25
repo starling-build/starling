@@ -4879,3 +4879,11 @@ Windows mode), one of its five. At fea9fd0d it is 100 against word-win.
 wp5 was ranked against np221 by lines lost. The 5.4 points come from two causes:
 - **About 5.0: markup documents.** testComment, comment, Tika-792, 58067, WordWithAttachments and delins. This is bd's markup pair, in flight. comment.docx prints blank on Windows, so it can only score 0. Reader is not a cause: PDFKit and PyMuPDF agree on these.
 - **About 0.4: bug59058 (53.2), layout.** Page 28 ends in a paragraph of at-least 15pt Times lines (all at their minimum) that fill the page to the twip. Word for Windows keeps the last line; Word for Mac and ours took it to page 29. The fix lets an at-least line that stands at its minimum tie on the foot, in Windows mode only (`RichTextTheme.wordWindowsPages`). bug59058 → 100. Sweep w6 is running.
+
+
+### Windows mode: Word for Windows' markup pane — DONE (Windows 01QbbApP lab `bp`, landed by the Mac, 2026-10-24)
+This is about 5.0 of T161's 5.4-point POI gap between the Mac and Windows series. The pane fills the paper's width, the page sits at its left edge, the balloons are Segoe UI 9pt, and everything is gated on wordOnWindows; office.md has the measurements.
+- **Pair:** w1/w2, same base d66805b8, both sides scored by the PyMuPDF matcher at bceef902.
+- **Result:** POI 85.5 → 89.0. testComment and 58067 0 → 100, Tika-792 0 → 66.7, WordWithAttachments 10.5 → 73.7, delins 11.9 → 69.5, zh-3fe252ff 33.3 → 99.4. Nothing lower.
+- **comment.docx:** scores 0 by construction and is not a line-gate target. Its comment has an empty scope in an empty body, and Word for Windows prints no balloon and no text (reprinted twice).
+- **Possible follow-up (windows):** skip the pane when no comment has a non-empty anchor.

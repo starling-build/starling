@@ -8168,3 +8168,25 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   and zh-ae2dd08d down 0.8, both mode 15. On the 236 corpus documents
   with indented cells in autofit tables (pair afbase/af2, same base):
   zh-12c4f07a 84.3 -> 90.4, nothing else moved.
+
+- **In Windows mode, a page printed with its markup stands as Word for
+  Windows prints it (2026-10-24; Windows 01QbbApP, lab `bp` on Word for
+  Windows, landed by the Mac).** Word for Windows fits the page and a
+  3.7in markup area to the paper's width, with no 36.5pt spare, so
+  scale = width / (text right + 266.4). The page sits at the paper's
+  left edge, centred top to bottom. The pane runs from 9pt past the text
+  to the paper's edge (257.4pt). Balloons run from 31.5 to 261.8pt past
+  the text, with their line 1pt under the top and 1.8 over the foot.
+  The connector turns 4.6pt past the text and meets the box 6pt under
+  its top. Word's own balloon face is Segoe UI 9pt at 1.33 em lines, and
+  it also stands in for a Balloon Text in Lucida Grande, which Windows
+  lacks (58067). Lab `bp` (seven page geometries) and word-win's five
+  pane prints agree within 0.3pt. A landscape page is not modelled:
+  Word fits it as if on portrait Letter. Word for Mac's frame is
+  unchanged. On the Windows series (pair w1/w2, same base d66805b8, both
+  scored with the PyMuPDF matcher): POI 85.5 -> 89.0. testComment and
+  58067 0 -> 100, Tika-792 0 -> 66.7, WordWithAttachments 10.5 -> 73.7,
+  delins 11.9 -> 69.5, zh-3fe252ff 33.3 -> 99.4, nothing lower.
+  comment.docx scores 0 by construction: its one comment has an empty
+  scope in an empty body, so Word for Windows draws no balloon and
+  prints no text (checked twice by windows).
