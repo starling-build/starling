@@ -5892,3 +5892,9 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differ
 
 ### T191. zh-4c5da793: 82.5 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
 Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
+- Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
+  parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
+
+### T192. zh-38d26944: 84.7 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, the table group)
+Owner: Linux lenovo-2. Found: not the cell's centring — Word's 仿宋 sets ″ (U+2033) an em (10.44-10.56 at 10.5pt); Starling
+FangSong's is 3.32, so p13's "…方位角闭合差在20″～30″扣5分，＜20″不扣分" takes the "＜". Trying ′ ″ as GB2312 em symbols.
