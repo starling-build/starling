@@ -603,6 +603,28 @@ rules from lines set in 楷体_GB2312 / 仿宋_GB2312, and do not replace refere
 real reprints. Prints: restart Word every ~40 documents from now on (the reprint loop does);
 many-copy labs need Word opened and left ~60s before printing (macOS-doc, lab sq14).
 
+### Reprinted (Windows 01QbbApP, 2026-10-24): all 756 references on Word for Windows, in test/corpus/docx/word-win
+Word for Windows 16.0.20430 (Microsoft 365), test/docx-word-win-reprint.py: a fresh Word every 40 prints,
+each document laid out (Repaginate + ComputeStatistics) before ExportAsFixedFormat, with markup (All Markup,
+balloons, PrintComments on: 58067 17 -> 24 words, Mac 24; Tika-792 0 -> 9, Mac 9). All 756 printed, none
+failed; score against them with DOCX_WORD_REFS=test/corpus/docx/word-win. The Mac set in word/ is untouched.
+- Pages: 728 match the Mac's count, 28 differ — zh-7773163d 61 -> 84, zh-d68ac84a 64 -> 53, zh-676e7b2d
+  27 -> 20, zh-69bbcc3c 43 -> 37, zh-dc25c47e 16 -> 13, zh-e68a2f57 63 -> 60, zh-6cd1befe 59 -> 57, 19 more by one.
+- Faces (test/docx-word-win-fonts.py; "missing" = in no installed font's name table nor Office's cloud-font
+  cache, %LOCALAPPDATA%/Microsoft/FontCache/4/CloudFonts, which supplies FangSong, KaiTi, SimHei,
+  DengXian, PMingLiU, MingLiU, MS Mincho, Aptos here). Read from the spans of documents set mostly in the face:
+  - 仿宋_GB2312 (253 documents) prints in **Microsoft YaHei**, not FangSong: zh-1a3c7aa0 is 90 pages on
+    Windows, as the drifted Mac print was, where the fresh Mac print is 61 in FangSong. So on this face
+    Word for Windows sides with the old reference, not the fresh one.
+  - 標楷體 / DFKaiShu-SB-Estd-BF (154 + 10) print in Microsoft YaHei: this box lacks DFKai-SB (kaiu.ttf),
+    which comes with Windows' "Chinese (Traditional) Supplemental Fonts" feature — installing it needs
+    an administrator (Add-WindowsCapability -Online -Name Language.Fonts.Hant~~~und-HANT~0.0.1.0), so
+    that is the user's call; a zh-TW Windows has it.
+  - 楷体_GB2312 (153): the documents sampled embed it, and print their own subsets.
+  - 新細明體 prints in PMingLiU (cloud font); 方正小标宋简体 (196) in SimSun.
+- comment.docx still prints blank: its only comment hangs on an empty body, which Word for Windows
+  doesn't balloon.
+
 ### USER DECISION 2026-10-23 (later): the punctuation squeeze limit follows Word for Windows
 windows' lab zq: Word for Windows squeezes a line-end up to exactly half an em (12-20pt, 1-3 marks;
 none with 0 marks), which our rule already does. Word for Mac's prints stop near 7.30pt at 16pt
