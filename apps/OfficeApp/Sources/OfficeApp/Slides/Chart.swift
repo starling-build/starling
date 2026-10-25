@@ -1434,7 +1434,16 @@ enum ChartXML {
                 }
                 if let sz = one.first("c:tx")?.descendant("a:rPr")?["sz"].flatMap(Double.init) { l.sizes[i] = sz / 100 }
                 if let rich = one.first("c:tx")?.first("c:rich") {
-                    let text = rich.all("a:p").map { _texts($0, "a:t").joined() }.joined(separator: "\n")
+                    // (A field — the category's name, the value — kept as a
+                    // mark the label fills in: zh-b8de3ae2's bar of pie says
+                    // "[類別名稱], 0.93%" and "規費收入, [值]", Word's print
+                    // "審查費, 0.93%" and "規費收入, 46.05%".)
+                    let text = rich.all("a:p").map { para in
+                        para.children.map { run -> String in
+                            if run.name == "a:fld", let mark = Self._fieldMarks[run["type"] ?? ""] { return mark }
+                            return _texts(run, "a:t").joined()
+                        }.joined()
+                    }.joined(separator: "\n")
                     if !text.isEmpty { l.texts[i] = text }
                 }
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
@@ -1702,6 +1711,10 @@ enum ChartXML {
         }
         return out
     }
+
+    /// A data label's fields (`a:fld type`), as the marks `_pieLabels`
+    /// fills in.
+    static let _fieldMarks = ["CATEGORYNAME": "\u{E000}c", "VALUE": "\u{E000}v", "SERIESNAME": "\u{E000}s", "PERCENTAGE": "\u{E000}p"]
 
     private static func _texts(_ node: XNode, _ name: String) -> [String] {
         if node.name == name { return [node.text] }
@@ -3487,7 +3500,7 @@ enum ChartPainter {
     private static func _pie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
                              text: (String, Double, Double) -> TextPainter, frame: Rect? = nil, ink: Color? = nil) {
         if c.ofPie != nil, c.type == .pie {
-            _ofPie(c, canvas, area, k: k, theme: theme)
+            _ofPie(c, canvas, area, k: k, theme: theme, frame: frame ?? area, ink: ink ?? theme.text)
             return
         }
         let values = c.series[0].values.map { max(0, $0 ?? 0) }
@@ -3737,7 +3750,7 @@ extension ChartPainter {
     /// (second pie from 85.7°, half its 171.4° "other" slice) and
     /// chart-barOfPieChart (a 145.2 by 72.6 bar beside a 193.6 pie, 48.4
     /// apart).
-    static func _ofPie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme) {
+    static func _ofPie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme, frame: Rect, ink: Color) {
         guard let o = c.ofPie, let series = c.series.first else { return }
         let values = series.values.map { max(0, $0 ?? 0) }
         let sum = values.reduce(0, +)
@@ -3769,13 +3782,22 @@ extension ChartPainter {
         let oval = Rect.fromCircle(center: centre, radius: d / 2)
         let half = other / sum * .pi
         var angle = half
+        var labelled: [(index: Int, mid: Double, value: Double, color: Color)] = []
         for i in values.indices where !o.second.contains(i) && values[i] > 0 {
             let sweep = values[i] / sum * 2 * .pi
             slice(oval, angle, sweep, c.pointColor(i, accents: theme.accents))
+            labelled.append((i, angle + sweep / 2, values[i], c.pointColor(i, accents: theme.accents)))
             angle += sweep
         }
         if other > 0 {
             slice(oval, -half, 2 * half, series.color ?? c.pointColor(values.count, accents: theme.accents))
+            // (The slice the second plot stands for is the point after the
+            // last, its label's index: zh-b8de3ae2's "規費收入, [值]".)
+            labelled.append((values.count, 0, other, series.color ?? c.pointColor(values.count, accents: theme.accents)))
+        }
+        // Its labels, as a pie's (`_pieLabels`).
+        if let l = c.pieLabels {
+            _pieLabels(c, l, canvas, frame: frame, slices: labelled, centre: centre, rx: d / 2, ry: d / 2, inner: 0, k: k, theme: theme, ink: ink)
         }
         // The second plot.
         guard other > 0 else { return }
@@ -3783,13 +3805,26 @@ extension ChartPainter {
         if o.bar {
             let h = d * o.size, w = d * width2
             var top = centre.dy - h / 2
+            var segments: [Int: Rect] = [:]
             for i in moved where values[i] > 0 {
                 let part = values[i] / other * h
                 let r = Rect.fromLTWH(x2, top, w, part)
                 fill.color = c.pointColor(i, accents: theme.accents)
                 canvas.drawRect(r, fill)
                 canvas.drawRect(r, edge)
+                segments[i] = r
                 top += part
+            }
+            // The bar's labels from their segments' middles, then moved as
+            // the file says, no leaders (zh-b8de3ae2's in Word's print).
+            if var l = c.pieLabels {
+                l.outside = false
+                l.fitted = false
+                l.leaders = false
+                for (i, r) in segments {
+                    _pieLabels(c, l, canvas, frame: frame, slices: [(i, 0, values[i], c.pointColor(i, accents: theme.accents))],
+                               centre: r.center, rx: 1, ry: 1, inner: 0, k: k, theme: theme, ink: ink, point: { _, _ in r.center })
+                }
             }
         } else {
             let r2 = d * o.size / 2
@@ -4187,7 +4222,14 @@ extension ChartPainter {
                 } else { parts.append("\(whole[s.index] ?? Int((share * 100).rounded()))%") }
             }
             guard !parts.isEmpty || l.texts[s.index] != nil else { continue }
-            let text = l.texts[s.index] ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
+            let text = l.texts[s.index].map { own in
+                own.replacingAll("\u{E000}c", with: s.index < c.categories.count ? c.categories[s.index] : "")
+                    .replacingAll("\u{E000}v", with: dataLabel(c, s.value))
+                    .replacingAll("\u{E000}s", with: c.series[0].name)
+                    .replacingAll("\u{E000}p", with: "\(whole[s.index] ?? Int((s.value / sum * 100).rounded()))%")
+            // (", " where the chart's text is Chinese, Japanese or Korean:
+            // zh-b8de3ae2's "其他收入, 16.39%" in Word's print.)
+            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (c.eastAsianText ? ", " : "; ") : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
