@@ -5156,6 +5156,11 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
     (eastAsia 楷体_GB2312, ascii Times New Roman, bold 12pt) sets the spaces 198.69 in all, 6.02 each. That is KaiTi's
     0.5 em space, not Times New Roman bold's 3.0, though the PDF draws them as TimesNewRomanPS-BoldMT. Word measures
     spaces between East Asian characters with the East Asian face's space: 99pt on this line.]
+    [Correction (macos-ios, Windows 01QbbApP): ours already sets these 33 spaces at 6.0. In a bare package the same
+    spaces are Times' 3.0 between Han too, so the 6.0 comes from this document's own setup. The gap to Word is the
+    bold excess after all. In its package, bold spaces are 6.021 against 6.001 regular, so bold adds about 0.02 per
+    space. Ideographs alternate 12.108/12.000, +0.044 (1/256 em). Bold wraps 米 (ends 493.57); regular keeps it
+    (506.98).]
   - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
