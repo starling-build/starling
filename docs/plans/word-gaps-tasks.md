@@ -5808,3 +5808,6 @@ Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab
 ### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
 squeezes are more than the body series'. macos-ios's whole-ppem change may land meanwhile; rebase before trusting line ends.
+
+### zh-57f1de0d 78.9 (word-win, 51/51 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+(Assigned to lenovo on 10-23 but never claimed; an embedded-face document, whose Mac references were unreliable.)
