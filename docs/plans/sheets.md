@@ -644,7 +644,12 @@ its rules 317.04 apart in Excel's print (0.774 -> 0.755, 250 better, 113
 worse). Printed headings are the default font's cell text, at a cell's
 foot four dots right of the middle, the column letters four dots lower
 again: they stood 0.6 to 2 pt low in their own style (twelve workbooks,
-all better). Open: their letters' widths in Arial 8 and Microsoft Sans
+all better). A left margin of 0 prints as eight printer dots, 0.96 pt:
+Excel's frame and cells stand that far in from the paper's edge in all
+four such workbooks with rules at their left, where a top margin of 0 is
+0 (nine zero-margin workbooks: 4.044 -> 2.254, 7 better, lo-bnc762542,
+centred, +0.06; 49609 19.87 -> 11.64, lo-tdf131575 12.16 -> 4.90).
+Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

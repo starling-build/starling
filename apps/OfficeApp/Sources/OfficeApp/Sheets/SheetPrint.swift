@@ -55,7 +55,12 @@ struct SheetPrintSetup: Equatable {
         }
         if let m = node("pageMargins") {
             func inch(_ k: String, _ d: Double) -> Double { (Double(m[k] ?? "") ?? d / 72) * 72 }
-            s.left = inch("left", s.left); s.right = inch("right", s.right)
+            // (A left margin no narrower than eight printer dots: at "0"
+            // Excel's cells and frame stand 0.96 pt in from the paper's
+            // edge — 49609's, lo-tdf131575's, lo-autofilter-colors' and
+            // lo-tdf145054's, where ours stood at it. A top margin of 0
+            // is 0.)
+            s.left = max(0.96, inch("left", s.left)); s.right = inch("right", s.right)
             s.top = inch("top", s.top); s.bottom = inch("bottom", s.bottom)
             s.headerMargin = inch("header", s.headerMargin); s.footerMargin = inch("footer", s.footerMargin)
         }
