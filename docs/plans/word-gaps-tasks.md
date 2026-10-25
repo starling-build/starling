@@ -4846,3 +4846,10 @@ Word for Windows keeps a synthetically emboldened face's widths. Long bold 仿�
 - **Better:** zh-e7bdb543 84 → 100, zh-727812d5 83 → 100, zh-5c7787f5 80 → 100.
 - **Worse:** zh-72da925e 81 → 76, zh-c4f2be3b 99.7 → 95.6, EmbeddedDocument 100 → 33 (3 lines).
 - Lab tools `misslist.py` and `yoff.py` read the same way when DOCX_LINE_READER=mupdf is set.
+
+### T162. zh-b875d786: every page 6.1pt low against word-win — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), routed by macos. 0.0 against word-win
+with all 181 lines matched: each page's text a constant 6.1pt under Word's
+(first baseline 91.0 against 84.9; 宋体 body, top margin 1440). Not T155-T159's
+(the same with and without them); not low at w4 (9e957126). Bisecting 9e957126
+and 0844bdd6 first, as macos suggests.
