@@ -8190,3 +8190,19 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   comment.docx scores 0 by construction: its one comment has an empty
   scope in an empty body, so Word for Windows draws no balloon and
   prints no text (checked twice by windows).
+
+- **In Windows mode, a comment of no text at the document's very start
+  gets no balloon, and Word for Windows' balloons stand 1.1pt apart with
+  their lines 2.2pt in (2026-10-24; Windows 01QbbApP, labs `na` and
+  `bh` on Word for Windows, landed by the Mac).** Lab `na` (12 variants
+  in comment.docx's own package) shows that only a lone reference or an
+  empty range at offset 0 loses its balloon. Anywhere after text, a
+  space or an empty first paragraph keeps it. With nothing else marked,
+  Word prints no pane (comment.docx). Lab `bh` (four Balloon Text faces,
+  three sizes, three line spacings) puts every stacked box 1.07-1.21pt
+  clear of the one above, with its lines 2.15-2.3pt inside the top and
+  the foot. Word indents a deletion balloon (8.8) only when it holds
+  deleted list items. Mac mode is unchanged. On the POI set plus
+  zh-3fe252ff, Windows mode, same base ab10de75, PyMuPDF matcher:
+  Tika-792 66.7 -> 100, delins 69.5 -> 74.6, comment.docx's page count
+  now Word's, nothing lower.
