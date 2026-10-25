@@ -1821,8 +1821,20 @@ public final class RichLayout {
                 glyph.dispose()
             }
         }
+        // (Each ideograph centred across the line on the tallest one
+        // beside it, not on its own run's box: zh-74b34f3b's tbRlV
+        // "東引鄉活動中心2樓", 16pt with a 20pt "樓", is one column down
+        // the middle in Word's print, every character 79.4pt across;
+        // ours set the 16pt ones 1.6pt to the side of the "樓".)
+        let ownBoxes = shown.map { painter.getBoxesForSelection(TextSelection(baseOffset: $0, extentOffset: $0 + 1)).first }
+        func across(_ box: TextBox) -> Double {
+            var tallest = box
+            for case let other? in ownBoxes where other.top < box.bottom && other.bottom > box.top
+                && other.bottom - other.top > tallest.bottom - tallest.top { tallest = other }
+            return (tallest.top + tallest.bottom) / 2
+        }
         for (n, k) in shown.enumerated() {
-            guard var box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first,
+            guard var box = ownBoxes[n],
                   let ch = Unicode.Scalar(text[k]) else { continue }
             if distribute, shown.count > 1 {
                 let advance = box.right - box.left
@@ -1849,7 +1861,7 @@ public final class RichLayout {
             // twips, 15.6pt apart) stands 2.55pt higher in Word's print —
             // half its spacing — than ours, centred in each place, did.)
             let along = box.left + min(box.right - box.left, glyph.width) / 2
-            canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + (box.top + box.bottom) / 2)
+            canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + across(box))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
