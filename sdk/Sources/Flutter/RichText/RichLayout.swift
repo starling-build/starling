@@ -4491,7 +4491,18 @@ public final class RichLayout {
                         let under = _pages[page].filter { $0.paragraph < i && _cells[$0.paragraph] == nil && !$0.repeated
                             && $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 }
                             .reduce(0.0) { $0 + $1.flowBottom - $1.flowTop }
-                        return target + c.ownRowHeight + under > contentH + 0.01
+                        // (And the line under that row, which the row after
+                        // carries in its margin and the text set under the
+                        // row clears: zh-77bd4900's checklist, 68.7pt down,
+                        // ruled 2.25pt between rows, follows a page whose
+                        // text fits under its first row by 1.15pt without
+                        // that line and not with it — Word's print has the
+                        // page whole and the list on the next, where ours
+                        // took the page's text under the list's head.)
+                        let ts = document.tableStyles[c.table]
+                        let line = ts?.edges?.insideH ?? ts?.borders ?? false
+                            ? _px(Self._ruleRoom(ts?.edgeStyles["insideH"] ?? ts?.borderStyle, ts?.edgeWidths["insideH"] ?? ts?.borderWidth ?? 0.5)) : 0
+                        return target + c.ownRowHeight + line + under > contentH + 0.01
                     }() {
                         newPage()
                         let physical = page / _columns
