@@ -5518,7 +5518,11 @@ From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wro
 - Turning the rule off outright cost zh-15728c84 −43, zh-9ba2ead7 −17.6, zh-9ef811c8 −16.5, so Word for Windows keeps it for rows merged whole.
 - What's left of zh-b8de3ae2 is its charts (p9, p12, p15, p18, p20–23).
 
-### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — DONE 9fde89a6 (Linux lenovo-2, starling-d6, 2026-10-25): 100
+- DONE 9fde89a6, after windows' lab t178: p51's 34.68 is right (JhengHei UI Light x 1.5) and stands 4.3 past the foot in Word
+  too; the blank page was ours calling that page over-full. Off the grid a multiple's extra is now like space after there:
+  not over-full, so a page break opening the next paragraph needs no page of its own (lab gf's blank page, on the grid,
+  stands). Same-base pair, 756 against word-win: zh-167ee06c 45.1 -> 100 (13/13), nothing else moved; mean 95.97 -> 96.04.
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2. Was 91.0 against the Mac prints (T148). Its 華康 names are JhengHei UI Light on Windows (421ac17d's note).
 - Measured: ours has a blank page 7. Page 6 ends in a table (bottom 739.2 in both, foot 769.9); then p51, " " alone
   (ascii/eastAsia 華康雅風體W3(P), hint eastAsia, bold 14pt, line 360 auto, snapToGrid 0), then p52 = [page break]
