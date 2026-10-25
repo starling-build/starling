@@ -5283,6 +5283,17 @@ Word takes 高 from col4 329.00 (a justified text width of 328.58) and leaves it
 thresholds exactly, so the allowance rule holds in the cell; tcMar 0 and the cell's mark change nothing. The
 document's 328.8pt column sits just under the threshold, so Word leaves 高. Fix our width for this cell: we read
 304.85.]
+[Windows 01QbbApP, lab t170b, redone on real documents after the ¼-total formula failed (zh-38078fb3, zh-7cf85f15,
+zh-c2b13410 100 -> 78). Each document was printed with jc both turned to left. A justified line's natural width is its
+characters' advances there; over = natural - measure. 25 documents, two per mode × characterSpacingControl × zh-TW/CN:
+- Only mode 15 takes a justified line past natural. All 14 documents in mode 12, mode 14 or legacy show 0 (two at most
+  0.1-0.75 on punctuation).
+- Mode 15 doNotCompress: up to 1.50 per CJK-alnum boundary, about half its 3pt automatic space at 12pt. zh-7488a70f
+  "用容易度及1分鐘內完成連署" takes 3.01 over 2; zh-4ea36aa8 "…雙語部12班、國小部32班（含" 6.00 over 4. It does not grow
+  with the character count. The first t170 (a), 1.0 per boundary, is an outlier to recheck.
+- Mode 15 compressPunctuation also squeezes CJK punctuation: zh-7eba7349 11.3 over 6 marks, zh-fd4c6b86 5.5 over 3.
+  zh-5b7ae054's 858 lines look like a pairing artefact.
+Suggested: an allowance in mode 15 only, ½ of each automatic space, plus punctuation under compressPunctuation.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
