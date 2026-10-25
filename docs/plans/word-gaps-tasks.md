@@ -5980,10 +5980,16 @@ FangSong's is 3.32, so p13's "…方位角闭合差在20″～30″扣5分，＜
 ### Footer page number in a text box hung from a lone footer paragraph (zh-1cfb652b, zh-4f70ee2d, zh-884c6e3e: p1's number ~6pt low) — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos; lab ft above, 8fdbcb6c)
 DONE (Mac 7bd18d8e, next commits): zh-1cfb652b's box font GWZT-EN is embedded with charset 86; Word for Windows gives such a font the 1.3x East Asian line, so the reader now loads it in Windows mode and the face takes that line. Pair w53 -> w54: 87.5 -> 94.6, nothing else moved. zh-884c6e3e was already 100; zh-4f70ee2d's misses (95.1) are its p19-20 table (01QbbApP), not the footer. Released.
 
-### T193. zh-7eba7349: text beside a text-anchored floating table — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T193. zh-7eba7349: text beside a text-anchored floating table — DONE a75094fd (Linux office1, starling-office1-95, 2026-10-25): 100
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). The empty paragraph (仿宋 18 bold mark) anchoring the
 floating "…印发" table (tblpPr vertAnchor text, tblpY 114, 420.7 wide, rightFromText 180) is set in Word's print in the 27pt
 strip right of the table (x 504.8–532.2); ours sets it full width at p2's top.
+a75094fd, the narrow case only: in Windows mode, an empty paragraph straight after a top-level table with tblpPr
+vertAnchor text, an explicit tblpX (no tblpXSpec) and no horzAnchor page takes no room where the strip on the table's right
+(text width - tblpX - the table - rightFromText) holds a character of its mark. Text flowing into the strip (the lab's
+smaller-mark case, where "温" starts there) is not built. A first build without the vertAnchor and tblpXSpec checks cost
+zh-291fcea7 (page-anchored tables) 20 and zh-cec9d337 (a centred 26-row table) 33. Same-base pair, 756: zh-7eba7349 81.5 ->
+100, nothing else moved. Rechecked on the tip after 65510187.
 
 ### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — MEASURED, PARKED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). Check whether ours carries two, or sizes them taller.
