@@ -5808,5 +5808,8 @@ Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
 squeezes are more than the body series'. macos-ios's whole-ppem change may land meanwhile; rebase before trusting line ends.
 
-### zh-57f1de0d 78.9 (word-win, 51/51 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-57f1de0d 78.9 (word-win, 51/51 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
+Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16pt embedded, jc both). On p1,
+"…办法》第八条第一项规定：“…世界文" is about 6.4 over with "化": Word justifies, with "》" and "：" whole and "“" 7.56, while
+ours squeezes both to 13.35 and "“" to 7.1 and takes "化". The same holds on p1-2, p8, p11 and p21-33 (one line's drift).
 (Assigned to lenovo on 10-23 but never claimed; an embedded-face document, whose Mac references were unreliable.)
