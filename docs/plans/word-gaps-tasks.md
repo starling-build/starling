@@ -5543,3 +5543,7 @@ not measured.
 - **zh-8e8d4c40 label lift, retry notes (Mac 01Xgpbk5):** label-target.patch (Mac) puts the label's baseline into the first-line target of `_layoutParagraph`'s lead block. It used `marker.computeDistanceToActualBaseline`, which is in pixels, while `target` is in points (`_px(target)`): the lines were shoved out of their cells (177 → 143). Convert by `/ (theme.pixelsPerPoint * scale)`. Lift the line as the Segoe UI Symbol case does, `segoeLift = max(segoeLift, labelBaseline − target)`, rather than `target` alone.
 
 ### zh-419ea527 (71.1 at w20) — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
+
+### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier entries (windows' zq, the Mac's zz) are
+released; this starts again from the word-win print at 0a2306a8.
