@@ -5848,4 +5848,18 @@ to p16 (13 low). Lab wanted: a page filled to 17pt from its foot, then an empty 
 under docGrid lines 326. Does it stay? And the same with the mark at 10.5pt, with the grid off, and with text in the
 paragraph.
 
-### zh-1cfb652b 87.5 (word-win): p1's footer page number missing in ours — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-1cfb652b 87.5 (word-win): its footer page number 6pt low — MEASURED, PARKED for a Windows lab (Mac 01Xgpbk5, 2026-10-25)
+(The screen's "missing" was wrong: ours draws "— 1 —" at the right x, 6.07pt lower.) Over the 112 word-win documents
+whose p1 carries a dashed page number, only three miss, each by about 6pt low: zh-1cfb652b +6.07, zh-4f70ee2d +5.71,
+zh-884c6e3e +5.85. All three footers are ONE paragraph holding only the WPS page-number text box (wrapNone, posOffset 0
+from the paragraph, tIns 0, spAutoFit). The ~109 that match have more paragraphs under it (an empty one, a second box).
+So the box hangs from that lone paragraph's top, and the footer stands on its distance from the foot: the paragraph's
+height decides the box's place. From the prints (footer foot minus the number's baseline, plus SimSun 14's 12.03 ascent),
+Word's paragraph is 37.3 / 23.4 / 13.9 tall where ours is 31.3 / 17.7 / 8.1:
+- zh-1cfb652b: line 471 auto, mark GWZT-EN 14pt, embedded, 1.113 em.
+- zh-4f70ee2d: footer style 9pt, mark eastAsia 方正仿宋_GBK, grid lines 312.
+- zh-884c6e3e: footer style 9pt TNR/宋体, snapToGrid 0, Normal 10.5.
+Not a mark-versus-run size effect: about 30 documents with a 9pt mark under a 14pt number match. Ours sizes these
+lone paragraphs by `_layout`'s "a paragraph of nothing but floating objects" rule (zh-1a3c7aa0's footer), from the mark's
+look. Lab wanted: zh-884c6e3e's footer alone, the number's baseline with (a) as is, (b) an empty paragraph added under
+it, (c) the paragraph's mark at 14pt; and the same for zh-1cfb652b.
