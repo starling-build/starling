@@ -626,13 +626,28 @@ it, which rasterise darker than our single dot (lo-tdf100034's black
 grid against our grey). All nineteen workbooks that print gridlines got
 worse, 0.0 to 0.6 (GeneralFormatTests 8.32 -> 8.85): our lines stand a
 fraction of a point off Excel's, and a darker line only widens the miss.
-Also open: set row heights a printer dot short of Excel's at some
-heights (lo-tdf131575's 15 pt rows in Arial 8, 125.93 dots: Excel 126,
-ours 125). Not a threshold on the fraction: the set-height labs (h-a10,
-h-c11, no sheetView, so halved) have only their 20 pt rows one over, at
-fractions .78 and .91, while 40 pt at .82 is cut down — and no cut of a
-height linear in h makes 20 pt 81 dots and 40 pt 161. Some intermediate
-(the screen's pixels?) is rounded first.
+Set row heights a printer dot short of Excel's at some heights: cut
+down from 0.12 of a dot over, not from the height itself (2026-10-25).
+Every set height in the corpus at 100% fits it, and the cut alone did
+not: lo-tdf131575's 15 pt rows of Arial 8, 125.93 dots, print 126 (179
+rows); lo-tdf171828's 11.25 pt of Arial 10, 90.88, print 91 (101);
+picture.xlsx's 14 pt of Calibri 11, 118.88, print 118; 254.74 and 240.73
+print 254 and 240. The room is narrow, 0.118 to 0.123, so it is a fit,
+not Excel's arithmetic. Of the halved labs it makes Calibri's .91 one
+over and keeps .82 cut, but not Arial's .78 (one over in Excel's). 720
+workbooks: 0.755 -> 0.726, 12 better, 7 worse (lo-tdf131575 30.95 ->
+12.27, 45540_form -1.02; 52348 +0.39, its page 15 pt off already).
+
+A printed column is whole printer dots too, each rounded on its own:
+49609's 8.33 characters of Microsoft Sans Serif 8.25 are 316.67 dots,
+its rules 317.04 apart in Excel's print (0.774 -> 0.755, 250 better, 113
+worse). Printed headings are the default font's cell text, at a cell's
+foot four dots right of the middle, the column letters four dots lower
+again: they stood 0.6 to 2 pt low in their own style (twelve workbooks,
+all better). Open: their letters' widths in Arial 8 and Microsoft Sans
+Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
+line high print 15.24 where ours are 14.52, its text 4.9 pt over the
+foot, not 3 — no border, merge or wrap explains it yet.
 
 Tried and taken back, 2026-10-16: Lucida Sans Typewriter drawn in
 Liberation Mono: the right widths, a serifed face where Excel's is

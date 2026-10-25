@@ -54,9 +54,14 @@ struct SheetPrintMetrics {
     /// (`scale`, `rowScale` or less), and cut down to whole dots of the
     /// printer's 600 dpi — 20 pt in Arial 10 prints 161 dots, not 161.57
     /// (labs of twelve set heights in Arial 10 and Calibri 11, Excel 16,
-    /// 2026-10-15: 22 of 24 to the dot, the others one over).
+    /// 2026-10-15: 22 of 24 to the dot, the others one over). Cut down
+    /// from 0.12 of a dot over: lo-tdf131575's 15 pt rows of Arial 8,
+    /// 125.93 dots, print 126 (179 rows), lo-tdf171828's 11.25 pt of
+    /// Arial 10, 90.88, print 91 (101), where picture.xlsx's 14 pt of
+    /// Calibri 11, 118.88, print 118 — and the lab's Calibri rows at .91
+    /// one over, at .83 not.
     static func setRow(_ h: Double, scale: Double) -> Double {
-        (h * scale * 600 / 72 + 1e-6).rounded(.down) * 72 / 600
+        (h * scale * 600 / 72 + 0.12).rounded(.down) * 72 / 600
     }
 
     func fittedRow(_ font: SheetPrintMetrics) -> Double {
