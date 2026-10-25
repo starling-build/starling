@@ -145,6 +145,15 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("微软雅黑", eastAsian: true)?.naturalHeight), 1.715, "regular keeps its own")
     }
 
+    func testSegoeUISymbolIsALineOfItsOwnAscentAndDescent() throws {
+        // seguisym.ttf: 2210 over and 514 under of 2048. zh-a7a889eb's
+        // "☑12、…" cells (12pt, 0.8625 auto) step 17.16 in Word for
+        // Windows' print; the clone's line under SimSun's set them 0.8 short.
+        let face = try XCTUnwrap(OfficeFonts.face("Segoe UI Symbol", eastAsian: false))
+        XCTAssertEqual(try XCTUnwrap(face.naturalHeight), 1.3301, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(face.baseline), 1.0791, accuracy: 0.0005)
+    }
+
     func testPMingLiUsSpaceAndTimesSignAreItsOwnWidths() throws {
         // Word's embedded PMingLiU sets the space 0.26 em (97 prints'
         // /Widths) where the stand-in set 0.235, and "×" half an em:

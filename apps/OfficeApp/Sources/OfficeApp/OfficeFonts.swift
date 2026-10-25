@@ -1572,9 +1572,14 @@ enum OfficeFonts {
             // bullet on it is 1.225 ems. form_footnotes' 10pt lines with
             // a `w:sym` box, or a Symbol bullet, are 12.24 apart in
             // Word's print where the clone's were 11.5, and its first
-            // page ran 4pt short, a row over.
+            // page ran 4pt short, a row over. Segoe UI Symbol's is 2210
+            // over and 514 under of 2048, 1.330 ems: zh-a7a889eb's
+            // checklist cells, "☑12、…" at 12pt in 0.8625 auto lines, step
+            // 17.16 in Word for Windows' print, where the clone's line
+            // under SimSun's set them 0.8pt short a line.
             let symbolLines: [String: (height: Double, baseline: Double)] = [
                 "symbol": (1.225, 1.005), "wingdings": (1.11, 0.899), "wingdings 2": (1.054, 0.843), "wingdings 3": (1.139, 0.928),
+                "segoe ui symbol": (2724.0 / 2048, 2210.0 / 2048),
             ]
             if let own = symbolLines[family.trimmingWhitespace().lowercased()] {
                 face.naturalHeight = own.height

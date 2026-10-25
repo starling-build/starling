@@ -6202,6 +6202,14 @@ fitter dropped the paragraph's tail).
   zh-a7a889eb moved, 91.0 -> 90.7 — the contents' five lines now match,
   and p9's checklist, whose Light lines now stand within 0.05 of Word's,
   showed the next entry's 0.8pt a line that had cancelled against them.
+- **Segoe UI Symbol is a line of its own ascent and descent (2026-10-24,
+  Windows references).** seguisym.ttf, 2210 over and 514 under of 2048,
+  1.330 em, beside Symbol and the Wingdings in the symbol faces' lines.
+  zh-a7a889eb's p9 checklist cells — "☑12、…" with the box in a Segoe UI
+  Symbol run over SimSun, 12pt at 0.8625 auto — step 17.16 in Word for
+  Windows' print; the clone's (DejaVu Sans') line under SimSun's set each
+  0.8 short. Same-base sweep h150 (word-win): only zh-a7a889eb moved, 97.2
+  -> 97.9 (91.0 -> 97.9 with the line above and be77c1fa's bold).
 - **A row opening a page under a cell of no top line takes the table's
   top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
   thinThickSmallGap top (sz 24) over single half-point inside lines, its
