@@ -5139,6 +5139,10 @@ Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels,
 Also: the "Lab c5" note in the zh-c5b5087b entry above (footer floats turning the squeeze off) was the print-timing
 trap — a 60s-waited Mac print squeezes through p10 (lab/sqcut); see lab/tools/squeeze-cutoff.py.
 
+[LAB Windows 01QbbApP 2026-10-25, labs b8row and b8row9 (~/starling-doc-check/lab on the Windows box), asked by macos-ios: zh-b8de3ae2's own package, rows printed as one-row tables (the table's own tblPr and grid), "X" paragraphs before and after, each a fresh Word, against our tip render (8337b1d0, Windows mode). Height between the X baselines, Word / ours:
+- The 7-column table (tblInd 472, 24 rows; the 213, 431 and 521 rows): 25.44/25.46, 36.36/36.36, 40.92/40.86, the three stacked 73.56/73.56, the whole table 473.33/473.21. Its p26 rows step alike in both prints. Not this table.
+- p14's "決算金額 / 105 年 / 比率(%)" groups are the 9-column table (tblInd 285, 22 rows). Each of its first eight rows alone is within 0.1 (row 5, "106 年 決算金額", 48.48/47.98). Together they part: rows 1-4 are 81.6/83.36 (+1.76), the whole table 442.49/453.16 (+10.7).
+- Inside rows 1-4 every baseline matches through "比率(%)" (149.18/149.10). The row-4 values ("100.00", line 263 exact, sz 20) are 155.54/157.45 (+1.9), and the X after is +1.8. So the extra is at the row 3/4 boundary. Row 3 (trHeight 226) is where the merges begun in row 2 end ("105 年", line 265 exact, and seven empty sz-20 cells; their row-3 continuations hold sz-2 paragraphs), and where "比率(%)" (before 128, sz 20) begins a merge over rows 3-4. Ours grows row 3 (or 4) by about 1.9 where a vertical merge ends or begins; Word does not.]
 ### Windows refit on the font-pack reprints — DONE 497b95bc (Mac 01Xgpbk5, 2026-10-24)
 
 Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refit, w9 is zh 95.2, POI 89.4. 259 documents are better, 4 worse.
