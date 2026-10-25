@@ -4786,6 +4786,20 @@ Both references reprint identically fresh.
   - as is: Ebrima; PANOSE removed: Ebrima; family roman: Ebrima;
   - sig removed: Calibri; no entry: Cambria; TNR's own sig: Sylfaen.
   Word ranks installed faces by the entry's Unicode/code-page signature. One facemap row covers this document.
+- Note: zh-e2dc9dce waits on lenovo-2's DFKai-SB face (lenovo-2 is finishing it).
+- Sig map for missing Latin faces (lab sigmap, for macos-ios's facemap). Every missing Latin face with text across the
+  756 documents is grouped by its font-table entry; there are 9 groups, one document each. Each probe was fresh:
+  - Times (bug59058, 982 runs; no alt, cs 00, sig E0002AFF/C0007843/09): Times, the PDF's Times reference.
+  - TH Sarabun New (zh-6a4fc013, 281; no alt, Thai sig A100006F/5000205A): Browallia New.
+  - Nimbus Roman (zh-015abfaf, 273; no alt, sig 00000287/00000800): Calibri.
+  - MinionPro-It/-Regular/-bold (bug59058, 173; alt Times New Roman): Times New Roman.
+  - LinTimes (zh-c399c91a, 128; no alt, sig 00007A87/80000000/08): Ebrima.
+  - Times Roman (zh-e2dc9dce, 16; no alt, sig 00000003): Times New Roman.
+  - taipei (zh-12db188f, 10; alt Times New Roman, sig 00000003): Times New Roman.
+  - FangSong_GB2312 (zh-c3dd22c4, 1; alt 仿宋_GB2312, cs 86): YaHei, unwarmed (warmed references use FangSong).
+  - FZShuTi (zh-f6686f89, 1; no entry): Cambria for Latin.
+  An alternate this box has wins. Without one the sig picks: Thai → Browallia New, Latin-only 00000003 → TNR,
+  LinTimes' → Ebrima, Nimbus Roman's → Calibri.
 
 ### Word for Windows sets baselines on a 1/600-inch grid from the running total; DFKai-SB is 1.3009 em (Windows 01QbbApP, 2026-10-24)
 Lab round, in zh-d35cbbdb's package, each print fresh, every baseline read.
