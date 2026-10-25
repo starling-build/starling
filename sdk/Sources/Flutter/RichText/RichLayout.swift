@@ -5050,7 +5050,13 @@ public final class RichLayout {
                resumeCursor == nil, page > 0, i > 1, document.paragraphs[i - 1].text.isEmpty, document.paragraphs[i - 1].cell == nil,
                document.paragraphs[i - 2].cell != nil,
                _pages[page].count == 1, let was = _pages[page].first, was.paragraph == i - 1, was.pageY < 0.01,
-               prevContentH - prevY < was.height / 4,
+               // (Where the table reached the foot or all but a point or two
+               // of it, not a quarter of the line short: lab brk, zh-0aac9d1a's
+               // page 7, a table 3.4pt above the foot in Word's print and in
+               // ours, and Word gives the break's 31.2pt line page 8, a blank
+               // one; zh-60c80728's page 25 table ends 1.3pt above it in both,
+               // and Word keeps the break there.)
+               prevContentH - prevY < _px(2.5),
                let at = _allPieces.lastIndex(where: { $0.paragraph == i - 1 && $0.page == page }) {
                 var only = PagePiece(paragraph: was.paragraph, flowTop: was.flowTop, flowBottom: was.flowBottom, page: page - 1, pageY: contentH)
                 only.part = was.part
