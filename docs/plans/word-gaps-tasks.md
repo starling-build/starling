@@ -4817,10 +4817,14 @@ state, the date's digits print in the theme's Latin face (Cambria) whenever the 
 Mincho. Until the box is in a stable state, no rule for a missing face can be read off this
 Word. The user's font-pack install may settle it; fsw's YaHei is no firmer than this.
 
-### T161. zh-bfe04e2f: Word for Windows' lines take a character more — CLAIMED (Linux office1, 2026-10-24)
+### T161. zh-bfe04e2f: Word for Windows' lines take a character more — RELEASED (Linux office1, 2026-10-24): bold, done by be77c1fa
 Owner: Linux office1 (starling-office1-df), routed by macos. 62.7 against
 word-win, 100 against the Mac's; the same SimSun/FangSong faces in both prints,
 and Windows' lines take one more ("…引领除LNG 船舶和5", "…以及引航机构报告，：").
+Its paragraphs are bold FangSong: the Mac print widens synthetic bold (12.23 a
+12pt ideograph), Windows' does not (12.0), so Windows' lines take one more.
+macos-ios's be77c1fa (no bold spread in Windows mode) takes it 62.7 -> 98.1.
+Released, nothing of mine in it.
 
 ### Windows mode: no synthetic-bold widening — DONE be77c1fa (Mac 01Xgpbk5, 2026-10-24)
 
