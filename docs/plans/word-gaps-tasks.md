@@ -5770,3 +5770,6 @@ Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; th
 
 ### zh-e0ca7252 68.8 (word-win, 50/50 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
 Beside T181 (lenovo-3's squeeze-capacity lab, 9cb560da): if the misses are that squeeze, it goes to lenovo-3.
+
+### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
+Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
