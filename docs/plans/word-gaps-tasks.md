@@ -4988,10 +4988,21 @@ T163.) Patch not kept.
 - **Open:** delins's Field Code Changed / Formatted balloon order; re-read its misses at this tip.
 - **Open:** WordWithAttachments, where Times New Roman 10pt lines step 11.49 in Word for Windows (hhea with lineGap) and 11.0 in ours. [CLAIMED Linux b2 01JsizVV 2026-10-24, routed by macos: not the metrics (macos-ios: both step 11.5); the 8.5pt of drift sits in the twelve paragraphs of seven VML shapes between "We will leave…" and "Дубль документа" — which float or wrap, and how tall each line stands]
 
-### T165. zh-8f9b19f4 p13: Normal lines step Arial's line plus 8pt after in Word for Windows — CLAIMED (Linux office1, 2026-10-24)
+### T165. zh-8f9b19f4 p13: a sectPr-only paragraph's space after comes off the next paragraph's space before — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), routed by macos from Windows 01QbbApP's lab
 bp13 (above): every Normal line steps 20.06-20.08 (Arial's 1.149 em at 10.5pt and the 8pt
 after of a styles part with no pPrDefault); ours steps 20.3-20.4, the Mac's.
+Not the bare paragraphs: ours step 20.1, as Word's. p13 alone is 4.27 low, and lab
+`t165` (windows) puts it on "附件5:"'s 4.3pt before: the sectPr-only paragraph above
+takes no room (ours neither), but its 8pt after is taken off the next paragraph's
+before — max(0, before − after). Built so (the next paragraph in the body, or the
+first of a `sectionColumns` row, as "附件5:" is in ours), same-base Windows pair:
+zh-b5359de4 96.4 -> 94.8 — its sectPr-only paragraph (ending a nextPage section,
+the next beginning continuous in two columns, as zh-8f9b19f4's) is followed by an
+empty "TOC 标题1" paragraph of style before 24pt, which keeps all 24 in Word's
+print ("目录" at 486.4; ours 8pt high under the rule). What separates the two is
+asked of windows (direct vs style spacing, empty vs text). Patch:
+~/tmp/office1/t165-v2.patch.
 
 ### T166. zh-b8de3ae2 p14: a cell of no margin sets its text half an inside line in — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24, 6c8dcf54)
 Word's prints (Mac and Windows alike) of zh-5bfac68f and zh-b8de3ae2: in 0-margin cells (mode 15) the text
