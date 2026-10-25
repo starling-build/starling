@@ -209,7 +209,34 @@ enum WriterGroups {
         var dash: String? = nil
         /// A picture's bytes and its decode key: drawn over its box.
         var picture: (key: String, data: Data)? = nil
+        /// WordArt (a VML textpath): its text fitted to the box.
+        var wordArt: WordArtText? = nil
     }
+    /// A VML textpath — Word's WordArt — drawn as Slides draws WordArt
+    /// (`WordArt`): each line stretched to the shape's box by its warp, in
+    /// the textpath's face, the shape's fill and outline, and its shadow.
+    private struct WordArtText {
+        var lines: [String]
+        var warp: TextWarp
+        var family: String
+        var bold: Bool
+        var italic: Bool
+        /// The letters' colour, under `look`'s gradient where it has one.
+        var color: Color
+        var look: RunLook?
+        var shadow: WordArt.Shadow?
+        var alignment: ParagraphAlignment
+    }
+    /// VML's text shapes (`o:spt` 136 to 175), in the order DrawingML's
+    /// text warps take them.
+    private static let _vmlTextWarps: [String] = [
+        "textPlain", "textStop", "textTriangle", "textTriangleInverted", "textChevron", "textChevronInverted",
+        "textRingInside", "textRingOutside", "textArchUp", "textArchDown", "textCircle", "textButton",
+        "textArchUpPour", "textArchDownPour", "textCirclePour", "textButtonPour", "textCurveUp", "textCurveDown",
+        "textCascadeUp", "textCascadeDown", "textWave1", "textWave2", "textDoubleWave1", "textWave4",
+        "textInflate", "textDeflate", "textInflateBottom", "textDeflateBottom", "textInflateTop", "textDeflateTop",
+        "textDeflateInflate", "textDeflateInflateDeflate", "textFadeRight", "textFadeLeft", "textFadeUp", "textFadeDown",
+        "textSlantUp", "textSlantDown", "textCanUp", "textCanDown"]
     private struct Entry {
         let width: Double
         let height: Double
@@ -448,6 +475,80 @@ enum WriterGroups {
             let nums = v.split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Double($0) }
             return nums.count >= 2 ? "cust:" + nums.map { String($0) }.joined(separator: ",") : nil
         }
+        /// A VML fraction: "0.5", ".5", "50%", or 65536ths ("32768f").
+        func fraction(_ v: String?) -> Double? {
+            guard let t = v?.trimmingWhitespace(), !t.isEmpty else { return nil }
+            if t.hasSuffix("f") { return Double(t.dropLast()).map { $0 / 65536 } }
+            if t.hasSuffix("%") { return Double(t.dropLast()).map { $0 / 100 } }
+            return Double(t)
+        }
+        /// A shape's textpath as WordArt, where it has one switched on.
+        func wordArt(_ shape: XNode, type: XNode?, spt: Int?, fillNode: XNode?, line: Color?, weight: Double) -> WordArtText? {
+            guard let path = shape.first("v:textpath"), let text = path["string"], !text.isEmpty,
+                  !off(path["on"] ?? type?.first("v:textpath")?["on"] ?? "f"),
+                  let spt, (136 ... 175).contains(spt) else { return nil }
+            let st = style(path)
+            let family = (st["font-family"] ?? "Arial").trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+            let filled = !(off(shape["filled"]) || off(fillNode?["on"]))
+            let opacity = fraction(fillNode?["opacity"]) ?? 1
+            func faded(_ c: Color) -> Color { c.withAlpha(Int((Double(c.alpha) * max(0, min(1, opacity))).rounded())) }
+            let base = faded(color(fillNode?["color"]) ?? color(shape["fillcolor"]) ?? Color(0xFFFFFFFF))
+            var look = RunLook()
+            look.noFill = !filled
+            if let line { look.outline = line; look.outlineWidth = weight }
+            if filled, let kind = fillNode?["type"], kind.hasPrefix("gradient") {
+                // Its stops, from `colors` ("pos color;…") or the two
+                // colours; the angle VML's (0 down the shape, -90 right to
+                // left), as DrawingML's clockwise from left to right.
+                var stops: [SlideFill.GradientStop] = []
+                for item in (fillNode?["colors"] ?? "").split(separator: ";") {
+                    let kv = item.trimmingWhitespace().split(separator: " ", maxSplits: 1)
+                    if kv.count == 2, let at = fraction(String(kv[0])), let c = color(String(kv[1])) {
+                        stops.append(SlideFill.GradientStop(position: at, color: faded(c)))
+                    }
+                }
+                if stops.count < 2 {
+                    stops = [SlideFill.GradientStop(position: 0, color: base),
+                             SlideFill.GradientStop(position: 1, color: faded(color(fillNode?["color2"]) ?? Color(0xFFFFFFFF)))]
+                }
+                // A focus at the far end runs it backwards; one half way, out and back.
+                let focus = fraction(fillNode?["focus"]) ?? 0
+                if abs(focus) > 0.75 { stops = stops.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) } }
+                else if abs(focus) > 0.25 {
+                    let half = stops.map { SlideFill.GradientStop(position: $0.position / 2, color: $0.color) }
+                    stops = half + half.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) }
+                }
+                var fill = SlideFill()
+                fill.stops = stops
+                fill.angle = 90 - (Double(fillNode?["angle"] ?? "0") ?? 0)
+                fill.even = true
+                look.fill = fill
+            }
+            var shadow: WordArt.Shadow? = nil
+            if let sh = shape.first("v:shadow"), !off(sh["on"] ?? "f") {
+                let o = (sh["offset"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { points(String($0)) }
+                var cast = WordArt.Shadow(color: (color(sh["color"]) ?? Color(0xFF808080)).withOpacity(max(0, min(1, fraction(sh["opacity"]) ?? 1))))
+                cast.offset = Offset((o.count > 0 ? o[0] : nil) ?? 2, (o.count > 1 ? o[1] : nil) ?? 2)
+                if sh["type"] == "perspective" {
+                    let m = (sh["matrix"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { fraction(String($0)) }
+                    func at(_ i: Int, _ d: Double) -> Double { (i < m.count ? m[i] : nil) ?? d }
+                    cast.matrix = (at(0, 1), at(1, 0), at(2, 0), at(3, 1))
+                    let origin = pair(sh["origin"], (0, 0))
+                    cast.origin = Offset(origin.0, origin.1)
+                }
+                shadow = cast
+            }
+            let align: ParagraphAlignment = {
+                switch st["v-text-align"] {
+                case "left": return .left
+                case "right": return .right
+                default: return .center
+                }
+            }()
+            return WordArtText(lines: text.components(separatedBy: "\n"), warp: TextWarp(preset: _vmlTextWarps[spt - 136], xml: ""),
+                               family: family, bold: st["font-weight"] == "bold", italic: st["font-style"] == "italic",
+                               color: base, look: look.isPlain ? nil : look, shadow: shadow, alignment: align)
+        }
         let g = style(group)
         guard let gw = points(g["width"]), let gh = points(g["height"]), gw > 0, gh > 0 else { return false }
         var shapes: [Shape] = []
@@ -525,6 +626,13 @@ enum WriterGroups {
                 let pt = Rect.fromLTWH(r.left, r.top, r.width, r.height)
                 let start = arrow(stroke?["startarrow"], stroke?["startarrowwidth"], stroke?["startarrowlength"])
                 let end = arrow(stroke?["endarrow"], stroke?["endarrowwidth"], stroke?["endarrowlength"])
+                // (WordArt: WordWithAttachments' three titles, drawn as
+                // nothing — their path is all formulas.)
+                if let art = wordArt(child, type: type, spt: spt, fillNode: fillNode, line: line, weight: weight) {
+                    shapes.append(Shape(rect: pt, fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
+                                        rotation: rotation, flipH: flipH, flipV: flipV, headEnd: nil, tailEnd: nil, wordArt: art))
+                    continue
+                }
                 if straight {
                     guard line != nil else { continue }
                     // (From its box's top left to its bottom right, each flip
@@ -708,6 +816,22 @@ enum WriterGroups {
             if s.rotation != 0 { canvas.rotate(s.rotation * .pi / 180) }
             if !s.isLine, s.flipH || s.flipV { canvas.scale(s.flipH ? -1 : 1, s.flipV ? -1 : 1) }
             canvas.translate(-c.dx, -c.dy)
+            if let art = s.wordArt {
+                // In the shape's own points: the outline and the shadow's
+                // offset scale with it.
+                let cjk = art.lines.contains { $0.unicodeScalars.contains { (0x2E80 ... 0x9FFF).contains($0.value) || (0xF900 ... 0xFAFF).contains($0.value) } }
+                let family = cjk ? OfficeFonts.face(art.family, eastAsian: true)?.family ?? art.family : SlideFonts.resolve(art.family)
+                // (A black face at its weight, so what it lacks falls back
+                // to a heavy face too: Archivo Black has no Cyrillic, and
+                // WordWithAttachments' "Мой текст здесь" came out light.)
+                let black = art.family.trimmingWhitespace().lowercased().hasSuffix(" black")
+                let base = Flutter.TextStyle(color: art.color, fontSize: 36, fontWeight: black ? .w900 : art.bold ? .bold : .normal,
+                                             fontStyle: art.italic ? .italic : .normal, fontFamily: family)
+                WordArt.paint(lines: art.lines.map { [($0, base, art.look)] }, alignment: art.alignment, warp: art.warp,
+                              area: r, canvas: canvas, pxPerPt: (sx + sy) / 2, shadow: art.shadow)
+                canvas.restore()
+                continue
+            }
             let stroke = Paint()
             stroke.style = .stroke
             stroke.isAntiAlias = true
