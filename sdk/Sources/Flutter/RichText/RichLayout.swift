@@ -11292,12 +11292,46 @@ public final class RichLayout {
                     let u = units[tail - 1]
                     return (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A)
                 }()
-                let hang = hangs && !holdsFinal && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                let hung = hangs && !holdsFinal && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail) && !afterLatin
                     ? (closesUp(tail) || document.hangsHalf || closedUpTo ? min(ems[tail] * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
+                // (From 2013's layout, where marks are compressed, the
+                // paragraph's last mark hangs only once the line's marks,
+                // itself among them, and its automatic spaces cannot give
+                // what the line needs; short of that it stays inside, and
+                // the character is taken where the marks and spaces give it
+                // by the share test (see `takenFirst`; on a line with word
+                // spaces by theirs, as zh-505b9619's "…（未載明者為3日）。",
+                // 27.15 over, which Word leaves). zh-e0ca7252's "…依第17款
+                // 辦理。" is 21.55pt over, two commas and the "。" able to give
+                // 21 and two such spaces 1.75, and Word sends "理。" down with
+                // the commas whole; ours hung the "。" and squeezed the commas
+                // 3.8 each. zh-505b9619's "…付款期限為30工作天。" is 18.9 over
+                // with three marks' 21, and Word takes it squeezed, the "。"
+                // inside the margin; zh-021b8feb's "…審查及核定。" is 18.2 over
+                // with two marks' 14, and Word hangs its "。" from 1.4 inside
+                // the margin, the "、" squeezed. Lab t175 (Windows 01QbbApP,
+                // Word for Windows, zh-021b8feb's package: mode 15, 標楷體
+                // 14pt) stages a mark inside a paragraph so too — its marks
+                // squeezed to about 20.5 over, the last "、" hung only from
+                // 21 — but there ours hangs sooner and ends the same lines:
+                // zh-505b9619's "…以供隨時查閱。" and zh-1b74ed91's "…前3名，"
+                // keep their hang and squeeze.)
+                let squeezedFirst: Bool = {
+                    guard hung > 0, over > hung + 0.0001, squeezes, paragraphEnd, !legacy, !inCell, !document.hangsHalf else { return false }
+                    let muted: (Int) -> Bool = { o in
+                        RichTextTheme.wordWindowsPages && runRulesOff(o)
+                            && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
+                    }
+                    let give = (marks + own).filter { !runLanguageNone($0) && !muted($0) }.reduce(0.0) { sum, k in
+                        sum + (wideQuote(k) ? (ems[k] + quoteSpacing(k)) / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2)
+                    }
+                    return over <= (spaces + ownSpaces).reduce(give) { $0 + (gaps[$1] ?? 0) / 2 } + hair
+                }()
+                let hang = squeezedFirst ? 0 : hung
                 // (Whole, a spaced mark hangs its spaced width: lab `p01`
                 // (macOS-doc, zh-01bbcd4d's package, 16pt spaced to 17) hangs
                 // the "。" of "…组织成员”。" from the margin on, 17 past it.)
@@ -11593,8 +11627,36 @@ public final class RichLayout {
                         .map { Self._isLatinWordUnit(units[$0]) ? 1 : 2 } == [1]
                         && !(a > 0 && Self._isLatinWordUnit(units[a - 1]))
                     let latinBefore = a > 0 && Self._isLatinWordUnit(units[a - 1]) || a > 0 && units[a - 1] == 0x2D
-                    let takenFirst = modern
-                        ? latinWord || (!lineOther && lineWide > 1 && room > 0 && hang == 0
+                    // (From 2013's layout a body line with word spaces weighs
+                    // them too, at 0.44 of themselves, as a grid's spaces are
+                    // weighed. Lab t181 (Windows 01QbbApP, Word for Windows,
+                    // zh-505b9619's package: mode 15, 標楷體 14pt, justified,
+                    // "…2000立方公尺者，" and four spaces, "小時內單" then "線"):
+                    // Word takes "線" up to 4.41pt over, 3.42 with its digits
+                    // Han (no automatic spaces), 6.20 without the spaces, 2.74
+                    // without the "，"; this gives 4.32, 3.89, 5.93 and 2.56.
+                    // The older test — each mark no more than the line would
+                    // stretch by — took it 5.15 over. Its corner brackets give
+                    // with the rest here: zh-ea70c30e's "…市律師長辦公室 – 投訴"
+                    // sets "」" 2.0 narrower in Word's print, with "、", "："
+                    // and the spaces round the dash. Not for the paragraph's
+                    // last character, no mark after it, which the older test
+                    // keeps: zh-84702a67's "填表日期：    年   月   日" takes
+                    // "日" with the "：" at its half, twenty spaces whole.)
+                    let wordSpaced = modern && lineOther && !onCharacterGrid && !inCell && !(paragraphEnd && hung == 0)
+                    let spacedStretch = wordSpaced ? wordSpaces.reduce(0.0) { $0 + $1.w } * 0.44 : 0
+                    // (The paragraph's last mark kept from hanging, by the
+                    // share test with the automatic spaces weighed at half:
+                    // see `squeezedFirst`. zh-d746674a's "…應予以提供。" and
+                    // zh-76d361b2's "…代號：F）；" take theirs 22.6 and 24.7
+                    // over in Word's print, every mark squeezed and the last
+                    // inside the margin; zh-33aa9899's "…不得擅自刪減。" leaves
+                    // "減" that stands wholly past it.)
+                    let takenFirst = squeezedFirst && !wordSpaced
+                        ? lineWide > 1 && need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
+                            <= room * (width - x + hair)
+                        : modern
+                        ? latinWord || ((!lineOther || wordSpaced) && lineWide > 1 && room > 0 && hang == 0
                             // (A sixty-fourth of each gap's em: of the line's
                             // characters as they are sized. zh-84702a67 sets
                             // twenty of a 16pt line's 33 at 10.5pt, and Word
@@ -11622,7 +11684,7 @@ public final class RichLayout {
                             ? (onCharacterGrid
                                 ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
                                     <= markRoom * (width - x + hair)
-                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
+                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } + spacedStretch)
                                     <= room * (width - x + hair) || cellRest)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
