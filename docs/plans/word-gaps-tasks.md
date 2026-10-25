@@ -5821,6 +5821,12 @@ Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab
 ### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
 squeezes are more than the body series'. macos-ios's whole-ppem change may land meanwhile; rebase before trusting line ends.
+Lab t189 (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t189, this document's own package, p68's "開課地點：" paragraph only, fresh Word, warm-up first). (The reference is 81 pages too, and the as-is lab print matches it line for line.)
+- (a) as is: "開課地點：" alone on line 1 (51.0-115.9); line 2 the 65 "_" at 51.0-473.2, then spaces past the 544.25 margin (extracted to 596.9); 81 pages.
+- (b) the 26 spaces not underlined: ONE line, the "_" at 115.9-538.3 after "開課地點：", the spaces hung; 80 pages.
+- (c) the 34 plain spaces removed (the 26 underlined ones end the paragraph): ONE line, the same; 80 pages.
+- (d) both: ONE line, the same; 80 pages.
+Word draws no underline under the spaces in any of them. So underlined spaces hang as trailing white space only at the paragraph's end. Followed by plain spaces, they count as width: 65 "_" (422.4) + 26 spaces (169) do not fit the 428.3 after "開課地點：", so Word breaks before the "_". Not underlined, any run of trailing spaces hangs.
 
 ### zh-57f1de0d 78.9 (word-win, 51/51 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
 Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16pt embedded, jc both). On p1,
