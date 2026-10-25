@@ -5573,7 +5573,13 @@ Lab brk (~/starling-doc-check/lab/brk on the Windows box), zh-0aac9d1a whole in 
 With T178's zh-167ee06c (its paragraph 52, the break then "附件二之一", at 13.4pt left: Word ends page 6 there, and ours spills its empty pre-break line and makes a blank page), the rule is: a paragraph whose first content is a page break followed by text ends the page where it stands, and its empty line before the break needs no room. A paragraph that is a page break alone needs room for its line like any other, and spills to a blank page when there is none. Ours does the opposite in both.
 CLAIMED Windows 01QbbApP for zh-0aac9d1a, after the T181 and T182 asks (tell lenovo-2: it covers T178's page).
 
-### zh-419ea527 (71.1 at w20) — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
+### zh-419ea527 (71.1 at w20) — PARKED (Mac 01Xgpbk5, 2026-10-25)
+Page 5's title is 方正小标宋简体 (alternate 黑体, charset 86). The word-win print sets it in YaHei; our Windows
+alternate rule picks SimHei, putting page 5 13-14pt high. Ignoring the alternate for 方正 names at charset 86 gave
+71.1 -> 98.6 with no document dropping (w21 vs w20). Not landed: windows found the warm-up document (fixed in
+ef50baab) decided 方正小标宋简体 = YaHei for whole print batches, and a fresh Word prints alt-黑体 titles in SimHei,
+so this print is the artefact and the current rule is right. Re-score after windows reprints the 195 references
+with that face. Patch: ~/starling-word-check/lab/wwface/fangzheng-86-yahei.patch (discard if the reprint agrees).
 
 ### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier entries (windows' zq, the Mac's zz) are
