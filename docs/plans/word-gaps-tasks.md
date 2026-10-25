@@ -5902,3 +5902,5 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differe
 ### T192. zh-38d26944: 84.7 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, the table group)
 Owner: Linux lenovo-2. Found: not the cell's centring — Word's 仿宋 sets ″ (U+2033) an em (10.44-10.56 at 10.5pt); Starling
 FangSong's is 3.32, so p13's "…方位角闭合差在20″～30″扣5分，＜20″不扣分" takes the "＜". Trying ′ ″ as GB2312 em symbols.
+
+### Footer page number in a text box hung from a lone footer paragraph (zh-1cfb652b, zh-4f70ee2d, zh-884c6e3e: p1's number ~6pt low) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos; lab ft above, 8fdbcb6c)
