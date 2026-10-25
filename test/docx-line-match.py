@@ -157,7 +157,12 @@ def main():
     work = os.path.expanduser(sys.argv[1])
     key = sys.argv[2] if len(sys.argv) > 2 else None
     count = int(sys.argv[3]) if len(sys.argv) > 3 else 12
-    tool = os.path.join(work, "pdf-text") if sys.platform == "darwin" else None
+    # (DOCX_LINE_READER=mupdf: PyMuPDF on the Mac too, as on Linux —
+    # the Windows series (lab/tools/sweep-win.sh) reads both sides so,
+    # since PDFKit groups our Type 3 glyphs into other lines than Word's
+    # real faces: zh-00f207f1's header row, a line a page.)
+    mupdf = os.environ.get("DOCX_LINE_READER") == "mupdf"
+    tool = os.path.join(work, "pdf-text") if sys.platform == "darwin" and not mupdf else None
     if tool and not os.access(tool, os.X_OK):
         subprocess.run(["swiftc", "-O", "-o", tool, os.path.join(HERE, "pdf-text.swift")], check=True)
     results = []
