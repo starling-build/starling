@@ -5664,7 +5664,7 @@ that 100 -> 99.5). On the 65 word-win documents with w:kinsoku 0: zh-72da925e 57
 zh-8628cfbe 93.1 -> 93.3, zh-a7a889eb 97.9 -> 98.1, none lower. Its next miss, p13 "…有專家表示：" / "「基隆河…", is
 T181's kind (ours squeezes "「基" 23.5 over from three marks; not kinsoku 0 there).
 
-### WordWithAttachments 73.7 (word-win): the WordArt lines — RELEASED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### WordWithAttachments 73.7 (word-win): the WordArt lines — DRAWN a56561c7, extent PARKED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
 All 10 misses (w21) come from one drift. After p1's three inline WordArt shapes, ours sits 8-9 high (scaled 0.871,
 so about 10.5pt real; b2 measured +4.5, +3.8 and +3.0). That leaves room for the "Документ-в-документе" object
 at p1's foot (ours y659), which Word prints at the top of p2, and p2's lines follow it (+41). Only the sum
@@ -5675,6 +5675,14 @@ stroke. A 1pt stroke adds 2.2 on art2's box, nothing on art3's, and 4pt adds 30;
 their sum nor the larger. The shadow term alone recovers 4-7 of the 11pt, still past the matcher's 3, so it
 moves no score. It needs either WordArt drawn (glyphs fitted to the box, then stroke and shadow) or a stroke
 lab: 0.5/1/2/3pt on one box, and the same text with and without descenders. Ours draws no textpath at all yet.
+WordArt drawing (a56561c7, routed by macos as option (b)): VML textpaths now draw through Slides' WordArt.paint
+(fill, gradient, stroke, shadow with VML's perspective matrix). Line scores are unchanged, and Slides' eight
+WordArt decks are identical on the pptx render gate. The layout extent stays as it was. Against the drawing (glyphs
+fitted to the box, plus half the stroke above and below, plus the shadow's y offset, plus a 0.66 base) the three titles come to
++3.2, +3.7 and +3.2 where b2 measured +4.5, +3.8 and +3.0. That sum, 10.1 of 11.3, would be enough. But wa's stroke
+cases don't fit: 1pt alone gives model 1.7, measured 2.9; 4pt gives model 4.7, measured 30.8. So it isn't built,
+per macos's condition that pagination changes only where the drawing agrees with Word. Next: the stroke lab, or
+Word's own WordArt render (its EMF) to read the ink extent from.
 
 ### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.456/1.028 in Windows mode, as T179 did for 中宋.
