@@ -42,6 +42,9 @@ enum SlideFonts {
     ]
 
     static func resolve(_ family: String) -> String {
+        // (The machine's own face, where it has it and the user takes it:
+        // `OfficeFonts.installed`.)
+        if let own = OfficeFonts.installed(family) { return own }
         if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
@@ -55,7 +58,8 @@ enum SlideFonts {
     /// own widths — 9% wider (GeomLec1's lines wrapped a word late).
     /// Its bold and italic are made from the regular, as wide.
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
-        guard !eastAsian, let family else { return nil }
+        // (None of a stand-in's widths for the machine's own face.)
+        guard !eastAsian, let family, OfficeFonts.installed(family) == nil else { return nil }
         switch family.trimmingWhitespace().lowercased() {
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
@@ -136,6 +140,7 @@ enum SlideFonts {
     /// lines step at (`DeckController.naturalLines`). nil: the stand-in's
     /// own is the face's (Calibri in Carlito, the free faces themselves).
     static func ownNaturalHeight(_ family: String) -> Double? {
+        guard OfficeFonts.installed(family) == nil else { return nil }
         switch family.trimmingWhitespace().lowercased() {
         case "courier new", "courier": return 2320.0 / 2048
         case "segoe ui", "segoe ui light", "segoe ui semilight", "segoe ui semibold": return 2724.0 / 2048
@@ -166,6 +171,7 @@ enum SlideFonts {
     }
 
     static func ownDescentShare(_ family: String) -> Double? {
+        guard OfficeFonts.installed(family) == nil else { return nil }
         let n = family.trimmingWhitespace().lowercased()
         if n == "verdana" { return 430.0 / 2489 }
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }

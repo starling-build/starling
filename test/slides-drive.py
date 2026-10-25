@@ -12,6 +12,8 @@ cannot judge them. Coordinates are window-relative points at the default
 synthetic click never reaches the app, so Shift-click is checked by hand.
 """
 import argparse, importlib.util, os, sys, tempfile, time
+# (Starling's own fonts, whatever this machine has: see OfficeFonts.fontSource.)
+os.environ.setdefault("OFFICE_FONT_SOURCE", "bundled")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("office_drive", os.path.join(HERE, "office-drive.py"))

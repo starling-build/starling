@@ -19,6 +19,9 @@
 # The workbooks and Excel's PDFs of them are checked in under
 # test/corpus/xlsx (its README says where they come from and how the PDFs
 # were made); with fewer than three arguments those are what is swept.
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 if [ $# -le 1 ]; then

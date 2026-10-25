@@ -8,6 +8,9 @@
 #   OFFICE_FILE=book.xlsx test/sheets-script.sh script.txt   # start on a file
 #
 # OFFICE_APP picks the binary. Prints OUTDIR; read the pictures.
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/debug/OfficeApp}"

@@ -44,7 +44,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _notesFocus = FocusNode(debugLabel: "slide notes")
     private let _notesTheme: RichTextTheme = {
         let t = RichTextTheme(fontFamily: "Calibri", fontSize: 12, headingColor: nil)
-        t.fontFamilyResolver = OfficeFonts.substitute
+        t.fontFamilyResolver = OfficeFonts.drawn
         return t
     }()
     /// Last click was in the thumbnail pane: Delete then removes a slide.

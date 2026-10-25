@@ -24,7 +24,7 @@ enum OfficeLandingDeck {
             let s = deck.addTextBox(at: Rect.fromLTWH(x, y, width, 720 - y))
             s.insets = .zero
             s.textTheme = RichTextTheme(fontFamily: "Calibri", fontSize: size, textColor: color)
-            s.textTheme?.fontFamilyResolver = OfficeFonts.substitute
+            s.textTheme?.fontFamilyResolver = OfficeFonts.drawn
             let paragraphs = value.split(separator: "\n", omittingEmptySubsequences: false).map { line -> RichParagraph in
                 var p = RichParagraph(text: String(line), style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
                 if bold { p.applyStyle(0 ..< p.length) { $0.bold = true } }

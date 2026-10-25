@@ -21,6 +21,8 @@ The formula oracle needs no rendering: `OfficeApp --xlsx-check FILE…`
 recalculates a workbook and compares with the values Excel left in it.
 """
 import argparse, json, os, subprocess, sys, time, urllib.request
+# (Starling's own fonts, whatever this machine has: see OfficeFonts.fontSource.)
+os.environ.setdefault("OFFICE_FONT_SOURCE", "bundled")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP = os.environ.get("OFFICE_APP") or os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")

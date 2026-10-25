@@ -627,7 +627,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         switch d.kind {
         case .other: return
         case .shape(let shape):
-            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
+            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.drawn(theme.bodyFont))
         case .picture(let path, let data):
             // A turned picture: its anchor holds the turned box, its sides
             // swapped between 45° and 135° (lo-twoCellAnchor_editAs_oneCell's
@@ -691,7 +691,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (WMF, EMF — what an embedded object's picture usually is) played.
     private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
         if let played = _metafile(path, data) {
-            played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.substitute($0) })
+            played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.drawn($0) })
         } else if !Metafile.isMetafile(data), let image = _image(path, data) {
             let w = Double(image.width), h = Double(image.height)
             let src = crop.map { Rect.fromLTRB($0[0] * w, $0[1] * h, w - $0[2] * w, h - $0[3] * h) } ?? Rect.fromLTWH(0, 0, w, h)
@@ -1719,7 +1719,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard let a = _hoverNote, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
         let r = rect(a)
         let width = 200 * zoom, pad = 6 * zoom
-        let body = GridTextStyle(family: OfficeFonts.substitute("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
+        let body = GridTextStyle(family: OfficeFonts.drawn("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
         var head = body
         head.bold = true
         // A threaded comment's legacy copy starts with Excel's own banner; show the words.
@@ -1768,7 +1768,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let r = rect(c.active)
         guard r.bottom > headerHeight, r.right > headerWidth else { return }
         let width = 200 * zoom, pad = 6 * zoom
-        let body = GridTextStyle(family: OfficeFonts.substitute("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
+        let body = GridTextStyle(family: OfficeFonts.drawn("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
         var head = body
         head.bold = true
         let title = prompt.title.isEmpty ? nil : texts.painter(prompt.title, head, maxWidth: width - pad * 2)
@@ -2917,7 +2917,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let r = rect(e.cell)
         let st = controller.style(at: e.cell)
         var style = _textStyle(st, color: nil, ink: ink)
-        if e.text.first == "=" { style.family = OfficeFonts.substitute("Calibri") }
+        if e.text.first == "=" { style.family = OfficeFonts.drawn("Calibri") }
         let text = String(e.text)
         let tp = texts.painter(text.isEmpty ? " " : text, style)
         let pad = 2 * zoom

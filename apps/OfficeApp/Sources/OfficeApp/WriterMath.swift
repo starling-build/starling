@@ -151,7 +151,7 @@ enum WriterMath {
     /// The faces an equation is set in: Cambria's stand-in, the serif
     /// Cambria Math is drawn like, then the platform's math faces for what
     /// it lacks.
-    static var family: String { OfficeFonts.substitute("Cambria") }
+    static var family: String { OfficeFonts.drawn("Cambria") }
     static let fallback = ["STIX Two Math", "DejaVu Math TeX Gyre", "Noto Sans Math"]
 
     /// Keeps the painters a drawing needs alive as long as the drawing.

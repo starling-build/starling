@@ -22,6 +22,9 @@
 # fixture and the welcome page — 0 differing lines each way, once the
 # page's segmenter stopped adding breaks ICU refuses and the writer
 # stopped giving cell paragraphs the body's space-after.
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # Per platform: the macOS debug build, or what build/build-all.sh makes on

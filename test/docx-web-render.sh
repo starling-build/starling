@@ -21,6 +21,9 @@
 #   python3 test/docx-corpus.py            # fetches the corpus
 #   test/docx-web-render.sh WORK
 #   test/docx-web-render.sh apps/OfficeApp/Tests/OfficeAppTests/Fixtures WORK
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 if [ $# -le 1 ]; then

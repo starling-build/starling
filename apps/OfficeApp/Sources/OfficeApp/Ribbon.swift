@@ -366,7 +366,7 @@ final class Ribbon: StatelessWidget {
         return Flutter.TextStyle(color: color, fontSize: max(9, size),
                                  fontWeight: entry.char.bold ? .bold : .normal,
                                  fontStyle: entry.char.italic ? .italic : .normal,
-                                 fontFamily: (entry.char.fontFamily ?? session.theme.fontFamily).map(OfficeFonts.substitute))
+                                 fontFamily: (entry.char.fontFamily ?? session.theme.fontFamily).map(OfficeFonts.drawn))
     }
 
     /// A style's own colour where it can be read on the chrome. A

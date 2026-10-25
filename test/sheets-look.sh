@@ -7,6 +7,9 @@
 #   test/sheets-look.sh file.xlsx out.png [seconds]
 #
 # OFFICE_APP picks the binary (default apps/OfficeApp/.build/debug/OfficeApp).
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/debug/OfficeApp}"

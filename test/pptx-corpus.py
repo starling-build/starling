@@ -24,6 +24,8 @@ every file comes from. This script still downloads to its own DIR, whose
 sibling directories take its outputs — do not point --dir into the repo.
 """
 import argparse, json, os, re, subprocess, sys, time, urllib.request, zipfile
+# (Starling's own fonts, whatever this machine has: see OfficeFonts.fontSource.)
+os.environ.setdefault("OFFICE_FONT_SOURCE", "bundled")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP = os.environ.get("OFFICE_APP") or os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")

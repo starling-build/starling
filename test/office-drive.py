@@ -17,6 +17,8 @@ judge them. Coordinates are window-relative points at the default
 1440x932 window; the ribbon layout is stable at that width.
 """
 import argparse, os, subprocess, sys, tempfile, time
+# (Starling's own fonts, whatever this machine has: see OfficeFonts.fontSource.)
+os.environ.setdefault("OFFICE_FONT_SOURCE", "bundled")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP = os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")

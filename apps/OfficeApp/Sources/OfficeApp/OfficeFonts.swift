@@ -5,6 +5,9 @@ import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
+#if os(macOS)
+import CoreText
+#endif
 
 /// The document faces Office ships: Liberation Sans/Serif/Mono, Carlito and
 /// Caladea — metric clones of Arial/Times/Courier, Calibri and Cambria — so
@@ -15,8 +18,9 @@ import Foundation
 /// A document keeps the font names it came with; `substitute` maps a name
 /// to the shipped face at render time (the theme's `fontFamilyResolver`),
 /// the way Google Docs draws "Times New Roman" with Tinos. So the file
-/// round-trips its fonts untouched, and looks the same on every platform,
-/// because no platform's own fonts are ever consulted.
+/// round-trips its fonts untouched. Where the machine has the face the
+/// document names, that face draws it (`fontSource`, the user's choice;
+/// `drawn`), and the stand-ins only where it has none.
 ///
 /// Found by searching for the SwiftPM resource bundle, never through
 /// `Bundle.module`: that accessor bakes the BUILD directory's absolute path
@@ -343,6 +347,7 @@ enum OfficeFonts {
     /// Excel's: chart-tdf150434's "Open Sans" prints sans, where ours was
     /// Caladea and its long text ran a page short.
     static func sheetFace(_ family: String) -> String {
+        if let own = installed(family) { return own }
         #if os(Windows)
         // A face Windows has and this app has no clone of is the face, for
         // every character of the cell: style-alternate-content's 맑은 고딕
@@ -363,6 +368,7 @@ enum OfficeFonts {
 
     /// Whether `sheetFace` is the named face itself, not a stand-in.
     static func sheetFaceIsOwn(_ family: String) -> Bool {
+        if installed(family) != nil { return true }
         #if os(Windows)
         return windowsFaces[family.trimmingWhitespace().lowercased()] != nil
         #else
@@ -1833,7 +1839,107 @@ enum OfficeFonts {
         return face
     }
 
+    /// The face to set `family` in (the theme's `faceResolver`): the stand-in
+    /// and its corrections (`standInFace`), or — where the machine has the
+    /// face itself and the user takes the machine's faces — that face, with
+    /// Word's line and baseline for it but none of the widths, scales or
+    /// substitutes that make a stand-in pass for it.
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
+        let face = standInFace(family, eastAsian: eastAsian)
+        guard let family, let face, let own = installed(family) else { return face }
+        return installedFace(own, as: face)
+    }
+
+    /// `face` made the machine's own: the drawn family, and of the stand-in's
+    /// settings only what Word does with the face whatever draws it — its
+    /// line, its baseline, the widening of a face it emboldens.
+    static func installedFace(_ own: String, as standIn: RichResolvedFace) -> RichResolvedFace {
+        var face = RichResolvedFace(family: own, naturalHeight: standIn.naturalHeight, boldSpread: standIn.boldSpread,
+                                    baseline: standIn.baseline, isEastAsian: standIn.isEastAsian)
+        face.scaledHeight = standIn.scaledHeight
+        face.scaledBaseline = standIn.scaledBaseline
+        face.boldHeight = standIn.boldHeight
+        face.boldBaseline = standIn.boldBaseline
+        face.setsMath = standIn.setsMath
+        return face
+    }
+
+    /// Where text is drawn from (T203, the user's choice): the faces this
+    /// machine has (`local`, the default), else the stand-ins this app
+    /// ships; or the stand-ins only (`bundled`). OFFICE_FONT_SOURCE=bundled
+    /// or local wins over the user's setting — every harness pins bundled,
+    /// so that no baseline moves with the machine's fonts. The web has no
+    /// list of the machine's faces: bundled only.
+    enum FontSource: String { case local, bundled }
+    nonisolated(unsafe) private static var _fontSource: FontSource? = nil
+    static var fontSource: FontSource {
+        #if os(WASI)
+        return .bundled
+        #else
+        if let s = _fontSource { return s }
+        let env = ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"].flatMap { FontSource(rawValue: $0.lowercased()) }
+        let s = env ?? (OfficeSettings.useInstalledFonts ? .local : .bundled)
+        _fontSource = s
+        return s
+        #endif
+    }
+    /// Whether the user's setting is overridden by OFFICE_FONT_SOURCE (the
+    /// settings page then says so).
+    static var fontSourcePinned: Bool { ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"].flatMap { FontSource(rawValue: $0.lowercased()) } != nil }
+    /// Forget the cached choice, after the user changes it.
+    static func fontSourceChanged() { _fontSource = nil }
+
+    /// The face the machine has for `family`, as it names it, where the user
+    /// takes the machine's faces; nil otherwise.
+    static func installed(_ family: String) -> String? {
+        guard fontSource == .local else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        guard !n.isEmpty else { return nil }
+        return installedFamilies[n]
+    }
+
+    /// The family a run named `family` is drawn in (the theme's
+    /// `fontFamilyResolver`): the machine's own (`installed`), else the
+    /// stand-in (`substitute`, which the layout's rules still read).
+    static func drawn(_ family: String) -> String { installed(family) ?? substitute(family) }
+
+    /// The machine's faces by name, lowercased: fontconfig's families on
+    /// Linux, Core Text's on macOS, and on Windows the faces `windowsFaces`
+    /// finds the files of, Office's cloud faces with them.
+    private static let installedFamilies: [String: String] = {
+        var m: [String: String] = [:]
+        #if os(Windows)
+        m = windowsFaces
+        #elseif os(macOS)
+        for name in (CTFontManagerCopyAvailableFontFamilyNames() as? [String]) ?? [] { m[name.lowercased()] = name }
+        #elseif os(Linux)
+        let tool = ["/usr/bin/fc-list", "/bin/fc-list"].first { FileManager.default.isExecutableFile(atPath: $0) }
+        if let tool {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: tool)
+            p.arguments = [":", "family"]
+            let out = Pipe()
+            p.standardOutput = out
+            p.standardError = FileHandle.nullDevice
+            if (try? p.run()) != nil {
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                p.waitUntilExit()
+                for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
+                    // (Each face's names, comma-separated — its own and its
+                    // localized ones, "SimSun,宋体" — any of which fontconfig
+                    // matches; "\-" escapes a hyphen.)
+                    for name in line.split(separator: ",") {
+                        let family = String(name).replacingAll("\\-", with: "-").trimmingWhitespace()
+                        if !family.isEmpty { m[family.lowercased()] = family }
+                    }
+                }
+            }
+        }
+        #endif
+        return m
+    }()
+
+    static func standInFace(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
         let own = isEastAsianFace(family)
         guard own || eastAsian else {
