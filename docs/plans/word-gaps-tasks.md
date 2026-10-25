@@ -4862,7 +4862,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - testComment   0.0  1 lines  1/1
   - WordWithAttachments  13.2  38 lines  2/2
   - delins  13.6  59 lines  1/1
-  - 60329  15.3  98 lines  3/3  [CLAIMED macOS-doc (Mac 01G9VUDS) 2026-10-24: the reader flattens a nested table over 600 characters into its cell; fix extends the invisible-wrapper path to wrappers whose extra columns are empty and undrawn. MEASURED Windows 01QbbApP 2026-10-24, released to the autofit-table owner. Word for Windows prints it
+  - 60329  15.3  98 lines  3/3  [DONE macOS-doc (Mac 7bd18d8e) 2026-10-24, f4b05432: 15.3 -> 100 (word-win w22 -> w24, nothing else moved). The reader flattened a nested table over 600 characters into its cell; the invisible-wrapper path now takes a frame whose extra columns are empty and undrawn (no cell drawn/filled/spanned/merged, no row exact or over 20pt), drops a cell's empty mark under the table it ends with, and keeps a one-paragraph row's height as its line's least (the 9pt spacer). Word's print stands ~2pt right of ours throughout, title and footer too — the print's offset, not layout. Was: CLAIMED: the reader flattens a nested table over 600 characters into its cell; fix extends the invisible-wrapper path to wrappers whose extra columns are empty and undrawn. MEASURED Windows 01QbbApP 2026-10-24, released to the autofit-table owner. Word for Windows prints it
     unclipped on landscape Letter, 792x612, as the docx sets; the Mac's portrait print was the clipped one.
     The outer table's grid is 678.75 + 82.35pt; each row's first cell holds one nested table and the second
     is empty. Each nested table keeps its own grid width from the outer cell's left (x 7.3):
@@ -5088,3 +5088,10 @@ The first drift is p3, and it's a line break, not height. Each "⚫案例N：…
 
 ### T168. zh-dc9e54ca: 45.4 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
 Owner: Linux b2 (starling-b2), routed by macos. 4 pages, off the missing-faces list, no earlier notes.
+
+### zh-90e0cea8 (word-win) — DONE as far as it goes (Mac 7bd18d8e, macOS-doc, 2026-10-24)
+75.3 -> 98.5 by be77c1fa (bold not widened in Windows mode). a29fa1e2: a list number takes its level's
+w:spacing, doubled on full-width characters under balanceSingleByteDoubleByteWidth ("附 录 A", 20.5pt steps);
+x only, so no score move here, but zh-1cfb652b 67.9 -> 87.5 (w21 -> w22). Left: Word's print carries 0.96pt
+invisible glyphs above each annex heading (read as "AA"/"BB" lines), p1's ICS block 7pt and footer line 5pt off,
+p4's "3.2" read with its leader. Released.
