@@ -5147,6 +5147,11 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
     only 36 fit, justified at 12.3617. So the excess counts for breaking in every line, and a justified line then
     stretches. A mixed regular/bold line keeps the bold excess. Pen positions: 12pt bold alternates 12.000/12.108,
     22pt is a constant 22.08; no device grid fits both.]
+    [Windows 01QbbApP, lab bold2 (zh-aa3f29a0's package): the excess is about one font design unit, 1/unitsPerEm em.
+    KaiTi, FangSong, SimHei and SimSun all have upem 256, so 1/256 em = 0.0039 (the table, 0.8-1.09 units after
+    per-size rounding). DFKai-SB has upem 1024: at 20pt bold steps +0.017 over regular (1/1024 em is 0.0195),
+    and zh-aa3f29a0's title stays one line as in Word. A flat 0.0038 em adds 1.6pt and wraps 畫. Microsoft
+    JhengHei, which has a real bold, adds nothing: 18.8923 bold and regular.]
   - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
