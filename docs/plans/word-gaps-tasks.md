@@ -4358,7 +4358,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   two-digit number outgrows the "— 1 —" box, as ours does; Word's print
   holds "— 20 —" whole in 42.2pt, its dashes narrower than our 14pt —
   the dash's width on the Mac, not the rule.)
-  CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos): the p19-20 table against word-win; macOS-doc found the footer fine.
+  DONE Windows 01QbbApP 2026-10-25 (routed by macos), e7621784: the row's first cell is merged down to the table's last row, so ours took the row for the table's last and asked no line under it; now a row whose first cell spans on asks the line its other cells end on (0.5 here: 28.35 + 0.5 > 28.2 left) and goes to p20 whole, as in Word's print. The merged cells' centring over the rows that fit keeps the old ask (v1 set zh-0a56c942's p9 merge 22pt high). Pairs: Windows w10 -> w11 only zh-4f70ee2d 95.1 -> 99.4; Mac n5 -> n6 only zh-4f70ee2d 96.1 -> 100; after 56a0ac99 zh-38d26944 and zh-0a56c942 hold. Left: 3 p19 misses, 宋体's Latin digits drawn in the square face's Liberation Mono (Word: SimSun). Released.
 - zh-e5eb092a (92.4, 8 pages; Linux 017F2GnT 2026-10-23, offered to
   office1 — DONE Linux office1 01Ak4ibJ 2026-10-23: 96.9 — a spaced full-width quote is over the margin by half its spacing too; released): from p1's line "九条、第六十二条…统一修改为" (mode 14,
   compressPunctuation, zh-CN, Normal (Web) jc left, 宋体 12pt, every run
