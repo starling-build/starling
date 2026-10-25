@@ -5246,7 +5246,8 @@ engine parted it. Now the joiner after U+00A0 is the stretch before's. w31 -> w3
 nothing else moved. Same base: zh-e8d4c046 100 on its fresh reprint (the MS Gothic title was the batch artefact),
 zh-1cfb652b 87.5.
 
-### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — CLAIMED, step 1 landed (Mac 7bd18d8e, macOS-doc, 2026-10-25)
+### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — DONE dc9f2dc1: 97.7, 60/60 pages (Mac 7bd18d8e, macOS-doc, 2026-10-25)
+DONE dc9f2dc1: the p6 lift was "◎" — our Segoe UI Symbol rule (Mac lab picln) fired for Windows prints, where Word sets it in Cambria Math and lifts nothing (lab e6p, windows: the note 10.39 under the picture with or without its symbols; c77fd89d's picture extra tracks Word within 0.08 across e6p b-e, and Word keeps 0.12 of a 1.1 line's extra above its text — not a cause). Windows mode now takes "◎" out of RichTextTheme.segoeSymbolShapes. Pair w38 -> w39: 11.1 -> 97.7, nothing else moved, gates held. ◇◆★☆ left in the set unmeasured on Windows: in word-win only zh-6cd1befe holds them in a run the rule reaches (13), at 100 — no lab asked.
 Step 1: the Windows fallback chain for an embedded 仿宋_GB2312's missing characters (MS Gothic → Yu Gothic → JhengHei,
 sticky, by the faces' cmaps, each on its own 1.3 x win line). w33 -> w34: 5.0 -> 10.9 (61 pages), zh-5450d509 +1.8,
 zh-8d72961c +27.7, nothing lower. Step 2 measured, RELEASED (Mac 7bd18d8e, 2026-10-25). Word's lines hold a character more here — "〕" set in Cambria at
