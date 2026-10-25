@@ -4861,7 +4861,11 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - bug57031  99.7  339 lines  14/14
   - 52288 100.0  2 lines  1/1
 
-### T160. zh-f6686f89: 75.8 against the Windows references — CLAIMED (Mac 01Xgpbk5, 2026-10-24); Linux office1 measured it
+### T160. zh-f6686f89: 75.8 against the Windows references — BUILT, NOT LANDED (Mac 01Xgpbk5, 2026-10-24): waits on windows' per-name map and a foot lab
+Mac 01Xgpbk5's patch is ~/starling-word-check/lab/wwface/t160-mincho.patch (Mac). It sets a missing Latin name with no table entry as square Mincho (1.3 em) with Cambria Latin, and puts what Mincho lacks (Shift_JIS as the coverage) in our JhengHei face.
+- **Line heights:** the 1.15 spacing and 10pt after account for the measured boxes. The 36pt cover lines are 1.729 em (JhengHei 1.33 × 1.3); the 18pt date is 1.30.
+- **zh-f6686f89:** 75.8 → 75.7. The cover now matches within 1pt, but p1 still loses "1、根据…": its two lines end about 3.2pt past the 720 foot at Word's own baselines, and Word for Windows keeps them. It looks like a Windows foot tolerance for 1.15-spaced lines and needs a lab.
+- **zh-202582e2:** 96.4 → 94.2. Its FZXiaoBiaoSong-B05S, Latin-named with no entry, prints in FangSong, so the Mincho rule isn't general. Use windows' word-win-missing-faces-map.txt.
 [MEASURED Windows 01QbbApP 2026-10-24, after the font packs, each lab the first document of a fresh Word, no warm-up;
 ~/starling-doc-check/lab/t160 fresh*/v*/w*; released to whoever fits the faces (macos-ios, facemap/OfficeFonts)]
 **Stable from a fresh start.** The earlier drift came from printing variants in one Word, which
