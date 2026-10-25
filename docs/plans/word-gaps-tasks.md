@@ -5562,7 +5562,8 @@ not measured.
   华文细黑 STXihei     16.80-16.92 / 30.84 / 12.38 (1.403, 1.033)
   华文新魏 STXinwei    15.86-15.96 / 29.16 / 11.16 (1.322, 0.934)
 Ours at 8337b1d0 (before T179) sets all five in YaHei: 20.4-20.7 a 12pt line. Widths not measured (all are square CJK faces).]
-### zh-dc25c47e: 47.8 against word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+### zh-dc25c47e: 47.8 against word-win — DONE e44d193d: 99.5 (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+DONE e44d193d: under balanceSingleByteDoubleByteWidth, word spaces give nothing for East Asian text right after them (an ideograph, or a symbol its run sets East Asian) — dcs (a)-(e) below; the cell's p6 line "…□广播电视   □纸质媒体" took its "□" with the spaces at 4.02 of 4.5. Each limit from a document: inside a word they give (zh-604e21e5 "…標準程", balanced, 5.88 of 6); unbalanced, after a space too (zh-f2ca3070 "…空間   席", 4.80 of 6); a Latin word keeps lab jg's rule (zh-4b8e0abc, Indonesian, balanced: 99.7 -> 53.2 when it did not). The ignored-page-break theory is closed by dcs (f): the element there is lastRenderedPageBreak, which our reader skips. Pair w42 -> w45: 47.8 -> 99.5, nothing else moved. Its titles are 方正小标宋: re-check after the T182 reprint. With it, cdab2a33: ◇◆ out of the Windows Segoe set (858eb781).
 
 - **zh-8e8d4c40 label lift, retry notes (Mac 01Xgpbk5):** label-target.patch (Mac) puts the label's baseline into the first-line target of `_layoutParagraph`'s lead block. It used `marker.computeDistanceToActualBaseline`, which is in pixels, while `target` is in points (`_px(target)`): the lines were shoved out of their cells (177 → 143). Convert by `/ (theme.pixelsPerPoint * scale)`. Lift the line as the Segoe UI Symbol case does, `segoeLift = max(segoeLift, labelBaseline − target)`, rather than `target` alone.
 
