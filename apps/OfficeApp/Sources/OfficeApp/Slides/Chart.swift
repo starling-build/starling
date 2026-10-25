@@ -2886,17 +2886,25 @@ enum ChartPainter {
             for t in names { t.dispose() }
             // (Over a legend at the foot, the table stops where the
             // legend's band begins: chart-ChartDataTable's in Excel's print.)
-            let foot = c.legend && c.legendBox == nil && c.legendPosition == "b" ? area.bottom : frame.bottom - 4.9 * k
-            let left = max(plot.left, frame.left + 17 * k + column)
-            let rows = Self._tableRows(c, size: size, k: k, slot: (plot.right - left) / Double(max(1, n)), text: text)
+            // (A manual plot layout over a table: Word reads its width
+            // alone — the plot w of the frame wide — and every side stands
+            // 5pt further out: the plot 6.7 under the frame's top, the
+            // table's foot on the frame's, its left edge 12 in. Lab on
+            // zh-61aaad09's chart (Windows 01QbbApP): its x, y and h moved
+            // nothing; with no layout the sides are as below.)
+            let manual = c.plotLayout
+            let foot = c.legend && c.legendBox == nil && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? 0 : 4.9 * k)
+            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * k + column)
+            let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right
+            let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), text: text)
             let top = foot - rows.reduce(0, +)
             // (Its plot's top 11.1pt under the frame's in both, where ours
             // stood half a label line under the area's, 4.3 lower: so
             // measured only with a table.)
             // (On a sheet too, 11.1 pt: chart-ChartDataTable's in Excel's
             // print, where 11.1 px stood 2.6 pt high.)
-            let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * (c.onSheet ? k / 0.75 : k)
-            plot = Rect.fromLTRB(left, head, plot.right, top)
+            let head = c.title?.isEmpty == false ? plot.top : frame.top + (manual != nil ? 6.7 : 11.1) * (c.onSheet ? k / 0.75 : k)
+            plot = Rect.fromLTRB(left, head, right, top)
             table = (top, rows, plot.left - column, size)
         }
         if let placed, c.plotLayoutInner { plot = placed }
