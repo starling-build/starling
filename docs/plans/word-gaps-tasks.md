@@ -5804,6 +5804,7 @@ Lab t187 (Windows 01QbbApP, 2026-10-25), part 1 of 3: zh-cec9d337's own package,
 - 1.0 left: stays; closes with the 0.48 line at 779.74, no bottom border.
 - 0.3 left: Word splits the row (no cantSplit): "四、演練完畢…" stays, "五、其他協辦事宜。" opens p17, and p16 closes with the 0.48 line at 763.42. p17's piece opens with the table's top border (3.0 + 0.72 at 56.64/60.36).
 So Word reserves no bottom border at a page-closing row; the row needs only its own line height plus the 0.48 rule, somewhere between 0.3 and 1.0. The single sz24 / single sz4 runs and a 0.0-left run were stopped by a low-memory reap and are not printed yet.
+Lab t187 part 2 (Windows 01QbbApP, 2026-10-25): the bottom border as single sz24 (3pt) and as single sz4 gives the SAME pages as thinThickSmallGap sz24, to the hundredth. 3.0 left: row 四 stays, p16 closes with the 0.48 line at 777.82. 1.0 left: stays, 779.74. 0.3 left: split, p16 closes at 763.42. 0.0 left: split, 763.78 (p17 the same as 0.3's). So the bottom border's width plays no part in whether a row closing a page fits: Word reserves none and draws none there. The row needs room for its content plus the 0.48 rule closing it, the threshold between 0.3 and 1.0pt left.
 
 ### T188. zh-b00fef0d: 74.6 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab.
