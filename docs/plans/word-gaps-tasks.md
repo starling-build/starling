@@ -4901,4 +4901,4 @@ fits where its end, rounded to 1/600 in, is inside the line.
 ### Windows mode: silent comment at the document's start, balloon pitch and the list-deletion indent — DONE (Windows 01QbbApP labs `na`, `bh`; landed by the Mac, 2026-10-24)
 - **Result:** Tika-792 66.7 → 100, delins 69.5 → 74.6, nothing lower. Pair: POI set plus zh-3fe252ff (the only zh word-win document with a pane), base ab10de75.
 - **Open:** delins's Field Code Changed / Formatted balloon order; re-read its misses at this tip.
-- **Open:** WordWithAttachments, where Times New Roman 10pt lines step 11.49 in Word for Windows (hhea with lineGap) and 11.0 in ours.
+- **Open:** WordWithAttachments, where Times New Roman 10pt lines step 11.49 in Word for Windows (hhea with lineGap) and 11.0 in ours. [CLAIMED Linux b2 01JsizVV 2026-10-24, routed by macos: not the metrics (macos-ios: both step 11.5); the 8.5pt of drift sits in the twelve paragraphs of seven VML shapes between "We will leave…" and "Дубль документа" — which float or wrap, and how tall each line stands]
