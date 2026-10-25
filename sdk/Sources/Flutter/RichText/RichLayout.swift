@@ -8810,6 +8810,13 @@ public final class RichLayout {
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                            // (And end one with an opening mark, where it is
+                            // `w:kinsoku` 0 that turns them off in text of an
+                            // East Asian language: zh-72da925e (zh-TW) ends
+                            // a line "…（下稱「" in Word's print, "中" opening
+                            // the next. Not where the language is not one —
+                            // zh-c5b5087b's en-US carries "（" over.)
+                            || (kinsokuOff && ch != " " && Self._openingMarks.contains(b) && Self._eastAsianLineRules(run, document, named: named))
                             // (In a line too narrow for one character
                             // every character is a line, the marks
                             // too: zh-830ef10d's 6pt cell sets
@@ -10671,6 +10678,9 @@ public final class RichLayout {
             // defaults' East Asian language en-US and kinsoku off, has
             // "…负责承储" / "（以下简称…" where ours ended the line on it.)
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
+            // (… and an opening one end it, under `w:kinsoku` 0 in text of
+            // an East Asian language — zh-72da925e's "…（下稱「": see `_span`.)
+            if kinsokuOff, !runRulesOff(o - 1), Self._openingMarks.contains(Character(a)) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
@@ -10920,6 +10930,15 @@ public final class RichLayout {
                 let text = String(decoding: units[a ..< piece.b], as: UTF16.self)
                 FileHandle.standardError.write(Data("fit [\(text)] w \(w / pt) x \(x / pt) of \(width / pt) fits \(fits) marks \(marks.count)+\(own.count)\n".utf8))
             }
+            // (Under `w:kinsoku` 0 an opening mark may end a line, as a
+            // piece of its own, where it fits as it stands — to a twentieth
+            // of a point, the grid's sum: zh-72da925e's "…（下稱「", 21
+            // characters of 17.0075 in 357.15, ends on it 0.008 over in
+            // Word's print. Nothing gives for it: zh-c8eb6e92's cell
+            // "定标监督小组人员（签名）" carries the "（", 1.15pt over, to the
+            // next line.)
+            let openingAlone = kinsokuOff && last - a == 1 && Self._openingUnits.contains(units[a])
+            if openingAlone, !fits, x + w - width <= _px(0.05) { fits = true }
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
             if fits, !runsOn, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
@@ -10930,7 +10949,7 @@ public final class RichLayout {
             // not fit, "。" a line alone. In a cell, where nothing hangs,
             // its marks give: the form's cell line of a 317pt indent, 14
             // spaces and "）。", 9.85pt over, is one line in Word's print.)
-            if !fits, last > a {
+            if !fits, last > a, !openingAlone {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
