@@ -5074,4 +5074,14 @@ unbreakable word. So the line breaks at the space, then force-breaks by characte
   lang zh-TW, the style's "zh-tw" corrected, the runs in installed 新細明體.
 - Join: no space (line 1 to 512.9); U+00A0 (503.9); compatibilityMode 15 (514.2). With mode 15 the whole document
   is 61 pages, the Mac's count, against 66.]
+[ISOLATED Windows 01QbbApP 2026-10-24, lab t167b: legacy mode alone is not enough. 76 other legacy zh documents
+break Han normally. The second condition is the document-default East Asian face being a Latin one:
+zh-7773163d's rPrDefault has eastAsiaTheme="minorHAnsi". The test was a plain "測試 + Han" paragraph set
+explicitly in 細明體_HKSCS:
+- In zh-52e5699c's legacy package it joins. With zh-7773163d's styles.xml swapped in, it breaks.
+- Within those styles, only the rPrDefault matters: eastAsiaTheme minorHAnsi → minorEastAsia joins, and dropping
+  its rFonts still breaks.
+- Language, autoSpace, widowControl, size, shapeLayoutLikeWW8, ulTrailSpace, useFELayout and punctuation
+  compression make no difference.
+In the corpus, only zh-7773163d combines legacy mode with a Latin East Asian default.]
 The first drift is p3, and it's a line break, not height. Each "⚫案例N：…" list item breaks on Windows right after "案例 ": ListParagraph with a Wingdings bullet, tab 1162, ind left 2438 hanging 1757, run 1 "案例 " (spacing 13, w 95), run 2 "2：公務人員…" (w 95). "2：…" then starts line 2 at the hanging indent, so each item takes one more line. Word for Mac and ours set the first line full. It recurs on p3, 4, 10, 11 and 13. The faces aren't the cause: the reprint uses Ming-Lt-HKSCS, the same as the Mac. A 7-variant lab is requested from windows: w 95, the space, "2"→"二", spacing 13, the bullet, jc.
