@@ -4777,6 +4777,17 @@ font-table entry, C with its second where it has one, A with no entry. For each 
   warmed: FangSong/KaiTi.
 macos-ios fits facemap from it.
 
+### Word for Windows sets baselines on a 1/600-inch grid from the running total; DFKai-SB is 1.3009 em (Windows 01QbbApP, 2026-10-24)
+Lab round, in zh-d35cbbdb's package, each print fresh, every baseline read.
+- Baselines sit on a 1/600-inch grid (0.12pt), rounded from the running total of the lines' true heights, not
+  per line. Each step is the floor or the ceiling of the true height in whole units, in the proportion that keeps
+  the total right. 14pt DFKai-SB is 151.774 u: 152 ×26 and 151 ×7. 12pt is 130.098 u: 130 ×32 and 131 ×3.
+- Paragraph spacing adds into the same total exactly: 27.2pt after gives a mean of 18.2129 + 27.204.
+- Lines within one paragraph, separate paragraphs, cells and the body all behave the same.
+- DFKai-SB's true line is 1.3007-1.3011 em, not exactly 1.3: 15.612 at 12pt, 18.213 at 14pt, 13.660 at 10.5pt.
+  That is about 0.37pt over zh-d35cbbdb p2's 33 lines (lenovo-2), and the hair in T169 (lenovo).
+- Times New Roman 12pt steps 13.80 = its 1.1499 em.
+
 ### zh-d35cbbdb 28.4: DFKai-SB's line is 1.3 em; the body ends at the footer's top (Windows 01QbbApP, 2026-10-24)
 Lab kai, in the document's own package, Word for Windows:
 - 標楷體 (DFKai-SB) at 14pt, line 0 atLeast, steps 18.2 = 1.3 em, with the grid or snapToGrid 0. kaiu.ttf's own
