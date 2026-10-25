@@ -418,6 +418,13 @@ the same base; the commits give the numbers):
 - Open: 47813's default rows of Verdana 10 print 13.20 pt (110 dots),
   where every other Verdana 10 book's print 12.96 (108), ours too; it
   alone says defaultRowHeight 12.75 and no baseColWidth (Mac Excel 12).
+- Tried and taken back: rows on a page printed at a set scale rounded
+  otherwise. Tables' fitted Times New Roman 12 rows at 89% are 110.55
+  dots and print 110 (ours 111, 0.12 pt a row long), and lo-tdf167019's
+  at 85%, 110.4, print 110 too. Whole dots at 100% first, then scaled,
+  fixed Tables' pitch and broke lo-tdf167019's (+1.29). Cutting down at
+  the page's scale made 45540_classic and 45544 ten points worse. Of the
+  24 scaled workbooks neither beat rounding once.
 - *A run of one fill down the rows is one rect*, as Excel's page has
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse
