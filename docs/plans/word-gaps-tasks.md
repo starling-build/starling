@@ -5974,8 +5974,16 @@ Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). The empty 
 floating "…印发" table (tblpPr vertAnchor text, tblpY 114, 420.7 wide, rightFromText 180) is set in Word's print in the 27pt
 strip right of the table (x 504.8–532.2); ours sets it full width at p2's top.
 
-### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — MEASURED, PARKED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). Check whether ours carries two, or sizes them taller.
+Ours carries two: p15's text stands 1.65-1.99pt low from its first body line ("附件一之一" at 80.79 to Word's 78.96, the
+form's top rule 110.17 to 108.14), so its third empty paragraph passes the foot. The offset comes before the table: p15 opens
+with the rest of a paragraph whose page break ends p14. What's left of it holds two wrapNone boxes ("附件一之一", the shaded
+"計畫申請表單") and its mark, rFonts eastAsia 標楷體 over Normal's TNR 12 (eastAsia 新細明體). Ours sets that line 15.6 (a 1.3 em
+East Asian line, ¶238 in the dump). Word's numbers fit TNR's 13.8, as its plain empty paragraphs (13.8, both prints) are.
+Tried in `_layoutParagraph`'s "nothing but floating objects" branch, none moving it: the probe as " " or "x" instead of
+U+FFFC, and the probe's height outright instead of max(body, probe). So the 15.6 is set elsewhere, perhaps in the
+page-break continuation or the inline object characters' own line. p16 (whose box paragraphs follow empty ones) matches.
 
 ### zh-61aaad09 83.8 (word-win, 3/3 pages): its chart over a data table — DONE after windows' lab, 83.8 -> 94.1 (Mac 01Xgpbk5, 2026-10-25)
 After f436158c its table's rows are Word's (header 36.7/36.8, rows 17.7). Left: the plot's margins. Word stands the plot
