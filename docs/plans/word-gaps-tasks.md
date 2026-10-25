@@ -5095,3 +5095,5 @@ w:spacing, doubled on full-width characters under balanceSingleByteDoubleByteWid
 x only, so no score move here, but zh-1cfb652b 67.9 -> 87.5 (w21 -> w22). Left: Word's print carries 0.96pt
 invisible glyphs above each annex heading (read as "AA"/"BB" lines), p1's ICS block 7pt and footer line 5pt off,
 p4's "3.2" read with its leader. Released.
+
+### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, routed by macos)
