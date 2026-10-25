@@ -5523,3 +5523,5 @@ The blank page is not paragraph 51's. In the real document both prints set its "
 
 ### T179. zh-17ac8aa2: 21.9 against word-win, 2 pages, 32 lines — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. 100 against the Mac print (Mac 0fcba326, 2026-10-23); low against word-win.
+
+### zh-dc25c47e: 47.8 against word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
