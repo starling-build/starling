@@ -5212,6 +5212,11 @@ wanted.]
 a text width of 328.33. The grid is fixed (6576 twips = 328.8pt) with tcMar 0, so 304.85 is not Word's cell. Against
 328.33, 高 ends 3.25 over, beyond the 3.00 that (a) allows, and Word leaves it, as measured. So check our width for
 this pct/fixed cell before refitting the allowance.]
+[Windows 01QbbApP, real-cell sweep: the row copied into one-row tables, its fourth grid column stepped 0.25pt.
+Word takes 高 from col4 329.00 (a justified text width of 328.58) and leaves it at 328.75 (328.33). Those are the body
+thresholds exactly, so the allowance rule holds in the cell; tcMar 0 and the cell's mark change nothing. The
+document's 328.8pt column sits just under the threshold, so Word leaves 高. Fix our width for this cell: we read
+304.85.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
