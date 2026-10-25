@@ -4727,6 +4727,12 @@ The first word-win batch (3a73e05c, 100 POI docs) scores 82.9 with `lab/tools/sw
 - Left, open to anyone: bug59058 (53.3 on word-win). Line breaks agree; Word for Windows fits one more line on p28 after the tables on p27, where the Mac print and ours fit 41. [CLAIMED Linux b2 01JsizVV 2026-10-24: p28's atLeast-15pt lines (Times = Times New Roman 13pt, natural 14.94) are exactly 15, and Word for Windows sets the last one ending on the foot (720.0) — the whole-quarter-point tie rule (lab `ef`) left atLeast out]
 Done. Same-base sweep of 756: zh-043aab43 85.8 -> 100, zh-e64d4997 85.5 -> 100
 (the Mac 011uWpmC's parked lab `hs`, "（歲入成長率÷ 歲出"), nothing lower.
+Re-confirmed against word-win (Linux office1, 10-24): T155-T159 together, a
+same-base pair with OFFICE_WORD_FONTS=windows scored on word-win (the tip at
+ef5d58bf against it with the five reverted): 15 up — zh-043aab43 85.8 -> 100,
+zh-e64d4997 85.5 -> 100, zh-0513f641 94.6 -> 98.7, zh-0daa510e 96.5 -> 100,
+zh-afdd4a7e 95.9 -> 100, zh-60c80728 99.0 -> 99.6, zh-51af781b 76.3 -> 76.6 and
+eight 99.x -> 100 — nothing lower.
 
 ### T159. PMingLiU's "÷" is 0.591 em and its half-width corner brackets half an em — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). From T158's survey of Word's
