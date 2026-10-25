@@ -252,6 +252,9 @@ struct PdfMarkup {
                      "ru-RU": "Russian", "de-DE": "German", "fr-FR": "French", "es-ES": "Spanish", "it-IT": "Italian",
                      "uk-UA": "Ukrainian", "zh-CN": "Chinese (PRC)", "zh-TW": "Chinese (Taiwan)", "ja-JP": "Japanese",
                      "ko-KR": "Korean", "pt-BR": "Portuguese (Brazil)", "pl-PL": "Polish", "nl-NL": "Dutch"]
+        // (Word for Windows spells the country out: delins's twenty-three
+        // "Formatted: English (United States)" in word-win.)
+        if DocxFormat.wordOnWindows, tag == "en-US" { return "English (United States)" }
         return names[tag] ?? tag
     }
 
@@ -321,19 +324,33 @@ struct PdfMarkup {
         let px = theme.pixelsPerPoint * zoom
         let page = layout.pageRect(p)
         let textRight = setup.width - setup.marginRight
-        let boxLeft = textRight + 32.1, boxRight = textRight + 262.4, inset = 4.5
+        // (Word for Windows, lab bp: its boxes stand 31.5 to 261.8pt past
+        // the text, a line 1pt under the box's top and 1.8 over its foot;
+        // the line from the anchor turns 4.6pt past the text and meets the
+        // box 6pt under its top. Word for Mac's: 32.1 to 262.4, 2.7 and
+        // 2.7, 9.1 and 5.5.)
+        let windows = DocxFormat.wordOnWindows
+        let boxLeft = textRight + (windows ? 31.5 : 32.1), boxRight = textRight + (windows ? 261.8 : 262.4), inset = 4.5
+        let padTop = windows ? 1.0 : 2.7, padBottom = windows ? 1.8 : 2.7
+        let turn = textRight + (windows ? 4.6 : 9.1), meet = windows ? 6.0 : 5.5
         var authors: [String] = []
         for n in notes where !authors.contains(n.author) { authors.append(n.author) }
         var floor = -Double.infinity
         let balloon: (family: String, size: Double, line: Double?) = {
+            // (Word for Windows' own face is Segoe UI 9pt, its lines 1.33
+            // ems, and it is what Word for Windows sets for a Balloon Text
+            // in a Mac face it lacks: 58067's Lucida Grande, lab bp's no
+            // style at all.)
+            let segoe = (OfficeFonts.substitute("Segoe UI"), 9.0, Optional(1.33))
             guard let style = document.styles.styles.first(where: { $0.name.lowercased() == "balloon text" }) else {
-                return (OfficeFonts.serif, 9, nil)
+                return windows ? segoe : (OfficeFonts.serif, 9, nil)
             }
             // (Its lines as high as Word's face has them, where that is
             // not its clone's: Tahoma's 1.207 ems, its ascent and descent
             // — delins's balloons stand 15.06pt apart, a 9.66pt line and
             // the padding, where the clone's line put them 15.75 apart.)
             let family = style.char.fontFamily ?? "Tahoma"
+            if windows, family.trimmingWhitespace().lowercased() == "lucida grande" { return segoe }
             return (OfficeFonts.substitute(family), style.char.fontSize ?? 8,
                     family.trimmingWhitespace().lowercased() == "tahoma" ? 1.207 : nil)
         }()
@@ -377,7 +394,7 @@ struct PdfMarkup {
                 }
             }
             let top = max(want, floor)
-            let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + 2 * 2.7)
+            let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + padTop + padBottom)
             // (Stacked edge to edge: delins's one-line balloons stand
             // 15.1pt apart, an 8pt line and the padding.)
             floor = box.bottom
@@ -394,9 +411,9 @@ struct PdfMarkup {
             // pane, then up to the balloon.
             line.strokeWidth = 0.25
             let under = anchor.bottom
-            canvas.drawLine(Offset(anchor.left, under), Offset(textRight + 9.1, under), line)
-            canvas.drawLine(Offset(textRight + 9.1, under), Offset(boxLeft, top + 5.5), line)
-            tp.paint(canvas, Offset(boxLeft + inset + indent, top + 2.7))
+            canvas.drawLine(Offset(anchor.left, under), Offset(turn, under), line)
+            canvas.drawLine(Offset(turn, under), Offset(boxLeft, top + meet), line)
+            tp.paint(canvas, Offset(boxLeft + inset + indent, top + padTop))
         }
     }
 }
