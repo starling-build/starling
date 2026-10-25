@@ -5691,9 +5691,13 @@ cases don't fit: 1pt alone gives model 1.7, measured 2.9; 4pt gives model 4.7, m
 per macos's condition that pagination changes only where the drawing agrees with Word. Next: the stroke lab, or
 Word's own WordArt render (its EMF) to read the ink extent from.
 
-### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — DONE 4c848788 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.456/1.028 in Windows mode, as T179 did for 中宋.
 Written; the pair waits for windows' reprint sha, and for its note on whether Word fetches the 华文 cloud faces on demand.
+4c848788: as written; 0012bc50's note keeps t179's numbers (STZhongsong in the cloud cache since 10-18). 细黑 is left out:
+no entry of ours, and no word-win print sets text in it. Same-base Linux pair against word-win after 0012bc50, 756
+documents: nothing moved (zh-4a2ab598, the one print in STFangsong, 80.4 either way). It is the lab's rule with no
+corpus gain yet.
 
 ### zh-6a4fc013 49.5 (word-win): the Thai document, 27 pages to 26 — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
 
