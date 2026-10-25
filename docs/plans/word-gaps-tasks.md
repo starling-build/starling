@@ -5965,6 +5965,12 @@ zh-2a241df1's) has a manual inner plot layout (x .1735, y .0893, w .7118, h .695
 table. It doesn't give Word's numbers directly either: y would put the plot 12.2 down, and Word's plot x (165-451) is 3
 and 6.6 inside the layout's (162.0-457.6). Lab wanted: this chart with the manual layout removed, and with y and h varied.
 Does the head follow y, and where does the foot go? Its other misses (p1 y616-700) are chart 2's pie labels.
+LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/c61, chart1 in its own package, fresh Word, warm-up first). The frame is 415.2 x 136.8 (inline, x 90.0-505.2, y 275.2-412.0). Measured: the top gridline (the plot's top), the data table's lines and the table's left, the gridlines' x.
+- As is (x .1735, y .0893, w .7118, h .6958): plot top 281.9 (frame + 6.7), table foot 412.0 (the frame's foot), table 102.0-450.6, plot 164.8-450.6, the reference to the tenth.
+- y 0.05 and y 0.15, h 0.60 and h 0.80, x 0.30: ALL the same as is. With a data table Word ignores the layout's y, h and x: the plot's left is where the table's label column ends.
+- w 0.50: the plot is 164.8-372.4, exactly w x 415.2 = 207.6 wide; top 281.9 and foot 412.0 unchanged, the gridlines closer. At the file's .7118 it would be 295.5 wide; Word ends it at 450.6 (285.8), short of the legend (whose text ends 504.0).
+- No manual layout: every side 5pt further in: plot top 286.9 (frame + 11.7), table foot 407.0 (frame - 5.0), table 107.0-445.6, labels 5 right and 5 down.
+So with a data table, a manual inner layout means 5pt less inset on all four sides (top 6.7, bottom 0, the table's left 12.0 from the frame), and only its w is read, capped by the legend. Ours' 11.1 / 4.9 are the no-layout figures.
 
 ### zh-3f871b7d 87.8 (word-win): a middle dot set a full em — BUILT, PARKED on the middle dot's squeeze (Mac 01Xgpbk5, 2026-10-25)
 Word sets a hinted "·" (U+00B7) in SimSun, whose U+00B7 is an em: SimSun is fixed-pitch, and of what it maps from
