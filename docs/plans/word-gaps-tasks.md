@@ -5647,5 +5647,14 @@ Affected: every word-win reference with text in those names. 方正小标宋简�
 ### T183. zh-72da925e: 57.6 against word-win, 39/39 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos, while T181/T182 wait on windows)
 From the low list at d9aabe26 (1228/1246 lines). First: its first miss.
 
-### WordWithAttachments 73.7 (word-win): the WordArt lines — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
-From b2's park note (T-markup Open line): Word for Windows stands each inline textpath's line over its drawn extent.
+### WordWithAttachments 73.7 (word-win): the WordArt lines — RELEASED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+All 10 misses (w21) come from one drift. After p1's three inline WordArt shapes, ours sits 8-9 high (scaled 0.871,
+so about 10.5pt real; b2 measured +4.5, +3.8 and +3.0). That leaves room for the "Документ-в-документе" object
+at p1's foot (ours y659), which Word prints at the top of p2, and p2's lines follow it (+41). Only the sum
+matters (no text lines between the three), and the page break must flip. The textpath is inline in this
+document only; zh-015abfaf and zh-38d26944's are absolutely positioned, so a rule for inline textpaths
+touches nothing else. Not built: windows' wa/wa2 numbers fit the shadow (about 0.7 + its y offset) but not the
+stroke. A 1pt stroke adds 2.2 on art2's box, nothing on art3's, and 4pt adds 30; shadow plus stroke is neither
+their sum nor the larger. The shadow term alone recovers 4-7 of the 11pt, still past the matcher's 3, so it
+moves no score. It needs either WordArt drawn (glyphs fitted to the box, then stroke and shadow) or a stroke
+lab: 0.5/1/2/3pt on one box, and the same text with and without descenders. Ours draws no textpath at all yet.
