@@ -3479,6 +3479,12 @@ public final class RichLayout {
             if let ts = document.tableStyles[c.table], ts.edges?.bottom ?? (ts.borders && !ts.bordersFromCells) {
                 bottom = _px(Self._ruleRoom(ts.edgeStyles["bottom"] ?? ts.borderStyle, ts.edgeWidths["bottom"] ?? ts.borderWidth ?? 0.5))
             }
+            // (Not the table's bottom line in Word for Windows: lab t187
+            // (zh-cec9d337's package) keeps its row 四 at page 16's foot
+            // with 1.0pt left under a thinThickSmallGap bottom and closes
+            // the page with the 0.48 insideH; ours asked 4.5 for that line
+            // and sent the row over.)
+            if RichTextTheme.wordWindowsPages { bottom = 0 }
             return max(0, c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
         }
         // What a row's part at a page's foot is closed with there: its
