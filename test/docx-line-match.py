@@ -128,7 +128,25 @@ def same_start(a, b):
     # the same four-character edge check, not a full-line equality test.
     # Do not let unmapped glyphs stand for Arabic here: Geeza Pro's null
     # text previously gave rtl.docx 71% despite different line breaks.
-    return edges(a, b) or (rtl and edges(a, b[::-1]))
+    if edges(a, b) or (rtl and edges(a, b[::-1])):
+        return True
+    # (Word for Windows writes a bidi line's words in visual order, each
+    # word's letters in logical order: its print of rtl.docx starts
+    # "الاتحادفي…", the line's last two words. With the spaces gone the
+    # words have no bounds and no four characters are an edge, so such
+    # a line is the same line where it holds the same letters — every
+    # one, which a line broken a word earlier or later does not; never
+    # a null. The text names one glyph by its Persian or its Arabic letter
+    # (ی/ي, ھ/ه, ک/ك), so both are folded, and only letters are counted:
+    # Windows' print puts the closing stop at the line's visual start and
+    # repeats a mark (ًا ًا ًا).)
+    if rtl:
+        fold = str.maketrans("یھکۀ", "يهكة")
+        def letters(t):
+            return sorted(c for c in t.translate(fold) if unicodedata.category(c).startswith("L"))
+        p, q = letters(a), letters(b)
+        return len(p) >= 4 and p == q
+    return False
 
 
 def main():
