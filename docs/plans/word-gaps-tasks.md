@@ -5273,7 +5273,7 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
 
-### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED Windows 01QbbApP (starling-31, 2026-10-25, routed by macos): the mode-15 allowance from labs t170d; was macos-ios (released), Linux office1
+### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — RELEASED (Windows 01QbbApP, 2026-10-25: labs t170e/t170f below; a count-of-spaces cap is not the rule)
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t170, in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12, jc both).
 The paragraph was set in the body with a right indent stepped 0.25pt; N is the natural width to the end of 高.
 The largest over at which Word still takes 高 (each ±0.25):
@@ -5318,6 +5318,11 @@ the ±0.25pt step.]
 [Windows 01QbbApP, lab t170e (zh-15f60bac's package: mode 15, compressPunctuation, 標楷體 16, justified, its own runs). zh-15f60bac p8 "…類型包含建議5項(詳表5第4、" ends there in both Words' prints. Ours takes "6、", hanging the "、" whole and squeezing 2.75. The measure was swept in 0.5pt steps; this is the most over N (natural width to the "、" after 6) at which Word still takes "6、":
   A as is 15.0; B "六" for 6, 20.0; C no automatic spaces (五 for 5, 四 for 4), 20.0; D no "，" or "(" (two 、 only), 13.5.
 Word hangs nothing in any of them: the last "、" ends at the measure. It squeezes the marks: in A at 15.0, the "，" by 6, the "、" after 4 by 6 and the last "、" by 3; in B at 20.0, by 7.9, 7.9 and 4.1. The automatic spaces barely give (about 0.2 each, in D). So a digit over-character on a line with automatic spaces gets about 5pt less than a Han one, or than a line with none. Our fitter's full hang of the "、" plus a squeeze is what takes "6、" here.]
+[Windows 01QbbApP, lab t170f (zh-4ea36aa8's package, as t170d, body paragraph): p13's line "二、校舍…國小部32班（含". The most over Word still takes the last piece at 12pt, by automatic spaces on the line (the line's 、 marks fixed):
+  "包含":  2 spaces 3.5, 4 3.75, 6 3.75, 8 3.75
+  "（含":  0 spaces 1.5, 2 4.5, 4 7.5, 6 7.75, 8 7.75
+So an opening bracket heading the over piece adds about 1pt with two spaces and about 4 from four on, saturating near 0.65 em. In Word's print of p13 the four spaces are set at 1.2-1.6 of 2.64 and no mark is squeezed. The "包含" row is a little over t170d's "高" series (2.5/3.25/3.5/3.5), with the line's two 、 the likely difference.]
+[Windows 01QbbApP, the t170d cap built as a Windows-mode rule (lines whose only stretch is automatic spaces, no closing mark at the end, no word space; min(½Σ, (1 - e^(-k/1.5)) × (0.6pt + ¼ em)), the as-gate dropped). Same-base pair, 120 mode-15 justified zh documents against word-win (tip 8337b1d0): 95.42 -> 95.41. zh-147bdae0 94.3 -> 94.6, zh-12db188f 97.3 -> 96.0 (its cell line "…字第1509963號函釋，檢定考試、" takes "檢", which Word leaves). zh-38078fb3, zh-7cf85f15, zh-c2b13410, zh-7488a70f, zh-b13d0fb4 and zh-4ea36aa8 did not move. Not landed; patch kept as t170-cap.patch in the Windows scratchpad. Together with macos-ios's cells (5.52 over 4 in zh-38078fb3), the allowance depends on more than the count of spaces: the over piece (t170f), the line's marks, and probably the cell. Released.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
