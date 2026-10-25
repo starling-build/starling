@@ -5456,3 +5456,8 @@ as the line stands. Ours hangs the "、" whole and squeezes 2.75. First: which s
 
 ### T176. zh-045c5a75: 37.1 against word-win, 23 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
+
+### T177. Windows mode: windows' sig map for missing Latin faces, from zh-c399c91a (18.1, LinTimes → Ebrima) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos (macos-ios's facemap; it is busy on the strut-held label line). The rows of
+"Sig map for missing Latin faces" above that ours sets otherwise, gated on Windows mode, Mac mode as is. Ebrima's widths
+from the subset embedded in zh-c399c91a's word-win print. Same-base pair against word-win.
