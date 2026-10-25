@@ -133,6 +133,10 @@ let appTarget: Target = {
                 "-lflutter_engine.dll",
                 "-Xlinker", "/SUBSYSTEM:WINDOWS",
                 "-Xlinker", "/ENTRY:mainCRTStartup",
+                // Windows gives the main thread 1 MB, where macOS and Linux
+                // give 8: lo-tdf93830, lo-smartart-preserve and 63200 overflow
+                // it exporting a deck (0xC00000FD) and fit in 16, as wasm has.
+                "-Xlinker", "/STACK:16777216",
             ]),
         ]
     )
