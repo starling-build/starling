@@ -4339,12 +4339,10 @@ extension ParagraphBuilder {
 /// data to C++, which handles encoding internally.
 public class NativeParagraphBuilder: ParagraphBuilder {
   /// Starling: whether a style's `baselineShift` reaches the text — the
-  /// native bridge's SetBaselineShift. skwasm has no such setter.
-  #if os(WASI)
-  public static let supportsBaselineShift = false
-  #else
+  /// native bridge's SetBaselineShift, and in the browser skwasm's
+  /// textStyle_setBaselineShift (ours; Google's published skwasm has none,
+  /// and web-app.sh stages ours).
   public static let supportsBaselineShift = true
-  #endif
 
   /// The C++ bridge object that wraps txt::ParagraphBuilder.
   ///
