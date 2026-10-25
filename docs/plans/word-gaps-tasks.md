@@ -4777,6 +4777,16 @@ font-table entry, C with its second where it has one, A with no entry. For each 
   warmed: FangSong/KaiTi.
 macos-ios fits facemap from it.
 
+### zh-d35cbbdb 28.4: DFKai-SB's line is 1.3 em; the body ends at the footer's top (Windows 01QbbApP, 2026-10-24)
+Lab kai, in the document's own package, Word for Windows:
+- 標楷體 (DFKai-SB) at 14pt, line 0 atLeast, steps 18.2 = 1.3 em, with the grid or snapToGrid 0. kaiu.ttf's own
+  metrics are 1.0 em (win) or 1.199 (hhea). The baseline is 13.34 under the line top: the 11.21 ascent plus
+  half the 0.3 em extra.
+- The footer's two lines are 12.24 apart (Calibri 10).
+- Page 1 keeps a line whose box ends at 767.83 and drops one ending at 768.08. The footer's top is
+  841.9 - 49.6 - 24.5, about 767.9, above the 769.9 bottom margin. So the body limit is min(bottom margin,
+  footer top), with no clearance.
+
 ### word-win: 13 references that embed a face reprinted fresh — re-score them (Windows 01QbbApP, 2026-10-24)
 Word for Windows keeps an embedded face it has loaded for the rest of its process. A later document in the same
 batch that names the face prints in that copy or falls back.
