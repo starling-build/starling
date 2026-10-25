@@ -5086,7 +5086,7 @@ right by zh-e51c31a7's first column (its outer double left line; "未來運用�
 the three documents rather than a lab; a Windows lab on a 0-margin first column would settle the right side.
 word-win (mupdf reader), w11 -> w14: zh-b8de3ae2 71.6 -> 76.2, nothing else moved. (The outer right line
 mirrored from the left — "margin and half, never inside" — took zh-c6da60a9 99.6 -> 38.8: not that.)
-Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title).
+Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title). [CLAIMED Linux 017F2GnT 2026-10-24, routed by macos: the charts]
 Also: the "Lab c5" note in the zh-c5b5087b entry above (footer floats turning the squeeze off) was the print-timing
 trap — a 60s-waited Mac print squeezes through p10 (lab/sqcut); see lab/tools/squeeze-cutoff.py.
 
