@@ -10243,6 +10243,12 @@ public final class RichLayout {
             }
             let xml = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML } ?? ""
             markerChar.underline = xml.containsSubstring("<w:u ") && !xml.containsSubstring("<w:u w:val=\"none\"")
+            // (And spaced as its level says: zh-90e0cea8's annex headings
+            // number "附录%1" under `<w:spacing w:val="100"/>`, "附 录 A"
+            // in Word's print, 5pt after each character.)
+            if let r = xml.range(of: "<w:spacing w:val=\""), let v = Double(xml[r.upperBound...].prefix { $0 != "\"" }) {
+                markerChar.letterSpacing = v / 20
+            }
         }
         if let c = p.style.bulletColor { markerChar.color = c }
         // (The level's own size, where it says one: bug65649's "3.1.1."
@@ -10256,6 +10262,12 @@ public final class RichLayout {
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
         var markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
+        // (Its full-width characters spaced twice where single and double
+        // byte widths are balanced, as the text's are: zh-90e0cea8's
+        // "附 录 A", spaced 5pt, steps 20.5 at 10.5pt and its "A" 5.)
+        if theme.wordRules, ea, document.balancesSpaceWidth, let ls = markerChar.letterSpacing, ls != 0 {
+            markerStyle = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + ls * theme.pixelsPerPoint * scale)
+        }
         // A Wingdings bullet, drawn by a stand-in glyph, takes Wingdings'
         // own advance: its "Ø" arrowhead is 0.794 of an em in Word's
         // prints (their embedded subsets' widths), and zh-3fe252ff's
