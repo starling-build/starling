@@ -4834,7 +4834,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - bug57031  99.7  339 lines  14/14
   - 52288 100.0  2 lines  1/1
 
-### T160. zh-f6686f89: 75.8 against the Windows references — MEASURED, PARKED for a Windows lab (Linux office1, 2026-10-24)
+### T160. zh-f6686f89: 75.8 against the Windows references — HANDED to macos-ios (facemap), Linux office1 measured it (2026-10-24)
 [MEASURED Windows 01QbbApP 2026-10-24, after the font packs, each lab the first document of a fresh Word, no warm-up;
 ~/starling-doc-check/lab/t160 fresh*/v*/w*; released to whoever fits the faces (macos-ios, facemap/OfficeFonts)]
 **Stable from a fresh start.** The earlier drift came from printing variants in one Word, which
