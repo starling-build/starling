@@ -10693,6 +10693,7 @@ public final class RichLayout {
         // Whether a curly quote at each offset is the full-width one
         // (East Asian text's, see `_span`): a mark like a bracket.
         var wideQuotes: [Bool] = []
+        var eastAsianRuns: [Bool] = []   // each offset's run set East Asian (`eastAsianAt`)
         for run in p.runs {
             let em = (run.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             ems.append(contentsOf: repeatElement(em, count: run.length))
@@ -10705,8 +10706,15 @@ public final class RichLayout {
             let ownQuotes = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                 ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0x201C] != nil
             wideQuotes.append(contentsOf: repeatElement(hinted && !ownQuotes, count: run.length))
+            eastAsianRuns.append(contentsOf: repeatElement(hinted, count: run.length))
         }
         guard ems.count == units.count else { return [:] }
+        // (Whether the character at an offset is set as East Asian text: an
+        // ideograph, or a symbol its run, hinted East Asian, sets in its East
+        // Asian face — zh-dc25c47e's "□", "※".)
+        func eastAsianAt(_ k: Int) -> Bool {
+            units[k] >= 0x2E80 || eastAsianRuns[k] && units[k] >= 0x2100 && Self.isEastAsian(Character(Unicode.Scalar(units[k]) ?? " "), hinted: true)
+        }
         func wideQuote(_ k: Int) -> Bool { wideQuotes[k] && (units[k] == 0x201C || units[k] == 0x201D || units[k] == 0x2018 || units[k] == 0x2019) }
         // (The spacing a full-width quote is set wider by: its run's, twice
         // where the widths are balanced — the quote is set in the Latin
@@ -11421,8 +11429,12 @@ public final class RichLayout {
                             // give: zh-5b7ae054's "（Big Data）…（Open Data）加"
                             // and zh-e0ca7252's "（由機關填寫）…完" are taken,
                             // zh-c2c92639's "《》（）" too.)
+                            // (Nor, with no mark on the line, by this test: see the
+                            // word spaces' below — zh-dc25c47e's "□", 2.9pt over
+                            // with 6.1 of stretch before it.)
                             : { let giving = modern && lineOther && wide ? all.filter { !Self._cornerUnits.contains(units[$0]) } : all
-                                return (!giving.isEmpty || giving.count == all.count) && need / Double(max(1, giving.count)) <= width - x + (giving.count > 1 ? -_px(0.02) : hair) }())
+                                return (!giving.isEmpty || giving.count == all.count) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
+                                    && need / Double(max(1, giving.count)) <= width - x + (giving.count > 1 ? -_px(0.02) : hair) }())
                         // (… on a line with spaces in it — `ovc`'s had 41. On
                         // one without, a Latin word no more than half an em
                         // over, the automatic space after it aside: lab `sqc`
@@ -11570,7 +11582,18 @@ public final class RichLayout {
                         fits = true
                     }
                 }
+                // (Under `balanceSingleByteDoubleByteWidth` word spaces give
+                // nothing for East Asian text that follows them: zh-dc25c47e's cell "…□广播电视
+                // □纸质媒体" (mode 15, justified, 9pt 仿宋_GB2312) leaves its "□"
+                // 2.9pt over in Word for Windows' print, six spaces of 4.5 on
+                // the line — and "甲", "（" or "※" there alike (lab dcs); ours
+                // set them at 4.02 to take it. They give for what is inside a
+                // word: zh-604e21e5's "…(Backup & Restore)的標準程", 5.88 of 6.
+                // Without the balance they give after a space too: zh-f2ca3070's
+                // "…共同工作空間   席", 4.80 of 6. A Latin word after them keeps
+                // lab `jg`'s rule: zh-4b8e0abc's Indonesian, balanced, mode 15.)
                 if !fits, !opening, squeezesSpaces,
+                   !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     let need = x + w - after - width - hang
