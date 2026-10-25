@@ -5438,3 +5438,6 @@ Caution: the line above records Word's print squeezing commas in other en-US par
 46.8 on the Mac's w1 Windows sweep (384 of 821 lines, 28/28 pages); from p8 every line runs a character ahead.
 Word for Windows never hangs that "、" (lab t170e under T170): it squeezes marks, and takes "6、" at most 15.0 over
 as the line stands. Ours hangs the "、" whole and squeezes 2.75. First: which setting stops the hang there.
+
+### T176. zh-045c5a75: 37.1 against word-win, 23 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
