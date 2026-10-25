@@ -129,6 +129,7 @@ enum OfficeFonts {
                    alt.trimmingWhitespace().lowercased() != n {
                     return substitute(alt)
                 }
+                if !wordMacFamilies.contains(n), let by = windowsSigFace(family) { return by == "ebrima" ? sans : substitute(by) }
             }
             if !eastAsianName, !wordMacFamilies.contains(n) {
                 if let e = fontEntry(family) {
@@ -198,7 +199,10 @@ enum OfficeFonts {
     /// The font table's whole say on each name: its alternate, its
     /// `w:family` and whether its PANOSE is all zeros — what Word on a
     /// Mac goes by for a Latin name it has no face for (`substitute`).
-    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = "" }
+    /// A file's font-table entry: its alternate, family, whether its
+    /// PANOSE is all zeros, its charset, and the first two words of its
+    /// Unicode signature (`w:sig`'s usb0 and usb1).
+    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
     static func noteFontEntries(_ entries: [String: FontEntry]) {
         declaredLock.lock()
@@ -1673,6 +1677,36 @@ enum OfficeFonts {
     /// YaHei — to compare with its prints. The default is the faces the
     /// author had (`fangSongFamily`, the 方正 titles' own line).
     private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    /// The face Word for Windows sets a Latin name it has no face for,
+    /// and whose font-table entry gives no alternate, by the entry's
+    /// Unicode signature — not its PANOSE (windows' labs `lint` and
+    /// `sigmap`, 2026-10-24: zh-c399c91a's "LinTimes", PANOSE Times's,
+    /// is Ebrima whatever its PANOSE or family; with no sig, Calibri).
+    /// Only the signatures the corpus holds: a Latin-only one, 00000003,
+    /// is Times New Roman (zh-e2dc9dce's "Times Roman"); 00000287/
+    /// 00000800 Calibri (zh-015abfaf's "Nimbus Roman"); 00007A87/
+    /// 80000000 Ebrima. nil: the table's other rules.
+    /// (Never for a face Word has, whatever its entry says: zh-2dfde99a's
+    /// table gives Times New Roman LinTimes' signature, as WPS writes it.)
+    private static func windowsSigFace(_ family: String) -> String? {
+        guard !wordMacFamilies.contains(family.trimmingWhitespace().lowercased()),
+              let e = fontEntry(family), e.alt?.isEmpty ?? true, let usb0 = e.usb0 else { return nil }
+        switch (usb0, e.usb1 ?? 0) {
+        case (0x0000_0003, 0): return "times new roman"
+        case (0x0000_0287, 0x0000_0800): return "calibri"
+        case (0x0000_7A87, 0x8000_0000): return "ebrima"
+        default: return nil
+        }
+    }
+    /// Ebrima's widths, in ems, and its bold's: the characters Word's
+    /// print of zh-c399c91a sets in it (its embedded subsets, ebrima.ttf
+    /// 2048 units); others keep the sans clone's.
+    static let ebrimaAdvances: [UInt32: Double] = [
+        0x20: 0.2739, 0x21: 0.2842, 0x22: 0.3921, 0x2A: 0.417, 0x2E: 0.2168, 0x2F: 0.3896,
+        0x30: 0.5391, 0x31: 0.5391, 0x32: 0.5391, 0x33: 0.5391, 0x34: 0.5391, 0x35: 0.5391, 0x36: 0.5391, 0x37: 0.5391,
+        0x38: 0.5391, 0x39: 0.5391, 0x43: 0.6191, 0x4D: 0.8979, 0x55: 0.687, 0x64: 0.5889, 0x72: 0.3477,
+    ]
+    static let ebrimaBoldAdvances: [UInt32: Double] = [0x20: 0.2759, 0x21: 0.3271, 0x22: 0.4932, 0x4D: 0.957, 0x64: 0.6191, 0x72: 0.3979]
     /// How much wider Word for Windows sets each character of a face it
     /// emboldens, in ems: one unit of that face's em — 1/256 for KaiTi,
     /// FangSong, SimHei, SimSun and MS Mincho, 1/1024 for DFKai-SB,
@@ -1788,6 +1822,16 @@ enum OfficeFonts {
             if family.trimmingWhitespace().lowercased() == "aptos" {
                 face.naturalHeight = 1.22
                 face.baseline = 0.94
+            }
+            // (Ebrima, drawn as the sans clone at its own widths, on its
+            // own line: 2210 over and 514 under of 2048, its OS/2 win
+            // metrics — `windowsSigFace`.)
+            if wordOnWindows, windowsSigFace(family) == "ebrima" {
+                face.naturalHeight = 2724.0 / 2048
+                face.baseline = 2210.0 / 2048
+                face.missingGlyphAdvance = 1322.0 / 2048
+                face.otherAdvances = ebrimaAdvances
+                face.boldOtherAdvances = ebrimaBoldAdvances
             }
             // (Lucida Sans Unicode keeps its own line too, a tall one:
             // 1.537 ems by its hhea, 2246 over and 901 under of 2048, no

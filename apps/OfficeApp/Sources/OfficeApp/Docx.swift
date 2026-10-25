@@ -2171,8 +2171,11 @@ enum DocxFormat {
                 let alt = font.first("w:altName")?["w:val"]
                 if let alt, !alt.isEmpty { alts[name] = alt }
                 let panose = font.first("w:panose1")?["w:val"] ?? ""
+                let sig = font.first("w:sig")
                 entries[name] = OfficeFonts.FontEntry(alt: alt, family: font.first("w:family")?["w:val"] ?? "auto",
-                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" }, charset: charset)
+                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" }, charset: charset,
+                                                      usb0: sig?["w:usb0"].flatMap { UInt32($0, radix: 16) },
+                                                      usb1: sig?["w:usb1"].flatMap { UInt32($0, radix: 16) })
             }
             OfficeFonts.noteAltNames(alts)
             OfficeFonts.noteFontEntries(entries)
