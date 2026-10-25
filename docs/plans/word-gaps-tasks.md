@@ -5108,3 +5108,5 @@ p4's "3.2" read with its leader. Released.
   table) would end that line ~767.67, yet Word moves it. Ours sets 標楷體 as the square KaiTi stand-in (baseline
   1.005 em). Needs a Windows lab: DFKai-SB's 14pt line exactly (baselines step 18.24/18.12), PMingLiU's 10pt
   footer line, any clearance between body and footer.
+
+### zh-c6ab068c (36.9 word-win) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, routed by macos)
