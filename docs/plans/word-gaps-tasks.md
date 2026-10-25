@@ -5378,3 +5378,10 @@ zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
 
 ### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), given it by the Mac coordinator. The DFKai-SB face (52008403) did not move it: 6.2 with and without. Finding the first page where ours and Word's part.
+
+### zh-8e8d4c40 (and zh-de073ee5): a 、-labelled list line's Mincho lift — MEASURED, PARKED (Mac 01Xgpbk5, 2026-10-25)
+- **Face:** the label takes the style's East Asian face, "新細明體, PMingLiU", a LibreOffice comma list Word for Windows lacks. Its entry (alternate Times New Roman, charset 00) gives MS Mincho by the map, which is what Word prints for the "、".
+  - Ours matched "新細明體" inside the name. Patch: ~/starling-word-check/lab/wwface/comma-names.patch (Mac): a comma-list name goes by its own entry.
+- **Line:** Word's line is Mincho's ascent over DFKai-SB's descent: 16.2 against 15.6.
+  - A rise box for the label's ascent (label-rise.patch) moves our labelled line's baseline 0.4 against Word's 0.6, but the line stays 15.6. DFKai-SB's height is held by a strut, so nothing below moves, and zh-8e8d4c40 stays at 47.5 on 52008403.
+  - Needed: a strut-held line that takes a taller ascent from its label, as the rise does for a larger number. Open to anyone.
