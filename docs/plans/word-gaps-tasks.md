@@ -5980,3 +5980,5 @@ Both are the capacity rule refusing what Word takes (STARLING_RICHTEXT_FIT at w3
 - zh-1b74ed91 p9 (DFKai-SB 16): "…包含建議3項(…": "3" is over 10.75, needs 6.75, with 24 of room in 2 marks and 4 word
   spaces, and is refused. Word ends the line with "3".
 With T181's too-generous witnesses (zh-e0ca7252, zh-57f1de0d, zh-505b9619, zh-cd48112c), they bound the model on both sides.
+
+### zh-bdae17c0 87.1 (word-win, 71 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
