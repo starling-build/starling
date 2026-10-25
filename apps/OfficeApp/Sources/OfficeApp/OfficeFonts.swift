@@ -2213,6 +2213,13 @@ enum OfficeFonts {
             where FileManager.default.fileExists(atPath: dir + file) {
             for family in families { _ = flutter.swift_bridge.LoadFontFromFile(dir + file, family) }
         }
+        _ = registerWordCordia()
+        _wordMacFacesLoaded = true
+        return true
+    }
+    @discardableResult
+    static func registerWordCordia() -> Bool {
+        let dir = "/Applications/Microsoft Word.app/Contents/Resources/DFonts/"
         // (Thai: Cordia New, whose widths are Browallia New's, the face
         // Word for Mac draws "TH Sarabun New" in — `thaiWordFaces`. Its
         // bold is the collection's second face, which the engine's loader
@@ -2226,8 +2233,7 @@ enum OfficeFonts {
             }
             _cordiaLoaded = ok
         }
-        _wordMacFacesLoaded = true
-        return true
+        return _cordiaLoaded
     }
     static let cordiaNew = "Cordia New"
     nonisolated(unsafe) static var _cordiaLoaded = false
@@ -2510,7 +2516,17 @@ enum OfficeFonts {
         if wordOnMac, registerWordMacFaces() { RichTextTheme.glyphFallback = ["Microsoft YaHei", "PingFang SC"] }
         // (Mac mode's alone, and here on purpose: macOS and iOS only.)
         if wordOnMac { RichTextTheme.thaiBreaksAtSpaces = true }
+        // (Windows mode too: Word for Windows draws these Thai faces in
+        // Browallia New, whose widths are Cordia's, and Thonburi's text
+        // layer loses clusters — zh-6a4fc013's Thai pages.)
+        if wordOnWindows { registerWordCordia() }
         #endif
+        // (Word for Windows breaks Thai at its spaces as Word for Mac does:
+        // windows' lab, 52 of zh-6a4fc013's 54 matched lines. Only where
+        // the Thai is at Browallia's widths, Cordia's: on Linux's Noto
+        // Sans Thai at 0.66 its lines ran long — 91.7 -> 89.4, 638 lines
+        // to Word's 614 (office1's check).)
+        if wordOnWindows, _cordiaLoaded { RichTextTheme.thaiBreaksAtSpaces = true }
         // (On every platform: set inside the macOS branch, Linux and
         // Windows sweeps under OFFICE_WORD_FONTS=windows never had it, and
         // bug59058's page 28 still lost its last line there.)
