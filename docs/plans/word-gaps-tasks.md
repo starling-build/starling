@@ -5790,6 +5790,10 @@ So Word reserves no bottom border at a page-closing row; the row needs only its 
 
 ### T188. zh-b00fef0d: 74.6 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab.
+- Diagnosed (not built yet): p17's foot. Row "2 / 330219161000 / 对侵占…设施的处罚 / 全部 / 定海区综合行政执法局" (mode 12, cells
+  centred, FangSong 12pt lines of 18 with ~8pt after each paragraph) has 26.16 left. Word parts it there: "2" centred in the
+  26.5 part, "对侵占…" and "定海区综" from its top. Ours: splitRow finds the one-line centred cells (block 26.1 with their
+  after) 0.91 short and sends the row over whole. Rule to try: a cell's last paragraph's space after need not fit the part.
 
 ### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
