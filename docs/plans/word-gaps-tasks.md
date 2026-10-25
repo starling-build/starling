@@ -5396,3 +5396,7 @@ So Word for Windows ignores a page break in the paragraph that carries a section
 - **Line:** Word's line is Mincho's ascent over DFKai-SB's descent: 16.2 against 15.6.
   - A rise box for the label's ascent (label-rise.patch) moves our labelled line's baseline 0.4 against Word's 0.6, but the line stays 15.6. DFKai-SB's height is held by a strut, so nothing below moves, and zh-8e8d4c40 stays at 47.5 on 52008403.
   - Needed: a strut-held line that takes a taller ascent from its label, as the rise does for a larger number. Open to anyone.
+
+### T173. zh-c5b5087b: 26.7 against word-win, 11 pages to Word for Windows' 10 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. Its history above (T154, the footer spaces, Lab c5) is against the Mac
+prints; this starts again from the word-win reference on the current tip.
