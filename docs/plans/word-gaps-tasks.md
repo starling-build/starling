@@ -5479,7 +5479,14 @@ So Word hangs only after squeezing everything it can, at about 1.5 em over. The 
 - (c) at 16pt: the paragraph breaks elsewhere, so there is no reading. The 16pt body copy matches (a)'s stages to 20 over.
 Rule for ours: hang a last mark only after the marks have given all they can (squeeze before hang). And never hang one after a digit (or a Latin letter, presumably: untested).]
 
-### T176. zh-045c5a75: 37.1 against word-win, 23 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+### T176. zh-045c5a75: 37.1 against word-win, 23 pages — DONE b535389c (Linux lenovo-2, starling-d6, 2026-10-25): 98.5
+- DONE b535389c: its law text stands in an invisible one-cell wrapper (0.75pt margins and spacing) read as the body,
+  which kept that room only where it began and ended. Word parts the wrapper's one row over pages, and each later
+  page keeps margin + 2x spacing (2.25pt) again over the text and under it: Word's later pages start at 52.2, ours
+  49.85, and ours took a line more at page 10's foot. Now `RichParagraphStyle.frameInsetTop/Bottom`, set on a
+  one-row wrapper's paragraphs, applied by `openPage` where the page before held the frame. Same-base pair against
+  word-win, 756 documents: zh-045c5a75 37.1 -> 98.5, nothing else moved (zh-e9616b2b, 60329 hold); mean 95.77 ->
+  95.85. (test/run.sh's office native-vs-browser step fails on a browser build staged 2026-10-13, before and after.)
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
 
 ### T177. Windows mode: windows' sig map for missing Latin faces, from zh-c399c91a (18.1, LinTimes → Ebrima) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
