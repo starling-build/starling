@@ -5319,3 +5319,12 @@ Owner: Linux office1, routed by macos. windows measured it (entry above, lab lan
 ">" to `_noStart` does not move it, because the engine's own break between an ideograph and ">" still happens. Plan: a
 word joiner between a CJK character and a following ">" or "%" under Simplified Chinese only (zh-TW's list lacks both).
 ### Circled numbers (①-⑳) in Cambria Math in word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+
+### Takeovers from the Linux sessions (Mac 01Xgpbk5, 2026-10-24, the user's approval via bd): T170 (lenovo-3), zh-b8de3ae2's charts (lenovo-2)
+- **T170 (zh-4ea36aa8): RELEASED.**
+  - The cell width was a false lead. Ours already sets the line 223.9–552.7, Word's 328.3 cell.
+  - A grid-keeping change cost zh-8628cfbe −36, so it's reverted.
+  - windows' t170 allowance as a Windows-mode rule (¼ × automatic-space width + 0.026pt per character), patch ~/starling-word-check/lab/wwface/t170-allowance.patch (Mac): zh-4ea36aa8 unmoved; zh-38078fb3, zh-7cf85f15, zh-c2b13410 100 → 78; zh-7488a70f 97.9 → 87.5; zh-b13d0fb4 99.7 → 93.1.
+  - The lab fits one zh-TW PMingLiU paragraph. bd is asking windows for a broader lab.
+- DFKai-SB: back with lenovo-2.
+- Next for Mac 01Xgpbk5: zh-8e8d4c40's label fallback (Mincho for CJK in a Latin label face), then the charts: zh-b8de3ae2, zh-d62da4dd, zh-27a874b7.
