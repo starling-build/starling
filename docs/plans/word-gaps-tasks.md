@@ -5489,10 +5489,18 @@ Rule for ours: hang a last mark only after the marks have given all they can (sq
   95.85. (test/run.sh's office native-vs-browser step fails on a browser build staged 2026-10-13, before and after.)
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
 
-### T177. Windows mode: windows' sig map for missing Latin faces, from zh-c399c91a (18.1, LinTimes → Ebrima) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T177. Windows mode: windows' sig map for missing Latin faces, from zh-c399c91a (18.1, LinTimes → Ebrima) — DONE d94b7633 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (macos-ios's facemap; it is busy on the strut-held label line). The rows of
 "Sig map for missing Latin faces" above that ours sets otherwise, gated on Windows mode, Mac mode as is. Ebrima's widths
 from the subset embedded in zh-c399c91a's word-win print. Same-base pair against word-win.
+d94b7633: font-table entries keep w:sig's usb0/usb1. In Windows mode a Latin name Word has no face for, with no
+alternate, goes by them: 00007A87/80000000 is Ebrima, 00000003 Times New Roman, 00000287/00000800 Calibri. The other
+sig-map rows already came out as Word's (Times, Browallia New for TH Sarabun, the alternates). Ebrima is the sans clone at
+the 21 widths its zh-c399c91a subsets carry (the only word-win print that embeds it, and every Latin character its
+LinTimes runs hold), on its own win-metrics line (2210 + 514 of 2048). Never for a face Word has: zh-2dfde99a's
+table gives Times New Roman LinTimes' signature (WPS), and the first build gave its TNR Ebrima's widths (100 -> 99.0).
+Same-base Linux pair against word-win: zh-c399c91a 18.1 -> 100, nothing lower (all 756, then the 63 documents whose
+tables hold one of the three signatures, after the guard). zh-015abfaf stays 62.4: already Calibri, the hairline above.
 
 ### zh-b8de3ae2 p14: a merged row held up by a cell whose text lands lower — DONE feafd572 (Mac 01Xgpbk5, 2026-10-25)
 From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wrong, 13.55 in ours against Word's 11.3–11.7.
