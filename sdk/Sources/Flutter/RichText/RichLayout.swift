@@ -3469,14 +3469,43 @@ public final class RichLayout {
         // the foot goes over where the rules are half a point, with
         // 1.05 where they are a point and a half, and stays with 0.1
         // where there are none.) The table's last row has its own.
-        func ruleUnder(_ c: _CellGeo, parted: Bool = false) -> Double {
+        // The line under each row of a table, from the cells that end
+        // there: what `ruleUnder` asks for a row whose first cell is
+        // merged on down past it.
+        var linesUnderRows: [String: [Int: Double]] = [:]
+        func lineUnderRow(_ c: _CellGeo) -> Double {
+            if let rows = linesUnderRows[c.table] { return rows[c.row] ?? 0 }
+            var rows: [Int: Double] = [:]
+            for d in _cells {
+                guard let d, d.table == c.table else { continue }
+                rows[d.row + d.rowSpan - 1] = max(rows[d.row + d.rowSpan - 1] ?? 0, d.ruleNext)
+            }
+            linesUnderRows[c.table] = rows
+            return rows[c.row] ?? 0
+        }
+        func ruleUnder(_ c: _CellGeo, parted: Bool = false, across: Bool = false) -> Double {
             guard theme.wordRules else { return 0 }
+            // (A first cell merged down past the row is no measure of the
+            // line under it: the cells that end there are. zh-4f70ee2d's
+            // p19 row "1 | 党委政府分别组织…" (at least 28.35 under a 1.5pt
+            // line, 30.2 left) opens with "党委政府组织领导情况", merged
+            // down to the table's last row, whose bottom line it carries;
+            // ours took the row for the table's last, asked nothing under
+            // it, and parted it, where Word asks the 0.5 line its other
+            // cells end on and sends it to page 20 whole.)
+            // (Not `across` the rows the merge runs down through, where its
+            // text is centred over those that fit: zh-0a56c942's p9
+            // "个人学习和工作简历", merged down to the table's last row, is
+            // centred over the six rows on that page in Word's print, the
+            // last ending 1.48pt over the foot; asking a 1.5 line under
+            // each left that row out and set it 22pt high.)
+            let spansOn = c.rowSpan > 1 && !across
             // (The line drawn under the row where it ends a page whole:
             // see `ruleNext`. A row with the table's bottom line in its
             // own height asks nothing more; a parted row's piece keeps
             // asking its own top line's width, as before — zh-e061a08e's
             // page 4 parts a row under a thicker line at Word's line.)
-            if c.ruleBelow > 0 && !parted { return 0 }
+            if c.ruleBelow > 0 && !parted && !spansOn { return 0 }
             // (In Word 2007's mode, the half of the line that hangs
             // under the row's edge: zh-1a3c7aa0, mode 12, sets page 13's
             // "5 O,O-二甲基…" row under a 0.5pt line with 0.22pt left,
@@ -3502,7 +3531,7 @@ public final class RichLayout {
             // over under the double; zh-e1b09977's p13, no cell lines of its
             // own, closes under its table's 2.16 bottom.)
             if RichTextTheme.wordWindowsPages, c.edges?.bottom != nil || c.borders.bottom != nil { bottom = 0 }
-            return max(0, c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
+            return max(0, spansOn ? lineUnderRow(c) : c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
         }
         // What a row's part at a page's foot is closed with there: its
         // top line's width, as `ruleUnder(parted:)` has it — and in the
@@ -4951,7 +4980,7 @@ public final class RichLayout {
                         guard d.rowSpan > 1, d.vertical else { continue }
                         var part = 0.0, r = c.row
                         while r < c.row + d.rowSpan, case let h = heights[r] ?? 0,
-                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                              part + h + ruleUnder(c, across: true) <= contentH - y + 0.01 { part += h; r += 1 }
                         // (… and down to the foot through a row that parts
                         // there, as an upright merge is: zh-65e6c317's
                         // "项目（课题）分解" spans a 50pt row and one its other
@@ -4974,7 +5003,7 @@ public final class RichLayout {
                         // (A row with no cell of its own — every one merged
                         // down into it — takes no room: zh-84702a67's row 6.)
                         while r < c.row + d.rowSpan, !(partsAfterFirst && r > c.row), case let h = heights[r] ?? 0,
-                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                              part + h + ruleUnder(c, across: true) <= contentH - y + 0.01 { part += h; r += 1 }
                         // (… and the part of the next that parts at the
                         // page's foot, to the last of its lines kept there:
                         // zh-91e44bcb's "（五）不予处理" and "三、本年度办理结果"
