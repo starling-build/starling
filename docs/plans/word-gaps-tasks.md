@@ -4854,3 +4854,9 @@ with all 181 lines matched: each page's text a constant 6.1pt under Word's
 (the same with and without them); not low at w4 (9e957126). Bisecting 9e957126
 and 0844bdd6 first, as macos suggests.
 - bceef902: the matcher takes a line's baseline from the spans that hold text only. Under PyMuPDF a closing space can share a line at its own baseline: EmbeddedDocument's "4" read 4pt low and went from 100 to 33. w5 was rescored with it (zh 92.6, POI 85.5). Linux scores move slightly the same way.
+
+### T161. POI on Windows: what separates wp5 (85.5) from the Mac's np (90.9) — CLAIMED (Mac 01Xgpbk5, 2026-10-24)
+
+wp5 was ranked against np221 by lines lost. The 5.4 points come from two causes:
+- **About 5.0: markup documents.** testComment, comment, Tika-792, 58067, WordWithAttachments and delins. This is bd's markup pair, in flight. comment.docx prints blank on Windows, so it can only score 0. Reader is not a cause: PDFKit and PyMuPDF agree on these.
+- **About 0.4: bug59058 (53.2), layout.** Page 28 ends in a paragraph of at-least 15pt Times lines (all at their minimum) that fill the page to the twip. Word for Windows keeps the last line; Word for Mac and ours took it to page 29. The fix lets an at-least line that stands at its minimum tie on the foot, in Windows mode only (`RichTextTheme.wordWindowsPages`). bug59058 → 100. Sweep w6 is running.
