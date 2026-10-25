@@ -5504,3 +5504,8 @@ From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wro
 
 ### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2. Was 91.0 against the Mac prints (T148). Its 華康 names are JhengHei UI Light on Windows (421ac17d's note).
+- Measured: ours has a blank page 7. Page 6 ends in a table (bottom 739.2 in both, foot 769.9); then p51, " " alone
+  (ascii/eastAsia 華康雅風體W3(P), hint eastAsia, bold 14pt, line 360 auto, snapToGrid 0), then p52 = [page break]
+  "附件二之一". Ours sets p51 in JhengHei UI Light's line, 23.1 x 1.5 = 34.65, 3.9 past the foot, and lab gf's rule
+  gives the break's line a page of its own. Word sets "附件二之一" on page 7, so its p51 is at most 30.8. Lab asked of
+  windows (via macos): X, p51 x3, Y in this package — " ", "中", "A", empty.
