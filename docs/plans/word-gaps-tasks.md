@@ -5577,7 +5577,7 @@ Lab brk (~/starling-doc-check/lab/brk on the Windows box), zh-0aac9d1a whole in 
 - (B) paragraphs 45 and 46 merged (the break, then "附件3", in one paragraph): no blank page; "附件3" opens page 8 (10 pages).
 - (C) as (A) with paragraph 45 at snapToGrid 0: as (A).
 With T178's zh-167ee06c (its paragraph 52, the break then "附件二之一", at 13.4pt left: Word ends page 6 there, and ours spills its empty pre-break line and makes a blank page), the rule is: a paragraph whose first content is a page break followed by text ends the page where it stands, and its empty line before the break needs no room. A paragraph that is a page break alone needs room for its line like any other, and spills to a blank page when there is none. Ours does the opposite in both.
-CLAIMED Windows 01QbbApP for zh-0aac9d1a, after the T181 and T182 asks (tell lenovo-2: it covers T178's page).
+DONE for zh-0aac9d1a (Windows 01QbbApP, next commit): the existing rule that set a break-only paragraph back under its table where less than a quarter of its line was left now does so only under 2.5pt (zh-60c80728's table leaves 1.3 and Word keeps the break; zh-0aac9d1a's leaves 3.4 and Word gives it a page). Pair of the 29 documents with a break-only paragraph after a table: 94.93 -> 96.03, zh-0aac9d1a 72.2 -> 85.0, zh-4a2ab598 80.4 -> 99.5, none down. zh-0aac9d1a's rest is open. The break-then-text half (zh-167ee06c) is lenovo-2's 9fde89a6, by another route.
 
 ### zh-419ea527 (71.1 at w20) — PARKED (Mac 01Xgpbk5, 2026-10-25)
 Page 5's title is 方正小标宋简体 (alternate 黑体, charset 86). The word-win print sets it in YaHei; our Windows
