@@ -3698,8 +3698,17 @@ public final class RichLayout {
                 // zh-9ef811c8's 81pt row stands whole at page 5's head, the
                 // next table head 34pt lower than under ours, which kept only
                 // the three lines left of its cells.)
+                // (The stated height from under the line it opens with, which
+                // `lift` has already set down: lab `rh` on Word for Windows, a
+                // row is its stated height between its lines' inner edges —
+                // 0.5 more centre to centre under sz 4 lines, 1.5 under sz 12
+                // — and zh-291fcea7's 27.9pt row, whose part going over to
+                // page 3 holds no text, stands 28.4 there (Word's print
+                // 28.56 on its 1/300in grid); ours took its top line twice,
+                // 28.9, and page 3 held a line fewer.)
+                let statedHere = theme.wordRules ? max(0, stated - lift) : stated
                 let rest = first ? (carried > 0 ? max(c.ownRowHeight - c.stretched, carried) : c.ownRowHeight)
-                    : max(theme.wordRules && left + ruleUnder(c) <= avail + 0.01 ? min(stated, avail - ruleUnder(c)) : stated, left, ghostLeft)
+                    : max(theme.wordRules && left + ruleUnder(c) <= avail + 0.01 ? min(statedHere, avail - ruleUnder(c)) : statedHere, left, ghostLeft)
                 // (A part, or the row on the next page, goes under a pinned
                 // float it would run into, as a whole row does.)
                 if !pinBands.isEmpty {
