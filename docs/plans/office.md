@@ -6189,6 +6189,19 @@ fitter dropped the paragraph's tail).
   paragraph, and its cuts, `_firstLineLift`) where a strut does.
   zh-e68a2f57's p7: 471.13 / Word 471.12, the third line on p8, 63 pages.
   Sweep h148: zh-e68a2f57 18.2 -> 92.1, 63 pages; nothing else moved.
+- **Microsoft YaHei Light is a line of its own win ascent (2026-10-24,
+  Windows references).** msyhl.ttc's usWinAscent is 2080 of 2048 where
+  regular msyh's is 2167, the same 536 under (read off the Windows box's
+  font by windows 01QbbApP; its hhea ascent, 2210, is the larger, so the
+  hhea would go the wrong way): at Word's 1.3, 1.6605 em, the baseline
+  (2080 + 0.15 × 2616)/2048. zh-a7a889eb's contents, each line's mark and
+  page number 微软雅黑 Light 14pt at 0.8125 auto and 17.3 before, step
+  36.21 in Word for Windows' print; at regular's 1.715 ours stepped 36.83.
+  Word for Mac has no Light and sets regular's line (its print steps
+  36.84), so Mac mode keeps it. Same-base sweep h149 (word-win): only
+  zh-a7a889eb moved, 91.0 -> 90.7 — the contents' five lines now match,
+  and p9's checklist, whose Light lines now stand within 0.05 of Word's,
+  showed the next entry's 0.8pt a line that had cancelled against them.
 - **A row opening a page under a cell of no top line takes the table's
   top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
   thinThickSmallGap top (sz 24) over single half-point inside lines, its

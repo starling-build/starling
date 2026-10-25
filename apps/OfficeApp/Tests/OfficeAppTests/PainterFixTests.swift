@@ -133,6 +133,18 @@ final class PainterFixTests: XCTestCase {
                        "JhengHei itself keeps its own")
     }
 
+    func testYaHeiLightIsALineOfItsOwnWinAscent() throws {
+        // msyhl.ttc's usWinAscent is 2080 in 2048 where regular's is 2167,
+        // the same 536 under: Word for Windows steps zh-a7a889eb's 14pt
+        // contents lines of 微软雅黑 Light (0.8125 auto, 17.3 before) 36.21
+        // apart, 1.6605 em a line, where at regular's 1.715 ours took 36.83.
+        let light = try XCTUnwrap(OfficeFonts.face("微软雅黑 Light", eastAsian: true))
+        XCTAssertEqual(try XCTUnwrap(light.naturalHeight), 1.6605, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(light.baseline), 1.2072, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Microsoft YaHei Light", eastAsian: true)?.naturalHeight), 1.6605, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("微软雅黑", eastAsian: true)?.naturalHeight), 1.715, "regular keeps its own")
+    }
+
     func testPMingLiUsSpaceAndTimesSignAreItsOwnWidths() throws {
         // Word's embedded PMingLiU sets the space 0.26 em (97 prints'
         // /Widths) where the stand-in set 0.235, and "×" half an em:

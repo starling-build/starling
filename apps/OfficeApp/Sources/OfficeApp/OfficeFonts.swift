@@ -1218,6 +1218,19 @@ enum OfficeFonts {
                                  latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns,
                                  fakeBold: false)
         }
+        // (YaHei Light, msyhl.ttc, is a shorter line: Word for Windows
+        // measures it by its usWinAscent 2080 and usWinDescent 536 in 2048
+        // — regular's ascent is 2167 — at Word's 1.3, 1.6605 em, the extra
+        // half above and half below. zh-a7a889eb's contents, each line's
+        // mark and page number 微软雅黑 Light 14pt at 0.8125 auto, step 36.21
+        // in Word for Windows' print; at regular's line ours stepped 36.83.
+        // Word for Mac has no Light and sets regular's, as its print does.)
+        if has("yahei", "微软雅黑"), has("light"), !wordOnMac {
+            var light = yaHei
+            light.height = 2616 * 1.3 / 2048
+            light.baseline = (2080 + 2616 * 0.15) / 2048
+            return light
+        }
         if has("yahei", "微软雅黑") { return yaHei }
         // (JhengHei UI's line is its own: an ascent of 2080 and a descent of
         // 521 in 2048, Word's 1.3 of that — zh-167ee06c's Light, set from
