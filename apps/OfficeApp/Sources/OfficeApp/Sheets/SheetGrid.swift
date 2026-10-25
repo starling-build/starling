@@ -361,7 +361,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if ws.scriptRows.contains(r), let h = heights[r], h >= line { continue }
                 if abs(line - m.defaultRow) > 0.01 || heights[r] != nil { heights[r] = line }
             }
-            cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
+            let dots = printRowScale * 600 / 72
+            func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
+            // (A column in whole printer dots too, each its own: 49609's
+            // 8.33 characters of Microsoft Sans Serif 8.25 are 316.67 dots,
+            // and its rules in Excel's print stand 317.04 apart.)
+            cols = GridAxis(def: whole(ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit), overrides: widths.mapValues(whole), hidden: ws.hiddenCols, scale: scale)
             do {
                 // And as tall as its wrapped text's lines, in the column's width:
                 // so many of its font's fitted lines. (Excel fits a wrapped row
@@ -403,8 +408,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
             }
-            let dots = printRowScale * 600 / 72
-            func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
             // (A default height the sheet sets is a set height: cut down to
             // whole printer dots as any other. picture.xlsx's 14 pt rows are
             // 118 dots, 14.16, in Excel's print; rounded, 119 put its picture's
@@ -2484,7 +2487,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static let excelTextScale = 7.0 / 7.43
 
     /// The text style a cell draws with.
-    private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
+    func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
         // (On a page, its printer dots and its face's hinted widths:
