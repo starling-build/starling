@@ -5006,3 +5006,18 @@ mirrored from the left — "margin and half, never inside" — took zh-c6da60a9 
 Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title).
 Also: the "Lab c5" note in the zh-c5b5087b entry above (footer floats turning the squeeze off) was the print-timing
 trap — a 60s-waited Mac print squeezes through p10 (lab/sqcut); see lab/tools/squeeze-cutoff.py.
+
+### Windows refit on the font-pack reprints — DONE 497b95bc (Mac 01Xgpbk5, 2026-10-24)
+
+Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refit, w9 is zh 95.2, POI 89.4. 259 documents are better, 4 worse.
+- **Rules, Windows mode:**
+  - 仿宋_GB2312/FangSong_GB2312 → FangSong
+  - 楷体_GB2312/KaiTi_GB2312 → KaiTi
+  - 標楷體/DFKai → the same square face; DFKai-SB's single lines are 1.30 em
+  - 方正 names stay YaHei
+  - A name the file embeds keeps the old path: what its subset lacks sits on YaHei's lines (zh-5450d509 2.7 → 85.7 with that gate).
+- **Worse:**
+  - zh-dc9cfa34 −22.1. Word for Windows widens a synthetic-bold KaiTi glyph by about 0.05pt at 12pt and wraps "单位：万元、平方米" one character earlier. Across the corpus the widening runs 0–0.12pt and doesn't follow size cleanly, so it's not modelled. Open to anyone who can lab it.
+  - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
+- **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
+- Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.

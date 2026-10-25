@@ -1,0 +1,335 @@
+# zh documents naming a face this Word for Windows box lacks (not embedded), as of the font-pack reprint, 2026-10-24.
+# Their word-win prints set those names in Word's fallback (方正 names: YaHei). windows' 30-document fresh-process
+# reprint matched, so the fallback is stable; still, fit a rule to one only with its fallback measured. Key, names.
+zh-0060058e 方正小标宋简体
+zh-007ca091 方正小标宋简体
+zh-01071d55 方正仿宋_GBK 方正小标宋_GBK
+zh-015abfaf Nimbus Roman 方正小标宋简体 方正黑体简体 汉仪方隶简
+zh-01bbcd4d 方正仿宋简体 方正小标宋简体 方正黑体简体
+zh-0243e7fc 文星标宋
+zh-037d2845 方正小标宋简体
+zh-045c5a75 sөũ
+zh-0513f641 BiauKai Heiti TC Light sөũ x-none ヒラギノ角ゴ Pro W3 全真中黑體 文鼎新中黑 華康中楷體 華康中黑體
+zh-053f8706 方正仿宋_GBK 方正小标宋简体
+zh-06c46ba9 華康中明體 華康中黑體 華康楷書體W7
+zh-06f6a036 文星简小标宋
+zh-073c9234 zh-HK
+zh-08dc38da 方正仿宋简体 方正小标宋简体 方正楷体简体 方正黑体简体
+zh-08e95de4 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK 汉鼎简大宋
+zh-0a56c942 方正小标宋简体
+zh-0aac9d1a 方正小标宋简体
+zh-0b87285b 方正小标宋简体
+zh-0cd63a22 zh-HK
+zh-0cd7bbaf 方正小标宋简体
+zh-0d036e4e Vrinda
+zh-0fb84ee5 zh-HK
+zh-10347c68 方正小标宋简体
+zh-1078e06f 全真楷書 雅真中楷
+zh-10e3a42b FZHei-B01
+zh-10eab555 方正仿宋_GB2312 方正仿宋_GBK 方正大标宋_GBK 方正小标宋简体 方正黑体_GBK
+zh-11701b00 方正小标宋简体
+zh-11709c74 方正小标宋_GBK
+zh-117cf7c6 s?u 華康隸書體W3
+zh-12db188f taipei
+zh-12f87285 方正小标宋简体
+zh-13552a3a 方正小标宋_GBK
+zh-13d11e99 方正仿宋简体 方正小标宋简体 方正楷体简体 方正黑体简体
+zh-146f4e02 方正小标宋简体 隶书
+zh-147bdae0 zh-HK
+zh-15428325 文星简小标宋
+zh-1563bd74 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK
+zh-15728c84 方正小标宋简体
+zh-15f60bac ar-SA zh-HK
+zh-160a5e81 创艺简标宋
+zh-1661a432 s?u x-none
+zh-167ee06c 華康秀風體W3(P) 華康雅風體W3(P)
+zh-16e0a12a 方正仿宋_GB2312 方正仿宋简体 方正小标宋简体
+zh-17749c13 方正小标宋简体
+zh-17ac8aa2 方正黑体_GBK
+zh-18cb2079 方正小标宋简体
+zh-1a3c7aa0 方正仿宋_GBK 方正小标宋_GBK
+zh-1b74ed91 ar-SA
+zh-1b82f5d7 zh-HK 文鼎中圓 華康中圓體
+zh-1cfb652b 方正小标宋_GBK
+zh-1e7e7cb3 方正小标宋简体
+zh-1eeb9f9a 方正小标宋_GBK
+zh-202582e2 FZXiaoBiaoSong-B05S
+zh-20ff844e 方正仿宋_GB18030 方正小标宋简体
+zh-21421b7d 方正黑体_GBK
+zh-22b31377 方正小标宋简体
+zh-22ecbdc8 方正小标宋_GBK
+zh-22f214eb 文鼎中楷
+zh-232090e0 创艺简标宋
+zh-23ee8575 方正小标宋简体
+zh-25c4de17 Luxi Sans
+zh-264d7516 方正小标宋_GBK 方正小标宋简体
+zh-26660336 方正小标宋简体
+zh-268f8d15 方正小标宋简体
+zh-27083953 方正小标宋简体
+zh-27fc8f9d 方正小标宋简体
+zh-289155d6 方正小标宋简体
+zh-2af9ab1b 方正小标宋简体
+zh-2b955411 方正小标宋简体
+zh-2c1d91ec 方正小标宋简体
+zh-2dfde99a 方正小标宋简体 方正黑体简体
+zh-2e7ef069 方正小标宋简体
+zh-2f9463d6 方正小标宋简体
+zh-30d86fcf 创艺简标宋 方正小标宋_GBK 方正小标宋简体
+zh-314d6d09 cwTeXHeiBold cwTeXKai
+zh-316044fe 方正小标宋简体
+zh-31d580df zh-HK 全真楷書 全真特明體 華康中楷體 華康中黑體 華康楷書體W5 華康細圓體
+zh-33d025f6 文星简小标宋 方正小标宋简体 方正黑体_GBK
+zh-340d52e9 雅真中楷
+zh-344a8d08 zh-HK 華康楷書體W5(P)
+zh-349fcbf8 方正小标宋简体
+zh-34a6519a MS Sans Serif 方正小标宋简体
+zh-35e563eb zh-HK
+zh-360c1df1 方正小标宋简体
+zh-37b6536f 方正小标宋简体
+zh-38758b14 方正小标宋简体
+zh-38d26944 Nimbus Roman 方正小标宋简体 方正黑体简体
+zh-3a2eba04 方正小标宋简体
+zh-3ab8a2fb 方正仿宋_GBK 方正小标宋_GBK 方正小标宋简体 方正楷体_GBK 方正黑体_GBK
+zh-3be15136 方正小标宋_GBK 方正小标宋简体 方正黑体_GBK
+zh-3c055c9b zh-HK 華康楷書體W5(P)
+zh-3cdafcc9 创艺简标宋
+zh-3da9d7f2 小标宋 方正大标宋简体 方正小标宋简体
+zh-3ecd3152 sөũ
+zh-3f871b7d 方正小标宋简体
+zh-3fe252ff 方正小标宋_GBK 方正小标宋简体
+zh-41907c96 方正小标宋简体
+zh-4197e764 方正小标宋简体
+zh-419ea527 方正小标宋简体
+zh-436902f7 OIOLDC+CTBiaoSongSJ 方正小标宋简体
+zh-447f1d5c 方正小标宋简体
+zh-44979b97 方正小标宋简体
+zh-457a8d62 華康楷書體W5(P)
+zh-45a714ef 方正小标宋简体
+zh-4a2ab598 方正小标宋简体
+zh-4a90bb2f 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK
+zh-4adfcce2 華康中楷體
+zh-4c4b1af8 方正仿宋_GBK 方正黑体_GBK
+zh-4c5da793 方正小标宋简体
+zh-4c884684 方正小标宋简体
+zh-4e5fe46f 方正小标宋简体
+zh-4f70ee2d 方正仿宋_GBK 方正仿宋简体 方正小标宋简体 方正楷体 方正楷体_GBK 方正黑体 方正黑体_GBK
+zh-4fac83de 方正小标宋简体
+zh-4feaa34c 方正小标宋简体
+zh-505b9619 MS Serif 全真楷書 華康楷書體W5
+zh-51af781b NEU-BZ 方正书宋简体 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK
+zh-5251dd23 BiauKai zh-HK ヒラギノ角ゴ Pro W3
+zh-529fa492 zh-Hans
+zh-52e5699c 方正小标宋简体
+zh-5313b71d 方正小标宋简体
+zh-5363b607 方正小标宋_GBK 方正小标宋简体
+zh-547fc43c 方正小标宋简体
+zh-54e91165 方正仿宋_GBK 方正小标宋_GBK 方正小标宋简体 方正楷体_GBK 方正黑体_GBK
+zh-55087b5f 方正小标宋简体
+zh-57e33dec 方正小标宋_GBK 方正小标宋简体
+zh-588ee9e3 zh-Hans 方正小标宋简体
+zh-5901e2b0 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK
+zh-5a9a85c6 方正小标宋简体
+zh-5b7ae054 zh-HK
+zh-5be7e156 方正小标宋简体
+zh-5c6ff0d7 方正小标宋简体
+zh-5c7787f5 方正大标宋简体 方正小标宋简体
+zh-5d635acc 方正仿宋简体 方正小标宋简体 方正黑体简体
+zh-5dc5ce34 方正小标宋_GBK 方正小标宋简体 方正黑体简体
+zh-5f9b6549 華康中楷體
+zh-5ff074a9 方正小标宋简体 方正黑体_GBK
+zh-60173bb6 方正小标宋简体 方正楷体_GBK
+zh-602978ba zh-HK 文鼎中圓 華康中圓體
+zh-6043ad90 方正小标宋_GBK 方正小标宋简体
+zh-604e21e5 ar-SA
+zh-608e661b 方正小标宋_GBK 方正小标宋简体
+zh-60c80728 方正书宋_GBK
+zh-61aaad09 方正小标宋简体
+zh-61b62a40 方正小标宋简体
+zh-621d8756 FZFS FZKT 方正大标宋简体 方正小标宋简体
+zh-625b6374 方正小标宋简体
+zh-62ae94f7 方正小标宋简体
+zh-64044a1d 華康粗圓體
+zh-65e6c317 方正小标宋简体
+zh-676e7b2d 方正小标宋简体
+zh-68a0ee2e 方正小标宋简体
+zh-694447ca 方正小标宋简体
+zh-69bbcc3c 方正小标宋_GBK 方正小标宋简体
+zh-6a4fc013 TH Sarabun New
+zh-6aa8bd7c 華康新特黑體
+zh-6b242483 文星简小标宋 方正小标宋简体
+zh-6b4b9397 zh-HK
+zh-6c447317 方正小标宋简体
+zh-6c568ae9 方正仿宋_GBK 方正小标宋简体 方正黑体_GBK
+zh-6cd1befe 方正小标宋简体
+zh-6d1afa56 方正小标宋_GBK
+zh-6d402586 全字庫正楷體
+zh-6de512cb 方正小标宋简体
+zh-6e653ca0 方正黑体_GBK
+zh-6e7ff836 s?u 全真新中明 全真楷書
+zh-701eda18 文鼎中行書
+zh-727812d5 方正小标宋简体
+zh-72da925e 華康楷書體W5(P)
+zh-753cd6a8 方正小标宋简体
+zh-7654804a 華康楷書體W5(P)
+zh-76cb73e2 方正兰亭黑_GBK 方正小标宋简体
+zh-77079ee8 AR Heiti Extra B5
+zh-77bd4900 ??
+zh-7825bf8d 方正小标宋简体
+zh-785d6dff zh-HK 文鼎中圓 華康中圓體
+zh-785e46f8 方正小标宋简体
+zh-78729cf9 方正小标宋简体
+zh-788e9dae 方正小标宋简体
+zh-78d8bd98 方正小标宋简体
+zh-799c91cd 華康中黑體
+zh-7a16a243 華康楷書體W5(P)
+zh-7b08d744 方正小标宋简体
+zh-7b125a21 方正小标宋简体
+zh-7dc3afad 文鼎中楷
+zh-7eba7349 zh-Hans
+zh-7fd860f9 zh-Hans 方正小标宋简体
+zh-8186c98d 方正小标宋_GBK
+zh-81a32de0 方正小标宋简体
+zh-830ef10d 方正小标宋简体
+zh-8415d258 方正小标宋简体
+zh-84702a67 方正小标宋简体
+zh-854a202e 创艺简标宋 方正小标宋简体
+zh-8628cfbe s?u x-none zh-HK 華康楷書體W5 華康楷書體W5(P)
+zh-8666f731 方正小标宋简体
+zh-8699644f 方正仿宋简体 方正小标宋简体 方正黑体简体
+zh-875759ff 方正小标宋简体
+zh-881dda7b 方正小标宋简体
+zh-884c6e3e 方正小标宋简体
+zh-8d6f702e MS Sans Serif 方正小标宋简体
+zh-8dc59b5b 方正小标宋简体
+zh-8e6ce2ed 文星简小标宋 方正小标宋简体
+zh-8f7aa519 方正小标宋简体
+zh-8fa6164c sөũ
+zh-903376c0 方正小标宋简体
+zh-9162ead0 方正小标宋简体
+zh-92373179 小标宋
+zh-93e855bc 方正小标宋简体
+zh-95d4dde0 方正小标宋简体
+zh-984846dc 方正仿宋_GBK
+zh-998727df 方正小标宋简体
+zh-9ba2ead7 方正小标宋_GBK 方正小标宋简体
+zh-9bcea239 方正小标宋简体
+zh-9c162f26 方正小标宋简体
+zh-9dd9ce6d 方正书宋简体 方正黑体_GBK
+zh-9e020c95 方正黑体_GBK
+zh-9e8c1a98 zh-Hans 方正小标宋简体 方正黑体_GBK
+zh-9ef811c8 方正小标宋_GBK
+zh-a14072cc ˎ̥
+zh-a4b0f6ea 方正小标宋简体
+zh-a4e8599d 方正小标宋简体
+zh-a78d52e7 ˎ̥ 文星简小标宋
+zh-a917e13c 方正小标宋_GBK
+zh-ab1ea005 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK
+zh-ab9cbe66 華康粗黑體 超研澤中楷
+zh-abe7e063 方正小标宋_GBK
+zh-ac627439 方正小标宋简体
+zh-ace7f6b2 方正小标宋简体
+zh-ad1e59ac 方正小标宋简体
+zh-ad224275 zh-HK
+zh-ae2dd08d 華康粗黑體 超研澤中楷
+zh-ae79c618 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK
+zh-aeb49414 方正小标宋_GBK
+zh-b00fef0d 方正小标宋简体
+zh-b0401810 方正仿宋_GBK 方正小标宋_GBK 方正黑体_GBK
+zh-b1ccd1c2 方正仿宋简体 方正小标宋简体
+zh-b24b396a 方正小标宋简体
+zh-b378d8c4 font-weight : 400 方正小标宋简体
+zh-b4d36718 方正小标宋_GBK 方正小标宋简体
+zh-b62c9e11 方正小标宋简体 方正黑体_GBK
+zh-b70df23f 方正小标宋简体
+zh-b84fecff 方正小标宋简体
+zh-b9af65b5 方正小标宋简体
+zh-ba93078c 方正小标宋简体 汉仪书宋二S
+zh-bc645304 方正小标宋简体
+zh-bd6f1bb5 方正小标宋_GBK 方正小标宋简体
+zh-bdae17c0 華康中明體 華康中黑體
+zh-bfe04e2f 方正大标宋简体
+zh-c0ac6f55 方正小标宋_GBK
+zh-c10532da 方正小标宋_GBK
+zh-c15af02e 華康楷書體W5(P)
+zh-c25d08c5 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK
+zh-c2cd4b3f 方正仿宋_GBK
+zh-c2f6d17a MS Sans Serif
+zh-c399c91a 方正小标宋简体
+zh-c3dd22c4 方正小标宋简体 方正楷体简体
+zh-c4f2be3b 方正小标宋_GBK
+zh-c599aaa1 方正小标宋简体
+zh-c5b5087b 方正小标宋简体
+zh-c7fa439d 方正小标宋_GBK 方正小标宋简体
+zh-c8eb6e92 Roman 10cpi 方正仿宋简体 方正小标宋简体 方正黑体简体
+zh-c97500b6 方正小标宋简体
+zh-c9d38b65 创艺简标宋 方正仿宋简体
+zh-cada2385 方正小标宋_GBK
+zh-cb63e9e3 方正仿宋_GBK 方正小标宋_GBK 方正小标宋简体
+zh-cbc2f113 方正小标宋_GBK
+zh-cc200612 方正小标宋简体
+zh-cc7a08e8 方正小标宋简体
+zh-cd48112c 方正小标宋_GBK
+zh-cec9d337 BiauKai ヒラギノ角ゴ Pro W3
+zh-cfb32050 全真中明體
+zh-d0a207ac 方正小标宋简体
+zh-d0bfd38c 方正小标宋简体
+zh-d3d3f266 方正小标宋简体
+zh-d5afc6d9 方正小标宋简体 经典粗宋简
+zh-d5cc99a6 方正小标宋简体
+zh-d68ac84a E-BZ-PK7482d6-Identity-H FSJ-PK748200026e5-Identity-H 方正小标宋简体
+zh-d746674a zh-HK
+zh-d89c3840 方正小标宋简体
+zh-d950cedb 方正小标宋简体
+zh-d9563f2f ar-SA zh-HK
+zh-da4cc8ee 方正小标宋简体
+zh-da56ab3a 方正小标宋简体
+zh-db07d44e s?u x-none 全真楷書
+zh-dc25c47e 方正小标宋_GBK
+zh-dc9cfa34 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK 汉鼎简大宋
+zh-de97afa7 方正小标宋简体
+zh-df505e38 方正小标宋_GBK 方正小标宋简体
+zh-df9310bd 方正小标宋简体
+zh-e0268388 方正小标宋简体
+zh-e029cf49 方正小标宋简体
+zh-e02b0479 方正小标宋_GBK 方正黑体_GBK
+zh-e076bb5a 创艺简标宋
+zh-e0ca7252 MS Serif zh-HK 全真楷書 文新字海-中楷 華康楷書體W5
+zh-e1b09977 BiauKai ヒラギノ角ゴ Pro W3
+zh-e27cd8bf 文星简小标宋 方正小标宋简体
+zh-e2dc2598 方正黑体_GBK
+zh-e2dc9dce ar-SA ja-JP 全真楷書
+zh-e49d7943 x-none
+zh-e51c31a7 華康楷書體W5
+zh-e5709b89 方正小标宋简体
+zh-e61c3dff Kalinga 方正公文小标宋 方正小标宋_GBK
+zh-e653f583 方正小标宋简体
+zh-e6d54ae4 zh-HK
+zh-e74dd0a1 创艺简标宋 方正小标宋_GBK 方正小标宋简体
+zh-e7bdb543 创艺简标宋
+zh-e8bf8b42 方正小标宋简体
+zh-e9616b2b 全真楷書
+zh-e9f256c1 方正小标宋简体
+zh-ea1fe16b x-none zh-HK
+zh-ea43dd6d 方正小标宋简体
+zh-eb54d3b0 方正小标宋简体
+zh-ebea6d03 全真楷書 雅真中楷
+zh-ec1b6f63 方正小标宋简体
+zh-ee2d19e6 文星简小标宋 方正小标宋简体
+zh-eec0747a 方正小标宋简体
+zh-efd9229a 方正小标宋简体
+zh-f0bd9ea8 小标宋 方正小标宋简体
+zh-f1f73836 文星简小标宋
+zh-f2835e26 zh-Hans 方正小标宋_GBK
+zh-f2ca3070 Droid Sans Fallback Poiret One 華康中楷體
+zh-f2cf109b 方正仿宋_GBK
+zh-f43c9edf 方正公文小标宋 方正小标宋_GBK 方正小标宋简体
+zh-f47b8a74 方正大标宋简体 方正小标宋_GBK 方正小标宋简体
+zh-f59a76e9 方正仿宋_GBK 方正小标宋_GBK
+zh-f6686f89 FZShuTi
+zh-f6886fbb ?? 方正仿宋简体 方正大标宋简体 方正小标宋简体 方正楷体_GBK 方正楷体简体 方正黑体简体
+zh-fa2da613 方正小标宋简体
+zh-faccbb01 x-none 全真楷書
+zh-fce5583d 方正小标宋简体
+zh-fe536967 方正仿宋_GBK 方正小标宋_GBK 方正楷体_GBK 方正黑体_GBK 汉鼎简大宋
+zh-ff93733d AR Heiti Extra B5
+zh-ffc79f27 方正小标宋简体
