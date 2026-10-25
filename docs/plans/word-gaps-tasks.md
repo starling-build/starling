@@ -5593,3 +5593,15 @@ text lines for the scorer, not failed conversions.
 
 ### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos)
 From the low list at d9aabe26. Word hangs plus squeezes here (T175's no-hang try cost it 12). First: its first miss.
+MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): misses p13 4, then p14-p43 nearly every line (~1100 of 1205), so one
+line fit. First miss p13: "□坍方數量1000立方公尺至未達2000立方公尺者，    小時內單" (標楷體 14, mode 15,
+compressPunctuation, justified, a hanging "□"; the "，" is followed by four spaces). Word's print ends at "單" and
+leaves "線": it squeezes nothing — "，" whole (14.1), the four spaces stretched to 9.2 each by the justification,
+every ideograph 14.0, digits 7.0, the automatic spaces 3.5. Ours takes "線" 5.15 over: STARLING_RICHTEXT_FIT says
+"need 5.15 room 14.0 of 1 marks … 4 spaces, other true" — the "，"'s half (7) plus a quarter of the four 7pt
+spaces (7), and the line squeezed to fit. Up to the spaces every advance agrees with Word's (ours stands 2.7 right
+on its first line: □ at 120.9 to Word's 118.2 — the hanging indent, to look at). So Word's limit here is under
+5.15 with one comma and four word spaces able to give — the T153 kind (digits in an East Asian face hold the
+line tighter: cd3/cd4/cd5, "5.5.1" in 黑体 ~13, in Calibri ~18). Wanted from windows: in zh-505b9619's own
+package, this paragraph with the right indent swept, the most over at which Word takes "線"; then with the
+digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without the "，".
