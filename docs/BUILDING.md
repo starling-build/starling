@@ -243,12 +243,15 @@ its pages break otherwise than natively, so `test/office-layout.sh` fails.
 The other Skia patches (`patches/`) reach the browser through it too.
 
 Emscripten comes from `gclient`, at the version DEPS pins. Ask for it in
-`.gclient` (§1.3), then hydrate again and put the patches back, which a
-sync can undo:
+`.gclient` (§1.3), then hydrate again. A sync **refuses** while the engine
+patches are applied ("third_party/skia … You have uncommitted changes"), so
+take them off Skia's tree first and put them back after:
 
 ```bash
 # in .gclient, in the solution's dict:
 #     "custom_vars": {"download_emsdk": True},
+git -C engine/src/flutter/third_party/skia status --short   # only the patches' files?
+git -C engine/src/flutter/third_party/skia checkout -- .
 gclient sync                                   # fetches prebuilts/emsdk, activates it
 ./scripts/apply_engine_patches.sh              # idempotent
 
@@ -262,7 +265,13 @@ ninja -C out/wasm_release flutter_web_sdk/canvaskit/skwasm.wasm flutter_web_sdk/
 the DEPS revision and run `python3 engine/src/flutter/tools/activate_emsdk.py`
 — the same two steps DEPS performs.)
 
-About fifteen minutes and 1352 steps from cold. `build/web-app.sh` looks
+Run `./scripts/apply_engine_patches.sh` again after every pull of the
+engine: new patches arrive as files under `patches/`, and a checkout that
+ran the script before them lacks them without a word (lenovo-2 found a
+shared one three patches behind). It skips what is already applied.
+
+About fifteen minutes and 1352 steps from cold (an existing
+`out/wasm_release` rebuilds only what changed, a minute or two). `build/web-app.sh` looks
 for the pair at `engine/src/out/wasm_release/flutter_web_sdk/canvaskit`
 (`STARLING_SKWASM_DIR` names another directory: a worktree whose `engine`
 link is an iOS checkout points it at a desktop engine's), and refuses one
