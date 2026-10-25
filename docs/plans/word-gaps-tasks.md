@@ -5761,9 +5761,17 @@ Parked: zh-7773163d, zh-8e8d4c40, the two 3-D pies, zh-015abfaf (hairline).
   mean 96.63 -> 96.68. Left in zh-64044a1d: from p44 on (to look at). Released.
 Owner: Linux lenovo-2 (starling-d6), first on the coordinator's refreshed unheld list (w5 at 0012bc50); own sweep w59 agrees.
 
-### T186. zh-77bd4900: 67.2 against word-win, 42/42 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T186. zh-77bd4900: 67.2 against word-win, 42/42 pages — DONE 31717217 (Linux office1, starling-office1-95, 2026-10-25): 99.0
 Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier work (Linux 017F2GnT, 97.4 then) was against
 the Mac print; this starts from the word-win print after 0012bc50.
+p2 to p10 ran off by about two lines. Its checklist is a table placed 68.7pt down the page (tblpY 1374, vertAnchor
+page), right after p2's last paragraph. Ours set its first row on p2 and took p2's text under it; Word's print has p2
+whole and the list at p3's head. The check for "the text it would take under fits under its first row" (zh-8d1a3d99's
+rule) passed by 1.15pt: it counted the row and the text, not the 2.25pt line between rows 1 and 2, which row 2
+carries in its margin.
+31717217: the check adds the table's insideH line (any table, not Windows mode only). Same-base Linux pair against
+word-win, 756 documents: zh-77bd4900 67.2 -> 99.0, nothing else moved. zh-8d1a3d99, zh-6cd1befe and zh-60173bb6,
+the rule's earlier cases, are unchanged. Rechecked on the tip after 451d6fc1.
 
 ### zh-6d402586: 71.8 against word-win (reprint 0012bc50), 35 pages for 36 — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; this is the Windows print's gap.
