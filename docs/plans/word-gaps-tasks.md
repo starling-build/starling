@@ -5845,6 +5845,9 @@ Lab t189 (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t189, this docu
 - (c) the 34 plain spaces removed (the 26 underlined ones end the paragraph): ONE line, the same; 80 pages.
 - (d) both: ONE line, the same; 80 pages.
 Word draws no underline under the spaces in any of them. So underlined spaces hang as trailing white space only at the paragraph's end. Followed by plain spaces, they count as width: 65 "_" (422.4) + 26 spaces (169) do not fit the 428.3 after "開課地點：", so Word breaks before the "_". Not underlined, any run of trailing spaces hangs.
+Lab t189 part 2 (Windows 01QbbApP, 2026-10-25, asked by macos for office1): the same paragraph, "開課地點：" + 65 "_" + U underlined spaces + P plain ones; does the "_" stay on line 1 (one line, 80 pages) or go down (81)?
+  U26: P 0/1/2/4/8/10/12 one line; P 13/14/16/34 down. U20: P16 one line; P20 down. U13: P 16/21/29/40/60 one line. U0: P60 one line.
+  Neither the total spaces (U13+P60 stays) nor P alone decides. A reading that fits all 17 (a candidate, not a rule): count the plain spaces only up to U, and the "_" goes down when the spaces run more than half the 493.25 measure past the margin. From the "_" at 538.3, 6.5 a space, past 544.25: U26+P12 241.1 stays, +P13 247.6 down; U20+P16 228.1 stays, +P20 254.1 down; U13 at most 163.1, never.
 
 ### zh-57f1de0d 78.9 (word-win, 51/51 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
 Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16pt embedded, jc both). On p1,
