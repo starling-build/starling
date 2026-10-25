@@ -4733,3 +4733,50 @@ Owner: Linux office1 (starling-office1-df). From T158's survey of Word's
 embedded PMingLiU (every print of the corpus): of its symbols only "×" (500),
 "÷" (591, 98 prints), "｢｣" (500) and "Å" (709) are not an em. Ours sets "÷" in
 the stand-in at 0.584. "÷" sits in the "）÷（" formula cells of ~98 documents.
+
+### Windows baseline (Mac 01Xgpbk5, 2026-10-24): word-win, sweep-win.sh w4 at 9e957126 — the list to work from
+
+Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=windows against test/corpus/docx/word-win, output w/wp under the per-checkout root. **R** marks the 444 zh documents on windows' font-pack reprint list (_GB2312, 方正 and 標楷體 names, plus zh-7773163d). Their prints flip between FangSong/KaiTi and YaHei in runs, a state outside Word, so treat their scores as provisional.
+- Since w3: 9e957126 removes the Mac's `w:background` header marks in Windows mode, taking five zh documents from 0–5 to 90–100 and bib-chernigovka from 0.4 to 99.6.
+- Note: a constant whole-page y offset scores 0 for a document laid out identically. `lab/tools/yoff.py WORK REFS` prints each document's median offset.
+- zh w4: 645 docs, mean 91.0, median 98.4; outside the reprint list 201 docs mean 95.8; on it (R) 444 docs mean 88.9 — provisional until the font-pack reprint
+- POI wp4: 111 docs, mean 85.4
+- Lowest outside the reprint list (score, Word lines, pages Word/ours, Mac n221 score):
+  - zh-d97c5474   2.2     46 lines      2/2  (mac   2.2)
+  - zh-8d72961c   8.3     36 lines      1/1  (mac   4.3)
+  - zh-8f9b19f4  24.7    154 lines    13/14  (mac  91.7)
+  - zh-d62da4dd  35.1     97 lines      4/4  (mac  58.8)
+  - zh-27a874b7  35.9     92 lines      3/3  (mac  56.0)
+  - zh-bfe04e2f  62.7    212 lines      9/9  (mac 100.0)
+  - zh-b8de3ae2  68.3    656 lines    29/29  (mac  72.1)
+  - zh-90e0cea8  75.3    320 lines    10/10  (mac  98.1)
+  - zh-f6686f89  75.8    571 lines    22/22  (mac 100.0)
+  - zh-e64d4997  84.2    506 lines    12/12  (mac  85.4)
+  - zh-043aab43  84.4    514 lines    12/12  (mac  85.6)
+  - zh-61a05efc  90.3    155 lines      4/4  (mac 100.0)
+  - zh-a7a889eb  90.4   1107 lines    41/41  (mac  97.3)
+  - zh-424775e4  92.7    370 lines    13/13  (mac  97.6)
+  - zh-9db183d5  95.0    260 lines    11/11  (mac  96.5)
+  - zh-4ea36aa8  95.1    715 lines    17/17  (mac  97.1)
+  - zh-b5359de4  96.1    511 lines    14/14  (mac  95.9)
+  - zh-cf8b03a5  96.6    472 lines    11/11  (mac  98.1)
+  - zh-c591c1fa  96.7    299 lines    13/13  (mac  97.7)
+  - zh-e5eb092a  96.9    225 lines      8/8  (mac  96.9)
+  - zh-633792eb  96.9    547 lines    13/13  (mac  99.6)
+  - zh-5f2e209d  97.1    139 lines      4/4  (mac 100.0)
+  - zh-b3e8dec4  97.2    106 lines      4/4  (mac 100.0)
+  - zh-25381d22  97.3    442 lines    11/11  (mac  99.3)
+  - zh-4f883dce  97.4    153 lines      5/5  (mac 100.0)
+- Lowest POI (documents with lines):
+  - 58067   0.0  6 lines  1/1
+  - Tika-792   0.0  3 lines  1/1
+  - testComment   0.0  1 lines  1/1
+  - WordWithAttachments  13.2  38 lines  2/2
+  - delins  13.6  59 lines  1/1
+  - 60329  15.3  98 lines  3/3
+  - bug59058  53.3  1556 lines  52/52
+  - rtl  85.7  7 lines  1/1
+  - form_footnotes  98.9  87 lines  3/3
+  - bib-chernigovka.netdo.ru_dow  99.6  452 lines  15/15
+  - bug57031  99.7  339 lines  14/14
+  - 52288 100.0  2 lines  1/1
