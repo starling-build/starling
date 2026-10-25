@@ -8027,7 +8027,13 @@ public final class RichLayout {
         // (`thaiBreaksAtSpaces`: the offsets inside a stretch of Thai with
         // no space in it that a line can hold — one longer than a line is
         // broken where the line fills, as in Word's print: zh-6a4fc013's
-        // "1.กระทรวงแรงงาน…" starts its line and breaks in it.)
+        // "1.กระทรวงแรงงาน…" starts its line and breaks in it. But only the
+        // paragraph's first stretch: a longer one later in it is held
+        // whole, so it starts the next line and is broken where that one
+        // fills — Word for Windows' print of zh-6a4fc013 (windows'
+        // 01QbbApP lab th, 2026-10-23) and Word for Mac's alike set
+        // "ตอบ : 1." alone and the overlong stretch after it from the
+        // next line's start. 61.2 -> 67.9 against word-win.)
         var thaiJoins: Set<Int> = []
         if theme.wordRules, RichTextTheme.thaiBreaksAtSpaces, p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
             let units = Array(p.text.utf16)
@@ -8047,7 +8053,7 @@ public final class RichLayout {
                 // (The first stretch against the first line's room, after
                 // its indent and number: that one is where it would stand.)
                 let room = k == 0 ? textWidth - max(0, lead) : textWidth
-                if thai, width <= room { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
+                if thai, width <= room || k > 0 { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
                 k = end
             }
         }
