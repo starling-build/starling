@@ -1374,6 +1374,16 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
         if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { return fallback == "mincho" ? windowsMincho : eastAsianFace("Microsoft JhengHei") }
+        // (The faces Word for Windows takes an embedded 仿宋_GB2312's missing
+        // characters from (`windowsSubsetFallback`), each on its own line,
+        // its win ascent and descent at Word's 1.3, the extra split evenly
+        // about them: MS Gothic's .859 + .141, Yu Gothic's .985 + .302.)
+        if wordOnWindows, has("ms gothic", "ｍｓ ゴシック") {
+            return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+        }
+        if wordOnWindows, has("yu gothic", "游ゴシック") {
+            return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
+        }
         if has("yahei ui") {
             return EastAsianFace(height: 1.67, latin: sans, latinScale: 1.07, latinAdvances: yaHeiUIAdvances, latinBoldAdvances: yaHeiUIBoldAdvances,
                                  latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns,
@@ -1915,6 +1925,21 @@ enum OfficeFonts {
                eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
                 face.covers = covered
                 face.uncoveredFamily = "Microsoft YaHei"
+                // (Word for Windows takes an embedded 仿宋_GB2312's missing
+                // characters from MS Gothic, else Yu Gothic, else Microsoft
+                // JhengHei, a stretch of them keeping the face it is in
+                // while that has the next: zh-e68a2f57, zh-c2f6d17a and
+                // zh-92373179's fresh word-win prints, 13,100 such
+                // characters, all but 17 so by the faces' own cmaps
+                // (`WindowsFallbackCovers`). Each line takes its faces'
+                // heights: zh-e68a2f57's TOC at 1.75 lines steps 44.4 with
+                // MS Gothic alone — its square line — and 56.4 with
+                // JhengHei; ours, YaHei for all, 56 throughout.)
+                if wordOnWindows, ["仿宋_gb2312", "fangsong_gb2312"].contains(where: { family.lowercased().containsSubstring($0) }) {
+                    face.uncoveredChain = [("MS Gothic", WindowsFallbackCovers.msGothic), ("Yu Gothic", WindowsFallbackCovers.yuGothic),
+                                           ("Microsoft JhengHei", nil)]
+                    face.uncoveredFamily = "Microsoft JhengHei"
+                }
             }
             face.symbolFamily = ea.symbols
             // (YaHei's ellipsis is its own width, not an em: 0.8135, and

@@ -752,6 +752,12 @@ public struct RichResolvedFace: Sendable {
     /// whose line they then give theirs (see `_span`).
     public var covers: Set<UInt32>? = nil
     public var uncoveredFamily: String? = nil
+    /// Where Word takes what the subset lacks from more than one face: in
+    /// order, each face and what it holds (nil: anything). A character
+    /// goes to the face the one before it went to while that face has
+    /// it, else to the first that has it; one the subset holds starts
+    /// over (see `_span`). `uncoveredFamily` is then the last.
+    public var uncoveredChain: [(family: String, covers: Set<UInt32>?)]? = nil
     /// Whether the name is an East Asian face's: the quotes, dashes and
     /// dots both scripts claim are then its full-width ones, whatever
     /// the run's hint.
@@ -7281,13 +7287,26 @@ public final class RichLayout {
                               let covers = face.covers, let alt = face.uncoveredFamily else { continue }
                         let end = min(start + run.length, firstEnd, units.count)
                         guard start < end else { continue }
+                        // (Of each face a chain of them sets on the line, the
+                        // tallest: zh-5450d509's "各省…" opens in MS Gothic and
+                        // goes on in JhengHei, and Word's print stands the
+                        // line on JhengHei's baseline, 4.4pt under MS
+                        // Gothic's. One face alone, the first such character's.)
+                        var at: Int? = nil
+                        var seen = Set<String>()
                         for ch in String(decoding: units[start ..< end], as: UTF16.self) {
-                            guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, !covers.contains(u) else { continue }
+                            guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80 else { continue }
+                            if covers.contains(u) { at = nil; continue }
                             var r = run.style
-                            r.eastAsiaFontFamily = alt
+                            if let chain = face.uncoveredChain {
+                                if let k = at, chain[k].covers?.contains(u) ?? true {} else { at = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1 }
+                                guard seen.insert(chain[at!].family).inserted else { continue }
+                                r.eastAsiaFontFamily = chain[at!].family
+                            } else { r.eastAsiaFontFamily = alt }
                             if let b = theme.baseline(for: r, in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) { target = max(target, b) }
-                            break scan
+                            if face.uncoveredChain == nil { break scan }
                         }
+                        if face.uncoveredChain != nil, !seen.isEmpty { break scan }
                     }
                     // (… and the tallest East Asian run on it, not the
                     // first: zh-17ac8aa2's "□" in 黑体 before "若本机关…" in
@@ -8227,11 +8246,14 @@ public final class RichLayout {
             // A character an embedded subset lacks (`RichResolvedFace.covers`)
             // is set in the face the name has unembedded, Word's fallback,
             // its line that face's height (kind -3).
-            let uncovered = theme.wordRules
+            let subsetFace = theme.wordRules
                 ? theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                      ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true).flatMap { face in
-                    face.uncoveredFamily.flatMap { alt in face.covers.map { (alt, $0) } }
-                } : nil
+                                      ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true) : nil
+            let uncovered = subsetFace.flatMap { face in face.uncoveredFamily.flatMap { alt in face.covers.map { (alt, $0) } } }
+            // (Where Word takes them from several faces, each its own kind,
+            // -10 down: `RichResolvedFace.uncoveredChain`.)
+            let chain = uncovered != nil ? subsetFace?.uncoveredChain : nil
+            var chainAt: Int? = nil
             // (Whether the run's shapes are its Latin face's — no East
             // Asian hint, a Latin face that is not an East Asian one.)
             let latinShapes = theme.wordRules && run.fontHint != "eastAsia"
@@ -8240,6 +8262,7 @@ public final class RichLayout {
                 if let s = styles[kind] { return s }
                 var styled = run
                 if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
+                if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
@@ -8389,7 +8412,15 @@ public final class RichLayout {
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
                     && !(latinDash && ch == "\u{2013}")
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
-                if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80, !covers.contains(u) { kind = -3 }
+                if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80 {
+                    if covers.contains(u) { chainAt = nil }
+                    else if let chain {
+                        if let at = chainAt, chain[at].covers?.contains(u) ?? true {} else {
+                            chainAt = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1
+                        }
+                        kind = -10 - chainAt!
+                    } else { kind = -3 }
+                }
                 // The spaces that end a paragraph after ideographs, in a run
                 // whose Latin letters stand in for an East Asian face's
                 // own, take the ideographs' face, at the stand-in's width
