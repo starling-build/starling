@@ -5666,3 +5666,7 @@ stroke. A 1pt stroke adds 2.2 on art2's box, nothing on art3's, and 4pt adds 30;
 their sum nor the larger. The shadow term alone recovers 4-7 of the 11pt, still past the matcher's 3, so it
 moves no score. It needs either WordArt drawn (glyphs fitted to the box, then stroke and shadow) or a stroke
 lab: 0.5/1/2/3pt on one box, and the same text with and without descenders. Ours draws no textpath at all yet.
+
+### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.456/1.028 in Windows mode, as T179 did for 中宋.
+Written; the pair waits for windows' reprint sha, and for its note on whether Word fetches the 华文 cloud faces on demand.
