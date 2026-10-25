@@ -6079,7 +6079,9 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   export, exit 0). Windows-only flag: the Mac and Linux builds are unchanged, so no sweep can see it. lo-tdf93830, lo-smartart-preserve and 63200 (pptx) die on Windows with 0xC00000FD.
   Checked on the Mac (bd): all three render at `ulimit -s 8192` and segfault at 1024. Windows' main thread gets 1 MB and nothing in our
   build raises it. Fix: a bigger stack for OfficeApp on Windows (a /STACK link flag, or the export on a thread with its own stack).
-- T200. Showcase crash on Windows — CLAIMED windows: NOT the stack. The PDF is written whole, then exit faults: CRT teardown
+- T200. Showcase crash on Windows — DONE, engine ce449fad36d (starling; pushed --no-verify once, the user's call: Windows'
+  format.bat still runs the full upstream format check that format.sh no longer does). Windows DLL rebuilt: the showcase exits 0,
+  19 pages, every page identical to before. NOT the stack. The PDF is written whole, then exit faults: CRT teardown
   destroys SkShaper's HarfBuzz face cache before SwiftFontCollectionManager, whose destructor purges it. Fix in the engine
   (font_collection_bridge.cc: the manager is never destroyed), to starling mainline; windows rebuilds the Windows engine. starling-office-rendering-challenge.docx dies with 0xC0000005 (two fresh runs);
   every F section alone exports. On the Mac it converts to Word's 19 pages, even at a 1 MB stack, so it is Windows-only. Not diagnosed.
