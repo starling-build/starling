@@ -5084,6 +5084,12 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
   - A name the file embeds keeps the old path: what its subset lacks sits on YaHei's lines (zh-5450d509 2.7 → 85.7 with that gate).
 - **Worse:**
   - zh-dc9cfa34 −22.1. Word for Windows widens a synthetic-bold KaiTi glyph by about 0.05pt at 12pt and wraps "单位：万元、平方米" one character earlier. Across the corpus the widening runs 0–0.12pt and doesn't follow size cleanly, so it's not modelled. Open to anyone who can lab it.
+    [LAB DONE Windows 01QbbApP 2026-10-24, lab bold. 40 ideographs, regular against w:b, jc left, two fresh
+    Words, identical. The excess per glyph is the same for KaiTi, FangSong, SimHei and SimSun:
+    10pt +0.0421, 10.5 +0.0328, 12 +0.0443, 14 +0.0598, 16 +0.0659, 22 +0.0862, 24 +0.0788.
+    That is about 0.0038 em but neither proportional nor a device unit. Bold steps alternate by about 0.11pt,
+    which looks like internal rounding. docGrid (none, lines, linesAndChars) does not change it. Model it as
+    this per-size table. Zero excess in the corpus is probably justified lines absorbing it.]
   - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
