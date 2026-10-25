@@ -8268,6 +8268,7 @@ public final class RichLayout {
             // -10 down: `RichResolvedFace.uncoveredChain`.)
             let chain = uncovered != nil ? subsetFace?.uncoveredChain : nil
             var chainAt: Int? = nil
+            var cambriaWidth = 0.0
             // (Whether the run's shapes are its Latin face's — no East
             // Asian hint, a Latin face that is not an East Asian one.)
             let latinShapes = theme.wordRules && run.fontHint != "eastAsia"
@@ -8429,11 +8430,29 @@ public final class RichLayout {
                 if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80 {
                     if covers.contains(u) { chainAt = nil }
                     else if let chain {
-                        if let at = chainAt, chain[at].covers?.contains(u) ?? true {} else {
+                        if let at = chainAt, chain[at].covers?.contains(u) ?? true {
+                            kind = -10 - at
+                        } else if chainAt == nil, let w = Self._cambriaMathOpeners[u] {
+                            // (A symbol that opens a stretch is Cambria Math's,
+                            // at its own width, on no line of its own: every
+                            // "〔", "〕" and circled number so placed in word-win
+                            // — zh-92373179's 31 "①"… at a line's start or after
+                            // a held character, 1.19 em at its grid; zh-540dc149,
+                            // zh-5450d509, zh-c2f6d17a, zh-e68a2f57's brackets
+                            // after a digit. One after a fallen-back character
+                            // keeps that one's face.)
+                            kind = -9
+                            cambriaWidth = w
+                        } else {
                             chainAt = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1
+                            kind = -10 - chainAt!
                         }
-                        kind = -10 - chainAt!
                     } else { kind = -3 }
+                } else if chain != nil, !ch.isWhitespace {
+                    // (Any other character seen ends a stretch — a digit as
+                    // a held ideograph does: with that, all of the three
+                    // prints' 13,171 fallen-back characters are so.)
+                    chainAt = nil
                 }
                 // The spaces that end a paragraph after ideographs, in a run
                 // whose Latin letters stand in for an East Asian face's
@@ -8777,6 +8796,7 @@ public final class RichLayout {
                 // the stand-in's em-wide glyph and the whole addition set
                 // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
                 // its "失".)
+                if kind == -9 { extra += cambriaWidth * em - _glyphWidth(style(kind), ch) }
                 if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
@@ -10307,6 +10327,15 @@ public final class RichLayout {
     /// (zh-3fe252ff, zh-0d036e4e), "§" (Numbering), "l" (bug69628,
     /// zh-15428325).
     static let _wingdingsAdvances: [UInt32: Double] = [0xF0D8: 0.794, 0xF0A7: 0.458, 0xF06C: 0.747]
+
+    /// Cambria Math's advances (ems, its hmtx) for the symbols Word for
+    /// Windows sets in it where they open a stretch of what an embedded
+    /// subset lacks (`_span`).
+    static let _cambriaMathOpeners: [UInt32: Double] = {
+        var out: [UInt32: Double] = [0x3014: 0.3501, 0x3015: 0.3501]
+        for u in UInt32(0x2460) ... 0x2473 { out[u] = 1.2007 }
+        return out
+    }()
 
     /// A list paragraph's marker, laid out at its own width.
     private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
