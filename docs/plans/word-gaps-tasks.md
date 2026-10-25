@@ -5791,7 +5791,12 @@ alternate 14.04/13.91 (mean 14.004 over 11.6k), and 10.5pt alternates 10.56/10.4
 took zh 98.0 -> 90.2 (all runs) and 90.7 (East Asian only). Lead, unbuilt: Latin advances look rounded per glyph to
 1/600" (Calibri at 14.04: 94% of steps match round(adv*ppem/upm) units), worth a lab before building.
 
-### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
+### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — DONE ff85d8c3 (Linux lenovo-2, starling-d6, 2026-10-25): 99.3
+- DONE ff85d8c3, on windows' lab t187 part 1 (32030be2): in Windows mode a row that ends a page whole asks room for the line
+  between rows only, not the table's bottom border (Word keeps row 四 at 3.0 and 1.0 left under a thinThickSmallGap sz24
+  bottom and closes p16 with the 0.48 insideH). Not the charset-80 Yu Gothic face: ヒラギノ角ゴ is in styles.xml only. Gates
+  zh-cec9d337 74.3 -> 99.3 and zh-77bd4900 held at 99.0; same-base pair of 756, nothing else moved; mean 96.86 -> 96.89.
+  Parts 2-3 of the lab (single sz24 and sz4 bottoms) still to come: confirm the rule holds for them. Released.
 Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
 Lab t187 (Windows 01QbbApP, 2026-10-25), part 1 of 3: zh-cec9d337's own package, the empty paragraph above t6 (Word sets it 13.76pt) made an exact line, so row 四 ends 3.0 / 1.0 / 0.3pt above the foot (780.8, the footer's top); fresh Word, warm-up first, 60 s. Bottom border as is (thinThickSmallGap 24):
 - 3.0 left: row 四 stays on p16; the page closes with the 0.48 single line at y 777.82, no bottom border.
@@ -5821,7 +5826,8 @@ Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The fir
 not match. "Line fit, ours takes more" means ours starts that line later because its line before took more; most show
 ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair).
 - Line fit, ours takes more (T181, lenovo-3): zh-015abfaf 62.4 p1, zh-cd48112c 84.7 p1 (ours "“" 5.0 / "”" 0, Word 15
-  each), zh-dc9cfa34 84.8 p5, zh-3f871b7d 87.8 p1; held elsewhere: zh-b00fef0d 74.6 (T188), zh-5be7e156 75.7 p1,
+  each), zh-dc9cfa34 84.8 p5, zh-3f871b7d 87.8 p1; zh-5be7e156 75.7 p1; held elsewhere: zh-b00fef0d 74.6 (T188 — CORRECTED by lenovo-2: only its first misses, p5 1 /
+  p6 8 / p10 4, are line fit, witnesses for T181; 159 of its 175 are a table row at p17's foot that Word parts, a table case),
   zh-6d402586 71.8 p5 (labels, macOS-doc); measured before: zh-505b9619, zh-e0ca7252, zh-57f1de0d.
 - Line fit, ours takes less: zh-33aa9899 82.2 p5 (ours wraps "傳" of "須上傳"), zh-1b74ed91 89.4 p9.
 - Pagination or the page's top: zh-34a6519a 80.9 p10 (Word keeps a last line ours pushes over; 49 pages to 48),
