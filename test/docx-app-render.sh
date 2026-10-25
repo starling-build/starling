@@ -14,7 +14,9 @@
 # saved copy, where the expected score is 0.00. WORK gets our PDFs (pdf/),
 # the side-by-side PNGs of pages over the threshold (pairs/), and
 # render.tsv (name, pages, worst %, mean %); rows already there are
-# skipped, so a sweep resumes. OFFICE_APP picks the binary.
+# skipped, so a sweep resumes. OFFICE_APP picks the binary, and
+# OFFICE_WORD_FONTS the Word it draws as (mac unless set: windows to sweep
+# against test/corpus/docx/word-win).
 #   test/docx-app-render.sh                  # the corpus in the repo, into ~/starling-doc-check/app
 #   test/docx-app-render.sh WORK             # … into WORK
 #   OFFICE_WEB=1 test/docx-app-render.sh WORK   # … drawn by the browser build
@@ -89,7 +91,7 @@ for n in "${names[@]}"; do
   if [ -n "$OFFICE_WEB" ]; then
     [ -s "$WORK/pdf/$base.pdf" ] || {
       printf '%s\tERROR\t%s\n' "$n" "$(grep -F "$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue; }
-  elif ! out=$(OFFICE_WORD_FONTS=mac "$APP" --convert "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+  elif ! out=$(OFFICE_WORD_FONTS=${OFFICE_WORD_FONTS:-mac} "$APP" --convert "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
     printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
   fi
   s=$("${DIFF[@]}" "$WD/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)
