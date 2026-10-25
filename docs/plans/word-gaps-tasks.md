@@ -5528,8 +5528,15 @@ Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2. Was 91.0 ag
 [LAB Windows 01QbbApP 2026-10-25, lab t178 (~/starling-doc-check/lab/t178 on the Windows box), asked by macos: zh-167ee06c's package, "X", its paragraph 51 three times, "Y", in its own section, each a fresh Word. In all five variants (a " ", b "中", c "A", d the mark alone, e the 華康 entry's w:sig removed) Word sets the lines in Microsoft JhengHei UI Light, 34.68 apart (X 85.10 -> 106.94, 141.62, 176.30 -> Y 207.14). That is 1.6505 em x 14 x 1.5, 421ac17d's line, and ours matches (X to Y 122.01 vs 122.04). The w:sig does not move it.
 The blank page is not paragraph 51's. In the real document both prints set its " " on page 6 at baseline 756.4, under the table (which ends at 739.5 in both), its 1.5 extra past the foot as 7440's off-grid rule allows. The page comes from paragraph 52, which opens with <w:br w:type="page"/> before "附件二之一". Ours has 13.4pt left and needs its empty pre-break line (23.1), so it takes that line to page 7 and breaks again: "附件二之一" opens page 8. Word opens page 7 with it. A paragraph whose first content is a page break ends the page where it stands; its empty line before the break needs no room.]
 
-### T179. zh-17ac8aa2: 21.9 against word-win, 2 pages, 32 lines — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T179. zh-17ac8aa2: 21.9 against word-win, 2 pages, 32 lines — DONE 20572769 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. 100 against the Mac print (Mac 0fcba326, 2026-10-23); low against word-win.
+The form's table stood 5.5pt low on p1, every row with it. The cause was the empty 22pt mark before it, set in 华文中宋
+(this box has STZhongsong, and it isn't in word-win-missing-faces): 40.4pt in Word's print, 45.9 in ours.
+20572769: in Windows mode, STZhongsong's line is its OS/2 win metrics at 1.3 (.912 + .225, 1.478 em, baseline 1.083), as
+Word for Mac already uses for scaled characters; the hhea 1.7225 stays for Mac mode. The table's rules are now within 0.2
+of Word's. Same-base Linux pair against word-win, 756 documents, 96.19 -> 96.30: zh-17ac8aa2 21.9 -> 100,
+zh-a78d52e7 95.2 -> 99.3, nothing lower. The other 华文 faces (STXinwei, STKaiti, STSong, STFangsong) may want the same;
+not measured.
 
 ### zh-dc25c47e: 47.8 against word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 
