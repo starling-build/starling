@@ -5714,4 +5714,8 @@ so test/run.sh's "office: native vs browser" step compared against a stale 10-13
   hit it and is now `indirect`. Another enum or struct holding several RichParagraphStyle/CharStyle values can do the same as
   those grow.
 - **Open:** with the stage current, office-layout.sh still fails for real. All three documents break every line the same way,
-  but line HEIGHTS differ by fractions (welcome: title 45.5 native vs 46.0 web, body 19.3 vs 19.0). Not yet bisected.
+  but line HEIGHTS differ by fractions (welcome: title 45.5 native vs 46.0 web, body 19.3 vs 19.0). CAUSE: 7ee9e843 (10-17)
+  keeps Word lines' fractions through starling-engine's patches/skia-fractional-line-heights.patch (ParagraphStyle bit 13);
+  the browser runs Google's prebuilt skwasm, which lacks it and rounds. A 10-13 native build gives 46.0/23.0/19.0, as the
+  web does today. Platform gap, not a regression; the fix (own skwasm, a height-tolerant gate, or no fractions on the web)
+  is the Mac coordinator's call.
