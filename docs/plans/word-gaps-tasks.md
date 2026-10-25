@@ -5738,3 +5738,7 @@ Parked: zh-7773163d, zh-8e8d4c40, the two 3-D pies, zh-015abfaf (hairline).
 
 ### T185. zh-64044a1d: 66.5 against word-win, 68 pages to 69 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), first on the coordinator's refreshed unheld list (w5 at 0012bc50); own sweep w59 agrees.
+
+### T186. zh-77bd4900: 67.2 against word-win, 42/42 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier work (Linux 017F2GnT, 97.4 then) was against
+the Mac print; this starts from the word-win print after 0012bc50.
