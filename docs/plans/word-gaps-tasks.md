@@ -4951,3 +4951,8 @@ fits where its end, rounded to 1/600 in, is inside the line.
 - **Result:** Tika-792 66.7 → 100, delins 69.5 → 74.6, nothing lower. Pair: POI set plus zh-3fe252ff (the only zh word-win document with a pane), base ab10de75.
 - **Open:** delins's Field Code Changed / Formatted balloon order; re-read its misses at this tip.
 - **Open:** WordWithAttachments, where Times New Roman 10pt lines step 11.49 in Word for Windows (hhea with lineGap) and 11.0 in ours. [CLAIMED Linux b2 01JsizVV 2026-10-24, routed by macos: not the metrics (macos-ios: both step 11.5); the 8.5pt of drift sits in the twelve paragraphs of seven VML shapes between "We will leave…" and "Дубль документа" — which float or wrap, and how tall each line stands]
+
+### T165. zh-8f9b19f4 p13: Normal lines step Arial's line plus 8pt after in Word for Windows — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), routed by macos from Windows 01QbbApP's lab
+bp13 (above): every Normal line steps 20.06-20.08 (Arial's 1.149 em at 10.5pt and the 8pt
+after of a styles part with no pPrDefault); ours steps 20.3-20.4, the Mac's.
