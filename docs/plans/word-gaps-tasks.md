@@ -5318,3 +5318,4 @@ Owner: Linux office1, routed by macos. windows measured it (entry above, lab lan
 栏 down with ">0,"; ours breaks between 栏 and ">", and every page after p22 runs a line short. The Mac found that adding
 ">" to `_noStart` does not move it, because the engine's own break between an ideograph and ">" still happens. Plan: a
 word joiner between a CJK character and a following ">" or "%" under Simplified Chinese only (zh-TW's list lacks both).
+### Circled numbers (①-⑳) in Cambria Math in word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
