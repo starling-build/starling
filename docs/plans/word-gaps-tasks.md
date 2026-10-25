@@ -5198,6 +5198,16 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
 
 ### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
+[LAB DONE Windows 01QbbApP 2026-10-24, lab t170, in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12, jc both).
+The paragraph was set in the body with a right indent stepped 0.25pt; N is the natural width to the end of 高.
+The largest over at which Word still takes 高 (each ±0.25):
+- (a) as is, 3 automatic CJK-digit spaces, 29 characters: 3.00.
+- (b) 116 → 一一六, 1 space, 29 characters: 1.50.
+- (c) the same 3 spaces with 18 Han characters in front, 47 characters: 3.50.
+So the allowance is about 0.25 × Σ(automatic spaces) + 0.026pt × the characters on the line. It grows slightly with
+length, mostly with the spaces. In the body copy, N is 331.58 against the cell's 307.56 (the line runs 24pt wider),
+and by this rule 高 at 2.71 over would be taken. The cell itself may change it; a sweep in the real cell is next if
+wanted.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
