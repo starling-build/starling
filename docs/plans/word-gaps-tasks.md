@@ -5813,3 +5813,25 @@ Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16p
 "…办法》第八条第一项规定：“…世界文" is about 6.4 over with "化": Word justifies, with "》" and "：" whole and "“" 7.56, while
 ours squeezes both to 13.35 and "“" to 7.1 and takes "化". The same holds on p1-2, p8, p11 and p21-33 (one line's drift).
 (Assigned to lenovo on 10-23 but never claimed; an embedded-face document, whose Mac references were unreliable.)
+
+### Screen of word-win documents under 90, by the cause of the first miss (Mac 01Xgpbk5, 2026-10-25, asked by macos)
+Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The first miss is the first Word line ours does
+not match. "Line fit, ours takes more" means ours starts that line later because its line before took more; most show
+ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair).
+- Line fit, ours takes more (T181, lenovo-3): zh-015abfaf 62.4 p1, zh-cd48112c 84.7 p1 (ours "“" 5.0 / "”" 0, Word 15
+  each), zh-dc9cfa34 84.8 p5, zh-3f871b7d 87.8 p1; held elsewhere: zh-b00fef0d 74.6 (T188), zh-5be7e156 75.7 p1,
+  zh-6d402586 71.8 p5 (labels, macOS-doc); measured before: zh-505b9619, zh-e0ca7252, zh-57f1de0d.
+- Line fit, ours takes less: zh-33aa9899 82.2 p5 (ours wraps "傳" of "須上傳"), zh-1b74ed91 89.4 p9.
+- Pagination or the page's top: zh-34a6519a 80.9 p10 (Word keeps a last line ours pushes over; 49 pages to 48),
+  zh-7eba7349 81.5 p2 (title 32 low at the page's top), zh-20c1d74a 87.0 p16 ("附件一之二" 13 low at the top).
+- Table: zh-38d26944 84.7 p12 (a cell's centred text 4 off), zh-0aac9d1a 85.0 p10 (column widths), zh-e1b09977
+  82.2 p11 and zh-4c5da793 82.5 p9 (a cell's text wraps differently).
+- Drawing or chart: zh-2a241df1 81.9 p1 (axis labels 1-2 off), zh-27a874b7 / zh-d62da4dd (3-D pies, parked),
+  zh-61aaad09 82.4, zh-b8de3ae2 82.8 (charts, held).
+- Header/footer: zh-1cfb652b 87.5 (p1's "— 1 —" missing in ours).
+- Held, or known otherwise: zh-7773163d (T167), zh-72da925e (T183), zh-64044a1d (T185), zh-77bd4900 (T186),
+  zh-cec9d337 (T187), zh-ae2dd08d (T189), zh-f2835e26 (a raised run's line height), zh-8e8d4c40 (lines 0.9 high from
+  a table title), zh-6a4fc013 (Thai), zh-bdae17c0 87.1 (not yet read).
+- POI under 90: ten 0/0 documents with no text in Word's print, WordWithAttachments (WordArt extent), delins (parked).
+CLAIMED from it: zh-34a6519a (Mac 01Xgpbk5).
+
