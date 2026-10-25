@@ -2110,8 +2110,13 @@ enum OfficeFonts {
                 face.otherAdvances = quotes
                 face.boldOtherAdvances = quotes
             }
+            // (And GB2312's primes, ′ and ″ (A1E4, A1E5), an em as well:
+            // zh-38d26944's "＞40″扣30分，方位角闭合差在20″～30″扣5分，＜20″"
+            // in 仿宋 steps 10.44-10.56 at each ″ at 10.5pt in Word for
+            // Windows' print; Starling FangSong's own ″ is 3.32, and the
+            // line took the "＜" Word sends on.)
             if ea.latin == mono, face.otherAdvances == nil {
-                let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1]
+                let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1, 0x2032: 1, 0x2033: 1]
                 face.otherAdvances = gb
                 face.boldOtherAdvances = gb
             }
@@ -2164,8 +2169,10 @@ enum OfficeFonts {
         if ea.latin == mono, ea.latinAdvances == nil {
             let lower = family.lowercased()
             let nbsp = wordOnWindows && (lower.containsSubstring("標楷") || lower.containsSubstring("dfkai")) ? 0.5 : 1.0
-            face.otherAdvances = [0xA0: nbsp]
-            face.boldOtherAdvances = [0xA0: nbsp]
+            // (And GB2312's primes ′ ″ an em, as in the East Asian face
+            // above: Word counts them the square face's own.)
+            face.otherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
+            face.boldOtherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
         }
         // (Word for Windows sets the letters and digits an embedded subset
         // lacks in Calibri, at Calibri's widths, and those it holds in the
