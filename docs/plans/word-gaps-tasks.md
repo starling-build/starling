@@ -5209,12 +5209,22 @@ x only, so no score move here, but zh-1cfb652b 67.9 -> 87.5 (w21 -> w22). Left: 
 invisible glyphs above each annex heading (read as "AA"/"BB" lines), p1's ICS block 7pt and footer line 5pt off,
 p4's "3.2" read with its leader. Released.
 
-### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED (Mac 7bd18d8e, macOS-doc); Windows lab `kai` done (Windows 01QbbApP); zh-d35cbbdb and the DFKai-SB face (1332/1024 em, baseline 974/1024) CLAIMED lenovo-2 (Linux dev box, starling-d6), FINISHING at its user's word 2026-10-24: written, same-base A/B against word-win running; zh-e8d4c046 reference was a batch artifact, reprinted in db46d815
+### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED (Mac 7bd18d8e, macOS-doc); Windows lab `kai` done (Windows 01QbbApP); zh-d35cbbdb and the DFKai-SB face DONE lenovo-2 (Linux dev box, starling-d6), 2026-10-25; zh-e8d4c046 reference was a batch artifact, reprinted in db46d815
 - zh-e8d4c046: Word for Windows skips the embedded 方正小标宋简体 (fsType 8, 2052 name matching) and draws the title in
   MS Gothic, 22pt lines 38.4 apart (ours, the embedded face at 1.164x1.3, 33.3); all below 10.5pt high. It uses the
   same file's embedded "仿宋_GB2312" (SimSun inside). zh-1cfb652b, zh-2bca0bdf, zh-c2229d4a do get embedded faces;
   zh-32f4ad9f, zh-529fa492, zh-7b5b3de2, zh-7eba7349, zh-92373179, zh-c2f6d17a, zh-e68a2f57 print MS-Gothic where
   they embed 方正 faces. When Word for Windows refuses an embedded face is the question (facemap / T160 ground).
+- DONE 52008403 (face) + 45901ef8 (combined line on the grid), Linux lenovo-2: 標楷體 in Windows mode is DFKai-SB's own line,
+  1332/1024 em, baseline 974/1024. Same-base pair against word-win, 756 documents: mean 95.09 -> 95.26; zh-d35cbbdb
+  28.4 -> 100, zh-74b34f3b 64.9 -> 96.9 (T169: windows can take what's left), zh-63a571aa 85.9 -> 100, zh-1b74ed91
+  84.4 -> 89.4. The face first took zh-454e2e29 99.4 -> 53.5: its page-4 title combines two lines in one
+  (eastAsianLayout combine) on an 18pt grid, each run's line its own two pitches (baseline 28.85 down) and the box's
+  foot 8.37 under it, 37.2 and three pitches; Word sets the box's pitches, centred — now 99.4 again. Down, none a
+  real move: zh-de073ee5 100 -> 98.6 and zh-ab9cbe66 -0.3 (lines under a point, at the matcher's edge; the 、-label
+  lines Word sets ~3pt low), zh-e6d54ae4 -0.2 (two cells' lines merged), zh-021b8feb/zh-20c1d74a -0.4/-0.1 (a line
+  end), zh-8e8d4c40 -1.2 (its labels' 、 is MS Mincho in Word — macos-ios). NOT moved: zh-e2dc9dce, 6.2, 47 pages
+  for 48 — still open.
 - zh-d35cbbdb: p2's foot. Ours fits item "3. 單元臨接…"'s first line (widowControl 0) at baseline 763.17; Word's pages
   end near 744.6. The footer (two 10pt PMingLiU paragraphs, 12.24 apart, 49.6 up) tops out at ~767.8 above the
   769.9 margin; Word's DFKai-SB (801/199, 1.3 em, the 0.3 split evenly: first baseline 85.34 under a page-top
