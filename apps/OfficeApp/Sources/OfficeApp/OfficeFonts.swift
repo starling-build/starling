@@ -2431,6 +2431,9 @@ enum OfficeFonts {
     static func register() -> Bool {
         if _registered { return _registrationSucceeded }
         _registered = true
+        // (Word for Windows sets "◎" in Cambria Math, not Segoe UI Symbol,
+        // and its line stands no taller for it — lab e6p.)
+        if wordOnWindows { RichTextTheme.segoeSymbolShapes.remove(0x25CE) }
         #if os(WASI)
         // The page preloads UI/default faces. Other document families are
         // requested by the paragraph builder when used and trigger relayout

@@ -70,6 +70,13 @@ public final class RichTextTheme {
     /// Whether Thai text breaks only where it has spaces, as Word for Mac
     /// sets it (see `_span`); the engine otherwise breaks it by word.
     public nonisolated(unsafe) static var thaiBreaksAtSpaces = false
+    /// The shapes Word's fallback sets in Segoe UI Symbol where the run's
+    /// Latin face has none — Times New Roman, Arial, Calibri — and whose
+    /// ascent stands their line taller. Word for Mac's (lab `picln`):
+    /// ◇ ◆ ◎ ★ ☆. Word for Windows sets "◎" in Cambria Math, which lifts
+    /// nothing (lab e6p, zh-e68a2f57's package): an app printing as
+    /// Windows takes it out.
+    public nonisolated(unsafe) static var segoeSymbolShapes: Set<UInt32> = [0x25C7, 0x25C6, 0x25CE, 0x2605, 0x2606]
     /// Pages break as Word for Windows breaks them where it differs from
     /// Word for Mac (OFFICE_WORD_FONTS=windows): an "at least" line that
     /// stands at its minimum ties on the foot as an exact line does.
@@ -1122,7 +1129,7 @@ public final class RichLayout {
     /// page's foot (px; `RichTheme.gridOverhang`).
     private var _overhang: [Double] = []
     /// How much taller each paragraph's first line is than its painter's
-    /// for a shape set in Segoe UI Symbol (px; `_segoeSymbolShapes`): its
+    /// for a shape set in Segoe UI Symbol (px; `RichTextTheme.segoeSymbolShapes`): its
     /// lines' cuts stand as much lower.
     private var _firstLineLift: [Double] = []
     /// … line by line, where its faces differ from line to line (px; empty
@@ -7251,7 +7258,7 @@ public final class RichLayout {
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
         _inkShift[i] = 0
-        var segoeLift = 0.0   // what a Segoe UI Symbol shape adds over the first line (`_segoeSymbolShapes`)
+        var segoeLift = 0.0   // what a Segoe UI Symbol shape adds over the first line (`RichTextTheme.segoeSymbolShapes`)
         // (A paragraph whose runs differ only by a raised or lowered one
         // has no strut, and its lines are each as tall as one of its own
         // text: its baseline wants the same correction — endnotes' "A
@@ -7371,7 +7378,7 @@ public final class RichLayout {
                         target = max(target, b)
                     }
                     // (… and Segoe UI Symbol's, where the line holds a shape
-                    // Word sets in it — see `_segoeSymbolShapes`: its
+                    // Word sets in it — see `RichTextTheme.segoeSymbolShapes`: its
                     // ascent, 2210 of 2048, over the baseline.)
                     if style.lineHeightPoints == nil || style.lineHeightIsMinimum {
                         start = 0
@@ -7381,7 +7388,7 @@ public final class RichLayout {
                             let end = min(start + run.length, firstEnd, units.count)
                             guard start < end, run.style.fontHint != "eastAsia",
                                   theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true,
-                                  units[start ..< end].contains(where: { Self._segoeSymbolShapes.contains(UInt32($0)) }) else { continue }
+                                  units[start ..< end].contains(where: { RichTextTheme.segoeSymbolShapes.contains(UInt32($0)) }) else { continue }
                             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                             // (The line as much taller: what stands under it
                             // goes as much lower — p7's third note line to
@@ -8622,7 +8629,7 @@ public final class RichLayout {
                 // glyph; "◇◆★☆" as "◎", "●□▲○■※" (Times has them) and
                 // "①△" (Cambria Math) nothing. Ours drew them in YaHei, its
                 // line as any, and p7's third note line stayed on the page.
-                if latinShapes, let u = ch.unicodeScalars.first?.value, Self._segoeSymbolShapes.contains(u) {
+                if latinShapes, let u = ch.unicodeScalars.first?.value, RichTextTheme.segoeSymbolShapes.contains(u) {
                     flush(i)
                     if segoeStyle == nil { segoeStyle = _segoeJoiner(run, named, style(-1), p.style, pitch, scale) }
                     if let joiner = segoeStyle {
@@ -10294,11 +10301,6 @@ public final class RichLayout {
         let size = (ascent - descent) / split
         return joinerStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)
     }
-
-    /// The shapes Word's fallback sets in Segoe UI Symbol where the run's
-    /// Latin face has none — Times New Roman, Arial, Calibri (lab
-    /// `picln`): ◇ ◆ ◎ ★ ☆.
-    static let _segoeSymbolShapes: Set<UInt32> = [0x25C7, 0x25C6, 0x25CE, 0x2605, 0x2606]
 
     private func _notoJoiner(_ noto: CharStyle, _ notoStyle: TextStyle, _ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle,
                              _ paragraph: RichParagraphStyle, _ pitch: Double?, _ scale: Double) -> TextStyle? {
