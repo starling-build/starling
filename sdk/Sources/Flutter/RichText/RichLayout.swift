@@ -2254,6 +2254,13 @@ public final class RichLayout {
         // ours, counting the indent for it too, wanted 84.8 and gave
         // "18 連江縣" a column too narrow to hold it.)
         var unparted: Double
+        // (An empty paragraph's one line starts where its first line
+        // does, hanging indent and all, though `firstLineIndent` gives
+        // such a paragraph none: zh-ae2dd08d's training-plan form has
+        // empty cells indented 23.6pt hanging all of it in 22pt columns,
+        // and Word keeps the grid, where ours asked 24.6 of each and
+        // took the room from the next column's "訓練目標".)
+        let lead = units.isEmpty && p.image == nil ? p.style.firstLineIndent : firstLineIndent(p, document)
         if theme.wordRules, _wordList(p, document) == nil {
             // (Before 2013's layout every piece is measured from where a
             // hanging line starts, and a first line set further in asks
@@ -2265,11 +2272,11 @@ public final class RichLayout {
             // indent, and a Latin word past the column from the hanging
             // start, widen it in both.)
             if (document.compatibilityMode ?? 12) < 15 {
-                m = max(_px(sides.left + min(firstLineIndent(p, document), 0)) + max(m, first), 0) + _px(sides.right)
+                m = max(_px(sides.left + min(lead, 0)) + max(m, first), 0) + _px(sides.right)
             } else {
-                m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + firstLineIndent(p, document)) + first, 0) + _px(sides.right)
+                m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + lead) + first, 0) + _px(sides.right)
             }
-            unparted = max(widest > 0 ? _px(sides.left) + widest : 0, _px(sides.left + firstLineIndent(p, document)) + opening, 0) + _px(sides.right)
+            unparted = max(widest > 0 ? _px(sides.left) + widest : 0, _px(sides.left + lead) + opening, 0) + _px(sides.right)
         } else {
             m = max(m, first) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
             unparted = max(widest, opening) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
