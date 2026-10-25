@@ -30,6 +30,7 @@ $app.Visible = $false
 # Macros never run (msoAutomationSecurityForceDisable); layout is Word's own.
 try { $app.AutomationSecurity = 3 } catch {}
 try { $app.Options.Pagination = $true } catch {}
+try { $app.Options.PrintComments = $true } catch {}
 try {
     foreach ($key in Get-Content -LiteralPath $Keys -Encoding UTF8) {
         $key = $key.Trim()
@@ -52,7 +53,17 @@ try {
                 # its pages lays it out all the same.)
                 try { $d.Repaginate() } catch {}
                 $pages = $d.ComputeStatistics($wdStatisticPages)
-                $d.ExportAsFixedFormat($tmp, $wdExportFormatPDF)
+                # With its markup, as the Mac printed it: All Markup, the final
+                # text, changes and comments in balloons. Item = 7 is
+                # wdExportDocumentWithMarkup -- without it Word prints the
+                # text alone, and a page of comments prints blank.
+                try {
+                    $v = $d.ActiveWindow.View
+                    $v.Type = 3; $v.ShowRevisionsAndComments = $true; $v.ShowComments = $true
+                    $v.RevisionsFilter.Markup = 2; $v.RevisionsFilter.View = 0; $v.MarkupMode = 0
+                } catch {}
+                # ExportAsFixedFormat(Out, Format, OpenAfter, OptimizeFor, Range, From, To, Item)
+                $d.ExportAsFixedFormat($tmp, $wdExportFormatPDF, $false, 0, 0, 1, 1, 7)
             } finally { $d.Close(0) }
             Move-Item -LiteralPath $tmp -Destination $pdf -Force
             Write-Output ("ok {0} {1} {2:N1}" -f $key, $pages, ((Get-Date) - $t0).TotalSeconds)
