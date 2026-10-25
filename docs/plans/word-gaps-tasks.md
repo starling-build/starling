@@ -4882,7 +4882,15 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - 52288 100.0  2 lines  1/1
 
 ### T160. zh-f6686f89: 75.8 against the Windows references — BUILT, NOT LANDED (Mac 01Xgpbk5, 2026-10-24): waits on windows' per-name map and a foot lab
-[CLAIMED Windows 01QbbApP 2026-10-24: lab on Word for Windows' page-foot tolerance for multiple-spaced lines (p1 keeps a line ending 3.2pt past the foot): SimSun and Times at 1.15/1.5/2.0, the last line 0-4pt over.]
+[LAB DONE Windows 01QbbApP 2026-10-24, lab foot: Word for Windows lets exactly the multiple's extra hang past the foot.
+Measured overhangs, with the extra each multiple adds:
+- SimSun 12 (single line 15.56): at 1.15 the extra is 2.33, kept to +2.12, dropped at +2.51; at 1.5, 7.78, kept to
+  +7.50, dropped at +7.84; at 2.0, 15.56, kept to +15.35, dropped at +15.85.
+- Times 12 (single line 13.80): at 1.15, 2.07, kept to +1.92, dropped at +2.29; at 1.5, 6.90, kept to +6.84,
+  dropped at +7.14; at 2.0, 13.80, kept to +13.60, dropped at +14.10.
+So office.md's rule ("A multiple's extra space may hang past the page's foot") holds on Windows at every multiple.
+p1's 3.2 is 0.9 more than its 1.15 extra (2.34). Check that line's own single height under the T160 faces before
+adding any tolerance beyond the extra.]
 Mac 01Xgpbk5's patch is ~/starling-word-check/lab/wwface/t160-mincho.patch (Mac). It sets a missing Latin name with no table entry as square Mincho (1.3 em) with Cambria Latin, and puts what Mincho lacks (Shift_JIS as the coverage) in our JhengHei face.
 - **Line heights:** the 1.15 spacing and 10pt after account for the measured boxes. The 36pt cover lines are 1.729 em (JhengHei 1.33 × 1.3); the 18pt date is 1.30.
 - **zh-f6686f89:** 75.8 → 75.7. The cover now matches within 1pt, but p1 still loses "1、根据…": its two lines end about 3.2pt past the 720 foot at Word's own baselines, and Word for Windows keeps them. It looks like a Windows foot tolerance for 1.15-spaced lines and needs a lab.
