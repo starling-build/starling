@@ -4675,6 +4675,11 @@ ASCII table (space 0.26), "×" 0.5, its symbols still an em (`squareSymbols`).
 Same-base sweep of 756: ten up, all to 100 (zh-0daa510e 96.5, zh-afdd4a7e 95.9,
 zh-15ecc2c6 99.0, zh-093c8713, zh-d0eb9f43, …), nothing lower. This also
 closes Windows 01QbbApP's open "×" note (zh-05699f05/zh-e061a08e).
+Survey after it (Linux office1, 10-24): the ASCII /Widths of every Chinese face
+Word's prints embed, against ours — SimSun (78 prints), SimHei (73), FangSong
+(30), KaiTi (13): every character 500/1000, as ours; YaHei (122): all 90 seen
+agree with `yaHeiAdvances`; Arial Unicode MS (44): Arial's, as ours. PMingLiU's
+space was the only ASCII width off. (`~/tmp/office1/pdfwidths.py`.)
 
 ### T159. Word for Windows references (word-win): missing Latin faces and RTL lines — (a), (b) DONE (Mac 01Xgpbk5, 2026-10-24)
 
