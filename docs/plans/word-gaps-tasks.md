@@ -5263,7 +5263,7 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
 
-### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED macos-ios, the cell-width fix (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux office1)
+### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED Windows 01QbbApP (starling-31, 2026-10-25, routed by macos): the mode-15 allowance from labs t170d; was macos-ios (released), Linux office1
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t170, in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12, jc both).
 The paragraph was set in the body with a right indent stepped 0.25pt; N is the natural width to the end of 高.
 The largest over at which Word still takes 高 (each ±0.25):
