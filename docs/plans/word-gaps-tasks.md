@@ -5457,6 +5457,17 @@ Caution: the line above records Word's print squeezing commas in other en-US par
 46.8 on the Mac's w1 Windows sweep (384 of 821 lines, 28/28 pages); from p8 every line runs a character ahead.
 Word for Windows never hangs that "、" (lab t170e under T170): it squeezes marks, and takes "6、" at most 15.0 over
 as the line stands. Ours hangs the "、" whole and squeezes 2.75. First: which setting stops the hang there.
+Tried (Linux 01F2SWc8, 2026-10-25, at d53026ac): from 2013's layout, outside useAltKinsokuLineBreakRules, a mark
+whose hang does not cover the over does not hang; the line's marks give it all, the last among them. In zh-15f60bac's
+paragraph it makes both of Word's choices: "…統計資料、" 22.75 over is taken with the three marks giving (Word's print
+ends that line 4pt past the margin by the "、"'s box, its advances 18.5 short of natural — squeezed, not hung), and
+"6、" 18.75 over is left. But as a general rule it is wrong: zh-021b8feb 99.3 -> 31.1, zh-e0ca7252 68.8 -> 20.2,
+zh-20c1d74a 87.0 -> 61.1, zh-505b9619 55.4 -> 43.4 — Word does take a hang plus a squeeze there. And zh-15f60bac's
+score did not move: with the fitter leaving "6、", the paragraph's second pass ("text 2262pt, 6 lines" in the
+STARLING_RICHTEXT_FIT trace) still sets "第4、6、" on the line, so something after the fit puts it back. Taken back
+(patch t175-nohang-tried.patch, Linux ~/tmp/word). Open: what tells t170e's package (no hang) from zh-021b8feb's (hang +
+squeeze) — both mode 15, compressPunctuation, zh-TW, 標楷體, balanceSingleByteDoubleByteWidth; and why the second pass
+re-takes "6、".
 
 ### T176. zh-045c5a75: 37.1 against word-win, 23 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
