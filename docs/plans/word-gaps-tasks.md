@@ -4831,8 +4831,8 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
 - zh w4: 645 docs, mean 91.0, median 98.4; outside the reprint list 201 docs mean 95.8; on it (R) 444 docs mean 88.9 — provisional until the font-pack reprint
 - POI wp4: 111 docs, mean 85.4
 - Lowest outside the reprint list (score, Word lines, pages Word/ours, Mac n221 score):
-  - zh-d97c5474   2.2     46 lines      2/2  (mac   2.2)  [CLAIMED Linux 017F2GnT 2026-10-24, with zh-8d72961c: Nunito Sans (Light, Bold) — Word for Windows sets its own line, 1.364 em (hhea 1011/353 of 1000; ours Carlito 14.6 at 12pt to its 16.37), and its widths; Greek falls back to Cambria]
-  - zh-8d72961c   8.3     36 lines      1/1  (mac   4.3)  [CLAIMED Linux 017F2GnT 2026-10-24, with zh-d97c5474. a573f4af Nunito Sans' own widths and line: 4.3 -> 36.2 against 3a85d9f2's reprint (h151); its Chinese lines keep their heights — T160's]
+  - zh-d97c5474   2.2     46 lines      2/2  (mac   2.2)  [CLAIMED Linux 017F2GnT 2026-10-24, with zh-8d72961c: Nunito Sans (Light, Bold) — Word for Windows sets its own line, 1.364 em (hhea 1011/353 of 1000; ours Carlito 14.6 at 12pt to its 16.37), and its widths; Greek falls back to Cambria. Nunito (a573f4af) 2.2 -> 19.6, Cambria's Greek widths 39.1 (h152); left: the Chinese runs' faces (T160) and what follows]
+  - zh-8d72961c   8.3     36 lines      1/1  (mac   4.3)  [CLAIMED Linux 017F2GnT 2026-10-24, with zh-d97c5474. a573f4af Nunito Sans' own widths and line: 4.3 -> 36.2 against 3a85d9f2's reprint (h151); its Chinese lines keep their heights — T160's. Then Cambria's Greek widths: 53.2 (h152)]
   - zh-8f9b19f4  24.7    154 lines    13/14  (mac  91.7)
   - zh-d62da4dd  35.1     97 lines      4/4  (mac  58.8)
   - zh-27a874b7  35.9     92 lines      3/3  (mac  56.0)
