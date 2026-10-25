@@ -60,11 +60,16 @@ enum Xlsx {
         // Shared strings.
         var sst: [String] = []
         var sstScripts: Set<Int> = []
+        var sstRuns: [Int: [RichRun]] = [:]
         if let s = xml("xl/sharedStrings.xml") {
             for si in s.kids("si") {
                 // (Rich text with a raised or lowered run: its row's fit is Excel's own.)
                 if si.kids("r").contains(where: { ["superscript", "subscript"].contains($0.child("rPr")?.child("vertAlign")?["val"] ?? "") }) {
                     sstScripts.insert(sst.count)
+                }
+                let runs = si.kids("r")
+                if runs.count > 1, runs.contains(where: { $0.child("rPr") != nil }) {
+                    sstRuns[sst.count] = runs.map { _richRun($0, theme: theme, themeFonts: themeFonts, themeless: themeless) }
                 }
                 sst.append(_text(si))
             }
@@ -115,7 +120,7 @@ enum Xlsx {
             guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, book: book) }
+            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -188,7 +193,8 @@ enum Xlsx {
 
     /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
     @discardableResult
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], book: Workbook) throws -> XNode {
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:],
+                                   book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
         let split = RawXML.split(bytes)
@@ -323,6 +329,7 @@ enum Xlsx {
                 case "s":
                     value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
                     if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
+                    if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.child("is").map { _text($0) } ?? "")
@@ -458,6 +465,32 @@ enum Xlsx {
     ]
 
     /// The text of an <si> or <is>: its <t>, or its runs' <t>s joined.
+    /// A rich string's run: its text and its `rPr`'s font. A run with no
+    /// `rPr` is the cell's font throughout; one with a `rPr` gives its
+    /// whole font, what it leaves out being off (as Excel reads it).
+    static func _richRun(_ r: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?), themeless: Bool) -> RichRun {
+        var run = RichRun(text: r.child("t")?.text ?? "")
+        guard let pr = r.child("rPr") else { return run }
+        func on(_ name: String) -> Bool { pr.child(name).map { $0["val"] != "0" && $0["val"] != "false" } ?? false }
+        run.bold = on("b"); run.italic = on("i"); run.strike = on("strike")
+        run.underline = pr.child("u").map { $0["val"] != "none" } ?? false
+        run.size = pr.child("sz").flatMap { Double($0["val"] ?? "") }
+        let named = pr.child("rFont")?["val"]
+        let builtin = themeless && pr.child("charset") == nil
+        switch pr.child("scheme")?["val"] {
+        case "minor": run.fontName = themeFonts.minor ?? (builtin ? "Aptos Narrow" : named)
+        case "major": run.fontName = themeFonts.major ?? (builtin ? "Aptos Display" : named)
+        default: run.fontName = named
+        }
+        run.color = pr.child("color").flatMap { _color($0, theme: theme) }
+        switch pr.child("vertAlign")?["val"] {
+        case "superscript": run.script = 1
+        case "subscript": run.script = -1
+        default: break
+        }
+        return run
+    }
+
     static func _text(_ n: XNode) -> String {
         if let t = n.child("t") { return t.text }
         return n.kids("r").compactMap { $0.child("t")?.text }.joined()
@@ -498,7 +531,7 @@ enum Xlsx {
         43: "_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)",
     ]
 
-    private struct _Font { var bold = false, italic = false, underline = false, strike = false
+    private struct _Font { var bold = false, italic = false, underline = false, strike = false, script = 0
         var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
 
     /// A font's face. One of the theme's (`scheme` minor or major) is the
@@ -554,6 +587,7 @@ enum Xlsx {
             font.italic = f.child("i").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
+            font.script = ["superscript": 1, "subscript": -1][f.child("vertAlign")?["val"] ?? ""] ?? 0
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
             font.name = _fontName(f, themeFonts, themeless: themeless)
             font.color = f.child("color").flatMap { _color($0, theme: theme) }
@@ -599,7 +633,7 @@ enum Xlsx {
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
-                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.strike = f.strike
+                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.strike = f.strike; s.script = f.script
                 // The default font is the theme's: left nil, so a new face follows it.
                 if f.name != base.name { s.fontName = f.name }
                 if f.size != base.size { s.fontSize = f.size }

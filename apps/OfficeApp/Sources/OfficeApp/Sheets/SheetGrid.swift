@@ -2712,6 +2712,58 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return
             }
         }
+        // A rich string on one line: run by run, each in its own font, on
+        // the line's baseline. A raised or lowered run is two thirds of its
+        // size, raised half its em — 45540_classic_Header's "Number of
+        // Hires⁽¹⁾", Arial Bold 10 at 90%: 6.0 pt on the page, 37 dots of 75
+        // up. (Lowered: its face's 0.14 em, not yet seen in a print.) A cell
+        // whose font is raised is one such run, and so is a run with no font
+        // of its own in it (the same workbook's "⁽¹⁾  Eleven students…").
+        let runs: [RichRun]? = {
+            if let r = ws.richText[a], case .text(let raw) = cell.value, raw == text, r.map(\.text).joined() == text { return r }
+            return st.script != 0 ? [RichRun(text: text)] : nil
+        }()
+        if let runs, lead == 0, !text.isEmpty, !text.contains("\n") {
+            let plain = texts.painter(text, style)
+            if !wraps || plain.width <= width - pad * 2 {
+                let line: Double
+                switch lineAlign {
+                case .center: line = tx + (tp.width - plain.width) / 2
+                case .right: line = tx + tp.width - plain.width
+                default: line = tx
+                }
+                let base = ty + plain.computeDistanceToActualBaseline(.alphabetic)
+                let parts = runs.map { run -> (TextPainter, Double) in
+                    var rs = st
+                    if run.bold != nil {
+                        rs.bold = run.bold ?? false; rs.italic = run.italic ?? false
+                        rs.underline = run.underline ?? false; rs.strike = run.strike ?? false
+                    }
+                    if let f = run.fontName { rs.fontName = f }
+                    if let z = run.size { rs.fontSize = z }
+                    if let c = run.color { rs.color = c }
+                    var s = _textStyle(rs, color: color, ink: ink)
+                    let em = s.size, script = run.bold == nil ? st.script : run.script
+                    if script != 0 { s.size = em * 2 / 3 }
+                    let rp = texts.painter(run.text, s)
+                    let shift = script > 0 ? em / 2 : script < 0 ? -em * 0.14 : 0
+                    return (rp, base - rp.computeDistanceToActualBaseline(.alphabetic) - shift)
+                }
+                let total = parts.reduce(0) { $0 + $1.0.width }
+                var x: Double
+                switch align {
+                case .center: x = line + (plain.width - total) / 2
+                case .right: x = line + plain.width - total
+                default: x = line
+                }
+                for (rp, y) in parts {
+                    rp.paint(canvas, printing ? Offset(x, y) : Offset(x.rounded(), y.rounded()))
+                    x += rp.width
+                }
+                canvas.restore()
+                return
+            }
+        }
         tp.paint(canvas, at(tx))
         canvas.restore()
     }

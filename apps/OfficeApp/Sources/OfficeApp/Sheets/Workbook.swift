@@ -39,6 +39,8 @@ struct CellStyle: Hashable, Sendable {
     var italic = false
     var underline = false
     var strike = false
+    /// The font's `vertAlign`: 1 superscript, -1 subscript.
+    var script = 0
     var fontName: String? = nil
     var fontSize: Double? = nil
     var color: UInt32? = nil       // 0xRRGGBB
@@ -73,6 +75,18 @@ struct CellStyle: Hashable, Sendable {
     }
 
     static let plain = CellStyle()
+}
+
+/// A run of a rich string (a shared string's `r`): its text, and the font
+/// its `rPr` gives — nil where it gives none and the cell's font holds.
+struct RichRun: Hashable, Sendable {
+    var text: String
+    var bold: Bool? = nil, italic: Bool? = nil, underline: Bool? = nil, strike: Bool? = nil
+    var size: Double? = nil
+    var fontName: String? = nil
+    var color: UInt32? = nil
+    /// 1 raised (superscript), -1 lowered (subscript).
+    var script = 0
 }
 
 struct Cell: Sendable {
@@ -214,6 +228,9 @@ final class Worksheet {
     /// file has it, is kept (45544's "Number of Hires⁽¹⁾" header rows).
     /// Rows of turned text (`CellStyle.rotation`) likewise.
     var scriptRows: Set<Int> = []
+    /// Cells holding a rich string, as its runs. Drawn so only while their
+    /// text is still the cell's (an edit leaves them behind).
+    var richText: [CellAddress: [RichRun]] = [:]
     /// A formatted row's span as the file gave it (`spans`): the columns
     /// in it the file has no cell for. Excel makes them cells in the row's
     /// format, and a fill or border there prints (FormatConditionTests'
@@ -311,6 +328,7 @@ final class Worksheet {
         s.viewAttrs = viewAttrs
         s.hasView = hasView
         s.scriptRows = scriptRows
+        s.richText = richText
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
         s.tables = tables

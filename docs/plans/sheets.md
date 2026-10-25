@@ -418,6 +418,13 @@ the same base; the commits give the numbers):
 - Open: 47813's default rows of Verdana 10 print 13.20 pt (110 dots),
   where every other Verdana 10 book's print 12.96 (108), ours too; it
   alone says defaultRowHeight 12.75 and no baseColWidth (Mac Excel 12).
+- *Rich text* is drawn run by run, each in its own font, where it stands
+  on one line (21 workbooks have such strings). A raised run, or a cell
+  whose font is raised (`vertAlign`), is two thirds of its size and half
+  its em up: 45540's "Number of Hires⁽¹⁾" at 90%, 6.0 pt and 37 dots of
+  75 in Excel's print, ours to 0.01 pt now. Lowered by the face's 0.14
+  em, not yet seen in a print. Not yet: rich text that wraps. The 25
+  workbooks: 9 better, 2 worse by 0.01.
 - Tried and taken back: rows on a page printed at a set scale rounded
   otherwise. Tables' fitted Times New Roman 12 rows at 89% are 110.55
   dots and print 110 (ours 111, 0.12 pt a row long), and lo-tdf167019's
