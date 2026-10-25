@@ -4774,6 +4774,19 @@ item 17 alone or wrapping; item 18 alone or trimmed to one line; items 17-18, 14
 Formatted first is the rule, and ours already follows it. The flip is Word's tie-break between two
 balloons at one anchor, and nothing in the document predicts it. Parked; delins stays at 74.6.
 
+### zh-8f9b19f4 p13: bare paragraphs 20.06pt apart are Arial's line plus 8pt after, not a face (Windows 01QbbApP, 2026-10-24)
+Lab bp13 (~/starling-doc-check/lab/bp13, the document's own package, Word for Windows, three fresh
+processes) shows every Normal line in this package stepping 20.08, not only the bare <w:p/>s:
+- 0, 3 or 6 bare paragraphs between two lines step 20.04-20.09 each.
+- Text lines ("x", "AAAA") step the same, and so do bare paragraphs given sz 21 or snapToGrid 0.
+- At sz 24 the step is 21.80, so +1.5pt adds 1.72, Arial's 1.149 em. The step is Arial's line
+  (12.07 at 10.5pt) plus a constant 8.0pt.
+- That 8pt is the space after Word gives when the styles part has no pPrDefault (see the T101 note).
+- These don't change it: the East Asian face (Arial→MS Mincho, 宋体→SimSun, none→MS Gothic), the
+  Arial font-table entry (charset 00, removed, no altName), useFELayout, compat, docGrid, columns.
+So no missing face is involved. If ours sets these bare paragraphs tighter, it is not giving
+them the 8pt after (empty paragraphs or <w:p/> with no pPr). Released for whoever owns spacing.
+
 ### Windows baseline (Mac 01Xgpbk5, 2026-10-24): word-win, sweep-win.sh w4 at 9e957126 — the list to work from
 
 Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=windows against test/corpus/docx/word-win, output w/wp under the per-checkout root. **R** marks the 444 zh documents on windows' font-pack reprint list (_GB2312, 方正 and 標楷體 names, plus zh-7773163d). Their prints flip between FangSong/KaiTi and YaHei in runs, a state outside Word, so treat their scores as provisional.
@@ -4822,7 +4835,25 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - 52288 100.0  2 lines  1/1
 
 ### T160. zh-f6686f89: 75.8 against the Windows references — MEASURED, PARKED for a Windows lab (Linux office1, 2026-10-24)
-[CLAIMED Windows 01QbbApP 2026-10-24: missing-face labs, each the first document of a fresh Word, three processes; with zh-8f9b19f4 p13's bare-paragraph pitch.]
+[MEASURED Windows 01QbbApP 2026-10-24, after the font packs, each lab the first document of a fresh Word, no warm-up;
+~/starling-doc-check/lab/t160 fresh*/v*/w*; released to whoever fits the faces (macos-ios, facemap/OfficeFonts)]
+**Stable from a fresh start.** The earlier drift came from printing variants in one Word, which
+fixes a missing name's face once per process. In three fresh processes, zh-f6686f89 itself, its
+cover alone and a bare package with no theme, font table or styles all print the same.
+- FZShuTi (no font-table entry) is set in MS Mincho, the simplified ideographs Mincho lacks
+  (单 总 监 题 库 编 组) in Microsoft JhengHei, and digits and spaces in Cambria.
+- The 36pt lines are 43.8pt boxes; the 18pt ones are 21.9 for Mincho/JhengHei and 21.1 for the
+  Mincho/Cambria date.
+- None of these changes it, each in its own fresh Word, twice: themeFontLang zh-CN or zh-TW; the
+  theme's Jpan minor or major face set to Yu Mincho or to a lacked face; the Hans minor face set to 黑体
+  or to a lacked face; ＭＳ 明朝 dropped from the font table; docDefaults' eastAsia set to 宋体; the
+  runs' lang set to zh-CN. So the theme does not decide it.
+- The missing name does. An invented Latin name (NoSuchFaceQ) prints like FZShuTi. 方正舒体 is
+  all SimSun, 1.0 em lines (36.0 at 36pt). 方正小标宋简体 with no entry is Yu Gothic with JhengHei.
+  Each is stable across two fresh processes.
+Rule for Windows mode: a Latin-named face that is missing and has no font-table entry is MS Mincho
+for ideographs, JhengHei for what Mincho lacks, and Cambria for Latin. That is the date line's
+Cambria digits and Word's 40.8 against our YaHei 45.5.
 Owner: Linux office1 (starling-office1-df), routed by macos. 100 against the
 Mac's prints, 75.8 against word-win; outside the font-reprint list. Its old note:
 a "（TSG S7001-2013）…" line whose "）" sat on a hair.
