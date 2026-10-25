@@ -5971,3 +5971,5 @@ opening and closing marks) and wraps "月". So it lands with a middle-dot squeez
 (lenovo-3). Patch: ~/starling-word-check/lab/wwface/simsun-latin-widths.patch (the Mac). Witnesses: zh-3f871b7d (the
 dot unsqueezed, the line has room) and zh-b9af65b5 (squeezed 2.4 in a full cell line).
 From lenovo-3's T181 check: p1's "…在青岛·上" — Word sets "·" (U+00B7) 15.96 wide in SimSun, ours 5.33 in Liberation Sans.
+
+### zh-33aa9899 82.2 / zh-1b74ed91 89.4 (word-win): line fit, ours takes less than Word — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
