@@ -5564,6 +5564,15 @@ Ours at 8337b1d0 (before T179) sets all five in YaHei: 20.4-20.7 a 12pt line. Wi
 - (a) as is, (b) that "□" made "甲", (c) made "（", (e) made "※": all identical. Line 2 is "一端   □发布会□广播电视" plus its spaces, ending at 593.2: the three after 一端 are 7.55, 7.67, 7.58, and the trailing ones run past the 584.1 edge. The character after them, whatever it is, goes to the clipped third line.
 - (d) the three spaces before it removed: line 2 is "一端   □发布会□广播电视□纸", ending 584.1, its spaces 5.04.
 So the line does not end because "□" is a geometric shape (25A0-25FF), nor any East Asian symbol: it ends because of the three spaces before the character. Of note: line 2's first three spaces print 7.6 wide (line 1's are 5.04), on the line where the ignored page breaks fall.]
+[Windows 01QbbApP, dcs (f), asked by macos: no page break stands between "□广播电视   " and "□纸质媒体". The element there is <w:lastRenderedPageBreak/>, Word's cache of an old layout. The paragraph's page breaks come before "■两微一端", "□广播电视" and "■公开查阅点". With that marker removed, line 2 prints exactly as (a): "一端   □发布会□广播电视" plus spaces, ending at 593.2, spaces 7.55, 7.67, 7.58, then 4.55. So whether spaces squeeze across an ignored break is not what this line tests; nothing separates them from the "□".]
+### Page breaks at a page's foot: a break-alone paragraph needs its line; a break before text does not — MEASURED (Windows 01QbbApP, 2026-10-25)
+Lab brk (~/starling-doc-check/lab/brk on the Windows box), zh-0aac9d1a whole in Word for Windows. Its page 7 table ends at 766.5 against a 769.9 foot (3.4pt left). Paragraph 45 is <w:br w:type="page"/> alone (16pt 仿宋_GB2312, on a 15.6pt grid), then paragraph 46 is "附件3":
+- (A) as is: the break's paragraph goes to page 8, a blank page with its one empty line at the top, and "附件3" opens page 9 (11 pages). Ours keeps it on page 7: 72.2, ours a page short from there.
+- (B) paragraphs 45 and 46 merged (the break, then "附件3", in one paragraph): no blank page; "附件3" opens page 8 (10 pages).
+- (C) as (A) with paragraph 45 at snapToGrid 0: as (A).
+With T178's zh-167ee06c (its paragraph 52, the break then "附件二之一", at 13.4pt left: Word ends page 6 there, and ours spills its empty pre-break line and makes a blank page), the rule is: a paragraph whose first content is a page break followed by text ends the page where it stands, and its empty line before the break needs no room. A paragraph that is a page break alone needs room for its line like any other, and spills to a blank page when there is none. Ours does the opposite in both.
+CLAIMED Windows 01QbbApP for zh-0aac9d1a, after the T181 and T182 asks (tell lenovo-2: it covers T178's page).
+
 ### zh-419ea527 (71.1 at w20) — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
 
 ### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
