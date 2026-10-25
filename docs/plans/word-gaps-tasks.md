@@ -5272,6 +5272,11 @@ So the +0.45-0.5 is not the picture line's grid rule (c77fd89d tracks Word withi
 [Windows 01QbbApP, e6p continued, the variants macOS-doc added (lettered g and h here, since f went to the symbols above):
 - (g1-g3) as (a) with 1, 2, 3 more "测" lines (each after a break) at the note's end. Word keeps p1 to 470.62, 483.46 and 496.30 (foot 498.9) and sends every added line to p2: 116.42, 133.58, 150.74. Ours keeps p1 to 471.13 and 484.00, so its third line, 496.87 with the 0.5 above, goes to p2 at 113.93. So the third line is lost to the symbol faces' 0.5, not to the foot test. With them fixed, ours would set it at 496.3 like Word, if our foot takes it there.
 - (h) as (a) with the note at line 240: Word 470.50, 482.26, 494.02 (11.76 apart); ours 471.14, 482.96, 494.66. Against (a)'s 1.1 lines (12.84 apart, first at 470.62), Word's first baseline moves only 0.12. So about 0.12 of the 1.08 extra goes above the first line's text and the rest below. Ours moves it 0.01: all below.]
+[Windows 01QbbApP, e6p's symbols, ahead of macOS-doc's census: as (a) with the note's symbols all made one of ◇◆★☆ ("甲" the control), each a fresh Word. Gap from the picture's foot to the note's first baseline, Word / ours (tip, Windows mode):
+- control: 10.39 / 10.21; pitch 12.84 / 12.87.
+- ◇, ◆: Word sets them in Cambria Math, 10.39 (no lift); ours sets them in DejaVu Sans, 10.88.
+- ★, ☆: Word sets them in Segoe UI Symbol, 10.99 (a lift of 0.60, its lines 12.96 apart, and the note's third line goes to p2); ours sets them in DejaVu Sans, 10.88 / 12.87.
+So for Windows mode: ◇◆ (with ①△◎) take Cambria Math and do not lift a 9pt 黑体/楷体 line; ★☆ take Segoe UI Symbol and lift it about 0.6 (0.067 em), its pitch +0.12; ×▲●□ take Times New Roman (above).]
 ### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
 
