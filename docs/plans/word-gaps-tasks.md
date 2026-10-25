@@ -5531,7 +5531,13 @@ From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wro
 - Result: zh-b8de3ae2 76.2 → 82.8, nothing lower (w17 / w19 / w20).
 - Turning the rule off outright cost zh-15728c84 −43, zh-9ba2ead7 −17.6, zh-9ef811c8 −16.5, so Word for Windows keeps it for rows merged whole.
 - What's left of zh-b8de3ae2 is its charts (p9, p12, p15, p18, p20–23).
-- Its charts CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos).
+- Its charts (Mac 01Xgpbk5, 2026-10-25): 82.8 -> 88.0 by a9b24897 (the bar of pie's labels and label fields), b9b98843
+  (a 3-D bar axis takes no headroom) and eb014ce7 (bars' labels moved as the file says), each a clean same-base pair.
+  RELEASED with what's left. p20/p21/p23: each chart ends a section, and the text after it, the first line of a
+  CONTINUOUS section of 2 (then 4) unequal columns ("資料來源：本所會計室", before 111), stands 13-14pt higher in ours
+  than in Word's print. That's section/column layout, not the chart. Their line series' labels are also 12 off.
+  p9: two pie labels Word wraps ("場地設施使用費,|99.02%", "罰款及賠償收入,|0.64%") and the bar chart's
+  labels 4-7 off. p24-25: table layout, handed to macos. p27: not read.
 
 ### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — DONE 9fde89a6 (Linux lenovo-2, starling-d6, 2026-10-25): 100
 - DONE 9fde89a6, after windows' lab t178: p51's 34.68 is right (JhengHei UI Light x 1.5) and stands 4.3 past the foot in Word
