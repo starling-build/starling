@@ -4714,3 +4714,9 @@ The first word-win batch (3a73e05c, 100 POI docs) scores 82.9 with `lab/tools/sw
   - (b) 32b88548: the matcher pairs a Windows bidi line by its exact letters (Persian and Arabic forms folded). rtl 0 → 85.7; the seventh line misses because the print repeats a mark.
   - (a) 0844bdd6: Windows mode takes the alternate whatever the PANOSE, and strips " CYR", " CE", " Baltic", " Greek" and " Tur" as Windows' FontSubstitutes do. drawing 6.8 → 100. wp2 is 84.7 (wp1 82.9), before the markup reprints.
 - Left, open to anyone: bug59058 (53.3 on word-win). Line breaks agree; Word for Windows fits one more line on p28 after the tables on p27, where the Mac print and ours fit 41.
+
+### T159. PMingLiU's "÷" is 0.591 em and its half-width corner brackets half an em — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). From T158's survey of Word's
+embedded PMingLiU (every print of the corpus): of its symbols only "×" (500),
+"÷" (591, 98 prints), "｢｣" (500) and "Å" (709) are not an em. Ours sets "÷" in
+the stand-in at 0.584. "÷" sits in the "）÷（" formula cells of ~98 documents.
