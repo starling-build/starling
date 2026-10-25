@@ -5800,6 +5800,8 @@ took zh 98.0 -> 90.2 (all runs) and 90.7 (East Asian only). Lead, unbuilt: Latin
   bottom and closes p16 with the 0.48 insideH). Not the charset-80 Yu Gothic face: ヒラギノ角ゴ is in styles.xml only. Gates
   zh-cec9d337 74.3 -> 99.3 and zh-77bd4900 held at 99.0; same-base pair of 756, nothing else moved; mean 96.86 -> 96.89.
   Parts 2-3 of the lab (single sz24 and sz4 bottoms) still to come: confirm the rule holds for them. Released.
+- CORRECTED by ba3ad333 after the lab's parts 2-3 and t190: not "the bottom never counts" — a page closes under the cell's own
+  bottom where it states one (zh-cec9d337's cells do, 0.48), else under the table's bottom (zh-e1b09977's 2.16), which must fit.
 Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
 Lab t187 (Windows 01QbbApP, 2026-10-25), part 1 of 3: zh-cec9d337's own package, the empty paragraph above t6 (Word sets it 13.76pt) made an exact line, so row 四 ends 3.0 / 1.0 / 0.3pt above the foot (780.8, the footer's top); fresh Word, warm-up first, 60 s. Bottom border as is (thinThickSmallGap 24):
 - 3.0 left: row 四 stays on p16; the page closes with the 0.48 single line at y 777.82, no bottom border.
@@ -5920,7 +5922,7 @@ Its two charts' data tables: Word for Windows sets a chart's text in MS Mincho a
 shorter. Rows are now 3.4pt and their deepest label, line by line, in Windows mode. Pair w28 -> w29: zh-2a241df1
 -> 100, zh-61aaad09 82.4 -> 83.8 (its rest is open: plot steps and widths), nothing else moved.
 
-### T190. zh-e1b09977: 82.2 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
+### T190. zh-e1b09977: 82.2 against word-win — DONE ba3ad333 (Linux lenovo-2, starling-d6, 2026-10-25): 98.6
 Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differently. zh-4c5da793 and zh-38d26944 next.
 - Measured: p11's 8 are text-less lines in Word's print. The gap is p13's foot (mode 14): t4's row 14 ("經濟部" vMerge | "演習災害想定" |
   items 一…五, exact 18pt, widowControl 0) needs 252.5 from 529.5, ending 782.0 + a 0.5 line; the footer (one 12pt 標楷體 line, 856
@@ -5932,6 +5934,9 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differ
   (c) footer emptied (its 12pt mark kept): to p14, as (a). Footer reference removed: stays, "措施。" 767.19-781.23, the border 782.04-784.20.
   So the row must fit with its whole closing border: the border's foot at 783.24 fits, at 783.72 (a's 784.20 less 0.48) does not. The body's limit there is the footer's top: 799.2 (856 twips up) less one 12pt 標楷體 line in YaHei (1.32 em, 15.84) = 783.36. With no footer, the 785.3 margin takes 784.20. The footer's text, not its paragraph, makes no difference.
 
+- DONE ba3ad333 (labs t190 and t187 2-3): the page closes under the cell's own bottom where stated, else the table's, and
+  the row or its part must fit above it — for a part, all that is left of a cell too (it was measured against the half-point
+  line). Same-base pair, 756: zh-e1b09977 82.2 -> 98.6, nothing else moved; mean 96.955 -> 96.976. Released.
 ### T191. zh-4c5da793: 82.5 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
 Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
 - Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
