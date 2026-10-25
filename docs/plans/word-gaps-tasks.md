@@ -4964,7 +4964,7 @@ This is about 5.0 of T161's 5.4-point POI gap between the Mac and Windows series
 - **comment.docx:** scores 0 by construction and is not a line-gate target. Its comment has an empty scope in an empty body, and Word for Windows prints no balloon and no text (reprinted twice).
 - **Possible follow-up (windows):** skip the pane when no comment has a non-empty anchor.
 
-### T164. zh-cf8b03a5 p3: Word for Windows fits a line on its 600-dpi grid — CLAIMED (Linux office1, 2026-10-24)
+### T164. zh-cf8b03a5 p3: Word for Windows fits a line on its 600-dpi grid — TRIED, DROPPED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). A 118.2pt cell (PMingLiU 12pt,
 spacing -0.8, doNotCompress, zh-TW) holds "指標1×50%＋指標2×50%" in Word's
 print (word-win); ours ends its "%" at 118.208 and parts it before "%" (zh-TW
@@ -4973,6 +4973,15 @@ advances there stand on a 0.12pt (1/600 in) grid — 11.16, 13.92, 4.8/4.92,
 5.16, 8.52 — the cumulative positions rounded; so rounded, the "%" ends at
 985 units, the cell's width to the unit. Trying: in Windows mode a character
 fits where its end, rounded to 1/600 in, is inside the line.
+Tried: in Windows mode a character fits where its end, rounded to 1/600 in, is
+inside the line. Same-base Windows pair (mupdf): zh-cf8b03a5 98.1 -> 100,
+zh-b58b4f0c 99.8 -> 100; zh-043aab43 and zh-e64d4997 100 -> 85.8/85.5, zh-4197e764
+88.3 -> 82.8, five more 100 -> 98.5-99.8. Rounding only the end is looser than
+Word: its positions are rounded as they go (11.2 sets 11.16, 4.84 alternates 4.8
+and 4.92), so its line drifts from ours by more than half a unit either way. A
+model of Word's own sum would be needed. (Also found: the switch had to sit
+outside the macOS-only #else in registerFonts, as wordWindowsPages does not — see
+T163.) Patch not kept.
 
 ### Windows mode: silent comment at the document's start, balloon pitch and the list-deletion indent — DONE (Windows 01QbbApP labs `na`, `bh`; landed by the Mac, 2026-10-24)
 - **Result:** Tika-792 66.7 → 100, delins 69.5 → 74.6, nothing lower. Pair: POI set plus zh-3fe252ff (the only zh word-win document with a pane), base ab10de75.
