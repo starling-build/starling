@@ -5531,6 +5531,7 @@ From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wro
 - Result: zh-b8de3ae2 76.2 → 82.8, nothing lower (w17 / w19 / w20).
 - Turning the rule off outright cost zh-15728c84 −43, zh-9ba2ead7 −17.6, zh-9ef811c8 −16.5, so Word for Windows keeps it for rows merged whole.
 - What's left of zh-b8de3ae2 is its charts (p9, p12, p15, p18, p20–23).
+- Its charts CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos).
 
 ### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — DONE 9fde89a6 (Linux lenovo-2, starling-d6, 2026-10-25): 100
 - DONE 9fde89a6, after windows' lab t178: p51's 34.68 is right (JhengHei UI Light x 1.5) and stands 4.3 past the foot in Word
@@ -5880,8 +5881,8 @@ ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair)
   zh-cec9d337 (T187), zh-ae2dd08d (T189), zh-f2835e26 (a raised run's line height), zh-8e8d4c40 (lines 0.9 high from
   a table title), zh-6a4fc013 (Thai), zh-bdae17c0 87.1 (not yet read).
 - POI under 90: ten 0/0 documents with no text in Word's print, WordWithAttachments (WordArt extent), delins (parked).
-CLAIMED from it: zh-34a6519a — already 89.3 at 49/49 on the tip by lenovo-2's 725ef49d (T185), released. Now CLAIMED: the
-page-top pair zh-7eba7349 and zh-20c1d74a (Mac 01Xgpbk5).
+CLAIMED from it: zh-34a6519a — already 89.3 at 49/49 on the tip by lenovo-2's 725ef49d (T185), released. The
+page-top pair zh-7eba7349 and zh-20c1d74a went to office1 (017R7Q9v), queued after T189 (macos).
 MEASURED, WAITING ON A WINDOWS LAB (Mac 01Xgpbk5): both are an empty paragraph at a page's foot that Word keeps and
 ours carries to the next page's top. zh-7eba7349 p1: after "…2023年10月7日印发" (exact 16pt, before/after 50) comes an
 empty paragraph whose mark is 仿宋 18pt bold (Normal: 宋体 10.5), under docGrid lines 326 (16.3). Ours sizes it at two grid
