@@ -7730,8 +7730,11 @@ public final class RichLayout {
                 // and Word's print keeps it, and the box that goes with it,
                 // over the chart (lab ss); in zh-d62da4dd, mid-page, the
                 // line from 9 to 36 goes under.)
+                // (Under its drawn effects too: lab t8e, zh-8e8d4c40's title
+                // under its 【附件五】 box, b 11430 EMU, 0.9pt below the
+                // frame's foot in Word for Windows.)
                 if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0),
-                   !lineEndsAbove(_px(float.y)) { push = max(push, _px(float.y) + _px(image.height)) }
+                   !lineEndsAbove(_px(float.y)) { push = max(push, _px(float.y) + _px(image.height + float.effectBottom)) }
             }
         }
         // (In a table cell too, across the cell's text — lab `wc` on Word
@@ -14564,7 +14567,11 @@ public final class RichLayout {
             var r = _floatRect(float, image, g, i)
             if float.wrapSide == "right" { r = Rect.fromLTRB(-1_000_000, r.top, r.right, r.bottom) }
             if float.wrapSide == "left" { r = Rect.fromLTRB(r.left, r.top, 1_000_000, r.bottom) }
-            out.append((image.id, r, _px(float.distanceTop), _px(float.distanceBottom)))
+            // (Its drawn effects' reach below its box is part of what the
+            // text clears: zh-8e8d4c40's 【附件五】 box, wrapped square
+            // with b 11430 EMU, has the title under it 0.9pt lower in Word
+            // for Windows than its frame's foot — lab t8e.)
+            out.append((image.id, r, _px(float.distanceTop), _px(float.distanceBottom + (theme.wordRules ? float.effectBottom : 0))))
         }
         return out
     }
