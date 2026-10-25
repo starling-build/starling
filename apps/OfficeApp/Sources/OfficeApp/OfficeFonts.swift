@@ -2252,9 +2252,13 @@ enum OfficeFonts {
         RichTextTheme.glyphFallback = ["PingFang SC"]
         // (Under OFFICE_WORD_FONTS=mac, Word's own: `registerWordMacFaces`.)
         if wordOnMac, registerWordMacFaces() { RichTextTheme.glyphFallback = ["Microsoft YaHei", "PingFang SC"] }
+        // (Mac mode's alone, and here on purpose: macOS and iOS only.)
         if wordOnMac { RichTextTheme.thaiBreaksAtSpaces = true }
-        if wordOnWindows { RichTextTheme.wordWindowsPages = true }
         #endif
+        // (On every platform: set inside the macOS branch, Linux and
+        // Windows sweeps under OFFICE_WORD_FONTS=windows never had it, and
+        // bug59058's page 28 still lost its last line there.)
+        if wordOnWindows { RichTextTheme.wordWindowsPages = true }
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
             return false
