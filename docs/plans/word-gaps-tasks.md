@@ -5615,6 +5615,12 @@ line tighter: cd3/cd4/cd5, "5.5.1" in 黑体 ~13, in Calibri ~18). Wanted from w
 package, this paragraph with the right indent swept, the most over at which Word takes "線"; then with the
 digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without the "，".
 
+[LAB Windows 01QbbApP 2026-10-25, lab t181 (~/starling-doc-check/lab/t181 on the Windows box), asked by macos: zh-505b9619's p13 paragraph whole (its runs and hanging indent), w:right swept in 0.25pt steps, each a fresh Word 60s after opening. N is the natural width from "□" to the end of "線", read from a wide jc-left copy; over = N - measure. The most over at which Word still takes "線":
+- (1) as is (N 420.19): 4.41; left from 4.66. Ours takes it at 5.15.
+- (2) digits as Han, 一〇〇〇/二〇〇〇, so no automatic spaces (N 461.95): 3.42.
+- (3) without the four spaces (N 392.23): 6.20.
+- (4) without the "，" (N 406.27): 2.74.
+So the comma gives about 1.7 (4.41 vs 2.74), the four automatic spaces about 1.0 (4.41 vs 3.42), and the four word spaces take away about 1.8: without them Word takes "線" further over (6.20). The same direction as T170's halfStretch and t175 (word spaces on the line lower what the marks may give). Not additive, so one cap per kind will not fit.]
 ### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLAIMED, WAITING ON WINDOWS (fresh-process prints, queued by macos) (Linux 01F2SWc8, 2026-10-25)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
 MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): p12 45 misses, then p15-p25. p12's lines all agree but stand 9-16pt
