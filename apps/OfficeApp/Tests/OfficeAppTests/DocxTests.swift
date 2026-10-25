@@ -3047,6 +3047,34 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text.filter { !$0.isWhitespace }.hasSuffix("分离，得"), text)
     }
 
+    func testASectionBreaksSpaceAfterIsTakenOffTheNextParagraphsSpaceBefore() throws {
+        // zh-8f9b19f4 p13: an empty paragraph that only ends a section
+        // takes no room, but its space after (Normal's 8pt) is taken off
+        // the next paragraph's 4.3pt before — "附件5:", the first of the
+        // row its two-column section is set as, stands right under the
+        // line above it in Word for Windows' print (lab `t165`); ours
+        // kept the 4.3.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8f9b19f4") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("附件5") })
+        XCTAssertEqual(doc.paragraphs[i].style.spaceBefore, 4.3, accuracy: 0.01, "its own 4.3pt before")
+        let g = l.geometry(i)
+        XCTAssertEqual((g.textTop - g.top) / theme.pixelsPerPoint, 0, accuracy: 0.05, "the break's 8pt after takes it")
+    }
+
     func testAJustifiedLineStretchesNothingBeforeItsLastTab() throws {
         // zh-6a4fc013's "คำถามที่  2 ：<tab>การเปิดนำเข้า…" (justified, a default
         // stop) leaves the spaces before the tab as they are in Word's

@@ -6044,6 +6044,36 @@ public final class RichLayout {
                 spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
             }
         }
+        // (An empty paragraph that only ends a section takes no room — see
+        // `_layoutParagraph` — but its space after is still taken off the
+        // space before of the paragraph that follows it: lab `t165` (Windows
+        // 01QbbApP, Word for Windows, zh-8f9b19f4's package): p13's "附件5:",
+        // 4.3pt before under a sectPr-only paragraph of Normal's 8pt after,
+        // stands with none — 20pt before stands 12 down, and the break's
+        // after set to 0 gives the 4.3 back. Ours set it 4.27 low.)
+        // (Or of the first paragraph of the row a section's columns are
+        // set as — `TableStyle.sectionColumns`: p13's "附件5:" is one.)
+        // (Where the section it ends is set in one column. A section of
+        // columns ends, in Word, under its taller column's last paragraph's
+        // space after too — lab t165b (windows), zh-b5359de4's two columns
+        // then its "TOC 标题1" of 24pt before: with p74's after 0, the TOC
+        // stands 6.84 higher — and the break's 8 still comes off the 24;
+        // ours ends the columns at their last line, which gives up about
+        // the same, so there the two are left together. They part where
+        // the taller column's last paragraph has no after, or the next
+        // paragraph's before is under the break's after: such a document
+        // wants both, the rule here and the columns' end — t165b's
+        // package and markers are ready to lab it.)
+        // (And only where the next section goes on on the same page: one
+        // the break opens a page for keeps its space before — zh-34a6519a's
+        // "1总则" and zh-64044a1d's "壹、前言" stand their whole before under
+        // the page's top in Word's print.)
+        if theme.wordRules, i > 0, case let above = document.paragraphs[i - 1], above.cell == nil, !p.style.pageBreakBefore,
+           p.cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) ?? true,
+           above.text.isEmpty, above.image == nil, let sx = above.style.sectionXML,
+           (sx.range(of: "w:num=\"").map { Int(sx[$0.upperBound...].prefix { $0.isNumber }) ?? 1 } ?? 1) <= 1 {
+            spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
+        }
         // An HTML block's margins: its top over its first paragraph, its
         // bottom under its last (`RichDocument.divMargins`).
         var divTop = 0.0, divBottom = 0.0

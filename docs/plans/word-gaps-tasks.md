@@ -5043,7 +5043,7 @@ T163.) Patch not kept.
 - **Open:** delins's Field Code Changed / Formatted balloon order; re-read its misses at this tip.
 - **Open:** WordWithAttachments, where Times New Roman 10pt lines step 11.49 in Word for Windows (hhea with lineGap) and 11.0 in ours. [Linux b2 01JsizVV 2026-10-24: measured, PARKED, claim released. The 11pt of drift is the three inline WordArt lines (v:textpath, _x0000_t136): Word for Windows stands each over its shape — art1 +4.5, art2 +3.8, art3 +3.0 — where Word for Mac and ours set the shape's height. Windows' labs wa/wa2 (~/starling-doc-check/lab/wa, 187.5x28.5 textpath between 10pt markers, legacy = mode 14): bare +0.66; shadow y 2/3/6pt +2.9/+3.8/+6.7 (on="f" adds nothing); 1pt stroke alone +2.9, 4pt +30.8; shadow ",3pt" with a 1pt stroke +5.2 — neither sum nor larger; art3 exact (99.75x27.75, shadow "3pt", 1pt stroke) +3.0, its stroke adding nothing; a plain v:rect +1.4, with shadow ",3pt" +3.7. So the line follows the textpath's drawn extent (glyphs fitted to the box, the stroke scaled with them, the shadow), which we don't draw at all yet; three documents in the corpus hold a textpath. Wants WordArt drawn first.]
 
-### T165. zh-8f9b19f4 p13: a sectPr-only paragraph's space after comes off the next paragraph's space before — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
+### T165. zh-8f9b19f4 p13: a sectPr-only paragraph's space after comes off the next paragraph's space before — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), routed by macos from Windows 01QbbApP's lab
 bp13 (above): every Normal line steps 20.06-20.08 (Arial's 1.149 em at 10.5pt and the 8pt
 after of a styles part with no pPrDefault); ours steps 20.3-20.4, the Mac's.
@@ -5058,6 +5058,15 @@ empty "TOC 标题1" paragraph of style before 24pt, which keeps all 24 in Word's
 print ("目录" at 486.4; ours 8pt high under the rule). What separates the two is
 asked of windows (direct vs style spacing, empty vs text). Patch:
 ~/tmp/office1/t165-v2.patch.
+Done. t165b (windows) showed zh-b5359de4 follows the same rule in Word, and that
+ours matched it through two errors that cancel: a section of columns ends, in
+Word, under its taller column's last paragraph's after (6.84 of 8 there), which
+ours leaves out. A heading a nextPage break opens a page for keeps its before
+(zh-34a6519a "1总则", zh-64044a1d "壹、前言"). Built: the rule where the next
+section goes on on the same page and the ended section is one column; in the body
+the shared space already gave the after up, so it reaches the first paragraph of
+a `sectionColumns` row, as "附件5:". Same-base Windows pair (mupdf, word-win, at
+aca2279b): zh-8f9b19f4 91.7 -> 97.4, nothing else moved.
 
 ### T166. zh-b8de3ae2 p14: a cell of no margin sets its text half an inside line in — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24, 6c8dcf54)
 Word's prints (Mac and Windows alike) of zh-5bfac68f and zh-b8de3ae2: in 0-margin cells (mode 15) the text
