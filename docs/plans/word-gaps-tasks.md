@@ -5861,6 +5861,9 @@ zh-20c1d74a p15/16: three empty paragraphs (mark: Normal's font, snapToGrid 0) a
 to p16 (13 low). Lab wanted: a page filled to 17pt from its foot, then an empty paragraph whose mark is FangSong 18pt bold
 under docGrid lines 326. Does it stay? And the same with the mark at 10.5pt, with the grid off, and with text in the
 paragraph.
+LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/pf, fresh Word, warm-up first, the empty paragraphs shaded to show them):
+- zh-7eba7349 is NOT a foot-room case. Its empty paragraph (仿宋 18 bold mark) is the anchor of the floating "…2023年10月7日印发" table (tblpPr vertAnchor text, tblpY 114, 420.7pt wide, rightFromText 180), and Word sets it in the 27pt strip right of the table: x 504.8-532.2, y 715.8-743.7 (27.96 tall; the table's rules 716.7 / 752.4, its top 5.7 under the paragraph's 711.1). p2 then opens with the title. The same with the mark at 10.5pt (712.4-727.4) and with the grid off (711.1-734.5), and there the title's first character "温" starts in the strip too (x 507.5, y 732.8 / 739.9), p2 opening "岭市科创基金…". With text ("文") it is as is, "文" at x 506.3, y 718.4. Ours (bin on d2ab98a2's code less T1) sets it full width at p2's top (70.3-104.6, 32.6 tall). So it is text flowing beside a page-wide floating table, in the narrow strip to its side.
+- zh-20c1d74a p15: the four empty paragraphs after the 申請單位資料表 table (Normal mark, snapToGrid 0) stand 13.8 tall each: 727.7-741.5, 741.5-755.3, 755.3-769.1 on p15, and the fourth opens p16 at 70.9-84.7, before the "附件一之二" box paragraph. So Word carries one to p16 too; if ours is 13 low there, it carries two or sizes them taller.
 
 ### zh-1cfb652b 87.5 (word-win): its footer page number 6pt low — MEASURED, PARKED for a Windows lab (Mac 01Xgpbk5, 2026-10-25)
 (The screen's "missing" was wrong: ours draws "— 1 —" at the right x, 6.07pt lower.) Over the 112 word-win documents
