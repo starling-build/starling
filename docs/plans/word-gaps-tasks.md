@@ -5197,7 +5197,14 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
 
-### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED (Linux office1, 2026-10-24)
+### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
+Measured: mode 15, justified, doNotCompress, PMingLiU 12 in a 304.85pt cell; the line
+has three automatic spaces (2校, 舍116, 116年), "高" 2.71pt over. Word stretches the line
+and leaves "高" (its spaces print 5.88); ours takes it through the automatic-space rule
+(`sharesStretch`, fitted to the Mac's lab `as` — a 10-24 Mac lab, possibly of the
+print-timing trap): need × (lineEms/64 + spaces) ≤ spaces/2 × room, 35.6 ≤ 41.8 here.
+Lab asked of windows: the over at which "高" stops being taken with three spaces, with
+one, and on a line twice as long.
