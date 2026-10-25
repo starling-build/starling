@@ -5208,6 +5208,10 @@ So the allowance is about 0.25 × Σ(automatic spaces) + 0.026pt × the characte
 length, mostly with the spaces. In the body copy, N is 331.58 against the cell's 307.56 (the line runs 24pt wider),
 and by this rule 高 at 2.71 over would be taken. The cell itself may change it; a sweep in the real cell is next if
 wanted.]
+[Windows 01QbbApP, later: the cell width is the open question. Word's print sets the line from 224.09 to 552.42,
+a text width of 328.33. The grid is fixed (6576 twips = 328.8pt) with tcMar 0, so 304.85 is not Word's cell. Against
+328.33, 高 ends 3.25 over, beyond the 3.00 that (a) allows, and Word leaves it, as measured. So check our width for
+this pct/fixed cell before refitting the allowance.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
