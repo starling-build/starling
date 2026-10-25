@@ -4358,6 +4358,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   two-digit number outgrows the "— 1 —" box, as ours does; Word's print
   holds "— 20 —" whole in 42.2pt, its dashes narrower than our 14pt —
   the dash's width on the Mac, not the rule.)
+  CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos): the p19-20 table against word-win; macOS-doc found the footer fine.
 - zh-e5eb092a (92.4, 8 pages; Linux 017F2GnT 2026-10-23, offered to
   office1 — DONE Linux office1 01Ak4ibJ 2026-10-23: 96.9 — a spaced full-width quote is over the margin by half its spacing too; released): from p1's line "九条、第六十二条…统一修改为" (mode 14,
   compressPunctuation, zh-CN, Normal (Web) jc left, 宋体 12pt, every run
