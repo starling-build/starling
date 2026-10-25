@@ -4666,3 +4666,11 @@ open note (zh-05699f05, 10-22): "（A）×75%＋我國籍民" is one line in Wor
 of a 12pt PMingLiU cell, "×" 5.95 wide; ours sets it 6.91 and leaves "民", and
 the cell's next four lines follow. Set alone in 10-22's code it cost
 zh-e061a08e and 31 others a line (the "）×" gap there); trying it on today's.
+
+### T159. Word for Windows references (word-win): missing Latin faces and RTL lines — CLAIMED (Mac 01Xgpbk5, 2026-10-24)
+
+The first word-win batch (3a73e05c, 100 POI docs) scores 82.9 with `lab/tools/sweep-win.sh`, which converts with OFFICE_WORD_FONTS=windows and writes w/wp. Mac-mode PDFs score the same against these prints, so the font mode doesn't matter here.
+- Most of the drop is prints without markup: comment, Tika-792, 58067, delins and WordWithAttachments print without comments or revisions. Windows has been asked to print with all markup.
+- Claimed here:
+  - (a) Windows-mode substitution for missing Latin faces. drawing scores 6.8 and bib-chernigovka breaks lines differently: Word for Windows sets PragmaticaC-Bold and Arial CYR in Tahoma-Bold and Arial.
+  - (b) rtl: the Windows PDF stores Arabic in visual order, so the matcher pairs nothing.
