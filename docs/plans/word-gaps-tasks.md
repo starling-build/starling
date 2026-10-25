@@ -5591,7 +5591,7 @@ Unheld, lowest first (score, lines ours/Word's, pages ours/Word's):
 POI under 99 with text: WordWithAttachments 73.7, delins 74.6. The ten 0/0 rows are documents whose Word print has no
 text lines for the scorer, not failed conversions.
 
-### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos)
+### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED, WAITING ON WINDOWS (its lab, queued by macos) (Linux 01F2SWc8, 2026-10-25, routed by macos)
 From the low list at d9aabe26. Word hangs plus squeezes here (T175's no-hang try cost it 12). First: its first miss.
 MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): misses p13 4, then p14-p43 nearly every line (~1100 of 1205), so one
 line fit. First miss p13: "□坍方數量1000立方公尺至未達2000立方公尺者，    小時內單" (標楷體 14, mode 15,
@@ -5606,7 +5606,7 @@ line tighter: cd3/cd4/cd5, "5.5.1" in 黑体 ~13, in Calibri ~18). Wanted from w
 package, this paragraph with the right indent swept, the most over at which Word takes "線"; then with the
 digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without the "，".
 
-### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, while T181 waits on a lab)
+### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLAIMED, WAITING ON WINDOWS (fresh-process prints, queued by macos) (Linux 01F2SWc8, 2026-10-25)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
 MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): p12 45 misses, then p15-p25. p12's lines all agree but stand 9-16pt
 high, from its title "宁波市工程研究中心评价指标及评分标准" (方正小标宋简体 20pt, atLeast 21pt, afterLines 50, docGrid
@@ -5620,3 +5620,6 @@ Word fixes a missing name's face once per process from the first document naming
 documents, so a batch reference could carry an earlier document's YaHei. Wanted from windows: zh-2f9463d6 printed as
 the FIRST document of a fresh Word (and one more alt=黑体 one, e.g. zh-ee2d19e6). If the title is YaHei, 方正 names
 ignore their alt (or alt=黑体 does) and ours should follow; if SimHei, the references are batch artifacts to reprint.
+
+### T183. zh-72da925e: 57.6 against word-win, 39/39 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos, while T181/T182 wait on windows)
+From the low list at d9aabe26 (1228/1246 lines). First: its first miss.
