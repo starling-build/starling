@@ -5848,3 +5848,4 @@ to p16 (13 low). Lab wanted: a page filled to 17pt from its foot, then an empty 
 under docGrid lines 326. Does it stay? And the same with the mark at 10.5pt, with the grid off, and with text in the
 paragraph.
 
+### zh-1cfb652b 87.5 (word-win): p1's footer page number missing in ours — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
