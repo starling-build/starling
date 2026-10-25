@@ -7132,6 +7132,7 @@ public final class RichLayout {
             }
         }
         let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs)
+            .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
@@ -8297,6 +8298,12 @@ public final class RichLayout {
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
         let heldSpaces = held.union(_closingSpaceHeld(p).map { [$0] } ?? [])
+        // (Word for Windows' counted closing spaces, and the share of its
+        // width each keeps — the run less half the line, at no less than
+        // nothing — taken at the first of them.)
+        let windowsCounted: Set<Int> = theme.wordRules && RichTextTheme.wordWindowsPages && !document.underlinesTrailingSpaces
+            ? Self._underlinedClosingCounted(p).intersection(held) : []
+        var windowsShare: Double? = nil
         var afterHeld = false
         var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
         // (A run of plain and no-break spaces together is half an em from
@@ -9248,7 +9255,32 @@ public final class RichLayout {
                 if heldSpaces.contains(offset) {
                     flush(i)
                     let s = style(kind)
-                    if theme.wordRules, document.underlinesTrailingSpaces, run.underline {
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !document.underlinesTrailingSpaces, windowsCounted.contains(offset) {
+                        // (Counted under Word for Windows' rule for a paragraph's
+                        // closing spaces that open underlined
+                        // (`_underlinedClosingCounted`): held to the word before
+                        // them, the run as wide as it reaches past half the
+                        // line, and not underlined.)
+                        let width = _glyphWidth(s, " ") + extra
+                        if windowsShare == nil {
+                            let whole = width * Double(windowsCounted.count)
+                            // (No more than lets the word before them stand on a
+                            // line of its own whole: Word sets it there however
+                            // far the spaces reach, where the engine would part
+                            // a word wider than the line.)
+                            let units = Array(p.text.utf16)
+                            var word = 0.0, k = offset - 1
+                            while k >= 0, units[k] != 0x20, units[k] < 0x2E80, let u = Unicode.Scalar(units[k]) {
+                                word += _glyphWidth(s, Character(u))
+                                k -= 1
+                            }
+                            let reach = min(whole - textWidth / 2, textWidth - word - _px(0.5))
+                            windowsShare = whole > 0 ? max(0, reach) / whole : 0
+                        }
+                        var plain = s.copyWith(decoration: TextDecoration.none)
+                        plain = plain.copyWith(letterSpacing: (s.letterSpacing ?? 0) + width * (windowsShare ?? 0) - _glyphWidth(s, "\u{2007}"))
+                        spans.append(TextSpan(text: "\u{2007}", style: plain))
+                    } else if theme.wordRules, document.underlinesTrailingSpaces, run.underline {
                         // (An underlined one under `w:ulTrailSpace` as a figure
                         // space of the space's width: the engine hangs a run of
                         // no-break spaces past the margin as it does plain ones,
@@ -11971,6 +12003,40 @@ public final class RichLayout {
         guard !adjust.isEmpty else { return [:] }
         for (k, v) in tabs { adjust[k, default: 0] += v }
         return adjust
+    }
+
+    /// Word for Windows' counted closing spaces: where a paragraph's
+    /// closing spaces open with U underlined ones and P plain ones follow,
+    /// the U and the first min(P, U) of the plain. Those count against the
+    /// line as far as they reach past half of it: past the margin by more
+    /// than half the measure, the word before them goes down; less, they
+    /// hang as any closing spaces. Windows' lab t189 (2026-10-25), on
+    /// zh-ae2dd08d p68's "開課地點：" and 65 "_" (13pt 標楷體, 6.5 a space,
+    /// a 493.25 measure): U26 hangs to P12 and goes down from P13, U20
+    /// from P20 (not P16), U13 never through P60, U0 never; with the
+    /// measure 421.25 U26 goes down from P8 — half the measure, not a
+    /// constant. No underline is drawn under any of them. Word for Mac
+    /// hangs them all, and so does Word for Windows after an ideograph.
+    static func _underlinedClosingCounted(_ p: RichParagraph) -> Set<Int> {
+        let units = Array(p.text.utf16)
+        var closing = units.count
+        while closing > 0, units[closing - 1] == 0x20 { closing -= 1 }
+        // (After a Latin word only, as the lab's underscores: after an
+        // ideograph or a full-width mark they hang — zh-621d8756's forms,
+        // "参与人：" and its underlined blank, keep their lines in Word's
+        // print, where counting them parted "参与" / "人：".)
+        guard closing < units.count, closing > 0, units[closing - 1] < 0x2E80 else { return [] }
+        var under = [Bool](repeating: false, count: units.count)
+        var at = 0
+        for run in p.runs {
+            if run.style.underline { for k in at ..< min(at + run.length, units.count) { under[k] = true } }
+            at += run.length
+        }
+        var end = closing
+        while end < units.count, under[end] { end += 1 }
+        let u = end - closing, plain = units.count - end
+        guard u > 0, plain > 0 else { return [] }
+        return Set(closing ..< end + min(plain, u))
     }
 
     /// Whether the engine keeps `a` and `b` on one line (a reading of the
