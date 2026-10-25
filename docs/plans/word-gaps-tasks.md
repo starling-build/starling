@@ -5605,3 +5605,6 @@ on its first line: □ at 120.9 to Word's 118.2 — the hanging indent, to look 
 line tighter: cd3/cd4/cd5, "5.5.1" in 黑体 ~13, in Calibri ~18). Wanted from windows: in zh-505b9619's own
 package, this paragraph with the right indent swept, the most over at which Word takes "線"; then with the
 digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without the "，".
+
+### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, while T181 waits on a lab)
+From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
