@@ -5257,6 +5257,13 @@ public final class RichLayout {
                 // end — Word fills page 72 with one, the foot falling in
                 // the lines of an item, and sends another to page 63 from
                 // half a page of room, the foot falling between two.
+                // (Whether a member must stand on one page whole: kept
+                // together, one line, or short under widow control.)
+                func whole(_ k: Int) -> Bool {
+                    let st = document.paragraphs[k].style
+                    let lines = geometry(k).painter.computeLineMetrics()
+                    return st.keepLines || lines.count <= 1 || (st.widowControl && !document.widowControlSuspended && lines.count <= 3)
+                }
                 func start(_ k: Int) -> Double {
                     if let c = _cells[k] {
                         // (A row that may part asks only for its first
@@ -5288,9 +5295,13 @@ public final class RichLayout {
                     }
                     let st = document.paragraphs[k].style
                     let g = geometry(k)
-                    let lines = g.painter.computeLineMetrics()
-                    if st.keepLines || lines.count <= 1 || (st.widowControl && !document.widowControlSuspended && lines.count <= 3) { return _heights[k] }
                     let bottoms = Self._lineBottoms(g.painter)
+                    // (All of it, but its space after, which may stand past
+                    // the foot as under a line set on its own: zh-64044a1d's
+                    // "二、適用範圍" run, thirteen kept paragraphs, ends in
+                    // "(九)其他應變處理…", 27pt with its 9 after, and Word
+                    // sets it at page 41's foot with 1.1pt short of that.)
+                    if whole(k) { return theme.wordRules ? min(_heights[k], (g.textTop - g.top) + (bottoms.last ?? _heights[k])) : _heights[k] }
                     let n = min(bottoms.count - 1, st.widowControl && !document.widowControlSuspended ? 1 : 0)
                     // (Its last line there may reach past the foot as it
                     // would set on its own — see the overhang below:
@@ -5320,7 +5331,16 @@ public final class RichLayout {
                         k += 1
                         continue
                     }
-                    violated = k > i && cum + start(k) > room + 0.01
+                    // (A first member that must stand whole and does not
+                    // fit what is left would stay only by reaching past
+                    // the foot, and the next member then cannot follow it:
+                    // the run goes over. zh-64044a1d's "【後勤財務組】" heading,
+                    // two kept lines 99pt with its space, has 89.4 under
+                    // figure 6 on page 40; Word opens page 41 with it and
+                    // "一、目的", ours kept it by its last line's overhang
+                    // and sent "目的" on alone, and ran a page behind.)
+                    violated = k > i ? cum + start(k) > room + 0.01
+                        : _cells[i] == nil && whole(i) && start(i) > room + 0.01 && _heights[i] <= contentH + 0.01
                     break
                 }
                 if !violated, !ended, k < count, k > i, (_cells[k] != nil || !document.paragraphs[k].style.keepNext) {
