@@ -4873,8 +4873,8 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
 - zh w4: 645 docs, mean 91.0, median 98.4; outside the reprint list 201 docs mean 95.8; on it (R) 444 docs mean 88.9 — provisional until the font-pack reprint
 - POI wp4: 111 docs, mean 85.4
 - Lowest outside the reprint list (score, Word lines, pages Word/ours, Mac n221 score):
-  - zh-d97c5474   2.2     46 lines      2/2  (mac   2.2)  [CLAIMED Linux 017F2GnT 2026-10-24, with zh-8d72961c: Nunito Sans (Light, Bold) — Word for Windows sets its own line, 1.364 em (hhea 1011/353 of 1000; ours Carlito 14.6 at 12pt to its 16.37), and its widths; Greek falls back to Cambria. Nunito (a573f4af) 2.2 -> 19.6, Cambria's Greek widths 39.1 (h152); left: the Chinese runs' faces (T160) and what follows]
-  - zh-8d72961c   8.3     36 lines      1/1  (mac   4.3)  [CLAIMED Linux 017F2GnT 2026-10-24, with zh-d97c5474. a573f4af Nunito Sans' own widths and line: 4.3 -> 36.2 against 3a85d9f2's reprint (h151); its Chinese lines keep their heights — T160's. Then Cambria's Greek widths: 53.2 (h152)]
+  - zh-d97c5474   2.2     46 lines      2/2  (mac   2.2)  [CLAIMED Linux 01F2SWc8 2026-10-24 (taken over from 017F2GnT, routed by macos), with zh-8d72961c: Nunito Sans (Light, Bold) — Word for Windows sets its own line, 1.364 em (hhea 1011/353 of 1000; ours Carlito 14.6 at 12pt to its 16.37), and its widths; Greek falls back to Cambria. Nunito (a573f4af) 2.2 -> 19.6, Cambria's Greek widths 39.1 (h152); left: the Chinese runs' faces (T160) and what follows]
+  - zh-8d72961c   8.3     36 lines      1/1  (mac   4.3)  [CLAIMED Linux 01F2SWc8 2026-10-24 (taken over from 017F2GnT, routed by macos), with zh-d97c5474. a573f4af Nunito Sans' own widths and line: 4.3 -> 36.2 against 3a85d9f2's reprint (h151); its Chinese lines keep their heights — T160's. Then Cambria's Greek widths: 53.2 (h152)]
   - zh-8f9b19f4  24.7    154 lines    13/14  (mac  91.7)
   - zh-d62da4dd  35.1     97 lines      4/4  (mac  58.8)
   - zh-27a874b7  35.9     92 lines      3/3  (mac  56.0)
@@ -5098,7 +5098,7 @@ right by zh-e51c31a7's first column (its outer double left line; "未來運用�
 the three documents rather than a lab; a Windows lab on a 0-margin first column would settle the right side.
 word-win (mupdf reader), w11 -> w14: zh-b8de3ae2 71.6 -> 76.2, nothing else moved. (The outer right line
 mirrored from the left — "margin and half, never inside" — took zh-c6da60a9 99.6 -> 38.8: not that.)
-Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title). [CLAIMED Linux 017F2GnT 2026-10-24, routed by macos: the charts]
+Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title). [CLAIMED macos-ios: the charts (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux 017F2GnT)]
 Also: the "Lab c5" note in the zh-c5b5087b entry above (footer floats turning the squeeze off) was the print-timing
 trap — a 60s-waited Mac print squeezes through p10 (lab/sqcut); see lab/tools/squeeze-cutoff.py.
 
@@ -5158,7 +5158,7 @@ x only, so no score move here, but zh-1cfb652b 67.9 -> 87.5 (w21 -> w22). Left: 
 invisible glyphs above each annex heading (read as "AA"/"BB" lines), p1's ICS block 7pt and footer line 5pt off,
 p4's "3.2" read with its leader. Released.
 
-### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED (Mac 7bd18d8e, macOS-doc); Windows lab `kai` done (Windows 01QbbApP); zh-d35cbbdb CLAIMED Linux 017F2GnT (lenovo-2), 2026-10-24; zh-e8d4c046 reference was a batch artifact, reprinted in db46d815
+### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED (Mac 7bd18d8e, macOS-doc); Windows lab `kai` done (Windows 01QbbApP); zh-d35cbbdb and the DFKai-SB face CLAIMED lenovo-2 (Linux dev box, starling-d6: written, uncommitted, pending its user), else macos-ios (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux 017F2GnT); zh-e8d4c046 reference was a batch artifact, reprinted in db46d815
 - zh-e8d4c046: Word for Windows skips the embedded 方正小标宋简体 (fsType 8, 2052 name matching) and draws the title in
   MS Gothic, 22pt lines 38.4 apart (ours, the embedded face at 1.164x1.3, 33.3); all below 10.5pt high. It uses the
   same file's embedded "仿宋_GB2312" (SimSun inside). zh-1cfb652b, zh-2bca0bdf, zh-c2229d4a do get embedded faces;
@@ -5182,7 +5182,7 @@ zh-1cfb652b 87.5.
 
 ### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, from lenovo-2's queue)
 
-### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
+### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
 
 ### Windows missing-face rule from the map — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24)
@@ -5200,7 +5200,7 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
 
-### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED, waiting on a lab (Linux office1, 2026-10-24)
+### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — CLAIMED macos-ios, the cell-width fix (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux office1)
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t170, in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12, jc both).
 The paragraph was set in the body with a right indent stepped 0.25pt; N is the natural width to the end of 高.
 The largest over at which Word still takes 高 (each ±0.25):
