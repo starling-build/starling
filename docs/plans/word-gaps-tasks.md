@@ -5089,7 +5089,11 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
     10pt +0.0421, 10.5 +0.0328, 12 +0.0443, 14 +0.0598, 16 +0.0659, 22 +0.0862, 24 +0.0788.
     That is about 0.0038 em but neither proportional nor a device unit. Bold steps alternate by about 0.11pt,
     which looks like internal rounding. docGrid (none, lines, linesAndChars) does not change it. Model it as
-    this per-size table. Zero excess in the corpus is probably justified lines absorbing it.]
+    this per-size table.
+    Justified (lab bold/jc, FangSong 12pt, a 445pt line): 37 regular glyphs fit and justify at step 12.018; in bold
+    only 36 fit, justified at 12.3617. So the excess counts for breaking in every line, and a justified line then
+    stretches. A mixed regular/bold line keeps the bold excess. Pen positions: 12pt bold alternates 12.000/12.108,
+    22pt is a constant 22.08; no device grid fits both.]
   - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
