@@ -652,7 +652,10 @@ centred, +0.06; 49609 19.87 -> 11.64, lo-tdf131575 12.16 -> 4.90).
 A cell merged down over rows is no part of their fit, wrapping or not:
 LIBRE_OFFICE-128382-0's Calibri 14 dates in D22:D23 leave both rows at
 Calibri 11's 14.52 in Excel's print (the 24 workbooks with such merges:
-1.868 -> 1.829, that one 4.97 -> 4.02, nothing worse). Open: their letters' widths in Arial 8 and Microsoft Sans
+1.868 -> 1.829, that one 4.97 -> 4.02, nothing worse). A book with no
+font at all and no theme (47889's empty styleSheet, 56278 with no styles
+part) prints in Excel's own default, Aptos Narrow 11, its rows at 15.24:
+all four such books (0.558 -> 0.040, 56278 1.59 -> 0.11). Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

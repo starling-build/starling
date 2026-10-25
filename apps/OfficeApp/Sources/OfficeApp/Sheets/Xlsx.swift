@@ -97,6 +97,10 @@ enum Xlsx {
                 book.tableStyles[name] = parts
             }
         }
+        // (No font at all and no theme — 47889's empty styleSheet, 56278
+        // with no styles part — is Excel's own default, Aptos Narrow 11:
+        // all four such books print in it, their rows at 15.24.)
+        if themeless, xml("xl/styles.xml").flatMap(_defaultFont) == nil { book.defaultFontName = "Aptos Narrow" }
         if let raw = _part(parts, "xl/styles.xml") {
             let split = RawXML.split([UInt8](raw))
             for (name, text) in split.children where ["dxfs", "tableStyles", "colors", "extLst"].contains(name) {
