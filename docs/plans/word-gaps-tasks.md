@@ -635,6 +635,23 @@ failed; score against them with DOCX_WORD_REFS=test/corpus/docx/word-win. The Ma
   - 新細明體 prints in PMingLiU (cloud font); 方正小标宋简体 (196) in SimSun.
 - comment.docx still prints blank: its only comment hangs on an empty body, which Word for Windows
   doesn't balloon.
+- **Font-pack reprint (2026-10-24, later): 456 references reprinted.** These are the documents asking
+  for 仿宋_GB2312, 楷体_GB2312, FangSong_GB2312, KaiTi_GB2312, a 方正 name or 標楷體, plus zh-7773163d.
+  The user installed Windows' Chinese supplemental fonts: FangSong, KaiTi, SimHei, DengXian, DFKai-SB
+  (kaiu.ttf) and MingLiU/PMingLiU. That alone did not settle 仿宋_GB2312: eight documents still printed
+  in YaHei. Windows' FontSubstitutes didn't either; FangSong_GB2312 = FangSong is in it, and
+  zh-202582e2's FangSong_GB2312 printed in MS Mincho. The cause of the flips: **Word picks the face
+  for a name it lacks once per process, from the first document to name it, and keeps it.** A batch
+  begun with zh-007ca091 (its 仿宋_GB2312 entry carries a PANOSE) printed 仿宋_GB2312 in YaHei; one
+  begun with zh-621d8756 (alternate 仿宋, no PANOSE) printed it in FangSong, for the same documents.
+  test/docx-word-win-warm.docx names each _GB2312 face with its alternate and no PANOSE. Every batch
+  now prints it first and throws the PDF away. After the reprint, facemap (macos-ios's rule, ported):
+  仿宋_GB2312 FangSong 211/211, FangSong_GB2312 FangSong 2/2, 楷体_GB2312 KaiTi 101/104 (the other
+  three: zh-540dc149 and zh-e68a2f57 embed the face; zh-f3802561 ties one KaiTi to one SimSun),
+  標楷體 DFKai-SB 124/124. The 方正 names still print in YaHei: 方正小标宋简体 89 (MS Gothic 2),
+  方正小标宋_GBK 19, 方正黑体_GBK 14, 方正仿宋_GBK 13, 方正楷体_GBK 10, 方正仿宋简体 7, 方正黑体简体 5,
+  方正楷体简体 3. 方正大标宋_GBK is SimSun 1, 方正仿宋_GB2312 FangSong 1. They were not warmed:
+  the user's choice covered the _GB2312 names.
 
 ### USER DECISION 2026-10-23 (later): the punctuation squeeze limit follows Word for Windows
 windows' lab zq: Word for Windows squeezes a line-end up to exactly half an em (12-20pt, 1-3 marks;
