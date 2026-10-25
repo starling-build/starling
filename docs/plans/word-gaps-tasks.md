@@ -4780,3 +4780,8 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - bib-chernigovka.netdo.ru_dow  99.6  452 lines  15/15
   - bug57031  99.7  339 lines  14/14
   - 52288 100.0  2 lines  1/1
+
+### T160. zh-f6686f89: 75.8 against the Windows references — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), routed by macos. 100 against the
+Mac's prints, 75.8 against word-win; outside the font-reprint list. Its old note:
+a "（TSG S7001-2013）…" line whose "）" sat on a hair.
