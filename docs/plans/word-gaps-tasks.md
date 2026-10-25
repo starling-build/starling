@@ -5375,3 +5375,6 @@ zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
 - Next for Mac 01Xgpbk5: zh-8e8d4c40's label fallback (Mincho for CJK in a Latin label face), then the charts: zh-b8de3ae2, zh-d62da4dd, zh-27a874b7.
 
 ### Latin text in a missing East Asian ascii face (Calibri digits in word-win, zh-5450d509) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+
+### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+Owner: Linux lenovo-2 (starling-d6), given it by the Mac coordinator. The DFKai-SB face (52008403) did not move it: 6.2 with and without. Finding the first page where ours and Word's part.
