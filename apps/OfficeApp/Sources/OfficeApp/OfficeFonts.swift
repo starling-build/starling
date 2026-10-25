@@ -1913,7 +1913,14 @@ enum OfficeFonts {
         // as the stand-in's symbols set them; taken for the square face,
         // ours drew YaHei's own 0.38 em quotes and its lines took a
         // character more than Word's.)
-        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) || Self.isEastAsianFace(family) ? eastAsianFace(family) : square
+        // (A Latin face Word for Windows has sets the East Asian text it
+        // holds none of as a name it lacks: MS Mincho, and JhengHei for
+        // what Mincho lacks, each on its own line — zh-d97c5474's Chinese,
+        // in runs that name only Latin faces (its style's theme ea is
+        // empty), steps 20.7 at 12pt single in word-win, JhengHei's 1.729
+        // em, where the square face made it 16.)
+        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) || Self.isEastAsianFace(family) ? eastAsianFace(family)
+            : wordOnWindows ? windowsMincho : square
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)
