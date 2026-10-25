@@ -967,7 +967,17 @@ enum DocxFormat {
                 let first = paragraphs.count
                 for p in _paragraphs(node, currentCell != nil ? cellNormal() : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
-                    if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
+                    // (A page break that ends the paragraph holding a
+                    // section's mark is that section's break, as Word lays
+                    // it — and where the next section is continuous there
+                    // is none: zh-e2dc9dce's contents end in a page break
+                    // and a continuous section, and Word for Windows sets
+                    // chapter 1's title picture, the paragraph after, on
+                    // the contents page, the body from page 3; ours gave
+                    // the picture a page and ran a page long to the end.)
+                    let sectionsOwn = currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
+                        && p.paragraph.style.sectionBreaksPage == false
+                    if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
                 if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
                 // A text box whose text holds a table (`_Shared.boxTables`):
