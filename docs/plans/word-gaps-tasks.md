@@ -5453,7 +5453,7 @@ Caution: the line above records Word's print squeezing commas in other en-US par
   - Those three are table-cell lines Word squeezes past the table: "五、辦理112年與113年…" 5.52 over with 4 boundaries, against 3.25 in t170d's body paragraphs. So the allowance seems to differ in cells. The next lab is the k-series in a cell.
   - Patches (Mac): ~/starling-word-check/lab/wwface/t170k.py and t170k-narrow.patch.
 
-### T175. zh-15f60bac p8: "…詳表5第4、" — ours hangs the last "、" and takes "6、" — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos)
+### T175. zh-15f60bac p8: "…詳表5第4、" — ours hangs the last "、" and takes "6、" — PARKED, waiting on a windows lab of zh-021b8feb (macos queues it after T169; its first hypothesis: no hang after a Latin letter or digit) (Linux 01F2SWc8, 2026-10-25, routed by macos)
 46.8 on the Mac's w1 Windows sweep (384 of 821 lines, 28/28 pages); from p8 every line runs a character ahead.
 Word for Windows never hangs that "、" (lab t170e under T170): it squeezes marks, and takes "6、" at most 15.0 over
 as the line stands. Ours hangs the "、" whole and squeezes 2.75. First: which setting stops the hang there.
