@@ -5826,8 +5826,9 @@ Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The fir
 not match. "Line fit, ours takes more" means ours starts that line later because its line before took more; most show
 ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair).
 - Line fit, ours takes more (T181, lenovo-3): zh-015abfaf 62.4 p1, zh-cd48112c 84.7 p1 (ours "“" 5.0 / "”" 0, Word 15
-  each), zh-dc9cfa34 84.8 p5, zh-3f871b7d 87.8 p1; zh-5be7e156 75.7 p1; held elsewhere: zh-b00fef0d 74.6 (T188 — CORRECTED by lenovo-2: only its first misses, p5 1 /
+  each), zh-dc9cfa34 84.8 p5, zh-3f871b7d 87.8 p1; held elsewhere: zh-b00fef0d 74.6 (T188 — CORRECTED by lenovo-2: only its first misses, p5 1 /
   p6 8 / p10 4, are line fit, witnesses for T181; 159 of its 175 are a table row at p17's foot that Word parts, a table case),
+  zh-5be7e156 75.7 p1,
   zh-6d402586 71.8 p5 (labels, macOS-doc); measured before: zh-505b9619, zh-e0ca7252, zh-57f1de0d.
 - Line fit, ours takes less: zh-33aa9899 82.2 p5 (ours wraps "傳" of "須上傳"), zh-1b74ed91 89.4 p9.
 - Pagination or the page's top: zh-34a6519a 80.9 p10 (Word keeps a last line ours pushes over; 49 pages to 48),
