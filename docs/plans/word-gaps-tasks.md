@@ -5622,7 +5622,7 @@ Unheld, lowest first (score, lines ours/Word's, pages ours/Word's):
 POI under 99 with text: WordWithAttachments 73.7, delins 74.6. The ten 0/0 rows are documents whose Word print has no
 text lines for the scorer, not failed conversions.
 
-### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED, WAITING ON WINDOWS (its lab, queued by macos) (Linux 01F2SWc8, 2026-10-25, routed by macos)
+### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED, CALIBRATING on lab t181 (Linux 01F2SWc8, 2026-10-25, routed by macos; with zh-e0ca7252 and zh-72da925e as witnesses)
 From the low list at d9aabe26. Word hangs plus squeezes here (T175's no-hang try cost it 12). First: its first miss.
 MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): misses p13 4, then p14-p43 nearly every line (~1100 of 1205), so one
 line fit. First miss p13: "□坍方數量1000立方公尺至未達2000立方公尺者，    小時內單" (標楷體 14, mode 15,
@@ -5777,7 +5777,7 @@ the rule's earlier cases, are unchanged. Rechecked on the tip after 451d6fc1.
 DONE 146dd517: the extra page was p29, blank but for a page-placed note: the paragraph after p28's last line is that note, a page break and the next notice, and the empty part before the break got its exact 22pt line a page of its own; Word keeps it (note and all) at p28's foot — lab brk's rule, beside the break-under-a-table rule. Pair w48 -> w49: 71.8 -> 89.7, nothing else moved; zh-167ee06c 100, zh-0aac9d1a 85.0, zh-60c80728 98.3, zh-4a2ab598 99.6, zh-6d1afa56 97.1 held. Left, still CLAIMED: p30's numbered list (1.629-line 標楷體 14pt, labels "%1." in 微軟正黑體 12pt) sets each item's first line ~2.1pt lower in Word — the label lift. LABEL LIFT CLAIMED (Mac 7bd18d8e, 2026-10-25, routed by macos; witnesses zh-8e8d4c40, zh-de073ee5, zh-6d402586), from macos-ios's parked notes.
 Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; this is the Windows print's gap.
 
-### zh-e0ca7252 68.8 (word-win, 50/50 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
+### zh-e0ca7252 68.8 (word-win, 50/50 pages) — MEASURED by the Mac 01Xgpbk5, now CLAIMED as a T181 case (Linux 01F2SWc8, 2026-10-25)
 First miss: p13 "…社員時，依第17款辦理。" (標楷體 14, mode 15, compressPunctuation, jc both). Ours takes "理" (hanging
 "。") by squeezing both "，" from 14.0 to 10.2. Word sends "理。" down and justifies with the commas whole. p13-27's misses
 are the one line of drift from there. Over its first 12 pages Word's "，" before an ideograph is 14.0 on short lines and
@@ -5788,7 +5788,6 @@ REFUTED here, so nobody re-derives it: Word for Windows' PDFs label fonts at a w
 alternate 14.04/13.91 (mean 14.004 over 11.6k), and 10.5pt alternates 10.56/10.44. Scaling widths to the labelled size
 took zh 98.0 -> 90.2 (all runs) and 90.7 (East Asian only). Lead, unbuilt: Latin advances look rounded per glyph to
 1/600" (Calibri at 14.04: 94% of steps match round(adv*ppem/upm) units), worth a lab before building.
-Beside T181 (lenovo-3's squeeze-capacity lab, 9cb560da): if the misses are that squeeze, it goes to lenovo-3.
 
 ### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
