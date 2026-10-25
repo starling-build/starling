@@ -5078,6 +5078,32 @@ public final class RichLayout {
                 pageFresh = true
                 markOnPage = false
             }
+            // (Where text follows the break in its paragraph, the empty
+            // part before it needs no room at all: it stands at the foot of
+            // the page the break ends, its floats with it — lab brk's rule
+            // (windows, zh-0aac9d1a and zh-167ee06c: a break opening a
+            // paragraph with text after it ends the page where it stands).
+            // zh-6d402586's notice ends p28 at its last line, and the next
+            // paragraph is a page-placed note, a page break and the next
+            // notice: Word keeps the note on p28 and opens p29 with the
+            // notice; ours gave the note's empty line page 29 alone.)
+            if theme.wordRules, _pageBreak[i], document.paragraphs[i].style.breakEndsPrevious, !document.paragraphs[i].style.pageBreakInline,
+               resumeCursor == nil, page > 0, i > 0, case let before = document.paragraphs[i - 1], before.cell == nil,
+               before.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }),
+               before.image.map({ $0.float != nil }) ?? !before.inlineImages.isEmpty,
+               before.inlineImages.values.allSatisfy({ $0.float != nil }),
+               case let after = document.paragraphs[i], !after.text.isEmpty || !after.inlineImages.isEmpty || after.image != nil,
+               _pages[page].count == 1, let was = _pages[page].first, was.paragraph == i - 1, was.pageY < 0.01,
+               let at = _allPieces.lastIndex(where: { $0.paragraph == i - 1 && $0.page == page }) {
+                var only = PagePiece(paragraph: was.paragraph, flowTop: was.flowTop, flowBottom: was.flowBottom, page: page - 1, pageY: contentH)
+                only.part = was.part
+                _pages[page].removeAll()
+                _pages[page - 1].append(only)
+                _allPieces[at] = only
+                y = 0
+                pageFresh = true
+                markOnPage = false
+            }
             // Columns balanced at a continuous section break: Word sets
             // the section before it in columns of even length on the page
             // the break is on, and the next section under them. zh-b5359de4
