@@ -6235,6 +6235,12 @@ fitter dropped the paragraph's tail).
   Cambria runs under Nunito Sans Light marks, now break where Word's do.
   Same-base sweep h152 (word-win, on 497b95bc's refit): zh-8d72961c 36.2
   -> 53.2, zh-d97c5474 19.6 -> 39.1, nothing else moved.
+- **Nunito Sans's own Greek letters (2026-10-24, Windows references).**
+  It has five, Δ Σ Ω μ π, which Word sets in it where a Nunito run holds
+  them: zh-d97c5474's "Δευτέρα" opens its Δ in the run before the Cambria
+  one, 8.66 wide at 12pt (722 of 1000) in Word's print and 6.7 in the
+  fallback's, and the line took a word more. Same-base sweep h153
+  (word-win): zh-d97c5474 39.1 -> 50.0, nothing else moved.
 - **A row opening a page under a cell of no top line takes the table's
   top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
   thinThickSmallGap top (sz 24) over single half-point inside lines, its

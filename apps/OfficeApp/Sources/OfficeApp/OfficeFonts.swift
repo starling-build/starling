@@ -792,12 +792,6 @@ enum OfficeFonts {
         0.5730, 0.3807, 0.2961, 0.3807, 0.6657,
     ]
 
-    // Nunito Sans's own widths, U+0020 to U+007E and Latin-1 and the
-    // common marks past it, in its Light (300), Regular and Bold (700) at
-    // its 12pt optical size: Office's cloud font, which Word for Windows
-    // and Word for Mac both set and embed (zh-d97c5474's and zh-8d72961c's
-    // subsets, every one of their widths equal to these). The stand-in
-    // was Carlito, some 9% narrower.
     // Cambria's own Greek widths, U+0384 to U+03CE, and its bold's
     // (cambria.ttc and cambriab.ttf, read off the Windows box by windows
     // 01QbbApP; the 37 zh-d97c5474's print embeds are the same). Caladea
@@ -825,6 +819,13 @@ enum OfficeFonts {
         0x03C7: 0.5371, 0x03C8: 0.8018, 0x03C9: 0.7988, 0x03CA: 0.3281, 0x03CB: 0.5801, 0x03CC: 0.5693, 0x03CD: 0.5801, 0x03CE: 0.7988,
     ]
 
+    // Nunito Sans's own widths, U+0020 to U+007E and Latin-1, the common
+    // marks past it and the five Greek letters it has (Δ Σ Ω μ π), in its
+    // Light (300), Regular and Bold (700) at its 12pt optical size:
+    // Office's cloud font, which Word for Windows and Word for Mac both
+    // set and embed (zh-d97c5474's and zh-8d72961c's subsets, every one of
+    // their widths equal to these). The stand-in was Carlito, some 9%
+    // narrower.
     static let nunitoSansLightAdvances: [Double] = [
         0.251, 0.219, 0.366, 0.600, 0.600, 0.923, 0.678, 0.211, 0.299, 0.299, 0.449, 0.600, 0.219, 0.420, 0.219,
         0.269, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.219, 0.219, 0.600, 0.600,
@@ -848,6 +849,7 @@ enum OfficeFonts {
         0x00F0: 0.550, 0x00F1: 0.560, 0x00F2: 0.547, 0x00F3: 0.547, 0x00F4: 0.547, 0x00F5: 0.547, 0x00F6: 0.547, 0x00F7: 0.600,
         0x00F8: 0.547, 0x00F9: 0.553, 0x00FA: 0.553, 0x00FB: 0.553, 0x00FC: 0.553, 0x00FD: 0.509, 0x00FE: 0.575, 0x00FF: 0.509,
         0x2013: 0.500, 0x2014: 1.000, 0x2018: 0.219, 0x2019: 0.219, 0x201C: 0.372, 0x201D: 0.372, 0x2022: 0.524, 0x2026: 0.659,
+        0x0394: 0.722, 0x03A3: 0.600, 0x03A9: 0.769, 0x03BC: 0.553, 0x03C0: 0.573,
     ]
     static let nunitoSansAdvances: [Double] = [
         0.257, 0.228, 0.391, 0.600, 0.600, 0.930, 0.693, 0.221, 0.317, 0.317, 0.450, 0.600, 0.228, 0.424, 0.228,
@@ -872,6 +874,7 @@ enum OfficeFonts {
         0x00F0: 0.559, 0x00F1: 0.568, 0x00F2: 0.556, 0x00F3: 0.556, 0x00F4: 0.556, 0x00F5: 0.556, 0x00F6: 0.556, 0x00F7: 0.600,
         0x00F8: 0.556, 0x00F9: 0.561, 0x00FA: 0.561, 0x00FB: 0.561, 0x00FC: 0.561, 0x00FD: 0.514, 0x00FE: 0.583, 0x00FF: 0.514,
         0x2013: 0.500, 0x2014: 1.000, 0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.394, 0x201D: 0.394, 0x2022: 0.524, 0x2026: 0.686,
+        0x0394: 0.729, 0x03A3: 0.600, 0x03A9: 0.778, 0x03BC: 0.561, 0x03C0: 0.587,
     ]
     static let nunitoSansBoldAdvances: [Double] = [
         0.270, 0.248, 0.447, 0.600, 0.600, 0.945, 0.726, 0.242, 0.358, 0.358, 0.452, 0.600, 0.248, 0.434, 0.248,
@@ -896,6 +899,7 @@ enum OfficeFonts {
         0x00F0: 0.580, 0x00F1: 0.585, 0x00F2: 0.576, 0x00F3: 0.576, 0x00F4: 0.576, 0x00F5: 0.576, 0x00F6: 0.576, 0x00F7: 0.600,
         0x00F8: 0.576, 0x00F9: 0.579, 0x00FA: 0.579, 0x00FB: 0.579, 0x00FC: 0.579, 0x00FD: 0.526, 0x00FE: 0.600, 0x00FF: 0.526,
         0x2013: 0.500, 0x2014: 1.000, 0x2018: 0.248, 0x2019: 0.248, 0x201C: 0.443, 0x201D: 0.443, 0x2022: 0.524, 0x2026: 0.745,
+        0x0394: 0.744, 0x03A3: 0.600, 0x03A9: 0.799, 0x03BC: 0.579, 0x03C0: 0.618,
     ]
 
     // Verdana's own widths, which its stand-in (DejaVu Sans, a few per

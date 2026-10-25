@@ -166,6 +166,7 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(a[0], 0.251)
         XCTAssertEqual(a[Int(Character("M").asciiValue!) - 0x20], 0.849)
         XCTAssertEqual(try XCTUnwrap(light.otherAdvances?[0xE0]), 0.522)
+        XCTAssertEqual(try XCTUnwrap(light.otherAdvances?[0x0394]), 0.722, "its own Δ, which zh-d97c5474's Greek sets in it")
         XCTAssertEqual(try XCTUnwrap(light.boldAdvances)[0], 0.270)
         XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Nunito Sans", eastAsian: false)?.naturalHeight), 1.364)
     }
