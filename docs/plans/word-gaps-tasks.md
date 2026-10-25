@@ -5565,3 +5565,24 @@ Ours at 8337b1d0 (before T179) sets all five in YaHei: 20.4-20.7 a 12pt line. Wi
 ### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier entries (windows' zq, the Mac's zz) are
 released; this starts again from the word-win print at 0a2306a8.
+
+### Low list on word-win at d9aabe26 (Mac 0fcba326, coordinator, 2026-10-25) — pick from here, claim before starting
+Sweep w4 (Mac, wt-win worktree, OFFICE_WORD_FONTS=windows, mupdf reader): zh 645 documents mean 97.5% (w1 at 452660de:
+96.0%), 583 at 95%+, 633 with Word's page count; POI 111 mean 90.5%. a7af80db (T175) landed after it.
+Held or parked (do not take): zh-7773163d 14.3 (T167, parked), zh-167ee06c 45.1 (T178 lenovo-2), zh-8e8d4c40 46.3
+(label lift, parked), zh-15f60bac 46.8 (T175 done after this sweep), zh-dc25c47e 47.8 (macOS-doc), zh-884c6e3e 51.4
+(T180 office1), zh-27a874b7 55.4 / zh-d62da4dd 56.6 (3-D pies, parked), zh-015abfaf 62.4 (a hairline, released as
+such), zh-419ea527 71.1 (macos-ios), zh-74b34f3b (T169 windows), zh-d97c5474 (Arabic, parked for its drawing).
+Unheld, lowest first (score, lines ours/Word's, pages ours/Word's):
+- zh-6a4fc013 49.5, 616/614, 27/26 — the Thai document (TH Sarabun New → Browallia New); a page long
+- zh-505b9619 55.4, 2699/2732, 73/73 — T175's no-hang try cost it 12; Word hangs plus squeezes here
+- zh-2f9463d6 56.5, 717/717, 33/33 — old note: p20-21 table row held 28 of 29 misses
+- zh-72da925e 57.6, 1228/1246, 39/39
+- zh-64044a1d 66.5, 1528/1532, 68/69 — a page short
+- zh-77bd4900 67.3, 976/975, 42/42
+- zh-e0ca7252 68.8, 1674/1680, 50/50 — also moved by T175's tries (hang plus squeeze)
+- zh-6d402586 71.8, 738/744, 35/36 — a page short
+- zh-0aac9d1a 72.2, 227/209, 11/9 — two pages long (old T1: Word's autofit narrows one column)
+- zh-cec9d337 74.4, zh-b00fef0d 74.6, zh-5be7e156 75.7, zh-f2835e26 78.8, zh-57f1de0d 78.9, zh-ae2dd08d 79.3
+POI under 99 with text: WordWithAttachments 73.7, delins 74.6. The ten 0/0 rows are documents whose Word print has no
+text lines for the scorer, not failed conversions.
