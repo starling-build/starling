@@ -7759,10 +7759,24 @@ public final class RichLayout {
             // and took five from 58.5, the document's own figure 4, and
             // every page after it ran a line late.)
             let tallest = (painter.inlinePlaceholderBoxes ?? []).map { $0.bottom - $0.top }.max() ?? 0
+            // (Two lines in one take the pitches their box needs, not the
+            // text's: each run of the line is its own whole pitches, its
+            // baseline where its face puts it, and the box's foot under
+            // that runs past them. zh-454e2e29's page-4 title, a 31.22pt
+            // box of DFKai-SB's two 12pt lines beside 18pt text, is two 18pt
+            // pitches in Word for Windows' print, the box centred in them;
+            // ours, the text's 28.85 over the baseline and the box's 8.37
+            // under, was 37.2 and took three, and the page ran 16pt low.)
+            let boxes = combined && p.inlineImages.isEmpty ? (painter.inlinePlaceholderBoxes ?? []) : []
+            let boxTop = boxes.map { $0.top }.min() ?? 0, boxFoot = boxes.map { $0.bottom }.max() ?? 0
+            let boxPitches = ((boxFoot - boxTop) / px - 0.002).rounded(.up) * px
             if p.image == nil, !combined, tallest > px + 0.01 {
                 let own = (tallest / px - 0.002).rounded(.up) * px
                 _inkShift[i] += own - bodyHeight
                 bodyHeight = own
+            } else if !boxes.isEmpty, boxPitches < bodyHeight - 0.01 {
+                _inkShift[i] += (boxPitches - (boxFoot - boxTop)) / 2 - boxTop
+                bodyHeight = boxPitches
             } else if snapped > bodyHeight + 0.01 {
                 // (A picture's own paragraph centres it, effects and all, in
                 // its pitches: zh-547fc43c's charts and pictures stand half
