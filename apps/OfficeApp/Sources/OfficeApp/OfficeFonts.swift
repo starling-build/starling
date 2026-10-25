@@ -1964,9 +1964,15 @@ enum OfficeFonts {
         // YaHei, its own). Chinese forms space their "年  月  日" lines
         // with them: zh-0aac9d1a's stamp line holds 18 before its "日"
         // and is 444pt to there in Word's print, where it was 336 here.
+        // (Not 標楷體's, which Word for Windows sets in DFKai-SB at half an
+        // em: zh-dc9e54ca's "附件一" + 37 U+00A0 + 23 spaces + "單位：新臺幣元",
+        // 12pt, is 480pt on one centred line in word-win, every space 6.0;
+        // ours, KaiTi's em each, wrapped "單位" and the form under it.)
         if ea.latin == mono, ea.latinAdvances == nil {
-            face.otherAdvances = [0xA0: 1.0]
-            face.boldOtherAdvances = [0xA0: 1.0]
+            let lower = family.lowercased()
+            let nbsp = wordOnWindows && (lower.containsSubstring("標楷") || lower.containsSubstring("dfkai")) ? 0.5 : 1.0
+            face.otherAdvances = [0xA0: nbsp]
+            face.boldOtherAdvances = [0xA0: nbsp]
         }
         return face
     }
