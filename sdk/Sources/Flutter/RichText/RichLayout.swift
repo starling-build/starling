@@ -8110,6 +8110,27 @@ public final class RichLayout {
         if theme.wordRules, p.cell != nil, let image = p.image, image.name == "table", image.float != nil { _heights[i] = 0; _spaceBefore[i] = 0 }
         // (So does one wholly hidden, its mark too: see `_vanishes`.)
         if _vanishes(p, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
+        // (And, in Word for Windows, an empty paragraph straight after a
+        // table floating by the text, where the strip beside the table
+        // holds a character of its mark: Word sets it there, at the
+        // table's side, and the text after it goes on under the table.
+        // windows' lab pf: zh-7eba7349's "…2023年10月7日印发" table, 420.7pt
+        // wide at tblpX 5.4 and 9pt clear on its right, has its empty
+        // 18pt mark at x 504.8-532.2 beside it; ours set it full width
+        // at p2's head and every line of p2 stood 32pt low.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, p.text.isEmpty, p.image == nil, p.inlineImages.isEmpty,
+           style.sectionXML == nil, i > 0, let before = document.paragraphs[i - 1].cell, document.paragraphs[i - 1].keptTable == nil,
+           let ts = document.tableStyles[before.table], ts.floatsOverText, !ts.pageAnchored, let kept = ts.keptPosition,
+           kept.containsSubstring("w:vertAnchor=\"text\""), !kept.containsSubstring("w:horzAnchor=\"page\""),
+           !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[before.table] {
+            func twips(_ name: String) -> Double {
+                guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
+                return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
+            }
+            let size = style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            let strip = textWidth - _px(twips("w:tblpX") / 20) - widths.reduce(0, +) - _px(twips("w:rightFromText") / 20)
+            if strip >= _px(size) { _heights[i] = 0; _spaceBefore[i] = 0 }
+        }
         // A floating frame takes no room either: the text that follows
         // starts where it does.
         if frameLeft != nil {
