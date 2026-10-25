@@ -395,6 +395,29 @@ the same base; the commits give the numbers):
   bordered box at the foot of style-alternate-content, rows of 6, 10,
   set 16.5, 10 and 6 pt, prints 64.32 pt tall in Excel's print and was
   66.60 in ours (5.05 -> 4.74; no other workbook has Malgun under 8).
+- *Centred text stands four printer dots right of the middle* (0.48 pt
+  on the page): ours stood 0.45 left of Excel's on the median of 56
+  workbooks with centred cells, merged or lone, at page scales from 53%
+  to 100%, and of 27 of 30 with a General TRUE or #N/A. All 720: 84
+  better, 14 worse, 0.811 -> 0.799 (Tables 6.50 -> 5.25, AverageTaxRates
+  6.51 -> 5.48, VLookupFullColumn 1.16 -> 0.26). Open: italic centred
+  text stands further left in Excel's prints, 0.7 to 1.1 pt left of the
+  middle (lo-cell-anchored-hidden-shapes' Palatino Bold Italic titles,
+  54288's), +0.07 to +0.13 worse now; lo-ceiling-floor's booleans stood
+  in the middle (+0.48), and its right-aligned numbers 0.33 right of
+  Excel's — its LibreOffice `<col>` run of 8.71, something in it.
+- *A book with no theme part* takes Excel's own: a font of the minor
+  scheme prints in Aptos Narrow (major, Aptos Display), whatever it is
+  named, and its rows at Aptos Narrow's 15.24 — ten such books in
+  Excel's prints, none in Calibri — unless the font names a character set
+  (64508's, 64667's, in Calibri). The default font is the one cellXfs'
+  first entry uses: bug66675's is an empty `<font/>`, Calibri 11, whose
+  rows print at 14.52. The ten: 10 better, none worse
+  (lo-tdf82984_zip64XLSXImport 4.94 -> 0.35, 52348 3.90 -> 0.88,
+  lo-tdf147955 3.37 -> 1.66).
+- Open: 47813's default rows of Verdana 10 print 13.20 pt (110 dots),
+  where every other Verdana 10 book's print 12.96 (108), ours too; it
+  alone says defaultRowHeight 12.75 and no baseColWidth (Mac Excel 12).
 - *A run of one fill down the rows is one rect*, as Excel's page has
   it (54288's grey blocks, one rect each in Excel's print, showed a pale
   seam under every row of ours): all 720 workbooks, 8 better, 4 worse

@@ -56,6 +56,7 @@ enum Xlsx {
         let theme = _themeColors(themeNode)
         book.themeColors = theme
         let themeFonts = _themeFonts(themeNode)
+        let themeless = themeNode == nil
         // Shared strings.
         var sst: [String] = []
         var sstScripts: Set<Int> = []
@@ -71,10 +72,10 @@ enum Xlsx {
         // Styles: one CellStyle per cellXfs entry, in order, so a cell's
         // `s` is its index in the book's table.
         if let st = xml("xl/styles.xml") {
-            book.styles = _styles(st, theme: theme, themeFonts: themeFonts)
-            // The default font: the first, which the Normal style names.
-            if let f = st.child("fonts")?.kids("font").first {
-                if let n = _fontName(f, themeFonts), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+            book.styles = _styles(st, theme: theme, themeFonts: themeFonts, themeless: themeless)
+            // The default font: the one a cell with no style of its own has.
+            if let f = _defaultFont(st) {
+                if let n = _fontName(f, themeFonts, themeless: themeless), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
                 book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
@@ -504,14 +505,31 @@ enum Xlsx {
     /// theme's Latin face, whatever its `name` says: Excel sets 51519's
     /// "宋体" in Calibri — its columns, rows and Latin text — and a dozen
     /// other East Asian workbooks' fonts the same way (their names are the
-    /// writer's locale's face, their themes Calibri).
-    static func _fontName(_ f: XNode, _ themeFonts: (minor: String?, major: String?)) -> String? {
+    /// writer's locale's face, their themes Calibri). A book with no theme
+    /// part has Excel's own, Aptos: lo-tdf82984_zip64XLSXImport's and nine
+    /// other such books' "Calibri" of the minor scheme print in Aptos Narrow
+    /// (and their rows at its 15.24 pt) — save where the font names a
+    /// character set, as 64508's and 64667's do, which print in Calibri.
+    static func _fontName(_ f: XNode, _ themeFonts: (minor: String?, major: String?), themeless: Bool = false) -> String? {
         let named = f.child("name")?["val"]
+        let builtin = themeless && f.child("charset") == nil
         switch f.child("scheme")?["val"] {
-        case "minor": return themeFonts.minor ?? named
-        case "major": return themeFonts.major ?? named
+        case "minor": return themeFonts.minor ?? (builtin ? "Aptos Narrow" : named)
+        case "major": return themeFonts.major ?? (builtin ? "Aptos Display" : named)
         default: return named
         }
+    }
+
+    /// The book's default font: the one cellXfs' first entry — the style
+    /// of every cell the file has no record of — names, which is the first
+    /// font in all but a few files. bug66675's names its second, an empty
+    /// `<font/>`, which Excel takes as Calibri 11 (its rows print at 14.52,
+    /// where its first font, of a theme-less book's minor scheme, would be
+    /// Aptos Narrow's 15.24).
+    static func _defaultFont(_ st: XNode) -> XNode? {
+        let fonts = st.child("fonts")?.kids("font") ?? []
+        if let id = st.child("cellXfs")?.kids("xf").first?["fontId"].flatMap(Int.init), id < fonts.count { return fonts[id] }
+        return fonts.first
     }
 
     /// The theme's Latin faces, body (minor) and headings (major).
@@ -524,7 +542,7 @@ enum Xlsx {
         return (latin("minorFont"), latin("majorFont"))
     }
 
-    static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil)) -> [CellStyle] {
+    static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil), themeless: Bool = false) -> [CellStyle] {
         var formats = builtinFormats
         for nf in st.child("numFmts")?.kids("numFmt") ?? [] {
             if let id = Int(nf["numFmtId"] ?? ""), let code = nf["formatCode"] { formats[id] = code }
@@ -537,11 +555,13 @@ enum Xlsx {
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
-            font.name = _fontName(f, themeFonts)
+            font.name = _fontName(f, themeFonts, themeless: themeless)
             font.color = f.child("color").flatMap { _color($0, theme: theme) }
             fonts.append(font)
         }
-        let base = fonts.first ?? _Font()
+        // (Measured against the default font, `_defaultFont`'s.)
+        let first = st.child("cellXfs")?.kids("xf").first?["fontId"].flatMap(Int.init) ?? 0
+        let base = (first < fonts.count ? fonts[first] : fonts.first) ?? _Font()
         var fills: [UInt32?] = []
         // A pattern prints as fine lines or dots of its colour over its
         // background — black over white where it names neither — and is
