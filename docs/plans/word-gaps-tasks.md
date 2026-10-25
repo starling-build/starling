@@ -5777,7 +5777,17 @@ the rule's earlier cases, are unchanged. Rechecked on the tip after 451d6fc1.
 DONE 146dd517: the extra page was p29, blank but for a page-placed note: the paragraph after p28's last line is that note, a page break and the next notice, and the empty part before the break got its exact 22pt line a page of its own; Word keeps it (note and all) at p28's foot — lab brk's rule, beside the break-under-a-table rule. Pair w48 -> w49: 71.8 -> 89.7, nothing else moved; zh-167ee06c 100, zh-0aac9d1a 85.0, zh-60c80728 98.3, zh-4a2ab598 99.6, zh-6d1afa56 97.1 held. Left, still CLAIMED: p30's numbered list (1.629-line 標楷體 14pt, labels "%1." in 微軟正黑體 12pt) sets each item's first line ~2.1pt lower in Word — the label lift. LABEL LIFT CLAIMED (Mac 7bd18d8e, 2026-10-25, routed by macos; witnesses zh-8e8d4c40, zh-de073ee5, zh-6d402586), from macos-ios's parked notes.
 Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; this is the Windows print's gap.
 
-### zh-e0ca7252 68.8 (word-win, 50/50 pages) — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-e0ca7252 68.8 (word-win, 50/50 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
+First miss: p13 "…社員時，依第17款辦理。" (標楷體 14, mode 15, compressPunctuation, jc both). Ours takes "理" (hanging
+"。") by squeezing both "，" from 14.0 to 10.2. Word sends "理。" down and justifies with the commas whole. p13-27's misses
+are the one line of drift from there. Over its first 12 pages Word's "，" before an ideograph is 14.0 on short lines and
+14.0/12.6/13.0 on full ones, so at most about 1.4 squeezed, where ours goes to 10.2/11.2/12.0. That is T181's
+squeeze capacity.
+REFUTED here, so nobody re-derives it: Word for Windows' PDFs label fonts at a whole 600-dpi ppem (14 -> 14.04,
+16 -> 15.96, 10.5 -> 10.56), but the advances are the nominal size, with positions on the 1/600" grid. 14pt steps
+alternate 14.04/13.91 (mean 14.004 over 11.6k), and 10.5pt alternates 10.56/10.44. Scaling widths to the labelled size
+took zh 98.0 -> 90.2 (all runs) and 90.7 (East Asian only). Lead, unbuilt: Latin advances look rounded per glyph to
+1/600" (Calibri at 14.04: 94% of steps match round(adv*ppem/upm) units), worth a lab before building.
 Beside T181 (lenovo-3's squeeze-capacity lab, 9cb560da): if the misses are that squeeze, it goes to lenovo-3.
 
 ### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
