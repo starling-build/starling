@@ -5385,7 +5385,12 @@ zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
 
 ### Latin text in a missing East Asian ascii face (Calibri digits in word-win, zh-5450d509) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 
-### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — DONE fb470380 (Linux lenovo-2, starling-d6, 2026-10-25): 98.8, 47 pages
+- DONE fb470380: a page break ending the paragraph that holds a section's mark is that section's break; before a
+  continuous section there is none, text or no (lab t173 a, b), and before a nextPage one the two are one page (c,
+  as lab es). zh-e2dc9dce's contents end in such a break and a continuous section: ours gave chapter 1's title
+  picture a page and ran a page long. Same-base pair against word-win, 756 documents: zh-e2dc9dce 6.2 -> 98.8 (47 of
+  47 pages), nothing else moved; mean 95.53 -> 95.66. Left: 5 of 1039 lines. Released.
 Owner: Linux lenovo-2 (starling-d6), given it by the Mac coordinator. The DFKai-SB face (52008403) did not move it: 6.2 with and without. Finding the first page where ours and Word's part.
 [LAB Windows 01QbbApP 2026-10-25, lab t173 (~/starling-doc-check/lab/t173 on the Windows box), asked by macos: zh-e2dc9dce's own package, each print a fresh Word. Body "X", then a paragraph holding section 1's mark (the document's p36 sectPr) and a page-break run, then "B", with the next section's sectPr (the document's second, pgNumType start 1).
 - (a) the break alone in the mark's paragraph, next section continuous: 1 page. "B" is on page 1, under X: X 85.3, B 139.3. The mark's paragraph keeps its own line, 36pt (26pt bold 標楷體 on the 18pt grid, two pitches).
