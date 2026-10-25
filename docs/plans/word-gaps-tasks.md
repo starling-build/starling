@@ -4741,7 +4741,7 @@ The first word-win batch (3a73e05c, 100 POI docs) scores 82.9 with `lab/tools/sw
 - Done:
   - (b) 32b88548: the matcher pairs a Windows bidi line by its exact letters (Persian and Arabic forms folded). rtl 0 → 85.7; the seventh line misses because the print repeats a mark.
   - (a) 0844bdd6: Windows mode takes the alternate whatever the PANOSE, and strips " CYR", " CE", " Baltic", " Greek" and " Tur" as Windows' FontSubstitutes do. drawing 6.8 → 100. wp2 is 84.7 (wp1 82.9), before the markup reprints.
-- Left, open to anyone: bug59058 (53.3 on word-win). Line breaks agree; Word for Windows fits one more line on p28 after the tables on p27, where the Mac print and ours fit 41. [CLAIMED Linux b2 01JsizVV 2026-10-24: p28's atLeast-15pt lines (Times = Times New Roman 13pt, natural 14.94) are exactly 15, and Word for Windows sets the last one ending on the foot (720.0) — the whole-quarter-point tie rule (lab `ef`) left atLeast out]
+- Left, open to anyone: bug59058 (53.3 on word-win). Line breaks agree; Word for Windows fits one more line on p28 after the tables on p27, where the Mac print and ours fit 41. [DONE 512e6e3b (Mac 01Xgpbk5) -> 100; Linux b2 01JsizVV had it claimed and reached the same change, same-base pair 53.2 -> 100 with nothing else moved — released. Its finding: p28's atLeast-15pt lines (Times = Times New Roman 13pt, natural 14.94) are exactly 15, and Word for Windows sets the last one ending on the foot (720.0) — the whole-quarter-point tie rule (lab `ef`) left atLeast out]
 Done. Same-base sweep of 756: zh-043aab43 85.8 -> 100, zh-e64d4997 85.5 -> 100
 (the Mac 011uWpmC's parked lab `hs`, "（歲入成長率÷ 歲出"), nothing lower.
 Re-confirmed against word-win (Linux office1, 10-24): T155-T159 together, a
