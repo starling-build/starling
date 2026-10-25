@@ -20,6 +20,7 @@ MAC = os.path.join(HERE, 'corpus', 'docx', 'word')
 OUT = os.path.join(HERE, 'corpus', 'docx', 'word-win')
 LOG = os.path.join(OUT, 'reprint.log')
 WORKER = os.path.join(HERE, 'docx-word-win-worker.ps1')
+WARM = os.path.join(HERE, 'docx-word-win-warm.docx')
 
 args = sys.argv[1:]
 def opt(name, default):
@@ -53,7 +54,7 @@ while todo:
     with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as f:
         f.write('\n'.join(chunk) + '\n'); keyfile = f.name
     p = subprocess.Popen(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WORKER,
-                          '-Keys', keyfile, '-Docs', DOCS, '-Out', OUT],
+                          '-Keys', keyfile, '-Docs', DOCS, '-Out', OUT, '-Warm', WARM],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
     lines = queue.Queue()
     threading.Thread(target=lambda: ([lines.put(l) for l in p.stdout], lines.put(None)), daemon=True).start()
@@ -70,6 +71,8 @@ while todo:
         if line is None: break
         w = line.rstrip('\n').split(' ', 2)
         if w[0] == 'word': word = int(w[1])
+        elif w[0] == 'warm':
+            if w[1] != 'ok': print('  warm-up:', line.rstrip(), flush=True)
         elif w[0] == 'start': current, since = w[1], time.time()
         elif w[0] in ('ok', 'error') and len(w) > 1:
             seen.add(w[1]); current = None; n_done += 1

@@ -13,7 +13,9 @@
 param(
     [Parameter(Mandatory = $true)][string]$Keys,
     [Parameter(Mandatory = $true)][string]$Docs,
-    [Parameter(Mandatory = $true)][string]$Out
+    [Parameter(Mandatory = $true)][string]$Out,
+    # A document printed first and thrown away (test/docx-word-win-warm.docx).
+    [string]$Warm = ''
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -31,6 +33,24 @@ $app.Visible = $false
 try { $app.AutomationSecurity = 3 } catch {}
 try { $app.Options.Pagination = $true } catch {}
 try { $app.Options.PrintComments = $true } catch {}
+# Word settles the face it sets a name it lacks in once per process, by the
+# first document to name it, and keeps it: 仿宋_GB2312 printed in YaHei for a
+# whole batch begun with zh-007ca091 (its font-table entry carries a PANOSE)
+# and in FangSong for one begun with zh-621d8756 (alternate 仿宋, no PANOSE),
+# the same documents either way. The warm-up names each _GB2312 face with
+# its alternate and no PANOSE first, so every batch prints them in FangSong
+# and KaiTi.
+if ($Warm) {
+    try {
+        [string]$w = [System.IO.Path]::GetFullPath($Warm)
+        [string]$wp = Join-Path $Out "__warm.part.pdf"
+        $d = $app.Documents.Open($w, $false, $true, $false, '', '', $true, '', '', 0, 0, $false)
+        try { $d.ExportAsFixedFormat($wp, $wdExportFormatPDF) } finally { $d.Close(0) }
+        Remove-Item -LiteralPath $wp -Force -ErrorAction SilentlyContinue
+        Write-Output "warm ok"
+    } catch { Write-Output "warm error $($_.Exception.Message -replace '\s+', ' ')" }
+    [Console]::Out.Flush()
+}
 try {
     foreach ($key in Get-Content -LiteralPath $Keys -Encoding UTF8) {
         $key = $key.Trim()
