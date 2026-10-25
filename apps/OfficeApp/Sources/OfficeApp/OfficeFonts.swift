@@ -1661,6 +1661,28 @@ enum OfficeFonts {
     /// YaHei — to compare with its prints. The default is the faces the
     /// author had (`fangSongFamily`, the 方正 titles' own line).
     private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    /// How much wider Word for Windows sets each character of a face it
+    /// emboldens, in ems: one unit of that face's em — 1/256 for KaiTi,
+    /// FangSong, SimHei, SimSun and MS Mincho, 1/1024 for DFKai-SB,
+    /// PMingLiU and MingLiU, 1/2048 for JhengHei (windows' labs `bold`
+    /// and `bold2`, 2026-10-24: bold KaiTi 12pt steps 12.044, 1/256 em).
+    /// A name Windows lacks counts as the face its alternate gives.
+    /// (Not the Mac's 1/48, and not nothing: zh-457a8d62's bold 標楷體
+    /// 16pt on a character grid took a character a line more than Word,
+    /// every page after p2 a line ahead; a flat 1/256 for all took
+    /// zh-aa3f29a0's 20pt DFKai-SB title onto a second line, and the
+    /// alternate's 1/2048 keeps zh-167ee06c's 華康雅風體 — JhengHei UI
+    /// Light to Word — where it was.)
+    private static func windowsBoldWiden(_ family: String) -> Double {
+        func units(_ name: String) -> Double? {
+            let n = name.lowercased()
+            if ["標楷", "dfkai", "細明", "mingliu"].contains(where: { n.containsSubstring($0) }) { return 1024 }
+            if ["jhenghei", "正黑", "yahei", "雅黑"].contains(where: { n.containsSubstring($0) }) { return 2048 }
+            if ["kaiti", "楷体", "fangsong", "仿宋", "simhei", "黑体", "simsun", "宋体", "mincho", "明朝"].contains(where: { n.containsSubstring($0) }) { return 256 }
+            return nil
+        }
+        return 1 / (units(family) ?? altName(family).flatMap(units) ?? 256)
+    }
 
     /// The face a Song, Ming or Mincho name's ideographs are drawn in
     /// where the platform has none of those faces: Noto Serif CJK, in
@@ -1895,7 +1917,7 @@ enum OfficeFonts {
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)
-            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold && !wordOnWindows ? ea.boldWiden ?? 1.0 / 48 : 0,
+            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? 1.0 / 48) : 0,
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
@@ -2023,7 +2045,7 @@ enum OfficeFonts {
             return face
         }
         var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
-                                    boldSpread: ea.fakeBold && !wordOnWindows ? ea.boldWiden ?? 1.0 / 48 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
+                                    boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? 1.0 / 48) : 0, classScales: ea.latinClasses, baseline: ea.baseline,
                                     isEastAsian: true)
         // (What the Latin stand-in lacks, the face the name stands for
         // draws: Word sets zh-117cf7c6's "※" bullet, 標楷體 with no hint,
