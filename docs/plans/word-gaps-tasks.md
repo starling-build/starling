@@ -4842,7 +4842,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - testComment   0.0  1 lines  1/1
   - WordWithAttachments  13.2  38 lines  2/2
   - delins  13.6  59 lines  1/1
-  - 60329  15.3  98 lines  3/3
+  - 60329  15.3  98 lines  3/3  [CLAIMED Windows 01QbbApP 2026-10-24: Word for Windows prints it unclipped, landscape Letter 792x612 as the docx; finding the 17 lines]
   - bug59058  53.3  1556 lines  52/52
   - rtl  85.7  7 lines  1/1
   - form_footnotes  98.9  87 lines  3/3
