@@ -2176,6 +2176,13 @@ public final class RichLayout {
                 let parts: Bool
                 if a == 0x0A || a == 0x0B || a == 0x2028 { parts = true }
                 else if space(b) { parts = false }
+                // (A no-break space holds both its neighbours, a space or an
+                // ideograph too, though the line may part there:
+                // zh-0aac9d1a's last form (Word for Windows) re-fits as its
+                // first three do, its stamp line "年␣␣••␣月…（盖章）" one
+                // piece; ours parted it at "␣|•" and kept its grid, page
+                // 10's first column three characters too wide.)
+                else if theme.wordRules, a == 0xA0 || b == 0xA0 { parts = false }
                 else if space(a) {
                     var j = k - 1
                     while j >= 0, units[j] == 0x20 { j -= 1 }
