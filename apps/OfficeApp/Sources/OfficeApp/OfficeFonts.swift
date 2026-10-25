@@ -1528,9 +1528,21 @@ enum OfficeFonts {
         if wordOnWindows, !isEmbedded(family) || (ignoringEmbedding && has("楷体_gb2312", "kaiti_gb2312")) {
             if has("仿宋_gb2312", "fangsong_gb2312") { return eastAsianFace("仿宋", ignoringEmbedding: ignoringEmbedding) }
             if has("楷体_gb2312", "kaiti_gb2312") { return eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding) }
-            // (And 標楷體 is its DFKai-SB, a square face like KaiTi: its
-            // single lines stand 1.30 em apart in word-win.)
-            if has("標楷", "dfkai") { return eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding) }
+            // (And 標楷體 is its DFKai-SB, a square face like KaiTi but of
+            // a 1024-unit em: 1.3 em rounded up to a whole unit, 1332, as
+            // PMingLiU's (labs ln/lb), its ascent 820 and half the 308 Word
+            // adds under its baseline — kaiu.ttf, and Windows' lab `round`:
+            // 15.612pt a 12pt line, 18.213 at 14. zh-74b34f3b's 12pt footer,
+            // 49.6 up an 841.9 page, then reaches over the 36th exact 20pt
+            // line's foot at 776.7, which opens page 2 in Word's print; at
+            // KaiTi's 15.6 ours kept it, and every page after ran a line
+            // early. Lab `kai`: zh-d35cbbdb's glyphs on Word's baselines.)
+            if has("標楷", "dfkai") {
+                var face = eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding)
+                face.height = 1332.0 / 1024
+                face.baseline = (820.0 + (1332 - 1024) / 2) / 1024
+                return face
+            }
         }
         // (As Word for Windows sets it, a name it has no face for is its font
         // table's alternate, where that is one it has — the other way round
