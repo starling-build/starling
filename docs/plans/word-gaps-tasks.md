@@ -5295,6 +5295,12 @@ Same references, w9 → w12, also checked on db46d815's fresh embedding prints. 
 - Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
 - T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
 
+[Windows 01QbbApP 2026-10-25, after the reprint 0012bc50 (247 references, each alone in a fresh Word after the cleaned warm-up ef50baab), re-derived as macos asked. The map FILE (test/corpus/docx/word-win-missing-faces-map.txt, lab fmap) needs no change: every probe in it was the first document of a fresh Word with no warm-up. Its 方正公文小标宋 charset-00 row (alt 宋体 -> SimSun) is such a probe, and it obeys the rule (an alternate the box has). The REFERENCES were what broke the rule. The new prints, by the name's own entry:
+- 方正小标宋简体, charset 86: no alt -> YaHei (120 documents; bold runs YaHei Bold). alt 黑体 -> SimHei (15; YaHei before). alt 宋体 -> SimSun (zh-10eab555; YaHei before). alt 微软雅黑 -> YaHei. A missing alt (Arial Unicode MS, 方正姚体, 仿宋_GB2312) -> YaHei. PANOSE or none, the same.
+- 方正小标宋_GBK, 方正黑体_GBK, 方正楷体_GBK, 方正仿宋_GBK, 方正黑体简体, 方正仿宋简体, 方正大标宋简体, 小标宋, 方正公文小标宋 (charset 86): YaHei with no alt, a missing alt or alt 微软雅黑. Unchanged by the reprint.
+- 创艺简标宋, alt 方正舒体 (missing), charset 86 -> YaHei (zh-e7bdb543; DengXian before).
+- 文星简小标宋, no alt, charset 00 -> MS Mincho with JhengHei for what it lacks (zh-f1f73836; SimSun before): the map's "any other charset" row.
+So the rule above stands as written: an alternate the box has wins; otherwise charset 86 -> YaHei, any other charset -> Mincho + JhengHei. Code already following it (ours sets alt-黑体 titles in SimHei) now matches the references.]
 ### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — RELEASED (Windows 01QbbApP, 2026-10-25: labs t170e/t170f below; a count-of-spaces cap is not the rule)
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t170, in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12, jc both).
 The paragraph was set in the body with a right indent stepped 0.25pt; N is the natural width to the end of 高.
