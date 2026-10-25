@@ -5586,3 +5586,6 @@ Unheld, lowest first (score, lines ours/Word's, pages ours/Word's):
 - zh-cec9d337 74.4, zh-b00fef0d 74.6, zh-5be7e156 75.7, zh-f2835e26 78.8, zh-57f1de0d 78.9, zh-ae2dd08d 79.3
 POI under 99 with text: WordWithAttachments 73.7, delins 74.6. The ten 0/0 rows are documents whose Word print has no
 text lines for the scorer, not failed conversions.
+
+### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos)
+From the low list at d9aabe26. Word hangs plus squeezes here (T175's no-hang try cost it 12). First: its first miss.
