@@ -5848,6 +5848,7 @@ Word draws no underline under the spaces in any of them. So underlined spaces ha
 Lab t189 part 2 (Windows 01QbbApP, 2026-10-25, asked by macos for office1): the same paragraph, "開課地點：" + 65 "_" + U underlined spaces + P plain ones; does the "_" stay on line 1 (one line, 80 pages) or go down (81)?
   U26: P 0/1/2/4/8/10/12 one line; P 13/14/16/34 down. U20: P16 one line; P20 down. U13: P 16/21/29/40/60 one line. U0: P60 one line.
   Neither the total spaces (U13+P60 stays) nor P alone decides. A reading that fits all 17 (a candidate, not a rule): count the plain spaces only up to U, and the "_" goes down when the spaces run more than half the 493.25 measure past the margin. From the "_" at 538.3, 6.5 a space, past 544.25: U26+P12 241.1 stays, +P13 247.6 down; U20+P16 228.1 stays, +P20 254.1 down; U13 at most 163.1, never.
+  Part 3, the figure (asked by office1): the same paragraph with a 72pt right indent (measure 421.25, half 210.6), 54 "_" (ending 466.8, 5.35 inside the 472.25 margin), U26: P 0/6/7 one line, P 8/9/12/13 down. The candidate predicts P7 stays (209.2 past) and P8 down (215.7); a constant 246.6 would put the flip at 12/13. So it is half the measure.
 
 ### zh-57f1de0d 78.9 (word-win, 51/51 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
 Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16pt embedded, jc both). On p1,
