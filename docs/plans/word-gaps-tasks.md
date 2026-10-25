@@ -5344,11 +5344,16 @@ two 7.5pt labels in p13's drawing, 室 and 馆, moved down 9.75pt, and Word's pr
 Left: zh-dc9cfa34's other misses. Its spaces already take half the face's spread through the wide-space
 path, which is what windows measured (6.021 against 6.0014 at 12pt); the rest has not been looked at.
 
-### T172. zh-3fe252ff p22: ">" and "%" may not start a line in Simplified Chinese — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T172. zh-3fe252ff p22: ">" and "%" may not start a line in Simplified Chinese — DONE db597b06 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. windows measured it (entry above, lab lan): Word's line ends "…28~31行3" and sends
 栏 down with ">0,"; ours breaks between 栏 and ">", and every page after p22 runs a line short. The Mac found that adding
 ">" to `_noStart` does not move it, because the engine's own break between an ideograph and ">" still happens. Plan: a
 word joiner between a CJK character and a following ">" or "%" under Simplified Chinese only (zh-TW's list lacks both).
+db597b06: a word joiner between an ideograph and a following ">", under Simplified Chinese only. "%" needed nothing:
+it is already in `_noStart`, and the engine doesn't part it from an ideograph (ID × PO). After an ideograph only: a
+joiner after a closing bracket sent zh-4c884684's "…2022年）>" down whole (100 -> 99.0), where Word ends the line with it.
+Same-base Linux pair against word-win, 756 documents: zh-3fe252ff 31.4 -> 99.5, zh-447f1d5c 99.1 -> 99.4, nothing lower
+(the narrowed rule rechecked on the 34 documents with an ideograph or closing bracket before ">", and on both movers).
 ### Circled numbers (①-⑳) in Cambria Math in word-win — MEASURED, mostly done already; RELEASED (Mac 7bd18d8e, macOS-doc, 2026-10-25)
 Census: 40 word-win documents carry ①-⑳; 12 print some in Cambria Math (zh-08dc38da, zh-18cb2079, zh-27083953, zh-2dfde99a,
 zh-4f70ee2d, zh-6cd1befe, zh-7b125a21, zh-8d6f702e, zh-92373179, zh-9e8c1a98, zh-c2f6d17a, zh-e68a2f57). Which: a run with no
