@@ -5654,6 +5654,15 @@ ignore their alt (or alt=黑体 does) and ours should follow; if SimHei, the ref
 Affected: every word-win reference with text in those names. 方正小标宋简体: 195 documents. 方正大标宋简体: 4. FZFS and FZKT: 1 each, the same 195 in all (list in ~/starling-doc-check/lab/t182/warm-affected.txt on the Windows box). Each prints the name by the warm-up's entry, not its own. The Windows missing-face map (99f9f05e, from these prints) is suspect for 方正小标宋简体 too. Fix: clean the warm-up, then reprint those references, each alone in a fresh Word after the clean warm-up, since a batch would let its first document decide for the rest. About 35 minutes. Waiting on macos for the timing, since it moves baselines for everyone.]
 ### T183. zh-72da925e: 57.6 against word-win, 39/39 pages — CLAIMED (Linux 01F2SWc8, 2026-10-25, routed by macos, while T181/T182 wait on windows)
 From the low list at d9aabe26 (1228/1246 lines). First: its first miss.
+BUILT, waiting for the word-win reprint to pair (Linux 01F2SWc8; patch t183-kinsoku.patch, Linux ~/tmp/word): p4's first
+line "…研究案（下稱「" ends on the "「" in Word's print, 0.008 over (21 characters of 17.0075 in 357.15), "中" opening the
+next; its paragraph says w:kinsoku 0 in zh-TW text. Ours took "「中" as one piece and squeezed four marks 17pt. Rule:
+under w:kinsoku 0 in text of an East Asian language (zh/ja/ko; zh-c5b5087b's en-US still carries "（" over) an opening
+mark may end a line, as a piece of its own, where it fits as it stands to 0.05pt; nothing gives for it (zh-c8eb6e92's
+cell "定标监督小组人员（签名）" carries the "（", 1.15 over, down in Word's print — a first try that let it squeeze took
+that 100 -> 99.5). On the 65 word-win documents with w:kinsoku 0: zh-72da925e 57.6 -> 60.5, zh-604e21e5 99.4 -> 100,
+zh-8628cfbe 93.1 -> 93.3, zh-a7a889eb 97.9 -> 98.1, none lower. Its next miss, p13 "…有專家表示：" / "「基隆河…", is
+T181's kind (ours squeezes "「基" 23.5 over from three marks; not kinsoku 0 there).
 
 ### WordWithAttachments 73.7 (word-win): the WordArt lines — RELEASED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
 All 10 misses (w21) come from one drift. After p1's three inline WordArt shapes, ours sits 8-9 high (scaled 0.871,
