@@ -5956,9 +5956,12 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differe
 - Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
   parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
 
-### T192. zh-38d26944: 84.7 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, the table group)
+### T192. zh-38d26944: 84.7 against word-win — MOVED to macOS-doc by the coordinator (2026-10-25; was Linux lenovo-2)
 MOVED (macos): the merged-cell half is now part of the entry below. lenovo-2's ″ (U+2033) width work stays with lenovo-2.
 
+- lenovo-2: its ″ is landed (ae051a6c, GB2312's primes an em; the line now ends as Word's). Left: p13's rows. The merged
+  "成果精度/（50分）/扣完为止" cell parts at p12's foot; on p13 Word grows the rows it continues in to hold the rest of its text
+  (132.0 -> 185.2, 53.2), ours keeps 45.2 and lets it hang, so p13-p14 run 4-8pt high. Released to macOS-doc.
 ### T195. A vertically merged cell parting across a page (zh-8e8d4c40 p2->3, zh-38d26944 p12->13) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
 - zh-8e8d4c40 p2->3: Word sends the merged cell's line that would cross the last row fitting the page over with the next row; ours grows that row (778.54 in Word, 779.7 in ours).
 - zh-38d26944 p12->13 (from T192): the merged cell goes on onto p13, and Word grows the p13 rows to hold the rest of its text (53.2); ours stays 45.2.
