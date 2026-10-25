@@ -5378,6 +5378,12 @@ zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
 
 ### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6), given it by the Mac coordinator. The DFKai-SB face (52008403) did not move it: 6.2 with and without. Finding the first page where ours and Word's part.
+[LAB Windows 01QbbApP 2026-10-25, lab t173 (~/starling-doc-check/lab/t173 on the Windows box), asked by macos: zh-e2dc9dce's own package, each print a fresh Word. Body "X", then a paragraph holding section 1's mark (the document's p36 sectPr) and a page-break run, then "B", with the next section's sectPr (the document's second, pgNumType start 1).
+- (a) the break alone in the mark's paragraph, next section continuous: 1 page. "B" is on page 1, under X: X 85.3, B 139.3. The mark's paragraph keeps its own line, 36pt (26pt bold 標楷體 on the 18pt grid, two pitches).
+- (b) as (a) with "A" before the break: 1 page. X 85.3, A 103.3, B 121.3. The break is ignored, and its 26pt run does not raise A's line: one 18pt pitch.
+- (c) as (a) with the next section nextPage (control): 2 pages, "B" at the top of page 2. That is 2 pages, not 3: the break adds no blank page of its own.
+- (d) the document's own p36, p37, p38 (break, empty, the anchored title picture, which ends in a page break of its own), then "B", continuous: the picture sits on page 1 with X (centred, 358.8-483.1), as in Word's print of the document, and "B" opens page 2 after p38's own break.
+So Word for Windows ignores a page break in the paragraph that carries a section mark when the next section is continuous, whether or not the paragraph has text. With nextPage there is still only the one new page.]
 
 ### zh-8e8d4c40 (and zh-de073ee5): a 、-labelled list line's Mincho lift — MEASURED, PARKED (Mac 01Xgpbk5, 2026-10-25)
 - **Face:** the label takes the style's East Asian face, "新細明體, PMingLiU", a LibreOffice comma list Word for Windows lacks. Its entry (alternate Times New Roman, charset 00) gives MS Mincho by the map, which is what Word prints for the "、".
