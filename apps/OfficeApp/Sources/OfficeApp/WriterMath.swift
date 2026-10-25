@@ -36,7 +36,7 @@ enum WriterMath {
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
-    private static let lock = NSLock()
+    private static let lock = RegistryLock()
 
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say

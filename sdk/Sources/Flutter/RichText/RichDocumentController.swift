@@ -35,7 +35,11 @@ public enum RichChange: Equatable, Sendable {
 
 /// One reversible edit. `apply` mutates the document and returns the op that
 /// undoes it; the controller records that inverse.
-public enum EditOp: Equatable, Sendable {
+// (Indirect: its payloads are boxed. Two paragraph styles inline made a
+// case of over a thousand scalars, and wasm32's outlined copy of it took
+// each as a parameter — 1296, past V8's limit of 1000, so Chrome would not
+// compile the Office app at all.)
+public indirect enum EditOp: Equatable, Sendable {
     case insertText(RichPosition, String, [Run])
     case deleteText(RichPosition, String, [Run])
     /// Split the paragraph at the position; the tail takes `tailStyle`.

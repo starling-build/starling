@@ -226,11 +226,11 @@ struct PdfMarkup {
     /// What a run's look is now that it was not, in Word's words.
     static func _describe(_ style: CharStyle, was old: String) -> String {
         func attribute(_ xml: String, _ element: String, _ name: String = "w:val") -> String? {
-            guard let r = xml.range(of: "<\(element) ") ?? xml.range(of: "<\(element)/") else { return nil }
+            guard let r = xml.rangeOfSubstring("<\(element) ") ?? xml.rangeOfSubstring("<\(element)/") else { return nil }
             let tail = xml[r.upperBound...]
             guard let end = tail.firstIndex(of: ">") else { return nil }
             let tag = String(tail[..<end])
-            guard let a = tag.range(of: name + "=\"") else { return "" }
+            guard let a = tag.rangeOfSubstring(name + "=\"") else { return "" }
             return String(tag[a.upperBound...].prefix { $0 != "\"" })
         }
         var font: [String] = []

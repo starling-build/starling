@@ -1474,7 +1474,7 @@ enum DocxFormat {
                         for tc in unwrapped(tr, "w:tc") {
                             let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
                             let w = tc.first("w:tcPr")?.first("w:tcW")
-                            if w?["w:type"] == "pct", span == 1, let v = Double((w?["w:w"] ?? "").replacingOccurrences(of: "%", with: "")) {
+                            if w?["w:type"] == "pct", span == 1, let v = Double((w?["w:w"] ?? "").replacingAll("%", with: "")) {
                                 let share = (w?["w:w"] ?? "").hasSuffix("%") ? v : v / 50
                                 if let had = shares[col], abs(had - share) > 0.01 { mixed = true }
                                 shares[col] = share

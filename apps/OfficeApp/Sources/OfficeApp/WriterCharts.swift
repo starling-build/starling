@@ -12,6 +12,14 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+/// The registries' lock: one thread in the browser, and no NSLock in its
+/// Foundation (see `OfficeFonts.declaredLock`).
+#if os(WASI)
+struct RegistryLock { func lock() {}; func unlock() {} }
+#else
+typealias RegistryLock = NSLock
+#endif
+
 enum WriterCharts {
     private struct Entry {
         let chart: Chart
@@ -24,7 +32,7 @@ enum WriterCharts {
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
-    private static let lock = NSLock()
+    private static let lock = RegistryLock()
 
     /// Reads the chart in `space` (a chart part's `c:chartSpace`), its
     /// colours from `themePart` (the document's `a:theme`), for the
@@ -122,7 +130,7 @@ enum WriterMetafiles {
     private nonisolated(unsafe) static var entries: [String: Metafile] = [:]
     private nonisolated(unsafe) static var decoded: [String: Image] = [:]
     private nonisolated(unsafe) static var decoding: Set<String> = []
-    private static let lock = NSLock()
+    private static let lock = RegistryLock()
 
     /// Whether a metafile's bitmap is still being decoded.
     static var hasPendingImages: Bool {
@@ -243,7 +251,7 @@ enum WriterGroups {
         let shapes: [Shape]
     }
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
-    private static let lock = NSLock()
+    private static let lock = RegistryLock()
     private nonisolated(unsafe) static var decoded: [String: Image] = [:]
     private nonisolated(unsafe) static var decoding: Set<String> = []
 
@@ -568,8 +576,8 @@ enum WriterGroups {
                     // leader "flip:y" from 8393,42687 to 8993,43122 rises to
                     // the right in Word's print.)
                     let lineFlip = sh["flip"] ?? ""
-                    if lineFlip.contains("x") { (a.0, b.0) = (b.0, a.0) }
-                    if lineFlip.contains("y") { (a.1, b.1) = (b.1, a.1) }
+                    if lineFlip.containsSubstring("x") { (a.0, b.0) = (b.0, a.0) }
+                    if lineFlip.containsSubstring("y") { (a.1, b.1) = (b.1, a.1) }
                     let pa = map(Rect.fromLTWH(a.0 - origin.0, a.1 - origin.1, 0, 0)).topLeft
                     let pb = map(Rect.fromLTWH(b.0 - origin.0, b.1 - origin.1, 0, 0)).topLeft
                     let r = Rect.fromLTRB(min(pa.dx, pb.dx), min(pa.dy, pb.dy), max(pa.dx, pb.dx), max(pa.dy, pb.dy))
@@ -622,7 +630,7 @@ enum WriterGroups {
                     return Double(raw) ?? 0
                 }()
                 let flip = sh["flip"] ?? ""
-                let flipH = flip.contains("x"), flipV = flip.contains("y")
+                let flipH = flip.containsSubstring("x"), flipV = flip.containsSubstring("y")
                 let pt = Rect.fromLTWH(r.left, r.top, r.width, r.height)
                 let start = arrow(stroke?["startarrow"], stroke?["startarrowwidth"], stroke?["startarrowlength"])
                 let end = arrow(stroke?["endarrow"], stroke?["endarrowwidth"], stroke?["endarrowlength"])
@@ -674,7 +682,7 @@ enum WriterGroups {
                 // (Arrows only on a line: a connector, or a path left open.
                 // zh-6e6b9821's side notes are text boxes whose stroke says
                 // `endarrow`, and Word draws them as plain boxes.)
-                let open = (spt.map { _vmlConnectors.contains($0) } ?? false) || (path.map { !$0.contains("x") } ?? false)
+                let open = (spt.map { _vmlConnectors.contains($0) } ?? false) || (path.map { !$0.containsSubstring("x") } ?? false)
                 shapes.append(Shape(rect: pt, fill: fill, line: line, lineWidth: weight, isLine: false, rising: false,
                                     geometry: geometry, rotation: rotation, flipH: flipH, flipV: flipV,
                                     headEnd: open ? start : nil, tailEnd: open ? end : nil, dash: dash(stroke?["dashstyle"])))

@@ -2726,7 +2726,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             if let r = ws.richText[a], case .text(let raw) = cell.value, raw == text, r.map(\.text).joined() == text { return r }
             return st.script != 0 ? [RichRun(text: text)] : nil
         }()
-        if let runs, lead == 0, !text.isEmpty, !text.contains("\n") {
+        if let runs, lead == 0, !text.isEmpty, !text.containsSubstring("\n") {
             let plain = texts.painter(text, style)
             if !wraps || plain.width <= width - pad * 2 {
                 let line: Double
@@ -3167,7 +3167,7 @@ final class _TextCache {
     /// set character by character.
     private func _width(_ s: String, _ style: GridTextStyle) -> Double {
         guard _spaces(s, style) else { return _measure(s, style) }
-        let space = s.contains(" ") ? _measure("a a", style) - _measure("aa", style) : 0
+        let space = s.containsSubstring(" ") ? _measure("a a", style) - _measure("aa", style) : 0
         return s.reduce(0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) }
     }
     /// The stand-in's own width of `s`.

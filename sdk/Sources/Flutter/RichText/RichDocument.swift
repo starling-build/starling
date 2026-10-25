@@ -2107,7 +2107,7 @@ public struct RichDocument: Hashable, Sendable {
     /// "）" to open the next line, where under zh-CN they stay; and
     /// zh-6600d539 (en-US) starts a line "，針對平臺…" in Word's print.
     public var eastAsianLineRules: Bool {
-        guard let xml = defaultLangXML, let r = xml.range(of: "w:eastAsia=\"") else { return true }
+        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return true }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
     public var themeFontLangXML: String? = nil
