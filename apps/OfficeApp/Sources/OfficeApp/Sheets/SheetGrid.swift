@@ -340,8 +340,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             var fit: [Int: Double] = [:]     // by row
             for (a, cell) in ws.cells where refits(a.row) {
+                // (Nor is one merged down over rows, wrapping or not:
+                // LIBRE_OFFICE-128382-0's date of Calibri 14 in D22:D23
+                // leaves both rows at Calibri 11's 14.52 in Excel's print.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
-                   book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
+                   g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
                 let l = line(cell.style)
                 if l > fit[a.row] ?? 0 { fit[a.row] = l }
             }

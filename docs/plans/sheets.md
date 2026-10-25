@@ -649,7 +649,10 @@ Excel's frame and cells stand that far in from the paper's edge in all
 four such workbooks with rules at their left, where a top margin of 0 is
 0 (nine zero-margin workbooks: 4.044 -> 2.254, 7 better, lo-bnc762542,
 centred, +0.06; 49609 19.87 -> 11.64, lo-tdf131575 12.16 -> 4.90).
-Open: their letters' widths in Arial 8 and Microsoft Sans
+A cell merged down over rows is no part of their fit, wrapping or not:
+LIBRE_OFFICE-128382-0's Calibri 14 dates in D22:D23 leave both rows at
+Calibri 11's 14.52 in Excel's print (the 24 workbooks with such merges:
+1.868 -> 1.829, that one 4.97 -> 4.02, nothing worse). Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.
