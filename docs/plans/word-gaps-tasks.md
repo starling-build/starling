@@ -5118,7 +5118,7 @@ x only, so no score move here, but zh-1cfb652b 67.9 -> 87.5 (w21 -> w22). Left: 
 invisible glyphs above each annex heading (read as "AA"/"BB" lines), p1's ICS block 7pt and footer line 5pt off,
 p4's "3.2" read with its leader. Released.
 
-### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED, RELEASED for Windows labs (Mac 7bd18d8e, macOS-doc, 2026-10-24)
+### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED (Mac 7bd18d8e, macOS-doc); Windows lab `kai` done (Windows 01QbbApP); zh-d35cbbdb CLAIMED Linux 017F2GnT (lenovo-2), 2026-10-24; zh-e8d4c046 reference was a batch artifact, reprinted in db46d815
 - zh-e8d4c046: Word for Windows skips the embedded 方正小标宋简体 (fsType 8, 2052 name matching) and draws the title in
   MS Gothic, 22pt lines 38.4 apart (ours, the embedded face at 1.164x1.3, 33.3); all below 10.5pt high. It uses the
   same file's embedded "仿宋_GB2312" (SimSun inside). zh-1cfb652b, zh-2bca0bdf, zh-c2229d4a do get embedded faces;
