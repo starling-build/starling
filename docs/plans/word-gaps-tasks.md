@@ -5400,3 +5400,9 @@ So Word for Windows ignores a page break in the paragraph that carries a section
 ### T174. zh-c5b5087b: 26.7 against word-win, 11 pages to Word for Windows' 10 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Its history above (T154, the footer spaces, Lab c5) is against the Mac
 prints; this starts again from the word-win reference on the current tip.
+[LAB Windows 01QbbApP 2026-10-25, lab t174 (~/starling-doc-check/lab/t174 on the Windows box), asked by macos for office1: zh-c5b5087b's own package, paragraph 28's pPr and run (仿宋_GB2312 16pt, FangSong after the warm-up; kinsoku 0, justified, indent 0). Each probe is a line of 28 full-width characters with one mark at the 22nd, set at measures 448 minus 0, 0.5, 1, 2, 3, 4, 6 and 8, each print a fresh Word, 60s after opening:
+- (a) as is: the run has no East Asian language, so Normal's en-US applies. The 28th is left from 0.5 over, and the line sets 27 characters justified 16.3-16.6 apart. The "，" is never squeezed.
+- (b) the run's w:lang eastAsia="zh-CN": the 28th is taken through 8 over, the "，" squeezed to fit, down to 8.0 (half) at 8 over.
+- (c) as (a) with "（" for the comma: the 28th is taken through 8 over, the bracket's blank left half squeezed (题's advance 16 -> 8.0). So an opening mark gives under en-US, and a closing one does not.
+- (d) as (a) with doNotUseEastAsianBreakRules taken out of settings: identical to (a). Not the flag.
+Caution: the line above records Word's print squeezing commas in other en-US paragraphs of this file (p2-p5). Check those runs' own w:lang (or their style's) before making en-US a general no-squeeze rule for closing marks.]
