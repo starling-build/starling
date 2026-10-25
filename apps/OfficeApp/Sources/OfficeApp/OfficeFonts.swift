@@ -1333,6 +1333,23 @@ enum OfficeFonts {
                 return eastAsianFace(alt)
             }
         }
+        // (Word for Windows with the Chinese font packs — the reference
+        // since 2026-10-24, word-win — sets 仿宋_GB2312 and 楷体_GB2312
+        // in its FangSong and KaiTi, whatever the table's alternate:
+        // 209 and 98 documents of the reprint. Word fixes a missing
+        // name's face once a process, from the first file that names it,
+        // and the first run, unwarmed, flipped between these and YaHei.)
+        // (Not where the file carries the face: what its subset lacks
+        // Word for Windows sets on YaHei's lines, as before the font
+        // packs — zh-5450d509's embedded 仿宋_GB2312 stands 31.2pt a
+        // 1.5-spaced 12pt line in word-win, YaHei's, not FangSong's 23.4.)
+        if wordOnWindows, !isEmbedded(family) {
+            if has("仿宋_gb2312", "fangsong_gb2312") { return eastAsianFace("仿宋", ignoringEmbedding: ignoringEmbedding) }
+            if has("楷体_gb2312", "kaiti_gb2312") { return eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding) }
+            // (And 標楷體 is its DFKai-SB, a square face like KaiTi: its
+            // single lines stand 1.30 em apart in word-win.)
+            if has("標楷", "dfkai") { return eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding) }
+        }
         // (As Word for Windows sets it, a name it has no face for is its font
         // table's alternate, where that is one it has — the other way round
         // from Word for Mac, which never reads it — and YaHei where it is
@@ -1936,6 +1953,7 @@ enum OfficeFonts {
         // (As Word for Windows sets it: a name it lacks is FangSong only
         // where its font table gives 仿宋 for it — `wordOnWindows`.)
         if wordOnWindows {
+            if n == "仿宋_gb2312" || n == "fangsong_gb2312" { return starlingFangSong }
             let a = altName(family)?.trimmingWhitespace().lowercased() ?? ""
             return (a == "仿宋" || a == "fangsong") ? starlingFangSong : nil
         }
