@@ -5752,7 +5752,13 @@ zh-4a2ab598 80.5 (70/69), zh-34a6519a 80.9 (49/48), zh-7eba7349 81.5, zh-2a241df
 zh-61aaad09 82.4, zh-4c5da793 82.5. Held: zh-505b9619 (T181) and zh-72da925e (T183) lenovo-3; zh-0aac9d1a windows.
 Parked: zh-7773163d, zh-8e8d4c40, the two 3-D pies, zh-015abfaf (hairline).
 
-### T185. zh-64044a1d: 66.5 against word-win, 68 pages to 69 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25)
+### T185. zh-64044a1d: 66.5 against word-win, 68 pages to 69 — DONE 725ef49d (Linux lenovo-2, starling-d6, 2026-10-25): 93.5, 68/68
+- DONE 725ef49d, keep-with-next at a page's foot, two halves: (1) a run's first member that must stand whole and does not fit
+  what is left goes over with the run (the "【後勤財務組】" heading, 99pt in 89.4 under figure 6, stayed by its last
+  line's overhang and sent "一、目的" on alone); (2) a whole member is measured to its text's foot, not its space after
+  (the next run, thirteen kept paragraphs, fits page 41 in Word with its last's 9pt after past the foot). Same-base pair
+  past 0012bc50, 756 documents: zh-64044a1d 66.5 -> 93.5 (68/68), zh-34a6519a 80.9 -> 89.3 (49/49), nothing else moved;
+  mean 96.63 -> 96.68. Left in zh-64044a1d: from p44 on (to look at). Released.
 Owner: Linux lenovo-2 (starling-d6), first on the coordinator's refreshed unheld list (w5 at 0012bc50); own sweep w59 agrees.
 
 ### T186. zh-77bd4900: 67.2 against word-win, 42/42 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
