@@ -5710,6 +5710,13 @@ Left: one line of drift through p15-24. Word breaks an over-long stretch at the 
 change no score, because Word still fits about 3pt more on such a line (widths of letters missing from
 browalliaAdvances, such as ฒ?). Moving every over-long stretch to the next line scored 52.3. Released.
 
+OPEN follow-up (from macos, don't fix piecemeal): Windows-mode Thai layout now depends on the machine. The Mac has
+true widths (Cordia, the same as Browallia) plus space breaking. Linux has Noto Sans Thai at 0.66 plus the engine's
+dictionary, where two errors cancel: the scale was tuned to 614 lines under dictionary breaks. Give Linux the Mac's
+model (browalliaAdvances on its Thai stand-in plus thaiBreaksAtSpaces) and re-tune, so both agree.
+Measured, not landed (macos: one Thai document, the overfit risk): an over-long stretch that is not the paragraph's first
+joined whole, so it moves to the next line and breaks where it fills there (windows' lab: "starts on the next line"),
+the first one (after a list label) still broken in place. 61.2 -> 67.9, 616/622 lines.
 ### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
 396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
 so test/run.sh's "office: native vs browser" step compared against a stale 10-13 stage and checked nothing since.
