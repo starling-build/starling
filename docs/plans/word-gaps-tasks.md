@@ -4757,6 +4757,22 @@ embedded PMingLiU (every print of the corpus): of its symbols only "×" (500),
 "÷" (591, 98 prints), "｢｣" (500) and "Å" (709) are not an em. Ours sets "÷" in
 the stand-in at 0.584. "÷" sits in the "）÷（" formula cells of ~98 documents.
 
+### word-win audit: references printed before Word had their cloud face — 2 replaced, re-score them (Windows 01QbbApP, 2026-10-24)
+Word fetches an Office cloud face the first time a document names it, and prints that document in a
+fallback while it downloads. Eight cloud faces arrived during the full reprint: Aptos 16:58, Vrinda
+17:01, Batang 17:02, STFangsong and STXinwei 17:08, MingLiU_HKSCS 17:16, Nunito Sans 17:18, STXihei
+17:26. Three checks, every reprint the first document of a fresh Word after the warm-up:
+- The 18 references whose runs, styles or theme (latin/ea) name one of those eight: 16 reprint
+  identically. Two did not and were replaced (3a85d9f2). **Re-score these before reading misses:**
+  - table-alignment: bold italic was Calibri, is Aptos.
+  - zh-8d72961c: its Nunito Sans text was Calibri, is Nunito Sans Light/Bold; 61 lines where it had 59.
+- An audit of all 756 prints (scratchpad audit.py): text runs naming a face this box has, installed
+  or cloud, whose PDF never uses it. It flagged 12; all 12 reprint identically, so Word really
+  sets those runs in another face.
+- A random 30 of the 414 references that name a face this box lacks, reprinted fresh: all
+  identical. The batches' once-per-process substitute did not alter the set.
+So word-win is clean apart from the two above.
+
 ### delins 74.6: Word for Windows' balloon order at one anchor — PARKED (Windows 01QbbApP, 2026-10-24)
 At 8309c3f8 the pitch matches Word's to 1pt, and only the order of the x428 column is left. Word's
 print (word-win), with each box paired to its connector by draw order, shows the following.
