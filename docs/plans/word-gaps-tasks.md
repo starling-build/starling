@@ -5904,6 +5904,11 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differ
   items 一…五, exact 18pt, widowControl 0) needs 252.5 from 529.5, ending 782.0 + a 0.5 line; the footer (one 12pt 標楷體 line, 856
   twips up) tops out at 783.5. Line breaks identical. Ours keeps the row; Word parts item 五 1+1 and sends "措施。" to p14, as if its
   foot were above 782.5. WAITING ON A LAB (asked of macos): content raised 0.5/1/2pt, and the footer emptied.
+- LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t190, its own package, fresh Word, warm-up first). Raised by row 13's two-line "二、演練時…" paragraph at exact 275/270/260 twips (row 13's rule 529.51 -> 529.03/528.55/527.47). The page-closing rule Word draws is the table's 2.16pt bottom border, not a 0.5 line:
+  (a) as is: "措施。" to p14; p13 closes with the 2.16 border at 764.04 under "五、…精進" (749.19-763.23).
+  (b) up 0.5: to p14 (border 763.56). Up 1.0: STAYS, "措施。" 766.23-780.27, the border 781.08-783.24. Up 2.0: stays, border 780.00-782.16.
+  (c) footer emptied (its 12pt mark kept): to p14, as (a). Footer reference removed: stays, "措施。" 767.19-781.23, the border 782.04-784.20.
+  So the row must fit with its whole closing border: the border's foot at 783.24 fits, at 783.72 (a's 784.20 less 0.48) does not. The body's limit there is the footer's top: 799.2 (856 twips up) less one 12pt 標楷體 line in YaHei (1.32 em, 15.84) = 783.36. With no footer, the 785.3 margin takes 784.20. The footer's text, not its paragraph, makes no difference.
 
 ### T191. zh-4c5da793: 82.5 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
 Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
