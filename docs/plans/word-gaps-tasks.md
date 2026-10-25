@@ -6070,3 +6070,20 @@ Owner: Linux lenovo-2. From T196: under "資料來源：本所會計室" three e
 ### T198. zh-f2835e26: a raised run's line height (w:position) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Measured before (lines ~926, ~943; Mac lab pos4): Word makes a single (auto) line that
 holds a run raised r taller by r; ours sets the shift (d972fe9f) and keeps the height. Guards: zh-10e3a42be, zh-64044a1d.
+
+### Office comparison report (starling-office-benchmark, 2026-10-25, pinned 30ed1feb) — five tasks, routed by bd at the user's request
+Report: ~/dev/starling/starling-office-benchmark/docs/perf/office-comparison (uncommitted): Starling and LibreOffice against fresh
+Windows Office PDFs, SSIM. docx 0.897 / 0.825, pptx 0.632 / 0.896, xlsx 0.977 / 0.728. Showcase: test/corpus/docx/feature-showcase
+in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs beside them).
+- T199. Windows stack overflow — CLAIMED windows. lo-tdf93830, lo-smartart-preserve and 63200 (pptx) die on Windows with 0xC00000FD.
+  Checked on the Mac (bd): all three render at `ulimit -s 8192` and segfault at 1024. Windows' main thread gets 1 MB and nothing in our
+  build raises it. Fix: a bigger stack for OfficeApp on Windows (a /STACK link flag, or the export on a thread with its own stack).
+- T200. Showcase crash on Windows — CLAIMED windows. starling-office-rendering-challenge.docx dies with 0xC0000005 (two fresh runs);
+  every F section alone exports. On the Mac it converts to Word's 19 pages, even at a 1 MB stack, so it is Windows-only. Not diagnosed.
+- T201. Charts — CLAIMED macos-ios (after zh-b8de3ae2): F07 a three-ring doughnut drawn as one ring; F04 a deleted legend entry
+  still shown (also xlsx chart-deleted_legend_entry2's "First"); F09 a 3-D surface drawn as an empty gray box; F03 major unit 2
+  where Word's is 1; F10 data-table borders darker and legend keys wider than Word's.
+- T202. WordArt and shape effects — CLAIMED macOS-doc (after zh-38d26944): F13 Arch Up (VML WordArt) collapses to a small mark,
+  Wave and Curve Up differ; F14 blur, fill overlay and inner shadow dropped.
+- Open, the user's call: on Windows ours embeds Carlito / Caladea / Liberation for Calibri / Cambria / TNR though the real faces are
+  installed; F01's Georgia, Garamond, Century Gothic and Consolas come out at other sizes or widths (0.84 against LibreOffice's 0.98).
