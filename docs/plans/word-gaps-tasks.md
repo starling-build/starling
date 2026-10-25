@@ -5312,3 +5312,9 @@ zh-b00fef0d 73.7 -> 74.6, and four by under half a point. Only zh-b24b396a dippe
 two 7.5pt labels in p13's drawing, 室 and 馆, moved down 9.75pt, and Word's print holds neither.
 Left: zh-dc9cfa34's other misses. Its spaces already take half the face's spread through the wide-space
 path, which is what windows measured (6.021 against 6.0014 at 12pt); the rest has not been looked at.
+
+### T172. zh-3fe252ff p22: ">" and "%" may not start a line in Simplified Chinese — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. windows measured it (entry above, lab lan): Word's line ends "…28~31行3" and sends
+栏 down with ">0,"; ours breaks between 栏 and ">", and every page after p22 runs a line short. The Mac found that adding
+">" to `_noStart` does not move it, because the engine's own break between an ideograph and ">" still happens. Plan: a
+word joiner between a CJK character and a following ">" or "%" under Simplified Chinese only (zh-TW's list lacks both).
