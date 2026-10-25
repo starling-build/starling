@@ -5230,3 +5230,9 @@ and leaves "高" (its spaces print 5.88); ours takes it through the automatic-sp
 print-timing trap): need × (lineEms/64 + spaces) ≤ spaces/2 × room, 35.6 ≤ 41.8 here.
 Lab asked of windows: the over at which "高" stops being taken with three spaces, with
 one, and on a line twice as long.
+
+### T171. zh-457a8d62: 9.6 against word-win, 27/27 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-24)
+Owner: Linux office1. Linux w12 sweep on b887ee3d. Every page from p2 on runs a line ahead of Word for
+Windows' print. p2's paragraph "一、被彈劾人許志堅擔任新北市政府副市長及新北市都" ends at 都 in Word; ours
+takes 更, and the next lines of that paragraph and of "(一)…收受周麗惠" each take one more character.
+Line fit, not pagination: the pitch matches (22.9). Not yet measured.
