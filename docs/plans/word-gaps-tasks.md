@@ -5485,6 +5485,8 @@ So Word hangs only after squeezing everything it can, at about 1.5 em over. The 
 - (c) at 16pt: the paragraph breaks elsewhere, so there is no reading. The 16pt body copy matches (a)'s stages to 20 over.
 Rule for ours: hang a last mark only after the marks have given all they can (squeeze before hang). And never hang one after a digit (or a Latin letter, presumably: untested).]
 
+- **[Mac 01Xgpbk5, 2026-10-25] No second pass.** The fitter's own adjustment map, printed with the no-hang switch in the `squeezes` branch, carries `105[6、] −16.00` (the trailing 、 hung a full em) and five −0.55 automatic-space shares. That's exactly the room "6、" needs (372 − 2.75 + 8 = 377.25). It comes from the automatic-space branch (`if need <= roomSpaces + hair, halfStretch, sharesStretch {` … `adjust[tail] -= hang`), not from anything after the fit. A no-hang rule must gate every `adjust[tail, default: 0] -= hang` (RichLayout has two).
+
 ### T176. zh-045c5a75: 37.1 against word-win, 23 pages — DONE b535389c (Linux lenovo-2, starling-d6, 2026-10-25): 98.5
 - DONE b535389c: its law text stands in an invisible one-cell wrapper (0.75pt margins and spacing) read as the body,
   which kept that room only where it began and ended. Word parts the wrapper's one row over pages, and each later
@@ -5530,3 +5532,7 @@ The blank page is not paragraph 51's. In the real document both prints set its "
 Owner: Linux office1, routed by macos. 100 against the Mac print (Mac 0fcba326, 2026-10-23); low against word-win.
 
 ### zh-dc25c47e: 47.8 against word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+
+- **zh-8e8d4c40 label lift, retry notes (Mac 01Xgpbk5):** label-target.patch (Mac) puts the label's baseline into the first-line target of `_layoutParagraph`'s lead block. It used `marker.computeDistanceToActualBaseline`, which is in pixels, while `target` is in points (`_px(target)`): the lines were shoved out of their cells (177 → 143). Convert by `/ (theme.pixelsPerPoint * scale)`. Lift the line as the Segoe UI Symbol case does, `segoeLift = max(segoeLift, labelBaseline − target)`, rather than `target` alone.
+
+### zh-419ea527 (71.1 at w20) — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
