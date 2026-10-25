@@ -5419,9 +5419,16 @@ So Word for Windows ignores a page break in the paragraph that carries a section
   - A rise box for the label's ascent (label-rise.patch) moves our labelled line's baseline 0.4 against Word's 0.6, but the line stays 15.6. DFKai-SB's height is held by a strut, so nothing below moves, and zh-8e8d4c40 stays at 47.5 on 52008403.
   - Needed: a strut-held line that takes a taller ascent from its label, as the rise does for a larger number. Open to anyone.
 
-### T174. zh-c5b5087b: 26.7 against word-win, 11 pages to Word for Windows' 10 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T174. zh-c5b5087b: 26.7 against word-win, 11 pages to Word for Windows' 10 — DONE 03ed4ca9 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Its history above (T154, the footer spaces, Lab c5) is against the Mac
 prints; this starts again from the word-win reference on the current tip.
+03ed4ca9: in Windows mode, pause marks (，。、；：！？) and curly quotes give nothing in text whose East Asian
+language is not zh/ja/ko (the run's, else its paragraph style's, else the document's). Brackets give as before, and
+zh-CN text keeps the half-em squeeze. windows' lab t174 above settles it: en-US language, not doNotUseEastAsianBreakRules.
+Word for Mac squeezes them, so Mac and default modes are unchanged.
+Same-base Linux pair against word-win, 756 documents, 95.62 -> 95.73: zh-c5b5087b 26.7 -> 100 (11 pages, as Word),
+zh-264d7516 90.2 -> 98.6, zh-efd9229a 98.4 -> 99.2, zh-51af781b 99.1 -> 99.7, nothing lower. Rechecked on the tip after
+a67f5097.
 [LAB Windows 01QbbApP 2026-10-25, lab t174 (~/starling-doc-check/lab/t174 on the Windows box), asked by macos for office1: zh-c5b5087b's own package, paragraph 28's pPr and run (仿宋_GB2312 16pt, FangSong after the warm-up; kinsoku 0, justified, indent 0). Each probe is a line of 28 full-width characters with one mark at the 22nd, set at measures 448 minus 0, 0.5, 1, 2, 3, 4, 6 and 8, each print a fresh Word, 60s after opening:
 - (a) as is: the run has no East Asian language, so Normal's en-US applies. The 28th is left from 0.5 over, and the line sets 27 characters justified 16.3-16.6 apart. The "，" is never squeezed.
 - (b) the run's w:lang eastAsia="zh-CN": the 28th is taken through 8 over, the "，" squeezed to fit, down to 8.0 (half) at 8 over.
