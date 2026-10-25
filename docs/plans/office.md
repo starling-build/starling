@@ -6210,6 +6210,22 @@ fitter dropped the paragraph's tail).
   Windows' print; the clone's (DejaVu Sans') line under SimSun's set each
   0.8 short. Same-base sweep h150 (word-win): only zh-a7a889eb moved, 97.2
   -> 97.9 (91.0 -> 97.9 with the line above and be77c1fa's bold).
+- **Nunito Sans is its own widths and line (2026-10-24, Windows
+  references).** Office's cloud font, which Word for Windows (its cloud
+  cache) and Word for Mac both set and embed in their prints: a 1.364 em
+  line by its typo metrics (1011 over, 353 under of 1000, no gap;
+  USE_TYPO_METRICS on, so not its win 1.429), the baseline 1.011, and its
+  Light, Regular and Bold widths over ASCII, Latin-1 and the common marks.
+  The tables are Google's OFL variable font at wght 300/400/700 and its
+  12pt optical size (at 6pt they are 5-12% wider): every width equals the
+  subsets zh-d97c5474's and zh-8d72961c's prints embed and the cloud
+  font's own, which windows 01QbbApP read off the Windows box. The
+  stand-in was Carlito, about 9% narrower, its line 14.6 at 12pt to
+  Word's 16.37. The two documents' Chinese runs (eastAsia, Word's MS
+  Mincho and JhengHei) keep their own lines; they only stand lower, under
+  the notices above that now take Word's room. Same-base sweep h151
+  (word-win): zh-8d72961c 4.3 -> 36.2, zh-d97c5474 2.2 -> 19.6, nothing
+  else moved. Their Greek, in Cambria runs, is the next entry.
 - **A row opening a page under a cell of no top line takes the table's
   top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
   thinThickSmallGap top (sz 24) over single half-point inside lines, its

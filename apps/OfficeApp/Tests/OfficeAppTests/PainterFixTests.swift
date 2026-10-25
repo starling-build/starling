@@ -154,6 +154,22 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(face.baseline), 1.0791, accuracy: 0.0005)
     }
 
+    func testNunitoSansIsItsOwnWidthsAndLine() throws {
+        // Office's cloud Nunito Sans, embedded in Word's prints of
+        // zh-d97c5474: a 1.364 em line (hhea 1011/353 of 1000), and its
+        // Light's space 0.251, "M" 0.849, "à" 0.522; its Bold's space 0.270.
+        let light = try XCTUnwrap(OfficeFonts.face("Nunito Sans Light", eastAsian: false))
+        XCTAssertEqual(try XCTUnwrap(light.naturalHeight), 1.364)
+        XCTAssertEqual(try XCTUnwrap(light.baseline), 1.011)
+        let a = try XCTUnwrap(light.advances)
+        XCTAssertEqual(a.count, 95, "U+0020 to U+007E")
+        XCTAssertEqual(a[0], 0.251)
+        XCTAssertEqual(a[Int(Character("M").asciiValue!) - 0x20], 0.849)
+        XCTAssertEqual(try XCTUnwrap(light.otherAdvances?[0xE0]), 0.522)
+        XCTAssertEqual(try XCTUnwrap(light.boldAdvances)[0], 0.270)
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Nunito Sans", eastAsian: false)?.naturalHeight), 1.364)
+    }
+
     func testPMingLiUsSpaceAndTimesSignAreItsOwnWidths() throws {
         // Word's embedded PMingLiU sets the space 0.26 em (97 prints'
         // /Widths) where the stand-in set 0.235, and "×" half an em:
