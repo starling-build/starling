@@ -5486,3 +5486,11 @@ Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unhe
 Owner: Linux office1, routed by macos (macos-ios's facemap; it is busy on the strut-held label line). The rows of
 "Sig map for missing Latin faces" above that ours sets otherwise, gated on Windows mode, Mac mode as is. Ebrima's widths
 from the subset embedded in zh-c399c91a's word-win print. Same-base pair against word-win.
+
+### zh-b8de3ae2 p14: a merged row held up by a cell whose text lands lower — DONE feafd572 (Mac 01Xgpbk5, 2026-10-25)
+From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wrong, 13.55 in ours against Word's 11.3–11.7.
+- Cause: our rule for a row in which no cell stands alone (Mac, 2026-10-13) gave it the first line of the "比率(%)" cell that starts there. Word for Windows doesn't count that line when a later row the cell reaches has a cell of its own.
+- Fix, Windows mode only: the starting cell's first line doesn't count in that case.
+- Result: zh-b8de3ae2 76.2 → 82.8, nothing lower (w17 / w19 / w20).
+- Turning the rule off outright cost zh-15728c84 −43, zh-9ba2ead7 −17.6, zh-9ef811c8 −16.5, so Word for Windows keeps it for rows merged whole.
+- What's left of zh-b8de3ae2 is its charts (p9, p12, p15, p18, p20–23).
