@@ -4798,3 +4798,8 @@ lab fsw's three zh-CN-theme documents give YaHei for a missing face, so the rule
 (theme language? major font?) needs a Windows lab: (a) this cover with
 themeFontLang eastAsia zh-CN; (b) with the theme's Jpan major font changed;
 (c) a missing face in a zh-CN document whose theme Hans font is 宋体.
+
+### T161. zh-bfe04e2f: Word for Windows' lines take a character more — CLAIMED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), routed by macos. 62.7 against
+word-win, 100 against the Mac's; the same SimSun/FangSong faces in both prints,
+and Windows' lines take one more ("…引领除LNG 船舶和5", "…以及引航机构报告，：").
