@@ -5300,6 +5300,10 @@ automatic CJK-digit spaces of about 2.64pt each. The largest over Word still tak
 It saturates near 3.5pt a line, roughly min(about ½ × Σ automatic spaces, 3.5), ±0.25. "、2" carries no automatic space
 (with 、 → 丁 the natural width grows 3.0), so (a)'s line has 3, not 4. t170b's 6.0 for zh-4ea36aa8 was inflated by
 punctuation and is superseded by this series.]
+[Windows 01QbbApP, t170d at 10.5 and 16pt: the allowance scales with the font size, in em. The largest over at 10.5 / 12 / 16pt:
+  2 spaces 2.50 / 2.50 / 3.25; 4 spaces 3.00 / 3.25 / 4.00; 6 spaces 3.00 / 3.50 / 4.50; 8 spaces 3.25 / 3.50 / 4.50.
+In em that is 2 spaces about 0.21 and a cap of about 0.29 (0.28-0.31). The 12pt values ÷ 12 fit all three sizes within
+the ±0.25pt step.]
 Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
 "二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
 print, ours takes "高", and the cell and page run a line short after it.
