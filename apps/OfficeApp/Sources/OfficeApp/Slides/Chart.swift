@@ -2450,13 +2450,13 @@ enum ChartPainter {
     /// 1,600 in 200s, 0 to 600 in 100s, 0 to 6 in ones, 0 to 9 in ones
     /// (line-chart's 8.2, where eight made it 0 to 10 in twos) — and no
     /// deck's axis tells nine from ten. Across the page, eight.
-    static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10) -> (lo: Double, hi: Double, step: Double) {
+    static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10, headroom: Double = 0.05) -> (lo: Double, hi: Double, step: Double) {
         if let s = _offZero(lo0, hi0, intervals: intervals) { return s }
         var lo = min(0, lo0), hi = max(0, hi0)
         if hi == lo { hi = lo + 1 }
         let span = hi - lo
-        if hi > 0 { hi += span * 0.05 }
-        if lo < 0 { lo -= span * 0.05 }
+        if hi > 0 { hi += span * headroom }
+        if lo < 0 { lo -= span * headroom }
         let rough = (hi - lo) / Double(max(1, intervals))
         let mag = pow(10, floor(log10(rough)))
         let norm = rough / mag
@@ -2629,7 +2629,11 @@ enum ChartPainter {
             let room = area0.height - Double(c.series.count + c.lineSeries.count + 1) * row
             return max(2, min(10, Int(room / (labelSize * k))))
         }()
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? (c.type == .bar ? 8 : 10))
+        // (A 3-D bar chart's axis has no headroom: zh-b8de3ae2's four, Word's
+        // print, run 107,660 to 120,000, 410,306 to 450,000, 130.3M to 140M
+        // and 383.3M to 400M — the last 450M with the 5% a flat chart takes.)
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? (c.type == .bar ? 8 : 10),
+                                                                          headroom: c.barView != nil ? 0 : 0.05)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
