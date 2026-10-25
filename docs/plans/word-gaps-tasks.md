@@ -4853,3 +4853,4 @@ with all 181 lines matched: each page's text a constant 6.1pt under Word's
 (first baseline 91.0 against 84.9; 宋体 body, top margin 1440). Not T155-T159's
 (the same with and without them); not low at w4 (9e957126). Bisecting 9e957126
 and 0844bdd6 first, as macos suggests.
+- bceef902: the matcher takes a line's baseline from the spans that hold text only. Under PyMuPDF a closing space can share a line at its own baseline: EmbeddedDocument's "4" read 4pt low and went from 100 to 33. w5 was rescored with it (zh 92.6, POI 85.5). Linux scores move slightly the same way.
