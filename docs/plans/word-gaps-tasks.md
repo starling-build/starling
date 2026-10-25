@@ -4754,7 +4754,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - zh-e64d4997  84.2    506 lines    12/12  (mac  85.4)
   - zh-043aab43  84.4    514 lines    12/12  (mac  85.6)
   - zh-61a05efc  90.3    155 lines      4/4  (mac 100.0)  [Linux 017F2GnT 2026-10-24: bold SimSun runs 12.25 a character where Word for Windows sets 12.0 — macos-ios's boldSpread 0 for Windows; re-score after it lands]
-  - zh-a7a889eb  90.4   1107 lines    41/41  (mac  97.3)
+  - zh-a7a889eb  90.4   1107 lines    41/41  (mac  97.3)  [CLAIMED Linux 017F2GnT 2026-10-24: contents lines in 微软雅黑 Light step 36.21, ours 36.83 — Light's usWinAscent 2080 (windows sent its metrics)]
   - zh-424775e4  92.7    370 lines    13/13  (mac  97.6)
   - zh-9db183d5  95.0    260 lines    11/11  (mac  96.5)
   - zh-4ea36aa8  95.1    715 lines    17/17  (mac  97.1)
