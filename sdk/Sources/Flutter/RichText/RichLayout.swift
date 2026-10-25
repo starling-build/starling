@@ -6351,9 +6351,24 @@ public final class RichLayout {
                         // "…相同者得基準分" on a line Word wraps before "分". A
                         // cell of no margin keeps none: zh-15ecc2c6's outset
                         // lines over 0-twip margins have their text to the line.)
+                        // (Never inside the line holds at the table's edge,
+                        // where the line is drawn inward. Between two inside
+                        // lines a cell of no margin keeps half of each clear:
+                        // zh-5bfac68f's 0-margin cells start 0.24 past a 0.5pt
+                        // line's middle in Word's print, where ours stood a
+                        // whole line in, and bug65649's estimate cells lose
+                        // the halves of both. With the table's edge on the
+                        // left the right line takes nothing still
+                        // (zh-e51c31a7's "未來運用規劃", one line in Word's
+                        // print), and with none on the right the left half is
+                        // all: zh-b8de3ae2 p14's last cell holds "其他收入",
+                        // 24pt in 24.4 between its indents, two a line, where
+                        // ours, a whole line in, set one.)
                         let modern = (document.compatibilityMode ?? 12) >= 15
+                        let inside = c.column > 0, insideRight = inside && c.column + c.span < widths.count
                         pad = modern
-                            ? EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
+                            ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
+                                         right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
                             : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
                     }
                 }
