@@ -334,7 +334,11 @@ struct Chart: Equatable {
             var edge = lo
             var first = underflow == nil
             repeat {
-                let top = min(edge + width, hi)
+                // (The last a whole bin's width, past the largest sample,
+                // unless an overflow bin takes the rest: "(13.94, 17.88]"
+                // over samples to 15, chart-pareto-gapwidth's "(8, 11.5]"
+                // to 9, in Excel's prints.)
+                let top = overflow == nil ? edge + width : min(edge + width, hi)
                 labels.append((first ? "[" : "(") + "\(show(edge)), \(show(top))]")
                 counts.append(Double(xs.filter { (first ? $0 >= edge : $0 > edge) && $0 <= top }.count))
                 first = false
@@ -700,7 +704,10 @@ enum ChartXML {
                 n.children.forEach(collect)
             }
             collect(t)
-            title = runs.joined()
+            // (A title with no text of its own reads "Chart Title":
+            // chart-pareto-gapwidth's in Excel's print,
+            // lo-forum-mso-de-138303's waterfall's in PowerPoint's.)
+            title = runs.isEmpty && t.descendant("cx:tx") == nil ? "Chart Title" : runs.joined()
         }
         var c = Chart(type: .column, title: title, categories: categories, series: series)
         c.boxes = boxes
@@ -772,7 +779,10 @@ enum ChartXML {
                 n.children.forEach(collect)
             }
             collect(t)
-            title = runs.joined()
+            // (A title with no text of its own reads "Chart Title":
+            // chart-pareto-gapwidth's in Excel's print,
+            // lo-forum-mso-de-138303's waterfall's in PowerPoint's.)
+            title = runs.isEmpty && t.descendant("cx:tx") == nil ? "Chart Title" : runs.joined()
         }
         var c = Chart(type: .pie, title: title, categories: roots.map(\.name),
                       series: [ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series1", values: roots.map(\.value))])
@@ -947,7 +957,10 @@ enum ChartXML {
                 n.children.forEach(collect)
             }
             collect(t)
-            title = runs.joined()
+            // (A title with no text of its own reads "Chart Title":
+            // chart-pareto-gapwidth's in Excel's print,
+            // lo-forum-mso-de-138303's waterfall's in PowerPoint's.)
+            title = runs.isEmpty && t.descendant("cx:tx") == nil ? "Chart Title" : runs.joined()
         }
         var c = Chart(type: .column, title: title, categories: categories, series: series)
         c.chartex = true
@@ -2001,10 +2014,12 @@ enum ChartPainter {
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand
                 // 2.2 to 3.0 lower than ours did, their plots' tops 3 to 4.)
                 if c.onSheet { area = Rect.fromLTRB(area.left, area.top + 3.4 * k, area.right, area.bottom) }
-                // (An Excel 2016 chart's 2.4 pt lower again, its plot not:
-                // eleven `cx:` charts' titles 8.1 to 8.25 pt under the
-                // frame's top in Excel's print, ours 5.82.)
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? 3.2 * k : 0))
+                // (An Excel 2016 chart's 0.43 pt higher, its plot not:
+                // twelve `cx:` charts' titles' baselines in Excel's print,
+                // 18.76 under the frame's top in chart-sunburst's. Not 2.4
+                // lower, as the glyphs' tops measured against our box's
+                // once had it: 2.83 under Excel's, all twelve.)
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -2137,8 +2152,14 @@ enum ChartPainter {
                 // chart's moved to the top, where ours was 17.9. With no
                 // title the legend is where ours was, 17 under the
                 // frame's top.)
-                y = area.top + (titled ? 4.3 * k : 0)
-                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
+                // (A `cx:` chart's on a sheet 3.71 pt lower again under its
+                // title, and its plot 6.37 further off it: chart-
+                // clusteredColumn's and chart-waterfall's in Excel's print,
+                // the legend's baseline 23.06 under the title's, the plot's
+                // top 60.6 under the frame's.)
+                let sheetCx = titled && c.onSheet && c.chartex ? k / 0.75 : 0
+                y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + 6.37 * sheetCx, area.right, area.bottom)
             } else {
                 // (A 2007-style chart's on a slide 8.2 pt off the frame's
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
@@ -2747,7 +2768,11 @@ enum ChartPainter {
             var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Labels by an axis above the foot take no room below it.)
-            let bottom = atZero ? 4 * k : tallest + 7.6 * k + belowOut
+            // (A `cx:` chart's on a sheet 2.53 pt higher, its labels with
+            // it: their baselines 7.98 pt over the frame's foot in Excel's
+            // prints of histograms, Pareto charts and waterfalls, ours 5.45.
+            // Not a box plot's, already higher than Excel's.)
+            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -2761,6 +2786,16 @@ enum ChartPainter {
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            // (On a sheet the plot stands 1.72 pt further in at the left,
+            // its labels with it, and 1.25 at the right: Excel's prints of
+            // 40 column, line and scatter charts, alike at 286 to 800 pt
+            // wide. A 2007-style chart's left edge was where Excel's is,
+            // chart-chart's and fdo54361's labels. Not a chartex chart's:
+            // its own.)
+            if c.onSheet && !c.chartex {
+                if c.styled2013 { left += 1.72 * k / 0.75 }
+                if secondLabels.isEmpty { right += 1.25 * k / 0.75 }
+            }
             // (A 2013-style chart on a slide starts 1.5 pt lower:
             // chart-slide-bg's top gridline at 100.5 in PowerPoint's
             // print, where ours stood at 99; its three like charts and
@@ -2771,11 +2806,13 @@ enum ChartPainter {
             // (On a sheet a titled chart's plot starts 2.57 pt lower, under
             // a title where ours is, and an untitled one 1.25 higher, 1.62
             // in a 2007-style chart: Excel's prints of 70 column, line and
-            // scatter charts, their feet where ours are.)
+            // scatter charts, their feet where ours are. A titled `cx:`
+            // chart's, 0.45: four histograms and box plots, 31.8 pt under
+            // the frame's top.)
             let pt = k / 0.75
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
             let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k
-                : c.onSheet ? (titled ? (c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt : 0
+                : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt : 0
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the

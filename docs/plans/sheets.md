@@ -502,8 +502,24 @@ the same base; the commits give the numbers):
   taking the next node while its boxes' mean aspect does not worsen, and
   the whole next row where one row of both is squarer (2026-10-22:
   chart-treemap's 15 boxes within 0.06 pt, 6.81 -> 0.75). A `cx:`
-  title on a sheet stands 8.2 pt under the frame's top, 2.4 lower than
-  a `c:` one (eleven prints). On a sheet a `c:` chart's plot starts
+  title on a sheet has its baseline 18.76 pt under the frame's top
+  (chart-sunburst), 0.43 pt higher than a `c:` one's: twelve prints. (It
+  was set 2.4 lower once, from the glyphs' tops in Excel's PDF measured
+  against the top of our text's box; it printed 2.83 low in all twelve.)
+  A titled `cx:` chart's plot starts 0.45 pt lower, not a `c:` chart's
+  2.57; its category labels and foot 2.53 higher (not a box plot's); a
+  legend above stands 3.71 lower and the plot 6.37 further under it
+  (chart-clusteredColumn, chart-waterfall). An empty `cx:title` reads
+  "Chart Title", in Excel's print and PowerPoint's. A histogram's last
+  bin is a whole bin wide, past the largest sample ("(13.94, 17.88]"
+  over samples to 15), unless an overflow bin takes the rest. A 2013-
+  style `c:` chart's plot stands 1.72 pt further in at the left and any
+  `c:` chart's 1.25 at the right: 40 prints, the value labels 1.6 pt
+  left of Excel's (2026-10-25: 184 chart books 1.147 -> 1.105, 94
+  better, 10 worse, the worst +0.07: tdf119138's 2007-style labels,
+  already 6 pt off). Open: a 2007-style chart's left edge varies (-1.1
+  to +1.6 pt); chart-pareto-gapwidth's labels inside its bars' ends
+  (`inEnd`) and its gridlines, which Excel does not draw. On a sheet a `c:` chart's plot starts
   2.57 pt lower under a title (2.05 in a 2007-style chart) and 1.25
   higher with none (1.62), its foot where ours was: 70 column, line and
   scatter charts, their titles already on Excel's baselines. A legend
