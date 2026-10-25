@@ -3920,6 +3920,7 @@ enum DocxFormat {
                 // editor shows the picture in the line.
                 att.data = data
                 att.name = target.lastPathComponent
+                if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
                 // (Turned, a photo taken sideways: a quarter turn makes
                 // its box as tall as it was wide — zh-37b6536f.)
                 if let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
@@ -3943,6 +3944,11 @@ enum DocxFormat {
                 att.sourceWidth = w
                 att.sourceHeight = h
             }
+            // (A picture that is a WMF or EMF is played as an object's
+            // is (`WriterMetafiles`); no image codec reads it. zh-8d72961c's
+            // page 2 is one, its Arabic and Latin text in ExtTextOutW
+            // records, and printed as the grey stand-in.)
+            if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
             addInline(att)
         }
         func addText(_ s: String, _ cs: CharStyle) {

@@ -931,6 +931,12 @@ private struct Player {
                 let x = Double(i32(a + 28)), y = Double(i32(a + 32)), n = u32(a + 36), at = p + u32(a + 40), options = u32(a + 44)
                 let box = Rect.fromLTRB(Double(i32(a + 48)), Double(i32(a + 52)), Double(i32(a + 56)), Double(i32(a + 60)))
                 guard n < 100_000, at + n * 2 <= p + size else { break }
+                // (ETO_GLYPH_INDEX: the string is the selected face's glyph
+                // numbers, not text — what GDI records for shaped script.
+                // zh-8d72961c's Arabic is Arial's glyphs so, and read as
+                // UTF-16 it drew a row of Greek and Cyrillic; without that
+                // face's own table it is left out.)
+                guard options & 0x10 == 0 else { break }
                 text(utf16(at, n), at: Offset(x, y), opaque: options & 2 != 0 ? box : nil)
             case 76, 77, 114:   // BitBlt, StretchBlt, AlphaBlend (StretchBlt's record, a blend where its raster op is)
                 let x = Double(i32(a + 16)), y = Double(i32(a + 20)), w = Double(i32(a + 24)), h = Double(i32(a + 28))

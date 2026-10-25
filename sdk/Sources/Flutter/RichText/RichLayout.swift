@@ -12353,10 +12353,11 @@ public final class RichLayout {
     /// form that fits the rectangle it is given.
     public nonisolated(unsafe) static var objectFitter: ((ImageAttachment, Double) -> (width: Double, height: Double, baseline: Double)?)? = nil
 
-    /// What `objectPainter` draws for an object with no picture, in
-    /// `rect`; true where it drew it.
+    /// What `objectPainter` draws for an object with no picture — or one
+    /// whose picture it draws itself (`drawsObject`: a metafile no codec
+    /// reads) — in `rect`; true where it drew it.
     private func _paintObject(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
-        guard theme.wordRules, image.data.isEmpty, let paint = Self.objectPainter else { return false }
+        guard theme.wordRules, image.data.isEmpty || Self.drawsObject?(image) == true, let paint = Self.objectPainter else { return false }
         canvas.save()
         defer { canvas.restore() }
         return paint(image, canvas, rect, theme.pixelsPerPoint * scale)

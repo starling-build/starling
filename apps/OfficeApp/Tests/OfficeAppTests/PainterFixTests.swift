@@ -763,6 +763,29 @@ final class MetafileTests: XCTestCase {
         XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 20, 60, 70), "through the world transform")
     }
 
+    func testAnEMFsGlyphNumbersAreNotText() throws {
+        // zh-8d72961c's page 2, an EMF: its Arabic is ExtTextOutW with
+        // ETO_GLYPH_INDEX, Arial's glyph numbers, which read as UTF-16
+        // drew a row of Greek and Cyrillic. Text plays; glyph numbers don't.
+        func textOut(_ s: String, options: Int) -> [UInt8] {
+            var units = s.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+            while units.count % 4 != 0 { units.append(0) }
+            // bounds, mode, x and y scales, reference, count, string offset, options, rectangle, dx offset
+            let ints = [0, 0, 99, 99, 1, 0, 0, 10, 50, s.utf16.count, 76, options, 0, 0, 0, 0, 0]
+            return le32(84) + le32(76 + units.count) + ints.flatMap(le32) + units
+        }
+        var header: [UInt8] = []
+        for v in [1, 108, 0, 0, 99, 99, 0, 0, 2646, 2646] { header += le32(v) }
+        header += [0x20, 0x45, 0x4D, 0x46]
+        for v in [0x10000, 0, 0, 0, 0, 0, 0] { header += le32(v) }
+        for v in [1024, 768, 271, 203] { header += le32(v) }
+        header += [UInt8](repeating: 0, count: 108 - header.count)
+        let file = header + textOut("Arabic", options: 0x4) + textOut("\u{3DD}\u{38E}\u{3E3}", options: 0x14) + le32(14) + le32(20) + le32(0) + le32(0) + le32(20)
+        let m = try XCTUnwrap(Metafile(Data(file), id: "g"))
+        let texts = m.steps.compactMap { step -> String? in if case .text(let run) = step { return run.text }; return nil }
+        XCTAssertEqual(texts, ["Arabic"])
+    }
+
     func testTextInAFaceWithoutTheGlyphsFallsBack() {
         // tika-3388: an attachment icon's caption, "約翰的測試文件" in MS
         // Gothic — Word prints seven full-width ideographs; ours drew empty
