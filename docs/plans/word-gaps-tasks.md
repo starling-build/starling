@@ -5947,4 +5947,14 @@ strip right of the table (x 504.8–532.2); ours sets it full width at p2's top.
 ### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). Check whether ours carries two, or sizes them taller.
 
-### zh-61aaad09 83.8 (word-win, 3/3 pages): its chart over a data table — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+### zh-61aaad09 83.8 (word-win, 3/3 pages): its chart over a data table — MEASURED, RELEASED for a lab (Mac 01Xgpbk5, 2026-10-25)
+After f436158c its table's rows are Word's (header 36.7/36.8, rows 17.7). Left: the plot's margins. Word stands the plot
+6.7 under the frame's top (275.2) and the table's foot ON the frame's foot (412.0); ours uses zh-2a241df1's 11.1 and 4.9
+(the existing constants), so our plot is 10pt shorter and the axis labels drift 4 to 6pt. This chart (unlike
+zh-2a241df1's) has a manual inner plot layout (x .1735, y .0893, w .7118, h .6958), which ours ignores with a data
+table. It doesn't give Word's numbers directly either: y would put the plot 12.2 down, and Word's plot x (165-451) is 3
+and 6.6 inside the layout's (162.0-457.6). Lab wanted: this chart with the manual layout removed, and with y and h varied.
+Does the head follow y, and where does the foot go? Its other misses (p1 y616-700) are chart 2's pie labels.
+
+### zh-3f871b7d 87.8 (word-win): a middle dot set a full em — CLAIMED (Mac 01Xgpbk5, 2026-10-25)
+From lenovo-3's T181 check: p1's "…在青岛·上" — Word sets "·" (U+00B7) 15.96 wide in SimSun, ours 5.33 in Liberation Sans.
