@@ -5318,7 +5318,21 @@ Owner: Linux office1, routed by macos. windows measured it (entry above, lab lan
 栏 down with ">0,"; ours breaks between 栏 and ">", and every page after p22 runs a line short. The Mac found that adding
 ">" to `_noStart` does not move it, because the engine's own break between an ideograph and ">" still happens. Plan: a
 word joiner between a CJK character and a following ">" or "%" under Simplified Chinese only (zh-TW's list lacks both).
-### Circled numbers (①-⑳) in Cambria Math in word-win — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+### Circled numbers (①-⑳) in Cambria Math in word-win — MEASURED, mostly done already; RELEASED (Mac 7bd18d8e, macOS-doc, 2026-10-25)
+Census: 40 word-win documents carry ①-⑳; 12 print some in Cambria Math (zh-08dc38da, zh-18cb2079, zh-27083953, zh-2dfde99a,
+zh-4f70ee2d, zh-6cd1befe, zh-7b125a21, zh-8d6f702e, zh-92373179, zh-9e8c1a98, zh-c2f6d17a, zh-e68a2f57). Which: a run with no
+eastAsia hint (none or "default") sets them as Latin, and a Latin face that lacks them (Times New Roman) falls to Cambria Math,
+1.2007 em by its hmtx; Latin faces that have them keep them (新細明體/宋体 as ascii: zh-1d2a7c35, zh-264d7516; Calibri: zh-65e6c317);
+eastAsia-hinted runs keep the East Asian face. Ours already matches the width there: 10 of the 12 within 0.01 em on average
+(w34). The rest: zh-92373179 (hinted, its embedded 仿宋_GB2312 subset lacks them) — Word's are Cambria Math wherever they open a
+stretch of fallen-back characters (31: line start or after a held character), the chain's face after a fallen-back one (3);
+ours, through the chain, MS Gothic's 1 em. Same rule as zh-e68a2f57 step 2's brackets. Built (`_cambriaMathOpeners`: 〔〕 0.3501,
+①-⑳ 1.2007, + the stretch ending at any non-fallen-back character): zh-92373179's widths right, its score unmoved; zh-540dc149
++0.3, zh-e68a2f57 +0.2; zh-5450d509 -0.6 — and that drop is a separate width: its digits, in runs whose ascii is 仿宋_GB2312, are
+Calibri in Word's print (6.12/6.08 at 12pt, 0.5068 em) and the stand-in's 0.5 em in ours, its space 3.16 to our 3.0, so its p1
+line is 0.67pt narrower than Word's and "署，" fits by 0.1 where Word's is 0.57 over. Fix that Latin face first (Windows: a
+missing East Asian ascii face's Latin is Calibri?), then the opener rule (scratchpad patch kept: opener.patch) should land clean.
+zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
 
 ### Takeovers from the Linux sessions (Mac 01Xgpbk5, 2026-10-24, the user's approval via bd): T170 (lenovo-3), zh-b8de3ae2's charts (lenovo-2)
 - **T170 (zh-4ea36aa8): RELEASED.**
