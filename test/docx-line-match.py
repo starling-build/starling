@@ -63,7 +63,13 @@ def mupdf_text(pdf):
                     # corpus reads as PDFKit reads it on the Mac.)
                     # (Text set across only: a turned label's origin is no
                     # baseline under its box.)
-                    y1 = max(s["origin"][1] + 0.2 * s["size"] for s in l["spans"]) \
+                    # (Over the spans that hold text: a paragraph's closing
+                    # space can sit in a line of its own baseline — in
+                    # Word for Windows' print of EmbeddedDocument the
+                    # worksheet's "4" shares a line with it, 4pt lower,
+                    # and read so it paired with nothing.)
+                    inked = [s for s in l["spans"] if s["text"].strip()] or l["spans"]
+                    y1 = max(s["origin"][1] + 0.2 * s["size"] for s in inked) \
                         if tuple(round(d, 3) for d in l["dir"]) == (1, 0) else l["bbox"][3]
                     out.append(f"p{i + 1}	{round(-y1)}	{round(x0)}	{t}")
     return out
