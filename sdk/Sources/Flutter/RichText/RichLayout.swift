@@ -3493,12 +3493,15 @@ public final class RichLayout {
             if let ts = document.tableStyles[c.table], ts.edges?.bottom ?? (ts.borders && !ts.bordersFromCells) {
                 bottom = _px(Self._ruleRoom(ts.edgeStyles["bottom"] ?? ts.borderStyle, ts.edgeWidths["bottom"] ?? ts.borderWidth ?? 0.5))
             }
-            // (Not the table's bottom line in Word for Windows: lab t187
-            // (zh-cec9d337's package) keeps its row 四 at page 16's foot
-            // with 1.0pt left under a thinThickSmallGap bottom and closes
-            // the page with the 0.48 insideH; ours asked 4.5 for that line
-            // and sent the row over.)
-            if RichTextTheme.wordWindowsPages { bottom = 0 }
+            // (Word for Windows closes the page as if the row were the
+            // table's last: under the cell's own bottom line where it states
+            // one, else the table's — labs t187 and t190: zh-cec9d337's row
+            // 四, its cells' own half-point bottoms in a table whose bottom
+            // is a 3pt double, stays at page 16's foot with 1.0pt left
+            // under the 0.48 line, and with those bottoms taken out goes
+            // over under the double; zh-e1b09977's p13, no cell lines of its
+            // own, closes under its table's 2.16 bottom.)
+            if RichTextTheme.wordWindowsPages, c.edges?.bottom != nil || c.borders.bottom != nil { bottom = 0 }
             return max(0, c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
         }
         // What a row's part at a page's foot is closed with there: its
@@ -3945,8 +3948,14 @@ public final class RichLayout {
                             setWhole[n] = y + d0.pad.top + max(0, room) * (d0.verticalAlign == "center" ? 0.5 : 1) - blockTop
                             next[n] = max(column.cut, rowBottom)
                             moved = true
-                        } else if column.bottom <= limit {
+                        } else if column.bottom <= (RichTextTheme.wordWindowsPages ? closed : limit) {
                             // (All that is left of this cell is on this page.)
+                            // (Above the line the part is closed with, as a cut
+                            // must be: zh-e1b09977's p13 closes under its table's
+                            // 2.16 bottom in Word for Windows' print, and item 五's
+                            // "措施。" goes to p14 with 0.5pt short of that; ours
+                            // measured it against the half-point line and kept it.
+                            // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
                         } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= closed - (theme.wordRules ? d0.margin : 0) }) {
