@@ -5719,3 +5719,14 @@ so test/run.sh's "office: native vs browser" step compared against a stale 10-13
   the browser runs Google's prebuilt skwasm, which lacks it and rounds. A 10-13 native build gives 46.0/23.0/19.0, as the
   web does today. Platform gap, not a regression; the fix (own skwasm, a height-tolerant gate, or no fractions on the web)
   is the Mac coordinator's call.
+
+### Low list refreshed on the reprinted references, at 0012bc50 (Mac 0fcba326, coordinator, 2026-10-25)
+Sweep w5 (same setup as w4, after the 247-reference reprint): zh 645 mean 97.9% (w4 97.5), 589 at 95%+, 634 with Word's
+page count; POI 111 mean 90.5%. Against w4 nothing fell; up: zh-2f9463d6 56.5 -> 99.7 (T182 closed by the reprint),
+zh-419ea527 71.1 -> 98.6 (reprint), zh-167ee06c, zh-884c6e3e -> 100, zh-15f60bac -> 94.3, zh-8dc59b5b, zh-23ee8575 -> 100.
+Pending pushes not in it: zh-dc25c47e 47.8 (macOS-doc b93f4343), zh-6a4fc013 49.5 (macos-ios, Thai).
+Unheld, lowest first: zh-64044a1d 66.5 (68/69 pages), zh-77bd4900 67.3, zh-e0ca7252 68.8, zh-6d402586 71.8 (35/36),
+zh-cec9d337 74.4, zh-b00fef0d 74.6, zh-5be7e156 75.7, zh-f2835e26 78.8, zh-57f1de0d 78.9, zh-ae2dd08d 79.3 (81/80),
+zh-4a2ab598 80.5 (70/69), zh-34a6519a 80.9 (49/48), zh-7eba7349 81.5, zh-2a241df1 81.9, zh-e1b09977 82.2, zh-33aa9899 82.2,
+zh-61aaad09 82.4, zh-4c5da793 82.5. Held: zh-505b9619 (T181) and zh-72da925e (T183) lenovo-3; zh-0aac9d1a windows.
+Parked: zh-7773163d, zh-8e8d4c40, the two 3-D pies, zh-015abfaf (hairline).
