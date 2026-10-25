@@ -262,6 +262,40 @@ struct PdfMarkup {
     /// "Commented [ab1]:" and its text — each anchored where its range
     /// ends, by its reference: WordWithAttachments' comments over whole
     /// quatrains stand level with their last lines in Word's print.
+    /// The comments Word for Windows prints no balloon for: one that covers
+    /// no text (no range, or an empty one) standing at the very start of
+    /// the document. Lab na (Word for Windows, comment.docx's package):
+    /// its reference there — alone in the first paragraph, before text, or
+    /// with an empty range — prints nothing, and comment.docx, with nothing
+    /// else marked, prints no pane; after any text, a space or an empty
+    /// paragraph it has its balloon, as has a range from the start with
+    /// text in it. (Word for Mac's print of comment.docx has the balloon.)
+    static func silentComments(_ document: RichDocument) -> Set<String> {
+        guard DocxFormat.wordOnWindows, let first = document.paragraphs.first else { return [] }
+        let units = Array(first.text.utf16)
+        var at = 0, silent: Set<String> = []
+        for run in first.runs {
+            let piece = units[min(at, units.count) ..< min(at + run.length, units.count)]
+            if piece.contains(where: { $0 != 0x200B }) { break }
+            silent.formUnion(run.style.comments)
+            at += run.length
+        }
+        guard !silent.isEmpty else { return [] }
+        // (Only one with no text of its own anywhere.)
+        for p in document.paragraphs {
+            let units = Array(p.text.utf16)
+            var at = 0
+            for run in p.runs {
+                defer { at += run.length }
+                if run.style.comments.contains(where: { silent.contains($0) }),
+                   units[min(at, units.count) ..< min(at + run.length, units.count)].contains(where: { $0 != 0x200B }) {
+                    silent.subtract(run.style.comments)
+                }
+            }
+        }
+        return silent
+    }
+
     private static func _comments(_ document: RichDocument) -> [Note] {
         guard let data = document.keptParts["word/comments.xml"], let root = XNode.parse(data) else { return [] }
         var bodies: [String: (author: String, initials: String, paragraphs: [String])] = [:]
@@ -302,7 +336,8 @@ struct PdfMarkup {
         let face = (document.styles.styles.first { $0.name.lowercased() == "annotation text" }?.char.fontFamily
             ?? document.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.substitute)
         var out: [Note] = []
-        for id in order {
+        let silent = silentComments(document)
+        for id in order where !silent.contains(id) {
             guard let body = bodies[id], let end = ends[id] else { continue }
             out.append(Note(anchor: end, label: "Commented [\(body.initials)\(out.count + 1)]:", paragraphs: body.paragraphs, author: body.author,
                             family: face))

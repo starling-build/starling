@@ -82,9 +82,12 @@ enum PdfExport {
 extension PdfExport {
     /// Whether Word prints the document with its markup: it carries a
     /// comment or a tracked change (inserted, deleted or reformatted text).
+    /// (A comment Word prints no balloon for is no markup: comment.docx's,
+    /// alone in the document, prints a plain page — `PdfMarkup.silentComments`.)
     static func hasMarkup(_ document: RichDocument) -> Bool {
-        document.paragraphs.contains { p in
-            p.runs.contains { !$0.style.comments.isEmpty || $0.style.revision != nil || $0.style.formatChange != nil }
+        let silent = PdfMarkup.silentComments(document)
+        return document.paragraphs.contains { p in
+            p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision != nil || $0.style.formatChange != nil }
         }
     }
 
