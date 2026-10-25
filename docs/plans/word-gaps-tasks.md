@@ -5159,7 +5159,14 @@ p4's "3.2" read with its leader. Released.
   1.005 em). Needs a Windows lab: DFKai-SB's 14pt line exactly (baselines step 18.24/18.12), PMingLiU's 10pt
   footer line, any clearance between body and footer.
 
-### zh-c6ab068c (36.9 word-win) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, routed by macos)
+### zh-c6ab068c (36.9 word-win) — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24): 100
+A no-break space's em rides on a word joiner after it; the East Asian fit gave that joiner's width to what follows
+(the opening-quote rule), so at a paragraph's end it was lost, p5's "…予以公开。"+U+00A0 measured 35 for 42 and the
+engine parted it. Now the joiner after U+00A0 is the stretch before's. w31 -> w32 (db46d815 refs): 36.9 -> 100,
+nothing else moved. Same base: zh-e8d4c046 100 on its fresh reprint (the MS Gothic title was the batch artefact),
+zh-1cfb652b 87.5.
+
+### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-24, from lenovo-2's queue)
 
 ### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED (Linux b2 01JsizVV, 2026-10-24)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
