@@ -2517,7 +2517,17 @@ public final class RichLayout {
                     // Word's print, ours 28.84, and zh-5c6ff0d7's closing
                     // note lost its page by 3 twips.)
                     let below = (k0 ..< j).map { _cells[$0]!.ruleBelow }.max() ?? 0
-                    let hung = exact && lastRow && below > _px(1) ? below : 0
+                    // (In Word for Windows a single one the table draws hangs
+                    // under it too: zh-884c6e3e's tables of exact rows, ruled
+                    // sz4 by `w:tblBorders`, stand their rows' sum and the
+                    // line apart in the word-win print, the text after each
+                    // 0.47 lower than ours, and its p2 took a line Word's
+                    // leaves for p3. Not one the cells state for themselves:
+                    // zh-5c6ff0d7's, under no table line, stays inside as
+                    // the Mac's does, and its note keeps its page.)
+                    let tableLine = RichTextTheme.wordWindowsPages && below > 0
+                        && !(k0 ..< j).contains { Self._cellSide(document.paragraphs[$0].cell?.bordersXML, "bottom") != nil }
+                    let hung = exact && lastRow && (below > _px(1) || tableLine) ? below : 0
                     // (An exact one is that tall and its cells' bottom margin
                     // under it: the Mac's lab `rh` (zh-0243e7fc's package,
                     // modes 14 and 15) — its exact rows, the table's margins
