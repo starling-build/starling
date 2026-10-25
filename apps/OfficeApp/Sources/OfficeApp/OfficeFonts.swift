@@ -1460,8 +1460,12 @@ enum OfficeFonts {
         if has("stzhongsong", "华文中宋") {
             // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
             // 61pt, and 90.2 at 34% of its width.)
-            return EastAsianFace(height: 1.7225, latin: serif, latinScale: 1.16, fakeBold: true, baseline: 1.206,
-                                 scaledHeight: 1.478, scaledBaseline: 1.083)
+            // (Word for Windows takes the OS/2 line for all of it:
+            // zh-17ac8aa2's empty 22pt mark in it before the form's table
+            // is 5.5pt shorter in the word-win print than ours was at
+            // the hhea line, and every row after stood that much low.)
+            return EastAsianFace(height: wordOnWindows ? 1.478 : 1.7225, latin: serif, latinScale: 1.16, fakeBold: true,
+                                 baseline: wordOnWindows ? 1.083 : 1.206, scaledHeight: 1.478, scaledBaseline: 1.083)
         }
         // (hhea 0.8 + 0.236, no gap — the STXINWEI.ttf Word carries: a 24pt
         // line is 32.3pt, three pitches of a 15.6 grid, and zh-424775e4's
