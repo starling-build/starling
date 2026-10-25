@@ -4777,6 +4777,16 @@ font-table entry, C with its second where it has one, A with no entry. For each 
   warmed: FangSong/KaiTi.
 macos-ios fits facemap from it.
 
+### zh-e2dc9dce (6.2) and zh-c399c91a (18.1) on word-win: two face changes (Windows 01QbbApP, 2026-10-24)
+Both references reprint identically fresh.
+- zh-e2dc9dce: its 標楷體 is DFKai-SB on Windows since the font pack; the Mac print had YaHei, 52 pages, against
+  Windows' 47. Ours still uses the stand-in and runs a page long. It is T169's DFKai-SB face (macos-ios).
+- zh-c399c91a: LinTimes, which this box lacks, is Ebrima on Word for Windows. The Mac and ours use Calibri.
+  Lab lint (a bare probe, fresh): the font-table entry's w:sig decides, not its PANOSE (TNR's here):
+  - as is: Ebrima; PANOSE removed: Ebrima; family roman: Ebrima;
+  - sig removed: Calibri; no entry: Cambria; TNR's own sig: Sylfaen.
+  Word ranks installed faces by the entry's Unicode/code-page signature. One facemap row covers this document.
+
 ### Word for Windows sets baselines on a 1/600-inch grid from the running total; DFKai-SB is 1.3009 em (Windows 01QbbApP, 2026-10-24)
 Lab round, in zh-d35cbbdb's package, each print fresh, every baseline read.
 - Baselines sit on a 1/600-inch grid (0.12pt), rounded from the running total of the lines' true heights, not
