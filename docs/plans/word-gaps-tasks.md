@@ -5951,11 +5951,17 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differ
 - DONE ba3ad333 (labs t190 and t187 2-3): the page closes under the cell's own bottom where stated, else the table's, and
   the row or its part must fit above it — for a part, all that is left of a cell too (it was measured against the half-point
   line). Same-base pair, 756: zh-e1b09977 82.2 -> 98.6, nothing else moved; mean 96.955 -> 96.976. Released.
-### T191. zh-4c5da793: 82.5 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
+### T191. zh-4c5da793: 82.5 against word-win — 85.6 by caf8dc1e (T188's FangSong line), RELEASED (Linux lenovo-2, 2026-10-25)
 Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
 - Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
   parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
 
+- Left, measured: p15's foot. Row "对抚恤优待对象冒领抚恤金…" (mode 12, FangSong 12pt, lines 15.566) keeps two lines of its long
+  cell in Word's print and one in ours: the second's cut is 31.63 + a 0.5 closing line in 32.04 left, 0.09 short. Our rows on
+  the page stand within ±0.1 of Word's (Word's tops on the 1/600in raster), and Word's last row rounds 0.11 high, which is
+  the room. Tried and reverted: Windows-mode border widths in whole 600dpi dots (0.5 -> 0.48): no change here, zh-e1b09977
+  98.6 -> 91.9 — Word lays out with the stated widths and draws the dots. A fix needs Word's running-total rounding of rows
+  (lab `round`) in tables; not a quick rule.
 ### T192. zh-38d26944: 84.7 against word-win — MOVED to macOS-doc by the coordinator (2026-10-25; was Linux lenovo-2)
 MOVED (macos): the merged-cell half is now part of the entry below. lenovo-2's ″ (U+2033) width work stays with lenovo-2.
 
