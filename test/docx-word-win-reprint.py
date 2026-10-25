@@ -12,7 +12,7 @@
 # after it. Everything goes to word-win/reprint.log, one line per key:
 #   <key>\tok\t<pages>\t<seconds>   or   <key>\terror|hung\t<message>
 # The scorer reads this folder with DOCX_WORD_REFS=test/corpus/docx/word-win.
-import os, sys, subprocess, threading, queue, time, tempfile
+import os, re, sys, subprocess, threading, queue, time, tempfile, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS = os.path.join(HERE, 'corpus', 'docx', 'docs')
@@ -48,9 +48,23 @@ def log(*f):
 def kill(pid):
     if pid: subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)], capture_output=True)
 
+# A document that embeds a face prints alone, the first of a fresh Word: Word keeps an embedded face it has
+# loaded for the rest of its process, and a later document naming the same face prints in that one, or not at
+# all. 13 of the 20 references that embed faces printed differently in a batch than fresh (zh-7b5b3de2 12
+# pages fresh 11, zh-e8d4c046's 方正小标宋简体 title MS Gothic in a batch, its own embedded face fresh), and
+# two fresh prints of each agree.
+def embeds(k):
+    try:
+        z = zipfile.ZipFile(os.path.join(DOCS, k + '.docx'))
+        return 'word/fontTable.xml' in z.namelist() and re.search(rb'<w:embed(?:Regular|Bold|Italic|BoldItalic) ', z.read('word/fontTable.xml')) is not None
+    except Exception:
+        return False
+alone = [k for k in todo if embeds(k)]
+rest = [k for k in todo if k not in set(alone)]
+todo = [[k] for k in alone] + [rest[i:i + batch] for i in range(0, len(rest), batch)]
 t_start, n_done = time.time(), 0
 while todo:
-    chunk, todo = todo[:batch], todo[batch:]
+    chunk, todo = todo[0], todo[1:]
     with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as f:
         f.write('\n'.join(chunk) + '\n'); keyfile = f.name
     p = subprocess.Popen(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WORKER,
@@ -93,7 +107,8 @@ while todo:
     if not seen:
         sys.exit('a batch printed nothing: stopping rather than starting Word again and again')
     # Whatever the batch never reached goes back on the list, after the hung one.
-    todo = [k for k in chunk if k not in seen and not os.path.exists(os.path.join(OUT, k + '-orig.pdf'))] + todo
+    left = [k for k in chunk if k not in seen and not os.path.exists(os.path.join(OUT, k + '-orig.pdf'))]
+    todo = ([left] if left else []) + todo
     el = time.time() - t_start
-    print(f'{n_done} printed or failed, {len(todo)} left, {el / 60:.1f} min', flush=True)
+    print(f'{n_done} printed or failed, {sum(len(c) for c in todo)} left, {el / 60:.1f} min', flush=True)
 print('done', flush=True)
