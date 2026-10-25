@@ -5836,7 +5836,7 @@ Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab
   743.14 / 26.78: whole row to p18. 743.50 / 26.42, 743.74 / 26.18, 743.86 / 26.06, 744.10 / 25.82, 744.22 / 25.70, 744.58 / 25.34: whole row to p18.
   So the part needs its 26.52 (top rule, line, space after) plus its 0.48 closing rule, 27.0, within 0.1. Neither the space after nor the closing rule hangs past the foot. Word parts the as-is row because it has 27.5. Ours starts the row 1.32 lower (743.74): our 3-line rows above are 62.71 to Word's 62.52 (FangSong lines step 18.08 to Word's 18.0, per lenovo-2), not the reservation.
 
-### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — DONE 05127210 (Linux office1, starling-office1-95, 2026-10-25): 97.9, 81 pages as Word's
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
 squeezes are more than the body series'. macos-ios's whole-ppem change may land meanwhile; rebase before trusting line ends.
 - p39-40, DONE 09c2290c: the training-plan form (autofit, grid = tblW) kept its grid in Word, but ours narrowed "訓練目標"'s
@@ -5847,6 +5847,14 @@ squeezes are more than the body series'. macos-ios's whole-ppem change may land 
 - p68 on, measured (windows' lab, board f0a0a04d): "開課地點：" + 65 "_" + 26 underlined spaces + 34 plain spaces. Underlined
   spaces hang only at the paragraph's end; with plain spaces after them they count as width (422.4 + 169 > 428.3), so the
   "_" goes down. Building that next, in Windows mode.
+- p68 on, DONE 05127210, from windows' labs (f0a0a04d, 6e6504f4 and part 3): in Windows mode, where a paragraph's closing
+  spaces open with U underlined ones after a Latin word and P plain ones follow, the U and the first min(P, U) of the plain
+  count as far as they reach past half the measure; past that, the word before them goes down. They're held to the word as
+  figure spaces of that width, no wider than lets the word stand whole on a line of its own (the engine would part it),
+  with no underline drawn. After an ideograph or full-width mark they still hang: a first build that counted those cost
+  zh-621d8756 42 points ("参与" / "人："), zh-f47b8a74 5, zh-167ee06c and zh-a917e13c 9-10. Same-base pair, 756:
+  zh-ae2dd08d 82.1 -> 97.9, zh-ab9cbe66 95.2 -> 96.7, nothing lower. Rechecked on the tip after 4ec4e6ee.
+  Left: p17-21's shapes (windows' claim, line 666), p51, p78, p81.
 Lab t189 (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t189, this document's own package, p68's "開課地點：" paragraph only, fresh Word, warm-up first). (The reference is 81 pages too, and the as-is lab print matches it line for line.)
 - (a) as is: "開課地點：" alone on line 1 (51.0-115.9); line 2 the 65 "_" at 51.0-473.2, then spaces past the 544.25 margin (extracted to 596.9); 81 pages.
 - (b) the 26 spaces not underlined: ONE line, the "_" at 115.9-538.3 after "開課地點：", the spaces hung; 80 pages.
