@@ -3100,6 +3100,9 @@ public final class RichLayout {
         var markOnPage = false
         // A line on this page hangs past its foot (by its grid's overhang).
         var overfull = false
+        // Where the flow stands past the foot by an off-grid multiple's
+        // extra alone, as by space after: not over-full (see below).
+        var spacedPast: Double? = nil
         // Footnotes at this page's foot, whose room the page's text gives
         // up (Word's, under its rules): the notes of the paragraph or row
         // being set (`placing`, of paragraphs `placingRange`) go on with
@@ -3154,6 +3157,7 @@ public final class RichLayout {
             anchorRun.removeAll()
             markOnPage = false
             overfull = false
+            spacedPast = nil
             var carried: [Int] = []
             var goesOn: Double? = nil   // where the paragraph parted here goes on, in its flow
             if notesOn {
@@ -5128,7 +5132,7 @@ public final class RichLayout {
                 // foot, then "[break]测试", sets 测试 on page 3; with 36pt
                 // left, on page 2. zh-6d1afa56's empty page 23.)
                 if theme.wordRules, document.paragraphs[i].style.pageBreakInline, !document.paragraphs[i].style.columnBreak,
-                   overfull || y > contentH + 0.01 {
+                   overfull || (y > contentH + 0.01 && spacedPast.map { abs($0 - y) > 0.01 } ?? true) {
                     newPage()
                 }
                 newPage()
@@ -5594,11 +5598,27 @@ public final class RichLayout {
                     : theme.wordRules && !tieFits ? -_px(0.025) : 0.01
                 if rest <= available + slack + reach(lineOverhangs.count - 1) {
                     // (The line, not its space after: that may stand past the foot.)
-                    if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last,
-                       g.textTop + line - cursor > available + 0.01 { overfull = true }
+                    // (Nor, off the grid, a multiple's extra under its
+                    // text, which Word stands past the foot as it does
+                    // space after: zh-167ee06c's 1.5-spaced " " in
+                    // JhengHei UI Light, 34.68pt, stands 4.3pt past page
+                    // 6's foot in Word for Windows' print, and the page
+                    // break opening the next paragraph opens page 7 — lab
+                    // t178; ours called the page over-full and left page
+                    // 7 blank.)
+                    var spacing = false
+                    if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last {
+                        let st = document.paragraphs[i].style
+                        let offGrid = document.paragraphs[i].cell == nil && document.paragraphs[i].image == nil
+                            && !(st.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil)
+                        let extra = theme.wordRules && offGrid && st.lineHeightPoints == nil
+                            && st.lineSpacing - theme.lineSpacingReduction > 1.001 && i < _overhang.count ? _overhang[i] : 0
+                        if g.textTop + line - extra - cursor > available + 0.01 { overfull = true } else { spacing = extra > 0 }
+                    }
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom,
                                                   page: page, pageY: y))
                     y += rest
+                    if spacing { spacedPast = y }
                     cursor = bottom
                     break
                 }
