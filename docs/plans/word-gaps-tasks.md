@@ -5246,7 +5246,7 @@ Step 1: the Windows fallback chain for an embedded 仿宋_GB2312's missing chara
 sticky, by the faces' cmaps, each on its own 1.3 x win line). w33 -> w34: 5.0 -> 10.9 (61 pages), zh-5450d509 +1.8,
 zh-8d72961c +27.7, nothing lower. Step 2 measured, RELEASED (Mac 7bd18d8e, 2026-10-25). Word's lines hold a character more here — "〕" set in Cambria at
 0.33 em beside digits ("〔2023〕234"), fallback characters narrowed in justified lines (JhengHei "发" 15.6, "〔" 15.24 at 16pt).
-Measured: (1) any visible character not fallen back ends a stretch, a digit as a held ideograph does — with that the chain
+Landed a67f5097 (Mac 7bd18d8e, 2026-10-25, w36 -> w37: zh-540dc149 99.3 -> 99.6, zh-e68a2f57 10.9 -> 11.1, none lower; zh-5450d509's -0.6 was the Calibri digit width, gone with 9be792e4): (1) and (2) below; (3) still open. Measured: (1) any visible character not fallen back ends a stretch, a digit as a held ideograph does — with that the chain
 matches all 13,171 fallen-back characters of the three prints (not pushed: no score moves on its own). (2) A "〔" or "〕" that
 opens a stretch (after a held character or a digit) is Cambria Math's, 0.35 em, on no line of its own — every Cambria bracket
 in word-win (zh-540dc149, zh-5450d509, zh-c2f6d17a, zh-e68a2f57); one after a fallen-back character keeps that face. Built:
@@ -5383,7 +5383,11 @@ zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
 - DFKai-SB: back with lenovo-2.
 - Next for Mac 01Xgpbk5: zh-8e8d4c40's label fallback (Mincho for CJK in a Latin label face), then the charts: zh-b8de3ae2, zh-d62da4dd, zh-27a874b7.
 
-### Latin text in a missing East Asian ascii face (Calibri digits in word-win, zh-5450d509) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+### Latin text in a missing East Asian ascii face (Calibri digits in word-win, zh-5450d509) — DONE 9be792e4 (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+Word for Windows sets the ASCII letters and digits an embedded subset lacks in Calibri, at Calibri's widths; those the subset
+holds come from it (zh-92373179: 155 held from the subset, 133 unheld in Calibri, none off). Non-embedded _GB2312 names keep
+their mapped face (FangSong, KaiTi). Only 0x30-0x39/0x41-0x5A/0x61-0x7A go into otherAdvances. zh-5450d509's digits 6.00 -> 6.08,
+as Word's. w35 -> w36: no line score moves (the score ignores x), none lower. It unblocked zh-e68a2f57 step 2's (2) — a67f5097.
 
 ### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — DONE fb470380 (Linux lenovo-2, starling-d6, 2026-10-25): 98.8, 47 pages
 - DONE fb470380: a page break ending the paragraph that holds a section's mark is that section's break; before a
