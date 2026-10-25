@@ -6094,3 +6094,10 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   stand-in corrections (SimSun Latin widths, the Mincho baseline, …) apply only to stand-ins. windows checks local mode on Windows.
   Found: on Windows ours embeds Carlito / Caladea / Liberation for Calibri / Cambria / TNR though the real faces are
   installed; F01's Georgia, Garamond, Century Gothic and Consolas come out at other sizes or widths (0.84 against LibreOffice's 0.98).
+
+### T203. Installed fonts by default, Starling's stand-ins as a setting — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos (the user's decision, from the office comparison report, 4610d248). A family the
+machine has is drawn in it; otherwise today's mapping. A setting ("Use fonts installed on this computer", default on / "Use
+Starling's matching fonts"), kept across launches; bundled only where there is no local list (web). OFFICE_FONT_SOURCE=
+bundled|local wins over it, and every harness pins bundled. Stand-in corrections keyed to "this is the stand-in". Gate: a
+same-base pair, bundled pinned, moves nothing in Windows and Mac modes; then windows checks local mode (showcase F01).
