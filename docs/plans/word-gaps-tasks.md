@@ -5880,6 +5880,10 @@ Not a mark-versus-run size effect: about 30 documents with a 9pt mark under a 14
 lone paragraphs by `_layout`'s "a paragraph of nothing but floating objects" rule (zh-1a3c7aa0's footer), from the mark's
 look. Lab wanted: zh-884c6e3e's footer alone, the number's baseline with (a) as is, (b) an empty paragraph added under
 it, (c) the paragraph's mark at 14pt; and the same for zh-1cfb652b.
+LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/ft, footer1 edited in each package, fresh Word, warm-up first; p1's number "— 1 —"/"- 1 -" SimSun 14 baseline, and the footer paragraph mark's own baseline):
+- zh-884c6e3e (footer 992, its foot 792.32): (a) as is: number 796.32, mark (TNR 9) 790.42 — the reference's exactly; (b) an empty paragraph (same pPr) added under it: number 785.98 (up 10.34), the box paragraph's mark 780.10, the added one's 790.42; (c) the mark at 14pt: number 790.54 (up 5.78), mark (TNR 14) 789.34.
+- zh-1cfb652b (footer 569, line 471 auto, mark GWZT-EN 14 embedded): (a) as is: number 788.14 = mark 788.14 — the reference's; (b) an empty paragraph added: number 748.30 (up 39.84), marks 748.42 / 788.14; (c) mark 9pt: number 802.32 (down 14.18), mark 797.40; (d) the 471 line removed (single): number 807.60 (down 19.46), mark 807.72.
+So the box rides on its paragraph: a paragraph under it lifts it by that paragraph's height, and the box paragraph's own height moves it. With a 14pt mark the number's baseline sits on the paragraph's first baseline (1cfb a/b/d within 0.12; 884 c 1.20 under); with a 9pt mark it sits 5.90 (884 a) / 4.92 (1cfb c) under it. Box top (number - 12.03) against the mark line's top (baseline - winAscent): 884 a +1.89, c +1.64.
 
 ### zh-2a241df1 81.9 (word-win, 4/4 pages): its charts' labels — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
 
