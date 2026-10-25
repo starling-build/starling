@@ -5810,6 +5810,13 @@ Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab
   centred, FangSong 12pt lines of 18 with ~8pt after each paragraph) has 26.16 left. Word parts it there: "2" centred in the
   26.5 part, "对侵占…" and "定海区综" from its top. Ours: splitRow finds the one-line centred cells (block 26.1 with their
   after) 0.91 short and sends the row over whole. Rule to try: a cell's last paragraph's space after need not fit the part.
+- TRIED, REVERTED (patch ~/tmp/t188-tail-tried.patch, Linux): in Windows mode a centred cell fits the part by its text, its
+  last space after allowed past the foot. zh-b00fef0d 74.6 -> 98.0, but zh-1a3c7aa0 100 -> 49.1 and zh-540dc149 99.6 -> 84.5
+  (and zh-64044a1d 93.5 -> 92.8): too broad. A second reading fits zh-b00fef0d's print as well: Word's closing line under the
+  part (768.94) stands 0.36 past our foot (768.58), and the 26.1 block with its after fits the 26.52 between the part's lines —
+  so it may be the closing line that hangs, not the after (ours reserves 0.97 for it, ruleUnder(parted:)). WAITING ON A LAB:
+  zh-b00fef0d's package, the p17 row with 27.5 / 26.5 / 26.2 / 25.8 left above the foot: does Word part it, and where do the
+  closing line and "2" stand?
 
 ### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
