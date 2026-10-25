@@ -4757,6 +4757,26 @@ embedded PMingLiU (every print of the corpus): of its symbols only "×" (500),
 "÷" (591, 98 prints), "｢｣" (500) and "Å" (709) are not an em. Ours sets "÷" in
 the stand-in at 0.584. "÷" sits in the "）÷（" formula cells of ~98 documents.
 
+### Missing-face map: Word for Windows' face for each name in word-win-missing-faces.txt (Windows 01QbbApP, 2026-10-24)
+test/corpus/docx/word-win-missing-faces-map.txt has 135 names, ordered by the documents each covers.
+Each probe was the first document of a fresh Word, run three ways: B with the name's commonest corpus
+font-table entry, C with its second where it has one, A with no entry. For each it records the Latin,
+简体 and 繁體 faces and the pitch.
+- The entry decides. Of the 49 names with two or more entries, 19 change face between them, so fit each
+  document's own entry.
+- An altName naming a face this box has wins. Otherwise charset 86 goes to YaHei, and 88 to JhengHei or
+  PMingLiU.
+- With no entry, a CJK name goes to Yu Gothic (+JhengHei) or SimSun; a Latin name to Cambria for Latin
+  and MS Mincho (+JhengHei) for CJK.
+- Top rows:
+  - 方正小标宋简体 / _GBK / 方正黑体_GBK / 方正仿宋_GBK / 方正楷体_GBK (charset 86, PANOSE): YaHei, 31.8pt
+    lines at 12pt.
+  - Arial Unicode MS: charset 88 gives JhengHei; charset 00 gives Arial plus Mincho/JhengHei.
+  - 全真楷書 / 華康楷書體W5(P) (alt 新細明體): PMingLiU.
+- 仿宋_GB2312 and 楷体_GB2312 rows show Word's unwarmed answer (B: YaHei, A: SimSun). The references are
+  warmed: FangSong/KaiTi.
+macos-ios fits facemap from it.
+
 ### word-win audit: references printed before Word had their cloud face — 2 replaced, re-score them (Windows 01QbbApP, 2026-10-24)
 Word fetches an Office cloud face the first time a document names it, and prints that document in a
 fallback while it downloads. Eight cloud faces arrived during the full reprint: Aptos 16:58, Vrinda
