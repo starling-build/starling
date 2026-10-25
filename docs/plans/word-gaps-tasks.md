@@ -6062,3 +6062,7 @@ Owner: Linux lenovo-2 (the table only; macos-ios keeps the document's charts). I
   stands a line + 2.3pt high and p25-p27 run ahead. A section-mark rule, not a table one — asked macos who takes it.
 ### T197. zh-b8de3ae2 p25: three empty continuous-section marks under chart 10 — Word keeps ~36pt, ours almost none — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2. From T196: under "資料來源：本所會計室" three empty paragraphs each end a continuous section (the next one 3 columns); the body after runs a line + 2.3pt high.
+
+### T198. zh-f2835e26: a raised run's line height (w:position) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. Measured before (lines ~926, ~943; Mac lab pos4): Word makes a single (auto) line that
+holds a run raised r taller by r; ours sets the shift (d972fe9f) and keeps the height. Guards: zh-10e3a42be, zh-64044a1d.
