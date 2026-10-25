@@ -4798,6 +4798,24 @@ lab fsw's three zh-CN-theme documents give YaHei for a missing face, so the rule
 (theme language? major font?) needs a Windows lab: (a) this cover with
 themeFontLang eastAsia zh-CN; (b) with the theme's Jpan major font changed;
 (c) a missing face in a zh-CN document whose theme Hans font is 宋体.
+Lab t160 (Windows 01QbbApP, 2026-10-24, Word 16.0.20430, before any font pack;
+~/starling-doc-check/lab/t160, mk.py): the cover's four paragraphs in the document's own package. **The
+document does not decide the fallback; the time does.** In one batch, every variant printed
+the same: MS Mincho, with 单 总 监 题 库 编 组 in JhengHei and the digits in Cambria. The variants were
+(a) as is; (b) themeFontLang eastAsia zh-CN; (c1/c2) the theme's minor Jpan face set to Yu Mincho or
+to a face this box lacks; (c3) the major Jpan set to Yu Mincho; (d1/d2) zh-CN with the minor Hans face
+set to 黑体 or to a lacked face; (e) zh-TW; (f) ＭＳ 明朝 removed from the font table; (g) docDefaults'
+eastAsia an explicit 宋体; (h) a GB2312 font-table entry for FZShuTi; (i) docDefaults' lang zh-CN;
+(j) the runs' lang zh-CN; (k) g and f together. Ten minutes later, in a new batch, a bare package with
+no theme, font table or styles (p1: FZShuTi, zh-CN) printed all in SimSun, and p3 (ja-JP) too,
+while p2 (an invented name) printed Mincho/JhengHei/Cambria. A few minutes after that, p1 printed
+Mincho/JhengHei/Cambria again, whether it came before or after (a) in a fresh Word. In that
+same middle batch, 方正舒体 printed in SimSun, and 方正小标宋简体 in Yu Gothic with JhengHei. So which
+face stands in for a missing one drifts over minutes, outside the document and outside Word's
+process. It is the same drift as the 仿宋_GB2312 YaHei/FangSong runs in the reprint. Whatever the
+state, the date's digits print in the theme's Latin face (Cambria) whenever the ideographs go to
+Mincho. Until the box is in a stable state, no rule for a missing face can be read off this
+Word. The user's font-pack install may settle it; fsw's YaHei is no firmer than this.
 
 ### T161. zh-bfe04e2f: Word for Windows' lines take a character more — CLAIMED (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), routed by macos. 62.7 against
