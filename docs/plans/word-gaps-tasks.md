@@ -5581,9 +5581,17 @@ ef50baab) decided 方正小标宋简体 = YaHei for whole print batches, and a f
 so this print is the artefact and the current rule is right. Re-score after windows reprints the 195 references
 with that face. Patch: ~/starling-word-check/lab/wwface/fangzheng-86-yahei.patch (discard if the reprint agrees).
 
-### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — DONE eba13300 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier entries (windows' zq, the Mac's zz) are
 released; this starts again from the word-win print at 0a2306a8.
+Not a line fit: p2 ran a line long (ours took "房交付之月…" at 736.85, Word leaves it for p3 at the 742.7 foot).
+Its two tables of exact rows (44.8 + 6 × 31.2, ruled sz4 by w:tblBorders, cells stating none) are their rows' sum
+and the bottom line apart in Word's print. Ours kept the single line inside the last row (the Mac's lab rb), so the
+text after each table stood 0.47 high.
+eba13300: in Windows mode, a table's own single bottom line hangs under an exact last row, as a heavy one already did.
+A line the cells state for themselves stays inside: hanging those too cost zh-5c6ff0d7 its page (100 -> 97.8;
+no table line, cells sz4) and zh-78d8bd98 99.3 -> 97.2. Same-base Linux pair against word-win, 756 documents:
+zh-884c6e3e 51.4 -> 100, nothing else moved. Rechecked on the tip after c22e79a2.
 
 ### Low list on word-win at d9aabe26 (Mac 0fcba326, coordinator, 2026-10-25) — pick from here, claim before starting
 Sweep w4 (Mac, wt-win worktree, OFFICE_WORD_FONTS=windows, mupdf reader): zh 645 documents mean 97.5% (w1 at 452660de:
