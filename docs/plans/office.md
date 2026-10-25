@@ -6226,6 +6226,15 @@ fitter dropped the paragraph's tail).
   the notices above that now take Word's room. Same-base sweep h151
   (word-win): zh-8d72961c 4.3 -> 36.2, zh-d97c5474 2.2 -> 19.6, nothing
   else moved. Their Greek, in Cambria runs, is the next entry.
+- **Cambria's Greek is Cambria's widths (2026-10-24, Windows
+  references).** Caladea, its stand-in, has no Greek, so the fallback
+  (DejaVu Sans) drew it at its own, wider widths. Cambria's for U+0384 to
+  U+03CE, regular and bold, were read off the Windows box (cambria.ttc,
+  cambriab.ttf) by windows 01QbbApP; the 37 Greek glyphs zh-d97c5474's
+  print embeds agree. zh-d97c5474's and zh-8d72961c's Greek notices, in
+  Cambria runs under Nunito Sans Light marks, now break where Word's do.
+  Same-base sweep h152 (word-win, on 497b95bc's refit): zh-8d72961c 36.2
+  -> 53.2, zh-d97c5474 19.6 -> 39.1, nothing else moved.
 - **A row opening a page under a cell of no top line takes the table's
   top line (2026-10-24).** zh-cec9d337's assignments table has a 3pt
   thinThickSmallGap top (sz 24) over single half-point inside lines, its

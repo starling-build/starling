@@ -798,6 +798,33 @@ enum OfficeFonts {
     // and Word for Mac both set and embed (zh-d97c5474's and zh-8d72961c's
     // subsets, every one of their widths equal to these). The stand-in
     // was Carlito, some 9% narrower.
+    // Cambria's own Greek widths, U+0384 to U+03CE, and its bold's
+    // (cambria.ttc and cambriab.ttf, read off the Windows box by windows
+    // 01QbbApP; the 37 zh-d97c5474's print embeds are the same). Caladea
+    // has no Greek, and its fallback, DejaVu Sans, set it wider.
+    static let cambriaGreekAdvances: [UInt32: Double] = [
+        0x0384: 0.2847, 0x0385: 0.2847, 0x0386: 0.6187, 0x0387: 0.2441, 0x0388: 0.7061, 0x0389: 0.8125, 0x038A: 0.4502, 0x038C: 0.7358,
+        0x038E: 0.7783, 0x038F: 0.7563, 0x0390: 0.2842, 0x0391: 0.6230, 0x0392: 0.6113, 0x0393: 0.5361, 0x0394: 0.5957, 0x0395: 0.5752,
+        0x0396: 0.5376, 0x0397: 0.6865, 0x0398: 0.6533, 0x0399: 0.3242, 0x039A: 0.6294, 0x039B: 0.6055, 0x039C: 0.8154, 0x039D: 0.6807,
+        0x039E: 0.5718, 0x039F: 0.6533, 0x03A0: 0.6743, 0x03A1: 0.5679, 0x03A3: 0.5479, 0x03A4: 0.5928, 0x03A5: 0.6074, 0x03A6: 0.7852,
+        0x03A7: 0.5713, 0x03A8: 0.7827, 0x03A9: 0.6792, 0x03AA: 0.3242, 0x03AB: 0.6074, 0x03AC: 0.5742, 0x03AD: 0.4438, 0x03AE: 0.5430,
+        0x03AF: 0.2842, 0x03B0: 0.5410, 0x03B1: 0.5742, 0x03B2: 0.5552, 0x03B3: 0.5068, 0x03B4: 0.5249, 0x03B5: 0.4438, 0x03B6: 0.3999,
+        0x03B7: 0.5430, 0x03B8: 0.5469, 0x03B9: 0.2842, 0x03BA: 0.5269, 0x03BB: 0.4878, 0x03BC: 0.5459, 0x03BD: 0.4819, 0x03BE: 0.4048,
+        0x03BF: 0.5308, 0x03C0: 0.6021, 0x03C1: 0.5322, 0x03C2: 0.4312, 0x03C3: 0.5718, 0x03C4: 0.4780, 0x03C5: 0.5410, 0x03C6: 0.7119,
+        0x03C7: 0.4858, 0x03C8: 0.7192, 0x03C9: 0.7510, 0x03CA: 0.2842, 0x03CB: 0.5410, 0x03CC: 0.5308, 0x03CD: 0.5410, 0x03CE: 0.7510,
+    ]
+    static let cambriaBoldGreekAdvances: [UInt32: Double] = [
+        0x0384: 0.2861, 0x0385: 0.2861, 0x0386: 0.6519, 0x0387: 0.2319, 0x0388: 0.7153, 0x0389: 0.8604, 0x038A: 0.4897, 0x038C: 0.7744,
+        0x038E: 0.8403, 0x038F: 0.8062, 0x0390: 0.3281, 0x0391: 0.6519, 0x0392: 0.6514, 0x0393: 0.5508, 0x0394: 0.6421, 0x0395: 0.5776,
+        0x0396: 0.5664, 0x0397: 0.7217, 0x0398: 0.7051, 0x0399: 0.3496, 0x039A: 0.6816, 0x039B: 0.6523, 0x039C: 0.8462, 0x039D: 0.6792,
+        0x039E: 0.5913, 0x039F: 0.6953, 0x03A0: 0.7012, 0x03A1: 0.6138, 0x03A3: 0.5908, 0x03A4: 0.6392, 0x03A5: 0.6602, 0x03A6: 0.8018,
+        0x03A7: 0.6187, 0x03A8: 0.8379, 0x03A9: 0.7441, 0x03AA: 0.3496, 0x03AB: 0.6602, 0x03AC: 0.6191, 0x03AD: 0.4927, 0x03AE: 0.5991,
+        0x03AF: 0.3281, 0x03B0: 0.5801, 0x03B1: 0.6191, 0x03B2: 0.6011, 0x03B3: 0.5649, 0x03B4: 0.5708, 0x03B5: 0.4927, 0x03B6: 0.4561,
+        0x03B7: 0.5991, 0x03B8: 0.5801, 0x03B9: 0.3281, 0x03BA: 0.6040, 0x03BB: 0.5278, 0x03BC: 0.6084, 0x03BD: 0.5552, 0x03BE: 0.4448,
+        0x03BF: 0.5693, 0x03C0: 0.6279, 0x03C1: 0.5854, 0x03C2: 0.4780, 0x03C3: 0.6118, 0x03C4: 0.5571, 0x03C5: 0.5801, 0x03C6: 0.7539,
+        0x03C7: 0.5371, 0x03C8: 0.8018, 0x03C9: 0.7988, 0x03CA: 0.3281, 0x03CB: 0.5801, 0x03CC: 0.5693, 0x03CD: 0.5801, 0x03CE: 0.7988,
+    ]
+
     static let nunitoSansLightAdvances: [Double] = [
         0.251, 0.219, 0.366, 0.600, 0.600, 0.923, 0.678, 0.211, 0.299, 0.299, 0.449, 0.600, 0.219, 0.420, 0.219,
         0.269, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.219, 0.219, 0.600, 0.600,
@@ -1684,6 +1711,13 @@ enum OfficeFonts {
             if clone != calibri {
                 face.otherAdvances = circled(1.2007)
                 face.boldOtherAdvances = circled(1.2207)
+            }
+            // (Cambria's Greek, which its stand-in lacks, at Cambria's widths:
+            // zh-d97c5474's Greek notice, in Cambria runs, left words to the
+            // next line in the fallback's that Word's lines hold.)
+            if clone == cambria {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(cambriaGreekAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(cambriaBoldGreekAdvances) { $1 }
             }
             // (Nunito Sans keeps its own widths and line: 1.364 ems by its
             // hhea, 1011 over and 353 under of 1000, no gap. zh-d97c5474's

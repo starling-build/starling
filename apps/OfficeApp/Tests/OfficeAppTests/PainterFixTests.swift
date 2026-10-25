@@ -170,6 +170,15 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Nunito Sans", eastAsian: false)?.naturalHeight), 1.364)
     }
 
+    func testCambriasGreekIsCambriasWidths() throws {
+        // Caladea has no Greek: zh-d97c5474's Cambria runs of it are set
+        // at Cambria's own widths, "α" 1176 of 2048 and its bold's 1268.
+        let face = try XCTUnwrap(OfficeFonts.face("Cambria", eastAsian: false))
+        XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0x03B1]), 0.5742, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(face.boldOtherAdvances?[0x03B1]), 0.6191, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0x03A9]), 0.6792, accuracy: 0.0001)
+    }
+
     func testPMingLiUsSpaceAndTimesSignAreItsOwnWidths() throws {
         // Word's embedded PMingLiU sets the space 0.26 em (97 prints'
         // /Widths) where the stand-in set 0.235, and "×" half an em:
