@@ -765,7 +765,11 @@ enum OfficeFonts {
     /// FZShuTi cover in word-win: the 36pt lines, each with a 单 or 总,
     /// stand 1.73 em (JhengHei's) under 1.15 spacing, the 18pt date,
     /// Mincho and Cambria only, 1.30. An invented name prints the same.
-    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 1.005)
+    /// (Its baseline Mincho's own ascent, 220/256, under half the 1.3
+    /// line's extra: zh-8e8d4c40's "N、" labels lift their 標楷體 lines
+    /// 0.72pt in Word for Windows, 0.66 at the 1.005 it had, and page 2
+    /// took one line too many.)
+    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15)
     /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
     /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
     /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
