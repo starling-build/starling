@@ -11072,9 +11072,20 @@ public final class RichLayout {
                     // (Mac, Word 16): with a comma, under zh-CN defaults,
                     // 2.9pt over, unnumbered, the same; the style saying
                     // zh-TW, the colon gives and "維" is taken. Not en-US,
-                    // whose marks give: zh-c5b5087b's en-US body squeezes
-                    // its commas in Word's print — 95.4 -> 27.6 under it.)
-                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) }
+                    // whose marks give in Word for Mac: zh-c5b5087b's en-US
+                    // body squeezes its commas in its print.)
+                    // (Word for Windows' pause marks and curly quotes give
+                    // nothing in text whose East Asian language is no
+                    // Chinese, Japanese or Korean: zh-c5b5087b's lines are
+                    // 27 characters at their full widths in its print, the
+                    // commas unsqueezed and one starting the next line,
+                    // where ours took a 28th with a comma at its half and
+                    // ran a page long.)
+                    let windowsMuted: (Int) -> Bool = { o in
+                        RichTextTheme.wordWindowsPages && runRulesOff(o)
+                            && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
+                    }
+                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
