@@ -5294,8 +5294,21 @@ print-timing trap): need × (lineEms/64 + spaces) ≤ spaces/2 × room, 35.6 ≤
 Lab asked of windows: the over at which "高" stops being taken with three spaces, with
 one, and on a line twice as long.
 
-### T171. zh-457a8d62: 9.6 against word-win, 27/27 pages — CLAIMED (Linux office1, starling-office1-95, 2026-10-24)
+### T171. zh-457a8d62: 9.6 against word-win, 27/27 pages — DONE 421ac17d (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1. Linux w12 sweep on b887ee3d. Every page from p2 on runs a line ahead of Word for
 Windows' print. p2's paragraph "一、被彈劾人許志堅擔任新北市政府副市長及新北市都" ends at 都 in Word; ours
 takes 更, and the next lines of that paragraph and of "(一)…收受周麗惠" each take one more character.
-Line fit, not pagination: the pitch matches (22.9). Not yet measured.
+Line fit, not pagination: the pitch matches (22.9).
+Cause: those paragraphs are bold 標楷體 16pt, and be77c1fa set no bold spread in Windows mode.
+421ac17d: Windows mode widens an emboldened face by one unit of its em, after windows' labs bold and bold2:
+1/256 for KaiTi, FangSong, SimHei, SimSun and MS Mincho; 1/1024 for DFKai-SB, PMingLiU and MingLiU;
+1/2048 for a name Word gives JhengHei UI Light (zh-167ee06c's 華康雅風體). A name Windows lacks takes its
+alternate's class. Faces with a real bold (JhengHei, YaHei) are not emboldened and stay at 0. A flat 1/256
+(macos-ios's parked table, and my first try) cost zh-aa3f29a0 99.8 -> 5.5 and four more, all 標楷體 or 華康.
+Same-base Linux pair against word-win (b887ee3d, 756 documents): 95.09 -> 95.27, 13 better.
+zh-457a8d62 9.6 -> 100, zh-dc9cfa34 54.9 -> 84.8, zh-e653f583 96.1 -> 98.4, zh-c0ac6f55 97.7 -> 99.2,
+zh-7654804a 98.2 -> 99.6, zh-eb54d3b0 97.4 -> 98.6, zh-5be7e156 74.4 -> 75.7, zh-021b8feb 98.6 -> 99.5,
+zh-b00fef0d 73.7 -> 74.6, and four by under half a point. Only zh-b24b396a dipped, 90.6 -> 90.3:
+two 7.5pt labels in p13's drawing, 室 and 馆, moved down 9.75pt, and Word's print holds neither.
+Left: zh-dc9cfa34's other misses. Its spaces already take half the face's spread through the wide-space
+path, which is what windows measured (6.021 against 6.0014 at 12pt); the rest has not been looked at.
