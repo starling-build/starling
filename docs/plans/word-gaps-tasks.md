@@ -5879,3 +5879,6 @@ look. Lab wanted: zh-884c6e3e's footer alone, the number's baseline with (a) as 
 it, (c) the paragraph's mark at 14pt; and the same for zh-1cfb652b.
 
 ### zh-2a241df1 81.9 (word-win, 4/4 pages): its charts' labels — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+
+### T190. zh-e1b09977: 82.2 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
+Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differently. zh-4c5da793 and zh-38d26944 next.
