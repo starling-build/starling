@@ -5695,3 +5695,23 @@ Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.4
 Written; the pair waits for windows' reprint sha, and for its note on whether Word fetches the 华文 cloud faces on demand.
 
 ### zh-6a4fc013 49.5 (word-win): the Thai document, 27 pages to 26 — CLAIMED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+
+### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
+396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
+so test/run.sh's "office: native vs browser" step compared against a stale 10-13 stage and checked nothing since.
+- **Pre-push, from now on:** `build/web-app.sh OfficeApp --package apps/OfficeApp` must exit 0 (it builds into its own
+  `.build-web-OfficeApp`, so it doesn't disturb `.build-shared` or a running sweep). Then `test/office-layout.sh`.
+- **wasm32's Int is 32 bits.** A literal past Int32 (0xFFFF_FFFF) won't compile, and `Int(someUInt32)` TRAPS at runtime
+  past 2^31. Compare such sentinels on the raw UInt32 field.
+- **No legacy Foundation string layer on the link** (the size gate keeps it off): `str.contains("x")`, even with one
+  character, `range(of:)` and `replacingOccurrences` resolve to it and fail as `undefined symbol
+  ...Foundation...range2of7options...`. Use `containsSubstring`, `rangeOfSubstring`, `replacingAll`. No NSLock either.
+- **Finding the call site behind an undefined symbol:** the linker names only the object file. Map it to the function with
+  `llvm-objdump -d -r --no-show-raw-insn <obj>.o | awk '/^[0-9a-f]+ <.*>:$/{fn=$2} /R_WASM.*<symbol fragment>/{print fn}'`
+  then `swift demangle --simplified` (script: ~/tmp/wz/scan on the Linux box).
+- **V8 rejects a wasm function of more than 1000 parameters** ("param count of 1296 exceeds internal limit of 1000"):
+  wasm32's outlined copy of a big enum passes its largest payload field by field. EditOp (two RichParagraphStyles inline)
+  hit it and is now `indirect`. Another enum or struct holding several RichParagraphStyle/CharStyle values can do the same as
+  those grow.
+- **Open:** with the stage current, office-layout.sh still fails for real. All three documents break every line the same way,
+  but line HEIGHTS differ by fractions (welcome: title 45.5 native vs 46.0 web, body 19.3 vs 19.0). Not yet bisected.
