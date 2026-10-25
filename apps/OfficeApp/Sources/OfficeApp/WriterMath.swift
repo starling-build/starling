@@ -28,15 +28,15 @@ enum WriterMath {
 
     private struct Entry {
         let box: Box
+        /// What it was laid out from, to lay it out again narrower.
+        var node: XNode? = nil
+        var size: Double = 11
+        /// Its forms broken to a width (`fit`).
+        var fits: [Box] = []
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
-    #if os(WASI)
-    private struct _NoLock { func lock() {}; func unlock() {} }   // one thread in the browser, no NSLock in its Foundation
-    private static let lock = _NoLock()
-    #else
-    private static let lock = NSLock()
-    #endif
+    private static let lock = RegistryLock()
 
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say
@@ -56,10 +56,64 @@ enum WriterMath {
             box.descent = min(box.descent, s * 0.22)
         }
         lock.lock()
-        entries[id] = Entry(box: box)
+        entries[id] = Entry(box: box, node: display ? node : nil, size: size)
         lock.unlock()
         WriterCharts.installHooks()
         return (box.width, box.ascent + box.descent, box.ascent)
+    }
+
+    /// The display equation registered for `attachment` laid out again,
+    /// broken over lines to `width` points, where it is wider: its size
+    /// and first baseline, in points. nil where it fits, or cannot part.
+    /// Word parts a display equation too wide for its line before an
+    /// operator — inside the brackets of one round it all as well — and
+    /// sets each line after the first an inch in (`m:wrapIndent`'s
+    /// default): zh-db07d44e's cell "實績值=(…/…×1/3+…/…×1/3+…/…×1/3)×100%"
+    /// is four lines in its print, the last "×100%".
+    static func fit(_ attachment: ImageAttachment, width: Double) -> (width: Double, height: Double, baseline: Double)? {
+        lock.lock()
+        let entry = entries[attachment.id]
+        lock.unlock()
+        guard let entry, let node = entry.node, entry.box.width > width + 0.5 else { return nil }
+        let layout = Layout(display: true)
+        let pieces = layout.pieces(node, size: entry.size)
+        guard pieces.count > 1 else { return nil }
+        let indent = min(72, width / 2)
+        var lines: [[Box]] = [[]]
+        var x = 0.0
+        for (k, piece) in pieces.enumerated() {
+            let limit = lines.count == 1 ? width : width - indent
+            if k > 0, piece.breaksBefore, !lines[lines.count - 1].isEmpty {
+                // (Where what runs on to the next break would not fit.)
+                var run = piece.box.width
+                var j = k + 1
+                while j < pieces.count, !pieces[j].breaksBefore { run += pieces[j].box.width; j += 1 }
+                if x + run > limit + 0.01 { lines.append([]); x = 0 }
+            }
+            lines[lines.count - 1].append(piece.box)
+            x += piece.box.width
+        }
+        guard lines.count > 1 else { return nil }
+        let boxes = lines.map { layout.hbox($0) }
+        // (0.3 of its size between lines: zh-db07d44e's fractions' rules
+        // are 46.8pt apart at 12pt in Word's print, a line of two 15.8pt
+        // YaHei rows and the rule's room under 0.3 em more.)
+        let gap = entry.size * 0.3
+        var tops: [Double] = []
+        var y = 0.0
+        for b in boxes { tops.append(y); y += b.ascent + b.descent + gap }
+        let height = y - gap
+        let wide = boxes.enumerated().map { ($0.offset == 0 ? 0 : indent) + $0.element.width }.max() ?? 0
+        let first = boxes[0].ascent
+        let broken = Box(width: wide, ascent: first, descent: height - first) { canvas, at in
+            for (k, b) in boxes.enumerated() {
+                b.draw(canvas, Offset(at.dx + (k == 0 ? 0 : indent), at.dy - first + tops[k] + b.ascent))
+            }
+        }
+        lock.lock()
+        entries[attachment.id]?.fits.append(broken)
+        lock.unlock()
+        return (wide, height, first)
     }
 
     /// The equation `node` laid out on its own, its runs `size` points
@@ -83,10 +137,13 @@ enum WriterMath {
         let entry = entries[attachment.id]
         lock.unlock()
         guard let entry else { return false }
+        // (The form laid out to this rectangle's width, where one was.)
+        let wide = rect.width / max(pxPerPt, 0.0001)
+        let box = entry.fits.last(where: { abs($0.width - wide) < 1.5 }) ?? entry.box
         canvas.save()
         canvas.translate(rect.left, rect.top)
         canvas.scale(pxPerPt, pxPerPt)
-        entry.box.draw(canvas, Offset(0, entry.box.ascent))
+        box.draw(canvas, Offset(0, box.ascent))
         canvas.restore()
         return true
     }
@@ -103,9 +160,10 @@ enum WriterMath {
         let ascent: Double
         let descent: Double
         let baseline: Double
-        init(_ text: String, size: Double, italic: Bool, color: Color) {
+        init(_ text: String, size: Double, italic: Bool, color: Color, family: String? = nil, height: Double? = nil) {
             tp = TextPainter(text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size, fontStyle: italic ? .italic : .normal,
-                                                                          fontFamily: WriterMath.family,
+                                                                          height: height,
+                                                                          fontFamily: family ?? WriterMath.family,
                                                                           fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)),
                              textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
@@ -124,9 +182,9 @@ enum WriterMath {
         func scriptSize(_ size: Double, _ level: Int) -> Double { max(size * 0.5, size * pow(0.73, Double(min(level, 2)))) }
 
         /// A string set as one piece, its baseline at the box's.
-        func text(_ s: String, size: Double, italic: Bool) -> Box {
+        func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
             guard !s.isEmpty else { return .empty }
-            let p = Painter(s, size: size, italic: italic, color: ink)
+            let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
             return Box(width: p.tp.width, ascent: p.ascent, descent: p.descent) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
@@ -154,6 +212,15 @@ enum WriterMath {
             }
         }
 
+        /// The face a run sets its East Asian characters in: its own
+        /// `w:eastAsia` face (zh-db07d44e's equations say 標楷體, YaHei to
+        /// Word on the Mac, its lines that face's height), else the math
+        /// faces' fallback.
+        func eastAsianFamily(_ r: XNode) -> RichResolvedFace? {
+            r.first("w:rPr")?.first("w:rFonts")?["w:eastAsia"].flatMap { OfficeFonts.face($0, eastAsian: true) }
+        }
+        func wide(_ s: String) -> Bool { s.unicodeScalars.contains { $0.value >= 0x2E80 } }
+
         /// A run's text: letters italic unless the run is plain
         /// (`m:sty p`, `m:nor`), operators spaced as Word sets them.
         func run(_ r: XNode, size: Double, level: Int) -> Box {
@@ -164,8 +231,9 @@ enum WriterMath {
             var parts: [Box] = []
             var piece = ""
             var pieceItalic = false
+            let ea = eastAsianFamily(r)
             func flush() {
-                if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic)) }
+                if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }
                 piece = ""
             }
             for ch in s {
@@ -185,6 +253,67 @@ enum WriterMath {
             }
             flush()
             return hbox(parts)
+        }
+
+        /// A display equation's pieces a line may part between, each with
+        /// whether a line may start with it (an operator): its top-level
+        /// pieces, a run parted at its operators, and a bracket round
+        /// what follows opened up — its fences pieces of their own.
+        func pieces(_ node: XNode, size: Double) -> [(box: Box, breaksBefore: Bool)] {
+            let math = node.name == "m:oMathPara" ? node.all("m:oMath") : [node]
+            var out: [(box: Box, breaksBefore: Bool)] = []
+            func add(_ n: XNode) {
+                switch n.name {
+                case "m:r":
+                    out += runPieces(n, size: size)
+                case "m:d" where n.all("m:e").count == 1:
+                    let pr = n.first("m:dPr")
+                    let beg = pr?.first("m:begChr")?["m:val"] ?? "("
+                    let end = pr?.first("m:endChr")?["m:val"] ?? ")"
+                    let s = runSize(n.first("m:e"), size, 0)
+                    if !beg.isEmpty { out.append((text(beg, size: s, italic: false), false)) }
+                    for c in n.first("m:e")?.children ?? [] { add(c) }
+                    if !end.isEmpty { out.append((text(end, size: s, italic: false), false)) }
+                default:
+                    let b = element(n, size: size, level: 0)
+                    if b.width > 0 || b.ascent > 0 { out.append((b, false)) }
+                }
+            }
+            for m in math { for c in m.children { add(c) } }
+            return out
+        }
+
+        /// A run's pieces: its text between operators, each operator with
+        /// its spacing a piece a line may start with.
+        func runPieces(_ r: XNode, size: Double) -> [(box: Box, breaksBefore: Bool)] {
+            var own = scriptSize(size, 0)
+            if let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init), sz > 0 { own = scriptSize(sz / 2, 0) }
+            let plain = r.first("m:rPr")?.first("m:sty")?["m:val"] == "p" || r.first("m:rPr")?.first("m:nor") != nil
+            let s = r.all("m:t").map(\.text).joined()
+            var out: [(box: Box, breaksBefore: Bool)] = []
+            var parts: [Box] = []
+            var piece = ""
+            var pieceItalic = false
+            var opens = false
+            let ea = eastAsianFamily(r)
+            func flush() { if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }; piece = "" }
+            func close() { flush(); if !parts.isEmpty { out.append((hbox(parts), opens)) }; parts = []; opens = false }
+            for ch in s {
+                if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
+                    close()
+                    opens = true
+                    let gap = own * 0.22
+                    parts.append(space(gap))
+                    parts.append(text(String(ch == "-" ? "−" : ch), size: own, italic: false))
+                    parts.append(space(gap))
+                    continue
+                }
+                let italic = !plain && ch.isLetter && ch.unicodeScalars.allSatisfy { $0.value < 0x2E80 }
+                if italic != pieceItalic { flush(); pieceItalic = italic }
+                piece.append(ch)
+            }
+            close()
+            return out
         }
 
         /// What `node` holds, in a row: its children, as each one sets.

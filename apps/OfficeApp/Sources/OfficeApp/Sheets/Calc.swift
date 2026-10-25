@@ -302,15 +302,17 @@ final class CalcEngine {
             case .cell(let k):
                 guard let f = book.sheets[k.sheet].cells[k.cell]?.formula else { return [] }
                 if Formula.isVolatile(f) { graph.volatile.insert(k) }
-                var refs: [FormulaRef] = []
-                Formula.references(f, into: &refs)
+                var refs: [FormulaRef] = [], indexed: [FormulaRef] = []
+                Formula.references(f, into: &refs, indexed: &indexed)
                 // Defined names read cells too.
                 var names: [String] = []
                 Formula.names(f, into: &names)
                 for n in names {
-                    if let t = book.names[n.uppercased()], let e = try? Formula.parse(t) { Formula.references(e, into: &refs) }
+                    if let t = book.nameText(n, sheet: k.sheet), let e = try? Formula.parse(t) {
+                        Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs, indexed: &indexed)
+                    }
                 }
-                return refs.compactMap { ref in
+                func read(_ ref: FormulaRef) -> _Node? {
                     let si = ref.sheet.flatMap { book.sheet(named: $0) } ?? k.sheet
                     guard si >= 0, si < book.sheets.count else { return nil }
                     let r = ref.range
@@ -321,6 +323,11 @@ final class CalcEngine {
                     }
                     return .range(si, r)
                 }
+                // What INDEX picks from is read when it changes, but is not
+                // walked for loops: a loop through the one cell it picks is
+                // found as value() comes back to it.
+                for ref in indexed { _ = read(ref) }
+                return refs.compactMap(read)
             }
         }
         var graph = _Graph(order: [], formulaCells: Set(all))
@@ -455,9 +462,9 @@ final class CalcEngine {
 
     /// Evaluate a formula that is not in a cell (the formula bar's preview,
     /// a test), as if it were in `cell` on `sheet`.
-    func evaluate(_ text: String, sheet: Int = 0, at cell: CellAddress = CellAddress(row: 0, col: 0)) -> CellValue {
+    func evaluate(_ text: String, sheet: Int = 0, at cell: CellAddress = CellAddress(row: 0, col: 0), dynamic: Bool = false) -> CellValue {
         guard let f = try? Formula.parse(text) else { return .error(.name) }
-        let ctx = EvalContext(engine: self, sheet: sheet, cell: cell)
+        let ctx = EvalContext(engine: self, sheet: sheet, cell: cell, dynamic: dynamic)
         let v = scalar(evaluate(f, ctx), ctx)
         return v.isEmpty ? .number(0) : v
     }
@@ -477,8 +484,8 @@ final class CalcEngine {
         case .array(let rows): return .array(rows.map { $0.map { scalar(evaluate($0, ctx), ctx) } })
         case .name(let n):
             if let local = ctx.locals[n.uppercased()] { return local }
-            if let target = book.names[n.uppercased()], target.containsSubstring("#REF!") { return .error(.ref) }
-            guard let target = book.names[n.uppercased()],
+            if let target = book.nameText(n, sheet: ctx.sheet), target.containsSubstring("#REF!") { return .error(.ref) }
+            guard let target = book.nameText(n, sheet: ctx.sheet),
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).
                 if book.sheets.contains(where: { $0.tables.contains { $0.name.lowercased() == n.lowercased() } }) {
@@ -486,7 +493,10 @@ final class CalcEngine {
                 }
                 return .error(.name)
             }
-            return evaluate(parsed, ctx)
+            // Its relative references are kept from A1 and read from the
+            // cell that uses it, round the sheet's edge: lo-tdf171828's
+            // `$G1048576` in G19 is G18, the row above.
+            return evaluate(Formula.shifted(parsed, rows: ctx.cell.row, cols: ctx.cell.col, wrapping: true), ctx)
         case .negate(let x):
             let ex = evaluate(x, ctx)
             if ctx.dynamic, _isMulti(ex) {

@@ -93,6 +93,9 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// Those labels' own number format (`c:dLbls/c:numFmt`, not linked
+    /// to the source); else they show the line's numbers' (`format`).
+    var labelCode: String? = nil
 }
 
 struct Chart: Equatable {
@@ -331,7 +334,11 @@ struct Chart: Equatable {
             var edge = lo
             var first = underflow == nil
             repeat {
-                let top = min(edge + width, hi)
+                // (The last a whole bin's width, past the largest sample,
+                // unless an overflow bin takes the rest: "(13.94, 17.88]"
+                // over samples to 15, chart-pareto-gapwidth's "(8, 11.5]"
+                // to 9, in Excel's prints.)
+                let top = overflow == nil ? edge + width : min(edge + width, hi)
                 labels.append((first ? "[" : "(") + "\(show(edge)), \(show(top))]")
                 counts.append(Double(xs.filter { (first ? $0 >= edge : $0 > edge) && $0 <= top }.count))
                 first = false
@@ -387,6 +394,11 @@ struct Chart: Equatable {
     /// properties): Word sets such a chart's labels higher
     /// (`_wordLabelRise`).
     var eastAsianText = false
+    /// Its East Asian text is set as Word for Windows sets a theme with no
+    /// East Asian face: in MS Mincho, and Microsoft JhengHei for what
+    /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
+    /// table's rows stand on those faces' lines (`_tableRows`).
+    var windowsMinchoText = false
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -448,6 +460,9 @@ struct Chart: Equatable {
         var moves: [Int: [Double]] = [:]
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
+        /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
+        /// shown as it stands: zh-61aaad09's pie says "109646, 15.85%".
+        var texts: [Int: String] = [:]
         var fill: Color? = nil
         var line: Color? = nil
         var lineWidth = 0.75
@@ -694,7 +709,10 @@ enum ChartXML {
                 n.children.forEach(collect)
             }
             collect(t)
-            title = runs.joined()
+            // (A title with no text of its own reads "Chart Title":
+            // chart-pareto-gapwidth's in Excel's print,
+            // lo-forum-mso-de-138303's waterfall's in PowerPoint's.)
+            title = runs.isEmpty && t.descendant("cx:tx") == nil ? "Chart Title" : runs.joined()
         }
         var c = Chart(type: .column, title: title, categories: categories, series: series)
         c.boxes = boxes
@@ -766,7 +784,10 @@ enum ChartXML {
                 n.children.forEach(collect)
             }
             collect(t)
-            title = runs.joined()
+            // (A title with no text of its own reads "Chart Title":
+            // chart-pareto-gapwidth's in Excel's print,
+            // lo-forum-mso-de-138303's waterfall's in PowerPoint's.)
+            title = runs.isEmpty && t.descendant("cx:tx") == nil ? "Chart Title" : runs.joined()
         }
         var c = Chart(type: .pie, title: title, categories: roots.map(\.name),
                       series: [ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series1", values: roots.map(\.value))])
@@ -941,7 +962,10 @@ enum ChartXML {
                 n.children.forEach(collect)
             }
             collect(t)
-            title = runs.joined()
+            // (A title with no text of its own reads "Chart Title":
+            // chart-pareto-gapwidth's in Excel's print,
+            // lo-forum-mso-de-138303's waterfall's in PowerPoint's.)
+            title = runs.isEmpty && t.descendant("cx:tx") == nil ? "Chart Title" : runs.joined()
         }
         var c = Chart(type: .column, title: title, categories: categories, series: series)
         c.chartex = true
@@ -1197,6 +1221,8 @@ enum ChartXML {
             s.valueLabels = (own?.first("c:showVal") ?? group?.first("c:showVal"))?["val"] == "1"
                 && own?.first("c:delete")?["val"] != "1"
             if s.valueLabels, let d = own {
+                if let f = d.first("c:numFmt"), !["1", "true"].contains(f["sourceLinked"] ?? ""), let code = f["formatCode"],
+                   !code.isEmpty, code.lowercased() != "general" { s.labelCode = code }
                 for one in d.all("c:dLbl") {
                     guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                           let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
@@ -1393,7 +1419,11 @@ enum ChartXML {
             l.series = on(d, "c:showSerName"); l.category = on(d, "c:showCatName")
             l.value = on(d, "c:showVal"); l.percent = on(d, "c:showPercent")
             l.separator = d.first("c:separator")?.text
-            let pos = d.first("c:dLblPos")?["val"]
+            // (None written is a best fit, Excel's default for a pie:
+            // zh-d62da4dd's 3-D pies give no position, and Word's print of
+            // them with their moves taken out, lab p3d, sets the big slices'
+            // labels inside and the small ones' beside them on leaders.)
+            let pos = d.first("c:dLblPos")?["val"] ?? (type == .pie ? "bestFit" : nil)
             l.outside = pos == "outEnd" || pos == "bestFit"
             var ends = pos == "outEnd"
             for one in d.all("c:dLbl") {
@@ -1403,6 +1433,10 @@ enum ChartXML {
                     if p == "outEnd" { ends = true }
                 }
                 if let sz = one.first("c:tx")?.descendant("a:rPr")?["sz"].flatMap(Double.init) { l.sizes[i] = sz / 100 }
+                if let rich = one.first("c:tx")?.first("c:rich") {
+                    let text = rich.all("a:p").map { _texts($0, "a:t").joined() }.joined(separator: "\n")
+                    if !text.isEmpty { l.texts[i] = text }
+                }
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
                     l.moves[i] = [x, y]
@@ -1422,7 +1456,7 @@ enum ChartXML {
                 l.leaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
             }
             // Only what the plain labels do not already draw.
-            if l.series || l.category || l.percent || l.outside || !l.moves.isEmpty || l.fill != nil { c.pieLabels = l }
+            if l.series || l.category || l.percent || l.outside || !l.moves.isEmpty || l.fill != nil || !l.texts.isEmpty { c.pieLabels = l }
         }
         if type == .radar { c.radarFilled = el.first("c:radarStyle")?["val"] == "filled" }
         if el.name == "c:bar3DChart" {
@@ -1912,11 +1946,11 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(c.font ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback)),
-                textAlign: .center, textDirection: .ltr)   // (a label broken in two centres each line)
+                textAlign: align, textDirection: .ltr)   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
         }
@@ -1985,10 +2019,12 @@ enum ChartPainter {
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand
                 // 2.2 to 3.0 lower than ours did, their plots' tops 3 to 4.)
                 if c.onSheet { area = Rect.fromLTRB(area.left, area.top + 3.4 * k, area.right, area.bottom) }
-                // (An Excel 2016 chart's 2.4 pt lower again, its plot not:
-                // eleven `cx:` charts' titles 8.1 to 8.25 pt under the
-                // frame's top in Excel's print, ours 5.82.)
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? 3.2 * k : 0))
+                // (An Excel 2016 chart's 0.43 pt higher, its plot not:
+                // twelve `cx:` charts' titles' baselines in Excel's print,
+                // 18.76 under the frame's top in chart-sunburst's. Not 2.4
+                // lower, as the glyphs' tops measured against our box's
+                // once had it: 2.83 under Excel's, all twelve.)
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -2045,6 +2081,17 @@ enum ChartPainter {
             let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
             // Room before an entry's name.
             let lead = lineKeys && !beside ? 24.8 * k : key + gap
+            // (In a place of its own a name wider than the place wraps
+            // within it, set left: zh-61aaad09's pie legend, 26% of the
+            // chart's width, sets "实体投诉举报" as "实体投诉" / "举报" in Word's
+            // print.)
+            if let box {
+                entries = entries.map { e in
+                    guard lead + e.tp.width > box.width + 0.01 else { return e }
+                    e.tp.dispose()
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left))
+                }
+            }
             // A column beside stacked columns (or areas) reads as the stack
             // does, the last series — the top of it — first.
             if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
@@ -2068,11 +2115,21 @@ enum ChartPainter {
             let textH = entries.isEmpty ? size * k : latin.height
             latin.dispose()
             let lineH = beside ? textH + 6 * k : textH
+            // (Each line as tall as its tallest name, a wrapped one too.)
+            var lineHs = lines.map { line in max(lineH, line.map { $0.tp.height }.max() ?? 0) }
+            // (A place of its own taller than its lines shares its height
+            // among them: zh-61aaad09's two entries, in a box 94% of the
+            // chart's height, stand 57pt apart in Word's print, each in the
+            // middle of its half.)
+            if let box, lineHs.reduce(0, +) < box.height, !lines.isEmpty {
+                lineHs = lines.map { _ in box.height / Double(lines.count) }
+            }
+            let linesH = lineHs.reduce(0, +)
             let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
             var y: Double, columnX = 0.0
             if let box {
                 // In its own place, the plot's room untouched.
-                y = box.center.dy - lineH * Double(lines.count) / 2
+                y = box.center.dy - linesH / 2
             } else if beside {
                 y = c.legendPosition == "tr" ? area.top : area.center.dy - lineH * Double(lines.count) / 2
                 if c.legendPosition == "l" {
@@ -2100,17 +2157,27 @@ enum ChartPainter {
                 // chart's moved to the top, where ours was 17.9. With no
                 // title the legend is where ours was, 17 under the
                 // frame's top.)
-                y = area.top + (titled ? 4.3 * k : 0)
-                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
+                // (A `cx:` chart's on a sheet 3.71 pt lower again under its
+                // title, and its plot 6.37 further off it: chart-
+                // clusteredColumn's and chart-waterfall's in Excel's print,
+                // the legend's baseline 23.06 under the title's, the plot's
+                // top 60.6 under the frame's.)
+                let sheetCx = titled && c.onSheet && c.chartex ? k / 0.75 : 0
+                y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + 6.37 * sheetCx, area.right, area.bottom)
             } else {
                 // (A 2007-style chart's on a slide 8.2 pt off the frame's
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
                 // 10 pt legends 1.7 pt higher in PowerPoint's print, their
                 // plots 2.9.)
-                y = area.bottom - 1.2 * k - lineH * Double(lines.count)
-                area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k)
+                // (On a sheet 2.2 pt higher, and the plot's foot 4.43 higher:
+                // Excel's prints of nine charts with the legend below.)
+                let pt = c.onSheet ? k / 0.75 : 0
+                y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
+                area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
             }
-            for line in lines {
+            for (n, line) in lines.enumerated() {
+                let lineH = lineHs[n]
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
                 // (A row on a slide stands 0.19 of its size right of the
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
@@ -2238,34 +2305,82 @@ enum ChartPainter {
         return Color(0xFF00_0000 | Int64((m(16) << 16) | (m(8) << 8) | m(0)))
     }
 
+    /// The data table's rows, the categories' first, then a series' each.
+    /// 1.64 em apiece: Word for Mac's print of zh-2a241df1's two tables,
+    /// 16.4pt at 10pt. Where Word for Windows sets the text in Mincho and
+    /// JhengHei (`Chart.windowsMinchoText`), 3.4pt and the row's deepest
+    /// label, line by line wrapped as drawn: Mincho's line (1.3 em) or,
+    /// for a line holding a character Mincho lacks, JhengHei's (1.729 em).
+    /// Word for Windows' prints: zh-2a241df1's "2022年" rows 16.4 at 10pt
+    /// and its "举报"/"总" categories' and "同比增长率" rows 20.4 and 20.6;
+    /// zh-61aaad09's rows 17.6 at 11pt and its wrapped "投诉举报总量"
+    /// categories 36.8 (a JhengHei line and a Mincho one).
+    static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
+        let count = c.series.count + c.lineSeries.count + 1
+        guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers else {
+            return Array(repeating: 1.64 * size * k, count: count)
+        }
+        func depth(_ s: String, _ width: Double) -> Double {
+            let tp = text(s, size, width)
+            defer { tp.dispose() }
+            let units = Array(s.utf16)
+            var total = 0.0, start = 0
+            repeat {
+                let range = tp.getLineBoundary(TextPosition(offset: start))
+                let end = max(start + 1, min(units.count, range.end))
+                let line = String(decoding: units[start ..< end], as: UTF16.self)
+                let lacks = line.unicodeScalars.contains { (0x2E80 ... 0x9FFF).contains($0.value) && !covers.contains($0.value) }
+                total += (lacks ? 1.3301 * 1.3 : 1.3) * size * k
+                start = end
+            } while start < units.count
+            return total
+        }
+        // (A category wraps inside its column less 3.6pt a side: Word for
+        // Windows breaks zh-61aaad09's 11pt "投诉举报总量" after five in a
+        // 71pt column.)
+        var rows = [3.4 * k + (c.categories.map { depth($0, max(1, slot - 7.2 * k)) }.max() ?? 1.3 * size * k)]
+        for s in c.series + c.lineSeries {
+            let values = s.values.compactMap { $0 }.map { label($0, percent: false) }
+            rows.append(3.4 * k + ([depth(s.name, .infinity)] + values.map { depth($0, slot) }).max()!)
+        }
+        return rows
+    }
+
     /// A data table under `plot` (see `Chart.dataTable`): the categories
     /// over the plot's columns, then a row for each series — its key and
     /// name from `left`, its numbers centred under their categories — in
     /// grey rules.
-    private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, row: Double, left: Double,
+    private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, rows heights: [Double], left: Double,
                                    size: Double, n: Int, k: Double, theme: DeckTheme, text: (String, Double, Double) -> TextPainter) {
         let rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
-        let bottom = top + Double(rows.count + 1) * row
+        /// Row `j`'s top (0 the categories') and height.
+        func rowTop(_ j: Int) -> Double { top + heights.prefix(j).reduce(0, +) }
+        func rowHeight(_ j: Int) -> Double { heights[safe: j] ?? heights.last ?? 0 }
+        let bottom = rowTop(heights.count)
         let slot = plot.width / Double(max(1, n))
         // Each row's text on one baseline, 0.27 em under the row's middle,
         // whatever its face: Word's print of zh-2a241df1's tables sets
         // Calibri digits and SimSun names 10.9pt into a 16.4pt row at
         // 10pt, where centring each line's own box set the digits 0.7pt
         // and the names (a YaHei-tall line) 1.3pt lower.
-        func textTop(_ tp: TextPainter, _ y: Double) -> Double {
-            y + row / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
+        // (Under Word for Windows' faces, a label of several lines
+        // centred as a block: zh-61aaad09's wrapped categories.)
+        func textTop(_ tp: TextPainter, _ j: Int) -> Double {
+            let lines = c.windowsMinchoText ? tp.computeLineMetrics().count : 1
+            return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
+                - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
-        func centred(_ s: String, _ cx: Double, _ y: Double) {
-            let tp = text(s, size, slot)
-            tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, y)))
+        func centred(_ s: String, _ cx: Double, _ j: Int) {
+            let tp = text(s, size, j == 0 && c.windowsMinchoText ? max(1, slot - 7.2 * k) : slot)
+            tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
         }
-        for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, top) }
+        for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, 0) }
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
         for (j, (s, line)) in rows.enumerated() {
-            let y = top + Double(j + 1) * row
+            let y = rowTop(j + 1), row = rowHeight(j + 1)
             let colour = s.color ?? c.color(series: j, accents: theme.accents)
             var x = left + 3.2 * k
             if dt.keys {
@@ -2283,12 +2398,12 @@ enum ChartPainter {
                 x += 21.2 * k
             }
             let name = text(s.name, size, .infinity)
-            name.paint(canvas, Offset(x, textTop(name, y)))
+            name.paint(canvas, Offset(x, textTop(name, j + 1)))
             name.dispose()
             for i in 0 ..< n {
                 guard let v = s.values[safe: i] ?? nil else { continue }
                 let shown = s.format.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
-                centred(shown.isEmpty ? label(v, percent: false) : shown, plot.left + (Double(i) + 0.5) * slot, y)
+                centred(shown.isEmpty ? label(v, percent: false) : shown, plot.left + (Double(i) + 0.5) * slot, j + 1)
             }
         }
         let rule = Paint()
@@ -2298,7 +2413,7 @@ enum ChartPainter {
         // Across: under the categories' row and between the series'; the
         // categories' row starts at the plot, the series' at their names.
         if dt.horizontalRules {
-            for j in 1 ... rows.count { canvas.drawLine(Offset(left, top + Double(j) * row), Offset(plot.right, top + Double(j) * row), rule) }
+            for j in 1 ... rows.count { canvas.drawLine(Offset(left, rowTop(j)), Offset(plot.right, rowTop(j)), rule) }
         }
         if dt.verticalRules {
             for i in 1 ..< max(1, n) { canvas.drawLine(Offset(plot.left + Double(i) * slot, top), Offset(plot.left + Double(i) * slot, bottom), rule) }
@@ -2307,7 +2422,7 @@ enum ChartPainter {
         if dt.outline {
             canvas.drawLine(Offset(plot.left, top), Offset(plot.right, top), rule)
             canvas.drawLine(Offset(plot.right, top), Offset(plot.right, bottom), rule)
-            canvas.drawLine(Offset(left, top + row), Offset(left, bottom), rule)
+            canvas.drawLine(Offset(left, rowTop(1)), Offset(left, bottom), rule)
             canvas.drawLine(Offset(left, bottom), Offset(plot.right, bottom), rule)
         }
     }
@@ -2323,6 +2438,7 @@ enum ChartPainter {
     /// (line-chart's 8.2, where eight made it 0 to 10 in twos) — and no
     /// deck's axis tells nine from ten. Across the page, eight.
     static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10) -> (lo: Double, hi: Double, step: Double) {
+        if let s = _offZero(lo0, hi0, intervals: intervals) { return s }
         var lo = min(0, lo0), hi = max(0, hi0)
         if hi == lo { hi = lo + 1 }
         let span = hi - lo
@@ -2333,6 +2449,28 @@ enum ChartPainter {
         let norm = rough / mag
         let step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
         return (floor(lo / step) * step, ceil(hi / step) * step, step)
+    }
+
+    /// Excel's automatic axis leaves zero out where the values lie close
+    /// together: all of one sign, the nearest to zero more than 5/6 of the
+    /// farthest. It then starts half their spread short of the nearest and
+    /// runs 5% past the farthest, rounded out to its step. zh-b8de3ae2's
+    /// rates 92.05 to 94.99 run 90.5 to 95.5 by 0.5 in Word's print; ours
+    /// ran 0 to 100 and the line lay flat along the top. (Against a fixed
+    /// far end where the file gives one: zh-547fc43c's 28.35 to 33.5 under
+    /// a maximum of 40 start at 0, as Word's.)
+    static func _offZero(_ lo0: Double, _ hi0: Double, intervals: Int) -> (lo: Double, hi: Double, step: Double)? {
+        let neg = hi0 < 0
+        let a = neg ? -hi0 : lo0, b = neg ? -lo0 : hi0
+        guard a > 0, b > a, a > b * 5 / 6 else { return nil }
+        let d = b - a
+        let lo = a - d / 2, hi = b + d * 0.05
+        let rough = (hi - lo) / Double(max(1, intervals))
+        let mag = pow(10, floor(log10(rough)))
+        let norm = rough / mag
+        let step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+        let l = floor(lo / step) * step, h = ceil(hi / step) * step
+        return neg ? (-h, -l, step) : (l, h, step)
     }
 
     /// An axis with bounds or a step the file fixes; what it leaves open
@@ -2464,7 +2602,21 @@ enum ChartPainter {
         // (A value axis across the page — a bar chart's — keeps to eight:
         // its labels stand side by side, and bar-chart's 8.2 runs 0 to 10
         // in twos there where the same data up the page goes by ones.)
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: c.type == .bar ? 8 : 10)
+        // (Over a data table the plot is short, and its value axis takes
+        // as many steps as its labels have room for, a label's height
+        // each: zh-61aaad09's 45pt plot over its table goes 0 to 800000 in
+        // 200000s and 0 to 80% in 20s in Word's print, where ten steps
+        // stood ours a third of a label apart.)
+        let tableSteps: Int? = {
+            guard let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            // (On rows of 1.64 em whatever their faces: the steps were read
+            // off Word for Mac's prints, and Word for Windows' zh-61aaad09
+            // keeps the same four over its taller table.)
+            let row = 1.64 * (dt.size ?? c.baseTextSize) * k
+            let room = area0.height - Double(c.series.count + c.lineSeries.count + 1) * row
+            return max(2, min(10, Int(room / (labelSize * k))))
+        }()
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? (c.type == .bar ? 8 : 10))
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
@@ -2493,7 +2645,7 @@ enum ChartPainter {
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, !horizontal {
             let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
-            var s2 = scale(min(0, all.min() ?? 0), max(0, all.max() ?? 1), intervals: 10)
+            var s2 = scale(all.min() ?? 0, max(all.max() ?? 1, second.max ?? -Double.infinity), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
                 s2 = fixedScale(auto: s2, min: second.min, max: second.max, step: second.step)
             }
@@ -2552,7 +2704,12 @@ enum ChartPainter {
         // Where the file places the plot: itself (`inner`), or a box the
         // plot and its labels share — aascu 5864's census chart stands at
         // 9%/3%, 91% × 76% of its frame, ours under a title band.
-        let placed = c.plotLayout.map {
+        // (Not a plot placed itself over a data table: Word lays that one
+        // out as if unplaced — zh-61aaad09's columns, "inner" at 17%/9%,
+        // 71% × 70% of a 415 × 137pt frame, stand 164.8-450.6 × 281.9-326.9
+        // in its print, the table's rows to the frame's foot under them,
+        // where the placed rect ran the plot down over the table.)
+        let placed = c.dataTable != nil && c.plotLayoutInner ? nil : c.plotLayout.map {
             Rect.fromLTWH(frame.left + $0.left * frame.width, frame.top + $0.top * frame.height,
                           $0.width * frame.width, $0.height * frame.height)
         }
@@ -2667,7 +2824,11 @@ enum ChartPainter {
             var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Labels by an axis above the foot take no room below it.)
-            let bottom = atZero ? 4 * k : tallest + 7.6 * k + belowOut
+            // (A `cx:` chart's on a sheet 2.53 pt higher, its labels with
+            // it: their baselines 7.98 pt over the frame's foot in Excel's
+            // prints of histograms, Pareto charts and waterfalls, ours 5.45.
+            // Not a box plot's, already higher than Excel's.)
+            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -2681,6 +2842,16 @@ enum ChartPainter {
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            // (On a sheet the plot stands 1.72 pt further in at the left,
+            // its labels with it, and 1.25 at the right: Excel's prints of
+            // 40 column, line and scatter charts, alike at 286 to 800 pt
+            // wide. A 2007-style chart's left edge was where Excel's is,
+            // chart-chart's and fdo54361's labels. Not a chartex chart's:
+            // its own.)
+            if c.onSheet && !c.chartex {
+                if c.styled2013 { left += 1.72 * k / 0.75 }
+                if secondLabels.isEmpty { right += 1.25 * k / 0.75 }
+            }
             // (A 2013-style chart on a slide starts 1.5 pt lower:
             // chart-slide-bg's top gridline at 100.5 in PowerPoint's
             // print, where ours stood at 99; its three like charts and
@@ -2688,7 +2859,16 @@ enum ChartPainter {
             // lower: line- and scatter-chart's top gridline at 161.35 in
             // its print, ours at 160.43. Cooper's untitled ones stand
             // 3.8 pt higher than ours instead, not followed: one deck.)
-            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k : 0
+            // (On a sheet a titled chart's plot starts 2.57 pt lower, under
+            // a title where ours is, and an untitled one 1.25 higher, 1.62
+            // in a 2007-style chart: Excel's prints of 70 column, line and
+            // scatter charts, their feet where ours are. A titled `cx:`
+            // chart's, 0.45: four histograms and box plots, 31.8 pt under
+            // the frame's top.)
+            let pt = k / 0.75
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k
+                : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt : 0
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
@@ -2698,23 +2878,26 @@ enum ChartPainter {
         // 16.1, the last 4.9pt over the frame's foot; the names' column
         // 17pt in from its left, the key 3.2 into it, 19.2 long, the name
         // 2 after it and 2.5 clear of the plot.)
-        var table: (top: Double, row: Double, left: Double, size: Double)? = nil
+        var table: (top: Double, rows: [Double], left: Double, size: Double)? = nil
         if let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie {
             let size = dt.size ?? c.baseTextSize
-            let row = 1.64 * size * k
             let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
             let column = (dt.keys ? 24.4 : 3.2) * k + (names.map(\.width).max() ?? 0) + 2.5 * k
             for t in names { t.dispose() }
             // (Over a legend at the foot, the table stops where the
             // legend's band begins: chart-ChartDataTable's in Excel's print.)
             let foot = c.legend && c.legendBox == nil && c.legendPosition == "b" ? area.bottom : frame.bottom - 4.9 * k
-            let top = foot - Double(c.series.count + c.lineSeries.count + 1) * row
+            let left = max(plot.left, frame.left + 17 * k + column)
+            let rows = Self._tableRows(c, size: size, k: k, slot: (plot.right - left) / Double(max(1, n)), text: text)
+            let top = foot - rows.reduce(0, +)
             // (Its plot's top 11.1pt under the frame's in both, where ours
             // stood half a label line under the area's, 4.3 lower: so
             // measured only with a table.)
-            let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * k
-            plot = Rect.fromLTRB(max(plot.left, frame.left + 17 * k + column), head, plot.right, top)
-            table = (top, row, plot.left - column, size)
+            // (On a sheet too, 11.1 pt: chart-ChartDataTable's in Excel's
+            // print, where 11.1 px stood 2.6 pt high.)
+            let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * (c.onSheet ? k / 0.75 : k)
+            plot = Rect.fromLTRB(left, head, plot.right, top)
+            table = (top, rows, plot.left - column, size)
         }
         if let placed, c.plotLayoutInner { plot = placed }
         // A 3-D chart stands in a box whose floor and walls run back, up
@@ -2930,7 +3113,7 @@ enum ChartPainter {
         }
         for t in valueLabels + catLabels { t.dispose() }
         if let table, let dt = c.dataTable {
-            Self._dataTable(c, dt, canvas, plot: plot, top: table.top, row: table.row, left: table.left, size: table.size,
+            Self._dataTable(c, dt, canvas, plot: plot, top: table.top, rows: table.rows, left: table.left, size: table.size,
                             n: n, k: k, theme: theme, text: text)
         }
 
@@ -2991,7 +3174,12 @@ enum ChartPainter {
                 if l.valueLabels {
                     for i in 0 ..< n {
                         guard let q = at(i), let v = l.values[safe: i] ?? nil else { continue }
-                        let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
+                        // (In the line's own format, not the columns': zh-b8de3ae2's
+                        // rates are General, 92.05 in Word's print, under columns
+                        // in "#,##0" that made ours "92".)
+                        let code = l.labelCode ?? l.format
+                        let shown = code.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
+                        let tp = TextPainter(text: TextSpan(text: shown.isEmpty ? label(v, percent: false) : shown, style: Flutter.TextStyle(
                             color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
                             fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
@@ -3938,6 +4126,34 @@ extension ChartPainter {
     /// has left it. `slices`: each point's index, middle angle, value and
     /// colour; `rx`, `ry` the pie's radii (`ry` smaller when tilted),
     /// `inner` the doughnut's hole's.
+    /// Whole percentages that add up to 100, by largest remainder: each
+    /// share's floor, then a point each to the largest remainders until the
+    /// sum is 100 — ties to the smaller value. Word's prints of zh-d62da4dd's
+    /// pies: 50 of 400 is "12%" (12.5, the rest going to three 0.75s), and
+    /// of seven slices at x.75 with six points to give, 103's 25.75 is the
+    /// one left "25%". (Smaller value or later point: the file cannot tell.)
+    static func wholePercents(_ points: [(key: Int, value: Double)]) -> [Int: Int] {
+        let sum = points.reduce(0) { $0 + max(0, $1.value) }
+        guard sum > 0 else { return [:] }
+        var out: [Int: Int] = [:]
+        var rest: [(key: Int, frac: Double, value: Double, order: Int)] = []
+        for (n, p) in points.enumerated() {
+            let exact = max(0, p.value) / sum * 100
+            out[p.key] = Int(exact.rounded(.down))
+            rest.append((p.key, exact - exact.rounded(.down), p.value, n))
+        }
+        var left = 100 - out.values.reduce(0, +)
+        let ordered = rest.sorted { a, b in
+            if abs(a.frac - b.frac) > 1e-9 { return a.frac > b.frac }
+            return a.value != b.value ? a.value < b.value : a.order < b.order
+        }
+        for r in ordered where left > 0 {
+            out[r.key, default: 0] += 1
+            left -= 1
+        }
+        return out
+    }
+
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
@@ -3949,6 +4165,7 @@ extension ChartPainter {
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return }
+        let whole = Self.wholePercents(slices.map { (key: $0.index, value: $0.value) })
         for s in slices {
             let size = max(3, (l.sizes[s.index] ?? c.series[0].labelSize ?? c.baseTextSize) * k)
             var parts: [String] = []
@@ -3957,12 +4174,12 @@ extension ChartPainter {
             if l.value { parts.append(dataLabel(c, s.value)) }
             if l.percent {
                 let share = s.value / sum
-                if let code = c.labelFormat, code.contains("%" as Character) {
+                if let code = c.labelFormat, code.containsSubstring("%") {
                     parts.append(NumberFormat.format(share, code, width: 40).text.trimmingWhitespace())
-                } else { parts.append("\(Int((share * 100).rounded()))%") }
+                } else { parts.append("\(whole[s.index] ?? Int((share * 100).rounded()))%") }
             }
-            guard !parts.isEmpty else { continue }
-            let text = parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
+            guard !parts.isEmpty || l.texts[s.index] != nil else { continue }
+            let text = l.texts[s.index] ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
@@ -3979,7 +4196,39 @@ extension ChartPainter {
             let dx = cos(s.mid), dy = sin(s.mid)
             // Where the label stands before its own move: its box's middle.
             var at: Offset
-            if l.outside {
+            // (A best fit is decided label by label: inside where its box
+            // fits in its slice, else outside. zh-61aaad09's pie, one label
+            // moved by its own layout: "582054, 84.15%" stands inside its
+            // 303° slice in Word's print, where ours took it out under the
+            // pie and past the frame's foot; "109646, 15.85%", whose 57°
+            // slice cannot hold it, goes out and its move brings it back.)
+            let share = s.value / sum
+            // (As far out as it fits, from 0.6 of the radius in: Word's
+            // stands 0.41 out.)
+            // (A label the file moves is moved from beside its slice, fit
+            // or not: zh-d62da4dd's "經濟" stands inside its 53% slice in
+            // lab p3d, its move taken out, and its move of -24% of the
+            // frame lands it where Word's print has it only from outside;
+            // "文化"'s from beside its slice in both.)
+            let insideAt: Double? = {
+                guard l.fitted, l.outside, inner == 0, l.moves[s.index] == nil else { return nil }
+                let half = share * .pi
+                return stride(from: 0.6, through: 0.3, by: -0.05).first { f in
+                    let c0 = on(s.mid, f)
+                    return [(-w / 2, -h / 2), (w / 2, -h / 2), (-w / 2, h / 2), (w / 2, h / 2)].allSatisfy { cx, cy in
+                        let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
+                        guard hypot(x, y) < 1 else { return false }
+                        var d = atan2(y, x) - s.mid
+                        while d > .pi { d -= 2 * .pi }
+                        while d < -.pi { d += 2 * .pi }
+                        return abs(d) < half
+                    }
+                }
+            }()
+            let fitsInside = insideAt != nil
+            if let f = insideAt {
+                at = on(s.mid, f)
+            } else if l.outside {
                 let gap = 4 * k
                 let edge = on(s.mid, 1)
                 at = Offset(edge.dx + dx * gap + (dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
@@ -3989,10 +4238,17 @@ extension ChartPainter {
             }
             let moved = l.moves[s.index]
             if let m = moved { at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height) }
+            // (Kept inside the frame: Word's labels over a 3-D pie's top
+            // stand under the frame's edge in lab p3d, where ours were cut.)
+            if l.fitted {
+                at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
+                            min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+            }
             let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
+            let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
-            if l.leaders, moved != nil || l.outside {
+            if l.leaders, moved != nil || leftOut {
                 let from = on(s.mid, 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
                 if hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {

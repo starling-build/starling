@@ -119,7 +119,7 @@ extension SheetFunctions {
             return order.first { counts[$0] == best }
         } }
         t["MODE.SNGL"] = t["MODE"]
-        t["VAR.P"] = { a, c in _aggregate(a, c) { _stdev($0, sample: false).map { $0 * $0 } } }
+        t["VAR.P"] = { a, c in _aggregate(a, c) { _variance($0, sample: false) } }
         t["VARP"] = t["VAR.P"]
         t["STDEVP"] = t["STDEV.P"] ?? { a, c in _aggregate(a, c) { _stdev($0, sample: false) } }
         t["GEOMEAN"] = { a, c in _aggregate(a, c) { xs in
@@ -218,7 +218,8 @@ extension SheetFunctions {
         t["NORMDIST"] = t["NORM.DIST"]
         t["NORM.S.DIST"] = { a, c in
             guard !a.isEmpty, case .success(let z) = _n(a[0], c) else { return .error(.value) }
-            let cumulative = a.count < 2 || c.engine.scalar(c.engine.evaluate(a[1], c), c) != .bool(false)
+            // (0 is FALSE: lo-functions-excel-2010's NORM.S.DIST(F6,0) is the density.)
+            let cumulative = a.count < 2 || _truth(c.engine.scalar(c.engine.evaluate(a[1], c), c))
             return .number(cumulative ? 0.5 * (1 + erf(z / 2.0.squareRoot())) : exp(-z * z / 2) / (2 * Double.pi).squareRoot())
         }
         t["NORMSDIST"] = { a, c in
@@ -378,6 +379,19 @@ extension SheetFunctions {
 // MARK: - Lookup, information, SUBTOTAL
 
 extension SheetFunctions {
+    /// A logical argument: TRUE, or a number not 0.
+    fileprivate static func _truth(_ v: CellValue) -> Bool {
+        if case .bool(let b) = v { return b }
+        if case .empty = v { return false }
+        if let n = v.number { return n != 0 }
+        return true
+    }
+
+    /// SUBTOTAL or AGGREGATE, however the file prefixes it.
+    fileprivate static func _isSubtotal(_ name: String) -> Bool {
+        ["SUBTOTAL", "AGGREGATE"].contains(Formula.unprefixed(name).uppercased())
+    }
+
     fileprivate static func _addLookupAndInfo(_ t: inout [String: Fn]) {
         func ifs(_ pick: @escaping ([Double]) -> Double) -> Fn {
             { a, c in
@@ -441,7 +455,7 @@ extension SheetFunctions {
             guard a.count >= 2, case .success(let r) = _n(a[0], c), case .success(let col) = _n(a[1], c),
                   r >= 1, col >= 1, Int(r) <= CellAddress.maxRows, Int(col) <= CellAddress.maxCols else { return .error(.value) }
             let absNum = Int(_opt(a, 2, c, 1) ?? 1)
-            let a1 = a.count < 4 || a[3] == .missing || c.engine.scalar(c.engine.evaluate(a[3], c), c) != .bool(false)
+            let a1 = a.count < 4 || a[3] == .missing || _truth(c.engine.scalar(c.engine.evaluate(a[3], c), c))
             var s: String
             if a1 {
                 let colAbs = absNum == 1 || absNum == 3, rowAbs = absNum == 1 || absNum == 2
@@ -528,7 +542,11 @@ extension SheetFunctions {
         }
         // SUBTOTAL(fn, refs…): leaves out rows a filter hid (and, for
         // 101–111, rows hidden by hand) and other SUBTOTALs' cells.
-        func subtotalValues(_ refs: ArraySlice<FormulaExpr>, _ c: EvalContext, skipHidden: Bool, skipErrors: Bool) -> Result<[CellValue], ExcelError> {
+        // AGGREGATE's options 4-7 keep those cells, and 0, 2, 4 and 6 the
+        // filtered rows (lo-functions-excel-2010's option 4 averages its
+        // AGGREGATE and SUBTOTAL cells too: 49.504, where ours was 49).
+        func subtotalValues(_ refs: ArraySlice<FormulaExpr>, _ c: EvalContext, skipHidden: Bool, skipErrors: Bool,
+                            skipFiltered: Bool = true, skipNested: Bool = true) -> Result<[CellValue], ExcelError> {
             var out: [CellValue] = []
             for e in refs {
                 switch c.engine.evaluate(e, c) {
@@ -537,20 +555,19 @@ extension SheetFunctions {
                     let used = c.engine.usedExtent(si)
                     guard r.top <= used.row, r.left <= used.col else { continue }
                     for row in r.top ... min(r.bottom, used.row) {
-                        if ws.filteredRows.contains(row) || (skipHidden && (ws.hiddenRows.contains(row) || ws.rowHeights[row] == 0)) { continue }
+                        if (skipFiltered && ws.filteredRows.contains(row)) || (skipHidden && (ws.hiddenRows.contains(row) || ws.rowHeights[row] == 0)) { continue }
                         for col in r.left ... min(r.right, used.col) {
                             let at = CellAddress(row: row, col: col)
-                            if let f = ws.cells[at]?.formula, case .call(let n, _) = f, ["SUBTOTAL", "AGGREGATE"].contains(n.uppercased()) { continue }
+                            if skipNested, let f = ws.cells[at]?.formula, case .call(let n, _) = f, _isSubtotal(n) { continue }
                             let v = c.engine.value(si, at)
                             if case .error(let err) = v { if skipErrors { continue }; return .failure(err) }
                             out.append(v)
                         }
                     }
                 case .scalar(let v):
-                    if case .ref(let fr) = e, fr.isCell {
+                    if skipNested, case .ref(let fr) = e, fr.isCell {
                         let si = fr.sheet.flatMap { c.engine.book.sheet(named: $0) } ?? c.sheet
-                        if let f = c.engine.book.sheets[si].cells[fr.range.topLeft]?.formula, case .call(let n, _) = f,
-                           ["SUBTOTAL", "AGGREGATE"].contains(n.uppercased()) { continue }
+                        if let f = c.engine.book.sheets[si].cells[fr.range.topLeft]?.formula, case .call(let n, _) = f, _isSubtotal(n) { continue }
                     }
                     if case .error(let err) = v { if skipErrors { continue }; return .failure(err) }
                     out.append(v)
@@ -571,12 +588,18 @@ extension SheetFunctions {
             case 7: return _stdev(xs, sample: true).map { .number($0) } ?? .error(.div0)
             case 8: return _stdev(xs, sample: false).map { .number($0) } ?? .error(.div0)
             case 9: return .number(xs.reduce(0, +))
-            case 10: return _stdev(xs, sample: true).map { .number($0 * $0) } ?? .error(.div0)
-            case 11: return _stdev(xs, sample: false).map { .number($0 * $0) } ?? .error(.div0)
+            case 10: return _variance(xs, sample: true).map { .number($0) } ?? .error(.div0)
+            case 11: return _variance(xs, sample: false).map { .number($0) } ?? .error(.div0)
             case 12:
                 guard !xs.isEmpty else { return .error(.num) }
                 let s = xs.sorted(), m = s.count / 2
                 return .number(s.count % 2 == 1 ? s[m] : (s[m - 1] + s[m]) / 2)
+            case 13:
+                // MODE.SNGL: the most repeated, the first to occur of a tie.
+                var counts: [Double: Int] = [:]
+                for x in xs { counts[x, default: 0] += 1 }
+                guard let top = counts.values.max(), top > 1, let first = xs.first(where: { counts[$0] == top }) else { return .error(.na) }
+                return .number(first)
             default: return .error(.value)
             }
         }
@@ -592,11 +615,12 @@ extension SheetFunctions {
         t["AGGREGATE"] = { a, c in
             guard a.count >= 3, case .success(let f) = _n(a[0], c), case .success(let o) = _n(a[1], c) else { return .error(.value) }
             let fn = Int(f), opt = Int(o)
-            let skipHidden = [1, 3, 5, 7].contains(opt), skipErrors = [2, 3, 6, 7].contains(opt)
+            let skipHidden = [1, 3, 5, 7].contains(opt), skipErrors = [2, 3, 6, 7].contains(opt), skipNested = opt <= 3
             if fn >= 14 {
                 // LARGE, SMALL, PERCENTILE, QUARTILE: an array and k.
                 guard a.count >= 4, case .success(let k) = _n(a[3], c) else { return .error(.value) }
-                guard case .success(let vals) = subtotalValues(a[2 ... 2], c, skipHidden: skipHidden, skipErrors: skipErrors) else { return .error(.value) }
+                guard case .success(let vals) = subtotalValues(a[2 ... 2], c, skipHidden: skipHidden, skipErrors: skipErrors,
+                                                               skipFiltered: skipHidden, skipNested: skipNested) else { return .error(.value) }
                 let xs = vals.compactMap(\.number)
                 switch fn {
                 case 14, 15:
@@ -609,8 +633,8 @@ extension SheetFunctions {
                 default: return .error(.value)
                 }
             }
-            switch subtotalValues(a.dropFirst(2), c, skipHidden: skipHidden, skipErrors: skipErrors) {
-            case .success(let vals): return reduce(fn == 13 ? 12 : fn, vals)
+            switch subtotalValues(a.dropFirst(2), c, skipHidden: skipHidden, skipErrors: skipErrors, skipFiltered: skipHidden, skipNested: skipNested) {
+            case .success(let vals): return reduce(fn, vals)
             case .failure(let e): return .error(e)
             }
         }

@@ -8,6 +8,11 @@ extension flutter.swift_bridge {
         public private(set) var skHandle: sk_ptr
 
         /// Takes ownership of a paragraph from `paragraphBuilder_build`.
+        /// The lines keep their heights' fractions (bit 13 of the encoded
+        /// paragraph style — Word's layout), as the native bridge's
+        /// SetFractionalLineHeights.
+        public var fractionalLineHeights = false
+
         public init(skHandle: sk_ptr) { self.skHandle = skHandle }
 
         deinit { if skHandle != 0 { paragraph_dispose(skHandle) } }
@@ -286,8 +291,9 @@ extension flutter.swift_bridge {
                 descent: descent,
                 unscaledAscent: Double(lineMetrics_getUnscaledAscent(metrics)),
                 // Not skwasm's own height: the native bridge, following
-                // paragraph.cc, reports round(ascent + descent).
-                height: (ascent + descent).rounded(),
+                // paragraph.cc, reports round(ascent + descent) — with its
+                // fraction where the paragraph keeps its lines'.
+                height: fractionalLineHeights ? ascent + descent : (ascent + descent).rounded(),
                 width: Double(lineMetrics_getWidth(metrics)),
                 left: Double(lineMetrics_getLeft(metrics)),
                 baseline: Double(lineMetrics_getBaseline(metrics)),
@@ -325,15 +331,21 @@ extension flutter.swift_bridge {
             skHandle == 0 ? 0 : Int(paragraph_getLineCount(skHandle))
         }
 
-        /// Starling: each line's advance (the native bridge's
-        /// ComputeLineAdvances); here the line's height as skwasm has it.
+        /// Starling: each line's advance, as the native bridge's
+        /// ComputeLineAdvances: skparagraph's own line height — a strut's and
+        /// a line spacing's room included, and its fraction kept where the
+        /// paragraph asks (skwasm built with the engine's
+        /// skia-fractional-line-heights.patch). The advances add up to the
+        /// paragraph's height.
         public func ComputeLineAdvances(_ out_data: UnsafeMutablePointer<Double>?, _ max_lines: Int) -> Int {
             guard skHandle != 0, let out_data else { return 0 }
             let count = min(Int(paragraph_getLineCount(skHandle)), max_lines)
             var written = 0
             for index in 0..<max(count, 0) {
-                guard let line = line(UInt32(index)) else { break }
-                out_data[written] = line.height
+                let metrics = paragraph_getLineMetricsAtIndex(skHandle, UInt32(index))
+                guard metrics != 0 else { break }
+                out_data[written] = Double(lineMetrics_getHeight(metrics))
+                lineMetrics_dispose(metrics)
                 written += 1
             }
             return written

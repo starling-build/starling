@@ -226,11 +226,11 @@ struct PdfMarkup {
     /// What a run's look is now that it was not, in Word's words.
     static func _describe(_ style: CharStyle, was old: String) -> String {
         func attribute(_ xml: String, _ element: String, _ name: String = "w:val") -> String? {
-            guard let r = xml.findRange(of: "<\(element) ") ?? xml.findRange(of: "<\(element)/") else { return nil }
+            guard let r = xml.rangeOfSubstring("<\(element) ") ?? xml.rangeOfSubstring("<\(element)/") else { return nil }
             let tail = xml[r.upperBound...]
             guard let end = tail.firstIndex(of: ">") else { return nil }
             let tag = String(tail[..<end])
-            guard let a = tag.findRange(of: name + "=\"") else { return "" }
+            guard let a = tag.rangeOfSubstring(name + "=\"") else { return "" }
             return String(tag[a.upperBound...].prefix { $0 != "\"" })
         }
         var font: [String] = []
@@ -252,6 +252,9 @@ struct PdfMarkup {
                      "ru-RU": "Russian", "de-DE": "German", "fr-FR": "French", "es-ES": "Spanish", "it-IT": "Italian",
                      "uk-UA": "Ukrainian", "zh-CN": "Chinese (PRC)", "zh-TW": "Chinese (Taiwan)", "ja-JP": "Japanese",
                      "ko-KR": "Korean", "pt-BR": "Portuguese (Brazil)", "pl-PL": "Polish", "nl-NL": "Dutch"]
+        // (Word for Windows spells the country out: delins's twenty-three
+        // "Formatted: English (United States)" in word-win.)
+        if DocxFormat.wordOnWindows, tag == "en-US" { return "English (United States)" }
         return names[tag] ?? tag
     }
 
@@ -259,6 +262,40 @@ struct PdfMarkup {
     /// "Commented [ab1]:" and its text — each anchored where its range
     /// ends, by its reference: WordWithAttachments' comments over whole
     /// quatrains stand level with their last lines in Word's print.
+    /// The comments Word for Windows prints no balloon for: one that covers
+    /// no text (no range, or an empty one) standing at the very start of
+    /// the document. Lab na (Word for Windows, comment.docx's package):
+    /// its reference there — alone in the first paragraph, before text, or
+    /// with an empty range — prints nothing, and comment.docx, with nothing
+    /// else marked, prints no pane; after any text, a space or an empty
+    /// paragraph it has its balloon, as has a range from the start with
+    /// text in it. (Word for Mac's print of comment.docx has the balloon.)
+    static func silentComments(_ document: RichDocument) -> Set<String> {
+        guard DocxFormat.wordOnWindows, let first = document.paragraphs.first else { return [] }
+        let units = Array(first.text.utf16)
+        var at = 0, silent: Set<String> = []
+        for run in first.runs {
+            let piece = units[min(at, units.count) ..< min(at + run.length, units.count)]
+            if piece.contains(where: { $0 != 0x200B }) { break }
+            silent.formUnion(run.style.comments)
+            at += run.length
+        }
+        guard !silent.isEmpty else { return [] }
+        // (Only one with no text of its own anywhere.)
+        for p in document.paragraphs {
+            let units = Array(p.text.utf16)
+            var at = 0
+            for run in p.runs {
+                defer { at += run.length }
+                if run.style.comments.contains(where: { silent.contains($0) }),
+                   units[min(at, units.count) ..< min(at + run.length, units.count)].contains(where: { $0 != 0x200B }) {
+                    silent.subtract(run.style.comments)
+                }
+            }
+        }
+        return silent
+    }
+
     private static func _comments(_ document: RichDocument) -> [Note] {
         guard let data = document.keptParts["word/comments.xml"], let root = XNode.parse(data) else { return [] }
         var bodies: [String: (author: String, initials: String, paragraphs: [String])] = [:]
@@ -299,7 +336,8 @@ struct PdfMarkup {
         let face = (document.styles.styles.first { $0.name.lowercased() == "annotation text" }?.char.fontFamily
             ?? document.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.substitute)
         var out: [Note] = []
-        for id in order {
+        let silent = silentComments(document)
+        for id in order where !silent.contains(id) {
             guard let body = bodies[id], let end = ends[id] else { continue }
             out.append(Note(anchor: end, label: "Commented [\(body.initials)\(out.count + 1)]:", paragraphs: body.paragraphs, author: body.author,
                             family: face))
@@ -321,19 +359,38 @@ struct PdfMarkup {
         let px = theme.pixelsPerPoint * zoom
         let page = layout.pageRect(p)
         let textRight = setup.width - setup.marginRight
-        let boxLeft = textRight + 32.1, boxRight = textRight + 262.4, inset = 4.5
+        // (Word for Windows, lab bp: its boxes stand 31.5 to 261.8pt past
+        // the text; the line from the anchor turns 4.6pt past the text and
+        // meets the box 6pt under its top. Its lines are 2.2pt inside the
+        // box top and foot, and a box stacked under another stands 1.1pt
+        // clear of it: lab bh's nine stacked deletions, 1.07-1.21 apart,
+        // 2.15-2.3 over and under their lines at 8, 10 and 14pt; word-win's
+        // Tika-792, 16.2-16.5pt boxes of a Segoe UI 9pt line, 1.2 apart, and
+        // delins, 13.8-13.9 boxes of a Tahoma 8pt line, 1.2-1.3 apart.
+        // Word for Mac's: 32.1 to 262.4, 9.1 and 5.5, 2.7 and 2.7, edge
+        // to edge.)
+        let windows = DocxFormat.wordOnWindows
+        let boxLeft = textRight + (windows ? 31.5 : 32.1), boxRight = textRight + (windows ? 261.8 : 262.4), inset = 4.5
+        let padTop = windows ? 2.2 : 2.7, padBottom = windows ? 2.2 : 2.7, gap = windows ? 1.1 : 0
+        let turn = textRight + (windows ? 4.6 : 9.1), meet = windows ? 6.0 : 5.5
         var authors: [String] = []
         for n in notes where !authors.contains(n.author) { authors.append(n.author) }
         var floor = -Double.infinity
         let balloon: (family: String, size: Double, line: Double?) = {
+            // (Word for Windows' own face is Segoe UI 9pt, its lines 1.33
+            // ems, and it is what Word for Windows sets for a Balloon Text
+            // in a Mac face it lacks: 58067's Lucida Grande, lab bp's no
+            // style at all.)
+            let segoe = (OfficeFonts.substitute("Segoe UI"), 9.0, Optional(1.33))
             guard let style = document.styles.styles.first(where: { $0.name.lowercased() == "balloon text" }) else {
-                return (OfficeFonts.serif, 9, nil)
+                return windows ? segoe : (OfficeFonts.serif, 9, nil)
             }
             // (Its lines as high as Word's face has them, where that is
             // not its clone's: Tahoma's 1.207 ems, its ascent and descent
             // — delins's balloons stand 15.06pt apart, a 9.66pt line and
             // the padding, where the clone's line put them 15.75 apart.)
             let family = style.char.fontFamily ?? "Tahoma"
+            if windows, family.trimmingWhitespace().lowercased() == "lucida grande" { return segoe }
             return (OfficeFonts.substitute(family), style.char.fontSize ?? 8,
                     family.trimmingWhitespace().lowercased() == "tahoma" ? 1.207 : nil)
         }()
@@ -356,8 +413,11 @@ struct PdfMarkup {
             tp.fractionalLineHeights = true
             // (A deletion's text stands 8.8pt further in: delins's "Deleted:"
             // lines start at 424.0 where its "Formatted:" ones do at 417.9,
-            // scaled, and part where Word's do.)
-            let indent = note.label == "Deleted:" ? 8.8 : 0
+            // scaled, and part where Word's do. Word for Windows indents only
+            // deleted list items, delins's "<#>" ones: Tika-792's "Deleted:
+            // s.", 58067's "Deleted: This is another Test.¶" and lab bp's
+            // stand with the other balloons.)
+            let indent = note.label == "Deleted:" && (!windows || note.paragraphs.contains { $0.hasPrefix("<#>") }) ? 8.8 : 0
             tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent)
             defer { tp.dispose() }
             // (Whole paragraphs deleted stand a little above the line they
@@ -377,10 +437,10 @@ struct PdfMarkup {
                 }
             }
             let top = max(want, floor)
-            let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + 2 * 2.7)
+            let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + padTop + padBottom)
             // (Stacked edge to edge: delins's one-line balloons stand
             // 15.1pt apart, an 8pt line and the padding.)
-            floor = box.bottom
+            floor = box.bottom + gap
             let colour = PdfMarkup.colours[(authors.firstIndex(of: note.author) ?? 0) % PdfMarkup.colours.count]
             let fill = Paint()
             fill.color = Color(note.isComment ? colour.fill : 0xFFFFFFFF)
@@ -394,9 +454,9 @@ struct PdfMarkup {
             // pane, then up to the balloon.
             line.strokeWidth = 0.25
             let under = anchor.bottom
-            canvas.drawLine(Offset(anchor.left, under), Offset(textRight + 9.1, under), line)
-            canvas.drawLine(Offset(textRight + 9.1, under), Offset(boxLeft, top + 5.5), line)
-            tp.paint(canvas, Offset(boxLeft + inset + indent, top + 2.7))
+            canvas.drawLine(Offset(anchor.left, under), Offset(turn, under), line)
+            canvas.drawLine(Offset(turn, under), Offset(boxLeft, top + meet), line)
+            tp.paint(canvas, Offset(boxLeft + inset + indent, top + padTop))
         }
     }
 }

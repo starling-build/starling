@@ -231,30 +231,46 @@ only at link time. `sdk/tools/sync-vendored-headers.sh` refreshes them and
 
 ---
 
-### 1.7 The browser's renderer (optional: PDF export in a tab)
+### 1.7 The browser's renderer (skwasm)
 
-The browser build draws with skwasm, and `build/web-app.sh` fetches the
-one Google publishes. That one cannot write a PDF — stock Flutter builds
-Skia without its PDF backend — so Export → PDF in a tab needs the skwasm
-built from this engine, which has it (`lib/web_ui/skwasm/pdf.cpp`). It
-is Emscripten's build, with the SDK the engine pins:
+The browser build draws with skwasm, Skia compiled with Emscripten, and
+`build/web-app.sh` takes the one built from this engine, not the one
+Google publishes. Ours carries Starling's additions: PDF export
+(`lib/web_ui/skwasm/pdf.cpp`), and Word's fractional line heights
+(`text/paragraph_style.cpp`, over `patches/skia-fractional-line-heights.patch`).
+Without those a document's lines round to whole units in the browser and
+its pages break otherwise than natively, so `test/office-layout.sh` fails.
+The other Skia patches (`patches/`) reach the browser through it too.
 
-    cd engine/src/flutter/prebuilts
-    git clone https://skia.googlesource.com/external/github.com/emscripten-core/emsdk.git
-    git -C emsdk checkout "$(sed -n "s/.*emsdk.git' + '@' + '\([0-9a-f]*\)'.*/\1/p" ../../../../DEPS)"
-    python3 ../tools/activate_emsdk.py          # installs and activates 3.1.70
+Emscripten comes from `gclient`, at the version DEPS pins. Ask for it in
+`.gclient` (§1.3), then hydrate again and put the patches back, which a
+sync can undo:
 
-    cd ../..                                    # engine/src
-    ./flutter/tools/gn --wasm --runtime-mode release
-    ./flutter/third_party/gn/gn --root=. gen out/wasm_release      # the regen trap, §1.6
-    ninja -C out/wasm_release flutter_web_sdk/canvaskit/skwasm.wasm flutter_web_sdk/canvaskit/skwasm.js
+```bash
+# in .gclient, in the solution's dict:
+#     "custom_vars": {"download_emsdk": True},
+gclient sync                                   # fetches prebuilts/emsdk, activates it
+./scripts/apply_engine_patches.sh              # idempotent
 
-About fifteen minutes and 1352 steps from cold. `build/web-app.sh` stages
-that pair whenever it exists and says so on its `staged` line ("skwasm
-built here, with PDF", against "published: no PDF export");
-`STARLING_SKWASM_DIR=published` insists on Google's. With Google's the app
-still starts, and Export → PDF says it could not write. Ours is 3.81 MB
-where the published one is 3.55.
+cd engine/src
+./flutter/tools/gn --wasm --runtime-mode release
+./flutter/third_party/gn/gn --root=. gen out/wasm_release      # the regen trap, §1.6
+ninja -C out/wasm_release flutter_web_sdk/canvaskit/skwasm.wasm flutter_web_sdk/canvaskit/skwasm.js
+```
+
+(Without gclient: clone emsdk into `engine/src/flutter/prebuilts/emsdk` at
+the DEPS revision and run `python3 engine/src/flutter/tools/activate_emsdk.py`
+— the same two steps DEPS performs.)
+
+About fifteen minutes and 1352 steps from cold. `build/web-app.sh` looks
+for the pair at `engine/src/out/wasm_release/flutter_web_sdk/canvaskit`
+(`STARLING_SKWASM_DIR` names another directory: a worktree whose `engine`
+link is an iOS checkout points it at a desktop engine's), and refuses one
+older than the exports the app calls. `STARLING_SKWASM_DIR=published`
+takes Google's prebuilt one instead, for a quick look: the app starts, but
+Export → PDF says it could not write and lines round to whole units. Ours
+is 4.29 MB (the PDF font subsetter, ea96a790485, is most of the growth
+from 3.82) where the published one is 3.55.
 
 ## 2. The desktop
 

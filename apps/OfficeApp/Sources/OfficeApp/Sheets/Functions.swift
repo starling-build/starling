@@ -30,7 +30,7 @@ enum SheetFunctions {
         t["STDEV"] = { a, c in _aggregate(a, c) { _stdev($0, sample: true) } }
         t["STDEV.S"] = t["STDEV"]
         t["STDEV.P"] = { a, c in _aggregate(a, c) { _stdev($0, sample: false) } }
-        t["VAR"] = { a, c in _aggregate(a, c) { _stdev($0, sample: true).map { $0 * $0 } } }
+        t["VAR"] = { a, c in _aggregate(a, c) { _variance($0, sample: true) } }
         t["VAR.S"] = t["VAR"]
         t["COUNT"] = { a, c in
             var n = 0
@@ -80,11 +80,22 @@ enum SheetFunctions {
             case (.failure(let e), _), (_, .failure(let e)): return .error(e)
             }
         }
-        t["CEILING"] = { a, c in _num2(a, c, defaultSecond: 1) { x, s in s == 0 ? 0 : ceil(x / s) * s } }
+        // A positive number and a negative step are #NUM! to both
+        // (lo-ceiling-floor's CEILING(23.5,-1)).
+        t["CEILING"] = { a, c in
+            guard a.count == 1 || a.count == 2 else { return .error(.value) }
+            switch (_n(a[0], c), a.count == 2 ? _n(a[1], c) : .success(1)) {
+            case (.success(let x), .success(let s)):
+                if x > 0 && s < 0 { return .error(.num) }
+                return .number(s == 0 ? 0 : ceil(x / s) * s)
+            case (.failure(let e), _), (_, .failure(let e)): return .error(e)
+            }
+        }
         t["FLOOR"] = { a, c in
             guard a.count == 1 || a.count == 2 else { return .error(.value) }
             switch (_n(a[0], c), a.count == 2 ? _n(a[1], c) : .success(1)) {
             case (.success(let x), .success(let s)):
+                if x > 0 && s < 0 { return .error(.num) }
                 if s == 0 { return x == 0 ? .number(0) : .error(.div0) }
                 return .number(floor(x / s) * s)
             case (.failure(let e), _), (_, .failure(let e)): return .error(e)
@@ -115,7 +126,32 @@ enum SheetFunctions {
         // Logic.
         t["IF"] = { a, c in
             guard a.count >= 1, a.count <= 3 else { return .error(.value) }
-            switch CalcEngine.toBool(c.engine.scalar(c.engine.evaluate(a[0], c), c)) {
+            // An array of conditions picks element by element, as an array
+            // formula's IF('Data Dump'!$A:$A=A9, MATCH(…)) does
+            // (lo-forum-mso-en4-134670's Visual sheet).
+            let cv = c.engine.evaluate(a[0], c)
+            var multi = false
+            if case .array = cv { multi = true }
+            if c.dynamic, case .range(_, let r) = cv, !r.isSingle { multi = true }
+            if multi {
+                let cg = c.engine.gridFull(cv, c)
+                let tg = c.engine.gridFull(a.count >= 2 ? _orZero(a[1], c) : .scalar(.bool(true)), c)
+                let fg = c.engine.gridFull(a.count >= 3 ? _orZero(a[2], c) : .scalar(.bool(false)), c)
+                let rows = max(cg.count, tg.count, fg.count)
+                let cols = max(cg.first?.count ?? 0, tg.first?.count ?? 0, fg.first?.count ?? 0)
+                func at(_ g: [[CellValue]], _ r: Int, _ k: Int) -> CellValue {
+                    let rr = g.count == 1 ? 0 : r, kk = (g.first?.count ?? 0) == 1 ? 0 : k
+                    guard rr < g.count, kk < g[rr].count else { return .error(.na) }
+                    return g[rr][kk]
+                }
+                return .array((0 ..< rows).map { r in (0 ..< cols).map { k -> CellValue in
+                    switch CalcEngine.toBool(at(cg, r, k)) {
+                    case .failure(let e): return .error(e)
+                    case .success(let b): let v = at(b ? tg : fg, r, k); return v.isEmpty ? .number(0) : v
+                    }
+                } })
+            }
+            switch CalcEngine.toBool(c.engine.scalar(cv, c)) {
             case .failure(let e): return .error(e)
             case .success(let b):
                 if b { return a.count >= 2 ? _orZero(a[1], c) : .scalar(.bool(true)) }
@@ -134,18 +170,28 @@ enum SheetFunctions {
             }
             return .error(.na)
         }
-        t["IFERROR"] = { a, c in
+        // Over an array, element by element (an array formula's
+        // IFERROR(MATCH(B:B,B:B,0),"") keeps every company's row).
+        func caught(_ a: [FormulaExpr], _ c: EvalContext, _ hit: @escaping (ExcelError) -> Bool) -> EvalValue {
             guard a.count == 2 else { return .error(.value) }
             let v = c.engine.evaluate(a[0], c)
-            if c.engine.scalar(v, c).error != nil { return c.engine.evaluate(a[1], c) }
+            var multi = false
+            if case .array = v { multi = true }
+            if c.dynamic, case .range(_, let r) = v, !r.isSingle { multi = true }
+            if multi {
+                // (Not `x.error.map(hit) == true`: Swift 6.2's release
+                // SILCombine crashes on that closure, signal 6, and every
+                // macOS release build died.)
+                return c.engine._elementwise(v, c.engine.evaluate(a[1], c), c) { x, y in
+                    if let e = x.error, hit(e) { return .scalar(y) }
+                    return .scalar(x)
+                }
+            }
+            if let e = c.engine.scalar(v, c).error, hit(e) { return c.engine.evaluate(a[1], c) }
             return v
         }
-        t["IFNA"] = { a, c in
-            guard a.count == 2 else { return .error(.value) }
-            let v = c.engine.evaluate(a[0], c)
-            if c.engine.scalar(v, c).error == .na { return c.engine.evaluate(a[1], c) }
-            return v
-        }
+        t["IFERROR"] = { a, c in caught(a, c) { _ in true } }
+        t["IFNA"] = { a, c in caught(a, c) { $0 == .na } }
         t["AND"] = { a, c in _logic(a, c, and: true) }
         t["OR"] = { a, c in _logic(a, c, and: false) }
         t["XOR"] = { a, c in
@@ -469,12 +515,45 @@ enum SheetFunctions {
         }
         t["MATCH"] = { a, c in
             guard a.count >= 2 else { return .error(.value) }
-            let key = c.engine.scalar(c.engine.evaluate(a[0], c), c)
-            if let e = key.error { return .error(e) }
+            let kv = c.engine.evaluate(a[0], c)
             let g = c.engine.grid(c.engine.evaluate(a[1], c), c)
             let list = g.count == 1 ? g[0] : g.map { $0.first ?? .empty }
             var mode = 1.0
             if a.count >= 3 { guard case .success(let m) = _n(a[2], c) else { return .error(.value) }; mode = m }
+            // An array of keys (or, in a dynamic formula, a range) is looked
+            // up key by key: lo-forum-mso-en4-134670's MATCH(B:B,B:B,0) under
+            // FREQUENCY, each company's first row. Exact keys without
+            // wildcards go through a table of each value's first place.
+            var multi = false
+            if case .array = kv { multi = true }
+            if c.dynamic, case .range(_, let r) = kv, !r.isSingle { multi = true }
+            if multi {
+                var texts: [String: Int] = [:], numbers: [Double: Int] = [:]
+                if mode == 0 {
+                    for (i, v) in list.enumerated().reversed() {
+                        switch v {
+                        case .text(let t): texts[t.lowercased()] = i
+                        case .number(let n): numbers[n] = i
+                        default: break
+                        }
+                    }
+                }
+                return .array(c.engine.gridFull(kv, c).map { row in row.map { key -> CellValue in
+                    if let e = key.error { return .error(e) }
+                    if mode == 0 {
+                        switch key {
+                        case .text(let t) where !t.contains(where: { $0 == "*" || $0 == "?" || $0 == "~" }):
+                            return texts[t.lowercased()].map { .number(Double($0 + 1)) } ?? .error(.na)
+                        case .number(let n):
+                            if let i = numbers[n] { return .number(Double(i + 1)) }
+                        default: break
+                        }
+                    }
+                    return _match(key, list, mode: Int(mode)).map { .number(Double($0 + 1)) } ?? .error(.na)
+                } })
+            }
+            let key = c.engine.scalar(kv, c)
+            if let e = key.error { return .error(e) }
             guard let i = _match(key, list, mode: Int(mode)) else { return .error(.na) }
             return .number(Double(i + 1))
         }
@@ -515,13 +594,24 @@ enum SheetFunctions {
             if vertical { return i < rg.count ? .array([rg[i]]) : .error(.ref) }
             return .array(rg.map { i < $0.count ? [$0[i]] : [.error(.ref)] })
         }
+        // In a dynamic formula a range's rows (columns) are an array: an
+        // array formula's ROW(A1:A2000) is the bins 1 to 2000.
         t["ROW"] = { a, c in
-            if let f = a.first, case .range(_, let r) = c.engine.evaluate(f, c) { return .number(Double(r.top + 1)) }
+            if let f = a.first, case .range(let si, let r) = c.engine.evaluate(f, c) {
+                if c.dynamic, r.rows > 1 {
+                    let bottom = r.rows > 100_000 ? min(r.bottom, max(r.top, c.engine.usedExtent(si).row)) : r.bottom
+                    return .array((r.top ... bottom).map { [.number(Double($0 + 1))] })
+                }
+                return .number(Double(r.top + 1))
+            }
             if let f = a.first, case .ref(let r) = f, let row = r.start.row { return .number(Double(row + 1)) }
             return .number(Double(c.cell.row + 1))
         }
         t["COLUMN"] = { a, c in
-            if let f = a.first, case .range(_, let r) = c.engine.evaluate(f, c) { return .number(Double(r.left + 1)) }
+            if let f = a.first, case .range(_, let r) = c.engine.evaluate(f, c) {
+                if c.dynamic, r.cols > 1 { return .array([(r.left ... r.right).map { .number(Double($0 + 1)) }]) }
+                return .number(Double(r.left + 1))
+            }
             if let f = a.first, case .ref(let r) = f, let col = r.start.col { return .number(Double(col + 1)) }
             return .number(Double(c.cell.col + 1))
         }
@@ -793,16 +883,40 @@ enum SheetFunctions {
     }
 
     static func _stdev(_ xs: [Double], sample: Bool) -> Double? {
+        _variance(xs, sample: sample)?.squareRoot()
+    }
+
+    /// The variance itself, not a standard deviation squared, which lost
+    /// the last digit: lo-functions-excel-2010's VAR.P 573.9375 came back
+    /// 573.9374999999999.
+    static func _variance(_ xs: [Double], sample: Bool) -> Double? {
         let n = Double(xs.count)
         guard xs.count >= (sample ? 2 : 1) else { return nil }
         let mean = xs.reduce(0, +) / n
         let ss = xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) }
-        return (ss / (sample ? n - 1 : n)).squareRoot()
+        return ss / (sample ? n - 1 : n)
     }
 
+    /// One number's function. An array is taken element by element, as
+    /// Excel takes one in any formula (SUM(SIGN(FREQUENCY(…))) counts the
+    /// bins that hold something: lo-forum-mso-en4-134670's 1, where ours
+    /// signed the first bin, 0); a range is too in a dynamic formula, and
+    /// meets the formula's row or column in any other.
     static func _num1(_ a: [FormulaExpr], _ c: EvalContext, _ f: (Double) -> Double) -> EvalValue {
         guard a.count == 1 else { return .error(.value) }
-        switch _n(a[0], c) { case .success(let x): return .number(f(x)); case .failure(let e): return .error(e) }
+        let v = c.engine.evaluate(a[0], c)
+        var multi = false
+        if case .array = v { multi = true }
+        if c.dynamic, case .range(_, let r) = v, !r.isSingle { multi = true }
+        if multi {
+            return .array(c.engine.gridFull(v, c).map { row in row.map { cell in
+                switch CalcEngine.toNumber(cell) {
+                case .success(let x): let y = f(x); return y.isNaN || y.isInfinite ? .error(.num) : .number(y)
+                case .failure(let e): return .error(e)
+                }
+            } })
+        }
+        switch c.engine.number(v, c) { case .success(let x): return .number(f(x)); case .failure(let e): return .error(e) }
     }
 
     static func _num2(_ a: [FormulaExpr], _ c: EvalContext, defaultSecond: Double? = nil,
@@ -815,12 +929,41 @@ enum SheetFunctions {
         }
     }
 
+    /// Rounded as Excel rounds: the number it holds to 15 significant
+    /// digits, then those decimally — 2.675 is 2.68 at 2, and
+    /// 939.01382419233744 is 939.013824192337 at 12 (an ulp's nudge of the
+    /// scaled number, 0.5 at that size, made it ...338).
     static func _round(_ x: Double, _ digits: Int, _ rule: FloatingPointRoundingRule) -> Double {
-        let p = pow(10.0, Double(digits))
-        // Nudge by an ulp so 2.675 rounds as Excel shows it.
-        let scaled = x * p
-        let nudged = scaled + (scaled >= 0 ? 1 : -1) * scaled.ulp * 4
-        return (rule == .toNearestOrAwayFromZero ? nudged : scaled).rounded(rule) / p
+        guard x.isFinite, x != 0 else { return x }
+        let a = abs(x)
+        var e = Int(floor(log10(a)))
+        var m = (a * pow(10, Double(14 - e))).rounded()
+        if m >= 1e15 { m = (m / 10).rounded(); e += 1 }
+        if m < 1e14 { m = (m * 10).rounded(); e -= 1 }
+        let keep = e + 1 + digits   // the mantissa's digits that stay
+        guard keep < 15 else { return x }
+        let mi = UInt64(m)
+        var q: UInt64
+        if keep <= 0 {
+            let lead = mi / 100_000_000_000_000
+            switch rule {
+            case .toNearestOrAwayFromZero: q = keep == 0 && lead >= 5 ? 1 : 0
+            case .awayFromZero: q = 1
+            default: q = 0
+            }
+        } else {
+            var div: UInt64 = 1
+            for _ in 0 ..< 15 - keep { div *= 10 }
+            q = mi / div
+            let r = mi % div
+            switch rule {
+            case .toNearestOrAwayFromZero: if r * 2 >= div { q += 1 }
+            case .awayFromZero: if r > 0 { q += 1 }
+            default: break
+            }
+        }
+        let v = digits >= 0 ? Double(q) / pow(10, Double(digits)) : Double(q) * pow(10, Double(-digits))
+        return x < 0 ? -v : v
     }
 
     static func _is(_ a: [FormulaExpr], _ c: EvalContext, _ test: (CellValue) -> Bool) -> EvalValue {

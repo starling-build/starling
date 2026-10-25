@@ -45,14 +45,41 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136)
-Owner: Linux office1 01Ak4ibJ (lenovo-3), CLAIMED 2026-10-22 — T135, not T136: the answers open "ตอบ :<tab><tab>…" and T135 held the space before tabs to default stops, which squeezing may move a stop back; narrowing T135 to the label's tab to the hanging indent.
+
+### Note from the Mac (2026-10-22): 96 楷体_GB2312 references reprinted — one Word setup for all
+lenovo (Linux b2, 01JsizVV) found the "drifting" 楷体_GB2312 fallback is one switch on the printing Mac,
+2026-10-18 ~20:57 (PDF CreationDate): prints before it set 楷体_GB2312 in Microsoft YaHei, prints after it in
+Arial Unicode MS, and nothing in the files differs. No font, asset or Word update on the Mac explains it (Word
+16.113.3 throughout). The user chose to reprint: the 96 checked-in zh references printed before the switch whose
+packages use 楷体_GB2312 were printed again (Mac 0fcba326) and replace the old ones — 80 now embed
+ArialUnicodeMS, 16 never set 楷体 text on the page; page counts unchanged but zh-608e661b (5 -> 4, Word's own).
+Re-scored on n386: mean 95.1 -> 94.9; 19 down where ours still sets 楷体 as YaHei (zh-c5b5087b 94.4 -> 53.0 [Linux b2 01JsizVV, measured, released — wants a lab: the reprint differs from the old print from p5's "第十八条  县级储备粮轮换…" on (kinsoku 0, compressPunctuation, its text's East Asian language en-US from Normal): the old print squeezed its commas to take 28 characters a line, the new one squeezes none in that paragraph and sets 27, justified 16.4 apart, with "。" opening a line. Yet the same print still squeezes commas in many other en-US paragraphs of the file (p2-p5, 13.1 and 10.2). Treating en-US as giving nothing took the file 53.5 -> 26.8, 11 pages, so that is not it. Lab c5 (Mac, ~/starling-word-check/lab/c5): the footer's two floats together — its wrapNone 144pt page-number box and its wrapNone line — turn the squeeze off, on pages 3 and after only; either one deleted, or no header/footer, and the paragraph squeezes as the old print did; the header's object and the PAGE field do not matter. Not modelled: 38 references with compressPunctuation and two or more footer floats score 99-100 squeezing on every page (zh-01071d55, zh-f3802561, zh-e2dc2598…), so it is no general rule; released] [Mac 7bd18d8e (macOS-doc) 2026-10-23, looked again at 53.0, RELEASED: the footer floats do not tell it apart — a census of compressPunctuation files puts the same pair (wrapNone line, V paragraph / H column; wrapNone page-number text box, V paragraph / H margin; both front, layoutInCell, allowOverlap) in 25+ others that squeeze in Word's print (zh-1563bd74, zh-e2dc2598, zh-f3802561, zh-9dd9ce6d, zh-51af781b…), mode 14 and no titlePg alike. All its loss is from p5 on (the squeeze); p4's miss is the scorer reading "- 4 -" with the footer's FAFAFA "X" (drawn near-white in both prints). Nothing to fit without a second document of the kind],
+zh-dc9cfa34 97.6 -> 56.9, zh-e37f8d40 100 -> 67.6 [Mac], zh-0aac9d1a 99.4 -> 69.5 [Linux b2 01JsizVV 2026-10-23: 79.7 -> 99.4 — the same Arial Unicode MS quotes were closed up as full-width ones, "黑名单”。" losing the whole "”"; the close-up rules now skip a face with its own quote widths, nothing else moved; released] [Linux b2 01JsizVV: 69.5 -> 79.7 — its 楷体_GB2312 headings' curly quotes are Arial Unicode MS's own, 0.345 em with no blank beside them (5.52 at 16pt in Word's print), where ours set them full-width; the rest not looked at, released], zh-3cdafcc9/e076bb5a/160a5e81 97.6
+-> 85.1 …), 4 up (zh-608e661b 7.3 -> 100, zh-92373179 65.9 -> 71.3, zh-007ca091 93.0 -> 96.4, zh-c2f6d17a 93.6
+-> 96.7). Next: one rule, 楷体_GB2312 -> Arial Unicode MS under OFFICE_WORD_FONTS=mac (lenovo, 1.74 em lines) [DONE Linux b2 01JsizVV 2026-10-22: 楷体_GB2312 is Arial Unicode MS under OFFICE_WORD_FONTS=mac, a 1.742 em line (its hhea 1.069 + 0.271 at Word's 1.3), baseline 1.270, Arial's Latin, emboldened 1/50 em; the face named "Arial Unicode MS" takes the same (was 1.75). Linux 657: 94.91 -> 95.12, 15 up (zh-4feaa34c 41.3 -> 99.5, zh-dc9cfa34 55.8 -> 99.2, zh-4e5fe46f 85.3 -> 94.7, zh-360c1df1 89.8 -> 98.4, zh-e7bdb543 88.1 -> 95.2, zh-232090e0 93.3 -> 97.8 …), zh-b24b396a 91.9 -> 90.8. Not moved by it: zh-c5b5087b 53.5, zh-e37f8d40 60.1, zh-0aac9d1a 69.5 — they set little or no 楷体 text, so their drops after the reprint are something else].
+Earlier "released: drifting fallback" entries (zh-4e5fe46f, zh-884c6e3e, zh-875759ff, zh-4feaa34c) are now on
+one reference setup.
+
+Seven of the 96 restored to their old prints (Mac 0fcba326): zh-32f4ad9f, zh-540dc149, zh-70094a34,
+zh-7b5b3de2, zh-92373179, zh-c2f6d17a, zh-e37f8d40. Their packages embed fonts, and today's Word prints those
+without a Unicode map — 50-85% of their text reads as NUL (zh-e37f8d40: 5278 of 6182 characters, 0 in the old
+print), so the scorer matched nothing; the line geometry was the old print's. Their old references stand.
+
+### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136) — DONE, confirmed on the Mac (2026-10-22)
+Owner: Linux office1 01Ak4ibJ (lenovo-3). (Two T144s on this board: the other is zh-344a8d08's footnote.)
 Bisected on the Mac (OFFICE_WORD_FONTS=mac, the one document):
 97f8a42b 54.2% 26/26 pages, 58b0cbd8 51.5% 27 pages (Word 26). The Thai
 document (TH Sarabun New / 標楷體, mode 15, compressPunctuation) first
 parts on page 16 (0-based), y -670: an answer paragraph after "ตอบ:"
-wraps a word earlier, and the drift adds a page. Likely a mark in a Thai
-(cs / x-none) run that no longer gives under T136's rule.
+wraps a word earlier, and the drift adds a page.
+It was T135, not T136: the answers open "ตอบ :<tab><tab>…", and T135 held what stands before any tab to a left
+stop, default stops too — where squeezing the label may move the tab a stop back. T135 now holds only what stands
+before the tab that takes a first line's label to its hanging indent (zh-499adba6's "（六）<tab>"). Same-base
+sweep, 597 documents: nothing moves on Linux's fonts (zh-499adba6 / zh-9932bd83 hold 27.0; zh-6a4fc013 is 26/26
+pages here either way) — the Mac's fonts are the ones that show the page.
+Mac 0fcba326 at 6ee23008 (OFFICE_WORD_FONTS=mac, PDFKit): zh-6a4fc013 54.2%, 614/614 lines, 26/26 pages
+Windows 01QbbApP 2026-10-23 (from the Mac, for macos-ios): zh-6a4fc013 printed as-is on Word for Windows, ~/starling-doc-check/lab/th/win.pdf. It runs 28 pages to the Mac print's 26. The Thai is in Browallia New (and Leelawadee UI Bold); there is no TH Sarabun New on Windows either. No dictionary breaking: of the Thai lines found in the source, 179 end at a space or a paragraph end, and 17 inside a spaceless stretch, every one of them a stretch of 61-93 characters (longer than a line, about 45-50), broken at the last character that fits ("ต่างชา|ติ", "ของแ|รงงาน"). An overlong stretch after "ตอบ :" starts on the next line. Tool: lab/th/breaks.py PDF SRC.docx.
+(n383: 51.5, 27); zh-499adba6 and zh-9932bd83 unchanged at 26.8 (99/96 pages).
 
 ### T145. A number that fits may part after its hyphen under East Asian layout — DONE (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built it)
@@ -127,9 +154,13 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   advance, not a character: only form_footnotes and checkboxes carry
   FORMCHECKBOX in the corpus. Not built; released.
 - h. form_footnotes' FORMCHECKBOX as a drawn 11.5pt box (from g).
-  Owner: none. A checkbox is a "☐" character in the model and the writer
-  saves every ☐ as a checkbox field, so drawing it as a box is a model
-  change for one line in one file; not started.
+  DONE (Mac 0fcba326, 2026-10-22; the user chose Word's look). Not a model
+  change: the "☐"/"☒" stays in the text (and saves as the field) and the
+  layout, under Word's rules, hides it and sets a box after it — 9.36pt
+  square stroked 0.72 at 10pt, 1.06 before and 1.08 after, 8.4 over the
+  baseline, ticked crossed corner to corner. All 29 of form_footnotes'
+  boxes stand within 0.2pt of Word's x; n386 vs n385: form_footnotes
+  97.7 -> 98.9, checkboxes 6/8 -> 6/6 lines, nothing else moved.
 - i. An autofit table cell holding only a picture grows its column to the
   picture plus the cell margins in Word (lab dr/clip1 case C: 339pt);
   ours keeps the column and cuts the picture, because _minContent and
@@ -138,7 +169,7 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   column's narrowest; past the column's room Word shares it in proportion
   (labs dr2/g, h, k). Lab C 339.8 (Word 339.77); drawing p9 within 0.3pt;
   of the 12 nested-table docs, zh-291fcea7 went 31.4 -> 32.4 and the rest
-  are unchanged. NestedTableLayoutTests (PDFKit) want a Mac run. Note:
+  are unchanged. NestedTableLayoutTests: 3/3 pass on the Mac (macOS-doc; full OfficeApp suite 620/0). Note:
   drawing.docx --convert segfaults about 4 runs in 5 on Windows, after
   the PDF is written; the base binary does the same and Linux is clean.
 - Test note: the font-bundle test failures were fixed by macos-ios;
@@ -510,34 +541,236 @@ something else.
 ### Looked at (Mac 01Xgpbk5, 2026-10-19): zh-d8247da5 91.9 — released: 3 of 37 lines, all in its landscape form's dense cells ("房屋坐落門牌編號…", "減半使用執照用途別"), where the reader groups neighbouring cells' text differently; not layout
 
 ### Looked at (Mac 01Xgpbk5, 2026-10-22): zh-340d52e9 75.6 → 76.2, released
+Windows 01QbbApP 2026-10-23: DONE 76.0 -> 97.7 (PyMuPDF). Page 6's lower half was "▓" (U+2593, Block Elements) in a run hinted East Asian, its Latin face 新細明體 and its East Asian one Normal's 標楷體. Word sets it in YaHei Bold and the line grows; ours set it in the Latin face, because the hinted ranges skipped U+2580-259F. 3, 2, 1 and 1 misses are left on pp5-8; released.
 a58ab590: a cell's text past its exact row (page 5's 48.8pt "其他里內公共區域認養之必要支出" row, the page's last) now runs on down the page as in Word's print. Left: pages 6-9's repeated header row reads "地點明備註" in Word's print and "地點明" in ours (the reader grouping two cells by a hair), and page 6's lower half ("潔維護" against our "▓3.其他經區公所核可之"), not looked at.
 zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match Word's to 0.8pt, but PDFKit reads ours with text repeated ("查\n調" four times where "調查" stands once per row, "%%%%"); every glyph is drawn once (get_texttrace). Ours are Skia's Type3 fonts, FontMatrix [.001 0 0 -.001] and FontBBox like [35 105 965 -828], y running down, and PDFKit mis-groups them across rows; Word's embedded PMingLiU reads clean. The same repeats show in ~10 more of our PDFs (zh-e49d7943, zh-05315c2a, zh-57d7a0ea, zh-86aae09f…) and would in Preview's copy and paste too. A fix would be in the engine's Skia PDF backend (starling-engine), not here.
+
+### USER DECISION 2026-10-23: embedded fonts follow real Word, not the Mac's prints
+Since the night of 2026-10-18 Word for Mac on the printing Mac draws a font EMBEDDED in the
+docx as blank one-em glyphs (text extracts as NUL, digits an em apart, pages render empty).
+Word for Windows (windows-1's print of zh-529fa492: "2023" 6.0 apart) and this Mac's older
+prints draw the real face. The user chose real Word: lay embedded faces out as the faces they
+are, and treat these Mac references as unreliable wherever text is set in the embedded face —
+do NOT fit them: zh-1cfb652b, zh-2bca0bdf, zh-529fa492, zh-57f1de0d, zh-7eba7349,
+zh-984846dc, zh-a031fa16, zh-c2229d4a, zh-d9b085b1, zh-e68a2f57 (NUL share 0.46-0.90). The
+other nine embedding files have older prints with real glyphs. 42848c6a (an embedded
+SimSun+EBDT drawn an em a glyph) fitted this fault and is reverted (see office.md; zh-a031fa16 89.0 -> 55.9 against its set-aside reference, nothing else moved).
+
+LIKELY CAUSE (Mac 01Xgpbk5, 2026-10-24, read-only, for bd): not a Word or macOS update (Word 16.113.3
+unchanged since Oct 1; good and bad prints both macOS 27.0 26A428; no fonts installed). The bad prints
+embed the docx's own faces as 432-540-byte subsets of 1-3 EMPTY glyphs (zh-a031fa16's, zh-529fa492's
+FangSong_GB2312 / FZXBSJW) where zh-92373179's good print (Oct 18 01:27 UTC) has a 224-glyph one. And
+the printing Word is one process, pid 98509, started Oct 18 13:17:46 and running since; before it the
+log shows Word restarted under other pids. 20:57 is 7.5h into that process — font state drifting in a
+long-lived Word (embedded faces of one name reused across documents; the 楷体_GB2312 fallback switch the
+same night). PROPOSED, the user's call: quit and relaunch Word, reprint zh-a031fa16 to check, then have
+the print loop restart Word every N documents and reprint the ten. Office's caches are TCC-protected
+(not inspected).
+
+### Reprinted (Mac 0fcba326, 2026-10-24): zh-6e7ff836's reference
+macOS-doc found its Word print broken: pages 2 and 19-22 blank Letter pages in an A4 document, a
+page tree PyMuPDF rejects, 16,645 characters of text. Reprinted with Word for Mac 16.113 (no embedded
+fonts, so today's Word prints it with real glyphs): 34 A4 pages, none blank, 24,847 characters, no
+NUL. Against it the tip scores 98.0 (1107/1130, was 94.9 against the broken print).
+
+### Looked at (Mac 0fcba326, 2026-10-23, later): zh-291fcea7 40.3 — page 3's table, hairlines, released
+At the tip (n425): p3's continued table opens at 56.95 against Word's 56.64 (+0.31), and its rows run
+28.62/127.60/71.43 against 28.56/127.44/71.28, so the table ends 284.60 against 283.92 (+0.68). With 28
+empty 18pt-pitch paragraphs after it, Word fits 14 on p3 and ours 13, and pp4-12 run one paragraph
+apart (p4's "金門縣政府人事處作業流程圖" 617 against 581). Several small sources, none alone a rule: the
+continuation's top (the rule's place at the page head) and ~0.1pt a row. p5's floating nested tables
+are T133, still open.
+
+### Looked at (Mac 0fcba326, 2026-10-23): zh-92373179 65.9 — reader, released
+From p5 its lines stand where Word's do (within 1-2pt, same breaks), but Word's print maps its
+embedded 仿宋_GB2312 subset's glyphs to wrong characters ("满足"→"7F", "评价"→"4价", "不少于"→"S少于"),
+so the four-character edges miss though the lines match. Not layout; nothing to fix here.
+
+### USER DECISION 2026-10-24 (later): Windows references in the FangSong/KaiTi state; DFKai-SB installed
+The re-baseline was done on Word for Windows (test/corpus/docx/word-win, all 756, markup on;
+scored with lab/tools/sweep-win.sh, OFFICE_WORD_FONTS=windows). macos-ios's facemap found
+仿宋_GB2312 / 楷体_GB2312 (and some 方正 names) flipping between YaHei and FangSong/KaiTi in long runs
+in print order — Word sets a missing name in the closest face it currently has loaded. The user
+chose the FangSong/KaiTi state (as a real zh-CN Windows with SimFang/SimKai has), and approved
+installing DFKai-SB (Chinese Traditional Supplemental Fonts) for the 154 標楷體 documents. windows
+reprints all _GB2312/方正/標楷體 documents in that stable state (installs need the user's admin there);
+macos-ios refits the Windows-mode rule (仿宋_GB2312 -> FangSong, 楷体_GB2312 -> KaiTi). Until then,
+w-series scores of those documents are provisional.
+
+### USER DECISION 2026-10-24: re-baseline every reference against a FRESH Word
+Cause found (macos-ios, read-only): one Word process ran from 2026-10-18 13:17 without a restart,
+and its font state drifted — embedded fonts printed as blank one-em glyphs from ~20:57 that day,
+and 楷体_GB2312 / 仿宋_GB2312 fell back to Arial Unicode MS / YaHei. With the user's approval Word was
+restarted (2026-10-24 06:42): embedded fonts print real (zh-a031fa16 NUL 2241 -> 1, zh-529fa492's
+digits 6.0 apart as Word for Windows), and 楷体_GB2312 / 仿宋_GB2312 print in Word's own DFonts KaiTi
+and FangSong. Documents without those faces reprint identically (zh-12c4f07a, zh-9462c6d6,
+zh-b5359de4 100%); with them, very differently (zh-1a3c7aa0 61 pages fresh against 90; zh-0aac9d1a
+33% of lines alike). The user chose to re-baseline ALL references: the Mac (0fcba326) is reprinting
+every one into ~/starling-word-check/fresh-all, restarting Word every 40 prints, then replaces them
+in one commit. After that the Mac-mode font rules (楷体_GB2312 -> Arial Unicode MS, 仿宋_GB2312 -> YaHei
+stand-in) are refit to KaiTi / FangSong (macos-ios). Until the new references land: do not build
+rules from lines set in 楷体_GB2312 / 仿宋_GB2312, and do not replace references piecemeal. The
+"USER DECISION 2026-10-23: embedded fonts" note is superseded — the ten set-aside references get
+real reprints. Prints: restart Word every ~40 documents from now on (the reprint loop does);
+many-copy labs need Word opened and left ~60s before printing (macOS-doc, lab sq14).
+
+### Reprinted (Windows 01QbbApP, 2026-10-24): all 756 references on Word for Windows, in test/corpus/docx/word-win
+Word for Windows 16.0.20430 (Microsoft 365), test/docx-word-win-reprint.py: a fresh Word every 40 prints,
+each document laid out (Repaginate + ComputeStatistics) before ExportAsFixedFormat, with markup (All Markup,
+balloons, PrintComments on: 58067 17 -> 24 words, Mac 24; Tika-792 0 -> 9, Mac 9). All 756 printed, none
+failed; score against them with DOCX_WORD_REFS=test/corpus/docx/word-win. The Mac set in word/ is untouched.
+- Pages: 728 match the Mac's count, 28 differ — zh-7773163d 61 -> 84, zh-d68ac84a 64 -> 53, zh-676e7b2d
+  27 -> 20, zh-69bbcc3c 43 -> 37, zh-dc25c47e 16 -> 13, zh-e68a2f57 63 -> 60, zh-6cd1befe 59 -> 57, 19 more by one.
+- Faces (test/docx-word-win-fonts.py; "missing" = in no installed font's name table nor Office's cloud-font
+  cache, %LOCALAPPDATA%/Microsoft/FontCache/4/CloudFonts, which supplies FangSong, KaiTi, SimHei,
+  DengXian, PMingLiU, MingLiU, MS Mincho, Aptos here). Read from the spans of documents set mostly in the face:
+  - 仿宋_GB2312 (253 documents) prints in **Microsoft YaHei**, not FangSong: zh-1a3c7aa0 is 90 pages on
+    Windows, as the drifted Mac print was, where the fresh Mac print is 61 in FangSong. So on this face
+    Word for Windows sides with the old reference, not the fresh one.
+  - 標楷體 / DFKaiShu-SB-Estd-BF (154 + 10) print in Microsoft YaHei: this box lacks DFKai-SB (kaiu.ttf),
+    which comes with Windows' "Chinese (Traditional) Supplemental Fonts" feature — installing it needs
+    an administrator (Add-WindowsCapability -Online -Name Language.Fonts.Hant~~~und-HANT~0.0.1.0), so
+    that is the user's call; a zh-TW Windows has it.
+  - 楷体_GB2312 (153): the documents sampled embed it, and print their own subsets.
+  - 新細明體 prints in PMingLiU (cloud font); 方正小标宋简体 (196) in SimSun.
+- comment.docx still prints blank: its only comment hangs on an empty body, which Word for Windows
+  doesn't balloon.
+- **Font-pack reprint (2026-10-24, later): 456 references reprinted.** These are the documents asking
+  for 仿宋_GB2312, 楷体_GB2312, FangSong_GB2312, KaiTi_GB2312, a 方正 name or 標楷體, plus zh-7773163d.
+  The user installed Windows' Chinese supplemental fonts: FangSong, KaiTi, SimHei, DengXian, DFKai-SB
+  (kaiu.ttf) and MingLiU/PMingLiU. That alone did not settle 仿宋_GB2312: eight documents still printed
+  in YaHei. Windows' FontSubstitutes didn't either; FangSong_GB2312 = FangSong is in it, and
+  zh-202582e2's FangSong_GB2312 printed in MS Mincho. The cause of the flips: **Word picks the face
+  for a name it lacks once per process, from the first document to name it, and keeps it.** A batch
+  begun with zh-007ca091 (its 仿宋_GB2312 entry carries a PANOSE) printed 仿宋_GB2312 in YaHei; one
+  begun with zh-621d8756 (alternate 仿宋, no PANOSE) printed it in FangSong, for the same documents.
+  test/docx-word-win-warm.docx names each _GB2312 face with its alternate and no PANOSE. Every batch
+  now prints it first and throws the PDF away. After the reprint, facemap (macos-ios's rule, ported):
+  仿宋_GB2312 FangSong 211/211, FangSong_GB2312 FangSong 2/2, 楷体_GB2312 KaiTi 101/104 (the other
+  three: zh-540dc149 and zh-e68a2f57 embed the face; zh-f3802561 ties one KaiTi to one SimSun),
+  標楷體 DFKai-SB 124/124. The 方正 names still print in YaHei: 方正小标宋简体 89 (MS Gothic 2),
+  方正小标宋_GBK 19, 方正黑体_GBK 14, 方正仿宋_GBK 13, 方正楷体_GBK 10, 方正仿宋简体 7, 方正黑体简体 5,
+  方正楷体简体 3. 方正大标宋_GBK is SimSun 1, 方正仿宋_GB2312 FangSong 1. They were not warmed:
+  the user's choice covered the _GB2312 names.
+
+### USER DECISION 2026-10-23 (later): the punctuation squeeze limit follows Word for Windows
+windows' lab zq: Word for Windows squeezes a line-end up to exactly half an em (12-20pt, 1-3 marks;
+none with 0 marks), which our rule already does. Word for Mac's prints stop near 7.30pt at 16pt
+(labs zz), likely its substitute faces' metrics. The user chose to keep the Windows rule: do not
+model the Mac's limit. zh-884c6e3e and the like keep those Mac misses.
+
+### Assignments from the Mac (0fcba326), 2026-10-23, at the user's request
+Each owner claims its item below as usual; this only says who was asked.
+- lenovo-3: zh-72da925e p5 — the fit takes "79", the final layout breaks before it.
+- macOS-doc: zh-7a16a243 (64.7) [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: 95.2, see the sample-30 list].
+- windows: text in shapes not drawn — zh-6d402586's page-anchored "附件1/2" boxes, zh-ae2dd08d p21's flowchart text, p20's box outlines. [CLAIMED Windows 01QbbApP 2026-10-23, all three. zh-6d402586's boxes are anchored in paragraphs 74 and 75, each a section of one paragraph that is itself the section break (74 holds the 附件1 box, page-relative; 75 the 附件2 box and annex 2's 433x738pt flowchart, wrapNone, 26pt above the paragraph). Ours draws neither box, and puts the flowchart at y -750 on p16, above the page. Paragraph 73's blank p15 is Mac 0fcba326's item (1), not touched here.] [Windows 01QbbApP: zh-ae2dd08d's two DONE. p20's outlines: a group's custGeom shapes were skipped (0ef28218). p21's text: text boxes two groups deep were never read (with it zh-61b62a40 95.2 -> 98.6, zh-bdae17c0 97.2 -> 98.1, zh-ab9cbe66 93.6 -> 94.6). zh-6d402586's boxes: DONE after the Mac's 1571f2a4. A section-ending paragraph of floats got no page piece, so its objects were never drawn; pp15-16 now match Word's, and five more documents get dropped floats back. Left: zh-6cd1befe p52's line after a page-anchored floating table stands under the table, where Word has it at the table's top.]
+- lenovo-2 (after its current item): zh-e68a2f57 p7 — notes under an inline chart 1.8pt high.
+- lenovo (after its current item): zh-57f1de0d (80.0).
+- Mac 0fcba326: zh-6d402586 (1), the empty 34pt-exact section ender taking a page; then zh-1cfb652b (87.5).
+- OPEN, no taker yet (windows-1 is on Sheets by its user's word): column-width autofit — zh-6aa8bd7c p6 (noWrap cells) and zh-ae2dd08d p24 (widths redistributed with nothing over); best with Word for Windows labs. [Windows 01QbbApP 2026-10-23: zh-ae2dd08d p24 DONE (lab af): "01】" is one piece in Word's narrowest measure, under its 36pt hanging indent; 51.4 -> 54.8. zh-6aa8bd7c p6 not taken.]
+
+### Mac 01Xgpbk5 (2026-10-23): zh-11709c74 92.9 [Mac 01Xgpbk5 2026-10-23, looked, released: 5 of 70 lines, the reader grouping a scoring table's cells ("1评分总得", "2评分报价"), lines within 2pt of Word's]; zh-160a5e81 87.2 [Mac 01Xgpbk5 2026-10-23, looked, released: 6 of 47 lines, a form's narrow cells read as one character a line ("请", "信", "情") 3-4pt from Word's — the reader's grouping, not layout]; zh-e076bb5a 89.4 [Mac 01Xgpbk5, looked, released: zh-160a5e81's form, the same reader grouping]
+
+### Reader releases re-checked at the tip (Mac 7bd18d8e, macOS-doc, 2026-10-24, asked by 0fcba326)
+After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout" releases (32 documents, the ten embedded-font references left out), rescored on the Mac (sweep n19):
+- Now 99-100, nothing left: zh-e029cf49, zh-bfe04e2f, zh-ad224275, zh-727812d5, zh-190d730c (100); zh-e37f8d40, zh-81aa310b (99.7); zh-785d6dff (99.5); zh-625b6374 (99.4).
+- Real layout, now visible: zh-15f60bac (98.1) — a Latin word longer than the line (a URL in a narrow cell, "http://www.tri.org.tw/page/consumer.php)") starts a fresh line in Word's print and parts where that line fills; ours parts it after "http://ww" on the line it began on (4 runs, 16 lines). Not `_looseWordOffsets` (tried: breaking only at full-line points moved nothing there and cost 9 lines) — the break comes from the East Asian fitter: lenovo-3's ground. zh-77079ee8 (94.9) — a turned cell's one-character lines stand 10pt high (p4 "宣導說明"). zh-31d580df (98.6) — p25/p38 blocks 5-7pt off (its entry's known leftover).
+- Not layout: zh-6e7ff836 (94.9) — its p20 run (+44 lines) is the REFERENCE: Word's print has pages 19-22 as blank Letter pages with no text (the document is A4), and PyMuPDF reports a broken page tree there; reprint before chasing. zh-7dd5643e, zh-d8247da5, zh-454e2e29, zh-afdd4a7e — one line each, still the reader grouping cells.
+- Lower (55-95), re-read line by line (Mac 7bd18d8e, 2026-10-24, sweeps n23-n27):
+  - DONE here (pair n24/n25, then n24/n27; nothing dropped):
+    - zh-ae2dd08d 55.2 → 95.1, 94/94 pages: a direct w:pageBreakBefore on an empty section-end paragraph makes no page.
+    - zh-74b34f3b 93.3 → 97.8 (zh-32f4ad9f +0.6): a tbRlV cell with a Latin "2" keeps its ideographs upright and lays the "2" on its side.
+    - zh-ab9cbe66 +0.4, and zh-ae2dd08d p17: a custGeom's own a:rect is its text rectangle (the flowchart diamonds).
+    - zh-b8de3ae2 71.2 → 72.1, three chart fixes. First, an auto value axis leaves zero out where the values lie within 5/6 of the far end, measured against a fixed max if the file gives one. Second, a combination line's labels use the line's own format. The chart's "%" second-axis title is still missing, and its labels' nudged places are still off.
+  - Reader, confirmed: zh-8f70b676, zh-160a5e81, zh-11709c74, zh-5c7787f5, all within 2pt. zh-92373179 is a reference-text problem: it embeds four fonts, and Word's print of them has no text mapping. zh-7773163d's p2 is blank in both prints.
+  - Routed:
+    - lenovo-3, line fit: zh-20c1d74a p44 (ours hangs "）" past the margin where Word sends "等）" down); zh-cd8987db p7 (Word wraps "中。", and ours shows a gap after "°"); zh-6a4fc013 (Thai justification stretches the spaces before a tab, 27 pages against 26).
+    - lenovo-2: zh-147bdae0 p17/23/46, a splittable row continuing a vMerge moves whole.
+    - windows: zh-ad1e59ac p10, a text-anchored floating table's tblpY at a page top. DONE (Windows 01QbbApP, 8d1082c4): its offset left no room under page 9's last line, so ours parted the first row at the foot and lost the offset. It now goes over first and keeps the offset: 93.6 -> 99.1, and zh-4a90bb2f +2.3, zh-9ba2ead7 +1.7, zh-cec9d337 +0.2 over the 63 with such tables (nothing lower). Released.
+    - macos-ios: zh-b5359de4, one column count per document (taken).
+  - Open, paint only: zh-ad1e59ac p10, a row's white run shading painted over the table's top rule (see windows' note): Word paints that row's white shading 27.6pt tall inside the row (84.96-112.56) and under the rules; ours paints the whole 31.2pt grid line from 80.03, over the top rule (Windows 01QbbApP).
+
+### Drawing leftovers [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: all three, plus arrow ends by flips (zh-ae2dd08d's were reversed) and zero-width lines; pair n15/n16 moved no line score and every changed document gains segments in Word's print. Released]
+(1) zh-2e7ef069 p9: a DrawingML group connector's arrowhead; (2) lone VML boxes' edges (zh-7773163d p35); (3) pictures inside a VML group (zh-7773163d's footer logo).
+
+### VML group shapes drawn [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: zh-6e6b9821, zh-e9f256c1, zh-7773163d flowcharts and WordWithAttachments' box drawn as in Word's prints; pair n7/n8 moved no line score, drawings changed only in those (and one clusterfuzz copy of the box). Left: dashes, pictures inside groups, lone VML boxes' edges — see office.md. Released]
+Shapes inside a VML `v:group` draw only their text — no outlines, fills or arrows (zh-6e6b9821, 5e452e14). Checked by eye against Word's prints, plus a pair sweep.
+
+### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: 99.7; zh-6d402586 91.3 -> 96.7, zh-2e7ef069 90.0 -> 92.8, nothing down (pair n5/n6). Released]
+Its landscape pages number themselves in an `eaVert` box at the page's left ("- 33 -" reads down in Word's print); ours set it across. Also moves zh-2e7ef069, zh-6d402586 (its "通知書一式兩聯…" side box, not the 附件 boxes Windows holds), zh-6cd1befe.
+
+### Note from the Mac (2026-10-23): the zh corpus is 645 documents — a thirtieth sample, of 400-800 KB
+With the 15-400 KB pool empty: 20 of the 22 unprinted of 400 to 800 KB (`random.seed(20261113)`,
+drawn by docxcorp id, all printed), checked in. Bigger documents, more to find: it starts at
+64.4% (median ~70), 13 of 20 page counts Word's. Its low ones, unclaimed:
+zh-6d402586 4.4 (39/41 pages) [Mac 0fcba326 2026-10-23: -> 90.9, Word's 39 pages — 1571f2a4 (a VML picture behind the text wraps no line) and f6404d67 (a picture's paragraph taller than its page goes whole onto it); (1) is done] [Mac 01Xgpbk5 2026-10-23: -> 39.3 (8b8f0e51, its p1 box of dates banded and clipped), RELEASED. Left, measured: (1) p14 ends full and the empty paragraph closing the section (exact 34pt line, sectPr, the annexes nextPage after it) takes a page of its own in ours, p15 blank but its folio — Word keeps it on p14 (the `ender` rule holds only for a 0-height paragraph, and the push to the next page is in the line pagination); (2) the annexes' page-anchored wrapNone text boxes "附件1"/"附件2" (positionV page 26pt, H column 417pt) are not drawn at all on their pages; (3) p5 "…房間(以下稱1人1室房" + "間)：": ours hangs "：" a whole em with 8 automatic spaces giving, Word wraps (mode 15); (4) Word's text layer keeps the box's clipped dates, Skia drops them — 5 lines the scorer counts], zh-6aa8bd7c 13.9 (33/32) [Windows 01QbbApP 2026-10-23, labs ag/ag2 on Word for Windows (~/starling-doc-check/lab/ag), RELEASED, nothing built. The p6 table as saved (A) reproduces Word's 62.5/52.4/41.2/50.9/98.3/56.8/54.2/78.0/55.4/151.2. Without its U+3000 after "328004" (B), or without noWrap (C), the home-phone column keeps its grid 50.8. With the same widths in dxa (D, E), it keeps 50.8 too. So a noWrap cell's unparted line, its trailing ideographic space included, counts as its narrowest only under a pct (or auto) cell width. Under dxa, "0932-838898" still widens its column to 78.4, as one unbreakable piece; under pct Word gives it 78.0, 0.4 under its own line, and wraps the last "8". Tried: taking noWrap's unparted line as the narrowest for every cell regressed nine dxa documents (zh-f59a76e9 99.6 -> 44.1, zh-8415d258 98.2 -> 43.6; mind `w:noWrap w:val="0"`, 49 cells in zh-bd6f1bb5), and zh-6aa8bd7c itself fell 14.1 -> 13.6: ours then gives back from the email column (147.0 to Word's 151.2), where Word gives a little from each, so the narrowest of its other columns is still not Word's. Reverted.][Linux b2 01JsizVV measured, released: pp1-5 match; p6 opens an autofit 100% table (landscape, tblCellMar 28, tcW pct, cells w:noWrap) whose columns Word sets 62.6/52.3/41.1/50.8/98.4/56.9/54.3/78.0/55.2/151.2 and ours 62.5/53.1/41.6/51.5/98.4/50.8/55.0/78.4/56.2/153.0; at 78.0 Word wraps the mobile numbers "0932-83889"/"8" (YaHei digits 7.04, 75.6 + 2.8 needed), ours at 78.4 keeps them whole, every row a line short; noWrap is not modelled. Autofit ground],
+zh-e68a2f57 20.4 (63/62) [DONE Linux 017F2GnT 2026-10-24 -> 92.1, 63 pages, released: lab `picln` (the Mac 7bd18d8e) — the picture's line matches Word's; p7's note holds "◎", which Word sets in Segoe UI Symbol (Times has none), whose ascent lifts the line 0.48 ("◇◆★☆" too; "●□▲○■※" Times, "①△" Cambria Math, nothing); now so] [Linux 017F2GnT 2026-10-23, from the Mac: c77fd89d — lab pn, a picture's line off its section's grid takes its multiple's extra under it (+1.03 of Word's +1.20); 0.66 is left (at single too; labs pn-e/f: not the note's spacing or first face) and the third note still stays on p7. The Mac's lab print sets 楷体_GB2312 in SimSun where our map says Arial Unicode MS — to check (Mac); RELEASED][Linux b2 01JsizVV measured, released: its section 4 opened on the landscape page 8 until 678a6c89; left: p7's landscape chart (an inline picture alone, a 9pt mark) and the notes under it — Word sets their first baseline 10.9pt under the picture's foot (471.1), ours 9.1 (469.4), the lines 13.0 apart in both, so the third goes to p8 in Word's print and stays in ours (foot 498.6) and every page after runs one behind. The notes mix 黑体 "注：" and 楷体_GB2312 at 9pt, line 264 auto; the mark's depth under the picture changed nothing, so it is where the notes line's baseline falls; not chased. Word's text there reads as NULs], zh-ab9cbe66 20.5 (100/99) [Linux b2 01JsizVV 2026-10-24, measured, parked, nothing pushed: p45's "訓練單位名稱" (fixed, jc center, tcBorders left 2.25, tcMar 1.4) wraps "稱" in ours — lab tbl (macOS-doc): Word's text is max(margin + half the line, the line) past the line's OUTER edge (our formula), but our cell edge sits at the line's middle, 1.1pt right; max(margin, half) from our edge fixed it and broke ten mode-15 documents (bug65649 100 -> 85, zh-1d2a7c35 100 -> 47, zh-e0ca7252 98.9 -> 76…) — so where the table's left edge falls against its left line differs between them; also our tcBorders left line paints 2.25 wide whatever its width; lab tbl round 2 (macOS-doc): our pad formula is right — Word centres a mode-15 table (wL + wR)/4 left of plain centring; read as the outer columns gaining that much (inside lines in place) it took zh-ab9cbe66 96.9 -> 97.9 but zh-6e7ff836 97.8 -> 87.5, zh-ae2dd08d 95.9 -> 92.5 — reverted, patch ~/tmp/wz/center-held.patch on the Linux box] [Mac 01Xgpbk5 2026-10-23: -> 94.4 (f6916d80: lab rb, a page-placed float's row is its extent + 0.72pt); earlier -> 88.9, 100/100 — a page-placed wrapped float in a cell held to its row (93c35e9e), a row as tall as its wrapped floats reach; zh-e2dc9dce +4.9 with it. RELEASED; left (p17 measured by Linux 017F2GnT 2026-10-23, handed back to the Mac: the flowchart row above it — an anchored drawing, extent 632.4, effectExtent b 2.1, layoutInCell — is 633.1 between its lines in Word's print, 632.3 in ours, so the atLeast-27.85 row after it begins with 28.4 left and parts where Word takes it whole): "1. 詳細作業規定" at p17's foot where Word takes it to p18, and the flow charts' box text wraps ("是否通過TTQS評核" one line, Word's two)], zh-ae2dd08d 24.8 (94/97) [Mac 0fcba326 2026-10-23: -> 49.9, 96 pages — an inline group taller than its exact line keeps the line and rises from its baseline (p20's flowchart); single-spaced East Asian lines beside a bold run are held to the paragraph's common height (p37). RELEASED, measured: (1) p21's flowchart (a group/canvas) draws none of its text boxes' text — drawing, not layout; (2) p24's category table (tblW 10050, grid 1810/1418/1428/5394, no tblLayout so autofit, tcW = grid) is drawn by Word at 90.1/73.8/70.7/268.0 — column 2 widened 2.9, column 4 narrowed 1.7 — though no content is over its column (col 2 holds only "【05-01】", 57pt + 10.8 of margins in 70.9; our autofit trace finds nothing over); so "…內容事業類課程" fits ours and wraps "程" in Word's narrower cell, and from there each page a row out. That is Word's content-width redistribution (T1's open ground), not found; (3) the drift from p38 not looked at], zh-b8de3ae2 38.8 [Linux b2 01JsizVV 2026-10-23: -> 69.4, Word's 30 pages (fc8215b2: PMingLiU baseline 974/1024 + a taller Latin run sets an East Asian line; a09e1225: a continuous two-column section before a next-page one read as a row, not a blank page). RELEASED. Left, measured: p14's 0-margin header cell "其他收入" (ind 389/346 in 1223tw, 24.4pt for 24.0 of text, a 0.5pt left line) wraps a character a line in ours — we take the whole line off a 0-margin cell (lab `cb`), Word fits it; lab `cb`'s зарплаты (both sides ruled) cannot tell "whole line on the left" from "half each side", which this cell (no right line) can. Tables p22-27 still drift] [Mac 01Xgpbk5 2026-10-23: measured, RELEASED — most misses are 3-5pt: its 新細明體 (PMingLiU, which Word has and prints) paragraphs, auto 1.39-line spacing at 13.5pt, set their first lines 3.8pt lower than Word's (p2: 一 120.7 vs 116.9, 二, 三, 五 alike) while 四, whose line has Latin digits in our Liberation Serif stand-in, lands within 0.2pt. A PMingLiU `baseline` in OfficeFonts' EastAsianFace is the likely lever; wants a lab of 13.5pt PMingLiU at 1.39 lines]
+(29/30), zh-76700e5f 48.1 [Mac 7bd18d8e (macOS-doc) 2026-10-24, DONE → 82.2, pair n28/n29, nothing else moved: (1) the ICS/CCS table (tblpY -733) under nothing but the cover's floating table and frames is at the page's head and rises into the margin, 34.2 to Word's 34.5; (2) a line of inline pictures in a text paragraph on a line grid takes ceil(tallest picture / pitch) pitches, the descent not counted (lab ~/starling-word-check/lab/pic3, Word 16 Mac, 15.6pt grid, four pitches up to 62pt, five from 63; ours took five from 58.5, figure 4, and every page after ran a line late). NOT a layout miss: the 'DB 3311/T' frame 'painted at 119' and the headers 'at 22' are PyMuPDF line boxes stretched by the Type3 "—" glyph (our stand-in face lacks it), whose FontBBox reaches ~67pt above the line; the frame's glyphs stand at 188.4 (Word 186.0). Left: p8-p10's runs, released] [Mac 01Xgpbk5 2026-10-23, the cover frames looked at again, RELEASED: the "DB 3311/T" paragraph (3) is PLACED right — its piece at 115pt down the text, 186 on the page, as Word — but PAINTED at 119 on the page, 67pt high; page 1 has no header (section 0 names only first/even, both empty, no titlePg: checked), so the 119 line is paragraph 3 painted off its piece — look at how a framed paragraph (style 196, w+h exact, wrap auto, hAnchor page x 1396) is painted, not placed] [Mac 01Xgpbk5 2026-10-23: measured, RELEASED — a standard's cover of frames. p1 "DB 3311/T XXXX—XXXX" (style 196's frame, page-anchored, wrap="auto", merged to y 3734 twips = 186.7pt) is read right (frame.y 186.7, vAnchor page, frameStarts) yet drawn at 119.1 — the top margin, 70.85, short; "浙江省丽水市地方标准" (wrap="around", y 149.9) stands right. Then the ICS/CCS floating table (text-anchored, tblpY -733: above its anchor) — negative tblpY is not read (floatOffsetY only for > 0): Word 34.5, ours 177.7], zh-72da925e 58.3 [Linux b2 01JsizVV 2026-10-23: p25-p28 table widths DONE, 192b0a2a — 49.9 -> 75.5; released] [Linux b2 01JsizVV 2026-10-24, measured, released, nothing pushed: (1) on its +1 grid a paragraph's LAST Latin character takes half the addition too — p26's cell "(2005瑪莎)" sets ")" 4.51 at 12pt in Word's print, ours 5.0 (the `let following` guard), wrapping "莎)"; fixing it alone fixes p26-29 but drops the file 75.5 -> 61.0, because (2) p31's 表4 (tblW auto, grid 1266…) has its first column 62.9 in Word's print to our 63.3 and holds "開闢圓" three a line where ours holds four — the two errors cancel. Both together, or neither (patch ~/tmp/wz/gridend-held.patch on the Linux box)] [Linux office1 01Ak4ibJ 2026-10-23, RELEASED (offered to b2): p25-p28's rain tables (tblW auto, cells auto, grid 794/997/1062/…, 348.6pt) are 355pt in Word's print, columns 39.6/46.1/57.1/45.9/57.3/51.9/57.1 — autofit to content; ours keeps the grid, the year cells wrap "2001" / "年", every page after p26 behind] [Linux office1 01Ak4ibJ (lenovo-3) 2026-10-23: p5's "於79" fixed — the Noto joiner before "年" U+F98E held "79年" whole; RELEASED, left: lines holding a Noto compatibility ideograph ("自行…" U+FA08) stand ~4pt low on its 22.85 line grid (p2) — the joiner's line height, the Mac's 5620f6ea area] [Mac 01Xgpbk5 2026-10-23: the U+FA08 line is right at the tip — p2 steps 45.7 a line to Word's 45.8, that line included; released] [Mac 0fcba326 2026-10-23, measured, RELEASED to the fitter: first miss p5 ¶9 (style 4, numbered, w:kinsoku 0, 16pt 標楷體→YaHei, Normal autoSpaceDE/DN 0, compat 12?) — Word's line "山橋至成美橋段河道整治計畫」，經行政院於79" ends 524.06 (digits 9.88 apart, no autospace, justified), ours breaks before "79". STARLING_RICHTEXT_FIT='嗣後臺北市政府' has [79] at x 331.65 w 19.77 fits true of 357.15 and only [年] refused — so the fitter takes it and the engine's break goes earlier: the gap is between the fit and the final layout, not the widths (ours 9.886 a digit = Word's)], zh-7654804a 58.5 [Linux b2 01JsizVV 2026-10-23: -> 91.9 (92f945f5 YaHei "○" 0.604 em + half the grid, 10.17 at 16pt; 8aa9632d a raised footer frame leaves cells their widow control — p16's row parts two lines over as Word's). RELEASED; the "○○" break between the pair not touched] [Linux b2 01JsizVV 2026-10-24: -> 97.2 by 3aa850c4 — from mode 15 a line parts between two geometric shapes (not in mode 14: zh-06c46ba9); p34: -> 100 by 949ebed4, lab sup (macOS-doc) — a raised or lowered run's line is its whole size's], zh-40fe33a3 97.0 [DONE Linux b2 01JsizVV 2026-10-24 -> 100, 7bc950e3: a line may break before a minus sign after a full-width colon, "…103年：" / "-8.4%"] [Mac 01Xgpbk5 2026-10-23: measured, RELEASED — its "○○公司" (U+25CB pairs, 標楷體→YaHei, linesAndChars +1.0076): (1) the engine keeps "○○" one word, so where our fitter takes the first "○" at a line's end (p6 "…民間機構○") both go down — a zero-width break between two such symbols fixes p6 but costs 16 points elsewhere: the fitter then counts the line's "○○" as two characters and p7's "…○○公司仍未完成融資" fails the share test for "資" (12.9 over, 2 commas); (2) Word's "○" is 10.16 wide there (0.572 em + the grid), ours 10.67 (Liberation Sans 0.6 em) — fix the width first, then the break; the runs are hinted eastAsia, so "○" goes to the 標楷體 stand-in, which lacks it — the platform falls back to Liberation Sans, where Word falls back to YaHei], zh-7a16a243 64.7 [Mac 7bd18d8e (macOS-doc) 2026-10-23: 66.3 -> 85.2 -> 95.2 on top of 198b7e1d and cbfcf67f (Mac 01Xgpbk5), RELEASED — the body-note fit cut the page above a later note's mark line less the room of the notes already taken, which reserveNotes took off again: p12's line marking notes 15 and 16 went over with note 17's, and pp13-26 ran a line behind (same-base pair n1/n2 in ~/starling-doc-check-starling-office-zh: no other document moved). Left, measured: p9 "(6)容積率管制…刪除允" — Word ends the justified 10pt line at "允" (natural width a hair over; its YaHei glyphs print at sizes rounded to 1/300 in: 16→16.08, 10→10.08, 14→13.92) and ours takes "建" with 0.7pt to spare; a sub-point fit, not chased without a lab. Then p42's foot, DONE: a paragraph going on at a new page fits its notes by mark line but only deferred one no line of fits under its mark, the line kept — now the line goes over with it, as where the paragraph began; 85.2 -> 95.2 (pair n3/n4, no other document moved). 95.2 is where it stands; what is left is the p9 hairline and its kind], zh-57f1de0d 80.0 [Linux b2 01JsizVV 2026-10-23: -> 81.9 (7ca5e654, its "— 1x —" footer box whole), RELEASED. Left: pages 19-34, the annex in 方正仿宋_GBK — the file embeds it and this Mac's print draws it as one-em blanks (digits 16.0 at 16pt), so its numbered lines wrap wider than the face's own 0.5-em digits; by the user's call (embedded faces as real Word sets them) the reference is wrong there, not ours],
+zh-1cfb652b 87.5 [Mac 0fcba326: RELEASED — its Mac reference is one of the embedded-font prints set aside, see the note above]. (Corpus mean is not comparable with the 625's: 95.1 with these in.)
+
+### Note from the Mac (2026-10-23): the zh corpus is 625 documents — a twenty-ninth sample, the last
+The last 19 (`random.seed(20261112)`: every unprinted one of 15 to 400 KB, drawn by docxcorp
+id, all printed), checked in. It starts at 88.7% (median 97.4), 18 of 19 page counts Word's.
+The 15-400 KB pool is empty now; a thirtieth sample would have to widen the size range.
+Its low ones, unclaimed: zh-8d1a3d99 0.0 (2/3 pages) [DONE Mac 01Xgpbk5 2026-10-23: 100, 2 pages — a page-anchored table goes to the next page when the text before it would not fit under its first row],
+zh-f47b8a74 68.7 [Linux b2 01JsizVV 2026-10-24: 89.5 -> 97.3 by 12ee7eb0 — underlined spaces a closing mark follows are held as a word, "至＿＿，账号" going down whole as in Word's print (zh-621d8756 +1.1 too); p58's 13 not looked at; released] [Mac 01Xgpbk5 2026-10-23: -> 69.5, RELEASED — red rules of no height drawn (c5b0539e), and an underlined blank wider than a line wraps as a word under ulTrailSpace. Left: its other underlined blanks, which fit a line, do not hang in Word's print here (holding every underlined run took it to 75.5 but zh-621d8756's, which fit and hang, fell 58 points — what told them apart was not the blanks: zh-f47b8a74's gain from holding all came from its one-sided "第  页共  页" boxes, wrapped square with text on the right — e93f79c6 reads wrapText; with it in, only blanks wider than a line are held again, f6916d80). Now 88.8, RELEASED: left p17 "，根" and p18-19 a character a line after blanks (the fitter measures plain spaces where the line holds figure spaces), p31-38 forms], zh-28416dc9 78.9 [DONE Mac 0fcba326 2026-10-23: 100 — a ")" after an ideograph hangs in mode 12 too], zh-529fa492 81.2 [Mac 0fcba326 2026-10-23, measured, settled by Windows: its only real miss is p7's table row 5 ("2023年/9月30日" cells), 15pt short — its embedded FangSong_GB2312 subset has EBDT, and today's Mac Word prints its digits an em each (12.0 at 12pt, "12月31日" wrapping "日"); ours half an em. Widening the em-per-glyph rule (42848c6a, SimSun-named faces only) to any EBDT face matches row 5 to the glyph but drops zh-92373179 65.9 [Mac 7bd18d8e (macOS-doc) 2026-10-23: looked again, RELEASED — 71.3 in the Mac worktree sweep: pp1-4 stand where Word's do, p3's 1.5-spaced 16pt paragraphs at 29pt a line in both prints (the 41-against-31.6 is gone); from p5 the print's glyph map (satisfied by the embedded 仿宋_GB2312 subset) names wrong characters, so the edges miss though the lines match — nothing to fix]->36.6, zh-e37f8d40 99.7->70.5, zh-70094a34 99.5->95.6 — the same kind of face, whose refs are the pre-2026-10-18 prints (restored in 1e64f793) that set those digits half an em. So the two Mac Word states disagree; windows-1's Word for Windows print (仿宋_GB2312 not installed, drawn from the embedded subset) sets "2023" 6.0 apart and "12月31日" on one line — half an em, as the old Mac prints: today's Mac Word is the odd one, so the rule stays narrow and this doc's p7 miss is the Mac reference's. RELEASED, nothing more to do. The rest of its misses are NUL-text lines (embedded faces print unmapped today) whose glyph count differs from ours — the scorer, not layout], zh-e2dc9dce 85.6 [CLAIMED Linux b2 01JsizVV 2026-10-23 08:24; also claimed Mac 01Xgpbk5 08:57 — Linux 86.7 -> 91.5 (76d735e2: a continuous section numbers from the page its predecessor's mark stands on, though a break in the mark's paragraph sets its first line on the next; every page number was one low); 91.5 -> 92.4: a table style's text size stands under the paragraph's own style, over the defaults, where Normal says none — not in a text box anchored in a cell (lab ts, Mac). Left: p22, p36-37, not looked at; released].
+
+### Note from the Mac (2026-10-23): the zh corpus is 606 documents — a twenty-eighth sample
+Twenty more (`random.seed(20261111)` among the 39 unprinted, 15 to 400 KB, drawn by
+docxcorp id, all printed), checked in. It starts at 89.0% (median 98.4), 18 of 20 page counts
+Word's. Its low ones, unclaimed: zh-694447ca 11.1 [DONE Mac 01Xgpbk5 2026-10-23: 86.6 — the rest of a page-split paragraph takes no first-line indent (fb7a6d8a), a floating table raised over the table before it goes over whole (one document's evidence, kept narrow). Left: the footer's framed folio stands 66pt above Word's on every page (frame w:y=1 anchored to an empty 9pt footer paragraph, snapToGrid 0) — the scorer skips folios, so no score; and a negative tblpY at a page's head is not applied (4pt)],
+zh-8628cfbe 26.0 (45/46 pages) [p8 "×" DONE Linux office1 01Ak4ibJ 2026-10-23: an unhinted "×" stays with the number after it; released] [Linux b2 01JsizVV 2026-10-23, released; 27.0 -> 47.0 on Linux: under mode 15 a fixed pct table whose grid outgrows the column is set to its share (labs pt, pt14 on the Mac: mode 14 keeps the grid; the cells' widths and margins move nothing); 47.1 -> 50.4: its outer rules inside the share, the table its share less half of each outer side's width. Left, measured, released: p8's cell "13.2稅前盈餘/用人費用×100%" — Word ends "…用人費用" and opens the next line "×100%", ours keeps "×" at the line's end 0.2pt past the cell's text edge (not a hanging mark; a joiner after × is wrong, zh-b56eeded breaks after it); our tables also stand ~0.8pt left of Word's (Word's outer rule a little inside the share's edge). From p24 on the pages drift (46 against 45), following the tables' row breaks], zh-17ac8aa2 75.0 [Mac 0fcba326 2026-10-23: -> 96.9 — a merged cell centred over a parted row counts the row's kept part from each centred column's first paragraph (partingKept); also zh-540dc149 97.0 -> 97.8. then DONE -> 100: a line's baseline is its tallest East Asian run's (p2 "□若本机关…"); zh-21421b7d, zh-e02b0479 -> 100 too], zh-31d580df 93.9 [DONE Mac 01Xgpbk5 2026-10-23: 97.2 — a cell's final mark gives its half under the zh-TW list (59d84208). Left: 5-7pt shifts on p25, p35, p38, the rest the scorer's grouping of table lines], zh-13552a3a 94.6 [Linux 017F2GnT 2026-10-23, from the Mac: (1) DONE 042ad155 — a merged cell set whole in a part is drawn once; (2) 59759650 — a parted row opens with its own top line (lab tb), its rows now within 0.3 of Word's, but p28's "正）" still goes over, ~0.2pt short at the foot; RELEASED][Mac 01Xgpbk5 2026-10-23: looked at, RELEASED — both real misses are parted rows (the Mac's, cf. 7502715e): p15-16 row 10's "4.就业失业登记", vMerge restart over rows 10-11, row 10 parting at p15's foot — Word prints its three lines once, centred in p15's part; ours prints them there too and then again "失业登/记" at p16's head (continueSpans moving the lines past the cut by their flow place, after they were re-centred in the part). p28/p30: in a row begun on the page before, the vertically centred cells (cols 3-4) stand 7.1pt higher than Word's, the top-aligned col 2 to the point. p6 is the reader grouping the header row],
+zh-bbbb2e6a 95.2 (16/15 pages) [DONE Mac 01Xgpbk5 2026-10-23: 98.2, 15 pages — an unstated cell side takes the table's or its style's width, not the cells' most common one; zh-505b9619 80.9 -> 96.4 and zh-ad224275 91.9 -> 96.9 with it].
+
+### Note from the Mac (2026-10-22): the zh corpus is 586 documents — a twenty-seventh sample
+Twenty more (`random.seed(20261110)` among the 59 unprinted, 15 to 400 KB, drawn by
+docxcorp id, all printed), checked in. It starts at 89.0% (median 98.1), 17 of 20 page counts
+Word's. Its low ones, unclaimed: zh-b5359de4 2.3 (14/25 pages) [Mac 01Xgpbk5 2026-10-23: column balancing BUILT (ac1e1954) — p4 within 2.6pt of Word's on every line; score 77.3, the scorer grouping Word's doubled contents glyphs. Plain paragraphs only (no rows or notes on the page), one column count for the file; zh-b8de3ae2/8f9b19f4/a0e932c2/6cd1befe did not move — their pages have tables or other column counts; looked at 2026-10-23: their multi-column sections hold 0-50 characters ("資料來源：本所會計室"), zh-b8de3ae2's misses are the reader grouping table cells — extending balancing (per-section column counts) is not worth the slot-model rework for them. RELEASED] [Mac 01Xgpbk5 → 77.9, 14 pages: a cover's sections of other columns no longer set the file in one column (8368f4e8); in columns a page or section break goes to the next page, not the next column (5099d7c0); a section begun down a page counts that page its first (7801acb4). RELEASED, left: Word BALANCES a section's columns on its last page at a continuous break — p4: the preface section's last lines (para 74) stay in column 1, its empty para 75 (YaHei bold 14pt, 1.5 lines) goes to column 2's head, and the next section (TOC heading, 目录) starts under the balanced block, 44.3pt higher than ours; the cover's continuous two-column empties balance on p1 too. Ours has no column balancing (slots of page*columns, filled in turn). Then pp8-13's table rows across columns, not looked at],
+zh-6e6b9821 56.8 (4/5 pages) [DONE Mac 01Xgpbk5 2026-10-23: 99.2, 4/4 pages — blank paragraphs beside a centred floating table (5e452e14), each box of a VML group at its place in its shapetype's textboxrect; zh-e9f256c1 -> 100 too. Left: the group's arrows and box outlines are not drawn (VML shapes in a group print as nothing; text only)], zh-505b9619 71.3 [Linux office1 01Ak4ibJ (lenovo-3) 2026-10-23: 74.4 -> 98.8 — "）。" hangs half an em on a line with word spaces (labs u5/u6, Mac); "%" starts a line by the document's own Taiwan list. RELEASED, left: p6 "…傳真機電話號|碼" (Word wraps "碼"), p15 "…招標時載|明；"; u5 with its blanks as "某" (no word spaces) is Word's at the same limit and ours lower — not found], zh-3ab8a2fb 78.0 (28/27 pages) [DONE Linux b2 01JsizVV → 99.2 on Linux, pages right: a continuous section on paper of another size (its landscape "附件2" table after portrait) starts a page], zh-d3d3f266 93.7 [DONE Linux b2 01JsizVV → 99.3 on Linux: an exact line set w:textAlignment "bottom" ends the text's own line at its foot — 22pt YaHei titles in 28pt lines, baselines 18.06 down in Word's print; also zh-5ff074a9 97.8 → 98.3].
+
+### Note from the Mac (2026-10-22): the zh corpus is 566 documents — a twenty-sixth sample
+Twenty more (`random.seed(20261109)` among the 79 unprinted, 15 to 400 KB, drawn by
+docxcorp id, all printed), checked in. It starts at 92.0% (median 99.5), every page count
+Word's. Its low ones, unclaimed: zh-c15af02e 41.9 [Mac 01Xgpbk5: 勵 U+F97F is Noto's (all 122 Noto compat ideographs now are, 5560cf54) and a Noto joiner no longer holds a gridded paragraph's lines (46.2 -> 45.7, 5620f6ea); pages now Word's to p4's foot. p4 fitter DONE (Linux office1 01Ak4ibJ, 2026-10-23: its runs are off the grid and were weighed at the grid's 17 a character; "發" now taken, 14.4 -> 15.3); page 5's foot DONE (Linux 017F2GnT, 5c8d7006: a note with no line's room under its mark takes the line over; 15.3 -> 52.0, zh-344a8d08 27.8 -> 65.9). p6 DONE too (1a8fc19a: a grid line's overhang does not reach into the notes; 52.0 -> 66.5, and zh-344a8d08 65.9 -> 99.8). p11 DONE (cfe1f15b: the foot line reaches by its own faces; 66.5 -> 79.7). Pages now Word's to p36. NEXT, for the fitter (unclaimed): [p37 DONE Linux office1 01Ak4ibJ (lenovo-3) 2026-10-23: the number "〈2〉" is on the grid where its level says <w:snapToGrid/> over its mark — 79.7 -> 98.9 on Linux] p37's "〈2〉依該市社會經濟發展、交通運輸狀況、車輛持有率預測…" (style 6, kinsoku, jc both, runs snapToGrid 0, 16pt 標楷體) — Word's first line holds 23 characters with the number, ending "車輛持" at 524.58; ours 24, "…車輛持有" at 524.45: ours takes one more over its two 、. Was: RELEASED to the fitter (lenovo-3): p4 "12點規定：直轄市、縣（市）主管建築機關對於已核|發" (mode 15, compressPunctuation, zh-TW, 16pt justified, snapToGrid 0, 374.15pt) — Word takes "發" 13.58pt over off ：、（） (3.40 each), ours refuses (need/count 3.40 > width−x 2.42; STARLING_RICHTEXT_FIT=對於已核發); fits lab zz's ~3.67/mark limit. Also left: p3 "：「" — ours squeezes 「 3.7, Word gives it the full grid cell], zh-a031fa16 55.9 [DONE Mac 0fcba326 → 89.0: an embedded SimSun with bitmaps (EBDT) under another face's name is drawn an em a glyph, ASCII too, bold unwidened — lab `emb`; see office.md],
+zh-9462c6d6 58.6 [DONE Linux 017F2GnT 2026-10-23: p3's row under the raised footer frame — a raised frame wrapped round holds rows, sized or not (lab wr, the Mac); 66.4 -> 100, nothing else moved] [handed to Linux b2 01JsizVV by the Mac: p1's foot — Word keeps the first line of "（二）促進有線廣播電視普及發展…" at 774 under "…服務品質。" (759) and runs its second on p2; ours sends the whole paragraph to p2, every page after a line early — Linux b2 measured: Word leaves an orphan (one line of three, 29.6pt left for 15.6pt lines) where nothing states w:widowControl; turning it off for every file whose defaults are silent took Linux 95.4 -> 91.7 (zh-c4491c11 100 -> 19.6, same compat and Normal), so the default is on and something here turns it off — w:divId on every paragraph, or Normal (Web)? Labs wc, wc2, wc3 (Mac): not the divs, the Web style or the compat flags — a footer frame raised over the footer's top (framePr w:y -15) turns widow control off for the body; y 0 or 1, or no footer, and the paragraph moves whole. DONE: 59.5 -> 66.4 (also zh-73534289, y -2, 99.5 -> 99.9; the 36 with frames at y 1-8 unmoved). Left, measured, released: p3's foot — our table row "四保護消費者…" parts with its first line at 787 (box to ~790.3) where Word starts the row on p4; Word's foot under this footer is ~784.3 (lab wc2: the raised frame lifts it; 798 with no footer), ours ~789.6 (the footer's empty 12pt line from 790.4). Lab wc4: the foot rises by the frame's raise point for point (foot = footer top + its negative y) — Linux b2 checked, released: we do that already (`frameRise`): footer 15.61 + raise 0.75 + 36 = foot 789.64, inside wc4's bounds at y -60 (786.9) and -120 (783.9) but at -15 Word's is under 789.4, so 0.25+ higher than ours. And our row's first line (baseline 787, box to ~790.3 by PMingLiU's line) ends past our own foot, so the row-split path lets it in by some other measure — that, not the foot, is where to look; not chased], zh-0daa510e 94.8, zh-63a571aa 95.0 (Mac 0fcba326: 96.5 and 97.9 under PyMuPDF; zh-63a571aa p5's "…供垃圾車及店鋪使|用。」，" is taken by ours with its three marks squeezed and wrapped by Word — likely the 0.455-em limit lenovo-3 is building; re-check both after it lands).
+
+### Note from the Mac (2026-10-22): the zh corpus is 546 documents — a twenty-fifth sample
+Twenty more (`random.seed(20261108)` among the 99 unprinted, 15 to 400 KB, drawn by
+docxcorp id, all printed), checked in. It starts at 89.3% (median 98.0), every page count
+Word's. Its low ones, unclaimed: zh-9ef811c8 26.3 (Mac 01Xgpbk5 measured, released: pp1-3 match glyph for glyph; from p4 its landscape table parts its "监督检查" row (row 3, every cell vAlign center and itself merged down over rows 3-6) at another line. In Word's print the short cells stand centred in the part on p4 (397-482) and only the channels' list parts, after 5 lines; ours centres each in the whole merged span, so they start low and every one parts, the list after 6. The parted-row centring rule (setWhole) skips them for rowSpan > 1 with cuts in the part; letting a merged cell that fits be centred in the part sank zh-e37f8d40 100 -> 67.6 and did not lift this one, so not that: reverted. Its PDFKit text also repeats glyphs ("其他他他他") — reader; CLAIMED Windows 01QbbApP 2026-10-22, labs on Word for Windows; 27.0 -> 37.9 under PyMuPDF: a row whose merged-down rows hold nothing parts only at one of their tops (lab mg). Next: the merged label centred in its part on the page, and the bulleted cell. Then 37.9 -> 39.3: a cell merged only over the row's ghosts whose text fits the part is set whole in it, and the part keeps the ghost bound's height (bullets 402.8/449.6, Word 403.7/450.5). Then 39.3 -> 50.2: the part that goes over keeps the ghost rows' height (page 5's foot 435.0, Word 437.0). Then 51.6 -> 62.1, 10 pages: a group whose merged text stretches its rows may part where the rows end at their stated heights (lab gs). Then DONE 62.1 -> 99.3: the part that goes over is the last row at its stated height (48.95). One miss each on p7 and p8 left; released. The merged label "综合业务" (content row 2, merged down into the ghost rows) centred in the part on the page: DONE Linux 017F2GnT 2026-10-23, 0af80b0f (partingKept keeps a ghost-row group's last bound that fits; 332.6 vs Word's 333.1; 39.3 -> 40.7); Windows 01QbbApP keeps the continuation part's height (ghostLeft, built and swept once resumed — memory pause)), zh-fea6e23a 54.7 [DONE Mac 0fcba326 → 100: an autofit cell a hair over its column (0.23pt, "11:30-") is widened as Word widens it, and from 2013's layout a too-wide "29-30" parts after its hyphen; also zh-e329b438 85.1 → 89.7, zh-7dd5643e 88.2 → 90.0], zh-05699f05 77.7 [Windows 01QbbApP 2026-10-22: DONE -> 100 (PyMuPDF), PMingLiU's "–" is an em (lab ds); left: PMingLiU's "×" is 0.5 em (6.0 at 12pt, ours 7.01) but set alone it cost zh-e061a08e and 31 others a line, for a reason not yet found. Lab nb (Word for Windows, zh-05699f05's package, left-set): PMingLiU's space is 3.12 (ours 2.82), a no-break space between Latin letters 3.14, beside ideographs or after "）" zero ("甲 乙" is 12.0 from 甲 to 乙). zh-e061a08e's "（…實徵數）×100%" holds no no-break space (one run, hint eastAsia, wordWrap off, justified); the " " 2.82 wide in our PDF between "）" and "×" is a gap our layout inserts there, Word sets none (lab A: "）" to "×" 12.02). Open: that gap, then "×" at 6.0],
+zh-7eba7349 78.5 [Windows 01QbbApP 2026-10-22, looked, released: 76.2 under PyMuPDF, and all 49 missed lines (pp1-2, 7-11) are, by kind: (a) one-NUL lines — a glyph Word prints with no text (likely a full-width space in an otherwise empty paragraph or cell) where ours draws a space the scorer drops: 6 of p8's 10, p1's -208 and -521; (b) the title, whose print maps two glyphs to "!" and '"' (U+0000 matches anything, other characters do not); (c) a few table-head lines PyMuPDF groups otherwise. Corrected after macos: NULs alone are no bar; (a) is the bulk, for the scorer], zh-727812d5 83.3 (Linux 017F2GnT, 2026-10-22: 100.0 under PyMuPDF on the tip, 30 of 30 lines — the Mac's misses are PDFKit's grouping; released), zh-e329b438 85.1 (Linux office1 01Ak4ibJ (lenovo-3) 2026-10-22, released: autofit's narrowest piece leaves out the automatic space after it, and a line-opening piece gives that space up — the label column is 28.09 against Word's 28.08 and "度" a line alone; lab e3w (Mac) puts Word's "30" whole from 28.08, so Word's 28.0 parts it and ours, a pixel up, does not — a 0.1pt edge; 90.3 on Linux, the rest that cell's centring).
+
+### Note from the Mac (2026-10-22): the zh corpus is 526 documents — a twenty-fourth sample
+Twenty more (`random.seed(20261107)` among the 119 unprinted, 15 to 400 KB, drawn by
+docxcorp id, all printed), checked in. It starts at 91.2% (median 98.3), every page count
+Word's. Its low ones, unclaimed: zh-5bfac68f 47.6 (DONE, 100 — Linux office1 01Ak4ibJ (lenovo-3) 2026-10-22: from 2013’s layout a justified line’s automatic spaces give for an ideograph by the share test marks keep, lab `as`; same-base sweep of 637: zh-5bfac68f 50.2 -> 100, zh-81aa310b 98.4 -> 99.7, zh-d9563f2f 99.4 -> 100, zh-147bdae0 +0.1, nothing down; Mac 01Xgpbk5 measured, sent to lenovo-3 — the fitter: p2's "…推動虛擬型態i僑卡作為數位僑務服務基礎，並" (mode 15, zh-TW, no grid, PMingLiU 12pt, jc both) is 501.1pt natural in 498.3 of room; Word sends "並" on and stretches, ours takes it by squeezing the two automatic spaces round "i" from 3.0 to 1.6 apiece, every mark whole. Lab 5b: unjustified, ours = Word to 0.02. The rest cascades, plus reader grouping of its "類別實施內容" heads), zh-61aaad09 50.0 [Linux office1 01Ak4ibJ (lenovo-3) 2026-10-23: 55.3 — the pie's own label text, the placed legend's names wrapped and spread; left: the pie labels' places (ours 9 and 40pt lower) and the bar chart's axis step (Word 200000, ours 100000); released] (Mac 01Xgpbk5 looked, released to charts (lenovo-3): p1's pie labels are "109646, 15.85%" and "582054, 84.15%" in Word's print — value and percent to two places — where ours draws "16%" and "84%", and Word's legend wraps "实体投诉/举报"; its body lines match, p3's one-line shift likely follows from the chart's parts), zh-b0401810 81.3 (Linux b2 01JsizVV: 93.0 under PyMuPDF, 19/19 pages; most misses are a tbRlV merged cell, "职业资格证书、职业技能等级证书" 方正仿宋_GBK with spacing 51, whose characters stand 3pt lower and 4pt right of Word's, so the matcher joins them with the next column's names; handed to windows, released; CLAIMED Windows 01QbbApP 2026-10-22: fa888b3a draws its "、" as Word's "︑" (vertical forms, +0.56em down); then 93.3 -> 97.4 under PyMuPDF: a spaced vertical run's glyph starts its place, as lab vs shows. NOTE, same-base exception: zh-f2835e26 76.4 -> 75.8 in that sweep, but its ink moved to Word's (p6 287.8 / Word 288.0 / before 289.5); the drop is our SimSun stand-in's taller glyph box under the scorer. Then the column's 3.3pt across offset: text reading down has no left margin (labs vs/v2, v3), x 101.9 / Word 101.3. Now 97.4 (PyMuPDF), released. Left: (a) left-set spaced runs start one spacing late (lab vs), no document needs it yet; (b) the 35 missed lines are the reader's merges: the vertical column's characters 1-2pt from the code column's baselines, and name cells (方正仿宋_GBK stand-in, textAlignment center; "*" at 16pt in Times) whose baseline Word sets 3-4pt under the row's codes and ours 2-3pt under, so the matcher joins ours into one line (p9 "*供应链管理师S", p12 "农机驾驶操作员"); sub-point baseline work)
+(1115 lines against Word's 1286) [CLAIMED Windows 01QbbApP 2026-10-22], zh-4e5fe46f 86.0 (Linux 01JsizVV: 85.3 under PyMuPDF. Its p7-p9 tables stand in wrapNone text boxes; p7's, anchored in a one-line paragraph that opens the page with its space before dropped, was cut to that line and drew one row of eleven — fixed (a piece that left only its space before behind is whole; also draws zh-147bdae0's two "附件" labels, as in Word's print). Left, released: the box stands 40pt high because the empty Body Text paragraph before it stays at p6's foot by 0.1pt in ours; Word's 10pt marks there are 楷体_GB2312 in Arial Unicode MS, lines 20.16 (1.74 em x 278/240) to our YaHei 19.87 — the drifting fallback, not modelled), zh-7dd5643e 88.2 (Linux 01JsizVV: 98.1 under PyMuPDF, 103/104 lines — the Mac's 88.2 is reader grouping; released).
 
 ### Note from the Mac (2026-10-22): the zh corpus is 506 documents — a twenty-third sample
 Twenty more (`random.seed(20261106)` among the 139 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 80.9% (median 97.9). Its low ones,
-unclaimed: zh-19dde9e7 0.0 (Word 3 pages, ours 4) [CLAIMED Mac 01Xgpbk5], zh-5f9b6549 0.0 [CLAIMED Mac 01Xgpbk5], zh-045c5a75 24.9 (38 pages against Word's 37) [CLAIMED Mac 0fcba326],
-zh-015abfaf 62.4 (15 against 16) [CLAIMED Mac 0fcba326], zh-77bd4900 68.5 (58 pages; CLAIMED Linux 017F2GnT 2026-10-22), zh-8f70b676 88.2 (CLAIMED Linux 017F2GnT 2026-10-22).
+unclaimed: zh-19dde9e7 0.0 (DONE Mac 01Xgpbk5 → 100, 3 pages: a page-anchored table parts after its first row only where its second does not fit whole — lab pa19 — and stands over the top margin when it opens the page; also zh-0513f641 43.7 → 87.5, zh-77bd4900 68.5 → 94.8, zh-291fcea7 31.9 → 38.9; Linux 017F2GnT ff44e692 → 40.2: its flow chart's labels, text boxes anchored in the form's cells, are drawn now — they were cut to their rows), zh-5f9b6549 0.0 (DONE Mac 01Xgpbk5 → 100: under w:background a header ends in one more empty Normal paragraph — labs 5f, bisected to the background; also zh-4adfcce2 0 → 99.4, zh-5dc5ce34 19.5 → 95.9; and YaHei's "‧" U+2027 is 0.2407 em), zh-045c5a75 24.9 (38 pages against Word's 37; 58.2 on Linux at 192b0a2a, 37/37) [Linux b2 01JsizVV 2026-10-23, measured, RELEASED — wants a Word lab: the article table is NESTED, an 85% pct table (grid 1375/146/7571 = 454.6pt; cells 600 pct noWrap / 100 pct / auto; 15tw spacing and margins, mode 14) in the one cell of a 100% pct table (one-column grid 10787, rows of one cell). Word's col-3 text starts 78.0pt right of col-1's (60.24 -> 138.24), ours 75.3 (60.38 -> 135.68); the right edge is the same in both (~510.4), so Word's text column is 372.2 against our 374.8, and "…申請生活扶" / "助。" wraps in Word only. 85% of the outer cell is ~452, 2.5pt under the grid, and the pct prefs (54.6/9.1) are under col 1's "第 9-1 條" (60.1 + margins); no simple reading gives 78.0. A lab varying the inner pct and col-1's text would settle it] [Linux office1 01Ak4ibJ 2026-10-23, RELEASED (offered to b2): p19 on — not the fitter: Windows lab cq puts Word's "…申請生活扶助。" on one line from 373 and wrapped at 372, as ours; the cell is 2.56 narrower in Word (text from 138.24, ours 135.68) — an 85% pct table with 15tw cell spacing our autofit skips] [Mac 0fcba326: 58.7, 37/37 — a continuation no taller than the foot when its text fits, and the invisible wrapper keeps its cell margins/spacing; left: zh-TW cell punctuation squeeze, released; Windows 01QbbApP 2026-10-22, labs ~/starling-doc-check/lab/sq on Word for Windows, released: the squeeze is not it. Lab s: 28 full-width characters with k "、" before a final "。", over by 1-12pt: the final "。" alone never gives, one "、" gives up to 6.5 (fits at 6pt over, not 7), two or more cover 12; ours = Word in every case. Lab s2: the exact sentence "…縣 (市) 主管機關申請生活扶助。" in body text fits from 380pt in both. What differs is the cell: our column 3 text starts 2.56pt left of Word's (135.68 / 138.24) and reaches about 2.3 further right, so ours holds the line Word wraps. Lab t (this table: 85% pct, centred, 15-twip cell spacing and margins, auto cells, grid 1375/146/7571): Word autofits it, a one-row copy shrinking column 1 till "第10條" breaks per character, where ours keeps the grid (our _autofit skips cell-spaced tables, and keeps a grid nothing overflows). Fixed, Word draws the spaced table ~2pt wider each side; our column 3 text 1.4pt right of Word's. Next is Word's autofit of auto tables, sharing widths by content (dr2/g's G1 too), not a squeeze rule. Aside, lab s2 c: with full-width "（市）" Word fits from 371pt, ours from 377: Word squeezes "（" "）" as well (lenovo-3 fixed it: 45d8d302). Lab sp (Windows 01QbbApP, Word for Windows, fixed tables, grids not Word's own): before mode 15 a pct table's share is of the column plus its side outdents (85% of 534.85 with 0.75pt margins = 455.98; with 15-twip spacing ~458.9), in mode 15 of the column. Applied to every pct table it cost 6 documents (zh-f5a71d87 100 -> 18.9: a fixed 100% table whose grid is Word's own fit) and was dropped: a Word-saved grid already holds it. Only a grid that disagrees with its share would need it],
+zh-015abfaf 62.4 (15 against 16) [Mac 7bd18d8e (macOS-doc) 2026-10-23: measured to the thousandth, RELEASED — a hairline, not a rule. The list lines are 28 cells of 15.748 (grid -1032) from 79.35: every kept line ends at x 520.390 exactly, and the final "）" gives exactly what the line needs, up to its half (7.874): "15.苹果行业劳动竞赛 …（文登区小观镇）" (19 spaces, no tab) has "（" at 402.280, "）" at 512.516, compressed to 7.874, ends 520.390 — kept; "17.手工嵌线技能竞赛<tab>17 spaces（文登区开发区）" has "（" at 402.298 (the tab stop), the same "）" would end 520.408, 0.018 over — Word sends "区）" down; nine such lines (every one with a tab and this need), while the tab lines 4.1 short are kept with "）" at 10.48 (the need, not a third). Ours sets the whole page 0.15-0.22pt left of Word (first glyph x 79.22-79.29 against 79.44; ind firstLine 630 the same), so for us the same lines fit — the x origin, not the give, is the gap; a "third with a tab" rule fits the counts but not the mechanics and was not swept. p1 y527: "…“比学赶帮超”" — ours hangs the Latin-face "”" (Calibri, hint default) 5.1 past the edge after "超" ends 0.2 inside; Word sends "超”" down: no Latin quote hangs anywhere in this print (its one hanging mark is a "，" by 7.0, p1 y494); a legacy, useAltKinsokuLineBreakRules, compressPunctuation file. For the fitter] [Mac 0fcba326 looked, released: pages 1-9 match; from p10 its lines "NN.名称<tab>16 spaces（某某区）" (16pt on a linesAndChars grid of -1032, mode 14, zh-CN, the middle spaces hint eastAsia) keep "区）" in ours, the line exactly full after the fit (448.84 -> 440.94 of 440.95), where Word sends "区）" down and spreads the rest; three such lines a page. Not the hang: limiting "）" to half an em on a grid changed nothing here and cost zh-eb54d3b0 98.5 -> 91.8, Word hanging a whole "】" there. Look at what gives the 7.9pt — the spaces or "（"], zh-77bd4900 68.5 (58 pages; Linux 017F2GnT: 96.4 after macos-ios's b06bb67b, 97.4 after fccea2b0 — a page's part of a table closes with the table's bottom line where that is heavier; left a few lines on pp14-16 and 20-21; released; Linux 017F2GnT 2026-10-23, 97.5, what is left: p14 "說明：依據嘉義市政府○○○年○月○日…理。" is two lines in Word's print, "理。" alone on the second (522.7), one in ours — for the fitter; p20 the budget table's header cells "核銷金額"/"剩餘數" are one line each in Word's (text at x 343.2) and wrap in ours ("核銷金/額", x 347.8), as does "7.預防延緩失能照護計畫費用" — our columns stand ~4pt off Word's; for autofit (Windows); both unclaimed), zh-8f70b676 88.2 (Linux 017F2GnT, 2026-10-22: 98.0 under PyMuPDF on the tip — 50 of 51 lines; the one missed is a narrow cell's "17:00-18:30" wrapped "…18:" / "30" in Word's print, ours a line less; the rest of the Mac's 88.2 is likely PDFKit's grouping; released).
 
 ### Note from the Mac (2026-10-22): the zh corpus is 486 documents — a twenty-second sample
 Twenty more (`random.seed(20261105)` among the 160 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 84.7% (median 98.9). Its low ones,
 unclaimed: zh-2b21a9d4 32.8 (DONE Mac 01Xgpbk5 → 100: a page-anchored table whose row opens with a page break stands on the page the break opens, not over the page before), zh-20d0e98f 37.2 (DONE Mac 01Xgpbk5 → 98.6, 13/13 pages: a line may part after "%" before an opening mark — "…）×100%" / "【107年："), zh-b58b4f0c 37.8 (T145, Linux office1 01Ak4ibJ: 99.8 now — a number that fits parts after its hyphen; released),
-zh-4feaa34c 41.3 (11/10 pages; Mac 01Xgpbk5 looked, released: the drifting fallback again — Word sets every 楷体_GB2312 run in Arial Unicode MS, the bold header's at 12.24pt a character, so "序号" (24.5pt) wraps in its 24.45pt cell, and the taller header row repeats on every page; a reprint today agrees, and zh-78729cf9 reprinted alongside is Arial Unicode too where its 10-17 reference is YaHei; nothing to model), zh-f2ca3070 65.2 (37 pages; CLAIMED Linux 017F2GnT 2026-10-22), zh-74b34f3b 92.6 (Mac 01Xgpbk5 looked, released: every miss is p6's vertical "東引鄉活動中心2樓" cell, its glyphs within 4pt of Word's; PDFKit groups ours as one line, Word's as one per character).
+zh-4feaa34c 41.3 (11/10 pages; Mac 01Xgpbk5 looked, released: the drifting fallback again — Word sets every 楷体_GB2312 run in Arial Unicode MS, the bold header's at 12.24pt a character, so "序号" (24.5pt) wraps in its 24.45pt cell, and the taller header row repeats on every page; a reprint today agrees, and zh-78729cf9 reprinted alongside is Arial Unicode too where its 10-17 reference is YaHei; nothing to model), zh-f2ca3070 65.2 (37 pages; DONE Linux 017F2GnT 2026-10-22, fd6955c4 → 98.5: a right-set list number ("i." lvlJc right) ends where its line starts, its tab going on from there), zh-74b34f3b 92.6 (Mac 01Xgpbk5 looked, released: every miss is p6's vertical "東引鄉活動中心2樓" cell, its glyphs within 4pt of Word's; PDFKit groups ours as one line, Word's as one per character).
 
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 71.5% (median 91.4). Its low ones, unclaimed:
 zh-d97c5474 2.2 (Mac 01Xgpbk5 looked, released: zh-8d72961c's kind — a Greek/Italian/… notice in Nunito Sans, Word for Mac's cloud font (embedded in its print, lines 16.3pt apart at 12pt), which we lack (Carlito, 14.6)), zh-9932bd83 20.0 (99/96 pages; Linux 017F2GnT: the same book as zh-499adba6, word for word — its text, 14 tables and 11 footnotes; it goes with zh-499adba6, whose next is p17's line end, handed to lenovo-3; released), zh-0513f641 31.6 (T136, Linux office1 01Ak4ibJ: 42.4 now — its body style's East Asian language is x-none, so no mark gives (lab c0513, Mac); zh-499adba6's p17 was T135, a mark before a tab; released; Linux 017F2GnT measured, handed to lenovo-3: T131's family again, mid-line — zh-TW 標楷體 14pt, mode 14, compressPunctuation, jc both, numbered (ind 1134/567): p5's "(一)<tab>對地方政府之撥付：本計畫主要補助項目為人事費及基本" ends at "本" in Word's print with "：" its full em (261.5 -> 275.8, every character 14.35 apart, the line stretched), where ours squeezes "：" to 8.3 and takes "維"; every page from p2 is off by such lines, 22/23; released; 22/23
-pages), zh-01bbcd4d 33.2 (T139, Linux office1 01Ak4ibJ: 86.6 now — a spaced ideograph is over the margin by its em and half its spacing; Mac 01Xgpbk5: font table's repeated 方正仿宋简体 fixed — its East Asian entry wins; released the rest to the fitter: p2 line 1, compressPunctuation, Word squeezes "范（" to 8.6 and "）》" to 8.5 and takes 28 characters with "理。" — ours squeezes only the pair and sends "理。" down, which cascades; sent to lenovo-3), zh-db07d44e 33.8 (70 pages; Linux 017F2GnT: 36.8 after 0241bf96 — a merged cell that states no top takes the table's line, pp3-7 Word's now. Left, released: (a) p22's display equation, five fractions in a delimiter ("實績值=(實際取得籌設許可量/預計取得籌設許可量×1/3+…)×100%"), which Word breaks at its "+"s over four rows ~135pt tall and ours sets on one row, ~25pt, over the cell's edge — WriterMath has no line breaking; pages realign after it, so worth a line or two a page there; (b) the fitter, handed to lenovo-3: mode 15, zh-TW, compressPunctuation, 標楷體 12pt, jc both, p30's cell line "範圍內每增(減)10%，加(減)1 分。" (cell 3545 twips) is one line in Word's print with "，" and "。" 9pt each (0.75 em), the ideographs 12 apart; ours keeps both at 12 and sends "分。" on — many of its cells' lines are the same), zh-b378d8c4 36.7 (DONE Linux 017F2GnT 2026-10-22, e007b15b → 100: a parted row's part over the page keeps its cells' margins on top of its stated height — p13's foot is 专栏5's row, at least 132.05 with 15-twip margins, parted over pp12-13 — its part on p13 is 134.4 in Word's print, 133.0 in ours; Windows 01QbbApP: the leading spaces held, x as Word's, no score moved — its misses are p13's foot, a 22pt exact line ending 0.4pt past the 1985 margin that ours keeps and Word sends on; released; Mac 01Xgpbk5 → 39.1: no break at an em dash between digits; released the rest, measured: paragraphs opening with four Times spaces ("    1.城市内涝…") — Word keeps them, 7pt each, from the margin on every line; ours widens them by letter spacing, so a left-aligned line starts 1.8pt in (the engine moves a line by half its first character's spacing) and a JUSTIFIED one collapses them to one space at -5.2pt, the line taking characters Word does not. Engine-level; likely in other documents too),
-zh-e2dc2598 53.6 (Linux 017F2GnT, 2026-10-19: 100.0 on the tip without a change of mine — fixed by a landing since; its footer's extra "X" in ours is FAFAFA, near-white; released. Mac 01Xgpbk5 measured: it cascades from p8, where Word keeps "第四章 丧事活动…" (atLeast 28.5 on a 15.6 grid: 31.2, overhang 5.2) at the foot and ours misses by 0.2pt — our footer stands 0.5pt taller ("-8-" at 731.0 to Word's 731.5, "隆阳区人民政府发布" 768.3 to 768.8). Its footer: a "- PAGE -" box paragraph, then two header-style paragraphs with pBdr none (space 1/4) and first lines indented past the margin (lab `ind`), the second empty; one of those is 0.5 taller in ours), zh-9ba2ead7 73.0 (DONE Mac 011uWpmC → 91.3: a numbered item whose level and paragraph state no indents sets its number at the paragraph's left, the text straight after it), zh-e49d7943 78.4 (Linux 017F2GnT: 82.4 after 87946e40 — the picture after the "…演習編組表" title keeps to the grid, 666 not 660.7, and with lab `e49`'s footer (Windows: the 17.15 YaHei footer raises the foot to 782.35) the 演習日程規劃表 title row goes to p16 as in Word's print; the "附件2" box is drawn since someone else's landing; released; Windows 01QbbApP lab `e49` (~/starling-doc-check/lab/e49, Word for Windows, which prints p15/p16 as the reference): it is the footer. Deleting X's line shape, the 附件3 box, or the table's rows after the title changes nothing; deleting X, or X exact 34pt and less, keeps the title on p15, X exact 35 sends it to p16. The title row stands 756.82-781.54 at X=34 (24.72: its 2.16 top rule, exact 22 line, 0.48 rule under) — so the foot is between 781.54 and 782.54, not the margin's 785.3: the footer, 850 twips up (bottom 799.4), is one 10pt 標楷體 line in style footer (snapToGrid 0) — YaHei's 1.715 em, 17.15 — so its top at 782.25 takes the body's foot up 3.05pt; Mac 01Xgpbk5 looked, released: scattered — p14's "附件2" label is a wps text box (wrapNone, 30.65pt above its paragraph) anchored in the title paragraph "105年全民防衛…演習編組表", which also holds a 431x660pt inline picture and so parts across pages; Word draws the box above the title, ours draws it nowhere. Also p16/p20's tables (calendar, county columns) and p18's lines, not looked at), zh-5be7e156 89.1 (Mac 01Xgpbk5 measured, released: p1's justified lines, Normal with w:spacing -6 under balanceSingleByteDoubleByteWidth + compressPunctuation — Word's automatic space after "〔2021〕46" before "号" is ~7.6pt, ours 3.4, and ours takes a character more a line. Lab `asp` (~/starling-word-check/lab/asp, the file with Normal's spacing varied): the step from "6" to "号" is 14.65 at -12, 15.25 at -6 — each exactly the line's ideograph pitch, as if digit and gap fill one cell — and 12.75 at 0 (pitch 15.79); +6 moved the break. The lines are justified, so the gap is not isolated: a lab on an unjustified line would settle it).
+pages), zh-01bbcd4d 33.2 [Linux b2 01JsizVV 2026-10-24: 86.6 -> 99.4 by cafd43a4 — lab p01 (macOS-doc): spaced quotes give half their spaced width, a spaced mark hangs its whole box; released] (T139, Linux office1 01Ak4ibJ: 86.6 now — a spaced ideograph is over the margin by its em and half its spacing; Mac 01Xgpbk5: font table's repeated 方正仿宋简体 fixed — its East Asian entry wins; released the rest to the fitter: p2 line 1, compressPunctuation, Word squeezes "范（" to 8.6 and "）》" to 8.5 and takes 28 characters with "理。" — ours squeezes only the pair and sends "理。" down, which cascades; sent to lenovo-3), zh-db07d44e 33.8 (70 pages; back at 41.6 after Windows' d24260ae (an equation alone in a cell asks no width); it had REGRESSED 41.6 -> 16.7, 78 pages, by 3a40f13d (Linux 017F2GnT, 2026-10-22: reverting that commit alone restores 41.6 and 70 pages; its cells hold no pictures, but three Office Math equations, set as inline objects — p22's unwrapped display formula, ~400pt, now widens its column; reported to Windows 01QbbApP); Linux 017F2GnT: 36.8 after 0241bf96 — a merged cell that states no top takes the table's line, pp3-7 Word's now. Left, released: (a) p22's display equation, five fractions in a delimiter ("實績值=(實際取得籌設許可量/預計取得籌設許可量×1/3+…)×100%"), which Word breaks at its "+"s over four rows ~135pt tall and ours sets on one row, ~25pt, over the cell's edge — WriterMath has no line breaking; pages realign after it, so worth a line or two a page there; (b) the fitter, handed to lenovo-3: mode 15, zh-TW, compressPunctuation, 標楷體 12pt, jc both, p30's cell line "範圍內每增(減)10%，加(減)1 分。" (cell 3545 twips) is one line in Word's print with "，" and "。" 9pt each (0.75 em), the ideographs 12 apart; ours keeps both at 12 and sends "分。" on — many of its cells' lines are the same), zh-b378d8c4 36.7 (DONE Linux 017F2GnT 2026-10-22, e007b15b → 100: a parted row's part over the page keeps its cells' margins on top of its stated height — p13's foot is 专栏5's row, at least 132.05 with 15-twip margins, parted over pp12-13 — its part on p13 is 134.4 in Word's print, 133.0 in ours; Windows 01QbbApP: the leading spaces held, x as Word's, no score moved — its misses are p13's foot, a 22pt exact line ending 0.4pt past the 1985 margin that ours keeps and Word sends on; released; Mac 01Xgpbk5 → 39.1: no break at an em dash between digits; released the rest, measured: paragraphs opening with four Times spaces ("    1.城市内涝…") — Word keeps them, 7pt each, from the margin on every line; ours widens them by letter spacing, so a left-aligned line starts 1.8pt in (the engine moves a line by half its first character's spacing) and a JUSTIFIED one collapses them to one space at -5.2pt, the line taking characters Word does not. Engine-level; likely in other documents too),
+zh-e2dc2598 53.6 (Linux 017F2GnT, 2026-10-19: 100.0 on the tip without a change of mine — fixed by a landing since; its footer's extra "X" in ours is FAFAFA, near-white; released. Mac 01Xgpbk5 measured: it cascades from p8, where Word keeps "第四章 丧事活动…" (atLeast 28.5 on a 15.6 grid: 31.2, overhang 5.2) at the foot and ours misses by 0.2pt — our footer stands 0.5pt taller ("-8-" at 731.0 to Word's 731.5, "隆阳区人民政府发布" 768.3 to 768.8). Its footer: a "- PAGE -" box paragraph, then two header-style paragraphs with pBdr none (space 1/4) and first lines indented past the margin (lab `ind`), the second empty; one of those is 0.5 taller in ours), zh-9ba2ead7 73.0 (DONE Mac 011uWpmC → 91.3: a numbered item whose level and paragraph state no indents sets its number at the paragraph's left, the text straight after it), zh-e49d7943 78.4 (CLAIMED Windows 01QbbApP 2026-10-23, p16's calendar: labs aa/ab/ac give Word's fit for an all-auto table, its columns min + (max − min)·k, spans spread by the columns' max, see office.md "All-auto tables"; columns 2-8 within 0.1pt on paper; DONE 86.6 -> 93.5 (PyMuPDF), p16 matched, a cell's max capped at 1580pt (lab ae); left: p20, p21, p23's tables (12, 10, 15 misses), released; Linux 017F2GnT, 2026-10-22, p16 measured, not built: the calendar (autofit, tblW auto, cells tcW auto, grid 736/1351/1205/1271…) heads with "星期二" at 16pt 標楷體 (YaHei to Word, 16.0 an em) in its 1205-twip (60.25pt) column; 48pt of text and the default 5.4pt margins fit, yet Word's print wraps it "星期" / "二" and its header row stands 8.6pt taller, every row under it lower; the columns stand where the grid puts them in both prints (星期二 centred at 185.4 in Word's, 185.8 in ours) — answered by Word's own print, no lab: its column edges (49.9/87.1/156.2/214.1/277.0/339.8/402.7/474.7/542.6) make 星期二's column 57.9, not the grid's 60.25 — an all-auto table (tblW auto, every tcW auto) Word redistributes by its content, the total the grid's 492.7 (37.2/69.1/57.9/62.9/62.8/62.9/72.0/67.9 for the grid's 36.8/67.55/60.25/63.55×3/70.0/67.45); ours keeps the grid where no cell overflows. Autofit — for Windows 01QbbApP's T143i line; the "附件3" box is drawn since ff44e692; released. Earlier: 82.4 after 87946e40 — the picture after the "…演習編組表" title keeps to the grid, 666 not 660.7, and with lab `e49`'s footer (Windows: the 17.15 YaHei footer raises the foot to 782.35) the 演習日程規劃表 title row goes to p16 as in Word's print; the "附件2" box is drawn since someone else's landing; released; Windows 01QbbApP lab `e49` (~/starling-doc-check/lab/e49, Word for Windows, which prints p15/p16 as the reference): it is the footer. Deleting X's line shape, the 附件3 box, or the table's rows after the title changes nothing; deleting X, or X exact 34pt and less, keeps the title on p15, X exact 35 sends it to p16. The title row stands 756.82-781.54 at X=34 (24.72: its 2.16 top rule, exact 22 line, 0.48 rule under) — so the foot is between 781.54 and 782.54, not the margin's 785.3: the footer, 850 twips up (bottom 799.4), is one 10pt 標楷體 line in style footer (snapToGrid 0) — YaHei's 1.715 em, 17.15 — so its top at 782.25 takes the body's foot up 3.05pt; Mac 01Xgpbk5 looked, released: scattered — p14's "附件2" label is a wps text box (wrapNone, 30.65pt above its paragraph) anchored in the title paragraph "105年全民防衛…演習編組表", which also holds a 431x660pt inline picture and so parts across pages; Word draws the box above the title, ours draws it nowhere. Also p16/p20's tables (calendar, county columns) and p18's lines, not looked at), zh-5be7e156 89.1 [Linux b2 01JsizVV 2026-10-24, looked, released: p15's "…（省自然资源厅、省发展改革" needs 7.8973pt of squeeze at 15.79pt — half an em to 0.0001 — which ours takes by the Windows limit and the Mac's print refuses; the user's decision (squeeze limit = Windows' half em), so p15-18 stay] (Mac 01Xgpbk5 measured, released: p1's justified lines, Normal with w:spacing -6 under balanceSingleByteDoubleByteWidth + compressPunctuation — Word's automatic space after "〔2021〕46" before "号" is ~7.6pt, ours 3.4, and ours takes a character more a line. Lab `asp` (~/starling-word-check/lab/asp, the file with Normal's spacing varied): the step from "6" to "号" is 14.65 at -12, 15.25 at -6 — each exactly the line's ideograph pitch, as if digit and gap fill one cell — and 12.75 at 0 (pitch 15.79); +6 moved the break. The lines are justified, so the gap is not isolated: a lab on an unjustified line would settle it).
 
 ### Note from the Mac (2026-10-19): the zh corpus is 446 documents — a twentieth sample
 Twenty more (`random.seed(20261103)` among the 200 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 74.1% (median 95.5). Its low ones, unclaimed:
-zh-202582e2 8.6 (15/14 pages; DONE Mac 01Xgpbk5 → 97.8: FangSong_GB2312 by its English name is YaHei to Word on a Mac, an ASCII FZXiaoBiaoSong SimSun, and curly quotes in an East Asian face an em without useFELayout), zh-344a8d08 19.8 (Linux 017F2GnT, 2026-10-22: 26.5 after 0be8be8f — a raised mark's line is its neighbour's, and its foot the line's whole grid pitches, so note 3 parts on p4 as in Word's print (with lenovo-3's T144). Next, unclaimed: p4's last line "…嗣因國內COVID-" (16pt, linesAndChars, balanceSingleByteDoubleByteWidth) — Word fits "COVID-" and breaks before "19", ours is a hair too full and takes "COVID-19" down; the hyphen break itself exists (3ab630b1). Earlier: 25.9 after f9000d0e — a note parts under its mark, a paragraph going on over a page takes there only the notes it marks there; our separator (27.44) and note lines (17.15) now measure as lab T's. What is left on pp4-5 is a fitter line, handed to lenovo-3: footnote 2, "「嚴重特殊傳染性肺炎(COVID-19)第二級疫情警戒標準及防疫措施裁罰規定」之相關規定。" (zh-TW, 標楷體 10pt, mode 14, compressPunctuation, ind hanging 220), is one line in Word's print, "定" in and "。" hung to 516.0 over a 512.1 margin; ours sends "定。" to a second line, the notes a line taller and the page a body line shorter; released; footnote labs, Windows 01QbbApP, ~/starling-doc-check/lab/fn: its package, Word for Windows — which sets 標楷體 in YaHei, so heights are YaHei's. (1) The separator's rule stands 12.2-12.5pt above the first note line's top whatever the grid and the note's length (F1/F3 with the footnote style's snapToGrid 0; F1g/F3g without), and its paragraph is no grid pitch: ~29pt from the body's last line to the first note's top (one 16pt line, not 22.85 or 45.7). Notes under snapToGrid 0 are their face's line (17.16 at 10pt YaHei); without it they take whole 22.85 pitches. (2) Word keeps ONE note line under its mark: P13, the mark in the last (only) line of the page's last paragraph, sets line 1 of a 3-line note on p1 and lines 2-3 on p2 under a continuation rule, the rule 25.1 over the first baseline on both pages); the separator's own height, lab `T` (Windows 01QbbApP, same package, footer off): 14 body lines exact 40pt then the marked paragraph exact H, the largest H kept on its page with its note bisected — 108.89 - H is the separator: Normal 10pt 16.9-18.9, 16pt 26.9-28.9, 22pt 36.9-38.9, with the docGrid and without alike — one single-spaced line of Normal's face off the grid (YaHei's 1.715 em here: 17.15, 27.44, 37.73), its rule 0.55 of that line down from its top, zh-12f87285 27.4 (T134, Linux office1 01Ak4ibJ: 100 now — a row parted at the foot keeps room for its cell's bottom margin; released), zh-291fcea7
+zh-202582e2 8.6 (15/14 pages; DONE Mac 01Xgpbk5 → 97.8: FangSong_GB2312 by its English name is YaHei to Word on a Mac, an ASCII FZXiaoBiaoSong SimSun, and curly quotes in an East Asian face an em without useFELayout), zh-344a8d08 19.8 (Linux 017F2GnT, 2026-10-22: 26.5 after 0be8be8f — a raised mark's line is its neighbour's, and its foot the line's whole grid pitches, so note 3 parts on p4 as in Word's print (with lenovo-3's T144). (2026-10-22: 27.8 with T145, whose hyphen rule fixes p4's "COVID-" line; DONE 2026-10-23, 99.8 (5c8d7006 + 1a8fc19a: a grid line's overhang no longer reaches into the notes — that was the 13th line). Was: p5's foot keeps a 13th body line, "案，並於110年10月14日…", that Word sends to p6 — p5's notes (note 3's carried line and note 4, 3 lines, under the continuation rule) should leave room for 12; a reservation log shows 97.6pt reserved, 12 lines' room, but it mixes the layout's passes and the final page keeps 13 — not found.) Earlier: p4's last line "…嗣因國內COVID-" (16pt, linesAndChars, balanceSingleByteDoubleByteWidth) — Word fits "COVID-" and breaks before "19", ours is a hair too full and takes "COVID-19" down; the hyphen break itself exists (3ab630b1). Earlier: 25.9 after f9000d0e — a note parts under its mark, a paragraph going on over a page takes there only the notes it marks there; our separator (27.44) and note lines (17.15) now measure as lab T's. What is left on pp4-5 is a fitter line, handed to lenovo-3: footnote 2, "「嚴重特殊傳染性肺炎(COVID-19)第二級疫情警戒標準及防疫措施裁罰規定」之相關規定。" (zh-TW, 標楷體 10pt, mode 14, compressPunctuation, ind hanging 220), is one line in Word's print, "定" in and "。" hung to 516.0 over a 512.1 margin; ours sends "定。" to a second line, the notes a line taller and the page a body line shorter; released; footnote labs, Windows 01QbbApP, ~/starling-doc-check/lab/fn: its package, Word for Windows — which sets 標楷體 in YaHei, so heights are YaHei's. (1) The separator's rule stands 12.2-12.5pt above the first note line's top whatever the grid and the note's length (F1/F3 with the footnote style's snapToGrid 0; F1g/F3g without), and its paragraph is no grid pitch: ~29pt from the body's last line to the first note's top (one 16pt line, not 22.85 or 45.7). Notes under snapToGrid 0 are their face's line (17.16 at 10pt YaHei); without it they take whole 22.85 pitches. (2) Word keeps ONE note line under its mark: P13, the mark in the last (only) line of the page's last paragraph, sets line 1 of a 3-line note on p1 and lines 2-3 on p2 under a continuation rule, the rule 25.1 over the first baseline on both pages); the separator's own height, lab `T` (Windows 01QbbApP, same package, footer off): 14 body lines exact 40pt then the marked paragraph exact H, the largest H kept on its page with its note bisected — 108.89 - H is the separator: Normal 10pt 16.9-18.9, 16pt 26.9-28.9, 22pt 36.9-38.9, with the docGrid and without alike — one single-spaced line of Normal's face off the grid (YaHei's 1.715 em here: 17.15, 27.44, 37.73), its rule 0.55 of that line down from its top, zh-12f87285 27.4 (T134, Linux office1 01Ak4ibJ: 100 now — a row parted at the foot keeps room for its cell's bottom margin; released), zh-291fcea7
 30.9 (Windows 01QbbApP, lab `sr`: a parted row's top rule on the next page now on the page's head line (zh-f43c9edf 71 -> 100 with it); zh-291fcea7 stays 31.4 — in its package our cell text stands 0.65pt lower under each row's top line than Word's (labs T1/T2, ~/starling-doc-check/lab/sr), which is what ends its p3 table 0.85 low; released. Tried: PMingLiU's own baseline (0.8008 + half the line's 0.3, 0.951 em) moves glyphs only, not rows — zh-291fcea7 unchanged, zh-06c46ba9 -0.4 (its "※" cell lines, 新細明體 marks in 標楷體 text, 5pt higher), three +0.2-0.7, net +0.002 over 466: not landed; Mac 01Xgpbk5 measured, released: all of it cascades from page 3, where 28 empty 12pt 標楷體 paragraphs (YaHei, two 18pt pitches each) end a table — Word fits 14 on p3, ours 13, the 14th 0.35pt short at the foot (the footer pushes the foot 4.4pt in both; its overhang is the East Asian 7.7). The 0.35 is the table: a row split from p2 resumes on p3 with its top line at 56.64 in Word, 57.45 ours, the continuation 28.56 tall in Word, 28.12 ours, the table ending 0.9pt lower; a lab on split-row continuations at a page top would settle it), zh-b3e887f7 47.2 (DONE Mac 01Xgpbk5 → 54.7: a time range wider than its cell parts after its hyphen, and autofit counts it so; released the rest: Word widens its 46.8pt time columns to 47.1 for "11:30-" (36.2pt in 36.0), 0.2 over, inside our autofit tolerance of a point (bug57031 needs it), so our "11:30-13:00" cells drop the hyphen to a line of its own), zh-9f24d3eb 53.8 (DONE Mac 01Xgpbk5 → 100: a paragraph whose mark is hidden — a style separator — runs on into the next), zh-447f1d5c 61.8 (98 pages; DONE Mac 01Xgpbk5 → 98.4: w:doNotUseIndentAsNumberingTabStop — a label's tab goes to the first of the next default stop and the hanging indent),
-zh-f43c9edf 70.8 (DONE Mac 01Xgpbk5 → 100: spaces before a mark no line may start with are no break — "提取    %" parts before 取), zh-5c7787f5 79.5 (Mac 01Xgpbk5 measured, released: reader, not layout — every row matches Word to 0.7pt, but its numbers are drawn in our 仿宋 stand-in Liberation Mono at 8.7pt where Word draws FangSong 10.6, and PDFKit groups Word's "31" with the name cell's first line and not ours), zh-e4ef4c4d 93.3 (Mac 01Xgpbk5 measured, released: p5's borderless two-column table holds a picture anchored in each cell (wrapTight, layoutInCell); the right one, 184pt in a ~216pt cell, leaves no room beside it, and Word sets its paragraph's text below it — ours draws the picture in Word's place but sets the text over it. Needs text wrapping round a picture floating in a cell; Windows 01QbbApP 2026-10-22: DONE -> 100, a cell paragraph goes under a wrapped picture of its that leaves it no room (lab wc: exact lines step down whole lines). Left, no score: Word keeps a picture anchored above its cell inside the cell, at the row top; ours draws p5's top photos 11.7 and 23.4pt above it). (A sampling note: the
+zh-f43c9edf 70.8 (DONE Mac 01Xgpbk5 → 100: spaces before a mark no line may start with are no break — "提取    %" parts before 取), zh-5c7787f5 79.5 (Mac 01Xgpbk5 measured, released: reader, not layout — every row matches Word to 0.7pt, but its numbers are drawn in our 仿宋 stand-in Liberation Mono at 8.7pt where Word draws FangSong 10.6, and PDFKit groups Word's "31" with the name cell's first line and not ours), zh-e4ef4c4d 93.3 (Mac 01Xgpbk5 measured, released: p5's borderless two-column table holds a picture anchored in each cell (wrapTight, layoutInCell); the right one, 184pt in a ~216pt cell, leaves no room beside it, and Word sets its paragraph's text below it — ours draws the picture in Word's place but sets the text over it. Needs text wrapping round a picture floating in a cell; Windows 01QbbApP 2026-10-22: DONE -> 100, a cell paragraph goes under a wrapped picture of its that leaves it no room (lab wc: exact lines step down whole lines). Then, no score: a wrapped picture anchored above its cell stands at the cell's top, as Word's p4/p5 have it (wrapNone ones not: zh-e49d7943's 附件5). (A sampling note: the
 corpus names a document by its docxcorp id, the cache's file name — not by a
 hash of its bytes, which differs; a draw that excludes by content hash picks
 documents already in the corpus.)
@@ -545,13 +778,13 @@ documents already in the corpus.)
 ### Note from the Mac (2026-10-19): the zh corpus is 426 documents — a nineteenth sample
 Twenty more (`random.seed(20261102)`, all printed), checked in. It starts
 at 83.0% (median 98.1). Its low ones, unclaimed: zh-3fe252ff 15.0 (94/95
-pages; Linux 017F2GnT, DONE 2026-10-19, 0eb88e8b: its Wingdings "Ø" bullets were measured at the "➢" stand-in's width and the text face's scaled size, so the text went to the 63pt stop, not 42; now 98.6 on Linux, 94 pages), zh-7b125a21 21.3 (105 pages; DONE Mac 01Xgpbk5 → 85.3: a grid line may reach a twip past its overhang. The rest is its CESI宋体-GB13000 body, which Word sets in SimSun at 13.611pt lines for 10.5pt, not 1.3 em (13.65); the only corpus document with that face, left), zh-289155d6 46.1 (DONE Mac 01Xgpbk5 → 99.7: lab `ef` — Word's foot test is ≤ in binary float, so exact lines of whole quarter points may end on the foot; `pf`'s 20.85pt cannot), zh-0b48a0db 50.7 (DONE Mac 01Xgpbk5 → 99.3: a cell paragraph of no style takes Normal's own pPr over the table style's),
+pages; Linux 017F2GnT, DONE 2026-10-19, 0eb88e8b: its Wingdings "Ø" bullets were measured at the "➢" stand-in's width and the text face's scaled size, so the text went to the 63pt stop, not 42; now 98.6 on Linux, 94 pages), zh-7b125a21 21.3 (105 pages; DONE Mac 01Xgpbk5 → 85.3: a grid line may reach a twip past its overhang. The rest is its CESI宋体-GB13000 body, which Word sets in SimSun at 13.611pt lines for 10.5pt, not 1.3 em (13.65); the only corpus document with that face, left) [DONE Linux b2 01JsizVV 2026-10-24: 85.3 -> 99.9 — 5a38bee1, lab lab7b (macOS-doc): under kinsoku 0 the paragraph's last mark gives its blank half besides half the character before it; earlier: 85.3 -> 94.0, released — f71b0e40 lets a Times "," after an ideograph start a line under kinsoku 0; 392bbd73 sets SimSun's line at 1.2972 em (lab f, macOS-doc: 13.614 at 10.5pt, 15.559 at 12; zh-0978dee9's 10pt cells 12.976), which also took zh-b5359de4 79.7 -> 95.8. ], zh-289155d6 46.1 (DONE Mac 01Xgpbk5 → 99.7: lab `ef` — Word's foot test is ≤ in binary float, so exact lines of whole quarter points may end on the foot; `pf`'s 20.85pt cannot), zh-0b48a0db 50.7 (DONE Mac 01Xgpbk5 → 99.3: a cell paragraph of no style takes Normal's own pPr over the table style's),
 zh-e9616b2b 63.1 (6/10 pages; DONE Mac 011uWpmC → 93.8, 6/6: an invisible one-column wrapper round tables is read as the body, kept for the save; earlier, Mac 01Xgpbk5 measured, released: the whole document is in a 1-column, 2-row table with no visible borders (tblBorders insideV only), its three tables nested in the cell; pp1-4 match Word's, then the nested 35-row checklist (exact 17pt rows, can't split) is flattened as nested tables are (Docx.swift ~943) and runs four pages where Word's fits one. Reading such an invisible one-column wrapper as body would fix it but loses the wrapper on save; the real fix is laying out nested tables), zh-147bdae0 89.3 (DONE Mac 01Xgpbk5 → 90.7: in a table of separated borders the row above's bottom line is not taken again in the cell under it; the rest is repeated header rows ~1.2pt high and the reader grouping their centred cells),
 zh-9bcea239 93.2 (DONE Mac 01Xgpbk5 → 95.1: VML fit-to-text boxes are sized once too, and a fitted box's paragraph with an East Asian face stays whole only by halving its spaces — lab `vf`, office.md; the rest is page 11's scoring table).
 
 ### Note from the Mac (2026-10-19): the zh corpus is 406 documents — an eighteenth sample
 Twenty more (`random.seed(20261101)`, all printed), checked in. It starts
-at 90.0% (median 98.1). Its low ones, unclaimed: zh-884c6e3e 47.2 (5
+at 90.0% (median 98.1). Its low ones, unclaimed: zh-884c6e3e 47.2 [Windows 01QbbApP 2026-10-23, lab `zq` on Word for Windows (~/starling-doc-check/lab/zq, this document's own package and paragraph, the first-line indent a plain 2em in twips, the right indent stepped 2 twips): the need is measured from each size's own probe (left-aligned, a break after 征: "2." 0.90 em, every full-width character an em, marks at full width). "征" is TAKEN UP TO / REFUSED FROM: 12pt 5.97/6.07 (0.498/0.506 em), 14pt 6.96/7.06 (0.497/0.504), 16pt 7.90/8.00 (0.494/0.500), 18pt 9.01/9.11 (0.500/0.506), 20pt 9.99/10.09 (0.4996/0.505). From 征's own glyph left plus its em instead, about 0.07pt less. At 16pt by marks on the line before 征: 0 marks (。 and ， made ideographs) -> NO squeeze, refused from 0.00 over; 1, 2 or 3 marks -> exactly 7.90/8.00. So on Windows the limit is half an em, not per mark and not more for more marks, and nothing without a mark to give; each sweep has a single flip. Ours (half the character before) matches it. The Mac's 7.30 at 16pt looks like Mac metrics (fake bold, 楷体_GB2312 substitution) in the natural width, not a different rule. Windows is the tiebreak per the user's decision. RECONCILED with zz: "Windows agrees" below was a misreading. In zz's Windows print (~/starling-doc-check/lab/zz/zz.pdf, zz2.pdf, the bold 楷体 paragraph with firstLineChars 200) Word flips between w:right 69 and 79 twips, which zz's labels call 11.0/11.5 over, not 7.30/7.35. Those labels take the Mac's natural width, about 3.25pt wider than Windows' own (the bold 楷体 run "2.商业用房临时安置费标准。", 13 glyphs, Mac fake bold about 0.25 a glyph). By Windows' own widths that flip is 7.75/8.25 over, half an em, as zq.] MORE (Windows 01QbbApP, labs zq-m15/k*/cf, 2026-10-23): in zq's package with compatibilityMode 15, two marks give more (taken up to 11.6, refused from 11.8 at 16pt); one mark (the 。 or the ， alone) gives half an em, as mode 14; no mark gives nothing. kinsoku and/or overflowPunct off change nothing (mode 14, half an em). zh-8628cfbe's "2.與去年實際數比較，相同者得基準分" (YaHei 12pt, kinsoku/overflowPunct/autoSpace off, mode 15, one ，) in its own package, as body or alone in a fixed one-cell table, takes "分" up to 6.02 over and refuses it from 6.12: half an em. That document's print wrapping "分" (Windows and Mac alike) points to its cell being narrower in Word's layout than in ours, not to the squeeze. [RELEASED by Linux office1 01Ak4ibJ (lenovo-3) 2026-10-23, rule not found: labs zz–zz5 (Mac, Windows agrees) put Word's limit for "征" after "被" (16pt, mode 14, zh-CN, two marks) at 7.30 taken / 7.35 refused, whatever the line's length, the leading "2.", the first-line indent or the doNotWrapTextWithPunct / doNotUseEastAsianBreakRules switches; ours, half the character before, takes it to 8. Not a flat 0.455 em: zh-6cd1befe (mode 14, zh-CN, 16pt spaced -0.5) takes 7.5 over in Word. Not a per-mark cap (≈3.65): zz's three-mark line ("２．") stops at 7.3 too, unless "．" gives nothing there; Mac 0fcba326 measured, released to the fitter (lenovo-3 asked): first miss p2, "2.商业用房临时安置费标准。选择期房产权调换的，按被|征" (mode 14, compressPunctuation, zh-CN, 16pt justified): labs `zz`/`zz2` (Word 16 Mac, this package, right indents) — Word takes "征" up to 7.30pt over with 。 and ， giving ~3.7 each, refuses from 7.35; ours takes it to 8 (legacy need/count ≤ width−x, 10.67 with two marks, which fit lab `mh`). Files ~/starling-word-check/lab/zz] (5
 pages; Mac 01Xgpbk5 measured, released to lenovo-3; Linux office1 01Ak4ibJ looked 2026-10-19, released: Word's print draws every 楷体_GB2312 run in Arial Unicode MS, the drifting fallback, and the bold ones emboldened 0.32pt a character (step 16.645 against YaHei's 16.325 on the same justified line) — that is the natural width the line lacks in ours (12 bold characters, ~4pt). Converted with the runs renamed Arial Unicode MS, ours still takes "征", now ~7.5 over against half of "被" (8): within a point of the legacy rule's edge, on a face Word does not always take. Nothing to build; everything after p2 cascades from that line. Earlier: p2's "2.商业用房…按被" — ours squeezes "。" and "，" 2.1pt each to take "征", Word sends it on, though lab `lq3` in its own package takes the next ideograph up to half an em with "，，", "。，", and a leading "2." alike — so the line differs in its natural width somewhere, not the rule), zh-e74dd0a1 52.1 (134/132 pages; Linux 017F2GnT, DONE 2026-10-19, d5bbcc42: a break-only paragraph then one opening with its own break left Word's blank p63 out — the two breaks merged; now 99.4, 134 pages, lab `bb` from the Mac agrees),
 zh-c9f4d690 62.8 (Mac 01Xgpbk5 measured, handed to lenovo-3: under wordWrap 0 a paragraph ending "…等部门。 " — the "。" hanging past the margin — puts its ONE closing space on a line of its own in Word's print; `_looseWordOffsets` wraps closing spaces only from two, so p14 on runs a line early), zh-cfb32050 73.7 (Mac 01Xgpbk5 measured, sent to lenovo-3: zh-TW 標楷體, mode 14, compressPunctuation — Word squeezes no mid-line "、" or "，" (all 16.4 apart on p3's "…得獎名"), ours squeezes both to 8.3 to take "額" and hang "。"; the T119 family, mid-line), zh-e64d4997 84.2 (Mac 01Xgpbk5 looked: zh-TW cell lines a character long in ours, "…歲出成" — likely the same squeeze as zh-cfb32050; released).
 
@@ -559,13 +792,13 @@ zh-c9f4d690 62.8 (Mac 01Xgpbk5 measured, handed to lenovo-3: under wordWrap 0 a 
 Twenty more (`random.seed(20261031)`, all printed), checked in. It starts
 at 94.0% (median 98.4). Its low ones, unclaimed: zh-875759ff 30.8 (58
 pages; Mac 01Xgpbk5 measured, released: Word's print sets its contents entries' 楷体_GB2312 in Arial Unicode MS — the drifting fallback, see the note below; zh-78729cf9 reprinted the same day now has 545 such characters where its 2026-10-16 print has none — so each 16pt entry is 0.6pt taller than ours in YaHei, and the pages slip from p2 on. Nothing to model while the fallback drifts), zh-8415d258 85.5 (Mac 01Xgpbk5, 98.2 now — a run of plain and no-break spaces is half an em from its first plain space on, lab `nb`; released), right-set; Word's print steps them 4.44 then 7.5pt each — half an em at 15pt — over two lines and a part, "水利部办公" / "厅"; ours sets them at the stand-in's 4.3, as `balancesSpaceWidth` takes plain spaces only and each plain one sits between two no-break ones. Widening every space of a mixed run took it to 92.4 but sank 17749c13, 903376c0, d0bfd38c (100 -> 5-8), c6ab068c and 621d8756 — zh-0aac9d1a has 26 such mixed runs Word keeps narrow — so the rule is narrower than that; a lab on runs that open a paragraph is next; the space-run hang to the paper's edge is not it, lab `sp` (ours = Word's)), zh-81aa310b 93.9 (Mac 01Xgpbk5 looked: glyphs at Word's; the reader groups its "人員審查意見" cells apart; released),
-zh-77079ee8 94.5 (Mac 01Xgpbk5 looked: a turned cell and the reader; released), zh-6e7ff836 94.5 (979/1141 lines; Mac 01Xgpbk5 looked: table cells the reader groups apart, and p20 opens a block early; released).
+zh-77079ee8 94.5 (Mac 01Xgpbk5 looked: a turned cell and the reader; released; DONE Mac 01G9VUDS 2026-10-24 → 97.0, nothing else moved over 645: under w:defaultTabStop 0 with no stop to go to, a paragraph's or line's LEADING tab takes no room — its 28pt cell "<tab>宣導說明會" sets "宣" on the tab's line; a mid-line tab keeps its width, as zh-c15af02e's "多，<tab>顯有未合" shows (99.6 → 96.8 when it did not)), zh-6e7ff836 94.5 (979/1141 lines; Mac 01Xgpbk5 looked: table cells the reader groups apart, and p20 opens a block early; released).
 
 ### Note from the Mac (2026-10-18, late): the zh corpus is 366 documents — a sixteenth sample
 Twenty more (`random.seed(20261030)`, all printed), checked in. It starts
 at 87.4% (median 96.3). Its low ones, unclaimed: zh-a78d52e7 6.1 (26
-pages; Mac 01Xgpbk5, 97.1 now — a page-anchored top-and-bottom float bands its page, and a VML box fitted to its text is its text's height; released), zh-6e653ca0 53.6 (Mac 01Xgpbk5 measured, released: our baselines are Word's to 0.9pt on every page; the loss is p8's "第四章" heading, whose 31.2pt grid line (at least 28.5, SimHei over a 仿宋 mark) ends at 722.2 in Word's print, 5.0pt past Word's body foot at 717.2 (the footer's top, read off its "- 8 -" box) and within the 5.2pt grid overhang SimHei's 20.8pt line leaves; ours, with a footer 0.5pt taller (75.6: an empty and a box-only paragraph each 1pt over their lines for style 9's "none" border spaces, and an 18.6pt bold 宋体 line, against Word's 75.1), is 5.5 over and sends it on. Lab `fz` (Mac, Word 16.113.3): style 9's none-border spaces are 1.92pt of Word's footer (ours 2.0) and the trailing spaces after "发布" change nothing; Word's bold 14pt 宋体 line is 18.2 (1.3 em) where ours is 18.6 with the 16pt "X" line above it (no strut: the paragraph is not uniform) — quieting the spaces did not move it, so it is the run's own face metrics under the engine; earlier look: p8's "第四章" heading fits at the foot in Word's print (695) and goes over in ours; our lines on p8 stand 2-3pt low of Word's from the page top though p3 is 1pt — the drift between, and the heading's line on the 15.6 grid, are where to look), zh-86547e97 54.3 (Windows 01QbbApP, 75.9 -> 99.5 there — over single spacing a bold run sets the line its regular text does; zh-d746674a 81.9 -> 91.9 with it; released; Mac 01Xgpbk5 looked, released: p1 "第一章　总　　则" (Normal (Web), 1.5 lines, snapToGrid 0, bold 楷体_GB2312 16pt) to "第一条" is 41pt in Word's print, 54 in ours; both lines are 1.5 × YaHei's 16pt and Word's body pitch is 41.2, so something adds 13 to our first line of "第一条" — a bold Strong-style run and a bold space start it),
-zh-ae79c618 88.4 (Mac 01Xgpbk5 looked: one paragraph at p10's foot a line apart; released), zh-360c1df1 89.2 (Mac 01Xgpbk5 looked, released: lines at the fit's edge — p7's "2.自然资源…金山银山”" is 394.2pt natural against ~394.3 of room, and Word breaks before "山”", ours takes it; 12 runs of the kind), zh-ee9d81b3 89.6 (Mac 01Xgpbk5 looked: one run at p5's foot, 11pt; released).
+pages; Mac 01Xgpbk5, 97.1 now — a page-anchored top-and-bottom float bands its page, and a VML box fitted to its text is its text's height; released), zh-6e653ca0 53.6 [DONE Mac 0fcba326 with Linux b2 → 100 (and zh-e2dc2598): the trailing-space joiner has height only where the spaces run past the line and wrap (zh-c5b5087b's), none where they fit; zh-ae79c618 88.4 → 99.2 with it] (Mac 01Xgpbk5 measured, released: our baselines are Word's to 0.9pt on every page; the loss is p8's "第四章" heading, whose 31.2pt grid line (at least 28.5, SimHei over a 仿宋 mark) ends at 722.2 in Word's print, 5.0pt past Word's body foot at 717.2 (the footer's top, read off its "- 8 -" box) and within the 5.2pt grid overhang SimHei's 20.8pt line leaves; ours, with a footer 0.5pt taller (75.6: an empty and a box-only paragraph each 1pt over their lines for style 9's "none" border spaces, and an 18.6pt bold 宋体 line, against Word's 75.1), is 5.5 over and sends it on. Lab `fz` (Mac, Word 16.113.3): style 9's none-border spaces are 1.92pt of Word's footer (ours 2.0) and the trailing spaces after "发布" change nothing; Word's bold 14pt 宋体 line is 18.2 (1.3 em) where ours is 18.6 with the 16pt "X" line above it (no strut: the paragraph is not uniform) — quieting the spaces did not move it, so it is the run's own face metrics under the engine; earlier look: p8's "第四章" heading fits at the foot in Word's print (695) and goes over in ours; our lines on p8 stand 2-3pt low of Word's from the page top though p3 is 1pt — the drift between, and the heading's line on the 15.6 grid, are where to look), zh-86547e97 54.3 (Windows 01QbbApP, 75.9 -> 99.5 there — over single spacing a bold run sets the line its regular text does; zh-d746674a 81.9 -> 91.9 with it; released; Mac 01Xgpbk5 looked, released: p1 "第一章　总　　则" (Normal (Web), 1.5 lines, snapToGrid 0, bold 楷体_GB2312 16pt) to "第一条" is 41pt in Word's print, 54 in ours; both lines are 1.5 × YaHei's 16pt and Word's body pitch is 41.2, so something adds 13 to our first line of "第一条" — a bold Strong-style run and a bold space start it),
+zh-ae79c618 88.4 (Mac 01Xgpbk5 looked: one paragraph at p10's foot a line apart; released), zh-360c1df1 89.2 (Mac 01Xgpbk5 looked, released: lines at the fit's edge — p7's "2.自然资源…金山银山”" is 394.2pt natural against ~394.3 of room, and Word breaks before "山”", ours takes it; 12 runs of the kind), zh-ee9d81b3 89.6 (Mac 01Xgpbk5 looked: one run at p5's foot, 11pt; released) [DONE Linux b2 01JsizVV 2026-10-23: 88.7 -> 99.0 — without w:compat/w:spaceForUL a centred exact line sets the text's middle where the baseline would stand (lab ctr, Mac 01G9VUDS: 34.53 = 28.05 + 6.45 at 35pt); with it, as before, its own line centred. Only 7 of the corpus's 97 documents with centred text lack the switch; nothing else moved].
 
 ### Note from the Mac (2026-10-18, late): the zh corpus is 346 documents — a fifteenth sample
 Twenty more (`random.seed(20261029)`, all printed), checked in. It starts
@@ -580,8 +813,8 @@ same batch printed zh-e8d4c046 just before it, whose "仿宋_GB2312" embed is
 really SimSun. REPRINTED after relaunching Word: the body is YaHei, as
 ours, and ours scores 94.8 against it (and again YaHei after a print of
 zh-e8d4c046, so it is not that file's face carried over by name). The
-fresh print replaces the reference), zh-27a874b7 37.4 (Mac 01Xgpbk5 looked: p1 matches; p2 4pt and p3's chart labels (charts are lenovo-3's); released), zh-de073ee5
-55.2 (Mac 01Xgpbk5, 100 now — a wide word measured at its face's advances; released), zh-c2229d4a 75.1 (Mac 01Xgpbk5 looked: Word's text layer drops most glyphs of its embedded subset — the reader; released), zh-785e46f8 88.2 (Linux 017F2GnT claimed 2026-10-18: curly quotes under hint "default" in the Times hAnsi, 7.1pt where ours set an em; Mac 01Xgpbk5 had built the same unclaimed and pushed it first, fff07cdb, 90.2 now — sorry; the rest is line ends the fitter fits a character short), zh-7fd860f9 89.6 (Linux 017F2GnT looked: table cells grouped apart by the reader).
+fresh print replaces the reference), zh-27a874b7 37.4 [Linux b2 01JsizVV 2026-10-23: 34.8 -> 50.0 on Linux — a Latin face set by its middle (textAlignment center) in an exact line is measured by its natural line; p2's Times 14pt in 27pt lines stand 18.7 down in Word's print, ours were 21.9; released] (Mac 01Xgpbk5 looked: p1 matches; p2 4pt and p3's chart labels (charts are lenovo-3's); released), zh-de073ee5
+55.2 (Mac 01Xgpbk5, 100 now — a wide word measured at its face's advances; released), zh-c2229d4a 75.1 (Mac 01Xgpbk5 looked: Word's text layer drops most glyphs of its embedded subset — the reader; released), zh-785e46f8 88.2 (Linux 017F2GnT claimed 2026-10-18: curly quotes under hint "default" in the Times hAnsi, 7.1pt where ours set an em; Mac 01Xgpbk5 had built the same unclaimed and pushed it first, fff07cdb, 90.2 now — sorry; the rest is line ends the fitter fits a character short [Linux b2 01JsizVV 2026-10-24, looked, released: p4's "…推进宁波石化" needs 7.9993pt of squeeze at 16pt, a half em to 0.001 — ours takes it by the Windows limit, the Mac's print refuses it; the user's decision, as zh-5be7e156's p15. p5-p9 follow from it]), zh-7fd860f9 89.6 (Linux 017F2GnT looked: table cells grouped apart by the reader).
 
 ### Note from the Mac (2026-10-18, late): Word for Mac's face for a missing 方正 name is not reproducible
 Thirteen of the corpus's prints draw some 方正小标宋 runs in **Arial Unicode
@@ -611,7 +844,7 @@ not the file's to say), zh-6043ad90 28.4 (8/9 pages; Mac 01Xgpbk5, 100 now — a
 
 ### Note from the Mac (2026-10-18, night): the zh corpus is 306 documents — a thirteenth sample
 Twenty more (`random.seed(20261027)`, all printed), checked in. It starts
-at 84.0% (median 95.3). Its low ones, unclaimed: zh-ab1ea005 9.2 (68/67
+at 84.0% (median 95.3). Its low ones, unclaimed: zh-ab1ea005 9.2 (68/67 [Windows 01QbbApP 2026-10-23, lab `qh` on Word for Windows, for lenovo: p11's heading "7.为了促进就业，…税收优惠？" (方正楷体_GBK 16pt, its own package) keeps "惠？" on line 1 up to 7.91 over and wraps from 8.01, a single flip, as the Mac does: half an em, as lab zq. Ours, hanging "？" a whole em plus the "，"'s 3.03, takes it to about 19.] [Windows 01QbbApP, labs qh v*/qe: what decides the hang is `w:characterSpacingControl`. In ab1ea005's own package with only doNotCompress set, "？" hangs a whole em (taken up to 15.91 at 16pt, refused from 16.01); dropping doNotUseEastAsianBreakRules changes nothing. zh-TW, jc both, hint eastAsia, 標楷體 and kern 2 each keep the half-em limit under compressPunctuation. zh-eccb2003 p9 (doNotCompress, mode 15) hangs its "？" a whole em on Windows too: as printed, its ink 17.5 past the edge; swept, taken up to 13.95 at 14pt, refused from 14.05.]
 pages; Mac 01Xgpbk5, 12.0 now — its dots drawn in reading order (e2270403,
 zh-cd8987db 87.2 -> 89.9 too); the rest is the fitter's, handed to lenovo-3:
 a right-stop tab whose unsqueezed start is before its stop stays on its
@@ -643,6 +876,7 @@ pages; Mac 01Xgpbk5, looked, released: not Chinese — a Greek/Turkish/Arabic no
 84.5 (Mac 01Xgpbk5, looked, released: the tables lay out as Word's — the same column edges to 0.4pt, the same lines — and Word's text layer drops characters in them, "序号", "项目名称"'s 目名, "面积"'s 积), zh-2e7ef069 87.5 (Mac 01Xgpbk5, looked, released: its footer box (wrap none, spAutoFit, sized by "- 1 -", the dashes inside the PAGE \\* MERGEFORMAT result) prints "-10-" whole in Word, where ours wraps the closing dash on every two-digit page — sent to Mac 011uWpmC beside lab ftD — Mac 011uWpmC, 89.0 now: lab `ft` (the file's footer over 11 pages, and with the dashes typed round a plain PAGE) prints "- 10 -" whole either way, so a fitted box's paragraph with no East Asian character is one piece; the rest is form cells' "（签章）"/"年月日" a few points off).
 
 ### T133. Shapes anchored in a table cell (zh-291fcea7 p5's flowchart) — measured, released
+Windows 01QbbApP 2026-10-23 (from the Mac 0fcba326): (1) DONE, lab tf. Nested floating tables are floating boxes from the cell, and the four boxes stand within 0.3pt of Word's. zh-291fcea7 40.2 -> 61.5, zh-ad224275 98.1 -> 100. (2), the hexagon's text, is drawn in lab tf's page; not checked further. Released.
 Owner: Mac 011uWpmC (session starling-bd), from 2026-10-19
 Documents: zh-291fcea7 (30.9; p5 holds 18 of 23 lines missed there).
 Known: the flowchart is wps shapes (a hexagon, rounded boxes) anchored to paragraphs inside a one-column
@@ -669,7 +903,7 @@ and zh-7b5b3de2, Word's text layer (embedded subsets) and not layout.
 ### Note from the Mac (2026-10-18, morning): the zh corpus is 246 documents — a tenth sample
 Twenty more (`random.seed(20261024)`, all printed), checked in. It starts
 at 87.0% (median 97.7). Its low ones, unclaimed: zh-18cb2079 20.0 (Mac 01Xgpbk5, 99.1 now — a linesAndChars grid without charSpace keeps whole cells; released), zh-6a4fc013 38.3 (26/29 pages; Mac 011uWpmC sweeping a Thai character class + Cordia's ASCII advances (2026-10-18); Linux 017F2GnT after it: Noto Sans Thai at 0.66 (8ba41688), Word's 614 lines on 26 pages on Linux, released; Mac 011uWpmC, measured, released: a Chinese–Thai Q&A, its Thai in runs of "TH Sarabun New" marked `<w:cs/>` (19,801 Thai characters). Word for Mac has no face of that name (its DFonts thsarabun.ttf is named only "TH SarabunPSK") and draws them, and the runs' digits, in Browallia New, embedded in the print and found nowhere on disk (a cloud font?). Browallia's widths are Cordia New's (DFonts cordia.ttc) to 0.5%: digits 0.3645 em, Thai 0.298 em on average over this text, and a 47-character line measures 255.9 against Word's 257.1. Ours falls back to Carlito for the digits (0.507) and Thonburi for the Thai (0.552, 1.8x), so every Thai line runs long: 693 lines on 29 pages to Word's 614 on 26. No Mac face is that narrow (Silom 0.391, Sathu 0.407). `otherAdvances` would set Cordia's spacing but would draw Thonburi's glyphs over each other. A fix needs the stand-in drawn narrower too: a Thai class in `classScales`, or a scale per face, set per platform against its Thai fallback. Built later the same day, Mac 011uWpmC: 54.2 now, Word's 614 lines on 26 pages — Cordia's ASCII table and a Thai class scale, 0.75 against Thonburi, 0.729 against Leelawadee UI; Linux's fallback unscaled — and released to lenovo-2 for per-character Thai advances on top), zh-c2f6d17a 54.9 (Mac 01Xgpbk5, looked, released: outside-aligned footer frames now alternate as Word's do; the rest is Word's text layer — its embedded faces drop glyphs ("累计过120" for "累计雨量超过120毫米") and garble headings ("1.4\"#") — not layout; Mac 011uWpmC: but p21-37 stood a line behind by layout — a paragraph that takes itself off the grid keeps its Latin on it, 318ae37e, 93.5 now),
-zh-12c4f07a 78.5 (Mac 01Xgpbk5, measured, released: line ends again, legacy mode with compressPunctuation, but the other way — Word takes "委" with ours over 7.75 against one mark's 6.5 (its "前，" about 3.8pt shorter); sent to lenovo-3 beside the three cases where Word takes less), zh-7773163d 83.4 (Mac 01Xgpbk5, 87.5 now — footer boxes placed from the page, PAGE results in the code's look; left: scattered line ends and 4pt offsets in a PDF-converted file of a section a page, and a second number box at x 488 on pp3-4; released), zh-cd8987db 86.6 (Mac 01Xgpbk5, 87.2 now — the cover's drop-down form field shows its entry; left: TOC lines, which match in place but are read out of order — ours paints the leader after the whole line, so PDFKit sees the page number before the dots; released).
+zh-12c4f07a 78.5 (Mac 01Xgpbk5, measured, released: line ends again, legacy mode with compressPunctuation, but the other way — Word takes "委" with ours over 7.75 against one mark's 6.5 (its "前，" about 3.8pt shorter); sent to lenovo-3 beside the three cases where Word takes less) [Windows 01QbbApP 2026-10-24, routed by macos: p11's "…履行本契|約、" DONE (f562149e). Word for Windows breaks there as the Mac print does. Lab `pc`: with `w:useAltKinsokuLineBreakRules`, before 2013's layout, a centred mark at a line's end neither hangs nor gives; a mark inside the line still gives its half. 83.7 -> 84.3, zh-64044a1d +0.1, the other three with those settings unmoved. Released] [Windows 01QbbApP 2026-10-24: pp19-28 DONE — p19's floor table kept its 63pt grid column; before mode 15 an autofit cell's pieces are measured from the hanging start, and a positive first-line indent asks nothing (lab `af`). 84.3 -> 90.4, nothing else moved over 236 documents. First miss now p24: "1.經營組織…(包含遊客服務中心及物產館)。" breaks a character early in ours], zh-7773163d 83.4 (Mac 01Xgpbk5, 87.5 now — footer boxes placed from the page, PAGE results in the code's look; left: scattered line ends and 4pt offsets in a PDF-converted file of a section a page, and a second number box at x 488 on pp3-4; released), zh-cd8987db 86.6 (Mac 01Xgpbk5, 87.2 now — the cover's drop-down form field shows its entry; left: TOC lines, which match in place but are read out of order — ours paints the leader after the whole line, so PDFKit sees the page number before the dots; released).
 
 ### Note from the Mac (2026-10-18, night): the zh corpus is 226 documents — a ninth sample
 Twenty more (`random.seed(20261023)`, all printed), checked in. It starts
@@ -803,7 +1037,7 @@ a row parted from p1 stands 15.6pt lower in the flow than drawn).
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; T101 + the scorer from the top, 47.4 now, 16 pages — its 2- and 3-column sections set in one), zh-117cf7c6 39.2 (3/4 pages; Linux 017F2GnT measured 2026-10-18, released: p3's one-line "※" item (12pt 標楷體 runs, snapToGrid 0, no rPr on its mark, Normal 14pt) stands 22pt under the exact 20pt line before it in Word's print, ours 19 — a 3pt drift to the page's end. Setting the label in Normal's 14pt changed nothing (the label is not in our line's height): it is the label's or the mark's 14pt making the line taller, not yet told apart; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
-(52/51; T102, 98.0 now), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC: Word's 4 pages now — empty lines beside wrapped charts; left: the charts' own labels, released), zh-ea70c30e 59.1 (T110 measured, released; Mac 01Xgpbk5 measured — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
+(52/51; T102, 98.0 now), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC: Word's 4 pages now — empty lines beside wrapped charts; left: the charts' own labels, released) [Mac 7bd18d8e (macOS-doc) 2026-10-23: measured, RELEASED — 57.7; all 41 misses are p4: its two anchored pie charts (wp:extent 400.6×216.0 and 384.4×216.7), which Word prints as images (y 124-291 and 455-622) with their 25 and 16 labels laid out by its chart engine, ours as paths (y 128-289, 428-628) with the labels placed by ours; and the caption text box "資料來源：內政部移民署，本會整理。" at y 346 in Word's print, 337 in ours (9pt), the anchor's vertical offset. Chart ground (Windows), not line layout], zh-ea70c30e 59.1 (T110 measured, released; Mac 01Xgpbk5 measured — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
 zh-5b7ae054 64.4 (44 pages; Windows 01QbbApP, 98.0 now — a compatibility ideograph's Noto joiner kept "能力" together; released), zh-82b166b4 72.8 (T105, 98.4 now), zh-54e91165 75.4 (T106, 97.4 now),
 zh-8d6f702e 88.0 (Linux 017F2GnT measured p23 (digits off their share of the -0.21 grid) and built it the same hour as 5e502677, which landed first — dropped as a duplicate; released; Mac 01Xgpbk5, T107 for its p21-22; the rest — lines of ours a character longer than Word's on its grid of -0.21 — released; Windows 01QbbApP: YaHei's em dash, 88.4 now; what is left is the squeeze — Word gives two commas a quarter em each where ours gives none, and none to brackets where ours takes three in, office.md "YaHei's em dash"; released).
 
@@ -811,7 +1045,7 @@ zh-8d6f702e 88.0 (Linux 017F2GnT measured p23 (digits off their share of the -0.
 Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 78.5%. Its low ones,
 unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, measured, released — see below),
-zh-424775e4 7.6 (13; Mac 011uWpmC, 96.2 now — STXinwei's line, a footnote on its mark's page; released), zh-c2c92639 9.5 (54 pages; Linux 017F2GnT: 97.8 now — a half-hung mark's blank half gives from mode 15 (173a29a1); left p39; released; zh-51af781b p57 (Linux 017F2GnT, 454eac2e): its Table Text style is East Asian en-US, so a Latin ")" after an ideograph may open a line — 85.5 -> 94.3, released; Windows: right tab past the margin 353c5984, 91.3 now with Word's 54 pages — left: its 14 equations, OMML, office1's; released), zh-92373179
+zh-424775e4 7.6 (13; Mac 011uWpmC, 96.2 now — STXinwei's line, a footnote on its mark's page; released), zh-c2c92639 9.5 (54 pages; Linux 017F2GnT: 97.8 now — a half-hung mark's blank half gives from mode 15 (173a29a1); left p39; released; zh-51af781b p57 (Linux 017F2GnT, 454eac2e): its Table Text style is East Asian en-US, so a Latin ")" after an ideograph may open a line — 85.5 -> 94.3, released; [Linux b2 01JsizVV 2026-10-24: 94.4 -> 98.7 — a condensed ideograph at a body line's end is over by its set width, not its em; the rest (p54-64, 19 lines) not looked at; released]; Windows: right tab past the margin 353c5984, 91.3 now with Word's 54 pages — left: its 14 equations, OMML, office1's; released), zh-92373179
 41.6 (11; T96 — Word's text layer is garbled on its table pages), zh-c399c91a 64.3 (7; Mac 011uWpmC, 100 now — LinTimes is Calibri; released), zh-7cf85f15 76.5 (3; Mac 011uWpmC, 98.5 now — a closing mark's piece takes half an em of autospace; released), zh-74ef1528 94.1 (Mac 01Xgpbk5, looked: the lines match — distributed header cells and text-layer glyphs the matcher pairs apart),
 zh-5c6ff0d7 97.8 (2 pages, Word 3; Mac 01Xgpbk5, measured, released: Word fits the closing note "注释：…" at 741.4 under the table on p2, the body's foot 742.7; ours draws the table ending where Word's does (727.1) but its pagination has the last row's cell at 727.1-742.7, the page full, and the note goes to p3 — the row parted from p1 (a tall merged column) is placed 15.6pt lower in the flow than drawn, and ours draws a top rule at the page head Word does not. The parted-row ground; Mac 011uWpmC, measured, released: not the parted row now — p2's flow and drawing agree, table 2 ending 622.2pt down a 637.8pt body (16838 - 2098 - 1984 twips) and the note one 15.6 grid line, so 312 px left for 312: no spare at all, and lab `pf` (a line goes over unless a twip is to spare) sends it on. Word sets it, ending exactly on its foot, so Word's foot is lower here or its rows shorter: its PDF pages are 842pt tall, 2 twips more than the file's 16838; lab `ph` settles it: printed at 16838 twips the note stays on p2, at 16837 down to 16834 it goes to p3, so Word has a twip or more to spare where ours has none. It is the rows, not the page: table 2's top rule stands 0.78pt LOWER in Word's print than ours and its foot 0.12 HIGHER, the table 0.9 shorter, all of it in the two header rows, which are "at least" 567 twips with cells' own 1.5pt top border (sz 12) — Word's first is 29.28 tall and its second 29.76, ours 29.85 and 29.80. How Word counts a cell's own top border in an at-least row is the open question; not built).
 
@@ -3245,7 +3479,7 @@ overflowPunct 0 its half (lab pe_off; zh-749cb15a's "…活動。"), and with an
 (zh-64044a1d's "…措施事宜。"). First built for every no-mode file it sank 18 documents: the mainland's and the
 uncompressed ones hang their final marks as any, and a cell's last bracket gives its half (zh-fec5fa30 "民政局
 （處）"). Same-base sweep, 397 docs: zh-749cb15a 90.3 -> 99.8, zh-d62da4dd 55.7 -> 57.7, zh-06c46ba9 97.3 -> 98.1,
-zh-12c4f07a 78.6 -> 79.3, zh-5b7ae054 and zh-e0ca7252 +0.1-0.2, nothing lower. zh-ff93733d stays 97.0.
+zh-12c4f07a 78.6 -> 79.3 [Linux b2 01JsizVV 2026-10-24: 90.4 -> 97.3 by e87b5ebf — lab hangp (macOS-doc): under useAltKinsokuLineBreakRules a paragraph's last mark gives up to its half; without it, nothing, whatever the mode], zh-5b7ae054 and zh-e0ca7252 +0.1-0.2, nothing lower. zh-ff93733d stays 97.0.
 
 ### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
@@ -3285,8 +3519,9 @@ All three in: the number takes the paragraph style's size where the mark has non
 an East Asian family's Latin side falls back to its CJK face before the symbol face. Same-base sweep, 377 docs:
 zh-117cf7c6 92.0 -> 100.0, nothing else moved.
 
-### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — tried, released
-Owner: — (released by starling-office1-df, 2026-10-18; the Mac's measurements, 01Xgpbk5)
+### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — (a) and (b) done
+[Linux b2 01JsizVV 2026-10-23: zh-ab1ea005 21.9 -> 99.9 by a49ce131 — a "？" that ends the paragraph does not hang where the document compresses punctuation (labs qh/qe, Windows 01QbbApP: refused from half an em; under doNotCompress it hangs whole, and with text after it hangs under either). Nothing else moved.]
+Owner: — (Linux b2 01JsizVV did (b), a77cee11, 2026-10-23: the line fitting takes the piece after a tab to a right stop at the margin as fitting where the tab starts inside, and sets its hang — "123.…救济途径？<tab>52" one line; zh-ab1ea005 14.9 -> 21.9, Word's 67 pages, nothing else moved. Left: from p11 the document still runs about a line a page behind) (released by starling-office1-df, 2026-10-18; the Mac's measurements, 01Xgpbk5)
 Documents: zh-ab1ea005 (12%: its TOC runs a line behind and the body a page behind).
 Known (Mac, Word's print): toc 2, a dotted right stop at 8844 twips (519.2pt), compressPunctuation, mode 14, 方正楷体
 14pt. (a) "51.…解除劳动合同？<tab>20": Word keeps the commas whole and puts "20" 4.3pt past the margin (entry 55 the
@@ -3295,6 +3530,8 @@ same with "23"); ours squeezes both commas to fit "20" (51), or sends "23" to it
 the tab with "22" goes to the next line; ours sends "偿？" down with the tab. Rule: a right-stop tab whose
 unsqueezed start is before its stop stays and what follows may overflow the margin, unsqueezed; one whose start is
 past it breaks before itself, the line before fitted as a line end (the engine allows no break before a tab).
+
+Part (a) DONE (Linux b2 01JsizVV, 2026-10-23): a right stop at the margin (or set there) whose tab starts inside it lets what follows run past the margin — the tab takes nothing, the rest comes off the last character's advance, so the line ends inside and its ink runs on. "55.…补偿？<tab>23" keeps "23" on its line as in Word's print; zh-ab1ea005 12.0 -> 14.9, nothing else moved (A/B with 5e452e14 landing between: its three gains are its own). Left: (b) entry 54's break before the tab, and the body a page behind; released.
 
 ### T128. A Latin word at a line's end, by Word's start rule (zh-eb54d3b0, zh-499adba6) — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Windows box's labs lw*, the Mac's case)
@@ -3332,6 +3569,16 @@ were its 22pt "○" lines held to an em after the grid snapped them (lab `g44`: 
 vs n360: zh-e1b09977 65.4 -> 81.4, zh-cec9d337 84.2 -> 88.2, zh-5251dd23 89.2 -> 96.8, none down. What is left
 in zh-e1b09977: p14's split row ends a line later in ours. Lab `hdr` (its first rows whole) ends where Word's
 does; only the text inside rows sits ~2pt higher than Word's, which decides that cut.
+(Linux 017F2GnT, 2026-10-22, measured, not built: the ~2pt is the
+header's heavy line. The table's two repeated header rows (tblHeader)
+state top and bottom single sz 18 (2.25pt); on p14 Word draws the line
+under them at 147.12-149.28, wholly below the heading's text, and the
+first data row's text 11.5 under its foot (160.8); ours draws it at
+147.16 as the boundary's centre and sets the row's text at 159.1, 1.7pt
+high, so p14 keeps "揮中心相關防疫要求…" that Word sends to p15. A rule
+2.25pt wide between rows seems to stand all in the lower row in Word,
+half and half in ours — wants a lab of one heavy line between two rows,
+repeated header and not.)
 
 ### T130. zh-c9f4d690: under wordWrap 0, one closing space after a hanging mark takes a line of its own — DONE (2026-10-19)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurement, 01Xgpbk5)
@@ -3377,6 +3624,38 @@ PDF's text layer as stray CJK code points ("㒘"), where DejaVu's presentation f
 regression for a document the line match scores 0 either way (its Arabic is read in visual order in Word's print,
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
+
+### Note from macOS-doc (2026-10-23): four line-end cases — office1: zh-753cd6a8 DONE (100), the rest measured and released
+- zh-f6886fbb 94.7: p7 y496 Word "…省级及以上重", ours a character short ("…以"). [office1, measured, RELEASED: the
+  line before ("3、“重要程度”…★★★、★★、★三级。★★★…", 方正楷体简体 bold → YaHei Bold) steps each "★" 9.83 in
+  Word's print (0.8193 em) and 12.25 in ours. A boldOtherAdvances entry for U+2605 brought ours to 11.32, not
+  9.83 — 1.49 more from somewhere not found — and moved no score; reverted.]
+- zh-08e95de4 96.1 (mode 14, compressPunctuation, grid -0.25): p3 y524 Word opens "征地补偿安置决定的…", ours keeps
+  "征地" above; p7 y207 Word "R6地块…", ours "地块…". [office1, measured, RELEASED: the cell paragraph first parts at
+  p3's "…每个项目扣" / "0.2分；" (Word) where ours takes "0.2" by the start rule (lab ab32) — it starts 5.98pt
+  inside, half "扣" 5.96: an edge of hundredths, Word's natural widths unread under its justification.]
+- zh-4a90bb2f 95.5: p9 y546 Word opens "分，每增加1个月…", ours "每增加…".
+- zh-753cd6a8 94.1: p1 y288 cell "1名得100分，第2名得99分，以此类推，100名以后不" / "得20%"; ours takes "得".
+
+### T147. zh-db07d44e p22: a display equation wider than its cell breaks over lines — DONE (2026-10-23)
+Owner: none (Linux office1 01Ak4ibJ built it)
+Documents: zh-db07d44e (54.8 on Linux; p22 on is a page behind).
+Known: p22's cell holds "實績值=(實際取得…/預計…×1/3+實際決標量/預計決標量×1/3+實際併聯量/預計併聯量
+×1/3)×100%", an `m:oMathPara` (jc left) round one `m:d`; Word sets it over four lines in its cell, broken
+at the "+" signs inside the brackets and before "×100%". `WriterMath` lays an equation out once, at read,
+as one unbreakable object, and the cell's line runs past its edge.
+Plan: RichLayout asks an object hook for the object's size at the width it has (`objectFitter`);
+`WriterMath` breaks a display equation too wide for it at its top-level operators, the delimiter's
+content among them, and draws the broken form.
+Built: `RichLayout.objectFitter`, asked for a picture-less object wider than its line (in a line or a
+paragraph alone); `WriterMath.fit` parts a display equation before its operators — the content of one
+bracket round what follows opened up — fills lines greedily, each after the first an inch in, 0.3 em
+between them, and the painter draws the form whose width the rectangle has. An equation's runs take the
+paragraph's size where they state none (its mark's, its style's, Normal's — not 11), and their East
+Asian text the run's `w:eastAsia` face at its line height (標楷體: YaHei on the Mac, 15.8pt rows at 12).
+p22 now matches Word's four lines. Same-base sweep of 756: zh-db07d44e 54.8 -> 61.9; nothing else
+moved. Then p28's cells "…基準分80分，": a cell's automatic spaces either side of the Latin word before what is
+taken give (both of "80"'s, 2.2 of 3.0 in Word's print) — 61.9 -> 98.0, nothing else moved.
 
 ### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation) — DONE for p30's line (2026-10-22)
 Owner: none (Linux office1 01Ak4ibJ built p30's line, 2026-10-22; released by starling-b2, measured)
@@ -3956,3 +4235,1706 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   at all, does not push it to a second line. Ours sets "X" alone on the
   first line and the text right-aligned under it. Needs a lab in a
   footer (lab `oi` in the body wraps).
+
+### Note from Linux 017F2GnT (2026-10-23): two fitter lines, unclaimed
+- zh-a7a889eb (96.3) [DONE Linux 017F2GnT 2026-10-23, 00ceaa67: a no-break space after a Latin letter or digit is the
+  space's half em — 96.3 -> 97.4, nothing else moved; released].
+- zh-625b6374 (96.1; Linux 017F2GnT 2026-10-23, looked, released): p7's header cells stand within 3pt of Word's;
+  the misses are the reader grouping the dense header.
+- zh-22ecbdc8 (96.1; Linux 017F2GnT 2026-10-23, looked, released): p5 "…办节费用在2—5 万元（含）、5—10" is one line in
+  Word's print (YaHei for 仿宋_GB2312, 16pt, compressPunctuation): Word squeezes "，" and "（" 3.7pt each to hold
+  "5—10". That is the Mac's squeeze, which the user chose not to model (see USER DECISION above).
+- zh-1eeb9f9a (95.1 -> 99.4; Linux 017F2GnT 2026-10-23) — p8 DONE (bc22d64a: a centred cell set whole in a part
+  keeps the parting row for a merge above — 95.1 -> 96.2; with it zh-65e6c317 84.2 -> 100, zh-9ba2ead7 90.9 -> 92.6,
+  eleven more up a little, none down). p11 DONE (81183750: a line of spaces alone is set in its mark's Latin face —
+  its "　" cells were two grid pitches, Word's one — 96.2 -> 99.4, zh-4a90bb2f 96.5 -> 98.8, none down). Released.
+- zh-499adba6 / zh-9932bd83 (87.9 after 7e4dfc99) [p90 DONE Linux 017F2GnT 2026-10-23, 8664ba24: a row's note with no room under its mark parts as a paragraph's — 87.9 -> 97.9 on a tree before 10eb779a] [p25 DONE Linux office1 01Ak4ibJ 2026-10-23: "%"/"％" may start a line under Taiwan's default list — 89.8 on Linux; pages Word's to p90, released]: pages Word's to p25; on
+  p25 the paragraph "在社會組織中，根據內政部…" (jc both, line 440 exact,
+  標楷體 12pt, compressPunctuation, zh-TW) ends its tenth line "…權力分配。" in
+  Word's print — 34 characters to "配" at 494.43 and the "。" at
+  493.85-505.85, closed up and hanging 3pt past the 502.9 margin. Ours
+  keeps 33 and sets "配。" on an eleventh line; the paragraph and every page
+  after run a line late until p91.
+- zh-c15af02e p37 — claimed by office1 (see its entry).
+- zh-8f9b19f4 [DONE Mac 0fcba326 2026-10-23: 14 pages — a section's columns set as a row may leave their last paragraphs' space after past the foot (TableStyle.sectionColumns); the extra ~8pt was the 8pt after a styles part with no pPrDefault gives] (92.4, 15 pages to Word's 14; for whoever owns the columns
+  emulation — Mac 01Xgpbk5 wrote it): the document ends in a continuous
+  three-column section, "填报人：" | (column break) "审核人：" | (column
+  break) "负责人：" (14.5pt 宋体/KaiTi, line 184/196/219 auto, the break
+  paragraphs line 14 auto at 1pt Arial), 31.4pt above the foot of a
+  landscape page with bottom margin 0 and no footer. Word prints all
+  three on p14 (审核人 564.8, 负责人 566.3); ours parts the emulating row
+  (STARLING_RICHTEXT_ROWS=14: row 0 of t10, own 33.3 against 31.4 left)
+  and sets columns 2-3 on a p15. Its text ends 23.2pt down the row, so
+  ~10pt of the row is under the text; where it comes from is not found
+  (`--layout` shows every block ~8pt over its line, a plain body
+  paragraph's too, so that column may not be the row's measure). Probe:
+  ~/tmp/word/lab/col/mk.py (Linux box) cuts the file to that section.
+- zh-e1b09977 (81.6; Linux 017F2GnT 2026-10-23, looked, released): pages
+  Word's to p12. At p13's foot, under a parted row's last kept lines
+  ("地區災害防救", "二、2.縣(市)政府是否適切分配國軍救災"), ours draws the tops
+  of the next lines' glyphs (13pt 標楷體 in 14pt exact lines, which stand
+  above their own boxes) in a ~3pt strip over the closing line, and the
+  text layer reads them as a line ("計畫勾稽", "位 潛勢 地點…") — the same
+  lines open p14. A clip of the part's text above the next line's ink
+  (tried in the piece clip of `paint`, by baseline) did not reach these
+  cell pieces and cut the row's closing line; reverted. Tried again
+  2026-10-23 with the next line's ink an em over its baseline and the
+  styles' size (the runs state none): zh-073c9234 lost its 10 phantom
+  foot lines (699 -> 689 of Word's 689) but zh-e1b09977's strip stayed —
+  it is not drawn through that clip; not found, reverted. Seen too in
+  zh-073c9234 p15 ("書" cut at the foot). pp13-17 then run
+  a line or two apart (p14 holds one line more than Word's).
+- zh-9c162f26 (97.2 -> 99.8; DONE Linux 017F2GnT 2026-10-24, released): its
+  footer box's "— 10 —" wrapped the closing dash on every two-digit page —
+  the box widened by the left indent alone.
+- Lab `pct` (the Mac 7bd18d8e; Linux 017F2GnT 2026-10-24, PARKED): a
+  5000-pct table's right rule centre stands half a rule inside its share
+  (504.96 in a column to 505.3), a dxa table's of the same width at
+  505.44. Set so — ours narrower by half the right rule — the corpus does
+  not move at all (eleven likely documents rescored, all as before); by
+  half of both outer rules four rose (zh-147bdae0 95.5 -> 96.9,
+  zh-4ea36aa8 97.1 -> 99.3) and zh-301618c5/zh-c0e22afc fell 100 -> 99.3,
+  their zero-margin cells' text starting 0.25 right of Word's (ours a
+  rule in from the left line's centre, Word half a rule). Not
+  zh-147bdae0 p45's cause: Word's own limit there (499.08) holds the "人"
+  (ending 498.5), and Word wraps before it all the same — not found.
+  Patch kept at ~/tmp/word/pct-right-rule.patch on Linux.
+- zh-34a6519a (90.9 -> 99.8; DONE Linux 017F2GnT 2026-10-24, e6d3af0a,
+  released; from Linux b2): not the row — its p28 part ends at 438.0 as
+  Word's. "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced paragraph whose
+  first line reaches 2.9pt past the foot by its extra; the keep check took
+  the extra as room it needed and sent both to p29.
+- zh-0060058e (97.2; Linux 017F2GnT 2026-10-24, looked, released): every
+  page opens on Word's line; the misses are the reader's grouping of p12's
+  dense header row and invisible text (Word's spaces on empty lines). One
+  real: p12's centred merged "设施类型", one line beside "序号"'s two, stands
+  at the second line (521.5) in Word's print, ours centred (515.2) — why
+  is not known.
+- zh-cec9d337 (90.5 -> 99.8; DONE Linux 017F2GnT 2026-10-24, released):
+  by the cell — a row opening a page the table goes on over takes the
+  table's top line where a cell of it states no top of its own (p19,
+  p25, p26); rows whose cells all state theirs keep their line (p20-24).
+  Was (CLAIMED, from Linux b2):
+  p19/p25, where a table goes on, Word draws its thinThickSmallGap sz 24
+  top (insideH single 4 stated) at the page's head and its first line
+  3.9pt lower than ours. The Mac's 10-18 try (draw every table's top
+  there) cost this file's single sz 18 tops (no insideH): compound only,
+  or insideH stated only, to be swept.
+- zh-147bdae0 (92.8 -> 95.5; Linux 017F2GnT 2026-10-24, from the Mac's
+  re-check, released). Not row parting: (1) its rows state cell spacing
+  nil (`w:tblPrEx`) under the table's 0, and Word collapses their lines
+  — ours took each 0.5pt line twice, 21.6 a row to Word's 21.1, and p17's
+  last row found no room for its stated 48.8 (90a3ed76, 92.8 -> 93.3);
+  (2) a list's last item in a cell keeps its automatic 14pt after, a
+  plain paragraph's gives way (df930369, -> 95.5; p45 within 0.1pt).
+  Left: p45's "我國於108年…經理人" (12pt YaHei, a cell of 108-twip
+  margins under spacing 0) ends its "人" at 498.7 in ours and Word wraps
+  before it. Not the table's extent — lab `pct` (Mac 7bd18d8e, 2026-10-24):
+  a pct table spans the text width whatever its margins, spacing 0 only
+  doubling the rules 0.24 apart (ours agrees, 90.03..505.27). Word's
+  right rules there are a 0.72 pair at 504.24, so the cell's text ends
+  about 498.8 — within a few tenths of "人"'s end. Asked the Mac for a
+  lab of the right text limit, spaced 0 against none; p46/47 stay a
+  page apart until then (7 lines fewer than Word's in all).
+  Earlier (Linux 017F2GnT 2026-10-23, looked, released): p17's
+  last row ("公民社會團體、私部門或工作團隊", at least 48.8pt) parts at the
+  foot in Word's print, two of its four names there; ours takes it whole
+  to p18 (49.3 with its line against 49.17 left). The room is the cause:
+  the table's one-line rows are 21.58pt in ours, 21.1 in Word's — the
+  line itself (21.08 against ~20.6; the rule is 0.5 in both), ~0.5pt a
+  row, ~5pt by p17's foot. Font metrics, not row parting.
+- zh-4f70ee2d (95.3; Linux 017F2GnT 2026-10-23, released): p19's last row
+  "1 | 党委政府分别组织专题学习安全…" (atLeast 28.35 under a 1.5pt line) goes
+  whole to p20 in Word's print, ours parts it. Lab `rp` (the Mac): Word
+  parts it from 32pt above the foot, not at 28 — the stated-height rule,
+  merge and heavy line no matter. So the room differs: the row starts at
+  714.0 in both, our foot is the margin's 742.8 (30.2 left, parts) and
+  Word's is raised by the even footer (footer3: an auto-sized frame "— 20
+  —" at y 1, 14pt, then an empty 9pt paragraph; Word's text at 745.7, its
+  top just over 742.8; ours at 747.0 and wrapped to two lines, "—20"/"—").
+  Footer frame layout, not row parting. (Correction: p19's footer is
+  footer1, a DrawingML box fit to its text and sized once, "— PAGE —" all
+  hinted East Asian in 宋体 14pt — by lab `ftD`'s rule it parts when a
+  two-digit number outgrows the "— 1 —" box, as ours does; Word's print
+  holds "— 20 —" whole in 42.2pt, its dashes narrower than our 14pt —
+  the dash's width on the Mac, not the rule.)
+  CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos): the p19-20 table against word-win; macOS-doc found the footer fine.
+- zh-e5eb092a (92.4, 8 pages; Linux 017F2GnT 2026-10-23, offered to
+  office1 — DONE Linux office1 01Ak4ibJ 2026-10-23: 96.9 — a spaced full-width quote is over the margin by half its spacing too; released): from p1's line "九条、第六十二条…统一修改为" (mode 14,
+  compressPunctuation, zh-CN, Normal (Web) jc left, 宋体 12pt, every run
+  `w:spacing` 8 = +0.4pt) Word sets each character 12.97 apart — "、"
+  and "，" whole, both curly quotes an em — where ours squeezes "、" to
+  ~9.3 and takes "“市" more on the line (37 to Word's 35). Untested: no
+  compression in runs with letter spacing, or left-set.
+- Type3 text (Mac 01Xgpbk5, DONE 2026-10-23, released): every ideograph
+  in our Mac PDFs was a Skia Type3 font because the system drew them in
+  PingFang UI, whose outlines are Apple's `hvgl` (neither glyf nor CFF);
+  PDFKit grouped them badly — the "reader, not layout" notes above
+  (zh-afdd4a7e, zh-15f60bac, …). Now (3133aaed), under
+  OFFICE_WORD_FONTS=mac, the faces Word carries (DFonts msyh, Simsun,
+  SimHei, Kaiti, Fangsong, mingliu, Deng, STZHONGS, STXINWEI) are
+  registered and each family's fallback is the face Word draws it in;
+  "※" etc. take Word's widths too. The engine (starling ea96a790) now
+  subsets PDF fonts (it embedded every face whole: 38-96MB a document with
+  these faces, ~1MB now — rebuild host_release_arm64's swift_bridge) and
+  writes fake bold as stroked text, not Type3. Sweep n208: zh mean 95.8 ->
+  96.7, median 98.6 -> 100.0, 546 -> 566 at 95%+; POI unchanged. The
+  drops (zh-21421b7d, zh-f2835e26, zh-160a5e81, …) move no glyph — PDFKit
+  now groups across table cells instead. zh-bfe04e2f exposed primes and
+  degrees as break points (0f7b3de8), 85.0 -> 100.
+  A peer's "reader, not layout" note may be worth a second look now.
+- Chart labels and legends (Mac 01Xgpbk5, 2026-10-23, routed by bd —
+  part done, RELEASED) [its leftovers (1)-(5) CLAIMED Mac 7bd18d8e (macOS-doc) 2026-10-23, assigned by 0fcba326; (4) DONE: the header row takes the table style's firstRow borders, zh-61aaad09 56.8 -> 83.8; (5) measured, open: zh-61aaad09's plot over its data table is a manual inner layout (x .1735 w .7118 of 415.2pt = 162.1-457.6), Word's plot spans 164.8-450.7 (category columns 71.5pt), ours 169.7-443.3 (68.4): neither the file's nor ours. Word wraps "投诉举报总量" (SimSun 11pt, 66pt) in its 71.5 column, so its text width is < 66. And the chart's Chinese is SimSun in Word's print — the theme's a:ea is empty and Hans is 宋体 — where ours falls to YaHei; drawing it in SimSun (the chart's ea face first in the fallback, tried) moved label baselines 1-4pt (zh-13d11e99's "200", zh-b8de3ae2's, zh-61aaad09's legend), 3 docs down, so it needs the label placement re-measured with it; reverted. (3) measured, lab ~/starling-word-check/lab/cap: the caption's start under the wrapTight chart depends on the line grid (chart foot + 8.5 with no grid, +18.3 at 18pt, +50.5 at 20pt), not a plain snap — still open]: zh-61aaad09's labels already read "109646, 15.85%"
+  (the note was stale). Done: a data table under an `inner`-placed plot
+  gets its own room and the axis steps a label's height allows; best-fit
+  pie labels in or out label by label, moved ones from outside, none
+  written = best fit (lab p3d: zh-d62da4dd's 3-D pies printed with their
+  moves stripped, ~/starling-word-check/lab/p3d). Left, for whoever:
+  (0) DONE Mac 7bd18d8e 2026-10-24 (274b2d7d): pie percentages sum to 100 by largest remainder, ties to
+  the smaller value — zh-d62da4dd's and zh-27a874b7's labels now all Word's.
+  (1) [Mac 7bd18d8e 2026-10-24, assigned by 0fcba326, lab ~/starling-word-check/lab/piefit, RELEASED: the 3-D pie's own geometry matches Word's to 3pt; the labels need three rules — inside placement (perspective; 美國 45pt off), the fit test (Word counts a front slice's side wall), outside stacking — see the README; earlier note: Word prints 3-D pies as bitmaps (no shapes to measure); its best fit is looser than our corner test — chart 2 sets "丹麥" (6%, 21.6°) inside but "香港" (11%, 40°, at the pie's flat right end) outside, and the five moved labels move from those defaults; its plot also stands ~16pt lower. Needs more pies than these two sibling files; low yield, ~20 lines] Excel's outside labels avoid each other — zh-d62da4dd chart 2's
+  left labels stack apart in Word's print, ours overlap; (2) zh-27a874b7
+  p3's charts stand 9pt high: the anchor paragraph opens a section, 9pt
+  before after the last section's 9pt after, and Word keeps the 9pt —
+  keeping a new section's before at the page top for all (tried) took
+  zh-b0207333 100 -> 59, zh-34a6519a 91 -> 62, eight more down: narrower
+  than that; (3) zh-27a874b7's caption under the charts 20pt low (text
+  around a wrapTight chart); (4) zh-61aaad09 p2: the table's first header
+  row (a diagonal line drawn as an anchored shape in its first cell) is
+  1.2pt taller in Word, and p2 ends a line early, 19 lines on p3; (5)
+  zh-61aaad09's plot over its table stands at the frame's top + 6.7 in
+  Word's print, zh-2a241df1's + 11.1 — rule not found.
+  (zh-27a874b7's 52.7 -> 51.6 is real but one line: 44 missed to 43,
+  all chart labels, now set as Word's lab sets them relative to the pie
+  but on a chart that still stands 9pt high — item (2); kept for
+  zh-d62da4dd's +2.1 and the rule's agreement with lab p3d.)
+- Space before at a section's first page top (Mac 01Xgpbk5, CLAIMED
+  2026-10-23, routed by bd): when Word keeps it — zh-27a874b7 p3 keeps
+  9pt; keeping it always broke zh-b0207333, zh-34a6519a, zh-8f9b19f4,
+  zh-fe536967, zh-c8eb6e92, zh-64044a1d, zh-5dc5ce34, zh-9e08ed28,
+  zh-6d1afa56, zh-147bdae0 (sweep n212). Labs first.
+  RESOLVED, not the rule it looked like: lab ss (~/starling-word-check/
+  lab/ss, a marker in the anchor paragraph, with and without its before)
+  shows Word DROPS the before at the page top as we do — the chart's 9pt
+  was our anchor origin, measured from the dropped space; and the line
+  stays over a float it ends above. Both fixed (see the commit after
+  ab27640e); nothing down in n213. RELEASED (Mac 01Xgpbk5) with what is
+  left: zh-27a874b7's caption "圖1…" stands at 374.8 (baseline) in ours,
+  355.7 in Word's print, and its "資料來源" box (anchored 38.9pt above it)
+  20pt low with it — the empty anchor paragraph's line goes under the
+  chart in ours through the picture-only path (`_anchorsOnly` /
+  `anchorRun`, whose lineTop counts the 9pt the page top drops). Tried
+  and withdrawn: (a) that lineTop less the dropped space — the caption
+  went 9pt LOWER (383.8), so the line's place is not all of it; (b) text
+  under a float stepping by whole fixed (exact/grid) lines from its
+  start — no effect here. A lab with a marker in the caption paragraph
+  and the anchor's line made visible would tell where Word sets each.
+  [Mac 01Xgpbk5, 2026-10-23, after macOS-doc's lab cap: lab cap2 (~/starling-word-check/lab/cap2,
+  README) — with no grid the caption's line steps under the chart by its
+  own height (27.9) from the page's top margin (72 + n x 27.93); under the
+  18pt grid its place (B top 330.9) holds over 15pt of chart growth and
+  fits no origin tried. RELEASED with that; next lab in the README.]
+- zh-e1b09977 (Mac 01Xgpbk5, DONE 2026-10-24): 82.0 -> 99.7 — a row parted anywhere in a table is
+  closed at the foot with the table's bottom line when that is heavier than its inside ones and
+  the cell states no bottom (Word's print, p14: the 2.25pt line under the part). Lab hv
+  (~/starling-word-check/lab/hv): heavy lines between rows already as Word's.
+
+### T148. zh-167ee06c p2: JhengHei UI Light's own Latin widths — DONE (2026-10-23)
+Owner: Linux office1 (starling-office1-df). Word's print sets the digits and
+brackets of 華康雅風體W3(P) (alternate JhengHei UI Light) in that face, whose
+digits are proportional ("1" 0.387 em, the rest 0.558); ours took JhengHei's
+0.58 (bold 0.6), and "…開始前一個月" left "月" for the next line. The Light's
+widths are the /Widths of the subset its print embeds (space ( ) - . and the
+digits; 7 and 9 taken as the others' 0.558, the rest JhengHei's); its bold is
+the same widths and the face's 1/50 spread, as Word emboldens it. Same-base
+sweep of 756: zh-167ee06c 88.1 -> 91.0, nothing else moved.
+
+- zh-6a4fc013 Thai (Mac 01Xgpbk5, CLAIMED 2026-10-23, routed by bd):
+  under OFFICE_WORD_FONTS=mac, Thai drawn in Word's DFonts Cordia New
+  (cordia.ttc; bold from its 2nd face) at Browallia New's per-letter
+  widths measured from Word's print, in place of Thonburi at 0.75 —
+  Thonburi's text layer lost whole clusters ("คำ" of every "คำถาม"); and
+  Thai kept unbroken between spaces where a stretch fits a line.
+  DONE as far as it goes, RELEASED: 54.2 -> 69.4 (sweep n214, nothing
+  else moves), per-page line counts as Word's to p22; now 27 pages to
+  Word's 26 (lines drift from p23). Word's Thai breaking is not simply
+  "at spaces": p14's "ตอบ : 1. " and p23's "ตอบ : " end their lines and a
+  stretch longer than a line starts the next (breaking where it fills,
+  "อนุ"/"ญาต"); p15's numbered "1.กระทรวง…" (a list label, no space)
+  starts on its line; but p17's "…ใช้วิธีคำนวณ…" is broken inside a
+  stretch shorter than a line. Joining every stretch (moving long ones
+  down) scored 62.5. A lab varying a stretch's length after a space
+  would find the rule; Word for Windows may differ (its Uniscribe
+  dictionary) — the flag is the Mac's only. Windows 01QbbApP printed it
+  on Word for Windows (~/starling-doc-check/lab/th/win.pdf, 28 pages,
+  Browallia New too): no stretch that fits a line is broken (as ours);
+  an overlong one starts on the next line, not beside "ตอบ :", and breaks
+  at the last character that fits — which ours does not (it breaks by
+  dictionary), and which, tried, scored 62.5 against the Mac's print.
+  Open: Mac and Windows prints differ on overlong stretches only; under
+  the Windows tiebreak rule switching is the user's call.
+- zh-045c5a75 nested article table's column widths (Mac 01Xgpbk5,
+  CLAIMED 2026-10-23, routed by bd; lenovo released): Word's autofit of
+  the 85% inner table — lab nt (bd) first. DONE, 58.9 -> 95.7 (n215,
+  nothing down): a spaced pct table's pct cells take their share of the
+  table or their text's need (noWrap's widest + the spacing), auto cells
+  the rest; noWrap cells there stay whole. Left: p36's form; lab nt C
+  (no inner spacing) still has Word's col 3 at 123.1 and ours at the
+  grid's 134.9 — the rule likely holds unspaced too (untried).
+- zh-8628cfbe (Mac 01Xgpbk5, 2026-10-23, looked, RELEASED): 49.8, 46 pages to Word's 45. Its
+  columns are Word's to 0.2pt (the tables ~0.7pt left, which moves no wrap). The real misses
+  are cell lines a character apart, and the one measured is the squeeze limit: p16 "2.與去年實際數
+  比較，相同者得基準分" (mode 15, compressPunctuation, YaHei 11.5) — ours gives its "，" half an em
+  (5.77) and takes "分", Word for Mac gives nothing and wraps it; under the USER DECISION above
+  (Windows' half-em rule) ours is right. Asked windows for a Word for Windows print: if it ends
+  those lines as ours do, the document's Mac misses are the decision's, and the p24 drift with
+  them. CORRECTED, same day: windows' print (46 pages, as the Mac's here) wraps "分" too, and its
+  labs zq (mode 15) and cf say the squeeze gives half an em there as ours; the cell was 1.2pt
+  wider in ours — under mode 15 our right inset was the margin less half a 2.25pt right line.
+  Fixed (text clear of the line, up to the margin): 49.8 -> 54.5. Released with the rest (cell
+  lines a character apart elsewhere; the p24 drift). CORRECTION (bd's check): zh-61aaad09's 56.8
+  -> 83.8 is macOS-doc's 7db0af76 (the style's firstRow borders), which came into sweep n217 by
+  rebase — at the tip it scores 83.8 with c8c6cff8's inset or without it; c8c6cff8's commit
+  message credits it wrongly. The two touch different sides and do not undo each other.
+
+### T149. zh-d746674a p16: a cell line's automatic spaces all give once the one before what is taken does — DONE (2026-10-24)
+Owner: Linux office1 (starling-office1-df). The cell "每年2次(第2、4季)"
+(mode 15, zh-HK, YaHei 14pt, jc both) is one line in Word's print, 122.15
+of 122.3: "、" at its half (7) and all four automatic spaces from 3.5 to 2.8.
+Ours lets only the space before "季" give (room 8.75 of 9.68) and wraps
+"季)". zh-6e7ff836's "…(80分)比較，相", whose one space is not beside "相",
+stays as it is. Now: in a cell (mode 15), where the space just before what
+is taken gives and the marks cannot give all of it, every automatic space of
+the line gives the rest, weighed against the line's stretch as marks are
+(need less the marks' room, times a 64th of the line's ems and the spaces, at
+most half the spaces times the stretch). Letting every space into the old
+test instead dropped zh-db07d44e 17 and zh-12db188f 5. Same-base sweep of 756:
+zh-d746674a 92.2 -> 100, zh-db07d44e 98.0 -> 98.1, zh-e0ca7252 98.7 -> 98.9,
+nothing down.
+
+### T150. zh-15f60bac p11: a word wider than the line opens a line of its own after a space in a cell — DONE (2026-10-24)
+Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
+"台灣綜合研究院(網址: http://www.tri.org.tw/page/consumer.php)及…" in a
+282pt cell (標楷體 16pt): Word ends line 1 at "(網址: ", sets
+"http://www.tri.org.tw/page/consumer" alone on line 2 and ".php)及…" after;
+ours parts the address "…http://ww" on the first line. `_wideWordStarts`
+moves such a word only in a narrow cell, or after an ideograph or a full-width mark.
+Now under East Asian layout after any space in a cell of any width too (20
+characters or more). Same-base sweep of 756: zh-15f60bac 97.8 -> 98.7 (p11
+Word's line for line), nothing else moved. Left: p22's "(https://www.moea…" in
+the body.
+- zh-8628cfbe again (Mac 01Xgpbk5, DONE 2026-10-24, routed by bd): 57.4 -> 87.7, 46 pages as
+  Word's — annex 3's table, all 28 rows tblHeader, starts on a page it fits under 2013's layout
+  (lab ah, ~/starling-word-check/lab/ah: marks off, it stays under its heading). Mode is the
+  inference from zh-e37f8d40 (mode 14, same kind of table, stays) — the two also differ in jc
+  (centre vs indent); a lab flipping zh-e37f8d40's mode would confirm. Released.
+- zh-b5359de4's cover (Mac 01Xgpbk5, 2026-10-24, from macOS-doc, RELEASED): the title, a cover's
+  one-column section in a two-column file, is now set across the page, one line as Word's
+  (`_fullWidthCover`; n220 nothing down). Score holds at 95.1: the title stands 55pt under
+  Word's — the cover's first section, three empty 36pt paragraphs in two columns (continuous),
+  is one column of three lines in ours, balanced in Word's (two and one, presumably); the
+  balancing at a continuous break (ac1e1954) does not reach the document's first section. Per-
+  section column counts would settle this and p9-14. [Mac 01Xgpbk5, same day, from bd: the title's
+  55pt was the balancing itself — fixed without per-section counts (a piece at the even length
+  starts the next column; a last-line cut keeps the paragraph whole): p1 as Word's, 95.9; n221
+  nothing down. p9-14 left; per-section counts still declined.]
+- zh-6a4fc013 Thai, from windows 01QbbApP (2026-10-24): Word for Windows breaks as the Mac print on
+  52 of 54 matched lines (spaces; overlong stretches at the last character that fits), so the
+  committed rule is both's; Windows draws bold Thai in Leelawadee UI Bold (the Mac Browallia New
+  Bold) and runs 28 pages — the gap there is widths and line heights. For lenovo-3 if wanted.
+
+### T151. A paragraph's last full-width bracket does not hang from 2013's layout where marks are compressed — DONE (2026-10-24)
+Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check.
+zh-20c1d74a p44 "…督導考核及管理等）" (mode 15, compressPunctuation, 12.5pt):
+Word sends "等）" down; ours hangs the "）" a whole em and takes "等" 9.55
+over. zh-cd8987db p7 "…肥料随翻耕作业埋入土中。" (mode 15, compressPunctuation):
+Word sends "中。" down; ours hangs the "。" and takes "中" 2.17 over. Not
+hanging, the mark gives its half like any other and the share test refuses
+both. Fits zh-505b9619's labs u5/u6 ("。" drawn inside the margin) and
+zh-7488a70f (doNotCompress, hangs whole); b2's "？" rule (zh-ab1ea005, labs
+qh/qe) is the same thing for one mark.
+Done for the closing brackets only (full-width, not the pause marks or "．"):
+with every final mark kept from hanging zh-20c1d74a ran a page long (90.2 ->
+6.1) and zh-505b9619 fell to 56; a Latin ")" still hangs (zh-e0ca7252's
+"…免載於招標文件)" fell 98.9 -> 70.3 without it). Same-base sweep of 756:
+zh-20c1d74a 90.2 -> 90.9, nothing else moved. zh-cd8987db's "中。" is NOT
+this: its line has word spaces, and the older spaced-line test (need over the
+marks' count, against what is left of the line) takes it — unsolved, released.
+- zh-b0401810 (Mac 01Xgpbk5, 2026-10-24, routed by bd, looked, RELEASED): at the tip (with windows'
+  fa888b3a and macOS-doc's c5fc20eb) the tbRlV cell's characters stand within 0.6pt across and
+  0.2 down of Word's (职 101.87/382.92 to 101.28/382.74, every character after it the same), and
+  p1's rows match span by span to 0.6pt. 85.7 is the reader: PDFKit groups the codes, names and
+  numbers of a row into lines differently — Word's spans carry their trailing spaces ("2 ", "A ",
+  "4-04-04-02 "), ours do not. Not layout.
+- zh-6aa8bd7c p6 (Mac 01Xgpbk5, 2026-10-24, tried, RELEASED, nothing pushed): the contact table
+  states every column's share (448/380/298/369/705/363/393/547/401/1096 of 5000, the title row a
+  5000 span). Tried: each column its share of the table, raised to its need (noWrap's unparted
+  line, else its narrowest), the rise taken from the others in proportion and none under its
+  need — 62.8/52.2/41.0/50.8/98.8/57.0/54.0/78.4/55.1/150.6 to Word's 62.6/52.3/41.1/50.8/98.4/
+  56.9/54.3/78.0/55.2/151.2, all within 0.4 — but the mobile column stays at its 78.4 line where
+  Word gives 78.0 and wraps the last "8", so rows run short and the document fell 14.1 -> 13.7
+  (31 pages). Taking the rise by room over the narrowest (raised columns too) was worse. The
+  missing rule: why Word sets that noWrap column 0.4 under its line. Reverted.
+  Lab `mob` (Mac 01Xgpbk5, ~/starling-word-check/lab/mob, the whole document, every mobile
+  number one digit shorter (b) or longer (c)), Word's column widths:
+    a 62.6/52.3/41.1/50.8/98.4/56.9/54.3/78.0/55.2/151.2 (33 pp)
+    b 62.6/52.8/41.3/51.1/98.6/56.9/54.5/75.6/55.4/152.0 (32 pp) — the mobile column SHRINKS
+      below its 76.7 share to its own line (75.6), the rest gaining
+    c 61.9/52.1/40.5/50.4/97.5/56.1/53.5/84.3/54.7/149.8 (33 pp) — it grows to 84.3 of its
+      89.7 line, every other column giving 0.4-1.4
+  So shares are preferences pulled by content, not floors; pure content fit (our contentFit
+  path) is far off (the email column 84.5 to Word's 151.2). Formula not found.
+  [CLAIMED Windows 01QbbApP 2026-10-24: Word for Windows labs on the share/need rule]
+
+### T152. zh-6a4fc013 p14 on: a justified line stretches only what follows its last tab — DONE (2026-10-24)
+Owner: Linux office1 (starling-office1-df), from macOS-doc's re-check (the
+document's Thai is the Mac 01Xgpbk5's; this is only the tab). "คำถามที่  2 ：<tab>
+การเปิดนำเข้า…" (jc both, default stop): Word's line ends short at 380, the
+spaces before the tab unstretched, the Thai after it spaceless; ours stretches
+them and sets "2 ：" at x 265. A line the tab ends ("…3 ：<tab>", the Thai on the
+next line) is stretched across in Word's print.
+Now the spaces before a justified line's last tab are held (no-break, not
+stretched) where text follows the tab on that line, the lines as the tab
+measure's wrap loop finds them. Same-base sweep of 756: nothing moved either
+way (on Linux "2 ：" stood only 5.7pt on: 124.8 -> 119.1); the Mac's larger
+shift is for the Mac to re-score.
+
+### T153. zh-cd8987db p7: a paragraph's last pause mark hangs half an em at most from 2013's layout where marks compress — RELEASED (Linux office1, 2026-10-24, tried and reverted)
+Owner: Linux office1 (starling-office1-df). macOS-doc's lab `cdend` (Word 16
+Mac, the document's own "5.5.1 …埋入土中。", mode 15, compressPunctuation, the
+right indent stepped): the "。" hangs by its blank half at most; needing more,
+Word squeezes it inside the margin with the line's other marks, and from the
+margin itself "中。" goes down. Ours hangs it whole and takes "中".
+Tried: the paragraph's last mark hanging half an em from mode 15 under
+compression — the same room as not hanging it, its half given — and it fell
+zh-20c1d74a 90.9 -> 6.1 (a page long), zh-505b9619 99.1 -> 56.1, zh-e0ca7252
+98.9 -> 35.8; zh-cd8987db did not move, since its line has word spaces
+("5.5.1 ") and the older spaced-line test (need over the marks' count against
+what is left of the line) takes "中" whatever the hang. Most final marks hang
+whole in Word's prints, so lab cdend's line differs in something else. The
+lab's own numbers also make Word's need at the margin about 15.2 (it squeezes
+15.15 at -2) where ours is 12.67, so the natural lines differ by ~2.5pt
+before any squeeze; that comes first. Reverted.
+(The ~2.5pt was the justified line's stretch, macOS-doc's -200 being a
+stretched line: the natural lines agree.) Then lab `cd2` (macOS-doc, the same
+paragraph without the space after "5.5.1"): Word hangs the "。" half up to 5.2
+over, and squeezed — the "。" whole inside — takes the line to 13.0 over and
+refuses 13.1: two commas' halves (10.5) and a quarter em (2.6) of the four
+automatic spaces; ours to 17.45. Tried that as the rule for a paragraph's last
+pause mark from mode 15 under compression (half hang, else no hang and that
+capacity): zh-20c1d74a 90.9 -> 6.1, zh-c2c92639 98.0 -> 86.7, zh-cd8987db 91.8
+-> 87.7. Most documents' final marks take more than that in Word's prints, so
+the capacity in cd2 is this line's, not the rule. Reverted; released.
+Then macOS-doc's bisects (cd3/cd4/cd5): the tight limit follows run 1's own
+ascii face — "5.5.1" in 黑体 (SimHei digits, from style 95's rFonts) holds to
+~13, "5.5.1" in Calibri to ~18 (ours 17.45); not the paragraph mark's face,
+not outlineLvl, spacing, numPr, lang or widowControl. Tried the rule only on
+lines no Latin face draws anything on: zh-20c1d74a still 90.9 -> 6.1,
+zh-505b9619 99.1 -> 49.6, zh-e0ca7252 98.9 -> 35.7 — their all-Chinese lines'
+final marks hang more than that in Word's prints. So it is something about
+digits set in an East Asian face (counted as wide characters? on the grid of
+the line's ems?), not about the line's faces. Patch kept at
+~/tmp/office1/t188-tried.patch (Linux office1). Released.
+
+### T154. zh-efd9229a p4: a mark in text of a non-CJK East Asian language gives nothing — DROPPED (Linux office1, 2026-10-24): no such rule
+Owner: Linux office1 (starling-office1-df). macOS-doc's lab `sq14`-efd (Word 16
+Mac, the document's "2024年我街道…但还存在一些", mode 14, compressPunctuation,
+Normal's eastAsia en-US, the comma's run stating none): Word takes "一" up to
+1.56pt over and not 1.76 — half the "4→年" automatic space, the comma giving
+nothing; every run eastAsia zh-CN, through 6.94 as ours; doNotUseEastAsianBreakRules
+makes no difference. zh-c5b5087b's en-US Normal is no counter-case: its runs say
+zh-CN. Plan: a mark whose run's East Asian language (run, else style, else
+defaults) is not zh/ja/ko gives nothing.
+Tried per run (run, else style, else defaults: the marks of a run whose East
+Asian language is not zh/ja/ko give nothing), same-base sweep of 756:
+zh-efd9229a 96.6 -> 99.2, zh-264d7516 96.0 -> 99.5, zh-51af781b 98.7 -> 99.6;
+zh-c5b5087b 53.5 -> 26.8 (Normal en-US, its comma runs saying nothing, and its
+commas squeeze in Word's print), zh-06c46ba9 99.0 -> 98.3 (Body Text en-US under
+zh-TW defaults; lab `sp`'s brackets give), zh-bdae17c0 -0.5, zh-fec5fa30 -0.1.
+Not committed. Round 2 (macOS-doc, lab files q4/q5): kinsoku 0 is no exemption,
+and a paragraph style saying en-US over a zh-CN Normal turns the comma off — so
+Word's chain is per run, as tried, and zh-c5b5087b / zh-06c46ba9 differ from
+efd in something else (not theme font language, grid or hints). Round 3 sent:
+those two paragraphs into the stepped setup. Patches: ~/tmp/office1/t191-all.patch
+(per run), t192-all.patch (a document-level try, wrong by round 2).
+Round 3 (macOS-doc, g1-g9): under a non-CJK East Asian language Word still
+compresses brackets of every kind (（）「」『』【】〔〕《》) and not "，。、；：！？" or the
+curly quotes; zh-06c46ba9 squeezes on brackets; zh-c5b5087b's paragraph in fresh
+Word ends "…对" as T154 has it (its print is 仿宋_GB2312, in the suspect window).
+Built so (pause marks and quotes muted, brackets give), same-base sweep of 756:
+zh-efd9229a 96.6 -> 100, zh-264d7516 96.0 -> 99.5, zh-51af781b 98.7 -> 99.6;
+zh-c5b5087b 53.5 -> 26.8 (11 pages to the print's 10). Held for a fresh full
+print of zh-c5b5087b (asked of macOS-doc). Patch: ~/tmp/office1/t154-final.patch.
+DROPPED. Round 4 (macOS-doc, README ROUND 4): the premise was two artefacts.
+(1) A print-timing trap in many-copy labs: printed straight after opening, Word
+had laid out only the first ~14 copies of a paragraph, and later copies came out
+unsqueezed; after a 45-60 s wait all squeeze, en-US exactly as zh-CN, for
+，。、；：（）「」 alike. Rounds 1-3 above are void. (2) zh-efd9229a's reference
+(10-23, the long-running Word, 仿宋_GB2312) is stale: fresh Word ends p4's line
+"…但还存在一", as ours did before. zh-c5b5087b's reference holds (fresh Word
+"…对粮"), so the "suspect print" note above is wrong. Real long documents print
+the same straight and after a wait (zh-ab9cbe66, zh-06c46ba9), so corpus prints
+are not hit by the timing. T154's other gains, zh-264d7516 and zh-51af781b, are
+_GB2312 documents too: likely stale references, worth a fresh reprint before
+anything is read into their line ends. Patches kept, not to be used.
+
+### T155. zh-0513f641 p9: a page-anchored table that goes over to the next page stands at its offset there — DONE (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). p9's form (tblpPr vertAnchor page,
+tblpY 1322 against a 1440 top margin) follows the cover that fills p8; Word's
+print has its top line at 66.0, ours at the margin, 72.0, every line of p9 6pt
+low. The offset is applied where a page break opens the table's page and where
+it opens an empty one, not where its first row goes over for want of room.
+Done: where the first row goes over for want of room and opens an empty page,
+the offset is applied there as where a break opens it (into the top margin
+too). Same-base sweep of 756: zh-0513f641 94.6 -> 98.7, nothing else moved.
+
+### T156. zh-60c80728 p35: a lone VML shape sets its text in its type's text rectangle — DONE (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). p35's flowchart is 22 lone VML
+"alternate process" boxes (o:spt 176, inset 0, no v:shapetype in the file,
+WPS-written); ours takes a character a line more than Word's print in box
+after box ("由港区专" / ours "由港区专项", 54.25pt wide at 10.5pt). The text
+rectangle of a file's shapetype is read only for shapes in a group; a lone
+shape, and a type the file does not define, use none. Plan: VML's built-in
+textboxrects for the common types (176: @3 = adj 2700 x 0.2929 of 21600).
+Done: `_vmlTextRect` — the shapetype's textboxrect, else VML's own for types
+2/176 (0.2929 of adj), 3/120, 110, 116. Same-base sweep of 756: zh-60c80728
+97.7 -> 99.6, nothing else moved.
+
+### T157. zh-51af781b p57 on: a Latin word that starts past the margin is not taken in a cell either — DONE (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). Mode 14 cells of scoring rules,
+"…干湿区分离，得" / "1分；…" in Word's print (its reference holds — macOS-doc's
+fresh reprint is identical); ours takes the "1" 9.2pt over, the automatic space
+before it already 1.4 past the margin, its five marks and three spaces giving.
+The body rule leaves such a word (zh-9dd9ce6d's "3"); the cell rule on a line
+with spaces (lab `ovc`) has no start test.
+Done: the cell rule on a line with spaces takes a Latin word only where it
+starts inside the margin. Same-base sweep of 756: zh-51af781b 98.7 -> 99.0,
+nothing else moved.
+
+### T158. zh-0daa510e p5: PMingLiU's "×" is half an em, its space 0.26 — DONE (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). Taken up from Windows 01QbbApP's
+open note (zh-05699f05, 10-22): "（A）×75%＋我國籍民" is one line in Word's print
+of a 12pt PMingLiU cell, "×" 5.95 wide; ours sets it 6.91 and leaves "民", and
+the cell's next four lines follow. Set alone in 10-22's code it cost
+zh-e061a08e and 31 others a line (the "）×" gap there); trying it on today's.
+Done. "×" alone, same-base: 3 up, 35 down a line each — the "）×100％" cells
+(zh-1d3d66d3, zh-e061a08e, …), whose source has a plain space before "×": Word's
+PMingLiU space is 260/1000 (3.12 at 12pt), ours the stand-in's 0.235 (2.82),
+and the too-wide "×" had hidden it. Every other ASCII width in 97 prints'
+embedded PMingLiU agrees with the stand-in's to the unit. Built: a PMingLiU
+ASCII table (space 0.26), "×" 0.5, its symbols still an em (`squareSymbols`).
+Same-base sweep of 756: ten up, all to 100 (zh-0daa510e 96.5, zh-afdd4a7e 95.9,
+zh-15ecc2c6 99.0, zh-093c8713, zh-d0eb9f43, …), nothing lower. This also
+closes Windows 01QbbApP's open "×" note (zh-05699f05/zh-e061a08e).
+Survey after it (Linux office1, 10-24): the ASCII /Widths of every Chinese face
+Word's prints embed, against ours — SimSun (78 prints), SimHei (73), FangSong
+(30), KaiTi (13): every character 500/1000, as ours; YaHei (122): all 90 seen
+agree with `yaHeiAdvances`; Arial Unicode MS (44): Arial's, as ours. PMingLiU's
+space was the only ASCII width off. (`~/tmp/office1/pdfwidths.py`.)
+
+### T159. Word for Windows references (word-win): missing Latin faces and RTL lines — (a), (b) DONE (Mac 01Xgpbk5, 2026-10-24)
+
+The first word-win batch (3a73e05c, 100 POI docs) scores 82.9 with `lab/tools/sweep-win.sh`, which converts with OFFICE_WORD_FONTS=windows and writes w/wp. Mac-mode PDFs score the same against these prints, so the font mode doesn't matter here.
+- Most of the drop is prints without markup: comment, Tika-792, 58067, delins and WordWithAttachments print without comments or revisions. Windows has been asked to print with all markup.
+- Claimed here:
+  - (a) Windows-mode substitution for missing Latin faces. drawing scores 6.8 and bib-chernigovka breaks lines differently: Word for Windows sets PragmaticaC-Bold and Arial CYR in Tahoma-Bold and Arial.
+  - (b) rtl: the Windows PDF stores Arabic in visual order, so the matcher pairs nothing.
+- Done:
+  - (b) 32b88548: the matcher pairs a Windows bidi line by its exact letters (Persian and Arabic forms folded). rtl 0 → 85.7; the seventh line misses because the print repeats a mark.
+  - (a) 0844bdd6: Windows mode takes the alternate whatever the PANOSE, and strips " CYR", " CE", " Baltic", " Greek" and " Tur" as Windows' FontSubstitutes do. drawing 6.8 → 100. wp2 is 84.7 (wp1 82.9), before the markup reprints.
+- Left, open to anyone: bug59058 (53.3 on word-win). Line breaks agree; Word for Windows fits one more line on p28 after the tables on p27, where the Mac print and ours fit 41. [DONE 512e6e3b (Mac 01Xgpbk5) -> 100; Linux b2 01JsizVV had it claimed and reached the same change, same-base pair 53.2 -> 100 with nothing else moved — released. Its finding: p28's atLeast-15pt lines (Times = Times New Roman 13pt, natural 14.94) are exactly 15, and Word for Windows sets the last one ending on the foot (720.0) — the whole-quarter-point tie rule (lab `ef`) left atLeast out]
+Done. Same-base sweep of 756: zh-043aab43 85.8 -> 100, zh-e64d4997 85.5 -> 100
+(the Mac 011uWpmC's parked lab `hs`, "（歲入成長率÷ 歲出"), nothing lower.
+Re-confirmed against word-win (Linux office1, 10-24): T155-T159 together, a
+same-base pair with OFFICE_WORD_FONTS=windows scored on word-win (the tip at
+ef5d58bf against it with the five reverted): 15 up — zh-043aab43 85.8 -> 100,
+zh-e64d4997 85.5 -> 100, zh-0513f641 94.6 -> 98.7, zh-0daa510e 96.5 -> 100,
+zh-afdd4a7e 95.9 -> 100, zh-60c80728 99.0 -> 99.6, zh-51af781b 76.3 -> 76.6 and
+eight 99.x -> 100 — nothing lower.
+
+### T159. PMingLiU's "÷" is 0.591 em and its half-width corner brackets half an em — DONE (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). From T158's survey of Word's
+embedded PMingLiU (every print of the corpus): of its symbols only "×" (500),
+"÷" (591, 98 prints), "｢｣" (500) and "Å" (709) are not an em. Ours sets "÷" in
+the stand-in at 0.584. "÷" sits in the "）÷（" formula cells of ~98 documents.
+
+### Missing-face map: Word for Windows' face for each name in word-win-missing-faces.txt (Windows 01QbbApP, 2026-10-24)
+test/corpus/docx/word-win-missing-faces-map.txt has 135 names, ordered by the documents each covers.
+Each probe was the first document of a fresh Word, run three ways: B with the name's commonest corpus
+font-table entry, C with its second where it has one, A with no entry. For each it records the Latin,
+简体 and 繁體 faces and the pitch.
+- The entry decides. Of the 49 names with two or more entries, 19 change face between them, so fit each
+  document's own entry.
+- An altName naming a face this box has wins. Otherwise charset 86 goes to YaHei, and 88 to JhengHei or
+  PMingLiU.
+- With no entry, a CJK name goes to Yu Gothic (+JhengHei) or SimSun; a Latin name to Cambria for Latin
+  and MS Mincho (+JhengHei) for CJK.
+- Top rows:
+  - 方正小标宋简体 / _GBK / 方正黑体_GBK / 方正仿宋_GBK / 方正楷体_GBK (charset 86, PANOSE): YaHei, 31.8pt
+    lines at 12pt.
+  - Arial Unicode MS: charset 88 gives JhengHei; charset 00 gives Arial plus Mincho/JhengHei.
+  - 全真楷書 / 華康楷書體W5(P) (alt 新細明體): PMingLiU.
+- 仿宋_GB2312 and 楷体_GB2312 rows show Word's unwarmed answer (B: YaHei, A: SimSun). The references are
+  warmed: FangSong/KaiTi.
+macos-ios fits facemap from it.
+
+### zh-3fe252ff (31.3) and zh-8e8d4c40 (47.5) on word-win, w1 at 452660de — CLAIMED (Windows 01QbbApP, 2026-10-25)
+zh-3fe252ff: p6, Word's "Deleted:截止" balloon and the next paragraph a line out. zh-8e8d4c40: a p2 cell's lines 3pt low in
+Word. Word-side labs here; fixes go to a builder.
+- zh-8e8d4c40, MEASURED, released to a builder. Word's labelled list lines step 16.2, other lines 15.6 (DFKai-SB). In the
+  label, "2" is Calibri and "、" is MS Mincho (a per-character fallback, since Calibri lacks it); the space is Arial. The
+  line takes MS Mincho's ascent (0.859 + 0.15 em = 12.11) and DFKai-SB's descent (0.199 + 0.15 = 4.19): 16.3. That is
+  +0.6 a label, 3pt by the cell's foot. Ours keeps such lines at 15.6.
+- zh-3fe252ff, MEASURED, released to the line breaker. p6 matches except a balloon 3.6 low. The split is p22, and it is a
+  line break, not markup. Word's line 2 ends "…28~31 行3", natural width 308.76 (the paragraph set jc left), and "栏"
+  would end it at about 323 inside the 334.1 measure, yet Word sends 栏 down with ">0,". Lab lan, one character after
+  "28~31行3栏" changed in the document: ">" and "%" send 栏 down, "=" keeps it. So ">" and "%" may not start a line
+  (Word's Simplified Chinese no-line-start set). Ours breaks before ">" and keeps 栏.
+
+### zh-e2dc9dce (6.2) and zh-c399c91a (18.1) on word-win: two face changes (Windows 01QbbApP, 2026-10-24)
+Both references reprint identically fresh.
+- zh-e2dc9dce: its 標楷體 is DFKai-SB on Windows since the font pack; the Mac print had YaHei, 52 pages, against
+  Windows' 47. Ours still uses the stand-in and runs a page long. It is T169's DFKai-SB face (macos-ios).
+- zh-c399c91a: LinTimes, which this box lacks, is Ebrima on Word for Windows. The Mac and ours use Calibri.
+  Lab lint (a bare probe, fresh): the font-table entry's w:sig decides, not its PANOSE (TNR's here):
+  - as is: Ebrima; PANOSE removed: Ebrima; family roman: Ebrima;
+  - sig removed: Calibri; no entry: Cambria; TNR's own sig: Sylfaen.
+  Word ranks installed faces by the entry's Unicode/code-page signature. One facemap row covers this document.
+- Note: zh-e2dc9dce waits on lenovo-2's DFKai-SB face (lenovo-2 is finishing it).
+- Sig map for missing Latin faces (lab sigmap, for macos-ios's facemap). Every missing Latin face with text across the
+  756 documents is grouped by its font-table entry; there are 9 groups, one document each. Each probe was fresh:
+  - Times (bug59058, 982 runs; no alt, cs 00, sig E0002AFF/C0007843/09): Times, the PDF's Times reference.
+  - TH Sarabun New (zh-6a4fc013, 281; no alt, Thai sig A100006F/5000205A): Browallia New.
+  - Nimbus Roman (zh-015abfaf, 273; no alt, sig 00000287/00000800): Calibri.
+  - MinionPro-It/-Regular/-bold (bug59058, 173; alt Times New Roman): Times New Roman.
+  - LinTimes (zh-c399c91a, 128; no alt, sig 00007A87/80000000/08): Ebrima.
+  - Times Roman (zh-e2dc9dce, 16; no alt, sig 00000003): Times New Roman.
+  - taipei (zh-12db188f, 10; alt Times New Roman, sig 00000003): Times New Roman.
+  - FangSong_GB2312 (zh-c3dd22c4, 1; alt 仿宋_GB2312, cs 86): YaHei, unwarmed (warmed references use FangSong).
+  - FZShuTi (zh-f6686f89, 1; no entry): Cambria for Latin.
+  An alternate this box has wins. Without one the sig picks: Thai → Browallia New, Latin-only 00000003 → TNR,
+  LinTimes' → Ebrima, Nimbus Roman's → Calibri.
+
+### Word for Windows sets baselines on a 1/600-inch grid from the running total; DFKai-SB is 1.3009 em (Windows 01QbbApP, 2026-10-24)
+Lab round, in zh-d35cbbdb's package, each print fresh, every baseline read.
+- Baselines sit on a 1/600-inch grid (0.12pt), rounded from the running total of the lines' true heights, not
+  per line. Each step is the floor or the ceiling of the true height in whole units, in the proportion that keeps
+  the total right. 14pt DFKai-SB is 151.774 u: 152 ×26 and 151 ×7. 12pt is 130.098 u: 130 ×32 and 131 ×3.
+- Paragraph spacing adds into the same total exactly: 27.2pt after gives a mean of 18.2129 + 27.204.
+- Lines within one paragraph, separate paragraphs, cells and the body all behave the same.
+- DFKai-SB's true line is 1.3007-1.3011 em, not exactly 1.3: 15.612 at 12pt, 18.213 at 14pt, 13.660 at 10.5pt.
+  That is about 0.37pt over zh-d35cbbdb p2's 33 lines (lenovo-2), and the hair in T169 (lenovo).
+- Times New Roman 12pt steps 13.80 = its 1.1499 em.
+
+### zh-d35cbbdb 28.4: DFKai-SB's line is 1.3 em; the body ends at the footer's top (Windows 01QbbApP, 2026-10-24)
+Lab kai, in the document's own package, Word for Windows:
+- 標楷體 (DFKai-SB) at 14pt, line 0 atLeast, steps 18.2 = 1.3 em, with the grid or snapToGrid 0. kaiu.ttf's own
+  metrics are 1.0 em (win) or 1.199 (hhea). The baseline is 13.34 under the line top: the 11.21 ascent plus
+  half the 0.3 em extra.
+- The footer's two lines are 12.24 apart (Calibri 10).
+- Page 1 keeps a line whose box ends at 767.83 and drops one ending at 768.08. The footer's top is
+  841.9 - 49.6 - 24.5, about 767.9, above the 769.9 bottom margin. So the body limit is min(bottom margin,
+  footer top), with no clearance.
+
+- [Windows lab DONE: lab round, see "Word for Windows sets baselines on a 1/600-inch grid…" above — DFKai-SB 1332/1024 em, running-total rounding.]
+- Linux 017F2GnT, 2026-10-24, MEASURED, PARKED for a Windows lab: ours already ends the body at the footer's
+  top (footer 24.4, limit 767.9; row tops within 0.05 of Word's). DFKai-SB's baseline 0.951 is right (our glyphs
+  then sit 0.0-0.45 off Word's; tried locally, no page moves) — lenovo carries the one face definition (T169).
+  The break is Word's line placement: its 14pt lines step 18.24/18.24/18.12 and its 27.2 paragraph steps 27.24
+  (1/600" units, biased up), so p2's baselines run 0.37 under ours by the foot and "3." ends 767.67 + a 0.48
+  rule past 767.85. Ours step 18.2 exactly and keep it (767.30 + 0.5). Lab asked of windows: 40 single 14pt
+  lines, and the same with paragraphs, each baseline read — how Word rounds a line to its device grid.
+
+### word-win: 13 references that embed a face reprinted fresh — re-score them (Windows 01QbbApP, 2026-10-24)
+Word for Windows keeps an embedded face it has loaded for the rest of its process. A later document in the same
+batch that names the face prints in that copy or falls back.
+- Of the 20 references that embed faces, 13 printed differently in their batch than as the first document of a
+  fresh Word. Two fresh prints agree. Replaced in db46d815:
+  zh-1cfb652b, zh-32f4ad9f, zh-540dc149, zh-5450d509, zh-57f1de0d, zh-70094a34, zh-7b5b3de2 (12 -> 11 pages),
+  zh-7eba7349, zh-984846dc, zh-c2f6d17a, zh-d9b085b1, zh-e68a2f57 (62 -> 60 pages) and zh-e8d4c046.
+- The driver now prints such documents alone.
+- This answers macOS-doc's "when does Word skip an embedded face" (zh-e8d4c046 and the ten like it): fresh, it
+  never does. All of them print their embedded 方正小标宋简体. The MS Gothic title, and its 38.4pt pitch, were
+  batch artifacts.
+
+### word-win audit: references printed before Word had their cloud face — 2 replaced, re-score them (Windows 01QbbApP, 2026-10-24)
+Word fetches an Office cloud face the first time a document names it, and prints that document in a
+fallback while it downloads. Eight cloud faces arrived during the full reprint: Aptos 16:58, Vrinda
+17:01, Batang 17:02, STFangsong and STXinwei 17:08, MingLiU_HKSCS 17:16, Nunito Sans 17:18, STXihei
+17:26. Three checks, every reprint the first document of a fresh Word after the warm-up:
+- The 18 references whose runs, styles or theme (latin/ea) name one of those eight: 16 reprint
+  identically. Two did not and were replaced (3a85d9f2). **Re-score these before reading misses:**
+  - table-alignment: bold italic was Calibri, is Aptos.
+  - zh-8d72961c: its Nunito Sans text was Calibri, is Nunito Sans Light/Bold; 61 lines where it had 59.
+- An audit of all 756 prints (scratchpad audit.py): text runs naming a face this box has, installed
+  or cloud, whose PDF never uses it. It flagged 12; all 12 reprint identically, so Word really
+  sets those runs in another face.
+- A random 30 of the 414 references that name a face this box lacks, reprinted fresh: all
+  identical. The batches' once-per-process substitute did not alter the set.
+So word-win is clean apart from the two above.
+
+### delins 74.6: Word for Windows' balloon order at one anchor — PARKED (Windows 01QbbApP, 2026-10-24)
+At 8309c3f8 the pitch matches Word's to 1pt, and only the order of the x428 column is left. Word's
+print (word-win), with each box paired to its connector by draw order, shows the following.
+- Every link item draws its balloons in document order: Field Code Changed (the field code's
+  rPrChange), then Formatted (the result's), then Formatted (the text after the field).
+- The first two anchor at exactly the same x, 88.0080pt to the PDF's precision on every item.
+- They stack as Formatted, Formatted, Field Code Changed on every item except item 18
+  ("Advanced Indexing…"), which stacks Field Code Changed first.
+- The other differences macos read in the misses follow from that one flip: the "FCC FCC" pair is item
+  17's last balloon and item 18's first, and the four-Formatted run is a real item with no field change.
+Lab fo (~/starling-doc-check/lab/fo, delins's own package, Word for Windows) tried these runs:
+item 17 alone or wrapping; item 18 alone or trimmed to one line; items 17-18, 14-21, 16-21, 17-19 and
+10-21. Every one gives Formatted before Field Code Changed at every item. Only paragraphs 0-23, with the
+87pt "Deleted:" balloon at the head pushing the stack down (and not off the page), reproduce the flip.
+Formatted first is the rule, and ours already follows it. The flip is Word's tie-break between two
+balloons at one anchor, and nothing in the document predicts it. Parked; delins stays at 74.6.
+
+### zh-8f9b19f4 p13: bare paragraphs 20.06pt apart are Arial's line plus 8pt after, not a face (Windows 01QbbApP, 2026-10-24)
+Lab bp13 (~/starling-doc-check/lab/bp13, the document's own package, Word for Windows, three fresh
+processes) shows every Normal line in this package stepping 20.08, not only the bare <w:p/>s:
+- 0, 3 or 6 bare paragraphs between two lines step 20.04-20.09 each.
+- Text lines ("x", "AAAA") step the same, and so do bare paragraphs given sz 21 or snapToGrid 0.
+- At sz 24 the step is 21.80, so +1.5pt adds 1.72, Arial's 1.149 em. The step is Arial's line
+  (12.07 at 10.5pt) plus a constant 8.0pt.
+- That 8pt is the space after Word gives when the styles part has no pPrDefault (see the T101 note).
+- These don't change it: the East Asian face (Arial→MS Mincho, 宋体→SimSun, none→MS Gothic), the
+  Arial font-table entry (charset 00, removed, no altName), useFELayout, compat, docGrid, columns.
+So no missing face is involved. If ours sets these bare paragraphs tighter, it is not giving
+them the 8pt after (empty paragraphs or <w:p/> with no pPr). Released for whoever owns spacing.
+
+### Windows baseline (Mac 01Xgpbk5, 2026-10-24): word-win, sweep-win.sh w4 at 9e957126 — the list to work from
+
+Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=windows against test/corpus/docx/word-win, output w/wp under the per-checkout root. **R** marks the 444 zh documents on windows' font-pack reprint list (_GB2312, 方正 and 標楷體 names, plus zh-7773163d). Their prints flip between FangSong/KaiTi and YaHei in runs, a state outside Word, so treat their scores as provisional.
+- Since w3: 9e957126 removes the Mac's `w:background` header marks in Windows mode, taking five zh documents from 0–5 to 90–100 and bib-chernigovka from 0.4 to 99.6.
+- Note: a constant whole-page y offset scores 0 for a document laid out identically. `lab/tools/yoff.py WORK REFS` prints each document's median offset.
+- zh w4: 645 docs, mean 91.0, median 98.4; outside the reprint list 201 docs mean 95.8; on it (R) 444 docs mean 88.9 — provisional until the font-pack reprint
+- POI wp4: 111 docs, mean 85.4
+- Lowest outside the reprint list (score, Word lines, pages Word/ours, Mac n221 score):
+  - zh-d97c5474   2.2     46 lines      2/2  (mac   2.2)  [CLAIMED Linux 01F2SWc8 2026-10-24 (taken over from 017F2GnT, routed by macos), with zh-8d72961c: Nunito Sans (Light, Bold) — Word for Windows sets its own line, 1.364 em (hhea 1011/353 of 1000; ours Carlito 14.6 at 12pt to its 16.37), and its widths; Greek falls back to Cambria. Nunito (a573f4af) 2.2 -> 19.6, Cambria's Greek widths 39.1 (h152); left: the Chinese runs' faces (T160) and what follows; Linux 01F2SWc8 2026-10-25: DONE d1b65910 50.0 -> 89.1, same-base pair h155, nothing else moved — Windows mode sets East Asian text in a Latin face as a missing name's, MS Mincho with JhengHei for what it lacks (its runs name only Latin faces; its style's theme ea is empty); its Chinese lines now within 0.6pt of Word's 20.7 steps, ours were 16. Left: the Arabic (Word sets it in Arial and Times New Roman, ours in Noto Naskh). MEASURED Linux 01F2SWc8 2026-10-25 at d1b65910: its 5 misses (10.9 points) are all p2's Arabic paragraph — text runs, Arial 11pt and one Times New Roman 12pt line. Heights agree within 1pt (one line 2.6); the breaks differ by width: over the paragraph Noto Naskh is 1817pt where Word's Arial is 1634 (11.2% wide), and 123.0 to Times' 119.9 (2.6%). Word's word-win subsets keep hmtx for the glyphs used only (Arial 125 of 4651, Times 53) and a cmap of the presentation forms used (U+FBxx/FExx), so a per-form advance table can be read from the reference without the font; but widths vary by joining form and our tables are per code point, so it means applying them after shaping. A per-face Arabic scale (about 0.90 Arial, 0.975 Times) would get the paragraph's total but not each word. BUILT, PARKED (Linux 01F2SWc8, 2026-10-25, on windows' 0d62b470 table): ArabicForms (each letter's joining form from Unicode's presentation-form decompositions, lam-alef as one, marks transparent) with Word's Arial advances gives the paragraph 1634.01pt to the print's 1634.0, so the table and the joining agree with Word. Applied per word in the span builder it takes zh-d97c5474 89.1 -> 93.5 (rtl, the only other Arabic document, stays 0.0) and its lines break as Word's. Not landed, for the drawing: (a) a zero-width joiner (or ZWNJ) after each word carrying the difference is measured but not drawn right to left — the lines broke right and stood 47pt past the margin; (b) the difference on the space before each word draws, but Naskh is 11% wider than Arial, so the spaces go to nothing and words run together, and lines still stand 5-15pt past the margin. No installed face is nearer: Noto Sans Arabic 2037pt, DejaVu Sans 2164, its Condensed 1947, FreeSerif 1745, Naskh 1817, to Word's 1634. Needs either the engine to draw a right-to-left run's spacing as it measures it, or a stand-in nearer Arial's widths. Patch: arabic-joined-widths.patch (Linux ~/tmp/word), ArabicForms.swift and WindowsArabicAdvances.swift in it; a third way, from macos: draw each Arabic word condensed horizontally to its Word width (SkFont scaleX) rather than move the spaces — needs an engine hook, as TextStyle has no scaleX; cross-repo, not started]
+  - zh-8d72961c   8.3     36 lines      1/1  (mac   4.3)  [CLAIMED Linux 01F2SWc8 2026-10-24 (taken over from 017F2GnT, routed by macos), with zh-d97c5474. a573f4af Nunito Sans' own widths and line: 4.3 -> 36.2 against 3a85d9f2's reprint (h151); its Chinese lines keep their heights — T160's. Then Cambria's Greek widths: 53.2 (h152); Linux 01F2SWc8 2026-10-25: 53.2 -> 80.9 by macOS-doc's 95968658 (its MS Gothic runs on MS Gothic's own line); a same fix of mine was dropped as redundant. Left: what follows its Chinese, and the Arabic. MEASURED Linux 01F2SWc8 2026-10-25: its 9 misses (19 points) are all p2, and p2 is one inline picture, a DrawingML pic:pic whose blip is word/media/image1.emf (57 ExtTextOutW: the heading, the Arabic in Arial, the Latin in Nunito Sans). Ours draws the grey placeholder: Metafile/WriterMetafiles play an EMF only from VML v:imagedata (Docx.swift, the embedded-object branch), and a blip's EMF goes to the image codec. Not a font matter. Three word-win documents carry a DrawingML blip EMF/WMF: this, VariousPictures (100 already) and zh-701eda18 (5, no text). DONE d53026ac (Linux 01F2SWc8, 2026-10-25): 80.9 -> 100, same-base pair h156, VariousPictures 100, nothing else moved. A blip's EMF/WMF registers with WriterMetafiles and the layout lets the object painter draw it. Its Arabic records are ETO_GLYPH_INDEX (Arial's glyph numbers), now left out rather than drawn as Greek and Cyrillic; Word's print draws them, and the matcher reads them as blank on both sides. Drawing them would need Arial's glyph-to-character table. The text Arabic in zh-d97c5474 stays OPEN (per-form widths; the per-face scale was ruled out by macos)] [Windows 01QbbApP 2026-10-25, routed by macos: the per-form advances are in docs/plans/word-win-arabic-advances.txt, numbers only. They cover Arial, Arial Bold, Times New Roman and Times New Roman Bold, each 574 cmap entries over U+0600-06FF, FB50-FDFF and FE70-FEFF, presentation forms and lam-alef ligatures included, read from the Windows box's installed faces. They equal every Arabic glyph Word embedded in zh-d97c5474's print (Arial 130, Times 43) to 1e-4. Not built here: on the Windows box our engine falls back to the system's own Arial for this Arabic (DirectWrite), so the widths are already Word's and the defect does not show. It needs building where Noto Naskh is the fallback (Linux, Mac). A design note from a probe here: our span builder corrects widths per character, and a per-letter letterSpacing inside a joined word is unproven. Since Arabic parts only at spaces, a per-word correction would set every break: the sum of each letter's joining-form advance against the stand-in's shaped width of the word. OPEN]
+  - zh-8f9b19f4  24.7    154 lines    13/14  (mac  91.7)
+  - zh-d62da4dd  35.1     97 lines      4/4  (mac  58.8)
+  - zh-27a874b7  35.9     92 lines      3/3  (mac  56.0)
+  - zh-bfe04e2f  62.7    212 lines      9/9  (mac 100.0)
+  - zh-b8de3ae2  68.3    656 lines    29/29  (mac  72.1)
+  - zh-90e0cea8  75.3    320 lines    10/10  (mac  98.1)
+  - zh-f6686f89  75.8    571 lines    22/22  (mac 100.0)
+  - zh-e64d4997  84.2    506 lines    12/12  (mac  85.4)
+  - zh-043aab43  84.4    514 lines    12/12  (mac  85.6)
+  - zh-61a05efc  90.3    155 lines      4/4  (mac 100.0)  [DONE 2026-10-24: 100 after be77c1fa (bold not widened in Windows mode); nothing left — Linux 017F2GnT, h150]
+  - zh-a7a889eb  90.4   1107 lines    41/41  (mac  97.3)  [DONE Linux 017F2GnT 2026-10-24: 97.9 — YaHei Light's win-ascent line (its metrics from windows) and Segoe UI Symbol's own line, the p9 checklist's "☑" rows 0.8 short a line; pairs h149/h150 vs word-win, nothing else moved]
+  - zh-424775e4  92.7    370 lines    13/13  (mac  97.6)  [Linux b2 01JsizVV 2026-10-24: measured, RELEASED — 97.6 at f79c2e05. Its p5 line "…政治动机，" takes "机，" in Word (mode 12, compressPunctuation): Word squeezes "。" 6, "”" 3 and "：" 9 and sets the "，" half an em, ending 0.05 past our 407.95 column; ours refuses "机" 6.05 over against half of "动" (the mode-12 limit). Word's justified lines end 408.0 in (its paper rounded to 1/600 in: 10319 twips print 516.0), but fitting on the rounded width (page size to 1/600 in) took zh-424775e4 to 22.4 and twenty documents down — Word decides fits on the file's width, as office1's T164 found. Also measured: Word halves "。" before "”" only at a line's end or under squeeze, never mid-line with room (corpus survey, compressPunctuation without noPunctuationKerning)]
+  - zh-9db183d5  95.0    260 lines    11/11  (mac  96.5)
+  - zh-4ea36aa8  95.1    715 lines    17/17  (mac  97.1)
+  - zh-b5359de4  96.1    511 lines    14/14  (mac  95.9)
+  - zh-cf8b03a5  96.6    472 lines    11/11  (mac  98.1)
+  - zh-c591c1fa  96.7    299 lines    13/13  (mac  97.7)
+  - zh-e5eb092a  96.9    225 lines      8/8  (mac  96.9)
+  - zh-633792eb  96.9    547 lines    13/13  (mac  99.6)
+  - zh-5f2e209d  97.1    139 lines      4/4  (mac 100.0)
+  - zh-b3e8dec4  97.2    106 lines      4/4  (mac 100.0)
+  - zh-25381d22  97.3    442 lines    11/11  (mac  99.3)
+  - zh-4f883dce  97.4    153 lines      5/5  (mac 100.0)
+- Lowest POI (documents with lines):
+  - 58067   0.0  6 lines  1/1
+  - Tika-792   0.0  3 lines  1/1
+  - testComment   0.0  1 lines  1/1
+  - WordWithAttachments  13.2  38 lines  2/2
+  - delins  13.6  59 lines  1/1
+  - 60329  15.3  98 lines  3/3  [DONE macOS-doc (Mac 7bd18d8e) 2026-10-24, f4b05432: 15.3 -> 100 (word-win w22 -> w24, nothing else moved). The reader flattened a nested table over 600 characters into its cell; the invisible-wrapper path now takes a frame whose extra columns are empty and undrawn (no cell drawn/filled/spanned/merged, no row exact or over 20pt), drops a cell's empty mark under the table it ends with, and keeps a one-paragraph row's height as its line's least (the 9pt spacer). Word's print stands ~2pt right of ours throughout, title and footer too — the print's offset, not layout. Was: CLAIMED: the reader flattens a nested table over 600 characters into its cell; fix extends the invisible-wrapper path to wrappers whose extra columns are empty and undrawn. MEASURED Windows 01QbbApP 2026-10-24, released to the autofit-table owner. Word for Windows prints it
+    unclipped on landscape Letter, 792x612, as the docx sets; the Mac's portrait print was the clipped one.
+    The outer table's grid is 678.75 + 82.35pt; each row's first cell holds one nested table and the second
+    is empty. Each nested table keeps its own grid width from the outer cell's left (x 7.3):
+    - Study Design: one column, 339.35pt, to 346.6.
+    - Objectives: 158 + 519.85, to 165 and 685.2. The grid wins over its tcW (3163/10411).
+    - Endpoints: 159.2 + 259.75, to 166.1 and 426.2.
+    No nested row uses gridBefore or gridSpan. The labels ("Primary:" right-aligned) are column 1 and
+    their content column 2, on the same row. Prose starts at x 9.6 (outer cell 7.2 + tcMar 1.95). Most
+    line ends are hard breaks (40 w:br in one cell), and the 4 preserved spaces after each break print
+    (glyph 11pt in). Ours: labels at x 645 with content on the next line at x 25, so the nested tables'
+    columns are not side by side.]
+  - bug59058  53.3  1556 lines  52/52
+  - rtl  85.7  7 lines  1/1
+  - form_footnotes  98.9  87 lines  3/3
+  - bib-chernigovka.netdo.ru_dow  99.6  452 lines  15/15
+  - bug57031  99.7  339 lines  14/14
+  - 52288 100.0  2 lines  1/1
+
+### T160. zh-f6686f89: 75.8 against the Windows references — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24): 100
+[LAB DONE Windows 01QbbApP 2026-10-24, lab foot: Word for Windows lets exactly the multiple's extra hang past the foot.
+Measured overhangs, with the extra each multiple adds:
+- SimSun 12 (single line 15.56): at 1.15 the extra is 2.33, kept to +2.12, dropped at +2.51; at 1.5, 7.78, kept to
+  +7.50, dropped at +7.84; at 2.0, 15.56, kept to +15.35, dropped at +15.85.
+- Times 12 (single line 13.80): at 1.15, 2.07, kept to +1.92, dropped at +2.29; at 1.5, 6.90, kept to +6.84,
+  dropped at +7.14; at 2.0, 13.80, kept to +13.60, dropped at +14.10.
+So office.md's rule ("A multiple's extra space may hang past the page's foot") holds on Windows at every multiple.
+p1's 3.2 is 0.9 more than its 1.15 extra (2.34). Check that line's own single height under the T160 faces before
+adding any tolerance beyond the extra.]
+Mac 01Xgpbk5's patch is ~/starling-word-check/lab/wwface/t160-mincho.patch (Mac). It sets a missing Latin name with no table entry as square Mincho (1.3 em) with Cambria Latin, and puts what Mincho lacks (Shift_JIS as the coverage) in our JhengHei face.
+- **Line heights:** the 1.15 spacing and 10pt after account for the measured boxes. The 36pt cover lines are 1.729 em (JhengHei 1.33 × 1.3); the 18pt date is 1.30.
+- **zh-f6686f89:** 75.8 → 75.7. The cover now matches within 1pt, but p1 still loses "1、根据…": its two lines end about 3.2pt past the 720 foot at Word's own baselines, and Word for Windows keeps them. It looks like a Windows foot tolerance for 1.15-spaced lines and needs a lab.
+- **zh-202582e2:** 96.4 → 94.2. Its FZXiaoBiaoSong-B05S, Latin-named with no entry, prints in FangSong, so the Mincho rule isn't general. Use windows' word-win-missing-faces-map.txt.
+[MEASURED Windows 01QbbApP 2026-10-24, after the font packs, each lab the first document of a fresh Word, no warm-up;
+~/starling-doc-check/lab/t160 fresh*/v*/w*; released to whoever fits the faces (macos-ios, facemap/OfficeFonts)]
+**Stable from a fresh start.** The earlier drift came from printing variants in one Word, which
+fixes a missing name's face once per process. In three fresh processes, zh-f6686f89 itself, its
+cover alone and a bare package with no theme, font table or styles all print the same.
+- FZShuTi (no font-table entry) is set in MS Mincho, the simplified ideographs Mincho lacks
+  (单 总 监 题 库 编 组) in Microsoft JhengHei, and digits and spaces in Cambria.
+- The 36pt lines are 43.8pt boxes; the 18pt ones are 21.9 for Mincho/JhengHei and 21.1 for the
+  Mincho/Cambria date.
+- None of these changes it, each in its own fresh Word, twice: themeFontLang zh-CN or zh-TW; the
+  theme's Jpan minor or major face set to Yu Mincho or to a lacked face; the Hans minor face set to 黑体
+  or to a lacked face; ＭＳ 明朝 dropped from the font table; docDefaults' eastAsia set to 宋体; the
+  runs' lang set to zh-CN. So the theme does not decide it.
+- The missing name does. An invented Latin name (NoSuchFaceQ) prints like FZShuTi. 方正舒体 is
+  all SimSun, 1.0 em lines (36.0 at 36pt). 方正小标宋简体 with no entry is Yu Gothic with JhengHei.
+  Each is stable across two fresh processes.
+Rule for Windows mode: a Latin-named face that is missing and has no font-table entry is MS Mincho
+for ideographs, JhengHei for what Mincho lacks, and Cambria for Latin. That is the date line's
+Cambria digits and Word's 40.8 against our YaHei 45.5.
+Owner: Linux office1 (starling-office1-df), routed by macos. 100 against the
+Mac's prints, 75.8 against word-win; outside the font-reprint list. Its old note:
+a "（TSG S7001-2013）…" line whose "）" sat on a hair.
+Measured: the Mac and Windows prints hold the same 571 lines; Windows' p1 takes
+two more ("1、根据《客运索道…", "索道监督检验是在…") and every page to p6 starts two
+lines on, re-synced at p7's break. The cause is the cover, all FZShuTi (no
+font-table entry, on neither box): Word for Windows sets it in MS Mincho — the
+theme's Jpan major font, themeFontLang eastAsia ja-JP — with the ideographs
+Mincho lacks (单 总 监 题 库 编 组) in JhengHei and the date's digits and spaces
+in Cambria (the major Latin). Its 18pt date line stands 40.8 under the line
+before in Word's print, ours (YaHei, the Windows-mode stand-in from lab fsw)
+45.5; by "判断题" ours is 6.6pt low, and p1 cannot take the two lines. Not built:
+lab fsw's three zh-CN-theme documents give YaHei for a missing face, so the rule
+(theme language? major font?) needs a Windows lab: (a) this cover with
+themeFontLang eastAsia zh-CN; (b) with the theme's Jpan major font changed;
+(c) a missing face in a zh-CN document whose theme Hans font is 宋体.
+Lab t160 (Windows 01QbbApP, 2026-10-24, Word 16.0.20430, before any font pack;
+~/starling-doc-check/lab/t160, mk.py): the cover's four paragraphs in the document's own package. **The
+document does not decide the fallback; the time does.** In one batch, every variant printed
+the same: MS Mincho, with 单 总 监 题 库 编 组 in JhengHei and the digits in Cambria. The variants were
+(a) as is; (b) themeFontLang eastAsia zh-CN; (c1/c2) the theme's minor Jpan face set to Yu Mincho or
+to a face this box lacks; (c3) the major Jpan set to Yu Mincho; (d1/d2) zh-CN with the minor Hans face
+set to 黑体 or to a lacked face; (e) zh-TW; (f) ＭＳ 明朝 removed from the font table; (g) docDefaults'
+eastAsia an explicit 宋体; (h) a GB2312 font-table entry for FZShuTi; (i) docDefaults' lang zh-CN;
+(j) the runs' lang zh-CN; (k) g and f together. Ten minutes later, in a new batch, a bare package with
+no theme, font table or styles (p1: FZShuTi, zh-CN) printed all in SimSun, and p3 (ja-JP) too,
+while p2 (an invented name) printed Mincho/JhengHei/Cambria. A few minutes after that, p1 printed
+Mincho/JhengHei/Cambria again, whether it came before or after (a) in a fresh Word. In that
+same middle batch, 方正舒体 printed in SimSun, and 方正小标宋简体 in Yu Gothic with JhengHei. So which
+face stands in for a missing one drifts over minutes, outside the document and outside Word's
+process. It is the same drift as the 仿宋_GB2312 YaHei/FangSong runs in the reprint. Whatever the
+state, the date's digits print in the theme's Latin face (Cambria) whenever the ideographs go to
+Mincho. Until the box is in a stable state, no rule for a missing face can be read off this
+Word. The user's font-pack install may settle it; fsw's YaHei is no firmer than this.
+
+### T161. zh-bfe04e2f: Word for Windows' lines take a character more — RELEASED (Linux office1, 2026-10-24): bold, done by be77c1fa
+Owner: Linux office1 (starling-office1-df), routed by macos. 62.7 against
+word-win, 100 against the Mac's; the same SimSun/FangSong faces in both prints,
+and Windows' lines take one more ("…引领除LNG 船舶和5", "…以及引航机构报告，：").
+Its paragraphs are bold FangSong: the Mac print widens synthetic bold (12.23 a
+12pt ideograph), Windows' does not (12.0), so Windows' lines take one more.
+macos-ios's be77c1fa (no bold spread in Windows mode) takes it 62.7 -> 98.1.
+Released, nothing of mine in it.
+
+### Windows mode: no synthetic-bold widening — DONE be77c1fa (Mac 01Xgpbk5, 2026-10-24)
+
+Word for Windows keeps a synthetically emboldened face's widths. Long bold 仿宋/宋体/楷体/黑体 runs (34 documents) advance 1.00–1.007 em in word-win, against 1.025–1.03 in the Mac prints. The rule this splits off, 4e1beb1d, was fitted to the Mac. zh w5 is 91.7, up from 91.0.
+- Gains: zh-8f9b19f4 24.7 → 92.9, zh-bfe04e2f 62.7 → 98.1, zh-90e0cea8 75.3 → 97.5, zh-61a05efc 90.3 → 95.5, zh-1a3c7aa0 78.1 → 100, zh-7b08d744 50.7 → 98.5, zh-e7bdb543 2.6 → 84.2. 27 documents better in all.
+- Loss: zh-0243e7fc 98.6 → 98.0.
+- Whoever took zh-bfe04e2f, zh-90e0cea8 or zh-61a05efc: re-measure from w5 (~/starling-doc-check-starling-ios/w5).
+
+### Windows series now reads with PyMuPDF on both sides (Mac 01Xgpbk5, 2026-10-24)
+
+`lab/tools/sweep-win.sh` sets DOCX_LINE_READER=mupdf, so the matcher reads Word's print and ours with PyMuPDF, as on Linux, and scores with the lab venv's python. The Mac n series keeps PDFKit. PDFKit grouped our Type 3 glyphs into other lines than Word's real faces, costing about 20 documents of one Taiwanese form a header-row line per page.
+- **New base:** w5 rescored this way, zh 92.6 (91.7 under PDFKit) and POI 84.9 (85.4). The PDFKit scores are kept in w5/match-pdfkit.txt; compare w5 and later only against these.
+- **Better:** zh-e7bdb543 84 → 100, zh-727812d5 83 → 100, zh-5c7787f5 80 → 100.
+- **Worse:** zh-72da925e 81 → 76, zh-c4f2be3b 99.7 → 95.6, EmbeddedDocument 100 → 33 (3 lines).
+- Lab tools `misslist.py` and `yoff.py` read the same way when DOCX_LINE_READER=mupdf is set.
+
+### T162. zh-b875d786: every page 6.1pt low against word-win — CLOSED, nothing to do (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), routed by macos. 0.0 against word-win
+with all 181 lines matched: each page's text a constant 6.1pt under Word's
+(first baseline 91.0 against 84.9; 宋体 body, top margin 1440). Not T155-T159's
+(the same with and without them); not low at w4 (9e957126). Bisecting 9e957126
+and 0844bdd6 first, as macos suggests.
+- bceef902: the matcher takes a line's baseline from the spans that hold text only. Under PyMuPDF a closing space can share a line at its own baseline: EmbeddedDocument's "4" read 4pt low and went from 100 to 33. w5 was rescored with it (zh 92.6, POI 85.5). Linux scores move slightly the same way.
+Closed: my sweep's tip predated 9e957126 (no Mac w:background header marks in
+Windows mode), one of its five. At fea9fd0d it is 100 against word-win.
+
+### T163. POI on Windows: what separates wp5 (85.5) from the Mac's np (90.9) — DONE (Mac 01Xgpbk5, 2026-10-24)
+
+wp5 was ranked against np221 by lines lost. The 5.4 points come from two causes:
+- **About 5.0: markup documents.** testComment, comment, Tika-792, 58067, WordWithAttachments and delins. This is bd's markup pair, in flight. comment.docx prints blank on Windows, so it can only score 0. Reader is not a cause: PDFKit and PyMuPDF agree on these.
+- **About 0.4: bug59058 (53.2), layout.** Page 28 ends in a paragraph of at-least 15pt Times lines (all at their minimum) that fill the page to the twip. Word for Windows keeps the last line; Word for Mac and ours took it to page 29. The fix lets an at-least line that stands at its minimum tie on the foot, in Windows mode only (`RichTextTheme.wordWindowsPages`). bug59058 → 100, landed as 512e6e3b; w5 → w6 moved nothing else. The markup half landed as 5d97f5e7 (bd): POI 85.5 → 89.0. [Linux b2 01JsizVV: on Linux and Windows builds this did nothing until 87dc47df — `wordWindowsPages` was set inside registerFonts' macOS-only branch; moved out, Linux same-base pair (f79c2e05, word-win) bug59058 53.2 -> 100, nothing else moved]
+
+
+### Windows mode: Word for Windows' markup pane — DONE (Windows 01QbbApP lab `bp`, landed by the Mac, 2026-10-24)
+This is about 5.0 of T161's 5.4-point POI gap between the Mac and Windows series. The pane fills the paper's width, the page sits at its left edge, the balloons are Segoe UI 9pt, and everything is gated on wordOnWindows; office.md has the measurements.
+- **Pair:** w1/w2, same base d66805b8, both sides scored by the PyMuPDF matcher at bceef902.
+- **Result:** POI 85.5 → 89.0. testComment and 58067 0 → 100, Tika-792 0 → 66.7, WordWithAttachments 10.5 → 73.7, delins 11.9 → 69.5, zh-3fe252ff 33.3 → 99.4. Nothing lower.
+- **comment.docx:** scores 0 by construction and is not a line-gate target. Its comment has an empty scope in an empty body, and Word for Windows prints no balloon and no text (reprinted twice).
+- **Possible follow-up (windows):** skip the pane when no comment has a non-empty anchor.
+
+### T164. zh-cf8b03a5 p3: Word for Windows fits a line on its 600-dpi grid — TRIED, DROPPED (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df). A 118.2pt cell (PMingLiU 12pt,
+spacing -0.8, doNotCompress, zh-TW) holds "指標1×50%＋指標2×50%" in Word's
+print (word-win); ours ends its "%" at 118.208 and parts it before "%" (zh-TW
+lets a line start with it), and the cell's next eleven lines follow. Word's
+advances there stand on a 0.12pt (1/600 in) grid — 11.16, 13.92, 4.8/4.92,
+5.16, 8.52 — the cumulative positions rounded; so rounded, the "%" ends at
+985 units, the cell's width to the unit. Trying: in Windows mode a character
+fits where its end, rounded to 1/600 in, is inside the line.
+Tried: in Windows mode a character fits where its end, rounded to 1/600 in, is
+inside the line. Same-base Windows pair (mupdf): zh-cf8b03a5 98.1 -> 100,
+zh-b58b4f0c 99.8 -> 100; zh-043aab43 and zh-e64d4997 100 -> 85.8/85.5, zh-4197e764
+88.3 -> 82.8, five more 100 -> 98.5-99.8. Rounding only the end is looser than
+Word: its positions are rounded as they go (11.2 sets 11.16, 4.84 alternates 4.8
+and 4.92), so its line drifts from ours by more than half a unit either way. A
+model of Word's own sum would be needed. (Also found: the switch had to sit
+outside the macOS-only #else in registerFonts, as wordWindowsPages does not — see
+T163.) Patch not kept.
+
+### Windows mode: silent comment at the document's start, balloon pitch and the list-deletion indent — DONE (Windows 01QbbApP labs `na`, `bh`; landed by the Mac, 2026-10-24)
+- **Result:** Tika-792 66.7 → 100, delins 69.5 → 74.6, nothing lower. Pair: POI set plus zh-3fe252ff (the only zh word-win document with a pane), base ab10de75.
+- **Open:** delins's Field Code Changed / Formatted balloon order; re-read its misses at this tip.
+- **Open:** WordWithAttachments, where Times New Roman 10pt lines step 11.49 in Word for Windows (hhea with lineGap) and 11.0 in ours. [Linux b2 01JsizVV 2026-10-24: measured, PARKED, claim released. The 11pt of drift is the three inline WordArt lines (v:textpath, _x0000_t136): Word for Windows stands each over its shape — art1 +4.5, art2 +3.8, art3 +3.0 — where Word for Mac and ours set the shape's height. Windows' labs wa/wa2 (~/starling-doc-check/lab/wa, 187.5x28.5 textpath between 10pt markers, legacy = mode 14): bare +0.66; shadow y 2/3/6pt +2.9/+3.8/+6.7 (on="f" adds nothing); 1pt stroke alone +2.9, 4pt +30.8; shadow ",3pt" with a 1pt stroke +5.2 — neither sum nor larger; art3 exact (99.75x27.75, shadow "3pt", 1pt stroke) +3.0, its stroke adding nothing; a plain v:rect +1.4, with shadow ",3pt" +3.7. So the line follows the textpath's drawn extent (glyphs fitted to the box, the stroke scaled with them, the shadow), which we don't draw at all yet; three documents in the corpus hold a textpath. Wants WordArt drawn first.]
+
+### T165. zh-8f9b19f4 p13: a sectPr-only paragraph's space after comes off the next paragraph's space before — DONE (Linux office1, 2026-10-24)
+Owner: Linux office1 (starling-office1-df), routed by macos from Windows 01QbbApP's lab
+bp13 (above): every Normal line steps 20.06-20.08 (Arial's 1.149 em at 10.5pt and the 8pt
+after of a styles part with no pPrDefault); ours steps 20.3-20.4, the Mac's.
+Not the bare paragraphs: ours step 20.1, as Word's. p13 alone is 4.27 low, and lab
+`t165` (windows) puts it on "附件5:"'s 4.3pt before: the sectPr-only paragraph above
+takes no room (ours neither), but its 8pt after is taken off the next paragraph's
+before — max(0, before − after). Built so (the next paragraph in the body, or the
+first of a `sectionColumns` row, as "附件5:" is in ours), same-base Windows pair:
+zh-b5359de4 96.4 -> 94.8 — its sectPr-only paragraph (ending a nextPage section,
+the next beginning continuous in two columns, as zh-8f9b19f4's) is followed by an
+empty "TOC 标题1" paragraph of style before 24pt, which keeps all 24 in Word's
+print ("目录" at 486.4; ours 8pt high under the rule). What separates the two is
+asked of windows (direct vs style spacing, empty vs text). Patch:
+~/tmp/office1/t165-v2.patch.
+Done. t165b (windows) showed zh-b5359de4 follows the same rule in Word, and that
+ours matched it through two errors that cancel: a section of columns ends, in
+Word, under its taller column's last paragraph's after (6.84 of 8 there), which
+ours leaves out. A heading a nextPage break opens a page for keeps its before
+(zh-34a6519a "1总则", zh-64044a1d "壹、前言"). Built: the rule where the next
+section goes on on the same page and the ended section is one column; in the body
+the shared space already gave the after up, so it reaches the first paragraph of
+a `sectionColumns` row, as "附件5:". Same-base Windows pair (mupdf, word-win, at
+aca2279b): zh-8f9b19f4 91.7 -> 97.4, nothing else moved.
+
+### T166. zh-b8de3ae2 p14: a cell of no margin sets its text half an inside line in — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24, 6c8dcf54)
+Word's prints (Mac and Windows alike) of zh-5bfac68f and zh-b8de3ae2: in 0-margin cells (mode 15) the text
+starts 0.24 past a 0.5pt inside line's middle; ours stood a whole line in. zh-b8de3ae2 p14's last cell
+(1223 twips, indents 389/346, no right line) has 24.4pt for "其他收入" at 12pt: Word sets two a line, ours one,
+and the table's header row grew. Fixed for inside left lines; the right inside line takes its half only where
+the left is inside too — the halves on both sides are needed by bug65649 (100 -> 85 without), and none on the
+right by zh-e51c31a7's first column (its outer double left line; "未來運用規劃" wraps with it). That split fits
+the three documents rather than a lab; a Windows lab on a 0-margin first column would settle the right side.
+word-win (mupdf reader), w11 -> w14: zh-b8de3ae2 71.6 -> 76.2, nothing else moved. (The outer right line
+mirrored from the left — "margin and half, never inside" — took zh-c6da60a9 99.6 -> 38.8: not that.)
+Left in zh-b8de3ae2: its charts (p9, p12, p15, p18, p20-23: axis values, labels, a "%" second-axis title). [CLAIMED macos-ios: the charts (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux 017F2GnT)]
+Also: the "Lab c5" note in the zh-c5b5087b entry above (footer floats turning the squeeze off) was the print-timing
+trap — a 60s-waited Mac print squeezes through p10 (lab/sqcut); see lab/tools/squeeze-cutoff.py.
+
+[LAB Windows 01QbbApP 2026-10-25, labs b8row and b8row9 (~/starling-doc-check/lab on the Windows box), asked by macos-ios: zh-b8de3ae2's own package, rows printed as one-row tables (the table's own tblPr and grid), "X" paragraphs before and after, each a fresh Word, against our tip render (8337b1d0, Windows mode). Height between the X baselines, Word / ours:
+- The 7-column table (tblInd 472, 24 rows; the 213, 431 and 521 rows): 25.44/25.46, 36.36/36.36, 40.92/40.86, the three stacked 73.56/73.56, the whole table 473.33/473.21. Its p26 rows step alike in both prints. Not this table.
+- p14's "決算金額 / 105 年 / 比率(%)" groups are the 9-column table (tblInd 285, 22 rows). Each of its first eight rows alone is within 0.1 (row 5, "106 年 決算金額", 48.48/47.98). Together they part: rows 1-4 are 81.6/83.36 (+1.76), the whole table 442.49/453.16 (+10.7).
+- Inside rows 1-4 every baseline matches through "比率(%)" (149.18/149.10). The row-4 values ("100.00", line 263 exact, sz 20) are 155.54/157.45 (+1.9), and the X after is +1.8. So the extra is at the row 3/4 boundary. Row 3 (trHeight 226) is where the merges begun in row 2 end ("105 年", line 265 exact, and seven empty sz-20 cells; their row-3 continuations hold sz-2 paragraphs), and where "比率(%)" (before 128, sz 20) begins a merge over rows 3-4. Ours grows row 3 (or 4) by about 1.9 where a vertical merge ends or begins; Word does not.]
+[Windows 01QbbApP: RELEASED back to macos-ios, who had already started it. Our rows 1-4 (STARLING_RICHTEXT_ROWS) are 25.65, 13.75, 13.55, 16.1 against trHeights 24.15, 13.25, 11.3, 15.1. From each row's one-row print (baseline offsets equal in both), Word's row tops match ours through the "比率(%)" row's top (39.48/39.35) and part at the values row (51.72/53.45). So only the "比率(%)" row is wrong, about 1.9 too tall: Word holds it near 11.3-11.7, ours 13.55.]
+### Windows refit on the font-pack reprints — DONE 497b95bc (Mac 01Xgpbk5, 2026-10-24)
+
+Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refit, w9 is zh 95.2, POI 89.4. 259 documents are better, 4 worse.
+- **Rules, Windows mode:**
+  - 仿宋_GB2312/FangSong_GB2312 → FangSong
+  - 楷体_GB2312/KaiTi_GB2312 → KaiTi
+  - 標楷體/DFKai → the same square face; DFKai-SB's single lines are 1.30 em
+  - 方正 names stay YaHei
+  - A name the file embeds keeps the old path: what its subset lacks sits on YaHei's lines (zh-5450d509 2.7 → 85.7 with that gate).
+- **Worse:**
+  - zh-dc9cfa34 −22.1. Word for Windows widens a synthetic-bold KaiTi glyph by about 0.05pt at 12pt and wraps "单位：万元、平方米" one character earlier. Across the corpus the widening runs 0–0.12pt and doesn't follow size cleanly, so it's not modelled. Open to anyone who can lab it.
+    [LAB DONE Windows 01QbbApP 2026-10-24, lab bold. 40 ideographs, regular against w:b, jc left, two fresh
+    Words, identical. The excess per glyph is the same for KaiTi, FangSong, SimHei and SimSun:
+    10pt +0.0421, 10.5 +0.0328, 12 +0.0443, 14 +0.0598, 16 +0.0659, 22 +0.0862, 24 +0.0788.
+    That is about 0.0038 em but neither proportional nor a device unit. Bold steps alternate by about 0.11pt,
+    which looks like internal rounding. docGrid (none, lines, linesAndChars) does not change it. Model it as
+    this per-size table.
+    Justified (lab bold/jc, FangSong 12pt, a 445pt line): 37 regular glyphs fit and justify at step 12.018; in bold
+    only 36 fit, justified at 12.3617. So the excess counts for breaking in every line, and a justified line then
+    stretches. A mixed regular/bold line keeps the bold excess. Pen positions: 12pt bold alternates 12.000/12.108,
+    22pt is a constant 22.08; no device grid fits both.]
+    [Windows 01QbbApP, lab bold2 (zh-aa3f29a0's package): the excess is about one font design unit, 1/unitsPerEm em.
+    KaiTi, FangSong, SimHei and SimSun all have upem 256, so 1/256 em = 0.0039 (the table, 0.8-1.09 units after
+    per-size rounding). DFKai-SB has upem 1024: at 20pt bold steps +0.017 over regular (1/1024 em is 0.0195),
+    and zh-aa3f29a0's title stays one line as in Word. A flat 0.0038 em adds 1.6pt and wraps 畫. Microsoft
+    JhengHei, which has a real bold, adds nothing: 18.8923 bold and regular.]
+    [Windows 01QbbApP: zh-dc9cfa34's early wrap is not the bold. Its "填表单位（盖章）：" + 33 spaces + "单位：…" line
+    (eastAsia 楷体_GB2312, ascii Times New Roman, bold 12pt) sets the spaces 198.69 in all, 6.02 each. That is KaiTi's
+    0.5 em space, not Times New Roman bold's 3.0, though the PDF draws them as TimesNewRomanPS-BoldMT. Word measures
+    spaces between East Asian characters with the East Asian face's space: 99pt on this line.]
+    [Correction (macos-ios, Windows 01QbbApP): ours already sets these 33 spaces at 6.0. In a bare package the same
+    spaces are Times' 3.0 between Han too, so the 6.0 comes from this document's own setup. The gap to Word is the
+    bold excess after all. In its package, bold spaces are 6.021 against 6.001 regular, so bold adds about 0.02 per
+    space. Ideographs alternate 12.108/12.000, +0.044 (1/256 em). Bold wraps 米 (ends 493.57); regular keeps it
+    (506.98).]
+  - zh-b62c9e11 −1.3, zh-b84fecff −1.0, zh-8415d258 −0.4.
+- **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
+- Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
+
+### T167. zh-7773163d: 14.3 at w9, Word for Windows 66 pages against ours 61 — CLAIMED (Mac 01Xgpbk5, 2026-10-24), Windows labs DONE (t167, t167b, t167c); engine side with macos-ios
+[LAB DONE Windows 01QbbApP 2026-10-24, lab t167, each variant fresh: **the legacy compat mode**, an empty <w:compat>
+with no compatibilityMode. In it, Word for Windows treats Han text after a breakable space (ASCII or U+3000) as one
+unbreakable word. So the line breaks at the space, then force-breaks by characters.
+- Still break after 案例: no w:w, 二 for 2, no letter spacing, no bullet, jc left, U+3000, the space moved into run 2,
+  lang zh-TW, the style's "zh-tw" corrected, the runs in installed 新細明體.
+- Join: no space (line 1 to 512.9); U+00A0 (503.9); compatibilityMode 15 (514.2). With mode 15 the whole document
+  is 61 pages, the Mac's count, against 66.]
+[ISOLATED Windows 01QbbApP 2026-10-24, lab t167b: legacy mode alone is not enough. 76 other legacy zh documents
+break Han normally. The second condition is the document-default East Asian face being a Latin one:
+zh-7773163d's rPrDefault has eastAsiaTheme="minorHAnsi". The test was a plain "測試 + Han" paragraph set
+explicitly in 細明體_HKSCS:
+- In zh-52e5699c's legacy package it joins. With zh-7773163d's styles.xml swapped in, it breaks.
+- Within those styles, only the rPrDefault matters: eastAsiaTheme minorHAnsi → minorEastAsia joins, and dropping
+  its rFonts still breaks.
+- Language, autoSpace, widowControl, size, shapeLayoutLikeWW8, ulTrailSpace, useFELayout and punctuation
+  compression make no difference.
+In the corpus, only zh-7773163d combines legacy mode with a Latin East Asian default.]
+The first drift is p3, and it's a line break, not height. Each "⚫案例N：…" list item breaks on Windows right after "案例 ": ListParagraph with a Wingdings bullet, tab 1162, ind left 2438 hanging 1757, run 1 "案例 " (spacing 13, w 95), run 2 "2：公務人員…" (w 95). "2：…" then starts line 2 at the hanging indent, so each item takes one more line. Word for Mac and ours set the first line full. It recurs on p3, 4, 10, 11 and 13. The faces aren't the cause: the reprint uses Ming-Lt-HKSCS, the same as the Mac. A 7-variant lab is requested from windows: w 95, the space, "2"→"二", spacing 13, the bullet, jc.
+
+### T168. zh-dc9e54ca: 45.4 against word-win — DONE (Linux b2 01JsizVV, 2026-10-24)
+Owner: Linux b2 (starling-b2), routed by macos. 4 pages, off the missing-faces list, no earlier notes.
+f27dd6ac: Windows mode sets 標楷體's U+00A0 at half an em (DFKai-SB's), not KaiTi's em (lab nb1). p3's centred "附件一" + 37 U+00A0 + 23 spaces + "單位：新臺幣元" (12pt) is one 480pt line in word-win, every space 6.0; ours wrapped "單位" and the form fell a line. Same-base pair (74dc412d): zh-dc9e54ca 45.4 -> 96.9, nothing else moved. Left: three checkbox lines in p3's form ("申請補助計畫書…", "附經費概算表…", "活動中心土地…"), not looked at.
+
+### zh-90e0cea8 (word-win) — DONE as far as it goes (Mac 7bd18d8e, macOS-doc, 2026-10-24)
+75.3 -> 98.5 by be77c1fa (bold not widened in Windows mode). a29fa1e2: a list number takes its level's
+w:spacing, doubled on full-width characters under balanceSingleByteDoubleByteWidth ("附 录 A", 20.5pt steps);
+x only, so no score move here, but zh-1cfb652b 67.9 -> 87.5 (w21 -> w22). Left: Word's print carries 0.96pt
+invisible glyphs above each annex heading (read as "AA"/"BB" lines), p1's ICS block 7pt and footer line 5pt off,
+p4's "3.2" read with its leader. Released.
+
+### zh-d35cbbdb (28.4 word-win) and zh-e8d4c046 (0.0 word-win) — MEASURED (Mac 7bd18d8e, macOS-doc); Windows lab `kai` done (Windows 01QbbApP); zh-d35cbbdb and the DFKai-SB face DONE lenovo-2 (Linux dev box, starling-d6), 2026-10-25; zh-e8d4c046 reference was a batch artifact, reprinted in db46d815
+- zh-e8d4c046: Word for Windows skips the embedded 方正小标宋简体 (fsType 8, 2052 name matching) and draws the title in
+  MS Gothic, 22pt lines 38.4 apart (ours, the embedded face at 1.164x1.3, 33.3); all below 10.5pt high. It uses the
+  same file's embedded "仿宋_GB2312" (SimSun inside). zh-1cfb652b, zh-2bca0bdf, zh-c2229d4a do get embedded faces;
+  zh-32f4ad9f, zh-529fa492, zh-7b5b3de2, zh-7eba7349, zh-92373179, zh-c2f6d17a, zh-e68a2f57 print MS-Gothic where
+  they embed 方正 faces. When Word for Windows refuses an embedded face is the question (facemap / T160 ground).
+- DONE 52008403 (face) + 45901ef8 (combined line on the grid), Linux lenovo-2: 標楷體 in Windows mode is DFKai-SB's own line,
+  1332/1024 em, baseline 974/1024. Same-base pair against word-win, 756 documents: mean 95.09 -> 95.26; zh-d35cbbdb
+  28.4 -> 100, zh-74b34f3b 64.9 -> 96.9 (T169: windows can take what's left), zh-63a571aa 85.9 -> 100, zh-1b74ed91
+  84.4 -> 89.4. The face first took zh-454e2e29 99.4 -> 53.5: its page-4 title combines two lines in one
+  (eastAsianLayout combine) on an 18pt grid, each run's line its own two pitches (baseline 28.85 down) and the box's
+  foot 8.37 under it, 37.2 and three pitches; Word sets the box's pitches, centred — now 99.4 again. Down, none a
+  real move: zh-de073ee5 100 -> 98.6 and zh-ab9cbe66 -0.3 (lines under a point, at the matcher's edge; the 、-label
+  lines Word sets ~3pt low), zh-e6d54ae4 -0.2 (two cells' lines merged), zh-021b8feb/zh-20c1d74a -0.4/-0.1 (a line
+  end), zh-8e8d4c40 -1.2 (its labels' 、 is MS Mincho in Word — macos-ios). NOT moved: zh-e2dc9dce, 6.2, 47 pages
+  for 48 — still open.
+- zh-d35cbbdb: p2's foot. Ours fits item "3. 單元臨接…"'s first line (widowControl 0) at baseline 763.17; Word's pages
+  end near 744.6. The footer (two 10pt PMingLiU paragraphs, 12.24 apart, 49.6 up) tops out at ~767.8 above the
+  769.9 margin; Word's DFKai-SB (801/199, 1.3 em, the 0.3 split evenly: first baseline 85.34 under a page-top
+  table) would end that line ~767.67, yet Word moves it. Ours sets 標楷體 as the square KaiTi stand-in (baseline
+  1.005 em). Needs a Windows lab: DFKai-SB's 14pt line exactly (baselines step 18.24/18.12), PMingLiU's 10pt
+  footer line, any clearance between body and footer.
+  [Labs DONE, Windows 01QbbApP: kai — 1.3 em with an even split, Calibri footer, body limit min(margin, footer top);
+  round — 1/600in running-total baselines, DFKai-SB 1332/1024 em.]
+
+### zh-c6ab068c (36.9 word-win) — DONE (Mac 7bd18d8e, macOS-doc, 2026-10-24): 100
+A no-break space's em rides on a word joiner after it; the East Asian fit gave that joiner's width to what follows
+(the opening-quote rule), so at a paragraph's end it was lost, p5's "…予以公开。"+U+00A0 measured 35 for 42 and the
+engine parted it. Now the joiner after U+00A0 is the stretch before's. w31 -> w32 (db46d815 refs): 36.9 -> 100,
+nothing else moved. Same base: zh-e8d4c046 100 on its fresh reprint (the MS Gothic title was the batch artefact),
+zh-1cfb652b 87.5.
+
+### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — DONE dc9f2dc1: 97.7, 60/60 pages (Mac 7bd18d8e, macOS-doc, 2026-10-25)
+DONE dc9f2dc1: the p6 lift was "◎" — our Segoe UI Symbol rule (Mac lab picln) fired for Windows prints, where Word sets it in Cambria Math and lifts nothing (lab e6p, windows: the note 10.39 under the picture with or without its symbols; c77fd89d's picture extra tracks Word within 0.08 across e6p b-e, and Word keeps 0.12 of a 1.1 line's extra above its text — not a cause). Windows mode now takes "◎" out of RichTextTheme.segoeSymbolShapes. Pair w38 -> w39: 11.1 -> 97.7, nothing else moved, gates held. ◇◆★☆ left in the set unmeasured on Windows: in word-win only zh-6cd1befe holds them in a run the rule reaches (13), at 100 — no lab asked.
+Step 1: the Windows fallback chain for an embedded 仿宋_GB2312's missing characters (MS Gothic → Yu Gothic → JhengHei,
+sticky, by the faces' cmaps, each on its own 1.3 x win line). w33 -> w34: 5.0 -> 10.9 (61 pages), zh-5450d509 +1.8,
+zh-8d72961c +27.7, nothing lower. Step 2 measured, RELEASED (Mac 7bd18d8e, 2026-10-25). Word's lines hold a character more here — "〕" set in Cambria at
+0.33 em beside digits ("〔2023〕234"), fallback characters narrowed in justified lines (JhengHei "发" 15.6, "〔" 15.24 at 16pt).
+Landed a67f5097 (Mac 7bd18d8e, 2026-10-25, w36 -> w37: zh-540dc149 99.3 -> 99.6, zh-e68a2f57 10.9 -> 11.1, none lower; zh-5450d509's -0.6 was the Calibri digit width, gone with 9be792e4): (1) and (2) below; (3) CLAIMED (Mac 7bd18d8e, 2026-10-25, routed by macos): measured — the narrowed characters are justification of the -0.3 spacing, and ours break those lines as Word does (p13 "文物保护…等保", 28 a line); not the loss. The loss is one shift: p6 (landscape, an inline picture then a 9pt note, the picture paragraph 1.1 lines, snapToGrid 0, in a linesAndChars-312 section) — the picture in place (foot 460.23) but the note's first baseline 10.88 under it in ours, 10.39 in Word for Windows, so its third line goes to p7 and every page after runs one behind (61 for 60). The extra is c77fd89d's 0.1 of the mark's line, from Mac lab pn; Windows lab hp covered only a section with no grid. Lab e6p asked of windows through macos: (a) as is, (b) single, (c) on the grid, (d) no section grid, (e) mark sz 32. Measured: (1) any visible character not fallen back ends a stretch, a digit as a held ideograph does — with that the chain
+matches all 13,171 fallen-back characters of the three prints (not pushed: no score moves on its own). (2) A "〔" or "〕" that
+opens a stretch (after a held character or a digit) is Cambria Math's, 0.35 em, on no line of its own — every Cambria bracket
+in word-win (zh-540dc149, zh-5450d509, zh-c2f6d17a, zh-e68a2f57); one after a fallen-back character keeps that face. Built:
+zh-540dc149 +0.3, zh-e68a2f57 +0.2, but zh-5450d509 -0.6 — p1 "…第一次会议部" then takes "署，" ("，" hanging) where Word's
+print, its "〕" the same 0.35 em, wraps before "署": an unexplained Word fit there. (3) The narrowed "发" 15.6 / "〔" 15.24 sit in
+runs of w:spacing -6 under balanceSingleByteDoubleByteWidth and fit neither -0.3 nor -0.6. Also seen: ①-⑬ in Cambria Math at
+~1.19-1.23 em across many word-win prints (zh-18cb2079, zh-6cd1befe, zh-7b125a21, zh-92373179…), not only fallback documents.
+
+[LAB Windows 01QbbApP 2026-10-25, lab e6p (~/starling-doc-check/lab/e6p on the Windows box), asked by macos for macOS-doc: zh-e68a2f57's package, p6's picture paragraph (57EFB3DC) and its note (1D7BF17C) alone in the landscape section; each a fresh Word after the warm-up, 60s after opening; ours the tip (8337b1d0) in Windows mode. Picture foot, then the note's first baseline minus it, Word / ours:
+- (a) as is: foot 460.23/460.25; gap 10.39/10.88; lines 12.84/12.87 apart. Ours sends the third line to p2.
+- (b) picture paragraph line 240: 9.43/9.84.
+- (c) without its snapToGrid 0: foot 461.88/461.90; gap 11.02/11.49.
+- (d) section without docGrid: same as (a) in both, 10.39/10.88.
+- (e) mark sz 32: 11.23/11.68.
+- (f) as (a) with the note's symbols ①×▲△◎●□ each 甲: Word 10.39 (unchanged), ours 10.21.
+So the +0.45-0.5 is not the picture line's grid rule (c77fd89d tracks Word within 0.08 across b, c, d, e). It is the note's first line: Word for Windows sets ①△◎ in Cambria Math and ×▲●□ in Times New Roman, which do not lift a 9pt line of SimHei/楷体; ours sets ①△◎ in DejaVu Sans and ×▲●□ in Liberation Serif, and their ascent lifts it about 0.67.]
+[Windows 01QbbApP, e6p continued, the variants macOS-doc added (lettered g and h here, since f went to the symbols above):
+- (g1-g3) as (a) with 1, 2, 3 more "测" lines (each after a break) at the note's end. Word keeps p1 to 470.62, 483.46 and 496.30 (foot 498.9) and sends every added line to p2: 116.42, 133.58, 150.74. Ours keeps p1 to 471.13 and 484.00, so its third line, 496.87 with the 0.5 above, goes to p2 at 113.93. So the third line is lost to the symbol faces' 0.5, not to the foot test. With them fixed, ours would set it at 496.3 like Word, if our foot takes it there.
+- (h) as (a) with the note at line 240: Word 470.50, 482.26, 494.02 (11.76 apart); ours 471.14, 482.96, 494.66. Against (a)'s 1.1 lines (12.84 apart, first at 470.62), Word's first baseline moves only 0.12. So about 0.12 of the 1.08 extra goes above the first line's text and the rest below. Ours moves it 0.01: all below.]
+[Windows 01QbbApP, e6p's symbols, ahead of macOS-doc's census: as (a) with the note's symbols all made one of ◇◆★☆ ("甲" the control), each a fresh Word. Gap from the picture's foot to the note's first baseline, Word / ours (tip, Windows mode):
+- control: 10.39 / 10.21; pitch 12.84 / 12.87.
+- ◇, ◆: Word sets them in Cambria Math, 10.39 (no lift); ours sets them in DejaVu Sans, 10.88.
+- ★, ☆: Word sets them in Segoe UI Symbol, 10.99 (a lift of 0.60, its lines 12.96 apart, and the note's third line goes to p2); ours sets them in DejaVu Sans, 10.88 / 12.87.
+So for Windows mode: ◇◆ (with ①△◎) take Cambria Math and do not lift a 9pt 黑体/楷体 line; ★☆ take Segoe UI Symbol and lift it about 0.6 (0.067 em), its pitch +0.12; ×▲●□ take Times New Roman (above).]
+### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
+Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
+
+### Windows missing-face rule from the map — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24)
+Windows mode, for a missing East Asian name, by the document's own entry (windows' word-win-missing-faces-map.txt):
+- An alternate the box has wins.
+- Otherwise, by charset:
+  - 86 → YaHei
+  - 88 → JhengHei
+  - 80 → Yu Gothic, left on YaHei. Its 12pt pitch is 31.32 against YaHei's 31.8. Watch for wrapping, since widths may differ. It covers 4 documents: zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977, all ヒラギノ角ゴ Pro W3 / Heiti TC Light.
+  - Any other charset → square MS Mincho with Cambria Latin and JhengHei for what Mincho lacks. Coverage is Shift_JIS's.
+- No entry: a Latin name → Mincho/JhengHei (FZShuTi, FZXiaoBiaoSong-B05S). A Chinese name → Yu Gothic, left on YaHei; none in the corpus.
+- JhengHei, Windows mode: 1.729 em (hhea × 1.3; the Mac's 1.74 drifted 0.13pt a 12pt line), baseline 1.275.
+Same references, w9 → w12, also checked on db46d815's fresh embedding prints. None worse.
+- Gains: zh-f6686f89 76 → 100, zh-8d72961c +38.3, zh-d97c5474 +34.8, Tika-792 +33.3, delins +5.1, zh-b8de3ae2 +4.6, zh-202582e2 +1.4, zh-117cf7c6 +1.3, zh-cb57eaad +1.2, zh-a7a889eb +0.6.
+- Base for the Windows series is now w12 (zh 95.7, POI 89.8), rescored on db46d815.
+- T167 (zh-7773163d, legacy break-at-spaces) is parked: patch ~/starling-word-check/lab/wwface/t167-han-spaces.patch. windows' t167c settles the rule: only spaces break; a word that doesn't fit after a space moves, the line's first word (after a bullet tab too) never moves; condensing doesn't matter. Ours still needs the label tab joined to the first word.
+
+[Windows 01QbbApP 2026-10-25, after the reprint 0012bc50 (247 references, each alone in a fresh Word after the cleaned warm-up ef50baab), re-derived as macos asked. The map FILE (test/corpus/docx/word-win-missing-faces-map.txt, lab fmap) needs no change: every probe in it was the first document of a fresh Word with no warm-up. Its 方正公文小标宋 charset-00 row (alt 宋体 -> SimSun) is such a probe, and it obeys the rule (an alternate the box has). The REFERENCES were what broke the rule. The new prints, by the name's own entry:
+- 方正小标宋简体, charset 86: no alt -> YaHei (120 documents; bold runs YaHei Bold). alt 黑体 -> SimHei (15; YaHei before). alt 宋体 -> SimSun (zh-10eab555; YaHei before). alt 微软雅黑 -> YaHei. A missing alt (Arial Unicode MS, 方正姚体, 仿宋_GB2312) -> YaHei. PANOSE or none, the same.
+- 方正小标宋_GBK, 方正黑体_GBK, 方正楷体_GBK, 方正仿宋_GBK, 方正黑体简体, 方正仿宋简体, 方正大标宋简体, 小标宋, 方正公文小标宋 (charset 86): YaHei with no alt, a missing alt or alt 微软雅黑. Unchanged by the reprint.
+- 创艺简标宋, alt 方正舒体 (missing), charset 86 -> YaHei (zh-e7bdb543; DengXian before).
+- 文星简小标宋, no alt, charset 00 -> MS Mincho with JhengHei for what it lacks (zh-f1f73836; SimSun before): the map's "any other charset" row.
+So the rule above stands as written: an alternate the box has wins; otherwise charset 86 -> YaHei, any other charset -> Mincho + JhengHei. Code already following it (ours sets alt-黑体 titles in SimHei) now matches the references.]
+### T170. zh-4ea36aa8 p14: "…國小至" / "高中…" — ours takes the "高" (Windows) — RELEASED (Windows 01QbbApP, 2026-10-25: labs t170e/t170f below; a count-of-spaces cap is not the rule)
+[LAB DONE Windows 01QbbApP 2026-10-24, lab t170, in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12, jc both).
+The paragraph was set in the body with a right indent stepped 0.25pt; N is the natural width to the end of 高.
+The largest over at which Word still takes 高 (each ±0.25):
+- (a) as is, 3 automatic CJK-digit spaces, 29 characters: 3.00.
+- (b) 116 → 一一六, 1 space, 29 characters: 1.50.
+- (c) the same 3 spaces with 18 Han characters in front, 47 characters: 3.50.
+So the allowance is about 0.25 × Σ(automatic spaces) + 0.026pt × the characters on the line. It grows slightly with
+length, mostly with the spaces. In the body copy, N is 331.58 against the cell's 307.56 (the line runs 24pt wider),
+and by this rule 高 at 2.71 over would be taken. The cell itself may change it; a sweep in the real cell is next if
+wanted.]
+[Windows 01QbbApP, later: the cell width is the open question. Word's print sets the line from 224.09 to 552.42,
+a text width of 328.33. The grid is fixed (6576 twips = 328.8pt) with tcMar 0, so 304.85 is not Word's cell. Against
+328.33, 高 ends 3.25 over, beyond the 3.00 that (a) allows, and Word leaves it, as measured. So check our width for
+this pct/fixed cell before refitting the allowance.]
+[Windows 01QbbApP, real-cell sweep: the row copied into one-row tables, its fourth grid column stepped 0.25pt.
+Word takes 高 from col4 329.00 (a justified text width of 328.58) and leaves it at 328.75 (328.33). Those are the body
+thresholds exactly, so the allowance rule holds in the cell; tcMar 0 and the cell's mark change nothing. The
+document's 328.8pt column sits just under the threshold, so Word leaves 高. Fix our width for this cell: we read
+304.85.]
+[Windows 01QbbApP, lab t170b, redone on real documents after the ¼-total formula failed (zh-38078fb3, zh-7cf85f15,
+zh-c2b13410 100 -> 78). Each document was printed with jc both turned to left. A justified line's natural width is its
+characters' advances there; over = natural - measure. 25 documents, two per mode × characterSpacingControl × zh-TW/CN:
+- Only mode 15 takes a justified line past natural. All 14 documents in mode 12, mode 14 or legacy show 0 (two at most
+  0.1-0.75 on punctuation).
+- Mode 15 doNotCompress: up to 1.50 per CJK-alnum boundary, about half its 3pt automatic space at 12pt. zh-7488a70f
+  "用容易度及1分鐘內完成連署" takes 3.01 over 2; zh-4ea36aa8 "…雙語部12班、國小部32班（含" 6.00 over 4. It does not grow
+  with the character count. The first t170 (a), 1.0 per boundary, is an outlier to recheck.
+- Mode 15 compressPunctuation also squeezes CJK punctuation: zh-7eba7349 11.3 over 6 marks, zh-fd4c6b86 5.5 over 3.
+  zh-5b7ae054's 858 lines look like a pairing artefact.
+Suggested: an allowance in mode 15 only, ½ of each automatic space, plus punctuation under compressPunctuation.]
+[Windows 01QbbApP, lab t170d. Lines in zh-4ea36aa8's package (mode 15, doNotCompress, PMingLiU 12pt, jc both) with k
+automatic CJK-digit spaces of about 2.64pt each. The largest over Word still takes:
+  0 spaces 0; 2 spaces 2.50 (a short 11-character line 3.00); 3 spaces 3.00; 4 spaces 3.25; 6 spaces 3.50; 8 spaces 3.50.
+It saturates near 3.5pt a line, roughly min(about ½ × Σ automatic spaces, 3.5), ±0.25. "、2" carries no automatic space
+(with 、 → 丁 the natural width grows 3.0), so (a)'s line has 3, not 4. t170b's 6.0 for zh-4ea36aa8 was inflated by
+punctuation and is superseded by this series.]
+[Windows 01QbbApP, t170d at 10.5 and 16pt: the allowance scales with the font size, in em. The largest over at 10.5 / 12 / 16pt:
+  2 spaces 2.50 / 2.50 / 3.25; 4 spaces 3.00 / 3.25 / 4.00; 6 spaces 3.00 / 3.50 / 4.50; 8 spaces 3.25 / 3.50 / 4.50.
+In em that is 2 spaces about 0.21 and a cap of about 0.29 (0.28-0.31). The 12pt values ÷ 12 fit all three sizes within
+the ±0.25pt step.]
+[Windows 01QbbApP 2026-10-25, at the tip (8337b1d0) in Windows mode: zh-4ea36aa8's p14 "高" is right now (the fit leaves it, as Word does). Its first miss is p13: "二、校舍興建…雙語部12班、國小部32班（含" is one line in Word's print, ours sends "（含" down. need 5.71 after the automatic space after 含; four automatic spaces, two 、 and the （ itself, doNotCompress. Spaces alone give about 3.3 there (t170d), so under doNotCompress in mode 15 the marks give too.]
+[Windows 01QbbApP, lab t170e (zh-15f60bac's package: mode 15, compressPunctuation, 標楷體 16, justified, its own runs). zh-15f60bac p8 "…類型包含建議5項(詳表5第4、" ends there in both Words' prints. Ours takes "6、", hanging the "、" whole and squeezing 2.75. The measure was swept in 0.5pt steps; this is the most over N (natural width to the "、" after 6) at which Word still takes "6、":
+  A as is 15.0; B "六" for 6, 20.0; C no automatic spaces (五 for 5, 四 for 4), 20.0; D no "，" or "(" (two 、 only), 13.5.
+Word hangs nothing in any of them: the last "、" ends at the measure. It squeezes the marks: in A at 15.0, the "，" by 6, the "、" after 4 by 6 and the last "、" by 3; in B at 20.0, by 7.9, 7.9 and 4.1. The automatic spaces barely give (about 0.2 each, in D). So a digit over-character on a line with automatic spaces gets about 5pt less than a Han one, or than a line with none. Our fitter's full hang of the "、" plus a squeeze is what takes "6、" here.]
+[Windows 01QbbApP, lab t170f (zh-4ea36aa8's package, as t170d, body paragraph): p13's line "二、校舍…國小部32班（含". The most over Word still takes the last piece at 12pt, by automatic spaces on the line (the line's 、 marks fixed):
+  "包含":  2 spaces 3.5, 4 3.75, 6 3.75, 8 3.75
+  "（含":  0 spaces 1.5, 2 4.5, 4 7.5, 6 7.75, 8 7.75
+So an opening bracket heading the over piece adds about 1pt with two spaces and about 4 from four on, saturating near 0.65 em. In Word's print of p13 the four spaces are set at 1.2-1.6 of 2.64 and no mark is squeezed. The "包含" row is a little over t170d's "高" series (2.5/3.25/3.5/3.5), with the line's two 、 the likely difference.]
+[Windows 01QbbApP, the t170d cap built as a Windows-mode rule (lines whose only stretch is automatic spaces, no closing mark at the end, no word space; min(½Σ, (1 - e^(-k/1.5)) × (0.6pt + ¼ em)), the as-gate dropped). Same-base pair, 120 mode-15 justified zh documents against word-win (tip 8337b1d0): 95.42 -> 95.41. zh-147bdae0 94.3 -> 94.6, zh-12db188f 97.3 -> 96.0 (its cell line "…字第1509963號函釋，檢定考試、" takes "檢", which Word leaves). zh-38078fb3, zh-7cf85f15, zh-c2b13410, zh-7488a70f, zh-b13d0fb4 and zh-4ea36aa8 did not move. Not landed; patch kept as t170-cap.patch in the Windows scratchpad. Together with macos-ios's cells (5.52 over 4 in zh-38078fb3), the allowance depends on more than the count of spaces: the over piece (t170f), the line's marks, and probably the cell. Released.]
+Owner: Linux office1 (starling-office1-df). 97.1 against word-win; p14's cell line
+"二、2校校舍116年新建完成後，預計可提供幼兒園、國小至" ends there in Word for Windows'
+print, ours takes "高", and the cell and page run a line short after it.
+Measured: mode 15, justified, doNotCompress, PMingLiU 12 in a 304.85pt cell; the line
+has three automatic spaces (2校, 舍116, 116年), "高" 2.71pt over. Word stretches the line
+and leaves "高" (its spaces print 5.88); ours takes it through the automatic-space rule
+(`sharesStretch`, fitted to the Mac's lab `as` — a 10-24 Mac lab, possibly of the
+print-timing trap): need × (lineEms/64 + spaces) ≤ spaces/2 × room, 35.6 ≤ 41.8 here.
+Lab asked of windows: the over at which "高" stops being taken with three spaces, with
+one, and on a line twice as long.
+
+### T171. zh-457a8d62: 9.6 against word-win, 27/27 pages — DONE 421ac17d (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1. Linux w12 sweep on b887ee3d. Every page from p2 on runs a line ahead of Word for
+Windows' print. p2's paragraph "一、被彈劾人許志堅擔任新北市政府副市長及新北市都" ends at 都 in Word; ours
+takes 更, and the next lines of that paragraph and of "(一)…收受周麗惠" each take one more character.
+Line fit, not pagination: the pitch matches (22.9).
+Cause: those paragraphs are bold 標楷體 16pt, and be77c1fa set no bold spread in Windows mode.
+421ac17d: Windows mode widens an emboldened face by one unit of its em, after windows' labs bold and bold2:
+1/256 for KaiTi, FangSong, SimHei, SimSun and MS Mincho; 1/1024 for DFKai-SB, PMingLiU and MingLiU;
+1/2048 for a name Word gives JhengHei UI Light (zh-167ee06c's 華康雅風體). A name Windows lacks takes its
+alternate's class. Faces with a real bold (JhengHei, YaHei) are not emboldened and stay at 0. A flat 1/256
+(macos-ios's parked table, and my first try) cost zh-aa3f29a0 99.8 -> 5.5 and four more, all 標楷體 or 華康.
+Same-base Linux pair against word-win (b887ee3d, 756 documents): 95.09 -> 95.27, 13 better.
+zh-457a8d62 9.6 -> 100, zh-dc9cfa34 54.9 -> 84.8, zh-e653f583 96.1 -> 98.4, zh-c0ac6f55 97.7 -> 99.2,
+zh-7654804a 98.2 -> 99.6, zh-eb54d3b0 97.4 -> 98.6, zh-5be7e156 74.4 -> 75.7, zh-021b8feb 98.6 -> 99.5,
+zh-b00fef0d 73.7 -> 74.6, and four by under half a point. Only zh-b24b396a dipped, 90.6 -> 90.3:
+two 7.5pt labels in p13's drawing, 室 and 馆, moved down 9.75pt, and Word's print holds neither.
+Left: zh-dc9cfa34's other misses. Its spaces already take half the face's spread through the wide-space
+path, which is what windows measured (6.021 against 6.0014 at 12pt); the rest has not been looked at.
+
+### T172. zh-3fe252ff p22: ">" and "%" may not start a line in Simplified Chinese — DONE db597b06 (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. windows measured it (entry above, lab lan): Word's line ends "…28~31行3" and sends
+栏 down with ">0,"; ours breaks between 栏 and ">", and every page after p22 runs a line short. The Mac found that adding
+">" to `_noStart` does not move it, because the engine's own break between an ideograph and ">" still happens. Plan: a
+word joiner between a CJK character and a following ">" or "%" under Simplified Chinese only (zh-TW's list lacks both).
+db597b06: a word joiner between an ideograph and a following ">", under Simplified Chinese only. "%" needed nothing:
+it is already in `_noStart`, and the engine doesn't part it from an ideograph (ID × PO). After an ideograph only: a
+joiner after a closing bracket sent zh-4c884684's "…2022年）>" down whole (100 -> 99.0), where Word ends the line with it.
+Same-base Linux pair against word-win, 756 documents: zh-3fe252ff 31.4 -> 99.5, zh-447f1d5c 99.1 -> 99.4, nothing lower
+(the narrowed rule rechecked on the 34 documents with an ideograph or closing bracket before ">", and on both movers).
+### Circled numbers (①-⑳) in Cambria Math in word-win — MEASURED, mostly done already; RELEASED (Mac 7bd18d8e, macOS-doc, 2026-10-25)
+Census: 40 word-win documents carry ①-⑳; 12 print some in Cambria Math (zh-08dc38da, zh-18cb2079, zh-27083953, zh-2dfde99a,
+zh-4f70ee2d, zh-6cd1befe, zh-7b125a21, zh-8d6f702e, zh-92373179, zh-9e8c1a98, zh-c2f6d17a, zh-e68a2f57). Which: a run with no
+eastAsia hint (none or "default") sets them as Latin, and a Latin face that lacks them (Times New Roman) falls to Cambria Math,
+1.2007 em by its hmtx; Latin faces that have them keep them (新細明體/宋体 as ascii: zh-1d2a7c35, zh-264d7516; Calibri: zh-65e6c317);
+eastAsia-hinted runs keep the East Asian face. Ours already matches the width there: 10 of the 12 within 0.01 em on average
+(w34). The rest: zh-92373179 (hinted, its embedded 仿宋_GB2312 subset lacks them) — Word's are Cambria Math wherever they open a
+stretch of fallen-back characters (31: line start or after a held character), the chain's face after a fallen-back one (3);
+ours, through the chain, MS Gothic's 1 em. Same rule as zh-e68a2f57 step 2's brackets. Built (`_cambriaMathOpeners`: 〔〕 0.3501,
+①-⑳ 1.2007, + the stretch ending at any non-fallen-back character): zh-92373179's widths right, its score unmoved; zh-540dc149
++0.3, zh-e68a2f57 +0.2; zh-5450d509 -0.6 — and that drop is a separate width: its digits, in runs whose ascii is 仿宋_GB2312, are
+Calibri in Word's print (6.12/6.08 at 12pt, 0.5068 em) and the stand-in's 0.5 em in ours, its space 3.16 to our 3.0, so its p1
+line is 0.67pt narrower than Word's and "署，" fits by 0.1 where Word's is 0.57 over. Fix that Latin face first (Windows: a
+missing East Asian ascii face's Latin is Calibri?), then the opener rule (scratchpad patch kept: opener.patch) should land clean.
+zh-6cd1befe: Word 1.191 em, ours 1.172 (not looked into).
+
+### Takeovers from the Linux sessions (Mac 01Xgpbk5, 2026-10-24, the user's approval via bd): T170 (lenovo-3), zh-b8de3ae2's charts (lenovo-2)
+- **T170 (zh-4ea36aa8): RELEASED.**
+  - The cell width was a false lead. Ours already sets the line 223.9–552.7, Word's 328.3 cell.
+  - A grid-keeping change cost zh-8628cfbe −36, so it's reverted.
+  - windows' t170 allowance as a Windows-mode rule (¼ × automatic-space width + 0.026pt per character), patch ~/starling-word-check/lab/wwface/t170-allowance.patch (Mac): zh-4ea36aa8 unmoved; zh-38078fb3, zh-7cf85f15, zh-c2b13410 100 → 78; zh-7488a70f 97.9 → 87.5; zh-b13d0fb4 99.7 → 93.1.
+  - The lab fits one zh-TW PMingLiU paragraph. bd is asking windows for a broader lab.
+- DFKai-SB: back with lenovo-2.
+- Next for Mac 01Xgpbk5: zh-8e8d4c40's label fallback (Mincho for CJK in a Latin label face), then the charts: zh-b8de3ae2, zh-d62da4dd, zh-27a874b7.
+
+### Latin text in a missing East Asian ascii face (Calibri digits in word-win, zh-5450d509) — DONE 9be792e4 (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+Word for Windows sets the ASCII letters and digits an embedded subset lacks in Calibri, at Calibri's widths; those the subset
+holds come from it (zh-92373179: 155 held from the subset, 133 unheld in Calibri, none off). Non-embedded _GB2312 names keep
+their mapped face (FangSong, KaiTi). Only 0x30-0x39/0x41-0x5A/0x61-0x7A go into otherAdvances. zh-5450d509's digits 6.00 -> 6.08,
+as Word's. w35 -> w36: no line score moves (the score ignores x), none lower. It unblocked zh-e68a2f57 step 2's (2) — a67f5097.
+
+### T173. zh-e2dc9dce: 6.2 against word-win, 47 pages for 48 — DONE fb470380 (Linux lenovo-2, starling-d6, 2026-10-25): 98.8, 47 pages
+- DONE fb470380: a page break ending the paragraph that holds a section's mark is that section's break; before a
+  continuous section there is none, text or no (lab t173 a, b), and before a nextPage one the two are one page (c,
+  as lab es). zh-e2dc9dce's contents end in such a break and a continuous section: ours gave chapter 1's title
+  picture a page and ran a page long. Same-base pair against word-win, 756 documents: zh-e2dc9dce 6.2 -> 98.8 (47 of
+  47 pages), nothing else moved; mean 95.53 -> 95.66. Left: 5 of 1039 lines. Released.
+Owner: Linux lenovo-2 (starling-d6), given it by the Mac coordinator. The DFKai-SB face (52008403) did not move it: 6.2 with and without. Finding the first page where ours and Word's part.
+[LAB Windows 01QbbApP 2026-10-25, lab t173 (~/starling-doc-check/lab/t173 on the Windows box), asked by macos: zh-e2dc9dce's own package, each print a fresh Word. Body "X", then a paragraph holding section 1's mark (the document's p36 sectPr) and a page-break run, then "B", with the next section's sectPr (the document's second, pgNumType start 1).
+- (a) the break alone in the mark's paragraph, next section continuous: 1 page. "B" is on page 1, under X: X 85.3, B 139.3. The mark's paragraph keeps its own line, 36pt (26pt bold 標楷體 on the 18pt grid, two pitches).
+- (b) as (a) with "A" before the break: 1 page. X 85.3, A 103.3, B 121.3. The break is ignored, and its 26pt run does not raise A's line: one 18pt pitch.
+- (c) as (a) with the next section nextPage (control): 2 pages, "B" at the top of page 2. That is 2 pages, not 3: the break adds no blank page of its own.
+- (d) the document's own p36, p37, p38 (break, empty, the anchored title picture, which ends in a page break of its own), then "B", continuous: the picture sits on page 1 with X (centred, 358.8-483.1), as in Word's print of the document, and "B" opens page 2 after p38's own break.
+So Word for Windows ignores a page break in the paragraph that carries a section mark when the next section is continuous, whether or not the paragraph has text. With nextPage there is still only the one new page.]
+
+### zh-8e8d4c40 (and zh-de073ee5): a 、-labelled list line's Mincho lift — MEASURED, PARKED (Mac 01Xgpbk5, 2026-10-25)
+- **CLAIMED (Mac 7bd18d8e, 2026-10-25, routed by macos):** zh-8e8d4c40 at 46.3 after the label lift (ba45b9f7, zh-de073ee5 100): its lines stand 0.9pt high from p1's table title on, before any label.
+- **Face:** the label takes the style's East Asian face, "新細明體, PMingLiU", a LibreOffice comma list Word for Windows lacks. Its entry (alternate Times New Roman, charset 00) gives MS Mincho by the map, which is what Word prints for the "、".
+  - Ours matched "新細明體" inside the name. Patch: ~/starling-word-check/lab/wwface/comma-names.patch (Mac): a comma-list name goes by its own entry.
+- **Line:** Word's line is Mincho's ascent over DFKai-SB's descent: 16.2 against 15.6.
+  - A rise box for the label's ascent (label-rise.patch) moves our labelled line's baseline 0.4 against Word's 0.6, but the line stays 15.6. DFKai-SB's height is held by a strut, so nothing below moves, and zh-8e8d4c40 stays at 47.5 on 52008403.
+  - Needed: a strut-held line that takes a taller ascent from its label, as the rise does for a larger number. Open to anyone.
+
+### T174. zh-c5b5087b: 26.7 against word-win, 11 pages to Word for Windows' 10 — DONE 03ed4ca9 (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. Its history above (T154, the footer spaces, Lab c5) is against the Mac
+prints; this starts again from the word-win reference on the current tip.
+03ed4ca9: in Windows mode, pause marks (，。、；：！？) and curly quotes give nothing in text whose East Asian
+language is not zh/ja/ko (the run's, else its paragraph style's, else the document's). Brackets give as before, and
+zh-CN text keeps the half-em squeeze. windows' lab t174 above settles it: en-US language, not doNotUseEastAsianBreakRules.
+Word for Mac squeezes them, so Mac and default modes are unchanged.
+Same-base Linux pair against word-win, 756 documents, 95.62 -> 95.73: zh-c5b5087b 26.7 -> 100 (11 pages, as Word),
+zh-264d7516 90.2 -> 98.6, zh-efd9229a 98.4 -> 99.2, zh-51af781b 99.1 -> 99.7, nothing lower. Rechecked on the tip after
+a67f5097.
+[LAB Windows 01QbbApP 2026-10-25, lab t174 (~/starling-doc-check/lab/t174 on the Windows box), asked by macos for office1: zh-c5b5087b's own package, paragraph 28's pPr and run (仿宋_GB2312 16pt, FangSong after the warm-up; kinsoku 0, justified, indent 0). Each probe is a line of 28 full-width characters with one mark at the 22nd, set at measures 448 minus 0, 0.5, 1, 2, 3, 4, 6 and 8, each print a fresh Word, 60s after opening:
+- (a) as is: the run has no East Asian language, so Normal's en-US applies. The 28th is left from 0.5 over, and the line sets 27 characters justified 16.3-16.6 apart. The "，" is never squeezed.
+- (b) the run's w:lang eastAsia="zh-CN": the 28th is taken through 8 over, the "，" squeezed to fit, down to 8.0 (half) at 8 over.
+- (c) as (a) with "（" for the comma: the 28th is taken through 8 over, the bracket's blank left half squeezed (题's advance 16 -> 8.0). So an opening mark gives under en-US, and a closing one does not.
+- (d) as (a) with doNotUseEastAsianBreakRules taken out of settings: identical to (a). Not the flag.
+Caution: the line above records Word's print squeezing commas in other en-US paragraphs of this file (p2-p5). Check those runs' own w:lang (or their style's) before making en-US a general no-squeeze rule for closing marks.]
+- **T170 k-table (Mac 01Xgpbk5, 2026-10-25): tried twice, released.** windows' t170d table, Windows mode, mode 15 only, by automatic-space count, in em. Base w17 at 52008403, pair w18.
+  - Result: zh-38078fb3, zh-7cf85f15, zh-c2b13410 100 → 78; zh-ae2dd08d 79.3 → 68.9; zh-b13d0fb4 99.7 → 93.1; the target zh-4ea36aa8 97.1 → 95.9.
+  - Narrowed to lines with no word spaces: the three 78s and the target unchanged.
+  - Those three are table-cell lines Word squeezes past the table: "五、辦理112年與113年…" 5.52 over with 4 boundaries, against 3.25 in t170d's body paragraphs. So the allowance seems to differ in cells. The next lab is the k-series in a cell.
+  - Patches (Mac): ~/starling-word-check/lab/wwface/t170k.py and t170k-narrow.patch.
+
+### T175. zh-15f60bac p8: "…詳表5第4、" — ours hangs the last "、" and takes "6、" — DONE a7af80db (Linux 01F2SWc8, 2026-10-25, routed by macos): 46.7 -> 93.8
+46.8 on the Mac's w1 Windows sweep (384 of 821 lines, 28/28 pages); from p8 every line runs a character ahead.
+Word for Windows never hangs that "、" (lab t170e under T170): it squeezes marks, and takes "6、" at most 15.0 over
+as the line stands. Ours hangs the "、" whole and squeezes 2.75. First: which setting stops the hang there.
+Tried (Linux 01F2SWc8, 2026-10-25, at d53026ac): from 2013's layout, outside useAltKinsokuLineBreakRules, a mark
+whose hang does not cover the over does not hang; the line's marks give it all, the last among them. In zh-15f60bac's
+paragraph it makes both of Word's choices: "…統計資料、" 22.75 over is taken with the three marks giving (Word's print
+ends that line 4pt past the margin by the "、"'s box, its advances 18.5 short of natural — squeezed, not hung), and
+"6、" 18.75 over is left. But as a general rule it is wrong: zh-021b8feb 99.3 -> 31.1, zh-e0ca7252 68.8 -> 20.2,
+zh-20c1d74a 87.0 -> 61.1, zh-505b9619 55.4 -> 43.4 — Word does take a hang plus a squeeze there. And zh-15f60bac's
+score did not move: with the fitter leaving "6、", the paragraph's second pass ("text 2262pt, 6 lines" in the
+STARLING_RICHTEXT_FIT trace) still sets "第4、6、" on the line, so something after the fit puts it back. Taken back
+(patch t175-nohang-tried.patch, Linux ~/tmp/word). Open: what tells t170e's package (no hang) from zh-021b8feb's (hang +
+squeeze) — both mode 15, compressPunctuation, zh-TW, 標楷體, balanceSingleByteDoubleByteWidth; and why the second pass
+re-takes "6、".
+Done on windows' lab t175 (board 4f81cb92): from 2013's layout, where marks are compressed, an East Asian mark after
+a Latin letter or digit does not hang. The gate is on the hang itself (macos-ios found the automatic-space branch hung it
+too, not a second pass). Same-base pair h157, 756 of 756: zh-15f60bac 46.7 -> 93.8, nothing else moved. Not built:
+t175's "squeeze before hang" staging (Word hangs after a Han only once the marks have given all, ~1.5 em over); ours
+hangs first, which ends the same lines in every document the pair holds.
+[LAB Windows 01QbbApP 2026-10-25, lab t175 (~/starling-doc-check/lab/t175 on the Windows box), asked by macos: zh-021b8feb's p9 paragraph whole (its runs and hanging indent, w:rightChars dropped), w:right swept -419 to 381 twips in 10s, the line "日內完成審查，其申請者補正資料時間、安排訪視時間與輔具試用、" read at each. As the measure narrows (14pt; the line's marks are "，", the inner "、" and the last "、"):
+- First, over 0-3: the last "、" squeezed a quarter em (it starts 10.4 inside the measure).
+- Then, over 3.5-17: the "，" and the inner "、" squeezed up to about half an em each (6.7), the last "、" back wholly inside.
+- Then, over 17.5-20.5: those, plus the last "、" a quarter em.
+- Then, over about 21-23 (right -59 to -19, the document's own -19 among them): the last "、" HUNG whole (starting 1.3-1.7 inside the margin), and the other marks relaxed to 1.4-2.0 each.
+- Then "用、" goes down (right -9).
+So Word hangs only after squeezing everything it can, at about 1.5 em over. The body copies (first line, indent 0) follow the same stages through 20 over, where that sweep stopped. One run instead of five changes nothing.
+- (b) "6" for "用" ("試6、"): no hang stage at all. The "、" is squeezed a quarter em for 1pt, then "6、" goes down. Word takes it only to about 12.5 over, against 23 with "用". So macos's guess holds: after a digit, Word does not hang the "、", and squeezes less (t170e's ~5pt).
+- (c) at 16pt: the paragraph breaks elsewhere, so there is no reading. The 16pt body copy matches (a)'s stages to 20 over.
+Rule for ours: hang a last mark only after the marks have given all they can (squeeze before hang). And never hang one after a digit (or a Latin letter, presumably: untested).]
+
+- **[Mac 01Xgpbk5, 2026-10-25] No second pass.** The fitter's own adjustment map, printed with the no-hang switch in the `squeezes` branch, carries `105[6、] −16.00` (the trailing 、 hung a full em) and five −0.55 automatic-space shares. That's exactly the room "6、" needs (372 − 2.75 + 8 = 377.25). It comes from the automatic-space branch (`if need <= roomSpaces + hair, halfStretch, sharesStretch {` … `adjust[tail] -= hang`), not from anything after the fit. A no-hang rule must gate every `adjust[tail, default: 0] -= hang` (RichLayout has two).
+
+### T176. zh-045c5a75: 37.1 against word-win, 23 pages — DONE b535389c (Linux lenovo-2, starling-d6, 2026-10-25): 98.5
+- DONE b535389c: its law text stands in an invisible one-cell wrapper (0.75pt margins and spacing) read as the body,
+  which kept that room only where it began and ended. Word parts the wrapper's one row over pages, and each later
+  page keeps margin + 2x spacing (2.25pt) again over the text and under it: Word's later pages start at 52.2, ours
+  49.85, and ours took a line more at page 10's foot. Now `RichParagraphStyle.frameInsetTop/Bottom`, set on a
+  one-row wrapper's paragraphs, applied by `openPage` where the page before held the frame. Same-base pair against
+  word-win, 756 documents: zh-045c5a75 37.1 -> 98.5, nothing else moved (zh-e9616b2b, 60329 hold); mean 95.77 ->
+  95.85. (test/run.sh's office native-vs-browser step fails on a browser build staged 2026-10-13, before and after.)
+Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2 (lowest unheld). Was 95.7 against the Mac prints (n215); against word-win it parts from p11 on. Its one missing name, sөũ (alt Times New Roman), is only in two styles.
+
+### T177. Windows mode: windows' sig map for missing Latin faces, from zh-c399c91a (18.1, LinTimes → Ebrima) — DONE d94b7633 (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos (macos-ios's facemap; it is busy on the strut-held label line). The rows of
+"Sig map for missing Latin faces" above that ours sets otherwise, gated on Windows mode, Mac mode as is. Ebrima's widths
+from the subset embedded in zh-c399c91a's word-win print. Same-base pair against word-win.
+d94b7633: font-table entries keep w:sig's usb0/usb1. In Windows mode a Latin name Word has no face for, with no
+alternate, goes by them: 00007A87/80000000 is Ebrima, 00000003 Times New Roman, 00000287/00000800 Calibri. The other
+sig-map rows already came out as Word's (Times, Browallia New for TH Sarabun, the alternates). Ebrima is the sans clone at
+the 21 widths its zh-c399c91a subsets carry (the only word-win print that embeds it, and every Latin character its
+LinTimes runs hold), on its own win-metrics line (2210 + 514 of 2048). Never for a face Word has: zh-2dfde99a's
+table gives Times New Roman LinTimes' signature (WPS), and the first build gave its TNR Ebrima's widths (100 -> 99.0).
+Same-base Linux pair against word-win: zh-c399c91a 18.1 -> 100, nothing lower (all 756, then the 63 documents whose
+tables hold one of the three signatures, after the guard). zh-015abfaf stays 62.4: already Calibri, the hairline above.
+
+### zh-b8de3ae2 p14: a merged row held up by a cell whose text lands lower — DONE feafd572 (Mac 01Xgpbk5, 2026-10-25)
+From windows' lab b8row9: in the 9-column table only the "比率(%)" row was wrong, 13.55 in ours against Word's 11.3–11.7.
+- Cause: our rule for a row in which no cell stands alone (Mac, 2026-10-13) gave it the first line of the "比率(%)" cell that starts there. Word for Windows doesn't count that line when a later row the cell reaches has a cell of its own.
+- Fix, Windows mode only: the starting cell's first line doesn't count in that case.
+- Result: zh-b8de3ae2 76.2 → 82.8, nothing lower (w17 / w19 / w20).
+- Turning the rule off outright cost zh-15728c84 −43, zh-9ba2ead7 −17.6, zh-9ef811c8 −16.5, so Word for Windows keeps it for rows merged whole.
+- What's left of zh-b8de3ae2 is its charts (p9, p12, p15, p18, p20–23).
+
+### T178. zh-167ee06c: 45.1 against word-win, 14 pages to 13 — DONE 9fde89a6 (Linux lenovo-2, starling-d6, 2026-10-25): 100
+- DONE 9fde89a6, after windows' lab t178: p51's 34.68 is right (JhengHei UI Light x 1.5) and stands 4.3 past the foot in Word
+  too; the blank page was ours calling that page over-full. Off the grid a multiple's extra is now like space after there:
+  not over-full, so a page break opening the next paragraph needs no page of its own (lab gf's blank page, on the grid,
+  stands). Same-base pair, 756 against word-win: zh-167ee06c 45.1 -> 100 (13/13), nothing else moved; mean 95.97 -> 96.04.
+Owner: Linux lenovo-2 (starling-d6), from its own sweep at 98ec90f2. Was 91.0 against the Mac prints (T148). Its 華康 names are JhengHei UI Light on Windows (421ac17d's note).
+- Measured: ours has a blank page 7. Page 6 ends in a table (bottom 739.2 in both, foot 769.9); then p51, " " alone
+  (ascii/eastAsia 華康雅風體W3(P), hint eastAsia, bold 14pt, line 360 auto, snapToGrid 0), then p52 = [page break]
+  "附件二之一". Ours sets p51 in JhengHei UI Light's line, 23.1 x 1.5 = 34.65, 3.9 past the foot, and lab gf's rule
+  gives the break's line a page of its own. Word sets "附件二之一" on page 7, so its p51 is at most 30.8. Lab asked of
+  windows (via macos): X, p51 x3, Y in this package — " ", "中", "A", empty.
+[LAB Windows 01QbbApP 2026-10-25, lab t178 (~/starling-doc-check/lab/t178 on the Windows box), asked by macos: zh-167ee06c's package, "X", its paragraph 51 three times, "Y", in its own section, each a fresh Word. In all five variants (a " ", b "中", c "A", d the mark alone, e the 華康 entry's w:sig removed) Word sets the lines in Microsoft JhengHei UI Light, 34.68 apart (X 85.10 -> 106.94, 141.62, 176.30 -> Y 207.14). That is 1.6505 em x 14 x 1.5, 421ac17d's line, and ours matches (X to Y 122.01 vs 122.04). The w:sig does not move it.
+The blank page is not paragraph 51's. In the real document both prints set its " " on page 6 at baseline 756.4, under the table (which ends at 739.5 in both), its 1.5 extra past the foot as 7440's off-grid rule allows. The page comes from paragraph 52, which opens with <w:br w:type="page"/> before "附件二之一". Ours has 13.4pt left and needs its empty pre-break line (23.1), so it takes that line to page 7 and breaks again: "附件二之一" opens page 8. Word opens page 7 with it. A paragraph whose first content is a page break ends the page where it stands; its empty line before the break needs no room.]
+
+### T179. zh-17ac8aa2: 21.9 against word-win, 2 pages, 32 lines — DONE 20572769 (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. 100 against the Mac print (Mac 0fcba326, 2026-10-23); low against word-win.
+The form's table stood 5.5pt low on p1, every row with it. The cause was the empty 22pt mark before it, set in 华文中宋
+(this box has STZhongsong, and it isn't in word-win-missing-faces): 40.4pt in Word's print, 45.9 in ours.
+20572769: in Windows mode, STZhongsong's line is its OS/2 win metrics at 1.3 (.912 + .225, 1.478 em, baseline 1.083), as
+Word for Mac already uses for scaled characters; the hhea 1.7225 stays for Mac mode. The table's rules are now within 0.2
+of Word's. Same-base Linux pair against word-win, 756 documents, 96.19 -> 96.30: zh-17ac8aa2 21.9 -> 100,
+zh-a78d52e7 95.2 -> 99.3, nothing lower. The other 华文 faces (STXinwei, STKaiti, STSong, STFangsong) may want the same;
+not measured.
+
+[LAB Windows 01QbbApP 2026-10-25, lab t179 (~/starling-doc-check/lab/t179 on the Windows box), asked by macos.
+- Census: only two 华文 names carry text in word-win documents: 华文中宋 (835 characters, 14 documents) and 华文仿宋 (96, 2: zh-4a2ab598 prints it in STFangsong; zh-e5709b89's print has no STFangsong). None of the 华文 faces are in C:\Windows\Fonts. Office's cloud cache holds five: STZhongsong, STFangsong, STKaiti, STXihei and STXinwei. In each, OS/2 win equals hhea, typo is 0.8/0.2+0.144, USE_TYPO_METRICS is off, and upem is 1000. win ascent/descent: STZhongsong .912/.225, STFangsong .86/.26, STKaiti .86/.26, STXihei .871/.208, STXinwei .781/.236.
+- Probe: each face (by its 华文 name) at 12pt and 22pt, 3 paragraphs each, single, snapToGrid 0, no docGrid, each a fresh Word. Word sets the line at 1.3 x (win ascent + descent) and the first baseline at win ascent + 0.15 x (ascent + descent), within 0.06pt. 12pt step / 22pt step / first baseline at 12pt:
+  华文中宋 STZhongsong 17.76 / 32.52 / 12.98 (1.478 em, baseline 1.083)
+  华文仿宋 STFangsong  17.40-17.52 / 32.04 / 12.38 (1.456, 1.028)
+  华文楷体 STKaiti     17.40-17.52 / 32.04 / 12.38 (1.456, 1.028)
+  华文细黑 STXihei     16.80-16.92 / 30.84 / 12.38 (1.403, 1.033)
+  华文新魏 STXinwei    15.86-15.96 / 29.16 / 11.16 (1.322, 0.934)
+Ours at 8337b1d0 (before T179) sets all five in YaHei: 20.4-20.7 a 12pt line. Widths not measured (all are square CJK faces).]
+### zh-dc25c47e: 47.8 against word-win — DONE 61ac19c7: 99.5 (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+DONE 61ac19c7: under balanceSingleByteDoubleByteWidth, word spaces give nothing for East Asian text right after them (an ideograph, or a symbol its run sets East Asian) — dcs (a)-(e) below; the cell's p6 line "…□广播电视   □纸质媒体" took its "□" with the spaces at 4.02 of 4.5. Each limit from a document: inside a word they give (zh-604e21e5 "…標準程", balanced, 5.88 of 6); unbalanced, after a space too (zh-f2ca3070 "…空間   席", 4.80 of 6); a Latin word keeps lab jg's rule (zh-4b8e0abc, Indonesian, balanced: 99.7 -> 53.2 when it did not). The ignored-page-break theory is closed by dcs (f): the element there is lastRenderedPageBreak, which our reader skips. Pair w42 -> w45: 47.8 -> 99.5, nothing else moved. Its titles are 方正小标宋: re-check after the T182 reprint. With it, 45ae19f8: ◇◆ out of the Windows Segoe set (858eb781).
+
+- **zh-8e8d4c40 label lift, retry notes (Mac 01Xgpbk5):** label-target.patch (Mac) puts the label's baseline into the first-line target of `_layoutParagraph`'s lead block. It used `marker.computeDistanceToActualBaseline`, which is in pixels, while `target` is in points (`_px(target)`): the lines were shoved out of their cells (177 → 143). Convert by `/ (theme.pixelsPerPoint * scale)`. Lift the line as the Segoe UI Symbol case does, `segoeLift = max(segoeLift, labelBaseline − target)`, rather than `target` alone.
+
+[LAB Windows 01QbbApP 2026-10-25, lab dcs (~/starling-doc-check/lab/dcs on the Windows box), asked by macos for macOS-doc: zh-dc25c47e whole, with only the p6 cell paragraph (paraId 34A90D56) changed. Each print was a fresh Word after the warm-up, 60s after opening. In that cell the paragraph's <w:br w:type="page"/>s are ignored and the text runs on; the row shows two lines and clips the rest. Line 1 is "■政府网站   □政府公报■两微" (452.0-584.1, spaces 5.04). Line 2:
+- (a) as is, (b) that "□" made "甲", (c) made "（", (e) made "※": all identical. Line 2 is "一端   □发布会□广播电视" plus its spaces, ending at 593.2: the three after 一端 are 7.55, 7.67, 7.58, and the trailing ones run past the 584.1 edge. The character after them, whatever it is, goes to the clipped third line.
+- (d) the three spaces before it removed: line 2 is "一端   □发布会□广播电视□纸", ending 584.1, its spaces 5.04.
+So the line does not end because "□" is a geometric shape (25A0-25FF), nor any East Asian symbol: it ends because of the three spaces before the character. Of note: line 2's first three spaces print 7.6 wide (line 1's are 5.04), on the line where the ignored page breaks fall.]
+[Windows 01QbbApP, dcs (f), asked by macos: no page break stands between "□广播电视   " and "□纸质媒体". The element there is <w:lastRenderedPageBreak/>, Word's cache of an old layout. The paragraph's page breaks come before "■两微一端", "□广播电视" and "■公开查阅点". With that marker removed, line 2 prints exactly as (a): "一端   □发布会□广播电视" plus spaces, ending at 593.2, spaces 7.55, 7.67, 7.58, then 4.55. So whether spaces squeeze across an ignored break is not what this line tests; nothing separates them from the "□".]
+### Page breaks at a page's foot: a break-alone paragraph needs its line; a break before text does not — MEASURED (Windows 01QbbApP, 2026-10-25)
+Lab brk (~/starling-doc-check/lab/brk on the Windows box), zh-0aac9d1a whole in Word for Windows. Its page 7 table ends at 766.5 against a 769.9 foot (3.4pt left). Paragraph 45 is <w:br w:type="page"/> alone (16pt 仿宋_GB2312, on a 15.6pt grid), then paragraph 46 is "附件3":
+- (A) as is: the break's paragraph goes to page 8, a blank page with its one empty line at the top, and "附件3" opens page 9 (11 pages). Ours keeps it on page 7: 72.2, ours a page short from there.
+- (B) paragraphs 45 and 46 merged (the break, then "附件3", in one paragraph): no blank page; "附件3" opens page 8 (10 pages).
+- (C) as (A) with paragraph 45 at snapToGrid 0: as (A).
+With T178's zh-167ee06c (its paragraph 52, the break then "附件二之一", at 13.4pt left: Word ends page 6 there, and ours spills its empty pre-break line and makes a blank page), the rule is: a paragraph whose first content is a page break followed by text ends the page where it stands, and its empty line before the break needs no room. A paragraph that is a page break alone needs room for its line like any other, and spills to a blank page when there is none. Ours does the opposite in both.
+DONE for zh-0aac9d1a (Windows 01QbbApP, next commit): the existing rule that set a break-only paragraph back under its table where less than a quarter of its line was left now does so only under 2.5pt (zh-60c80728's table leaves 1.3 and Word keeps the break; zh-0aac9d1a's leaves 3.4 and Word gives it a page). Pair of the 29 documents with a break-only paragraph after a table: 94.93 -> 96.03, zh-0aac9d1a 72.2 -> 85.0, zh-4a2ab598 80.4 -> 99.5, none down. zh-0aac9d1a's rest is open. The break-then-text half (zh-167ee06c) is lenovo-2's 9fde89a6, by another route.
+zh-0aac9d1a at 85.0, next miss (Windows 01QbbApP, measured, RELEASED): page 10's table (its 4th, autofit, tblW 8518, grid 1762/2580/1515/2661, no borders, cell margins 0). Word sets column 1 two characters a line ("物业/服务/企业/名称"), and ours sets it at its grid width ("物业服务企业"). Its twin, table 2 on page 8 (grid 1732/2610/1515/2661), matches Word in ours. Table 4 differs by one more row, "申辩权利告知情况", whose 3-span cell holds "(36 spaces)年  (nbsp) 月 … 日". So Word's autofit narrows column 1 for that row's content: T1's content-width redistribution, which our autofit trace does not reproduce. CLAIMED Windows 01QbbApP 2026-10-25 (macos): T1's redistribution, from a lab of the twin tables.
+DONE 568d0dd3 (Windows 01QbbApP, landed by macos): not a redistribution. Word measures each form's stamp line "…年␣␣••␣月…（盖章）" as one narrowest piece, wider than the 3-span cell, so all four forms re-fit. Ours parted form 4's at "␣|•", spaces then a no-break space. Now a no-break space holds both its neighbours, a space or an ideograph too, in `_minContent` (wordRules). Pairs on the Mac, 756 documents: Windows mode only zh-0aac9d1a moved, 85.0 -> 100 (227/227, 11/11 pages); Mac mode nothing moved in zh or POI.
+
+### zh-419ea527 (71.1 at w20) — DONE by the 0012bc50 reprint: 98.6 at w23, no code change; the 方正 patch was dropped (Mac 01Xgpbk5, 2026-10-25)
+Page 5's title is 方正小标宋简体 (alternate 黑体, charset 86). The word-win print sets it in YaHei; our Windows
+alternate rule picks SimHei, putting page 5 13-14pt high. Ignoring the alternate for 方正 names at charset 86 gave
+71.1 -> 98.6 with no document dropping (w21 vs w20). Not landed: windows found the warm-up document (fixed in
+ef50baab) decided 方正小标宋简体 = YaHei for whole print batches, and a fresh Word prints alt-黑体 titles in SimHei,
+so this print is the artefact and the current rule is right. Re-score after windows reprints the 195 references
+with that face. Patch: ~/starling-word-check/lab/wwface/fangzheng-86-yahei.patch (discard if the reprint agrees).
+
+### T180. zh-884c6e3e: 51.4 against word-win, 5 pages — DONE eba13300 (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier entries (windows' zq, the Mac's zz) are
+released; this starts again from the word-win print at 0a2306a8.
+Not a line fit: p2 ran a line long (ours took "房交付之月…" at 736.85, Word leaves it for p3 at the 742.7 foot).
+Its two tables of exact rows (44.8 + 6 × 31.2, ruled sz4 by w:tblBorders, cells stating none) are their rows' sum
+and the bottom line apart in Word's print. Ours kept the single line inside the last row (the Mac's lab rb), so the
+text after each table stood 0.47 high.
+eba13300: in Windows mode, a table's own single bottom line hangs under an exact last row, as a heavy one already did.
+A line the cells state for themselves stays inside: hanging those too cost zh-5c6ff0d7 its page (100 -> 97.8;
+no table line, cells sz4) and zh-78d8bd98 99.3 -> 97.2. Same-base Linux pair against word-win, 756 documents:
+zh-884c6e3e 51.4 -> 100, nothing else moved. Rechecked on the tip after c22e79a2.
+
+### Low list on word-win at d9aabe26 (Mac 0fcba326, coordinator, 2026-10-25) — pick from here, claim before starting
+Sweep w4 (Mac, wt-win worktree, OFFICE_WORD_FONTS=windows, mupdf reader): zh 645 documents mean 97.5% (w1 at 452660de:
+96.0%), 583 at 95%+, 633 with Word's page count; POI 111 mean 90.5%. a7af80db (T175) landed after it.
+Held or parked (do not take): zh-7773163d 14.3 (T167, parked), zh-167ee06c 45.1 (T178 lenovo-2), zh-8e8d4c40 46.3
+(label lift, parked), zh-15f60bac 46.8 (T175 done after this sweep), zh-dc25c47e 47.8 (macOS-doc), zh-884c6e3e 51.4
+(T180 office1), zh-27a874b7 55.4 / zh-d62da4dd 56.6 (3-D pies, parked), zh-015abfaf 62.4 (a hairline, released as
+such), zh-419ea527 71.1 (macos-ios), zh-74b34f3b (T169 windows), zh-d97c5474 (Arabic, parked for its drawing).
+Unheld, lowest first (score, lines ours/Word's, pages ours/Word's):
+- zh-6a4fc013 49.5, 616/614, 27/26 — the Thai document (TH Sarabun New → Browallia New); a page long
+- zh-505b9619 55.4, 2699/2732, 73/73 — T175's no-hang try cost it 12; Word hangs plus squeezes here
+- zh-2f9463d6 56.5, 717/717, 33/33 — old note: p20-21 table row held 28 of 29 misses
+- zh-72da925e 57.6, 1228/1246, 39/39
+- zh-64044a1d 66.5, 1528/1532, 68/69 — a page short
+- zh-77bd4900 67.3, 976/975, 42/42
+- zh-e0ca7252 68.8, 1674/1680, 50/50 — also moved by T175's tries (hang plus squeeze)
+- zh-6d402586 71.8, 738/744, 35/36 — a page short
+- zh-0aac9d1a 72.2, 227/209, 11/9 — two pages long (old T1: Word's autofit narrows one column)
+- zh-cec9d337 74.4, zh-b00fef0d 74.6, zh-5be7e156 75.7, zh-f2835e26 78.8, zh-57f1de0d 78.9, zh-ae2dd08d 79.3
+POI under 99 with text: WordWithAttachments 73.7, delins 74.6. The ten 0/0 rows are documents whose Word print has no
+text lines for the scorer, not failed conversions.
+
+### T181. zh-505b9619: 55.4 against word-win, 73/73 pages — CLAIMED, CALIBRATING on lab t181 (Linux 01F2SWc8, 2026-10-25, routed by macos; with zh-e0ca7252 and zh-72da925e as witnesses)
+From the low list at d9aabe26. Word hangs plus squeezes here (T175's no-hang try cost it 12). First: its first miss.
+MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): misses p13 4, then p14-p43 nearly every line (~1100 of 1205), so one
+line fit. First miss p13: "□坍方數量1000立方公尺至未達2000立方公尺者，    小時內單" (標楷體 14, mode 15,
+compressPunctuation, justified, a hanging "□"; the "，" is followed by four spaces). Word's print ends at "單" and
+leaves "線": it squeezes nothing — "，" whole (14.1), the four spaces stretched to 9.2 each by the justification,
+every ideograph 14.0, digits 7.0, the automatic spaces 3.5. Ours takes "線" 5.15 over: STARLING_RICHTEXT_FIT says
+"need 5.15 room 14.0 of 1 marks … 4 spaces, other true" — the "，"'s half (7) plus a quarter of the four 7pt
+spaces (7), and the line squeezed to fit. Up to the spaces every advance agrees with Word's (ours stands 2.7 right
+on its first line: □ at 120.9 to Word's 118.2 — the hanging indent, to look at). So Word's limit here is under
+5.15 with one comma and four word spaces able to give — the T153 kind (digits in an East Asian face hold the
+line tighter: cd3/cd4/cd5, "5.5.1" in 黑体 ~13, in Calibri ~18). Wanted from windows: in zh-505b9619's own
+package, this paragraph with the right indent swept, the most over at which Word takes "線"; then with the
+digits as Han (一〇〇〇/二〇〇〇), without the four spaces, and without the "，".
+
+[LAB Windows 01QbbApP 2026-10-25, lab t181 (~/starling-doc-check/lab/t181 on the Windows box), asked by macos: zh-505b9619's p13 paragraph whole (its runs and hanging indent), w:right swept in 0.25pt steps, each a fresh Word 60s after opening. N is the natural width from "□" to the end of "線", read from a wide jc-left copy; over = N - measure. The most over at which Word still takes "線":
+- (1) as is (N 420.19): 4.41; left from 4.66. Ours takes it at 5.15.
+- (2) digits as Han, 一〇〇〇/二〇〇〇, so no automatic spaces (N 461.95): 3.42.
+- (3) without the four spaces (N 392.23): 6.20.
+- (4) without the "，" (N 406.27): 2.74.
+So the comma gives about 1.7 (4.41 vs 2.74), the four automatic spaces about 1.0 (4.41 vs 3.42), and the four word spaces take away about 1.8: without them Word takes "線" further over (6.20). The same direction as T170's halfStretch and t175 (word spaces on the line lower what the marks may give). Not additive, so one cap per kind will not fit.]
+### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLOSED by windows' reprint 0012bc50: 56.5 -> 99.7 with no code change (its title is SimHei on both sides) (Linux 01F2SWc8, 2026-10-25)
+From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
+MEASURED (Linux 01F2SWc8, h158 at 47aa55f9): p12 45 misses, then p15-p25. p12's lines all agree but stand 9-16pt
+high, from its title "宁波市工程研究中心评价指标及评分标准" (方正小标宋简体 20pt, atLeast 21pt, afterLines 50, docGrid
+lines 312): Word's print draws it in Microsoft YaHei, baseline 195.98; ours in SimHei (its font-table altName 黑体,
+the "alternate Word has wins" rule of word-win-missing-faces-map.txt), baseline 187.42 and the table 16pt high.
+The map's 方正小标宋简体 rows only probed alt=- (YaHei). Every word-win document whose 方正小标宋简体 says alt=黑体
+(about 17: zh-23ee8575, zh-419ea527, zh-547fc43c, zh-5c6ff0d7, zh-6c568ae9, zh-6de512cb, zh-76cb73e2, zh-788e9dae,
+zh-875759ff, zh-d0a207ac, zh-d89c3840, zh-ee2d19e6, zh-eec0747a, …) has YaHei for its text in the print (by matching
+its runs' text, noisy). But the map's own alt=黑体 names (文星黑体, 华文黑体 Light, ABCDEE+黑体) print SimHei, and
+Word fixes a missing name's face once per process from the first document naming it — 方正小标宋简体 is in 195
+documents, so a batch reference could carry an earlier document's YaHei. Wanted from windows: zh-2f9463d6 printed as
+the FIRST document of a fresh Word (and one more alt=黑体 one, e.g. zh-ee2d19e6). If the title is YaHei, 方正 names
+ignore their alt (or alt=黑体 does) and ours should follow; if SimHei, the references are batch artifacts to reprint.
+
+[Windows 01QbbApP 2026-10-25, asked by macos. zh-2f9463d6 and zh-ee2d19e6, each the first document of a fresh Word with no warm-up: their 方正小标宋简体 titles print in SimHei, by the entry's altName 黑体. With the standard warm-up first (the reference protocol), all 16 of the 19 alt-黑体 references that show YaHei reprint in YaHei again, pages unchanged. The cause is the warm-up document itself: test/docx-word-win-warm.docx's font table carries stray entries from the package it was made from, and they name missing faces. Among them is 方正小标宋简体 with altName "Arial Unicode MS" (absent here, so YaHei), plus FZFS, 方正大标宋简体 and FZKT with altName 宋体. Word settles a missing name once per process, from the first font table that names it, so the warm-up fixed 方正小标宋简体 as YaHei for every batch. With those entries removed (20 entries down to 15; the _GB2312 four and the faces the box has kept), zh-2f9463d6's title prints in SimHei after the warm-up.
+Affected: every word-win reference with text in those names. 方正小标宋简体: 195 documents. 方正大标宋简体: 4. FZFS and FZKT: 1 each, the same 195 in all (list in ~/starling-doc-check/lab/t182/warm-affected.txt on the Windows box). Each prints the name by the warm-up's entry, not its own. The Windows missing-face map (99f9f05e, from these prints) is suspect for 方正小标宋简体 too. Fix: clean the warm-up, then reprint those references, each alone in a fresh Word after the clean warm-up, since a batch would let its first document decide for the rest. About 35 minutes. Waiting on macos for the timing, since it moves baselines for everyone.]
+### T183. zh-72da925e: 57.6 against word-win, 39/39 pages — DONE 56f9dcab (Linux 01F2SWc8, 2026-10-25, routed by macos): 57.6 -> 60.5; the rest is T181's kind
+From the low list at d9aabe26 (1228/1246 lines). First: its first miss.
+DONE 56f9dcab, same-base pair h159 after the 0012bc50 reprint, nothing lower (Linux 01F2SWc8): p4's first
+line "…研究案（下稱「" ends on the "「" in Word's print, 0.008 over (21 characters of 17.0075 in 357.15), "中" opening the
+next; its paragraph says w:kinsoku 0 in zh-TW text. Ours took "「中" as one piece and squeezed four marks 17pt. Rule:
+under w:kinsoku 0 in text of an East Asian language (zh/ja/ko; zh-c5b5087b's en-US still carries "（" over) an opening
+mark may end a line, as a piece of its own, where it fits as it stands to 0.05pt; nothing gives for it (zh-c8eb6e92's
+cell "定标监督小组人员（签名）" carries the "（", 1.15 over, down in Word's print — a first try that let it squeeze took
+that 100 -> 99.5). On the 65 word-win documents with w:kinsoku 0: zh-72da925e 57.6 -> 60.5, zh-604e21e5 99.4 -> 100,
+zh-8628cfbe 93.1 -> 93.3, zh-a7a889eb 97.9 -> 98.1, none lower. Its next miss, p13 "…有專家表示：" / "「基隆河…", is
+T181's kind (ours squeezes "「基" 23.5 over from three marks; not kinsoku 0 there).
+
+### WordWithAttachments 73.7 (word-win): the WordArt lines — DRAWN a56561c7, extent PARKED (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+All 10 misses (w21) come from one drift. After p1's three inline WordArt shapes, ours sits 8-9 high (scaled 0.871,
+so about 10.5pt real; b2 measured +4.5, +3.8 and +3.0). That leaves room for the "Документ-в-документе" object
+at p1's foot (ours y659), which Word prints at the top of p2, and p2's lines follow it (+41). Only the sum
+matters (no text lines between the three), and the page break must flip. The textpath is inline in this
+document only; zh-015abfaf and zh-38d26944's are absolutely positioned, so a rule for inline textpaths
+touches nothing else. Not built: windows' wa/wa2 numbers fit the shadow (about 0.7 + its y offset) but not the
+stroke. A 1pt stroke adds 2.2 on art2's box, nothing on art3's, and 4pt adds 30; shadow plus stroke is neither
+their sum nor the larger. The shadow term alone recovers 4-7 of the 11pt, still past the matcher's 3, so it
+moves no score. It needs either WordArt drawn (glyphs fitted to the box, then stroke and shadow) or a stroke
+lab: 0.5/1/2/3pt on one box, and the same text with and without descenders. Ours draws no textpath at all yet.
+WordArt drawing (a56561c7, routed by macos as option (b)): VML textpaths now draw through Slides' WordArt.paint
+(fill, gradient, stroke, shadow with VML's perspective matrix). Line scores are unchanged, and Slides' eight
+WordArt decks are identical on the pptx render gate. The layout extent stays as it was. Against the drawing (glyphs
+fitted to the box, plus half the stroke above and below, plus the shadow's y offset, plus a 0.66 base) the three titles come to
++3.2, +3.7 and +3.2 where b2 measured +4.5, +3.8 and +3.0. That sum, 10.1 of 11.3, would be enough. But wa's stroke
+cases don't fit: 1pt alone gives model 1.7, measured 2.9; 4pt gives model 4.7, measured 30.8. So it isn't built,
+per macos's condition that pagination changes only where the drawing agrees with Word. Next: the stroke lab, or
+Word's own WordArt render (its EMF) to read the ink extent from.
+
+### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — DONE 4c848788 (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.456/1.028 in Windows mode, as T179 did for 中宋.
+Written; the pair waits for windows' reprint sha, and for its note on whether Word fetches the 华文 cloud faces on demand.
+4c848788: as written; 0012bc50's note keeps t179's numbers (STZhongsong in the cloud cache since 10-18). 细黑 is left out:
+no entry of ours, and no word-win print sets text in it. Same-base Linux pair against word-win after 0012bc50, 756
+documents: nothing moved (zh-4a2ab598, the one print in STFangsong, 80.4 either way). It is the lab's rule with no
+corpus gain yet.
+
+### zh-6a4fc013 49.5 (word-win): the Thai document, 27 pages to 26 — DONE c356987b, 49.5 -> 61.2 (Mac 01Xgpbk5, 2026-10-25, routed by macos)
+On the Mac, Windows mode drew the Thai in Thonburi at 0.75, whose text layer extracts as garbage, and broke it by
+dictionary. Mac mode's Cordia New (Browallia's widths) and thaiBreaksAtSpaces now apply in Windows mode too; the rule is
+gated on Cordia being loaded, since on Linux's Noto Sans Thai at 0.66 it lost 2.3 (office1: 91.7 -> 89.4, 638 lines to
+614), so Linux is unchanged. Same-base pair w22 -> w23 after 0012bc50: only zh-6a4fc013 moved, 27/27 pages, 616/616 lines.
+Left: one line of drift through p15-24. Word breaks an over-long stretch at the last character that fits
+("…การพัฒ|นา"); ours breaks by dictionary ("การ|พัฒนา"). Character breaks inside over-long stretches were built and
+change no score, because Word still fits about 3pt more on such a line (widths of letters missing from
+browalliaAdvances, such as ฒ?). Moving every over-long stretch to the next line scored 52.3. Released.
+
+OPEN follow-up (from macos, don't fix piecemeal): Windows-mode Thai layout now depends on the machine. The Mac has
+true widths (Cordia, the same as Browallia) plus space breaking. Linux has Noto Sans Thai at 0.66 plus the engine's
+dictionary, where two errors cancel: the scale was tuned to 614 lines under dictionary breaks. Give Linux the Mac's
+model (browalliaAdvances on its Thai stand-in plus thaiBreaksAtSpaces) and re-tune, so both agree.
+Measured, not landed (macos: one Thai document, the overfit risk): an over-long stretch that is not the paragraph's first
+joined whole, so it moves to the next line and breaks where it fills there (windows' lab: "starts on the next line"),
+the first one (after a list label) still broken in place. 61.2 -> 67.9, 616/622 lines.
+### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
+396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
+so test/run.sh's "office: native vs browser" step compared against a stale 10-13 stage and checked nothing since.
+- **Pre-push, from now on:** `build/web-app.sh OfficeApp --package apps/OfficeApp` must exit 0 (it builds into its own
+  `.build-web-OfficeApp`, so it doesn't disturb `.build-shared` or a running sweep). Then `test/office-layout.sh`.
+- **wasm32's Int is 32 bits.** A literal past Int32 (0xFFFF_FFFF) won't compile, and `Int(someUInt32)` TRAPS at runtime
+  past 2^31. Compare such sentinels on the raw UInt32 field.
+- **No legacy Foundation string layer on the link** (the size gate keeps it off): `str.contains("x")`, even with one
+  character, `range(of:)` and `replacingOccurrences` resolve to it and fail as `undefined symbol
+  ...Foundation...range2of7options...`. Use `containsSubstring`, `rangeOfSubstring`, `replacingAll`. No NSLock either.
+- **Finding the call site behind an undefined symbol:** the linker names only the object file. Map it to the function with
+  `llvm-objdump -d -r --no-show-raw-insn <obj>.o | awk '/^[0-9a-f]+ <.*>:$/{fn=$2} /R_WASM.*<symbol fragment>/{print fn}'`
+  then `swift demangle --simplified` (script: ~/tmp/wz/scan on the Linux box).
+- **V8 rejects a wasm function of more than 1000 parameters** ("param count of 1296 exceeds internal limit of 1000"):
+  wasm32's outlined copy of a big enum passes its largest payload field by field. EditOp (two RichParagraphStyles inline)
+  hit it and is now `indirect`. Another enum or struct holding several RichParagraphStyle/CharStyle values can do the same as
+  those grow.
+- **Open:** with the stage current, office-layout.sh still fails for real. All three documents break every line the same way,
+  but line HEIGHTS differ by fractions (welcome: title 45.5 native vs 46.0 web, body 19.3 vs 19.0). CAUSE: 7ee9e843 (10-17)
+  keeps Word lines' fractions through starling-engine's patches/skia-fractional-line-heights.patch (ParagraphStyle bit 13);
+  the browser runs Google's prebuilt skwasm, which lacks it and rounds. A 10-13 native build gives 46.0/23.0/19.0, as the
+  web does today. Platform gap, not a regression; the fix (own skwasm, a height-tolerant gate, or no fractions on the web)
+  is the Mac coordinator's call.
+
+### Low list refreshed on the reprinted references, at 0012bc50 (Mac 0fcba326, coordinator, 2026-10-25)
+Sweep w5 (same setup as w4, after the 247-reference reprint): zh 645 mean 97.9% (w4 97.5), 589 at 95%+, 634 with Word's
+page count; POI 111 mean 90.5%. Against w4 nothing fell; up: zh-2f9463d6 56.5 -> 99.7 (T182 closed by the reprint),
+zh-419ea527 71.1 -> 98.6 (reprint), zh-167ee06c, zh-884c6e3e -> 100, zh-15f60bac -> 94.3, zh-8dc59b5b, zh-23ee8575 -> 100.
+Pending pushes not in it: zh-dc25c47e 47.8 (macOS-doc b93f4343), zh-6a4fc013 49.5 (macos-ios, Thai).
+Unheld, lowest first: zh-64044a1d 66.5 (68/69 pages), zh-77bd4900 67.3, zh-e0ca7252 68.8, zh-6d402586 71.8 (35/36),
+zh-cec9d337 74.4, zh-b00fef0d 74.6, zh-5be7e156 75.7, zh-f2835e26 78.8, zh-57f1de0d 78.9, zh-ae2dd08d 79.3 (81/80),
+zh-4a2ab598 80.5 (70/69), zh-34a6519a 80.9 (49/48), zh-7eba7349 81.5, zh-2a241df1 81.9, zh-e1b09977 82.2, zh-33aa9899 82.2,
+zh-61aaad09 82.4, zh-4c5da793 82.5. Held: zh-505b9619 (T181) and zh-72da925e (T183) lenovo-3; zh-0aac9d1a windows.
+Parked: zh-7773163d, zh-8e8d4c40, the two 3-D pies, zh-015abfaf (hairline).
+
+### T185. zh-64044a1d: 66.5 against word-win, 68 pages to 69 — DONE 725ef49d (Linux lenovo-2, starling-d6, 2026-10-25): 93.5, 68/68
+- DONE 725ef49d, keep-with-next at a page's foot, two halves: (1) a run's first member that must stand whole and does not fit
+  what is left goes over with the run (the "【後勤財務組】" heading, 99pt in 89.4 under figure 6, stayed by its last
+  line's overhang and sent "一、目的" on alone); (2) a whole member is measured to its text's foot, not its space after
+  (the next run, thirteen kept paragraphs, fits page 41 in Word with its last's 9pt after past the foot). Same-base pair
+  past 0012bc50, 756 documents: zh-64044a1d 66.5 -> 93.5 (68/68), zh-34a6519a 80.9 -> 89.3 (49/49), nothing else moved;
+  mean 96.63 -> 96.68. Left in zh-64044a1d: from p44 on (to look at). Released.
+Owner: Linux lenovo-2 (starling-d6), first on the coordinator's refreshed unheld list (w5 at 0012bc50); own sweep w59 agrees.
+
+### T186. zh-77bd4900: 67.2 against word-win, 42/42 pages — DONE 31717217 (Linux office1, starling-office1-95, 2026-10-25): 99.0
+Owner: Linux office1, routed by macos (next unheld below 71.1). Its earlier work (Linux 017F2GnT, 97.4 then) was against
+the Mac print; this starts from the word-win print after 0012bc50.
+p2 to p10 ran off by about two lines. Its checklist is a table placed 68.7pt down the page (tblpY 1374, vertAnchor
+page), right after p2's last paragraph. Ours set its first row on p2 and took p2's text under it; Word's print has p2
+whole and the list at p3's head. The check for "the text it would take under fits under its first row" (zh-8d1a3d99's
+rule) passed by 1.15pt: it counted the row and the text, not the 2.25pt line between rows 1 and 2, which row 2
+carries in its margin.
+31717217: the check adds the table's insideH line (any table, not Windows mode only). Same-base Linux pair against
+word-win, 756 documents: zh-77bd4900 67.2 -> 99.0, nothing else moved. zh-8d1a3d99, zh-6cd1befe and zh-60173bb6,
+the rule's earlier cases, are unchanged. Rechecked on the tip after 451d6fc1.
+Mac-mode check (macos asked, since it applies in all modes): Linux sweep against the Mac references (word/), on 31717217's
+tip with and without it, 756 documents: nothing moved (96.776 both).
+
+### zh-6d402586: 71.8 against word-win (reprint 0012bc50), 35 pages for 36 — step 1 DONE 146dd517: 89.7, 35/35 (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos)
+DONE 146dd517: the extra page was p29, blank but for a page-placed note: the paragraph after p28's last line is that note, a page break and the next notice, and the empty part before the break got its exact 22pt line a page of its own; Word keeps it (note and all) at p28's foot — lab brk's rule, beside the break-under-a-table rule. Pair w48 -> w49: 71.8 -> 89.7, nothing else moved; zh-167ee06c 100, zh-0aac9d1a 85.0, zh-60c80728 98.3, zh-4a2ab598 99.6, zh-6d1afa56 97.1 held. Left, still CLAIMED: p30's numbered list (1.629-line 標楷體 14pt, labels "%1." in 微軟正黑體 12pt) sets each item's first line ~2.1pt lower in Word — the label lift. LABEL LIFT DONE ba45b9f7 (Mac 7bd18d8e, 2026-10-25): a list label in an East Asian face that stands lower under the line's top than the text lifts the line by the difference (segoeLift); one in a Latin face sets nothing (zh-74ef1528 Normal's Latin, zh-c399c91a LinTimes fell when they lifted); the label's baseline from theme.baseline in points. Pair w51 -> w52: zh-6d402586 89.7 -> 94.9, zh-de073ee5 98.6 -> 100, zh-9c5d0c3f 99 -> 100, nothing lower. zh-8e8d4c40 stays 46.3: its lines stand 0.9pt high from the table title on, before any label — another gap. zh-6d402586 released at 94.9.
+Its Mac-era fixes (1571f2a4, f6404d67) took it to 90.9 against the Mac print; this is the Windows print's gap.
+
+### zh-e0ca7252 68.8 (word-win, 50/50 pages) — MEASURED by the Mac 01Xgpbk5, now CLAIMED as a T181 case (Linux 01F2SWc8, 2026-10-25)
+First miss: p13 "…社員時，依第17款辦理。" (標楷體 14, mode 15, compressPunctuation, jc both). Ours takes "理" (hanging
+"。") by squeezing both "，" from 14.0 to 10.2. Word sends "理。" down and justifies with the commas whole. p13-27's misses
+are the one line of drift from there. Over its first 12 pages Word's "，" before an ideograph is 14.0 on short lines and
+14.0/12.6/13.0 on full ones, so at most about 1.4 squeezed, where ours goes to 10.2/11.2/12.0. That is T181's
+squeeze capacity.
+REFUTED here, so nobody re-derives it: Word for Windows' PDFs label fonts at a whole 600-dpi ppem (14 -> 14.04,
+16 -> 15.96, 10.5 -> 10.56), but the advances are the nominal size, with positions on the 1/600" grid. 14pt steps
+alternate 14.04/13.91 (mean 14.004 over 11.6k), and 10.5pt alternates 10.56/10.44. Scaling widths to the labelled size
+took zh 98.0 -> 90.2 (all runs) and 90.7 (East Asian only). Lead, unbuilt: Latin advances look rounded per glyph to
+1/600" (Calibri at 14.04: 94% of steps match round(adv*ppem/upm) units), worth a lab before building.
+
+### T187. zh-cec9d337: 74.3 against word-win, 21/21 pages — DONE ff85d8c3 (Linux lenovo-2, starling-d6, 2026-10-25): 99.3
+- DONE ff85d8c3, on windows' lab t187 part 1 (32030be2): in Windows mode a row that ends a page whole asks room for the line
+  between rows only, not the table's bottom border (Word keeps row 四 at 3.0 and 1.0 left under a thinThickSmallGap sz24
+  bottom and closes p16 with the 0.48 insideH). Not the charset-80 Yu Gothic face: ヒラギノ角ゴ is in styles.xml only. Gates
+  zh-cec9d337 74.3 -> 99.3 and zh-77bd4900 held at 99.0; same-base pair of 756, nothing else moved; mean 96.86 -> 96.89.
+  Parts 2-3 of the lab (single sz24 and sz4 bottoms) still to come: confirm the rule holds for them. Released.
+Owner: Linux lenovo-2 (starling-d6). Lead: the charset-80 face → Yu Gothic note (zh-0513f641, zh-5251dd23, zh-cec9d337, zh-e1b09977); if it is the gap, paired as a set.
+Lab t187 (Windows 01QbbApP, 2026-10-25), part 1 of 3: zh-cec9d337's own package, the empty paragraph above t6 (Word sets it 13.76pt) made an exact line, so row 四 ends 3.0 / 1.0 / 0.3pt above the foot (780.8, the footer's top); fresh Word, warm-up first, 60 s. Bottom border as is (thinThickSmallGap 24):
+- 3.0 left: row 四 stays on p16; the page closes with the 0.48 single line at y 777.82, no bottom border.
+- 1.0 left: stays; closes with the 0.48 line at 779.74, no bottom border.
+- 0.3 left: Word splits the row (no cantSplit): "四、演練完畢…" stays, "五、其他協辦事宜。" opens p17, and p16 closes with the 0.48 line at 763.42. p17's piece opens with the table's top border (3.0 + 0.72 at 56.64/60.36).
+So Word reserves no bottom border at a page-closing row; the row needs only its own line height plus the 0.48 rule, somewhere between 0.3 and 1.0. The single sz24 / single sz4 runs and a 0.0-left run were stopped by a low-memory reap and are not printed yet.
+Lab t187 part 2 (Windows 01QbbApP, 2026-10-25): the bottom border as single sz24 (3pt) and as single sz4 gives the SAME pages as thinThickSmallGap sz24, to the hundredth. 3.0 left: row 四 stays, p16 closes with the 0.48 line at 777.82. 1.0 left: stays, 779.74. 0.3 left: split, p16 closes at 763.42. 0.0 left: split, 763.78 (p17 the same as 0.3's). So the bottom border's width plays no part in whether a row closing a page fits: Word reserves none and draws none there. The row needs room for its content plus the 0.48 rule closing it, the threshold between 0.3 and 1.0pt left.
+Lab t187 part 3 (Windows 01QbbApP, 2026-10-25): t6's cells all carry tcBorders, and row 四's three cells each set bottom single sz4. That cell bottom is the 0.48 line closing p16 in parts 1-2, overriding the table's bottom, so the table border's width could not show. With row 四's cell bottoms removed (tts-30-ncb, tts-10-ncb), p16 closes with the TABLE's thinThickSmallGap bottom (3.0 at 760.78 + 0.72 at 764.50, 4.44 in all), and at 3.0 left the whole row no longer fits: Word splits it there (at 1.0 left the same, 2.04 lower). With T190 (t4 has no cell borders, and its 2.16 bottom closes p13 and must fit): the line closing a page's last row is drawn as that row's bottom were the table's: the cell's own bottom border where it sets one, else the table's bottom border; it must fit above the foot. "The bottom border never counts" holds only where cells set their own bottoms.
+
+### T188. zh-b00fef0d: 74.6 against word-win, 21/21 pages — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
+Owner: Linux lenovo-2 (starling-d6), while T187 waits on windows' table-foot lab.
+- Diagnosed (not built yet): p17's foot. Row "2 / 330219161000 / 对侵占…设施的处罚 / 全部 / 定海区综合行政执法局" (mode 12, cells
+  centred, FangSong 12pt lines of 18 with ~8pt after each paragraph) has 26.16 left. Word parts it there: "2" centred in the
+  26.5 part, "对侵占…" and "定海区综" from its top. Ours: splitRow finds the one-line centred cells (block 26.1 with their
+  after) 0.91 short and sends the row over whole. Rule to try: a cell's last paragraph's space after need not fit the part.
+- TRIED, REVERTED (patch ~/tmp/t188-tail-tried.patch, Linux): in Windows mode a centred cell fits the part by its text, its
+  last space after allowed past the foot. zh-b00fef0d 74.6 -> 98.0, but zh-1a3c7aa0 100 -> 49.1 and zh-540dc149 99.6 -> 84.5
+  (and zh-64044a1d 93.5 -> 92.8): too broad. A second reading fits zh-b00fef0d's print as well: Word's closing line under the
+  part (768.94) stands 0.36 past our foot (768.58), and the 26.1 block with its after fits the 26.52 between the part's lines —
+  so it may be the closing line that hangs, not the after (ours reserves 0.97 for it, ruleUnder(parted:)). WAITING ON A LAB:
+  zh-b00fef0d's package, the p17 row with 27.5 / 26.5 / 26.2 / 25.8 left above the foot: does Word part it, and where do the
+  closing line and "2" stand?
+- LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t188, its own package, fresh Word, warm-up first; the row above, "1 / 330219157001", given an atLeast height to move the row's top). FIRST, THE FOOT: the table is in section 2 (sectPr after block 44): A4 16838, bottom 1440, so the margin's foot is 769.92. It has no footer of its own and inherits section 1's footer1, one exact 5.7pt paragraph 992 twips up (top 786.6), which does not reach it. So Word's foot is 769.92, as ours (corrected by lenovo-2: our contentH there is 697.92, the same). Rooms below are from 769.92. The row's top rule / room left / result:
+  742.42 / 27.50 (as is): parts. "2" 744.71-756.71 and "对侵占…有关" 748.8-760.8 on p17, the part closed by the 0.48 rule at 768.94 (to 769.42).
+  743.02 / 26.90: parts, the same shape; closing rule 769.54-770.02, 0.10 past the foot.
+  743.14 / 26.78: whole row to p18. 743.50 / 26.42, 743.74 / 26.18, 743.86 / 26.06, 744.10 / 25.82, 744.22 / 25.70, 744.58 / 25.34: whole row to p18.
+  So the part needs its 26.52 (top rule, line, space after) plus its 0.48 closing rule, 27.0, within 0.1. Neither the space after nor the closing rule hangs past the foot. Word parts the as-is row because it has 27.5. Ours starts the row 1.32 lower (743.74): our 3-line rows above are 62.71 to Word's 62.52 (FangSong lines step 18.08 to Word's 18.0, per lenovo-2), not the reservation.
+
+### T189. zh-ae2dd08d: 79.3 against word-win (after 0012bc50), 81 pages to Word's 80 — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Owner: Linux office1, routed by macos. Note from macos: macos-ios's T170 try cost it 10, so its cell lines Word
+squeezes are more than the body series'. macos-ios's whole-ppem change may land meanwhile; rebase before trusting line ends.
+- p39-40, DONE 09c2290c: the training-plan form (autofit, grid = tblW) kept its grid in Word, but ours narrowed "訓練目標"'s
+  45.2pt column to 42.7 (3 characters a line to Word's 4). Its empty cells, indented 23.6pt hanging all of it in 22pt
+  columns, asked their whole left indent, because `firstLineIndent` gives an empty paragraph none. An empty paragraph now
+  starts where its first line does. Same-base pair, 756: zh-fec5fa30 69.0 -> 99.7, zh-ae2dd08d 79.3 -> 82.1,
+  zh-ab9cbe66 94.9 -> 95.2, nothing lower.
+- p68 on, measured (windows' lab, board f0a0a04d): "開課地點：" + 65 "_" + 26 underlined spaces + 34 plain spaces. Underlined
+  spaces hang only at the paragraph's end; with plain spaces after them they count as width (422.4 + 169 > 428.3), so the
+  "_" goes down. Building that next, in Windows mode.
+Lab t189 (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t189, this document's own package, p68's "開課地點：" paragraph only, fresh Word, warm-up first). (The reference is 81 pages too, and the as-is lab print matches it line for line.)
+- (a) as is: "開課地點：" alone on line 1 (51.0-115.9); line 2 the 65 "_" at 51.0-473.2, then spaces past the 544.25 margin (extracted to 596.9); 81 pages.
+- (b) the 26 spaces not underlined: ONE line, the "_" at 115.9-538.3 after "開課地點：", the spaces hung; 80 pages.
+- (c) the 34 plain spaces removed (the 26 underlined ones end the paragraph): ONE line, the same; 80 pages.
+- (d) both: ONE line, the same; 80 pages.
+Word draws no underline under the spaces in any of them. So underlined spaces hang as trailing white space only at the paragraph's end. Followed by plain spaces, they count as width: 65 "_" (422.4) + 26 spaces (169) do not fit the 428.3 after "開課地點：", so Word breaks before the "_". Not underlined, any run of trailing spaces hangs.
+
+### zh-57f1de0d 78.9 (word-win, 51/51 pages) — MEASURED, RELEASED to T181 (lenovo-3) (Mac 01Xgpbk5, 2026-10-25)
+Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16pt embedded, jc both). On p1,
+"…办法》第八条第一项规定：“…世界文" is about 6.4 over with "化": Word justifies, with "》" and "：" whole and "“" 7.56, while
+ours squeezes both to 13.35 and "“" to 7.1 and takes "化". The same holds on p1-2, p8, p11 and p21-33 (one line's drift).
+(Assigned to lenovo on 10-23 but never claimed; an embedded-face document, whose Mac references were unreliable.)
+
+### Screen of word-win documents under 90, by the cause of the first miss (Mac 01Xgpbk5, 2026-10-25, asked by macos)
+Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The first miss is the first Word line ours does
+not match. "Line fit, ours takes more" means ours starts that line later because its line before took more; most show
+ours squeezing marks Word keeps whole (T181's witnesses, to confirm in its pair).
+- Line fit, ours takes more (T181, lenovo-3): zh-015abfaf 62.4 p1, zh-cd48112c 84.7 p1 (ours "“" 5.0 / "”" 0, Word 15
+  each), zh-dc9cfa34 84.8 p5, zh-3f871b7d 87.8 p1; held elsewhere: zh-b00fef0d 74.6 (T188 — CORRECTED by lenovo-2: only its first misses, p5 1 /
+  p6 8 / p10 4, are line fit, witnesses for T181; 159 of its 175 are a table row at p17's foot that Word parts, a table case),
+  zh-5be7e156 75.7 p1,
+  zh-6d402586 71.8 p5 (labels, macOS-doc); measured before: zh-505b9619, zh-e0ca7252, zh-57f1de0d.
+- Line fit, ours takes less: zh-33aa9899 82.2 p5 (ours wraps "傳" of "須上傳"), zh-1b74ed91 89.4 p9.
+- Pagination or the page's top: zh-34a6519a 80.9 p10 (Word keeps a last line ours pushes over; 49 pages to 48),
+  zh-7eba7349 81.5 p2 (title 32 low at the page's top), zh-20c1d74a 87.0 p16 ("附件一之二" 13 low at the top).
+- Table: zh-38d26944 84.7 p12 (a cell's centred text 4 off), zh-0aac9d1a 85.0 p10 (column widths), zh-e1b09977
+  82.2 p11 and zh-4c5da793 82.5 p9 (a cell's text wraps differently).
+- Drawing or chart: zh-2a241df1 81.9 p1 (axis labels 1-2 off), zh-27a874b7 / zh-d62da4dd (3-D pies, parked),
+  zh-61aaad09 82.4, zh-b8de3ae2 82.8 (charts, held).
+- Header/footer: zh-1cfb652b 87.5 (p1's "— 1 —" missing in ours).
+- Held, or known otherwise: zh-7773163d (T167), zh-72da925e (T183), zh-64044a1d (T185), zh-77bd4900 (T186),
+  zh-cec9d337 (T187), zh-ae2dd08d (T189), zh-f2835e26 (a raised run's line height), zh-8e8d4c40 (lines 0.9 high from
+  a table title), zh-6a4fc013 (Thai), zh-bdae17c0 87.1 (not yet read).
+- POI under 90: ten 0/0 documents with no text in Word's print, WordWithAttachments (WordArt extent), delins (parked).
+CLAIMED from it: zh-34a6519a — already 89.3 at 49/49 on the tip by lenovo-2's 725ef49d (T185), released. Now CLAIMED: the
+page-top pair zh-7eba7349 and zh-20c1d74a (Mac 01Xgpbk5).
+MEASURED, WAITING ON A WINDOWS LAB (Mac 01Xgpbk5): both are an empty paragraph at a page's foot that Word keeps and
+ours carries to the next page's top. zh-7eba7349 p1: after "…2023年10月7日印发" (exact 16pt, before/after 50) comes an
+empty paragraph whose mark is 仿宋 18pt bold (Normal: 宋体 10.5), under docGrid lines 326 (16.3). Ours sizes it at two grid
+lines (32.6, from FangSong's ascent and descent) with 17.15 left, and pushes it (STARLING_RICHTEXT_PERF: para 18,
+available 343 of 652 twentieths). Word's p2 title stands at the top margin, so Word kept it on p1, which means at most one
+grid line, though Word's own 16pt FangSong body lines take two (32.6). p2-p3's misses are that one line's drift.
+zh-20c1d74a p15/16: three empty paragraphs (mark: Normal's font, snapToGrid 0) after p15's last line; ours carries one
+to p16 (13 low). Lab wanted: a page filled to 17pt from its foot, then an empty paragraph whose mark is FangSong 18pt bold
+under docGrid lines 326. Does it stay? And the same with the mark at 10.5pt, with the grid off, and with text in the
+paragraph.
+LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/pf, fresh Word, warm-up first, the empty paragraphs shaded to show them):
+- zh-7eba7349 is NOT a foot-room case. Its empty paragraph (仿宋 18 bold mark) is the anchor of the floating "…2023年10月7日印发" table (tblpPr vertAnchor text, tblpY 114, 420.7pt wide, rightFromText 180), and Word sets it in the 27pt strip right of the table: x 504.8-532.2, y 715.8-743.7 (27.96 tall; the table's rules 716.7 / 752.4, its top 5.7 under the paragraph's 711.1). p2 then opens with the title. The same with the mark at 10.5pt (712.4-727.4) and with the grid off (711.1-734.5), and there the title's first character "温" starts in the strip too (x 507.5, y 732.8 / 739.9), p2 opening "岭市科创基金…". With text ("文") it is as is, "文" at x 506.3, y 718.4. Ours (bin on d2ab98a2's code less T1) sets it full width at p2's top (70.3-104.6, 32.6 tall). So it is text flowing beside a page-wide floating table, in the narrow strip to its side.
+- zh-20c1d74a p15: the four empty paragraphs after the 申請單位資料表 table (Normal mark, snapToGrid 0) stand 13.8 tall each: 727.7-741.5, 741.5-755.3, 755.3-769.1 on p15, and the fourth opens p16 at 70.9-84.7, before the "附件一之二" box paragraph. So Word carries one to p16 too; if ours is 13 low there, it carries two or sizes them taller.
+
+### zh-1cfb652b 87.5 (word-win): its footer page number 6pt low — MEASURED, PARKED for a Windows lab (Mac 01Xgpbk5, 2026-10-25)
+(The screen's "missing" was wrong: ours draws "— 1 —" at the right x, 6.07pt lower.) Over the 112 word-win documents
+whose p1 carries a dashed page number, only three miss, each by about 6pt low: zh-1cfb652b +6.07, zh-4f70ee2d +5.71,
+zh-884c6e3e +5.85. All three footers are ONE paragraph holding only the WPS page-number text box (wrapNone, posOffset 0
+from the paragraph, tIns 0, spAutoFit). The ~109 that match have more paragraphs under it (an empty one, a second box).
+So the box hangs from that lone paragraph's top, and the footer stands on its distance from the foot: the paragraph's
+height decides the box's place. From the prints (footer foot minus the number's baseline, plus SimSun 14's 12.03 ascent),
+Word's paragraph is 37.3 / 23.4 / 13.9 tall where ours is 31.3 / 17.7 / 8.1:
+- zh-1cfb652b: line 471 auto, mark GWZT-EN 14pt, embedded, 1.113 em.
+- zh-4f70ee2d: footer style 9pt, mark eastAsia 方正仿宋_GBK, grid lines 312.
+- zh-884c6e3e: footer style 9pt TNR/宋体, snapToGrid 0, Normal 10.5.
+Not a mark-versus-run size effect: about 30 documents with a 9pt mark under a 14pt number match. Ours sizes these
+lone paragraphs by `_layout`'s "a paragraph of nothing but floating objects" rule (zh-1a3c7aa0's footer), from the mark's
+look. Lab wanted: zh-884c6e3e's footer alone, the number's baseline with (a) as is, (b) an empty paragraph added under
+it, (c) the paragraph's mark at 14pt; and the same for zh-1cfb652b.
+LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/ft, footer1 edited in each package, fresh Word, warm-up first; p1's number "— 1 —"/"- 1 -" SimSun 14 baseline, and the footer paragraph mark's own baseline):
+- zh-884c6e3e (footer 992, its foot 792.32): (a) as is: number 796.32, mark (TNR 9) 790.42 — the reference's exactly; (b) an empty paragraph (same pPr) added under it: number 785.98 (up 10.34), the box paragraph's mark 780.10, the added one's 790.42; (c) the mark at 14pt: number 790.54 (up 5.78), mark (TNR 14) 789.34.
+- zh-1cfb652b (footer 569, line 471 auto, mark GWZT-EN 14 embedded): (a) as is: number 788.14 = mark 788.14 — the reference's; (b) an empty paragraph added: number 748.30 (up 39.84), marks 748.42 / 788.14; (c) mark 9pt: number 802.32 (down 14.18), mark 797.40; (d) the 471 line removed (single): number 807.60 (down 19.46), mark 807.72.
+So the box rides on its paragraph: a paragraph under it lifts it by that paragraph's height, and the box paragraph's own height moves it. With a 14pt mark the number's baseline sits on the paragraph's first baseline (1cfb a/b/d within 0.12; 884 c 1.20 under); with a 9pt mark it sits 5.90 (884 a) / 4.92 (1cfb c) under it. Box top (number - 12.03) against the mark line's top (baseline - winAscent): 884 a +1.89, c +1.64.
+Lab ft2 (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/ft2, for macOS-doc; zh-1cfb652b footer1, fresh Word, warm-up first). The mark's baseline / the number's baseline: (a) as is (GWZT-EN, hint eastAsia): 788.14 / 788.14. (b) mark rFonts all SimSun 14: 792.10 / 792.22, the number 4.08 lower. (c) all Times New Roman 14: 794.98 / 796.32, 8.18 lower. (d) as (a) without w:hint: 788.14 / 788.14, as (a). (e) the box out, "测试12" in the paragraph: baseline 791.14. Word draws "测试" in PMingLiU and "12" in Cambria, so the embedded GWZT-EN subset has neither glyph. Glyph tops: 测试 779.89, "12" 777.8; the line's bbox 777.8-794.65. So the mark's line is not SimSun's or TNR's, and the embedded face's own 1.113 em does not give it (the paragraph comes out 4.1 and 8.2pt taller than with those faces). With text in it, the line drops 3.0 against (a).
+
+### zh-2a241df1 81.9 (word-win, 4/4 pages): its charts' labels — DONE f436158c, 81.9 -> 100 (Mac 01Xgpbk5, 2026-10-25)
+Its two charts' data tables: Word for Windows sets a chart's text in MS Mincho and JhengHei where the theme's a:ea is
+"", and a row with a JhengHei character stands on JhengHei's line (20.4/20.6 against 16.4), so the plot over it is 8pt
+shorter. Rows are now 3.4pt and their deepest label, line by line, in Windows mode. Pair w28 -> w29: zh-2a241df1
+-> 100, zh-61aaad09 82.4 -> 83.8 (its rest is open: plot steps and widths), nothing else moved.
+
+### T190. zh-e1b09977: 82.2 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
+Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differently. zh-4c5da793 and zh-38d26944 next.
+- Measured: p11's 8 are text-less lines in Word's print. The gap is p13's foot (mode 14): t4's row 14 ("經濟部" vMerge | "演習災害想定" |
+  items 一…五, exact 18pt, widowControl 0) needs 252.5 from 529.5, ending 782.0 + a 0.5 line; the footer (one 12pt 標楷體 line, 856
+  twips up) tops out at 783.5. Line breaks identical. Ours keeps the row; Word parts item 五 1+1 and sends "措施。" to p14, as if its
+  foot were above 782.5. WAITING ON A LAB (asked of macos): content raised 0.5/1/2pt, and the footer emptied.
+- LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/t190, its own package, fresh Word, warm-up first). Raised by row 13's two-line "二、演練時…" paragraph at exact 275/270/260 twips (row 13's rule 529.51 -> 529.03/528.55/527.47). The page-closing rule Word draws is the table's 2.16pt bottom border, not a 0.5 line:
+  (a) as is: "措施。" to p14; p13 closes with the 2.16 border at 764.04 under "五、…精進" (749.19-763.23).
+  (b) up 0.5: to p14 (border 763.56). Up 1.0: STAYS, "措施。" 766.23-780.27, the border 781.08-783.24. Up 2.0: stays, border 780.00-782.16.
+  (c) footer emptied (its 12pt mark kept): to p14, as (a). Footer reference removed: stays, "措施。" 767.19-781.23, the border 782.04-784.20.
+  So the row must fit with its whole closing border: the border's foot at 783.24 fits, at 783.72 (a's 784.20 less 0.48) does not. The body's limit there is the footer's top: 799.2 (856 twips up) less one 12pt 標楷體 line in YaHei (1.32 em, 15.84) = 783.36. With no footer, the 785.3 margin takes 784.20. The footer's text, not its paragraph, makes no difference.
+
+### T191. zh-4c5da793: 82.5 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos: the table group)
+Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
+- Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
+  parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
+
+### T192. zh-38d26944: 84.7 against word-win — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, the table group)
+Owner: Linux lenovo-2. Found: not the cell's centring — Word's 仿宋 sets ″ (U+2033) an em (10.44-10.56 at 10.5pt); Starling
+FangSong's is 3.32, so p13's "…方位角闭合差在20″～30″扣5分，＜20″不扣分" takes the "＜". Trying ′ ″ as GB2312 em symbols.
+
+### Footer page number in a text box hung from a lone footer paragraph (zh-1cfb652b, zh-4f70ee2d, zh-884c6e3e: p1's number ~6pt low) — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, routed by macos; lab ft above, 8fdbcb6c)

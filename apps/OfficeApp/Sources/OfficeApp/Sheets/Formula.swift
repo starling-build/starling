@@ -213,6 +213,24 @@ enum Formula {
         }
     }
 
+    /// The same, with the areas INDEX picks a cell from apart (`indexed`):
+    /// it reads only the cell it picks, so its area is no loop by itself —
+    /// lo-tdf171828's G13 asks ISNUMBER(INDEX(G:G, …)) of the column it is
+    /// in, and Excel prints it blank, not a loop's 0.
+    static func references(_ e: FormulaExpr, into out: inout [FormulaRef], indexed: inout [FormulaRef]) {
+        switch e {
+        case .ref(let r), .spill(let r): out.append(r)
+        case .negate(let x), .plus(let x), .percent(let x), .paren(let x): references(x, into: &out, indexed: &indexed)
+        case .binary(_, let a, let b): references(a, into: &out, indexed: &indexed); references(b, into: &out, indexed: &indexed)
+        case .call(let n, let args):
+            let index = unprefixed(n).uppercased() == "INDEX"
+            for (i, a) in args.enumerated() {
+                if index, i == 0, case .ref(let r) = a { indexed.append(r) } else { references(a, into: &out, indexed: &indexed) }
+            }
+        default: break
+        }
+    }
+
     /// The formula with every reference passed through `f` — for moving,
     /// copying and inserting. `f` returns nil for a reference that no
     /// longer exists (it becomes #REF!).
@@ -246,17 +264,20 @@ enum Formula {
 
     /// The formula as it reads after moving or copying its cell by
     /// (rows, cols): relative references move with it, absolute ones stay,
-    /// and a reference pushed off the sheet becomes #REF!.
-    static func shifted(_ e: FormulaExpr, rows dr: Int, cols dc: Int) -> FormulaExpr {
+    /// and a reference pushed off the sheet becomes #REF! — or, `wrapping`,
+    /// comes round from the other edge, as a defined name's references do.
+    static func shifted(_ e: FormulaExpr, rows dr: Int, cols dc: Int, wrapping: Bool = false) -> FormulaExpr {
         func end(_ x: RefEnd) -> RefEnd? {
             var x = x
             if let r = x.row, !x.rowAbs {
-                let n = r + dr
+                var n = r + dr
+                if wrapping { n = ((n % CellAddress.maxRows) + CellAddress.maxRows) % CellAddress.maxRows }
                 guard n >= 0, n < CellAddress.maxRows else { return nil }
                 x.row = n
             }
             if let c = x.col, !x.colAbs {
-                let n = c + dc
+                var n = c + dc
+                if wrapping { n = ((n % CellAddress.maxCols) + CellAddress.maxCols) % CellAddress.maxCols }
                 guard n >= 0, n < CellAddress.maxCols else { return nil }
                 x.col = n
             }
@@ -410,10 +431,14 @@ enum Formula {
                     }
                     out.append(.ref(r.ref)); i = r.end; continue
                 }
-                if sheet != nil { throw FormulaError(message: "bad reference after \(sheet!)!") }
                 var k = j
                 while k < s.endIndex, s[k].isLetterQuick || s[k].isNumberQuick || s[k] == "_" || s[k] == "." { k = s.index(after: k) }
                 let word = String(s[j ..< k])
+                // A sheet's own name: lo-tdf171828's `Hitab!Divisor`.
+                if let sheet {
+                    guard !word.isEmpty, k == s.endIndex || s[k] != "(" else { throw FormulaError(message: "bad reference after \(sheet)!") }
+                    out.append(.name(Formula.quoteSheet(sheet) + "!" + word)); i = k; continue
+                }
                 guard !word.isEmpty else { throw FormulaError(message: "unexpected \(c)") }
                 if k < s.endIndex, s[k] == "(" {
                     out.append(.function(word.uppercased())); i = s.index(after: k); continue

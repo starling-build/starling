@@ -760,6 +760,35 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.fitsOnce), [true, true])
     }
 
+    /// A lone VML shape sets its text in its type's text rectangle:
+    /// zh-60c80728 p35's "alternate process" boxes (o:spt 176, inset 0,
+    /// no shapetype in the file) set "由港区专" a line in 54.25pt at
+    /// 10.5pt in Word's print, where the whole width took "由港区专项". A
+    /// text box (202) keeps the whole box.
+    func testALoneVMLShapeSetsItsTextInItsTypesTextRectangle() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let text = "<w:txbxContent><w:p><w:r><w:t>由港区专项指挥机构</w:t></w:r></w:p></w:txbxContent>"
+        func shape(_ spt: Int) -> String {
+            "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" o:spt=\"\(spt)\" type=\"#_x0000_t\(spt)\" "
+                + "style=\"position:absolute;margin-top:0pt;height:102.55pt;width:54.25pt\" filled=\"f\">"
+                + "<v:textbox inset=\"0mm,0mm,0mm,0mm\">\(text)</v:textbox></v:shape></w:pict></w:r></w:p>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: shape(176) + shape(202))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
+        XCTAssertEqual(boxes.count, 2)
+        // 2700 x 0.2929 of 21600 a side: 1.99pt across, 3.77 down.
+        XCTAssertEqual(boxes[0].insetLeft, 54.25 * 2700 * 0.2929 / 21600, accuracy: 0.01)
+        XCTAssertEqual(boxes[0].insetRight, 54.25 * 2700 * 0.2929 / 21600, accuracy: 0.01)
+        XCTAssertEqual(boxes[0].insetTop, 102.55 * 2700 * 0.2929 / 21600, accuracy: 0.01)
+        XCTAssertEqual(boxes[1].insetLeft, 0, accuracy: 0.001)
+        XCTAssertEqual(boxes[1].insetTop, 0, accuracy: 0.001)
+    }
+
     /// An equation is kept and drawn: zh-20ff844e's display formulas were
     /// gone from the page and from a save. Read, it has a size and a
     /// baseline, its paragraph is centred, and it is written back as the
@@ -790,6 +819,30 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<m:oMathPara"), saved)
         XCTAssertFalse(saved.contains("<w:r><m:oMathPara"), saved)
         XCTAssertTrue(saved.contains("<m:t>L=99−</m:t>"), saved)
+    }
+
+    func testADisplayEquationWiderThanItsLineBreaksBeforeItsOperators() throws {
+        // zh-db07d44e's cell "實績值=(…/…×1/3+…/…×1/3+…/…×1/3)×100%" is four
+        // lines in Word's print, parted before "×" and "+" inside its
+        // brackets, each after the first an inch in; ours ran past the cell.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        func frac(_ a: String, _ b: String) -> String { "<m:f><m:num><m:r><m:t>\(a)</m:t></m:r></m:num><m:den><m:r><m:t>\(b)</m:t></m:r></m:den></m:f>" }
+        let inside = frac("aaaaaaaaa", "bbbbbbbbb") + "<m:r><m:t>×</m:t></m:r>" + frac("1", "3") + "<m:r><m:t>+</m:t></m:r>"
+            + frac("ccccc", "ddddd") + "<m:r><m:t>×</m:t></m:r>" + frac("1", "3")
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><m:oMathPara \(m)><m:oMath><m:r><m:t>y=</m:t></m:r><m:d><m:e>\(inside)</m:e></m:d><m:r><m:t>×100%</m:t></m:r></m:oMath></m:oMathPara></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let eq = try XCTUnwrap(doc.paragraphs.first?.image ?? doc.paragraphs.first?.inlineImages.values.first)
+        let narrow = eq.width * 0.55
+        let fit = try XCTUnwrap(WriterMath.fit(eq, width: narrow), "an equation wider than its line breaks")
+        XCTAssertLessThanOrEqual(fit.width, narrow + 0.5)
+        XCTAssertGreaterThan(fit.height, eq.height * 1.8, "two lines at least")
+        XCTAssertNil(WriterMath.fit(eq, width: eq.width + 10), "one that fits is left whole")
     }
 
     /// zh-547fc43c p6: a 233.75pt chart and 1.75pt of effect extent on a
@@ -941,6 +994,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try pitch("<w:tcBorders><w:top w:val=\"nil\"/></w:tcBorders>"), 22.7, accuracy: 0.05, "nil stated: none")
     }
 
+    /// A number set right ends where its first line starts, and its tab
+    /// goes on from there: zh-f2ca3070's "i." under a 7pt hanging indent
+    /// has its text at the indent in Word's print, 7pt on — not at the
+    /// next default stop, where measuring the number from the line's start
+    /// sent it.
+    func testARightAlignedNumbersTabGoesOnFromWhereItEnds() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let run = "<w:rPr><w:sz w:val=\"28\"/></w:rPr>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr><w:ind w:left=\"2550\" w:hanging=\"140\"/>\(run)</w:pPr><w:r>\(run)<w:t>text</w:t></w:r></w:p>"
+            + "<w:p><w:pPr>\(run)</w:pPr><w:r>\(run)<w:t>text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"lowerRoman\"/><w:lvlText w:val=\"%1.\"/><w:lvlJc w:val=\"right\"/><w:pPr><w:ind w:left=\"3108\" w:hanging=\"480\"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        // (By the painters' widths, the same text in each: the text's lead
+        // past the indent is the difference — none, the text at the
+        // indent; 16.5 to the default stop when the number was measured
+        // from the line's start.)
+        func width(_ i: Int) -> Double { layout.geometry(i).painter.maxIntrinsicWidth / theme.pixelsPerPoint }
+        XCTAssertEqual(width(0) - width(1), 0, accuracy: 0.05, "\(width(0)) \(width(1))")
+    }
+
     /// A Wingdings bullet is as wide as Wingdings makes it, whatever the
     /// glyph drawn for it: zh-3fe252ff's 15pt "Ø" (0.794 em) ends short
     /// of the 42pt default stop from a 30pt first-line indent, and Word
@@ -1000,6 +1086,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try pages(breakOnly + leading), 3)
         XCTAssertEqual(try pages(breakOnly + "<w:p><w:r><w:t>乙</w:t></w:r></w:p>"), 2)
         XCTAssertEqual(try pages(leading), 2)
+    }
+
+    /// A style's `w:pageBreakBefore` breaks the page before each paragraph
+    /// of it, as the paragraph's own does, and a paragraph's "off" undoes
+    /// it — but not on a paragraph that is only a section's end, empty:
+    /// zh-499adba6's contents section ends in an empty Heading 2.
+    func testAStylesPageBreakBeforeIsTheParagraphs() throws {
+        func pages(_ inner: String) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: "<w:p><w:r><w:t>甲</w:t></w:r></w:p>" + inner)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+            var styles = String(decoding: entries[si].data, as: UTF8.self)
+            let end = try XCTUnwrap(styles.range(of: "</w:styles>"))
+            styles.replaceSubrange(end, with: "<w:style w:type=\"paragraph\" w:styleId=\"Brk\"><w:name w:val=\"Brk\"/><w:pPr><w:pageBreakBefore/></w:pPr></w:style></w:styles>")
+            entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(doc)
+            return layout.pageCount
+        }
+        let styled = "<w:p><w:pPr><w:pStyle w:val=\"Brk\"/></w:pPr><w:r><w:t>乙</w:t></w:r></w:p>"
+        XCTAssertEqual(try pages(styled), 2)
+        XCTAssertEqual(try pages("<w:p><w:pPr><w:pStyle w:val=\"Brk\"/><w:pageBreakBefore w:val=\"0\"/></w:pPr><w:r><w:t>乙</w:t></w:r></w:p>"), 1)
+        let sectionEnd = "<w:p><w:pPr><w:pStyle w:val=\"Brk\"/><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:pPr></w:p>"
+        XCTAssertEqual(try pages(sectionEnd + styled), 2)
     }
 
     /// Word leaves a paragraph's space before behind where the paragraph
@@ -1224,6 +1343,55 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.keptHeaderFooters.map(\.kind), [.footer])
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(again.contains("<w:footerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/>"), again)
+    }
+
+    func testAFittedFooterBoxWidenedForItsNumberKeepsItsRightIndent() throws {
+        // zh-9c162f26's "— PAGE —", in a DrawingML box fit to its text
+        // and sized once, a character in from each side, its runs Times
+        // hinted "default": Word prints "— 10 —" whole on page 10, where
+        // ours widened the box by the left indent alone and wrapped the
+        // closing dash.
+        var doc = RichDocument(paragraphs: (1 ... 10).map { n in
+            var p = RichParagraph(text: "page \(n)")
+            p.style.pageBreakBefore = n > 1
+            return p
+        })
+        doc.footer = "x"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+        let fi = entries.firstIndex { $0.name == "word/footer1.xml" }!
+        var fxml = String(decoding: entries[fi].data, as: UTF8.self)
+        let inner = fxml[fxml.range(of: "<w:p>")!.lowerBound ..< fxml.range(of: "</w:p>")!.upperBound]
+        let run = "<w:rPr><w:rFonts w:hint=\"default\" w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"28\"/></w:rPr>"
+        let text = "<w:txbxContent><w:p><w:pPr><w:ind w:left=\"210\" w:leftChars=\"100\" w:right=\"210\" w:rightChars=\"100\"/></w:pPr>"
+            + "<w:r>\(run)<w:t xml:space=\"preserve\">— </w:t></w:r><w:r>\(run)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(run)<w:instrText xml:space=\"preserve\"> PAGE </w:instrText></w:r>"
+            + "<w:r>\(run)<w:fldChar w:fldCharType=\"separate\"/></w:r><w:r>\(run)<w:t>1</w:t></w:r><w:r>\(run)<w:fldChar w:fldCharType=\"end\"/></w:r><w:r>\(run)<w:t xml:space=\"preserve\"> —</w:t></w:r></w:p></w:txbxContent>"
+        let box = "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:align>left</wp:align></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"1828800\" cy=\"1828800\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"2\" name=\"b\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:prstGeom prst=\"rect\"/></wps:spPr><wps:txbx>\(text)</wps:txbx>"
+            + "<wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        fxml = fxml.replacingAll(String(inner), with: box)
+        if !fxml.contains("xmlns:wp=") { fxml = fxml.replacingAll("<w:ftr ", with: "<w:ftr xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" ") }
+        entries[fi] = ZipEntry(name: "word/footer1.xml", data: Data(fxml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let back = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(back)
+        XCTAssertEqual(l.pageCount, 10)
+        // (Page 1 first, as an export paints them: its box sets the width.)
+        l.paint(ParagraphHeightCanvas(), visible: l.pageRect(0), document: back, selection: nil, caret: nil)
+        let canvas = ParagraphHeightCanvas()
+        l.paint(canvas, visible: l.pageRect(9), document: back, selection: nil, caret: nil)
+        // (14pt Times: a line is some 16pt; two lines over 30.)
+        XCTAssertFalse(canvas.heights.isEmpty)
+        XCTAssertLessThan((canvas.heights.max() ?? 0) / theme.pixelsPerPoint, 24, "\"— 10 —\" on one line")
     }
 
     func testDocumentBackgroundKeptWithItsPicture() throws {
@@ -1515,6 +1683,546 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.endnoteSeparator.count, 1)
     }
 
+    func testALineWhoseNoteHasNoRoomGoesOverWithIt() throws {
+        // zh-c15af02e's footnote 1, one line, is marked in the line that
+        // would end page 5; with no room for a line of the note under it,
+        // Word's print takes that line to page 6 with the note. Ours kept
+        // the line and sent the note over alone.
+        // Here: 698pt of page, a 673pt filler, then a 20pt line marking a
+        // note — the line fits the 25pt left, the separator and note do not.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let footnotes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> note</w:t></w:r></w:p></w:footnote></w:footnotes>
+        """
+        entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func exact(_ twips: Int) -> String { "<w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr>" }
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: "<w:p>\(exact(13460))<w:r><w:t>filler</w:t></w:r></w:p>"
+            + "<w:p>\(exact(400))<w:r><w:t>marked</w:t></w:r><w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r></w:p>"
+            + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        XCTAssertEqual(doc.footnotes.keys.sorted(), [1])
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let marked = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("marked") })
+        XCTAssertEqual(l.pageCount, 2)
+        XCTAssertFalse(l.pieces[0].contains { $0.paragraph == marked }, "the marking line goes over with its note")
+    }
+
+    func testAPicturesLineOffItsSectionsGridTakesItsMultiplesExtra() throws {
+        // Lab `pn` (Word 16 Mac, zh-e68a2f57's package): a chart alone in
+        // a paragraph of 1.1 lines, snapToGrid 0, in a section with a line
+        // grid — the note under it 1.20 lower than at single, 0.1 of the
+        // 9pt mark's line, as off any grid (lab `hp`); ours added nothing.
+        func height(line: Int) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let picture = "<w:r><w:drawing><wp:inline xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\"><wp:extent cx=\"2540000\" cy=\"1270000\"/><wp:docPr id=\"1\" name=\"p\"/></wp:inline></w:drawing></w:r>"
+            var parts: [String] = []
+            parts.append("<w:p><w:pPr><w:snapToGrid w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(line)\" w:lineRule=\"auto\"/><w:rPr><w:sz w:val=\"18\"/></w:rPr></w:pPr>\(picture)</w:p>")
+            parts.append("<w:p><w:r><w:t>note</w:t></w:r></w:p>")
+            parts.append("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/><w:docGrid w:type=\"lines\" w:linePitch=\"312\"/></w:sectPr>")
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            XCTAssertNotNil(doc.paragraphs[0].image ?? doc.paragraphs[0].inlineImages.values.first, "the picture is read")
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let note = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "note" })
+            return try XCTUnwrap(l.pieces[0].first { $0.paragraph == note }).pageY / theme.pixelsPerPoint
+        }
+        let extra = try height(line: 360) - height(line: 240)
+        XCTAssertGreaterThan(extra, 3, "half the mark's line under the picture at 1.5 lines")
+        XCTAssertLessThan(extra, 10, "not half the picture")
+    }
+
+    func testAMergedLabelIsCentredDownToAGhostRowsPart() throws {
+        // zh-9ef811c8's "综合业务", merged from a row into the next — whose
+        // cells are merged down over rows holding nothing, parting at
+        // page 4's foot at one of those rows' tops (lab `mg`) — stands
+        // centred down to that part's foot in Word's print; ours centred
+        // it in its first row alone, 43pt high.
+        // Here: a row of one line with the label beside it, then a row
+        // whose cells are merged over three empty rows of 60pt, two of
+        // which fit the page.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func p(_ text: String) -> String {
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+        }
+        func cell(_ props: String, _ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/>\(props)</w:tcPr>\(content)</w:tc>" }
+        let centre = "<w:vAlign w:val=\"center\"/>"
+        let restart = "<w:vMerge w:val=\"restart\"/>\(centre)", goesOn = "<w:vMerge/>\(centre)"
+        let borders = "<w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+        var parts: [String] = []
+        parts.append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"9600\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>")
+        parts.append("<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/>\(borders)</w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>")
+        parts.append("<w:tr>\(cell(restart, p("label one") + p("label two")))\(cell("", p("first")))</w:tr>")
+        parts.append("<w:tr>\(cell(goesOn, "<w:p/>"))\(cell(restart, p("merged")))</w:tr>")
+        for _ in 1 ... 3 {
+            parts.append("<w:tr><w:trPr><w:trHeight w:val=\"1200\"/></w:trPr>\(cell(goesOn, "<w:p/>"))\(cell(goesOn, "<w:p/>"))</w:tr>")
+        }
+        parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        XCTAssertGreaterThan(l.pageCount, 1, "the merged rows part over the page")
+        let label = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "label one" })
+        let first = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "first" })
+        // (Where its text is drawn on the page, against the first row's
+        // line beside it.)
+        func drawn(_ k: Int) throws -> Double {
+            let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+            return piece.pageY + l.geometry(k).textTop - piece.flowTop
+        }
+        let down = (try drawn(label) - drawn(first)) / theme.pixelsPerPoint
+        XCTAssertGreaterThan(down, 30, "centred down the part on the page, not in its first row")
+    }
+
+    func testACentredCellSetWholeInAPartKeepsItsRowForAMergeAbove() throws {
+        // zh-1eeb9f9a p8: "公开渠道和载体", centred and merged down into a row
+        // that parts at the foot, stands centred down to that row's kept
+        // lines in Word's print. Beside them the row's "其他政策文件", two
+        // lines centred in the whole row, would end past the foot there —
+        // but it is set whole in the part, so the row does part; ours read
+        // it as keeping nothing and centred the merge over the rows above
+        // alone, 8pt low.
+        // Here: "merged" over two rows of one line and a third that parts
+        // with two of ten lines on page 1, a centred two-line cell beside.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func p(_ text: String) -> String {
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+        }
+        func cell(_ props: String, _ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"2600\" w:type=\"dxa\"/>\(props)</w:tcPr>\(content)</w:tc>" }
+        let centre = "<w:vAlign w:val=\"center\"/>"
+        let restart = "<w:vMerge w:val=\"restart\"/>\(centre)", goesOn = "<w:vMerge/>\(centre)"
+        let borders = "<w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+        var parts: [String] = []
+        parts.append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"12000\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>")
+        parts.append("<w:tbl><w:tblPr><w:tblW w:w=\"7800\" w:type=\"dxa\"/>\(borders)</w:tblPr><w:tblGrid><w:gridCol w:w=\"2600\"/><w:gridCol w:w=\"2600\"/><w:gridCol w:w=\"2600\"/></w:tblGrid>")
+        parts.append("<w:tr>\(cell(restart, p("merged")))\(cell("", p("first")))\(cell("", p("x")))</w:tr>")
+        parts.append("<w:tr>\(cell(goesOn, "<w:p/>"))\(cell("", p("second")))\(cell("", p("y")))</w:tr>")
+        let long = (1 ... 10).map { n -> String in p("long \(n)") }.joined()
+        parts.append("<w:tr>\(cell(goesOn, "<w:p/>"))\(cell(centre, p("label one") + p("label two")))\(cell("", long))</w:tr>")
+        parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        XCTAssertGreaterThan(l.pageCount, 1, "the last row parts over the page")
+        let merged = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "merged" })
+        let first = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "first" })
+        let long2 = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "long 2" })
+        XCTAssertTrue(l.pieces[0].contains { $0.paragraph == long2 }, "two of the long cell's lines on page 1")
+        func drawn(_ k: Int) throws -> Double {
+            let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+            return piece.pageY + l.geometry(k).textTop - piece.flowTop
+        }
+        // (Centred in 20 + 20 + 40: 30pt down; over the two rows alone, 10.)
+        let down = (try drawn(merged) - drawn(first)) / theme.pixelsPerPoint
+        XCTAssertEqual(down, 30, accuracy: 3, "centred down to the parted row's kept lines")
+    }
+
+    func testARowOfNoCellSpacingInASpacedTableCollapsesItsLines() throws {
+        // zh-147bdae0's commitment tables state a cell spacing of 0 and
+        // most of their rows nil (`w:tblPrEx`): those rows step one 0.5pt
+        // line apart in Word's print, 21.1pt a one-line row, where ours
+        // took the line twice, 21.6, and p17's last row went over whole.
+        func step(_ rowSpacing: String) throws -> (Double, String) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let borders = "<w:tcBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/></w:tcBorders>"
+            func row(_ text: String) -> String {
+                "<w:tr>\(rowSpacing)<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/>\(borders)</w:tcPr><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p></w:tc></w:tr>"
+            }
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblCellSpacing w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid>"
+                + row("r1") + row("r2") + row("r3") + "</w:tbl><w:p/>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: table + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            func drawn(_ text: String) throws -> Double {
+                let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+                let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+                return piece.pageY + l.geometry(k).textTop - piece.flowTop
+            }
+            let saved = try Zip.read(try DocxFormat.write(doc, pageSetup: setup)).first { $0.name == "word/document.xml" }!
+            return ((try drawn("r3") - drawn("r2")) / theme.pixelsPerPoint, String(decoding: saved.data, as: UTF8.self))
+        }
+        let spaced = try step("")
+        XCTAssertEqual(spaced.0, 21, accuracy: 0.05, "each row its own two lines")
+        let unspaced = try step("<w:tblPrEx><w:tblCellSpacing w:w=\"0\" w:type=\"nil\"/></w:tblPrEx>")
+        XCTAssertEqual(unspaced.0, 20.5, accuracy: 0.05, "the rows share their line")
+        XCTAssertTrue(unspaced.1.contains("<w:tblPrEx><w:tblCellSpacing w:type=\"nil\" w:w=\"0\"/>"), "the rows' own spacing goes back")
+    }
+
+    func testAListsLastItemInACellKeepsItsAutomaticSpaceAfter() throws {
+        // zh-147bdae0's numbered commitments, automatically spaced, end
+        // their cells 14pt over the bottom line in Word's print, where a
+        // cell's one plain paragraph so spaced has none under it.
+        func gap(numbered: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let num = numbered ? "<w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr>" : ""
+            func p(_ text: String, _ list: String) -> String {
+                "<w:p><w:pPr>\(list)<w:spacing w:before=\"100\" w:beforeAutospacing=\"1\" w:after=\"100\" w:afterAutospacing=\"1\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            func cell(_ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr>\(content)</w:tc>" }
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid>"
+                + "<w:tr>\(cell(p("one", num) + p("two", num)))</w:tr><w:tr>\(cell(p("next", "")))</w:tr></w:tbl><w:p/>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: table + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.\"/><w:pPr><w:ind w:left=\"480\" w:hanging=\"480\"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+            let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+            entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            func drawn(_ text: String) throws -> Double {
+                let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+                let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == k && $0.part != .rules })
+                return piece.pageY + l.geometry(k).textTop - piece.flowTop
+            }
+            return (try drawn("next") - drawn("two")) / theme.pixelsPerPoint
+        }
+        let plain = try gap(numbered: false), listed = try gap(numbered: true)
+        XCTAssertEqual(plain, 20, accuracy: 0.05, "a plain paragraph's space after gives way at the cell's end")
+        XCTAssertEqual(listed - plain, 14, accuracy: 0.05, "the list's last item keeps its 14pt")
+    }
+
+    func testAPartedRowOpensWithItsOwnTopLine() throws {
+        // Lab `tb` (Word 16 Mac, zh-13552a3a's package): cells of top nil
+        // and bottom single, a row parted at page 1's foot — page 2 opens
+        // with no line and the text at the margin; with the cells' top
+        // single 4 the line is drawn and the text stands 0.48 lower.
+        func opening(top: String) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            func p(_ text: String) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"312\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            let borders = "<w:tcBorders><w:top w:val=\"\(top)\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>"
+            func row(_ content: String) -> String { "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"8000\" w:type=\"dxa\"/>\(borders)</w:tcPr>\(content)</w:tc></w:tr>" }
+            var parts: [String] = ["<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"8000\"/></w:tblGrid>"]
+            for n in 1 ... 5 { parts.append(row(p("row \(n)"))) }
+            parts.append(row((1 ... 60).map { n -> String in p("long \(n)") }.joined()))
+            parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            XCTAssertGreaterThan(l.pageCount, 1)
+            let first = try XCTUnwrap(l.pieces[1].filter { doc.paragraphs[$0.paragraph].text.hasPrefix("long") && $0.part != .rules }.map(\.pageY).min())
+            return first / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try opening(top: "nil"), 0, accuracy: 0.01, "no line, no room: the text at the margin")
+        XCTAssertGreaterThan(try opening(top: "single"), 0.3, "under the line it opens with")
+    }
+
+    func testAMergedCellSetWholeInAPartIsNotDrawnAgain() throws {
+        // zh-13552a3a's "4.就业失业登记", centred and merged over rows 10-11,
+        // stands whole in row 10's part at page 15's foot in Word's print,
+        // and once; its text, centred over both rows, reaches past row 10's
+        // own bottom, and ours drew those lines again at page 16's head.
+        // Here: a label of three lines merged over a row of 30 lines that
+        // parts at the foot and a row of 30 more, with a filler above.
+        func kept(filler: Int) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            func p(_ text: String) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"300\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            func long(_ tag: String) -> String { (1 ... 30).map { n -> String in p("\(tag) \(n)") }.joined() }
+            let label = "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"300\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>label one</w:t></w:r><w:r><w:br/></w:r><w:r><w:t>label two</w:t></w:r><w:r><w:br/></w:r><w:r><w:t>label three</w:t></w:r></w:p>"
+            func cell(_ props: String, _ content: String) -> String { "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/>\(props)</w:tcPr>\(content)</w:tc>" }
+            let borders = "<w:tblBorders><w:top w:val=\"single\" w:sz=\"4\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+            var parts: [String] = []
+            parts.append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(filler)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>")
+            parts.append("<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/>\(borders)</w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>")
+            let restart = cell("<w:vMerge w:val=\"restart\"/><w:vAlign w:val=\"center\"/>", label)
+            let merged = cell("<w:vMerge/><w:vAlign w:val=\"center\"/>", "<w:p/>")
+            parts.append("<w:tr>\(restart)\(cell("", long("first")))</w:tr>")
+            parts.append("<w:tr>\(merged)\(cell("", long("second")))</w:tr>")
+            parts.append("</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: parts.joined())
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let target = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("label") })
+            // (What of its text lines each piece shows: a merged cell's
+            // window may reach far past them.)
+            let g = l.geometry(target)
+            let top = g.textTop, bottom = g.textTop + g.painter.height
+            var drawn = 0.0
+            for page in 0 ..< l.pageCount {
+                for piece in l.pieces[page] where piece.paragraph == target && piece.part != .rules {
+                    drawn += max(0, min(piece.flowBottom, bottom) - max(piece.flowTop, top))
+                }
+            }
+            return drawn / theme.pixelsPerPoint
+        }
+        // (The label's lines are drawn once, wherever the rows part.)
+        for filler in stride(from: 4000, through: 9000, by: 500) {
+            XCTAssertLessThanOrEqual(try kept(filler: filler), 45.5, "filler \(filler / 20)pt: the label drawn once")
+        }
+    }
+
+    func testARowWhoseNoteHasNoRoomPartsWithIt() throws {
+        // zh-499adba6's book is a one-column table, a paragraph a row; its
+        // footnote 11, marked in the second line of a seven-line row near
+        // page 90's foot, parts there in Word's print and the row with it.
+        // Ours set the row whole — it fits without the note — and reserved
+        // the note after it, over its last lines.
+        // Here: 698pt of page, a 540pt row, then a row of seven 20pt lines
+        // marking on its second a note of ten 12pt lines.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let lines = (1 ... 10).map { "<w:r><w:t>note \($0)</w:t></w:r>" }.joined(separator: "<w:r><w:br/></w:r>")
+        let footnotes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r>\(lines)</w:p></w:footnote></w:footnotes>
+        """
+        entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func exact(_ twips: Int) -> String { "<w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr>" }
+        let marked = (1 ... 7).map { n in "<w:r><w:t>row \(n)</w:t></w:r>" + (n == 2 ? "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r>" : "") }
+            .joined(separator: "<w:r><w:br/></w:r>")
+        func row(_ p: String) -> String { "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"9000\" w:type=\"dxa\"/></w:tcPr>\(p)</w:tc></w:tr>" }
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+            "<w:tbl><w:tblPr><w:tblW w:w=\"9000\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"9000\"/></w:tblGrid>"
+            + row("<w:p>\(exact(10800))<w:r><w:t>filler</w:t></w:r></w:p>")
+            + row("<w:p>\(exact(400))\(marked)</w:p>")
+            + "</w:tbl><w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        XCTAssertEqual(doc.footnotes.keys.sorted(), [1])
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let target = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("row 1") })
+        let here = l.pieces[0].filter { $0.paragraph == target && $0.part != .rules }
+        let kept = here.map { $0.flowBottom - $0.flowTop }.reduce(0, +) / theme.pixelsPerPoint
+        XCTAssertGreaterThan(kept, 30, "the row keeps its marking line on the page")
+        XCTAssertLessThan(kept, 139, "and parts there, not set whole under its note")
+    }
+
+    func testAGridLineDoesNotHangIntoTheFootnotes() throws {
+        // zh-c15af02e's page 6: lines on a grid over a one-line note. A
+        // page's last line may reach past the foot by its grid's overhang,
+        // but not into the notes: Word's print holds thirteen, the
+        // fourteenth reaching 4.3pt into the separator's line.
+        // Here: 698pt of page on a 20pt grid, a note of 6.5pt under a 12pt
+        // separator — 679.5pt for 10pt lines a pitch each, the 34th 0.5pt
+        // over. Without the note and with the foot 18.5pt higher, the 34th
+        // hangs past it and stays.
+        func kept(note: Bool) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            if note {
+                let footnotes = """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="exact"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:before="0" w:after="0" w:line="130" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:vertAlign w:val="superscript"/><w:sz w:val="12"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="12"/></w:rPr><w:t xml:space="preserve"> note</w:t></w:r></w:p></w:footnote></w:footnotes>
+                """
+                entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+            }
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let ref = note ? "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r>" : ""
+            let lines = (0 ..< 40).map { n in
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t>行文\(n)</w:t></w:r>\(n == 0 ? ref : "")</w:p>"
+            }.joined()
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: lines
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"\(note ? 1440 : 1810)\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/><w:docGrid w:type=\"lines\" w:linePitch=\"400\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return Set(l.pieces[0].map(\.paragraph)).filter { doc.paragraphs[$0].text.hasPrefix("行文") }.count
+        }
+        XCTAssertEqual(try kept(note: false), 34, "the 34th hangs past a bare foot")
+        XCTAssertEqual(try kept(note: true), 33, "but not into the notes")
+    }
+
+    func testACentredExactLineIsSetByTheBaselineWithoutSpaceForUL() throws {
+        // Lab `ctr` (Word for Mac): zh-ee9d81b3, which lacks `w:spaceForUL`,
+        // sets its 16pt YaHei in 35pt exact lines of `w:textAlignment`
+        // "center" 34.53pt down — the baseline's place, 28.05, and the
+        // text's middle more — where zh-1563bd74, which has it, centres
+        // the text's own line in the exact one.
+        func baseline(spaceForUL: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!, si = entries.firstIndex { $0.name == "word/settings.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+                "<w:p><w:pPr><w:spacing w:line=\"700\" w:lineRule=\"exact\"/><w:textAlignment w:val=\"center\"/></w:pPr>"
+                + "<w:r><w:rPr><w:rFonts w:ascii=\"Microsoft YaHei\" w:eastAsia=\"Microsoft YaHei\" w:hAnsi=\"Microsoft YaHei\"/><w:sz w:val=\"32\"/></w:rPr>"
+                + "<w:t>三、配合參加</w:t></w:r></w:p>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let settings = "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:compat>"
+                + (spaceForUL ? "<w:spaceForUL/>" : "") + "</w:compat></w:settings>"
+            entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+            let doc = try DocxFormat.read(Zip.write(entries)).document
+            XCTAssertEqual(doc.spacesForUnderline, spaceForUL)
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let p = doc.paragraphs[0]
+            return try XCTUnwrap(theme.baseline(for: p.runs[0].style, in: p.style, named: nil, eastAsian: true, gridPitch: nil,
+                                                centresInLine: doc.spacesForUnderline))
+        }
+        let centred = try baseline(spaceForUL: true), low = try baseline(spaceForUL: false)
+        XCTAssertEqual(centred, 23.94, accuracy: 0.3, "the text's own line centred in the exact one")
+        XCTAssertEqual(low, 34.53, accuracy: 0.6, "the baseline's place and the text's middle")
+    }
+
+    func testAPageFootLineReachesByItsOwnFaces() throws {
+        // zh-c15af02e's p11: a paragraph with a "%" in another face on its
+        // second line, whose one pitch leaves 1pt, keeps its fifteenth
+        // line 5.4pt past the foot in Word's print; ours took the 1pt for
+        // every line. Here: 20pt pitches, 10pt lines, and a run of a size
+        // that fills its pitch but for under half a point — the 34th line
+        // 0.5pt past the foot is kept, unless that run is on it.
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        func document(odd: Int, size: Int) throws -> (RichDocument, PageSetup) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let runs = (0 ..< 40).map { n in
+                (n == odd ? "<w:r><w:rPr><w:sz w:val=\"\(size)\"/></w:rPr><w:t>X</w:t></w:r>" : "")
+                    + "<w:r><w:rPr><w:sz w:val=\"20\"/></w:rPr><w:t>行文\(n)</w:t></w:r>" + (n < 39 ? "<w:r><w:br/></w:r>" : "")
+            }.joined()
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+                "<w:p><w:pPr><w:snapToGrid w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"370\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>"
+                + "<w:p><w:pPr><w:widowControl w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr>\(runs)</w:p>"
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/><w:docGrid w:type=\"lines\" w:linePitch=\"400\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            return (opened.document, opened.pageSetup ?? .a4)
+        }
+        // (The size: the largest in half points whose line is one pitch
+        // with less than 0.45pt left under the half leading.)
+        func laid(_ line: Int, _ size: Int) throws -> (doc: RichDocument, layout: RichLayout, target: Int) {
+            let (doc, setup) = try document(odd: line, size: size)
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (doc, l, try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("行文") }))
+        }
+        // (A size whose line is one pitch in the layout itself, with less
+        // than 0.45pt left under its half leading.)
+        var size: Int? = nil
+        for half in stride(from: 40, through: 24, by: -1) {
+            let (doc, l, target) = try laid(0, half)
+            let p = doc.paragraphs[target]
+            guard let run = p.runs.first(where: { $0.style.fontSize == Double(half) / 2 }),
+                  let first = l.geometry(target).painter.computeLineMetrics().first,
+                  abs(first.height / theme.pixelsPerPoint - 20) < 0.01 else { continue }
+            let reach = theme.gridOverhang(for: run.style, in: p.style, named: doc.styles.resolve(p.style), eastAsian: false, gridPitch: 20)
+            if reach > 0.01, reach < 0.45 { size = half; break }
+        }
+        // (Which size that is depends on the faces registered, and after
+        // some other tests' fonts there is none: the case cannot be set up.)
+        guard let odd = size else { throw XCTSkip("no size fills a 20pt pitch but for under half a point with these faces") }
+        func kept(_ line: Int) throws -> Int {
+            let (_, l, target) = try laid(line, odd)
+            let piece = try XCTUnwrap(l.pieces[0].first { $0.paragraph == target })
+            return Int(((piece.flowBottom - piece.flowTop) / theme.pixelsPerPoint / 20).rounded())
+        }
+        XCTAssertEqual(try kept(0), 34, "an odd face on the first line does not hold the 34th back")
+        XCTAssertEqual(try kept(33), 33, "on the 34th itself it does")
+    }
+
     func testEmptyPictIsNothing() throws {
         // bug59058: a paragraph of nothing but `<w:pict/>` before a table —
         // no mark on Word's print and no room, where a 300 by 200 stand-in
@@ -1798,10 +2506,64 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(kept, 33, "the 34th line goes over: under it, no room for the cell's 1.2pt margin")
     }
 
+    func testARowPartedAtTheFootIsClosedWithTheTablesBottomLine() throws {
+        // Lab `ef2b` (Word 16 Mac, mode 14): a last row of four 17pt lines
+        // over a 2.25pt bottom line, 15 to 25pt left under its third. Word
+        // parts it after the third up to 19 and keeps all four from 20:
+        // the fourth must fit with the heavy line under it. Ours, leaving
+        // the top line's 0.5 under the part, took the fourth for one that
+        // fits, had nothing left to send over, and took the row over whole.
+        func kept(_ room: Int) throws -> (pages: Int, kept: Int) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            func line(_ text: String, _ twips: Int) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            func edge(_ side: String, _ sz: Int) -> String { "<w:\(side) w:val=\"single\" w:sz=\"\(sz)\" w:space=\"0\" w:color=\"000000\"/>" }
+            let cell = (0 ..< 4).map { line("cell \($0)", 340) }.joined()
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: line("filler", (663 - room) * 20)
+                + "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"dxa\"/><w:tblBorders>" + edge("top", 4) + edge("left", 4) + edge("bottom", 18)
+                + edge("right", 4) + edge("insideH", 4) + edge("insideV", 4) + "</w:tblBorders>"
+                + "<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"5000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"5000\" w:type=\"dxa\"/></w:tcPr>\(cell)</w:tc></w:tr></w:tbl>"
+                + "<w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1416\" w:right=\"1134\" w:bottom=\"1134\" w:left=\"1134\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            var doc = opened.document
+            doc.compatibilityMode = 14
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l.pageCount, Set(l.pieces[0].map(\.paragraph)).filter { doc.paragraphs[$0].text.hasPrefix("cell") }.count)
+        }
+        XCTAssertEqual(try kept(15).kept, 3)
+        XCTAssertEqual(try kept(18).kept, 3, "parted after the third line, not taken over whole")
+        XCTAssertEqual(try kept(19).kept, 3)
+        XCTAssertEqual(try kept(20).kept, 4)
+    }
+
     /// The first line's width, in points, of `text` in 12pt 宋体 laid out
     /// `width` points wide, mode 14, compressing punctuation, set left.
     private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
-                                mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true) throws -> Double {
+                                mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
+                                hanging: Double = 0) throws -> Double {
+        try firstLine(text, width: width, language: language, hangs: hangs, mode: mode,
+                      letterSpacing: letterSpacing, compresses: compresses, hanging: hanging).width
+    }
+
+    /// The first line's width and the characters it holds, its paragraph
+    /// of 12pt 宋体 laid out alone at `width` points.
+    private func firstLine(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
+                           mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
+                           hanging: Double = 0, justified: Bool = false,
+                           documentLanguage: String? = nil, characterGrid: Double? = nil,
+                           runXML: String = "", kerns: Bool = false) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1819,15 +2581,21 @@ final class DocxTests: XCTestCase {
         style.fontSize = 12
         style.letterSpacing = letterSpacing
         if let language { style.keptXML = "<w:lang w:eastAsia=\"\(language)\"/>" }
+        if !runXML.isEmpty { style.keptXML = (style.keptXML ?? "") + runXML }
+        if kerns { style.kerningFrom = 1 }
         var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
         // (Set left, as every paragraph is fitted before mode 15, so the
         // line's width is what it holds.)
-        p.style.alignment = .left
+        p.style.alignment = justified ? .justify : .left
         if !hangs { p.style.eastAsian["w:overflowPunct"] = "0" }
+        p.style.indentLeft = hanging
+        p.style.firstLineIndent = -hanging
         var doc = RichDocument(paragraphs: [p])
         doc.compatibilityMode = mode
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
+        if let characterGrid { doc.characterGridSpace = characterGrid }
+        if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
         theme.faceResolver = OfficeFonts.face
@@ -1836,7 +2604,24 @@ final class DocxTests: XCTestCase {
         let l = RichLayout(theme: theme, paragraphCount: 1)
         l.width = width * theme.pixelsPerPoint
         l.ensureLaidOut(doc)
-        return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        let painter = l.geometry(0).painter
+        return ((painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint,
+                painter.getLineBoundary(TextPosition(offset: 0)).end)
+    }
+
+    func testAFullWidthPercentMayOpenATraditionalChineseLine() throws {
+        // zh-499adba6's "…占比為38.54" ends page 25's first line in Word's
+        // print and "％，女性理事…" opens the next: Word's Traditional
+        // Chinese lists do not keep "％" from a line's start, as its
+        // Simplified one does. The engine kept "38.54％" together.
+        let head = String(repeating: "一", count: 20) + "38.54"
+        let text = head + "％" + String(repeating: "二", count: 10)
+        // (A line as wide as the number and half the sign; no mark hangs.)
+        let width = try firstLine(head, width: 1000, language: "zh-TW", hangs: false, compresses: false, documentLanguage: "zh-TW").width + 6
+        let traditional = try firstLine(text, width: width, language: "zh-TW", hangs: false, compresses: false, documentLanguage: "zh-TW")
+        XCTAssertEqual(traditional.width, width - 6, accuracy: 0.5, "parted before the sign, the number on the line")
+        let simplified = try firstLine(text, width: width, language: "zh-CN", hangs: false, compresses: false, documentLanguage: "zh-CN")
+        XCTAssertEqual(simplified.length, 20, "the number goes over with its sign")
     }
 
     /// Whether the fitter can measure here: ICU's data must reach the bridge
@@ -1856,14 +2641,557 @@ final class DocxTests: XCTestCase {
         // zh-499adba6 p17: "（六）<tab>推動…政策，…負擔制" leaves "度，" 7.1pt over
         // for the next line in Word's print: the comma after the tab can
         // give 6, and the label's "）" before it nothing — the tab takes
-        // the text to its stop however narrow the label is set. (Its line
-        // is a cell's, where the last comma gives nothing; here, with no
-        // hang, it gives 6 too, and "度，" is 13 over.)
+        // the text to the hanging indent however narrow the label is set.
+        // (Its line is a cell's, where the last comma gives nothing; here,
+        // with no hang, it gives 6 too, and "度，" is 13 over.)
         let ten = String(repeating: "一", count: 10), twelve = String(repeating: "二", count: 12)
         let text = "（六）\t" + ten + "，" + twelve + "度，擴大"
-        XCTAssertLessThan(try firstLineWidth(text, width: 359, hangs: false), 355, "\"度，\" goes down: two commas cannot give 13")
+        XCTAssertLessThan(try firstLineWidth(text, width: 359, hangs: false, hanging: 48), 355, "\"度，\" goes down: two commas cannot give 13")
         // (Where all three marks follow the tab, they give it: 18 of room.)
         XCTAssertGreaterThan(try firstLineWidth("一二三\t（六）" + String(repeating: "一", count: 7) + "，" + twelve + "度，擴大", width: 359, hangs: false), 358)
+        // Not a tab to an ordinary stop, which the label's marks may move
+        // a stop back: zh-6a4fc013's Thai answers "ตอบ :<tab><tab>…" ran a
+        // page long on the Mac with their space held.
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 359, hangs: false), 358, "with no hanging indent, \"）\" gives too")
+    }
+
+    func testAutomaticSpacesGiveAsMarksDoFromMode15() throws {
+        try requireFitterWidths()
+        // Lab `as` (Mac, Word 16, zh-5bfac68f's package: mode 15, justified,
+        // compressing nothing): forty ideographs and an "i" between them,
+        // two automatic spaces of 3.0, take the next 2.0pt over and not 2.5
+        // — as a share of their halves no more than the line would stretch
+        // by. Half of each, 3.0, took zh-5bfac68f's "並" 2.83 over.
+        let text = String(repeating: "甲", count: 20) + "i" + String(repeating: "甲", count: 19) + "乙丙丁"
+        let through = try firstLineWidth(text, width: 1000, mode: 15, compresses: false) - 24   // to "乙"'s end
+        let taken = text.utf16.count - 2, left = taken - 1
+        XCTAssertEqual(try firstLine(text, width: through - 2.0, mode: 15, compresses: false, justified: true).length, taken)
+        XCTAssertEqual(try firstLine(text, width: through - 2.5, mode: 15, compresses: false, justified: true).length, left,
+                       "two spaces giving 1.25 apiece would ask more of them than stretching asks of the line")
+        // (Four — "a" too — take it 2.5 over, and not 3.0.)
+        let four = String(repeating: "甲", count: 10) + "i" + String(repeating: "甲", count: 15) + "a" + String(repeating: "甲", count: 14) + "乙丙丁"
+        let fourThrough = try firstLineWidth(four, width: 1000, mode: 15, compresses: false) - 24
+        XCTAssertEqual(try firstLine(four, width: fourThrough - 2.5, mode: 15, compresses: false, justified: true).length, four.utf16.count - 2)
+        XCTAssertEqual(try firstLine(four, width: fourThrough - 3.0, mode: 15, compresses: false, justified: true).length, four.utf16.count - 3)
+        // (A word space among them gives a quarter and weighs whole:
+        // zh-5bfac68f's cell "…（i-Taiwan Window）服務，提供年輕人返臺"
+        // leaves a "投" 2.91 over that the spaces' room alone took.)
+        let spaced = String(repeating: "甲", count: 20) + "i j" + String(repeating: "甲", count: 18) + "乙丙丁"
+        let spacedThrough = try firstLineWidth(spaced, width: 1000, mode: 15, compresses: false) - 24
+        XCTAssertEqual(try firstLine(spaced, width: spacedThrough - 2.0, mode: 15, compresses: false, justified: true).length, spaced.utf16.count - 2)
+        XCTAssertEqual(try firstLine(spaced, width: spacedThrough - 2.5, mode: 15, compresses: false, justified: true).length, spaced.utf16.count - 3)
+    }
+
+    func testAKeptFinalMarkTakesNothingFromTheOthersRoom() throws {
+        try requireFitterWidths()
+        // Lab `s2` (Windows, Word for Windows, zh-045c5a75's package: mode
+        // 14, zh-TW, compressing punctuation, set left): the sentence is one
+        // line from 371pt at 13pt, "扶" 6 past the margin and "、（）" giving
+        // 19 of their 19.5 — the final "。" giving nothing. Ours took its
+        // half off the others' room as well and wanted 377.
+        let text = "低收入戶得向戶籍所在地直轄市、縣（市）主管機關申請生活扶助。"
+        XCTAssertEqual(try firstLine(text, width: 343, language: "zh-TW", documentLanguage: "zh-TW").length, text.utf16.count,
+                       "\"、（）\" give the 17 it needs; \"扶\" is 5 over, inside half \"活\"")
+        // (Not past what they have: 18 of room.)
+        XCTAssertLessThan(try firstLine(text, width: 341, language: "zh-TW", documentLanguage: "zh-TW").length, text.utf16.count)
+    }
+
+    func testAutofitsNarrowestPieceLeavesOutTheAutomaticSpaceAfterIt() throws {
+        try requireFitterWidths()
+        // zh-e329b438's label cells "接聽速度30分" (mode 15, 14pt) set their
+        // column at 28.08 in Word's print: "30" bare between the margins,
+        // where ours took it and the automatic space before "分" and
+        // widened the column to 31.6. At 12pt: "30" is 12, its space 3.
+        var style = CharStyle()
+        style.fontFamily = "宋体"
+        style.eastAsiaFontFamily = "宋体"
+        style.fontSize = 12
+        let label = "接聽速度30分", body = String(repeating: "內", count: 20)
+        var a = RichParagraph(text: label, runs: [Run(length: label.utf16.count, style: style)])
+        var b = RichParagraph(text: body, runs: [Run(length: body.utf16.count, style: style)])
+        a.cell = CellRef(table: "T", row: 0, column: 0)
+        b.cell = CellRef(table: "T", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [20, 400]
+        doc.tableStyles["T"] = TableStyle()
+        doc.compatibilityMode = 15
+        doc.usesEastAsianLayout = true
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 500 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let first = try XCTUnwrap(l.columnWidths(of: "T")?.first)
+        XCTAssertLessThan(first, 12 + 10.8 + 1, "the column holds \"30\" bare, its margins beside it")
+        XCTAssertGreaterThan(first, 12 + 10.8 - 1)
+        // (… and "度", its space given up at the line's end, a line alone:
+        // the engine set the two on one line over the margin.)
+        XCTAssertEqual(l.geometry(0).painter.computeLineMetrics().count, 6)
+    }
+
+    func testARunOffTheGridWeighsItsCharactersAtTheirOwnEms() throws {
+        try requireFitterWidths()
+        // zh-c15af02e (mode 15, a grid adding 1pt) sets its runs off the grid,
+        // 16pt ideographs 16 apart, and takes "…已核發" 13.58pt over with four
+        // marks giving; weighed at the grid's 17 a character the share test
+        // left it. Here 23 characters and four marks at 12pt, the grid adding
+        // 4: the next is taken 10.0 over weighed at 12 (to 10.24), not at 16
+        // (to 9.76).
+        let text = "甲甲甲：甲甲甲甲、甲甲（甲甲）甲甲甲甲甲甲甲甲" + "乙丙丁"
+        let off = "<w:snapToGrid w:val=\"0\"/>"
+        let through = try firstLine(text, width: 1000, mode: 15, characterGrid: 4, runXML: off).width - 24   // to "乙"'s end
+        XCTAssertEqual(try firstLine(text, width: through - 10.0, mode: 15, justified: true, characterGrid: 4, runXML: off).length,
+                       text.utf16.count - 2, "the four marks give 10.0, weighed against 23 characters of 12")
+        XCTAssertEqual(try firstLine(text, width: through - 10.5, mode: 15, justified: true, characterGrid: 4, runXML: off).length,
+                       text.utf16.count - 3)
+    }
+
+    func testAMarkClosedUpToTheLastHangsHalfAnEmOnALineWithWordSpaces() throws {
+        try requireFitterWidths()
+        // Labs `u5`/`u6` (Mac, Word 16, zh-505b9619's package: mode 15,
+        // 14pt, a line with word spaces and three marks to give): "…3日）。"
+        // is taken with the need over a whole em's hang up to 14.0 and not
+        // from 14.25 — "）。" gives half an em for hanging, not the whole.
+        // Here at 12pt the marks "（", "，", "（" give a third each.
+        let text = "甲（甲甲）， 甲甲甲甲甲甲甲甲甲甲（甲甲甲甲日）。乙丙"
+        let through = try firstLine(text, width: 1000, mode: 15, kerns: true).width - 24   // to "。"'s end
+        func length(_ need: Double) throws -> Int {
+            try firstLine(text, width: through - 12 - need, mode: 15, justified: true, kerns: true).length
+        }
+        let all = try length(0)   // the line through "。"
+        XCTAssertEqual(try length(11.0), all)
+        XCTAssertLessThan(try length(12.75), all, "with half an em to hang, 12.75 asks the marks more than the line would stretch")
+        XCTAssertGreaterThan(all, text.utf16.count - 3)
+    }
+
+    func testAPercentSignStartsALineWhereTheDocumentsListLeavesItOut() throws {
+        try requireFitterWidths()
+        // zh-505b9619 lists Taiwan's characters that may not start a line,
+        // "%" not among them, and Word's print ends a line "…契約價金總額＿"
+        // and starts the next "%(由機關…"; ours took "＿%" down together.
+        let text = String(repeating: "甲", count: 10) + "＿%乙"
+        func first(_ list: String?) throws -> Int {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontSize = 12
+            var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
+            p.style.alignment = .left
+            var doc = RichDocument(paragraphs: [p])
+            doc.usesEastAsianLayout = true
+            if let list { doc.keptSettings["w:noLineBreaksBefore"] = "<w:noLineBreaksBefore w:lang=\"zh-TW\" w:val=\"\(list)\"/>" }
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 11 * 12 * theme.pixelsPerPoint   // "甲"×10 and "＿", not "%"
+            l.ensureLaidOut(doc)
+            return l.geometry(0).painter.getLineBoundary(TextPosition(offset: 0)).end
+        }
+        // (The line's end counts the break put in before "%" too.)
+        XCTAssertEqual(try first("!),.:;?]}、。）"), 12, "\"＿\" ends the line, \"%\" opens the next")
+        // (Without a list of the document's own, the defaults keep it from a line's start.)
+        XCTAssertEqual(try first(nil), 10)
+    }
+
+    func testAFullWidthPercentSignStartsALineUnderTaiwansDefaultList() throws {
+        try requireFitterWidths()
+        // zh-499adba6 is zh-TW with no list of its own — Taiwan's, which
+        // has no "%" or "％" — and its p25 paragraph "在社會組織中，根據內政部
+        // …" ends "…權力分配。" in Word's print; ours, a number's sign held to
+        // it, ran its lines a character short and set "分配。" alone.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-499adba6") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("總幹事占比為38.54") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let at = try XCTUnwrap(shown.range(of: "權力分配"))
+        let line = painter.getLineBoundary(TextPosition(offset: shown.utf16.distance(from: shown.utf16.startIndex, to: at.lowerBound.samePosition(in: shown.utf16)!)))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+        // (Its tenth line, as Word's: the page and every one after it then
+        // a line behind no more.)
+        XCTAssertTrue(text.contains("權力分配。"), text)
+    }
+
+    func testANotesNumberHasNoAutomaticSpaceBesideIt() throws {
+        try requireFitterWidths()
+        // zh-499adba6's notes' numbers — "（SDGs）⁷作為", "權能⁸，" — stand with
+        // no automatic space either side in Word's print, where a digit
+        // between ideographs has one each side.
+        func width(note: Bool) throws -> Double {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontSize = 12
+            var number = style
+            number.script = .superscript
+            if note { number.note = NoteReference(kind: .footnote, id: 1) }
+            let p = RichParagraph(text: "甲7乙", runs: [Run(length: 1, style: style), Run(length: 1, style: number), Run(length: 1, style: style)])
+            var doc = RichDocument(paragraphs: [p])
+            doc.usesEastAsianLayout = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 300 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        }
+        XCTAssertLessThan(try width(note: true), try width(note: false) - 4, "a raised digit that is no note's number keeps its two")
+    }
+
+    func testAnUnhintedTimesSignIsALetterOfTheNumberAfterIt() throws {
+        try requireFitterWidths()
+        // zh-8628cfbe's cell "13.2稅前盈餘/用人費用×100%" — its runs not
+        // hinted East Asian — ends a line "…用人費用" and opens the next
+        // "×100%" in Word's print; ours kept "×" on the first line, as
+        // zh-b56eeded's hinted "…總數）×" is.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8628cfbe") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("稅前盈餘/用人費用×100%") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let at = try XCTUnwrap(shown.range(of: "用人費用"))
+        let line = painter.getLineBoundary(TextPosition(offset: shown.utf16.distance(from: shown.utf16.startIndex, to: at.lowerBound.samePosition(in: shown.utf16)!)))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+        XCTAssertFalse(text.contains("×"), text)
+    }
+
+    func testACellsSpacesBothSidesOfTheWordBeforeWhatIsTakenGive() throws {
+        try requireFitterWidths()
+        // zh-db07d44e's cell "達成預算目標者得基準分80分，每增（減）1%…" (mode 15,
+        // zh-TW, 12pt) ends its first line "…分80分，" in Word's print, the
+        // automatic spaces either side of "80" set at 2.2 of their 3.0 and
+        // "，" at its half; ours let only the one after it give, and the cell
+        // and every page after it ran a line long.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-db07d44e") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let cells = doc.paragraphs.indices.filter { doc.paragraphs[$0].text.hasPrefix("達成預算目標者得基準分80分，每增") }
+        XCTAssertFalse(cells.isEmpty)
+        for i in cells {
+            let painter = l.geometry(i).painter
+            let shown = painter.plainText
+            let line = painter.getLineBoundary(TextPosition(offset: 0))
+            let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+            XCTAssertTrue(text.contains("80分，"), "\(i): \(text)")
+        }
+    }
+
+    func testACellLinesSpacesAllGiveWhereTheOneBeforeWhatIsTakenDoes() throws {
+        try requireFitterWidths()
+        // zh-d746674a's cell "每年2次(第2、4季)" (mode 15, zh-HK, 14pt, justified)
+        // is one line in Word's print, 122.15 of 122.3: "、" at its half and
+        // all four automatic spaces at 2.8 of 3.5. Ours let only the space
+        // before "季" give, and "季)" went to a line of its own.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-d746674a") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let cells = doc.paragraphs.indices.filter { ["每年2次(第2、4季)", "每年2次(第1、3季)"].contains(doc.paragraphs[$0].text) }
+        XCTAssertEqual(cells.count, 2)
+        for i in cells {
+            XCTAssertEqual(l.geometry(i).painter.computeLineMetrics().count, 1, doc.paragraphs[i].text)
+        }
+    }
+
+    func testAParagraphsClosingBracketDoesNotHangFrom2013sLayoutWhereMarksCompress() throws {
+        try requireFitterWidths()
+        // zh-20c1d74a's "二、專案單位服務規劃（…督導考核及管理等）" (mode 15,
+        // compressPunctuation, justified) ends its first line "…管理" in
+        // Word's print and sends "等）" down. Ours hung the "）" a whole em
+        // and took "等" 9.55pt over with the line's marks; not hung, the
+        // "）" gives its half with them and the share test refuses it.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-20c1d74a") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("二、專案單位服務規劃（包括徵選方式") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let line = painter.getLineBoundary(TextPosition(offset: 0))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+            .filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        XCTAssertTrue(text.hasSuffix("管理"), text)
+    }
+
+    func testAPageAnchoredTableThatGoesOverStandsAtItsOffsetOnTheNextPage() throws {
+        // zh-0513f641's p9 form (vertAnchor page, tblpY 1322 against a
+        // 1440 top margin) follows the cover that fills p8. Word's print
+        // has its top line at 66.0, 6pt up into the margin; ours stood it
+        // at the margin, its first row having gone over for want of room.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-0513f641") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let title = try XCTUnwrap(doc.paragraphs.indices.first { i in
+            doc.paragraphs[i].text == "原住民族委員會" && doc.paragraphs[i].cell != nil
+                && (i + 1 < doc.paragraphs.count && doc.paragraphs[i + 1].text.contains("綜合資料表"))
+        })
+        let piece = try XCTUnwrap(l.pieces.flatMap { $0 }.first { $0.paragraph == title })
+        XCTAssertLessThan(piece.pageY / theme.pixelsPerPoint, -3, "the table's first row stands up in the top margin, at its offset")
+    }
+
+    func testACellsLatinWordThatStartsPastTheMarginIsNotTaken() throws {
+        try requireFitterWidths()
+        // zh-51af781b's mode-14 scoring cell "70%及以上客房卫生间有浴缸，得1分；
+        // 所有卫生间淋浴…干湿区分离，得1分；…" ends its first line "…分离，得" in
+        // Word's print. Ours took the "1" over the margin, the automatic
+        // space before it already past it, the line's marks and spaces giving.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-51af781b") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("所有卫生间淋浴、恭桶、面盆干湿区分离") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let line = painter.getLineBoundary(TextPosition(offset: 0))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+            .filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        XCTAssertTrue(text.filter { !$0.isWhitespace }.hasSuffix("分离，得"), text)
+    }
+
+    func testASectionBreaksSpaceAfterIsTakenOffTheNextParagraphsSpaceBefore() throws {
+        // zh-8f9b19f4 p13: an empty paragraph that only ends a section
+        // takes no room, but its space after (Normal's 8pt) is taken off
+        // the next paragraph's 4.3pt before — "附件5:", the first of the
+        // row its two-column section is set as, stands right under the
+        // line above it in Word for Windows' print (lab `t165`); ours
+        // kept the 4.3.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8f9b19f4") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("附件5") })
+        XCTAssertEqual(doc.paragraphs[i].style.spaceBefore, 4.3, accuracy: 0.01, "its own 4.3pt before")
+        let g = l.geometry(i)
+        XCTAssertEqual((g.textTop - g.top) / theme.pixelsPerPoint, 0, accuracy: 0.05, "the break's 8pt after takes it")
+    }
+
+    func testAJustifiedLineStretchesNothingBeforeItsLastTab() throws {
+        // zh-6a4fc013's "คำถามที่  2 ：<tab>การเปิดนำเข้า…" (justified, a default
+        // stop) leaves the spaces before the tab as they are in Word's
+        // print, the text after it taking the line's stretch; ours
+        // stretched them and set "2 ：" on. (A line the tab ends is
+        // stretched as any.)
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        func x(justified: Bool) throws -> Double {
+            var p = RichParagraph(text: "Question  2 :\tthe answer runs on over more words than one line holds at this width")
+            p.style.alignment = justified ? .justify : .left
+            let doc = RichDocument(paragraphs: [p])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 300 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let painter = l.geometry(0).painter
+            XCTAssertGreaterThan(painter.computeLineMetrics().count, 1)
+            let at = try XCTUnwrap(Array(painter.plainText.utf16).firstIndex(of: 0x32))
+            let box = try XCTUnwrap(painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1)).first)
+            return box.left / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try x(justified: true), try x(justified: false), accuracy: 0.05, "\"2\" where it stands unjustified")
+    }
+
+    func testANotoJoinerAfterADigitKeepsTheBreakBeforeItsIdeograph() throws {
+        try requireFitterWidths()
+        // zh-72da925e's "…經行政院於79年9月" ends a line "於79" in Word's
+        // print, "年" — U+F98E, a compatibility ideograph set in Noto —
+        // opening the next. The word joiner that gives its line Noto's
+        // height held "79年" whole, and ours ended the line "於".
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-72da925e") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("嗣後臺北市政府") })
+        let shown = Array(l.geometry(i).painter.plainText.unicodeScalars.map(\.value))
+        // "79", then the joiner before "年" U+F98E — with a break before it.
+        let at = try XCTUnwrap((0 ..< shown.count - 3).first { shown[$0] == 0x37 && shown[$0 + 1] == 0x39 && shown[$0 + 2] != 0x39 && shown[$0 ..< min(shown.count, $0 + 5)].contains(0xF98E) })
+        let after = Array(shown[(at + 2) ..< min(shown.count, at + 5)])
+        guard after.contains(0x2060) else { throw XCTSkip("no Noto joiner under this platform's faces") }
+        XCTAssertEqual(after.first, 0x200B, after.map { String($0, radix: 16) }.joined(separator: " "))
+    }
+
+    func testASpacedFullWidthQuoteIsOverTheMarginByHalfItsSpacingToo() throws {
+        try requireFitterWidths()
+        // zh-e5eb092a's runs say `w:spacing` 8 (+0.4pt): Word's print leaves
+        // "“市" for the next line after "…统一修改为", the quote 6.8 past the
+        // margin with half its spacing, over half "为"'s 6.4; at its em
+        // alone, 6.4, ours took it.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-e5eb092a") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("统一修改为“市交通") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let at = try XCTUnwrap(shown.range(of: "统一修改为"))
+        let line = painter.getLineBoundary(TextPosition(offset: shown.utf16.distance(from: shown.utf16.startIndex, to: at.lowerBound.samePosition(in: shown.utf16)!)))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self)
+        let clean = text.filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        XCTAssertFalse(clean.contains("修改为“"), text)
+    }
+
+    func testALinesOpeningSpacesDoNotMakeItASpacedLine() throws {
+        try requireFitterWidths()
+        // zh-753cd6a8's cell paragraph "  前一年度建筑业产值（…）排名，第1名得100分…"
+        // (mode 14) ends its first line "…第" in Word's print, the "1" 9.1
+        // over left for the next; its two leading spaces made it a line with
+        // spaces in it to ours, which then took the digit as a spaced line's word.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-753cd6a8") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.contains("排名，第1名得100分") })
+        let painter = l.geometry(i).painter
+        let shown = painter.plainText
+        let line = painter.getLineBoundary(TextPosition(offset: 0))
+        let text = String(decoding: Array(shown.utf16)[line.start ..< line.end], as: UTF16.self).filter { $0 != "\u{200B}" && $0 != "\u{2060}" }
+        guard text.hasSuffix("第") || text.hasSuffix("第1") else { throw XCTSkip("the line ends elsewhere under this platform's faces: \(text)") }
+        XCTAssertTrue(text.hasSuffix("第"), text)
     }
 
     func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
@@ -1926,7 +3254,10 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try lines(text, cellTwips: 9000), 1)
         let natural = 9 * 12.0 + 12 + 12 + 6 + 2 * 2.7
         XCTAssertEqual(try lines(text, cellTwips: twips(natural - 12.75)), 1, "the space before \"分\" gives the last 0.75 of its 1.35")
-        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 13.75)), 2, "past the marks and that space: 13.75")
+        // (And the space before "1" — the word's other side — gives too:
+        // zh-db07d44e's "…分80分，", both its spaces at 2.2 of 3.0.)
+        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 13.75)), 1, "both of the word's spaces give: 13.75")
+        XCTAssertEqual(try lines(text, cellTwips: twips(natural - 15.25)), 2, "past the marks and both spaces: 15.25")
         XCTAssertEqual(try lines("一二三四五，六七八九分。", cellTwips: twips(9 * 12.0 + 12 + 12 + 12 - 12.75)), 2, "no space before it to give")
     }
 
@@ -1974,6 +3305,136 @@ final class DocxTests: XCTestCase {
         probe.dispose()
         XCTAssertEqual(lines(text, raised: true, width: natural - 10), 1, "the brackets and the stop give: the number is no character")
         XCTAssertEqual(lines(text, raised: false, width: natural - 10), 2, "a plain \"2\" and its space are a word: the brackets give nothing")
+    }
+
+    func testAHeadingKeptWithAMultipleSpacedLineLetsThatLineReachPastTheFoot() throws {
+        // zh-34a6519a p28: "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced
+        // paragraph whose first line ends 2.9pt past the foot by its
+        // extra, which the line may reach past it by; Word sets both on
+        // the page. Ours counted the extra as room the keep needed.
+        func laidOut(fillerTwips: Int?) throws -> (RichLayout, RichDocument, Double) {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let filler = fillerTwips.map { "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\($0)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>" } ?? ""
+            let heading = "<w:p><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>heading</w:t></w:r></w:p>"
+            let words = (1 ... 60).map { "word\($0)" }.joined(separator: " ")
+            let spaced = "<w:p><w:pPr><w:widowControl w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"360\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t>\(words)</w:t></w:r></w:p>"
+            let section = "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: filler + heading + spaced + section)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return (l, doc, setup.height - setup.marginTop - setup.marginBottom)
+        }
+        // The spaced paragraph's first line, extra and all, alone.
+        let (probe, probed, contentH) = try laidOut(fillerTwips: nil)
+        let k = try XCTUnwrap(probed.paragraphs.firstIndex { $0.text.hasPrefix("word1 ") })
+        let line = try XCTUnwrap(probe.geometry(k).painter.computeLineMetrics().first).height / probe.theme.pixelsPerPoint
+        XCTAssertGreaterThan(probe.geometry(k).painter.computeLineMetrics().count, 2)
+        // Room for the heading and that line less a sixth of it: short of
+        // the whole line, with its text (two thirds of it) inside.
+        let room = 20 + line * 5 / 6
+        let (l, doc, _) = try laidOut(fillerTwips: Int(((contentH - room) * 20).rounded()))
+        XCTAssertGreaterThan(l.pageCount, 1)
+        let heading = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "heading" })
+        XCTAssertTrue(l.pieces[0].contains { $0.paragraph == heading }, "the heading stays with the line on page 1")
+    }
+
+    func testARowOpeningAPageUnderACellOfNoTopLineTakesTheTablesTopLine() throws {
+        // zh-cec9d337's assignments table: a 3pt thinThickSmallGap top over
+        // half-point inside lines, every cell stating its own top but some
+        // middle ones. Where a row opens a page the table goes on over, Word
+        // draws the table's top line over such a cell and sets the row
+        // under it (p19, p25, p26: 4pt lower than ours); a row whose cells
+        // all state theirs opens under its half-point line (p20-p24).
+        func opening(middleTop: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let top = "<w:top w:val=\"single\" w:sz=\"4\"/>"
+            func cell(_ text: String, ownTop: Bool) -> String {
+                "<w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/><w:tcBorders>\(ownTop ? top : "")<w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/></w:tcBorders></w:tcPr>"
+                    + "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p></w:tc>"
+            }
+            let borders = "<w:tblBorders><w:top w:val=\"thinThickSmallGap\" w:sz=\"24\"/><w:left w:val=\"single\" w:sz=\"4\"/><w:bottom w:val=\"single\" w:sz=\"4\"/><w:right w:val=\"single\" w:sz=\"4\"/><w:insideH w:val=\"single\" w:sz=\"4\"/><w:insideV w:val=\"single\" w:sz=\"4\"/></w:tblBorders>"
+            let filler = "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"12000\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>filler</w:t></w:r></w:p>"
+            let row = "<w:tr>\(cell("one", ownTop: true))\(cell("two", ownTop: true))\(cell("three", ownTop: true))</w:tr>"
+            // The last row cannot part and does not fit page 1's foot: it opens page 2.
+            let tall = (1 ... 12).map { "line \($0)" }
+            let last = "<w:tr><w:trPr><w:cantSplit/></w:trPr>\(cell("left", ownTop: true))\(cell("middle", ownTop: middleTop))"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/><w:tcBorders>\(top)</w:tcBorders></w:tcPr>"
+                + tall.map { "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"400\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\($0)</w:t></w:r></w:p>" }.joined() + "</w:tc></w:tr>"
+            let table = "<w:tbl><w:tblPr><w:tblW w:w=\"9000\" w:type=\"dxa\"/>\(borders)<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"3000\"/><w:gridCol w:w=\"3000\"/><w:gridCol w:w=\"3000\"/></w:tblGrid>\(row)\(row)\(last)</w:tbl><w:p/>"
+            let section = "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: filler + table + section)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            XCTAssertGreaterThan(l.pageCount, 1)
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "left" })
+            let piece = try XCTUnwrap(l.pieces[1].first { $0.paragraph == k && $0.part != .rules }, "the last row opens page 2")
+            return (piece.pageY + l.geometry(k).textTop - piece.flowTop) / theme.pixelsPerPoint
+        }
+        let own = try opening(middleTop: true), none = try opening(middleTop: false)
+        // (The compound line's 3 and its 1.5 gap, less the half-point line.)
+        XCTAssertEqual(none - own, 4, accuracy: 0.1, "under the table's top line")
+    }
+
+    func testAShapeWordSetsInSegoeUISymbolGivesItsLineThatFacesAscent() throws {
+        // Lab `picln` (Word 16 Mac, zh-e68a2f57's package): a 9pt note over
+        // Times New Roman holding "◎" stands 0.48pt lower under the line
+        // above than one holding "兼" — Word sets the shape in Segoe UI
+        // Symbol, the run's Latin face having none — and "●", which Times
+        // has, as "兼". Ours drew them all in YaHei, the line as any, and
+        // p7's third note line stayed on the page.
+        func nextTop(_ shape: String) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let run = "<w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:eastAsia=\"宋体\"/><w:sz w:val=\"18\"/></w:rPr>"
+            let note = "<w:p><w:pPr><w:snapToGrid w:val=\"0\"/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"264\" w:lineRule=\"auto\"/></w:pPr><w:r>\(run)<w:t>注：\(shape)兼容比例不超过</w:t></w:r></w:p>"
+            let next = "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r>\(run)<w:t>next</w:t></w:r></w:p>"
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: note + next
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "next" })
+            return l.geometry(k).top / theme.pixelsPerPoint
+        }
+        let plain = try nextTop("兼"), segoe = try nextTop("◎"), times = try nextTop("●")
+        XCTAssertEqual(times, plain, accuracy: 0.05, "a shape Times has lifts nothing")
+        // (Segoe's ascent, 1.079 em, over the line's own: 0.48 in Word's
+        // 0.24 steps at 9pt.)
+        XCTAssertGreaterThan(segoe - plain, 0.3, "the line holding ◎ is taller")
+        XCTAssertLessThan(segoe - plain, 1.0)
     }
 
     func testANumberThatFitsMayPartAfterItsHyphenUnderEastAsianLayout() throws {
@@ -2025,6 +3486,34 @@ final class DocxTests: XCTestCase {
         }
         XCTAssertEqual(width("°"), 10.5, accuracy: 0.05, "an em")
         XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
+    }
+
+    func testANoBreakSpaceAfterALatinDigitIsTheSpacesHalfEm() throws {
+        // zh-a7a889eb p5: "3.5" + U+00A0 + U+0020 + "拟派…" in a 12pt 宋体 run
+        // hinted East Asian — Word sets the no-break space 6pt, the space's
+        // half em, where ours set it an em and the line lost "业 贰 级".
+        // After an ideograph or a "." it is an em still (lab `nb1`;
+        // zh-17749c13's "1." + U+00A0 + "船").
+        func width(_ text: String) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontHint = "eastAsia"
+            style.fontSize = 12
+            let doc = RichDocument(paragraphs: [RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 4000
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / l.theme.pixelsPerPoint
+        }
+        XCTAssertEqual(width("3.5\u{00A0} 拟") - width("3.5 拟"), 6, accuracy: 0.3, "after a digit, half an em")
+        XCTAssertEqual(width("条\u{00A0}拟") - width("条拟"), 12, accuracy: 0.3, "after an ideograph, an em")
+        XCTAssertEqual(width("1.\u{00A0}船") - width("1.船"), 12, accuracy: 0.3, "after a full stop, an em")
     }
 
     func testABareMarksNumberIsItsParagraphStylesSize() throws {
@@ -2245,6 +3734,49 @@ final class DocxTests: XCTestCase {
         let h = heights(pitch: pitch)
         XCTAssertEqual(h.ideographicSpace, h.empty, accuracy: 0.5, "the mark's line, at a pitch of \(pitch)")
         XCTAssertGreaterThan(h.ideograph, h.ideographicSpace + 1, "an ideograph's is taller")
+    }
+
+    func testALineOfSpacesAloneIsSetInItsMarksLatinFace() throws {
+        // zh-1eeb9f9a p11: cells holding "　" alone, 9pt with 仿宋_GB2312 as
+        // their Latin face, under a 12pt Times New Roman mark, are one
+        // 15.6pt pitch in Word's print — Times' 12pt line. Ours set the
+        // space at the mark's size in the run's 仿宋, two pitches, and the
+        // row they stand in went over whole where Word parts it.
+        func heights(pitch: Double) -> (empty: Double, songLine: Double, ideographicSpace: Double) {
+            var mark = CharStyle()
+            mark.fontSize = 12
+            mark.fontFamily = "Times New Roman"
+            mark.eastAsiaFontFamily = "仿宋_GB2312"
+            var run = CharStyle()
+            run.fontSize = 9
+            run.fontFamily = "仿宋_GB2312"
+            run.eastAsiaFontFamily = "仿宋_GB2312"
+            run.fontHint = "eastAsia"
+            func para(_ text: String, _ style: CharStyle) -> RichParagraph {
+                var p = RichParagraph(text: text)
+                if !text.isEmpty { p.runs = [Run(length: text.utf16.count, style: style)] }
+                p.style.mark = mark
+                return p
+            }
+            var song = run
+            song.fontSize = 12
+            var doc = RichDocument(paragraphs: [para("", mark), para("a", song), para("\u{3000}", run)])
+            doc.lineGridPitch = pitch
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: 3)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).height, l.geometry(1).height, l.geometry(2).height)
+        }
+        // (A pitch over the mark's 12pt Times line, 13.8, as the document's
+        // 15.6 is, where the run's face's 12pt line takes more of it.)
+        guard let pitch = stride(from: 14.0, through: 24.0, by: 0.5).first(where: { heights(pitch: $0).songLine > heights(pitch: $0).empty + 1 }) else {
+            throw XCTSkip("no pitch here parts the two faces' lines")
+        }
+        let h = heights(pitch: pitch)
+        XCTAssertEqual(h.ideographicSpace, h.empty, accuracy: 0.5, "the mark's line, in the mark's face, at a pitch of \(pitch)")
     }
 
     func testRubyIsReadDrawnRoomForAndSaved() throws {
@@ -2530,6 +4062,37 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(larger.gap, plain.gap, accuracy: 0.15, "and the next line is the text's line under it")
     }
 
+    func testANumberIsOnTheGridWhereItsLevelSaysSoOverItsMark() throws {
+        try requireFitterWidths()
+        // zh-c15af02e's heading 6 level says `<w:snapToGrid/>` and its
+        // paragraphs' text is off a grid of 1pt: Word sets "〈2〉" 17.0, 9.9
+        // and 17.0 at 16pt, and p37's "〈2〉依該市社會經濟發展、交通運輸狀況、
+        // 車輛持" is its first line; ours set the number off the grid with
+        // the mark, the text 2.5pt early, and took "有" too.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-c15af02e") })
+        let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("依該市社會經濟發展") })
+        let end = l.geometry(i).painter.getLineBoundary(TextPosition(offset: 0)).end
+        // (The painter's offsets count one zero-width break `_span` puts in
+        // before the line's end, so the text's first line is one shorter.)
+        let first = String(doc.paragraphs[i].text.utf16.prefix(end - 1)) ?? ""
+        XCTAssertTrue(first.hasSuffix("車輛持"), first)
+    }
+
     func testANumbersTabReachesTheParagraphsOwnStop() throws {
         // bug65649: "3.2.1.3." under a first-line indent of 567 twips and
         // no hanging one ends short of the paragraph's stop at 1843;
@@ -2599,6 +4162,26 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.wideWordStarts(short, RichDocument(paragraphs: [short]), textWidth: 50), [], "under twenty, unmeasured in the body")
         doc.usesEastAsianLayout = true
         XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [], "under East Asian layout, parted where it stands")
+    }
+
+    func testACellWordWiderThanTheLineOpensALineAfterASpace() throws {
+        // zh-15f60bac's 282pt cell "…研究院(網址: http://www.tri.org.tw/page/
+        // consumer.php)及…" ends its first line at "(網址: " in Word's print,
+        // the address opening the next and parted at its margin; ours parted
+        // it "…http://ww" where it stood. (The rule, not a line: the test
+        // process has no ICU to part lines by.)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        var p = RichParagraph(text: "研究院(網址: http://www.tri.org.tw/page/consumer.php)及中央大學")
+        p.cell = CellRef(table: "t", row: 0, column: 0)
+        var doc = RichDocument(paragraphs: [p])
+        doc.usesEastAsianLayout = true
+        let at = "研究院(網址: ".utf16.count
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 200 * theme.pixelsPerPoint), [at], "the address opens a line")
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 1000 * theme.pixelsPerPoint), [], "not where it fits")
+        doc.usesEastAsianLayout = false
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 200 * theme.pixelsPerPoint), [], "a wide cell outside East Asian layout, as before")
     }
 
     func testAGroupsBoxesApartKeepTheirOwnPlaces() throws {
@@ -2740,6 +4323,31 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(again.contains("<w:sym w:font=\"Symbol\" w:char=\"F094\"/>"), again)
         let numAgain = String(decoding: saved.first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(numAgain.contains("<w:lvlText w:val=\"\u{F094}\"/>"), numAgain)
+    }
+
+    func testNormalsLanguageTakesTheDefaultsEastAsianOneItDoesNotState() throws {
+        // zh-63a571aa's Normal says only `w:bidi="ar-SA"`; its East Asian
+        // text is the defaults' zh-TW, whose centred "。" keeps its em
+        // before "」" in Word's print. Ours took Normal's whole and no
+        // East Asian language with it, and closed the "。" up.
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "甲。」，乙")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        while let r = styles.range(of: "<w:lang [^>]*/>", options: .regularExpression) { styles.removeSubrange(r) }
+        let defaults = try XCTUnwrap(styles.range(of: "<w:rPrDefault><w:rPr>"), styles)
+        styles.insert(contentsOf: "<w:lang w:val=\"en-US\" w:eastAsia=\"zh-TW\" w:bidi=\"hi-IN\"/>", at: defaults.upperBound)
+        let normal = try XCTUnwrap(styles.range(of: "w:styleId=\"Normal\""), styles)
+        let end = try XCTUnwrap(styles.range(of: "</w:style>", range: normal.upperBound ..< styles.endIndex))
+        if let rPr = styles.range(of: "<w:rPr>", range: normal.upperBound ..< end.lowerBound) {
+            styles.insert(contentsOf: "<w:lang w:bidi=\"ar-SA\"/>", at: rPr.upperBound)
+        } else {
+            styles.insert(contentsOf: "<w:rPr><w:lang w:bidi=\"ar-SA\"/></w:rPr>", at: end.lowerBound)
+        }
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.marksCentred, back.defaultLangXML ?? "no language")
+        XCTAssertTrue(back.defaultLangXML?.contains("w:bidi=\"ar-SA\"") ?? false, back.defaultLangXML ?? "no language")
     }
 
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
@@ -2912,6 +4520,29 @@ final class DocxTests: XCTestCase {
         xml.insert(contentsOf: inner, at: cellOpen.upperBound)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         return try DocxFormat.read(try Zip.write(entries)).document
+    }
+
+    /// zh-045c5a75: a one-column table that draws nothing round a table
+    /// is read as the body, and keeps the room it gives its cell above and
+    /// below — the cell's margin and twice the cell spacing — as its first
+    /// and last paragraphs' space, as a nested table's cells do.
+    func testAnInvisibleWrapperKeepsItsCellsRoom() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let wrapper = "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/><w:tblCellSpacing w:w=\"15\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"15\" w:type=\"dxa\"/><w:bottom w:w=\"15\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w=\"9000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr>"
+            + nestedTable("a", "b") + "<w:p><w:r><w:t>tail</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+        let p = xml.range(of: "<w:p>")!.lowerBound
+        xml.insert(contentsOf: wrapper, at: p)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let a = try XCTUnwrap(back.paragraphs.first { $0.text == "a" })
+        let tail = try XCTUnwrap(back.paragraphs.first { $0.text == "tail" })
+        XCTAssertNotNil(a.cell, "the inner table is the body's")
+        XCTAssertNil(tail.cell, "the wrapper is not a table")
+        XCTAssertEqual(a.style.spaceBefore, 2.25, accuracy: 0.001)
+        let plain = try XCTUnwrap(back.paragraphs.first { $0.text == "x" })
+        XCTAssertEqual(tail.style.spaceAfter - plain.style.spaceAfter, 2.25, accuracy: 0.001)
     }
 
     private func nestedTable(_ first: String, _ second: String) -> String {
@@ -3165,6 +4796,34 @@ final class DocxTests: XCTestCase {
     /// after another: zh-8f9b19f4 ends "填报人：" | "审核人：" | "负责人："
     /// in three columns, one line in Word's print and a page each in ours.
     /// A document of one section of columns keeps them as columns.
+    /// An auto table whose stated cells are whole columns of one width in
+    /// twips is fitted to its content, those columns kept: zh-72da925e's
+    /// rain tables. A column stated in one row and auto in another is not.
+    func testAnAutoTableWithFixedColumnsIsFittedToItsContent() throws {
+        func read(_ body: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let a = xml.range(of: "<w:body>")!, b = xml.range(of: "</w:body>")!
+            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: body)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            return try DocxFormat.read(try Zip.write(entries)).document
+        }
+        func table(_ second: String) -> String {
+            let fixed = "<w:tc><w:tcPr><w:tcW w:w=\"794\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>1</w:t></w:r></w:p></w:tc>"
+            let auto = "<w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr><w:p><w:r><w:t>2001</w:t></w:r></w:p></w:tc>"
+            return "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"794\"/><w:gridCol w:w=\"997\"/><w:gridCol w:w=\"997\"/></w:tblGrid>"
+                + "<w:tr>\(fixed)\(auto)\(auto)</w:tr><w:tr>\(second)\(auto)\(auto)</w:tr></w:tbl><w:p/>"
+        }
+        let fixed = "<w:tc><w:tcPr><w:tcW w:w=\"794\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc>"
+        let doc = try read(table(fixed))
+        let style = try XCTUnwrap(doc.tableStyles.values.first)
+        XCTAssertTrue(style.contentFit)
+        XCTAssertEqual(style.contentFitFixed, [0: 39.7])
+        let mixed = try read(table("<w:tc><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc>"))
+        XCTAssertFalse(mixed.tableStyles.values.first?.contentFit ?? false)
+    }
+
     func testAContinuousLastSectionOfColumnsIsARow() throws {
         func read(_ body: String) throws -> RichDocument {
             var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
@@ -3188,6 +4847,13 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains(">right<"), saved)
         let alone = try read(columns + last)
         XCTAssertFalse(alone.paragraphs.contains { $0.cell != nil }, "one section: its own columns")
+        // (… and one continuous after another with a section of its own
+        // page after it: zh-b8de3ae2's "資料來源" | " ".)
+        let ends = "<w:p><w:pPr><w:sectPr><w:type w:val=\"continuous\"/>\(page)<w:cols w:num=\"2\" w:space=\"720\"/></w:sectPr></w:pPr></w:p>"
+        let middle = try read("<w:p><w:r><w:t>before</w:t></w:r></w:p><w:p><w:pPr><w:sectPr>\(page)<w:cols w:space=\"720\"/></w:sectPr></w:pPr></w:p>"
+                              + columns + ends + "<w:p><w:r><w:t>after</w:t></w:r></w:p><w:sectPr>\(page)<w:cols w:space=\"720\"/></w:sectPr>")
+        XCTAssertEqual(middle.paragraphs.first { $0.text == "right" }?.cell?.column, 2)
+        XCTAssertNil(middle.paragraphs.first { $0.text == "after" }?.cell)
     }
 
     /// A long one is flattened into its cell, kept verbatim for the save
@@ -3547,6 +5213,57 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.document.paragraphs.map(\.text), ["x", ""])
         XCTAssertNotNil(back.document.paragraphs[0].cell)
         XCTAssertNil(back.document.paragraphs[1].cell)
+    }
+
+    func testARaisedFooterFrameWrappedRoundPartsNoRow() throws {
+        // Lab `wr` (Word 16 Mac, zh-9462c6d6's package): its footer's
+        // "- N -" frame, auto-sized, wrapped round and raised 15 twips over
+        // its anchor, reaches over the bottom margin, and a row of 16pt
+        // lines with room for two at the page's foot goes to the next page
+        // whole — where without the footer it parts. A frame wrapped
+        // "auto" (zh-7654804a's, raised 955 twips) parts its rows.
+        func firstPageHoldsRow(wrap: String) throws -> Bool {
+            var source = RichDocument(paragraphs: [RichParagraph(text: "a")])
+            source.footer = "x"
+            var entries = try Zip.read(try DocxFormat.write(source, pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            func exact(_ text: String, _ twips: Int) -> String {
+                "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+            }
+            // (Widow control off, so that only the frame decides.)
+            let lines = (1 ... 10).map { exact("row \($0)", 320) }.joined().replacingAll("<w:pPr><w:spacing", with: "<w:pPr><w:widowControl w:val=\"0\"/><w:spacing")
+            // (A spacer leaving 120pt over the bottom margin, A4, 851 margins —
+            // room for some lines of the row, not all ten, under the footer.)
+            let room = 841.9 - 42.55 * 2 - 120
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: exact("spacer", Int((room * 20).rounded()))
+                + "<w:tbl><w:tblPr><w:tblW w:w=\"8000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"8000\"/></w:tblGrid>"
+                + "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"8000\" w:type=\"dxa\"/></w:tcPr>\(lines)</w:tc></w:tr></w:tbl><w:p/>")
+            let margins = try XCTUnwrap(xml.range(of: "<w:pgMar [^>]*/>", options: .regularExpression))
+            xml.replaceSubrange(margins, with: "<w:pgMar w:top=\"851\" w:right=\"851\" w:bottom=\"851\" w:left=\"851\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let fi = try XCTUnwrap(entries.firstIndex { $0.name.hasPrefix("word/footer") })
+            var footer = String(decoding: entries[fi].data, as: UTF8.self)
+            let fb = try XCTUnwrap(footer.range(of: "<w:p>") ?? footer.range(of: "<w:p "))
+            let fe = try XCTUnwrap(footer.range(of: "</w:ftr>"))
+            footer.replaceSubrange(fb.lowerBound ..< fe.lowerBound, with:
+                "<w:p><w:pPr><w:framePr w:wrap=\"\(wrap)\" w:vAnchor=\"text\" w:hAnchor=\"margin\" w:xAlign=\"center\" w:y=\"-15\"/></w:pPr><w:r><w:t>- 1 -</w:t></w:r></w:p><w:p/>")
+            entries[fi] = ZipEntry(name: entries[fi].name, data: Data(footer.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let row = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("row 1") })
+            return l.pieces[0].contains { $0.paragraph == row && $0.part != .rules }
+        }
+        XCTAssertFalse(try firstPageHoldsRow(wrap: "around"), "the row goes over whole")
+        XCTAssertTrue(try firstPageHoldsRow(wrap: "auto"), "it parts under a frame wrapped auto")
     }
 
     func testDocxHeaderFooterRoundTrip() throws {
@@ -4151,6 +5868,50 @@ final class DocxTests: XCTestCase {
 
 /// Records, for each quarter turn, the translate just before it (a
 /// turned cell's corner, in the flow's terms).
+/// Records the height of each paragraph drawn.
+private final class ParagraphHeightCanvas: Canvas {
+    var heights: [Double] = []
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) {}
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) {}
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) { heights.append(paragraph.height) }
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+}
+
 private final class TurnedTextCanvas: Canvas {
     var turns: [Double] = []
     private var lastDy = 0.0

@@ -183,6 +183,78 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "A1"), .number(42))
     }
 
+    func testSheetLocalNames() {
+        // Each sheet reads its own Local1; Sheet1's from the other reads it
+        // by its sheet (lo-named-ranges-global).
+        let c = book(["A1": "3"], sheets: ["Data": ["A1": "5"]])
+        c.book.names["LOCAL1"] = "Data!$A$1"
+        c.book.fileNames = [DefinedName(name: "Local1", localSheet: 0, attrs: [:], text: "Sheet1!$A$1"),
+                            DefinedName(name: "Local1", localSheet: 1, attrs: [:], text: "Data!$A$1")]
+        c.setInputs([(CellAddress("B1")!, "=Local1*2")])
+        c.setInputs([(CellAddress("B1")!, "=Local1*2"), (CellAddress("C1")!, "=Sheet1!Local1")], sheet: 1)
+        XCTAssertEqual(v(c, "B1"), .number(6))
+        XCTAssertEqual(v(c, "B1", sheet: 1), .number(10))
+        XCTAssertEqual(v(c, "C1", sheet: 1), .number(3))
+    }
+
+    func testAggregateOptionsAndMode() {
+        // Options 4-7 keep nested SUBTOTAL/AGGREGATE cells, 0-3 leave them
+        // out; 13 is MODE.SNGL, the first of a tie (lo-functions-excel-2010).
+        let c = book(["A1": "15", "A2": "77", "A3": "28", "A4": "28", "A5": "77", "A6": "=SUBTOTAL(9,A1:A2)"])
+        XCTAssertEqual(num(c, "=AGGREGATE(2,4,A1:A6)"), 6)
+        XCTAssertEqual(num(c, "=AGGREGATE(2,0,A1:A6)"), 5)
+        XCTAssertEqual(num(c, "=AGGREGATE(13,4,A1:A5)"), 77)
+        XCTAssertEqual(num(c, "=NORM.S.DIST(0,0)"), 1 / (2 * Double.pi).squareRoot(), accuracy: 1e-12)
+        XCTAssertEqual(eval(c, "=ADDRESS(2,3,1,0)"), .text("R2C3"))
+        // A one-number function takes an array element by element.
+        XCTAssertEqual(num(c, "=SUM(SIGN(FREQUENCY({1,1,3},{1,2,3})))"), 2)
+        XCTAssertEqual(num(c, "=SUM(ABS({-1,2,-3}))"), 6)
+        XCTAssertEqual(num(c, "=SUM(MATCH({\"B\",\"a\",3},{\"a\";\"b\";3},0))"), 6)
+        // In an array formula: IF picks element by element, ROW is the rows.
+        func arr(_ f: String) -> CellValue { c.engine.evaluate(f, sheet: 0, at: CellAddress("Z99")!, dynamic: true) }
+        XCTAssertEqual(arr("=SUM(ROW(A1:A5))"), .number(15))
+        XCTAssertEqual(arr("=SUM(IF(A1:A5>20,A1:A5))"), .number(77 + 28 + 28 + 77))
+        XCTAssertEqual(arr("=SUM(SIGN(FREQUENCY(IFERROR(IF(A1:A5>20,MATCH(A1:A5,A1:A5,0)),\"\"),ROW(A1:A5))))"), .number(2))
+        XCTAssertEqual(num(c, "=SUM(IFERROR(MATCH({\"z\",\"a*\"},{\"x\";\"ab\"},0),0))"), 2)
+        XCTAssertEqual(num(c, "=CEILING(-2.5,2)"), -2)
+        XCTAssertEqual(eval(c, "=CEILING(23.5,-1)"), .error(.num))
+        XCTAssertEqual(eval(c, "=FLOOR(23.5,-1)"), .error(.num))
+        // ROUND through 15 significant digits, as Excel's.
+        XCTAssertEqual(num(c, "=ROUND(2.675,2)"), 2.68)
+        XCTAssertEqual(eval(c, "=ROUND(939.01382419233744,12)=ROUND(939.0138241923366,12)"), .bool(true))
+        XCTAssertEqual(num(c, "=ROUNDUP(0.0001,2)"), 0.01)
+        XCTAssertEqual(num(c, "=ROUND(1250,-2)"), 1300)
+        XCTAssertEqual(num(c, "=ROUND(-2.5,0)"), -3)
+        XCTAssertEqual(num(c, "=ROUNDDOWN(-2.59,1)"), -2.5)
+        XCTAssertEqual(num(c, "=ROUND(0.004,2)"), 0)
+    }
+
+    func testIndexOverItsOwnColumn() {
+        // INDEX reads only the cell it picks: from its own column, another
+        // cell is no loop (lo-tdf171828's G13); itself is.
+        let c = book(["A1": "4", "A2": "=A1*2", "A5": "=ISNUMBER(INDEX(A:A,2))", "A6": "=INDEX(A:A,6)+1", "B1": "=A5"])
+        XCTAssertEqual(v(c, "A5"), .bool(true))
+        XCTAssertEqual(v(c, "B1"), .bool(true))
+        XCTAssertEqual(v(c, "A6"), .number(0))
+        XCTAssertTrue(c.engine.circular.contains(CalcEngine.SheetCell(sheet: 0, cell: CellAddress("A6")!)))
+        XCTAssertFalse(c.engine.circular.contains(CalcEngine.SheetCell(sheet: 0, cell: CellAddress("A5")!)))
+    }
+
+    func testRelativeAndSheetNames() {
+        // A name's relative references are kept from A1 and read from the
+        // cell that uses it, round the sheet's edge (lo-tdf171828).
+        let c = book(["A1": "5", "A2": "=Above*2", "A3": "=Above+1", "B3": "=Left", "C1": "=Data!Rate"], sheets: ["Data": ["B2": "21"]])
+        c.book.names["ABOVE"] = "$A1048576"
+        c.book.names["LEFT"] = "XFD1"
+        c.book.names["RATE"] = "Data!$B$2"
+        c.engine.recalculate()
+        XCTAssertEqual(v(c, "A2"), .number(10))
+        XCTAssertEqual(v(c, "A3"), .number(11))
+        XCTAssertEqual(v(c, "B3"), .number(11))
+        XCTAssertEqual(v(c, "C1"), .number(21))
+        XCTAssertEqual(c.input(CellAddress("C1")!), "=Data!Rate")
+    }
+
     // MARK: Functions
 
     func testAggregates() {
@@ -360,6 +432,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(f(0, "0.00;-0.00;\"zero\""), "zero")
         XCTAssertEqual(f(12.3, "0.###"), "12.3")
         XCTAssertEqual(f(1500000, "#,##0,,\"M\""), "2M")
+        // Literals among the digits stay among them (lo-tdf76115).
+        XCTAssertEqual(f(1234567, "###\".\"###\".\"##0"), "1.234.567")
+        XCTAssertEqual(f(0, "#\".\"##0"), ".0")
+        XCTAssertEqual(f(5551234567, "(###) ###-####"), "(555) 123-4567")
+        XCTAssertEqual(f(123456789, "00000-0000"), "12345-6789")
+        XCTAssertEqual(f(1234.5, "0\" \"00.0\"x\"0"), "12 34.5x0")
         XCTAssertEqual(NumberFormat.display(.text("abc"), "\"<\"@\">\"").text, "<abc>")
         // A pad (`_x`) is a space, except to the grid, which is told x.
         XCTAssertEqual(f(3750, "#,##0_)"), "3,750 ")

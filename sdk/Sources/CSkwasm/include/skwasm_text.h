@@ -124,6 +124,12 @@ SKWASM(paragraphStyle_setTextStyle)
 void paragraphStyle_setTextStyle(sk_ptr style, sk_ptr textStyle);
 SKWASM(paragraphStyle_setApplyRoundingHack)
 void paragraphStyle_setApplyRoundingHack(sk_ptr style, bool applyRoundingHack);
+// Starling's (engine lib/web_ui/skwasm/text/paragraph_style.cpp, through
+// patches/skia-fractional-line-heights.patch): a line keeps its height's
+// fraction. Google's published skwasm has no such export, and the host
+// (web/host/starling.js) binds it to nothing there.
+SKWASM(paragraphStyle_setFractionalLineHeights)
+void paragraphStyle_setFractionalLineHeights(sk_ptr style, bool value);
 
 // --- text/paragraph_builder*.cpp --------------------------------------------
 SKWASM(paragraphBuilder_create)

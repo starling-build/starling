@@ -1,0 +1,3 @@
+# test/docx-word-win-reprint.py's run state, not references
+reprint.log
+*.part.pdf

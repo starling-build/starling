@@ -55,7 +55,12 @@ struct SheetPrintSetup: Equatable {
         }
         if let m = node("pageMargins") {
             func inch(_ k: String, _ d: Double) -> Double { (Double(m[k] ?? "") ?? d / 72) * 72 }
-            s.left = inch("left", s.left); s.right = inch("right", s.right)
+            // (A left margin no narrower than eight printer dots: at "0"
+            // Excel's cells and frame stand 0.96 pt in from the paper's
+            // edge — 49609's, lo-tdf131575's, lo-autofilter-colors' and
+            // lo-tdf145054's, where ours stood at it. A top margin of 0
+            // is 0.)
+            s.left = max(0.96, inch("left", s.left)); s.right = inch("right", s.right)
             s.top = inch("top", s.top); s.bottom = inch("bottom", s.bottom)
             s.headerMargin = inch("header", s.headerMargin); s.footerMargin = inch("footer", s.footerMargin)
         }
@@ -476,6 +481,8 @@ extension SheetGridState {
         let hfFont = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(hfStyle)),
                                    size: book.fontSize(hfStyle), color: Int64(0xFF000000))
         for (pages, s) in jobs {
+            printTextScale = s
+            defer { printTextScale = 0 }
             for page in pages {
                 if let maxPages, out.count >= maxPages { return }
                 guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
@@ -487,7 +494,23 @@ extension SheetGridState {
                 let bandH = ra.start(r1) + ra.size(r1) - ra.start(r0) + ty
                 let recorder = NativePictureRecorder()
                 let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
-                var ox = setup.left, oy = setup.top
+                // (The cells four printer dots, 0.48 pt, in from the margins
+                // and down from them, the drawings not: Excel's first fills
+                // at (+0.48, +0.48) from ours in 140 of the 210 workbooks
+                // whose page 1 has one — any face, any size; those that
+                // were not had a drawing first, which stood where ours did.
+                // Not along an axis the page is centred on: there ours stood
+                // where Excel's did, or 0.4 right — AverageTaxRates', Tables'
+                // and lo-tdf58243's pages, centred, 2.8, 1.8 and 1.8% worse
+                // for it, where simple-monthly-budget's, centred across
+                // only, came 0.48 nearer down. Across a centred page the
+                // cells stand as far the other way: Excel centres them as if
+                // 0.96 wider, from its left — the first fills of eleven such
+                // pages, at any scale (lo-bnc762542's 36%, 45544's 100%),
+                // 0.24 to 0.55 pt left of where plain centring put ours.)
+                let inset = 0.48
+                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? 0 : inset
+                var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
                 if setup.centerVertically { oy += max(0, (availH - bandH * s) / 2) }
@@ -513,13 +536,16 @@ extension SheetGridState {
                     canvas.clipRect(clip)
                     _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
                     for (i, d) in ws.drawings.enumerated() {
-                        let r = drawingRect(d.anchor)
+                        let r = drawingRect(d.anchor).shift(Offset(-insetX / s, -insetY / s))
                         // (Nor one set not to print: chart-tdf140489's "Tip"
                         // callout, which the pages' extent already left out.)
                         guard r.overlaps(clip), !d.hidden, !d.screenOnly else { continue }
                         _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                     }
-                    _paintObjects(canvas, ws, clip: clip)
+                    canvas.save()
+                    canvas.translate(-insetX / s, -insetY / s)
+                    _paintObjects(canvas, ws, clip: clip.shift(Offset(insetX / s, insetY / s)))
+                    canvas.restore()
                     canvas.restore()
                 }
                 band(tRows, tCols, head.width, head.height)
@@ -530,25 +556,33 @@ extension SheetGridState {
                     // The strips: a ruled cell per column and per row, its
                     // letter or number centred across it and at its foot,
                     // in the default font (NumberFormatTests' "2" at the
-                    // foot of its 26 pt row, where ours stood in the middle).
+                    // foot of its 26 pt row, where ours stood in the middle)
+                    // — set as a centred cell's text is, at a cell's foot
+                    // and four printer dots right of the middle: the
+                    // headings of twelve workbooks stood 0.6 to 2 pt lower
+                    // in their own style, where their cells' text was on
+                    // Excel's baselines.
                     let rule = Paint()
                     rule.style = .stroke
                     rule.strokeWidth = 0.96   // eight printer dots, as Excel rules its headings
                     rule.color = Color(0xFF000000)
-                    func label(_ text: String, in r: Rect) {
+                    let headStyle = _textStyle(book.style(0), color: nil, ink: Color(0xFF000000))
+                    let centre = 4 * 72 / 600 * scale / s
+                    // (The column letters four dots lower again: 0.5 to 0.7 pt
+                    // over Excel's in Verdana, Arial and Calibri, where the
+                    // row numbers were on its baselines.)
+                    func label(_ text: String, in r: Rect, drop: Double = 0) {
                         canvas.drawRect(r, rule)
-                        let tp = TextPainter(text: TextSpan(text: text, style: hfFont.flutter), textAlign: .center, textDirection: .ltr)
-                        tp.layout(minWidth: 0, maxWidth: .infinity)
+                        let tp = texts.painter(text, headStyle)
                         canvas.save()
                         canvas.clipRect(r)
-                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2, r.bottom - tp.height + 0.3))
+                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2 + centre, r.bottom - tp.height - 1 + drop))
                         canvas.restore()
-                        tp.dispose()
                     }
                     canvas.drawRect(Rect.fromLTWH(0, 0, head.width, head.height), rule)
                     var x = head.width
                     for col in tCols + page.cols {
-                        label(CellAddress.columnName(col), in: Rect.fromLTWH(x, 0, ca.size(col), head.height))
+                        label(CellAddress.columnName(col), in: Rect.fromLTWH(x, 0, ca.size(col), head.height), drop: centre)
                         x += ca.size(col)
                     }
                     var y = head.height
@@ -632,7 +666,13 @@ extension SheetGridState {
                                      textAlign: i == 0 ? .left : i == 1 ? .center : .right, textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 let x = i == 0 ? setup.left : i == 1 ? setup.left + (innerW - tp.width) / 2 : size.width - setup.right - tp.width
-                let y = top ?? (bottom! - tp.height)
+                // Excel's header stands 1.2 pt below its margin's line, its
+                // footer 1.75 above: on the first pages of the corpus a header
+                // at Times 12 is 12.18 under the header margin (ours 11.0),
+                // Arial 9.96 10.14 (ours 9.0); a footer's baseline 4.64 over
+                // the footer margin at Times 12 (ours 3.05), 3.92 at Arial
+                // 9.96 (2.05), 4.8 at Calibri 11.04 (3.0).
+                let y = top.map { $0 + 1.2 } ?? (bottom! - tp.height - 1.75)
                 tp.paint(canvas, Offset(x, y))
                 tp.dispose()
             }

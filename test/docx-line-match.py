@@ -63,7 +63,13 @@ def mupdf_text(pdf):
                     # corpus reads as PDFKit reads it on the Mac.)
                     # (Text set across only: a turned label's origin is no
                     # baseline under its box.)
-                    y1 = max(s["origin"][1] + 0.2 * s["size"] for s in l["spans"]) \
+                    # (Over the spans that hold text: a paragraph's closing
+                    # space can sit in a line of its own baseline — in
+                    # Word for Windows' print of EmbeddedDocument the
+                    # worksheet's "4" shares a line with it, 4pt lower,
+                    # and read so it paired with nothing.)
+                    inked = [s for s in l["spans"] if s["text"].strip()] or l["spans"]
+                    y1 = max(s["origin"][1] + 0.2 * s["size"] for s in inked) \
                         if tuple(round(d, 3) for d in l["dir"]) == (1, 0) else l["bbox"][3]
                     out.append(f"p{i + 1}	{round(-y1)}	{round(x0)}	{t}")
     return out
@@ -128,7 +134,25 @@ def same_start(a, b):
     # the same four-character edge check, not a full-line equality test.
     # Do not let unmapped glyphs stand for Arabic here: Geeza Pro's null
     # text previously gave rtl.docx 71% despite different line breaks.
-    return edges(a, b) or (rtl and edges(a, b[::-1]))
+    if edges(a, b) or (rtl and edges(a, b[::-1])):
+        return True
+    # (Word for Windows writes a bidi line's words in visual order, each
+    # word's letters in logical order: its print of rtl.docx starts
+    # "الاتحادفي…", the line's last two words. With the spaces gone the
+    # words have no bounds and no four characters are an edge, so such
+    # a line is the same line where it holds the same letters — every
+    # one, which a line broken a word earlier or later does not; never
+    # a null. The text names one glyph by its Persian or its Arabic letter
+    # (ی/ي, ھ/ه, ک/ك), so both are folded, and only letters are counted:
+    # Windows' print puts the closing stop at the line's visual start and
+    # repeats a mark (ًا ًا ًا).)
+    if rtl:
+        fold = str.maketrans("یھکۀ", "يهكة")
+        def letters(t):
+            return sorted(c for c in t.translate(fold) if unicodedata.category(c).startswith("L"))
+        p, q = letters(a), letters(b)
+        return len(p) >= 4 and p == q
+    return False
 
 
 def main():
@@ -139,7 +163,12 @@ def main():
     work = os.path.expanduser(sys.argv[1])
     key = sys.argv[2] if len(sys.argv) > 2 else None
     count = int(sys.argv[3]) if len(sys.argv) > 3 else 12
-    tool = os.path.join(work, "pdf-text") if sys.platform == "darwin" else None
+    # (DOCX_LINE_READER=mupdf: PyMuPDF on the Mac too, as on Linux —
+    # the Windows series (lab/tools/sweep-win.sh) reads both sides so,
+    # since PDFKit groups our Type 3 glyphs into other lines than Word's
+    # real faces: zh-00f207f1's header row, a line a page.)
+    mupdf = os.environ.get("DOCX_LINE_READER") == "mupdf"
+    tool = os.path.join(work, "pdf-text") if sys.platform == "darwin" and not mupdf else None
     if tool and not os.access(tool, os.X_OK):
         subprocess.run(["swiftc", "-O", "-o", tool, os.path.join(HERE, "pdf-text.swift")], check=True)
     results = []

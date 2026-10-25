@@ -56,14 +56,20 @@ enum Xlsx {
         let theme = _themeColors(themeNode)
         book.themeColors = theme
         let themeFonts = _themeFonts(themeNode)
+        let themeless = themeNode == nil
         // Shared strings.
         var sst: [String] = []
         var sstScripts: Set<Int> = []
+        var sstRuns: [Int: [RichRun]] = [:]
         if let s = xml("xl/sharedStrings.xml") {
             for si in s.kids("si") {
                 // (Rich text with a raised or lowered run: its row's fit is Excel's own.)
                 if si.kids("r").contains(where: { ["superscript", "subscript"].contains($0.child("rPr")?.child("vertAlign")?["val"] ?? "") }) {
                     sstScripts.insert(sst.count)
+                }
+                let runs = si.kids("r")
+                if runs.count > 1, runs.contains(where: { $0.child("rPr") != nil }) {
+                    sstRuns[sst.count] = runs.map { _richRun($0, theme: theme, themeFonts: themeFonts, themeless: themeless) }
                 }
                 sst.append(_text(si))
             }
@@ -71,10 +77,10 @@ enum Xlsx {
         // Styles: one CellStyle per cellXfs entry, in order, so a cell's
         // `s` is its index in the book's table.
         if let st = xml("xl/styles.xml") {
-            book.styles = _styles(st, theme: theme, themeFonts: themeFonts)
-            // The default font: the first, which the Normal style names.
-            if let f = st.child("fonts")?.kids("font").first {
-                if let n = _fontName(f, themeFonts), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+            book.styles = _styles(st, theme: theme, themeFonts: themeFonts, themeless: themeless)
+            // The default font: the one a cell with no style of its own has.
+            if let f = _defaultFont(st) {
+                if let n = _fontName(f, themeFonts, themeless: themeless), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
                 book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
@@ -114,7 +120,7 @@ enum Xlsx {
             guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, book: book) }
+            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -147,7 +153,10 @@ enum Xlsx {
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
 
-        // Defined names (print areas and other built-ins are not formulas to evaluate).
+        // Defined names (print areas and other built-ins are not formulas to
+        // evaluate). A sheet's own name is read from `fileNames` by that
+        // sheet; the book's table has it only where the book has none.
+        var bookWide = Set<String>()
         for n in wbNode.child("definedNames")?.kids("definedName") ?? [] {
             guard let name = n["name"] else { continue }
             var attrs = n.attrs
@@ -155,8 +164,10 @@ enum Xlsx {
             let local = attrs.removeValue(forKey: "localSheetId").flatMap { Int($0) }
             book.fileNames.append(DefinedName(name: name, localSheet: local, attrs: attrs, text: n.text))
             guard !name.hasPrefix("_xlnm.") else { continue }
-            book.names[name.uppercased()] = n.text
-            book.nameSpellings[name.uppercased()] = name
+            let key = name.uppercased()
+            if local == nil { bookWide.insert(key) } else if bookWide.contains(key) { continue }
+            book.names[key] = n.text
+            book.nameSpellings[key] = name
         }
         return book
     }
@@ -182,7 +193,8 @@ enum Xlsx {
 
     /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
     @discardableResult
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], book: Workbook) throws -> XNode {
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:],
+                                   book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
         let split = RawXML.split(bytes)
@@ -245,8 +257,13 @@ enum Xlsx {
             let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
             // A run over the whole sheet (a default width) is not 16k entries.
             if hi - lo > 2000 { if !hidden && w > 0 { ws.defaultColWidthPt = pt; ws.defaultColWidthChars = w }; continue }
+            // (Every width the file states is kept, the default's own too:
+            // on paper a width is its characters, and 11.43 of them is the
+            // 80 px default of a baseColWidth 10 at 96 dpi but prints 64.3
+            // pt where the default prints 60.2 — lo-forum-mso-de-104083's
+            // column D, all to its right 3.9 pt left of Excel's.)
             for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols {
-                if abs(pt - ws.defaultColWidthPt) > 0.01 { ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w } }
+                ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w }
             }
         }
         // Cells.
@@ -312,6 +329,7 @@ enum Xlsx {
                 case "s":
                     value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
                     if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
+                    if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.child("is").map { _text($0) } ?? "")
@@ -447,6 +465,32 @@ enum Xlsx {
     ]
 
     /// The text of an <si> or <is>: its <t>, or its runs' <t>s joined.
+    /// A rich string's run: its text and its `rPr`'s font. A run with no
+    /// `rPr` is the cell's font throughout; one with a `rPr` gives its
+    /// whole font, what it leaves out being off (as Excel reads it).
+    static func _richRun(_ r: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?), themeless: Bool) -> RichRun {
+        var run = RichRun(text: r.child("t")?.text ?? "")
+        guard let pr = r.child("rPr") else { return run }
+        func on(_ name: String) -> Bool { pr.child(name).map { $0["val"] != "0" && $0["val"] != "false" } ?? false }
+        run.bold = on("b"); run.italic = on("i"); run.strike = on("strike")
+        run.underline = pr.child("u").map { $0["val"] != "none" } ?? false
+        run.size = pr.child("sz").flatMap { Double($0["val"] ?? "") }
+        let named = pr.child("rFont")?["val"]
+        let builtin = themeless && pr.child("charset") == nil
+        switch pr.child("scheme")?["val"] {
+        case "minor": run.fontName = themeFonts.minor ?? (builtin ? "Aptos Narrow" : named)
+        case "major": run.fontName = themeFonts.major ?? (builtin ? "Aptos Display" : named)
+        default: run.fontName = named
+        }
+        run.color = pr.child("color").flatMap { _color($0, theme: theme) }
+        switch pr.child("vertAlign")?["val"] {
+        case "superscript": run.script = 1
+        case "subscript": run.script = -1
+        default: break
+        }
+        return run
+    }
+
     static func _text(_ n: XNode) -> String {
         if let t = n.child("t") { return t.text }
         return n.kids("r").compactMap { $0.child("t")?.text }.joined()
@@ -487,21 +531,38 @@ enum Xlsx {
         43: "_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)",
     ]
 
-    private struct _Font { var bold = false, italic = false, underline = false, strike = false
+    private struct _Font { var bold = false, italic = false, underline = false, strike = false, script = 0
         var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
 
     /// A font's face. One of the theme's (`scheme` minor or major) is the
     /// theme's Latin face, whatever its `name` says: Excel sets 51519's
     /// "宋体" in Calibri — its columns, rows and Latin text — and a dozen
     /// other East Asian workbooks' fonts the same way (their names are the
-    /// writer's locale's face, their themes Calibri).
-    static func _fontName(_ f: XNode, _ themeFonts: (minor: String?, major: String?)) -> String? {
+    /// writer's locale's face, their themes Calibri). A book with no theme
+    /// part has Excel's own, Aptos: lo-tdf82984_zip64XLSXImport's and nine
+    /// other such books' "Calibri" of the minor scheme print in Aptos Narrow
+    /// (and their rows at its 15.24 pt) — save where the font names a
+    /// character set, as 64508's and 64667's do, which print in Calibri.
+    static func _fontName(_ f: XNode, _ themeFonts: (minor: String?, major: String?), themeless: Bool = false) -> String? {
         let named = f.child("name")?["val"]
+        let builtin = themeless && f.child("charset") == nil
         switch f.child("scheme")?["val"] {
-        case "minor": return themeFonts.minor ?? named
-        case "major": return themeFonts.major ?? named
+        case "minor": return themeFonts.minor ?? (builtin ? "Aptos Narrow" : named)
+        case "major": return themeFonts.major ?? (builtin ? "Aptos Display" : named)
         default: return named
         }
+    }
+
+    /// The book's default font: the one cellXfs' first entry — the style
+    /// of every cell the file has no record of — names, which is the first
+    /// font in all but a few files. bug66675's names its second, an empty
+    /// `<font/>`, which Excel takes as Calibri 11 (its rows print at 14.52,
+    /// where its first font, of a theme-less book's minor scheme, would be
+    /// Aptos Narrow's 15.24).
+    static func _defaultFont(_ st: XNode) -> XNode? {
+        let fonts = st.child("fonts")?.kids("font") ?? []
+        if let id = st.child("cellXfs")?.kids("xf").first?["fontId"].flatMap(Int.init), id < fonts.count { return fonts[id] }
+        return fonts.first
     }
 
     /// The theme's Latin faces, body (minor) and headings (major).
@@ -514,7 +575,7 @@ enum Xlsx {
         return (latin("minorFont"), latin("majorFont"))
     }
 
-    static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil)) -> [CellStyle] {
+    static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil), themeless: Bool = false) -> [CellStyle] {
         var formats = builtinFormats
         for nf in st.child("numFmts")?.kids("numFmt") ?? [] {
             if let id = Int(nf["numFmtId"] ?? ""), let code = nf["formatCode"] { formats[id] = code }
@@ -526,12 +587,15 @@ enum Xlsx {
             font.italic = f.child("i").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
+            font.script = ["superscript": 1, "subscript": -1][f.child("vertAlign")?["val"] ?? ""] ?? 0
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
-            font.name = _fontName(f, themeFonts)
+            font.name = _fontName(f, themeFonts, themeless: themeless)
             font.color = f.child("color").flatMap { _color($0, theme: theme) }
             fonts.append(font)
         }
-        let base = fonts.first ?? _Font()
+        // (Measured against the default font, `_defaultFont`'s.)
+        let first = st.child("cellXfs")?.kids("xf").first?["fontId"].flatMap(Int.init) ?? 0
+        let base = (first < fonts.count ? fonts[first] : fonts.first) ?? _Font()
         var fills: [UInt32?] = []
         // A pattern prints as fine lines or dots of its colour over its
         // background — black over white where it names neither — and is
@@ -569,7 +633,7 @@ enum Xlsx {
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
-                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.strike = f.strike
+                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.strike = f.strike; s.script = f.script
                 // The default font is the theme's: left nil, so a new face follows it.
                 if f.name != base.name { s.fontName = f.name }
                 if f.size != base.size { s.fontSize = f.size }

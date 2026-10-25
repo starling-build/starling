@@ -297,6 +297,9 @@ public struct ImageFloat: Hashable, Codable, Sendable {
     /// Text wraps round it (Word's square, tight and through wrapping):
     /// the lines beside it are shorter, or start under it.
     public var wraps = false
+    /// … on which side (`wrapText` of `wp:wrapSquare`/`Tight`/`Through`,
+    /// VML's `w10:wrap side`): "left" or "right" alone, or nil for both.
+    public var wrapSide: String? = nil
     /// How far its drawn effects reach below its box (`wp:effectExtent`'s
     /// `b`, points): its outline's and shadow's share of the room Word
     /// gives it.
@@ -334,6 +337,10 @@ public struct RichTextBox: Hashable, Codable, Sendable {
     /// … and is sized once, on the first page its header or footer is on
     /// (lab `ftD`, DrawingML; lab `vf`, VML alike).
     public var fitsOnce = false
+    /// … and is DrawingML's (`wps:bodyPr`), not VML's: an em dash its
+    /// text says is Latin (`w:hint` "default") is then set as Latin when
+    /// the box is fitted, where a VML box's is not.
+    public var fitsAsDrawing = false
     /// The tables among `paragraphs` (their cells' `CellRef.table`), with
     /// their looks and grids: a table nested in a cell is read as a box
     /// of its own, laid out as a document is.
@@ -362,6 +369,10 @@ public struct RichTextBox: Hashable, Codable, Sendable {
     /// its top, stacking leftwards from its right. Turned, its lines are
     /// as long as the box is tall.
     public var textDirection: CellRef.CellTextDirection = .horizontal
+    /// East Asian vertical writing (`eaVert`): the text runs down as
+    /// `vert` does, but an ideograph stands upright in it — as a cell's
+    /// `uprightIdeographs`.
+    public var uprightIdeographs = false
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 
@@ -482,6 +493,12 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// (drawing.docx: five such marks of 8.5pt, five lines of 0.48pt in
     /// Word's print). Read from the file's shape, not written back.
     public var markUnderNestedTable = false
+    /// Points: the room a page's frame — a one-cell table read as the
+    /// body (Word's invisible wrapper) — keeps inside each page it goes on
+    /// to, over the text and under it: its cell's top and bottom margin
+    /// and twice its cell spacing. Set on each of its paragraphs.
+    public var frameInsetTop = 0.0
+    public var frameInsetBottom = 0.0
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// The glyph this bulleted paragraph shows, when the file names one
@@ -574,6 +591,10 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// there — Word drops the space before a paragraph that follows a
     /// break character, and keeps it under "page break before".
     public var breakEndsPrevious = false
+    /// The paragraph is the rest of one a break character split (its
+    /// `w:p` went on past a `w:br w:type="page"`): its first line is no
+    /// first line, and takes no first-line indent.
+    public var continuesParagraph = false
     /// The paragraph opens with its own page break right after a
     /// paragraph that ended with one: two breaks, and the page between
     /// them stands blank (its start before the break is all it holds).
@@ -1094,6 +1115,9 @@ public struct BorderEdges: Hashable, Codable, Sendable {
 
 public struct TableStyle: Hashable, Codable, Sendable {
     public var borders = true
+    /// A section's text columns set as a one-row table (the docx reader's
+    /// emulation of `w:cols`), not a table of the file's.
+    public var sectionColumns = false
     /// A floating table's position as the file wrote it (Word's
     /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
     /// out in the text's flow, and a save puts it back where it floated.
@@ -1102,6 +1126,9 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
     /// laid out in the flow, it starts that much lower.
     public var floatOffsetY: Double? = nil
+    /// … and how far ABOVE it one stands whose w:tblpY is negative, in
+    /// points: at a page's head it reaches up into the top margin.
+    public var floatRaiseY: Double? = nil
     /// A floating table's left (`w:tblpX`, points) and what it is from
     /// (`w:horzAnchor`: "page", "margin" or "text").
     public var floatX: Double? = nil
@@ -1146,10 +1173,26 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// preferences froze bib-chernigovka's number column at its grid
     /// width and wrapped the text column a line early.
     public var autoCellWidths = false
+    /// Nor does the table (`w:tblW` auto), nor any of its cells: Word
+    /// then fits every column between its narrowest and its widest
+    /// content, the saved grid set aside (`RichLayout._autofit`).
+    public var contentFit = false
+    /// … but for these columns, by grid index, which keep the width their
+    /// cells state (points).
+    public var contentFitFixed: [Int: Double] = [:]
+    /// Columns whose cells state a share of the table's width (`w:tcW`
+    /// in pct; 12 = 12%), and those whose cells do not wrap (`w:noWrap`):
+    /// a spaced table of a stated share sizes them so (`_pctColumns`).
+    public var columnPercents: [Int: Double] = [:]
+    public var noWrapColumns: Set<Int> = []
     /// Space between cells in points (w:tblCellSpacing, HTML's
     /// cellspacing); nil when the file says nothing. Zero is kept apart
     /// from nil: Word draws a table that states it with separate borders.
     public var cellSpacing: Double? = nil
+    /// Rows that say they have no cell spacing (`w:tblCellSpacing` of
+    /// type nil, in their `w:tblPrEx` or `w:trPr`) in a table that has
+    /// some: their borders collapse, as a table's of none do.
+    public var rowsUnspaced: Set<Int> = []
     /// How far left of its place the table's edge stands so that its
     /// first column's text lines up with the paragraphs' (points): its
     /// left cell margin — the table's own, else its style's, else
@@ -2080,7 +2123,7 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// "）" to open the next line, where under zh-CN they stay; and
     /// zh-6600d539 (en-US) starts a line "，針對平臺…" in Word's print.
     public var eastAsianLineRules: Bool {
-        guard let xml = defaultLangXML, let r = xml.findRange(of: "w:eastAsia=\"") else { return true }
+        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return true }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
     public var themeFontLangXML: String? = nil
@@ -2098,6 +2141,14 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
     /// label's tab goes to the next tab stop, not to the hanging indent.
     public var indentNotNumberingTabStop = false
+    /// Widow control holds for no paragraph, whatever each says: Word for
+    /// Mac lays out a body whose footer holds a framed paragraph raised
+    /// over the footer's top (a page number in a `w:framePr` of negative
+    /// `w:y`) so — labs wc2, wc3 (Word 16, mode 14): with it a three-line
+    /// paragraph keeps one line at a page's foot, or two; with the footer
+    /// gone, its frame gone, or the frame's y 0 or 1, they stay together.
+    /// zh-9462c6d6's "（二）促進有線…" parts one and two over pages 1-2.
+    public var widowControlSuspended = false
     /// Whether punctuation kerns (the settings lack
     /// `w:noPunctuationKerning`): two marks that stand together close up
     /// only where it does.
@@ -2107,6 +2158,14 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// — unless it stands between two Latin words. The spaces that push
     /// a signature across the page are then twice as wide in most faces.
     public var balancesSpaceWidth = false
+    /// Word's `w:spaceForUL`: an exact line's text set by its middle
+    /// (`w:textAlignment` "center") has its own line centred in the exact
+    /// one. Without it the middle stands where the baseline would be.
+    public var spacesForUnderline = true
+    /// Word's `w:ulTrailSpace`: underlined spaces are underlined at a
+    /// line's end too — text, not the blank a line may hang past its
+    /// margin. A run of them wraps as characters do.
+    public var underlinesTrailingSpaces = false
     /// Word's `w:adjustLineHeightInTable`: a table's text keeps to the
     /// section's line grid as body text does. Without it Word sets a
     /// cell's lines off the grid (zh-117cf7c6's 12pt rows on an 18.25pt

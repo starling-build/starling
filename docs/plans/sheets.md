@@ -232,7 +232,14 @@ Excel was found to do, each checked on its workbook and its neighbours:
 
 - *Wrapped text* that fits on one line is its font's line, not a
   measured line and a margin (lo-pivottable_invalid_formats lost a row a
-  page to 0.14 pt).
+  page to 0.14 pt). On paper its lines are the font's fitted line apart
+  (the row it fits), not the face's own: Arial 10's 12.36 pt where ours
+  were 11.0, Calibri 11's 14.52 for 13.0 (26 of Excel's prints). The
+  line the vertical alignment holds stands where one line would. 97
+  workbooks with wrapping styles: 26 better, none worse (CVLKRA-KYC 4.67
+  -> 4.16, 52716 4.29 -> 4.04). Open: AverageTaxRates' bold Times New
+  Roman 10 headings print 12.72 apart, regular Times' fitted line, where
+  the bold face's table entry (34 px on screen) makes 12.36.
 
 **2026-10-17/18, Windows** (each checked on its files against a build of
 the same base; the commits give the numbers):
@@ -242,6 +249,237 @@ the same base; the commits give the numbers):
   number's, 2⌈d/4⌉+1 px: CVLKRA-KYC), narrower than on paper
   (lo-tdf100034's two-line note). A printer's line between measured
   font sizes is the next dot up (49609's Microsoft Sans Serif 8.25).
+  A `<col>` width the default's at 96 dpi is still that width in
+  characters on paper, not the default: lo-forum-mso-de-104083's D, 11.43
+  for a baseColWidth 10, prints 64.3 pt where the default's is 60.2
+  (7.08 -> 6.70; 45 such workbooks, 8 better, 51710 +0.49, whose one
+  9.14 column Excel prints half a 192-dpi pixel past either).
+- *Ligatures.* A cell is set letter by letter, as Excel sets it: Carlito
+  joined "ft" and "ti" (151 workbooks whose text has such pairs: 41
+  better, 3 worse by 0.01; lo-forum-mso-de-104083 6.70 -> 6.16,
+  CVLKRA-KYC 4.16 -> 3.69, lo-tdf113271 6.22 -> 5.75).
+- *Printed size.* Excel prints a cell's font a whole number of 600-dpi
+  pixels an em (Calibri 11 at 11.04 pt, 92; Arial and Times 10 at 9.96,
+  83; at the page's scale), and each character a whole number of those
+  pixels on from the last: its advance at that size rounded, or the
+  face's own hinted width where its hdmx lists one (Arial's W is 83 at
+  83 an em, its 0.9 em being 78.3; `SheetHinting`, generated from the
+  Windows faces). Lucida Sans Typewriter 10 steps 50 (49.8), Verdana's
+  digits 53 (52.77), Calibri 11's "Open - Not" 61, 48, 46, 48, 21. Ours
+  sets each character so (`GridTextStyle.dots`), in what it draws and
+  where it wraps, save in scripts that join their letters. All 720
+  workbooks against the size alone, drawn grown: 233 better, 61 worse,
+  mean 0.906 -> 0.890 (lo-forum-mso-en4-134670 2.60 -> 1.74, 56702 and
+  dataValidationTableRange -0.47). Rounded without the hinting, Arial
+  lost: FormulaEvalTestData_Copy 2.16 -> 2.60, now 2.20. Open: Verdana
+  has no hdmx and its hinting widens some letters ("l" 24, rounded 23;
+  1.5 dots in 30 letters).
+- *Verdana* is set at its own widths in its stand-in, DejaVu Sans, as
+  Word and Slides set it (`OfficeFonts.verdanaAdvances`), in what is
+  drawn and in where lines break: 28 workbooks in Verdana, 17 better,
+  one 0.01 worse (DateFormatTests 4.90 -> 4.00). A line of 40 letters
+  then ends 0.46 pt past Excel's; at the printer's 9.96 it would end as
+  far short, so it keeps the font's size.
+- *Names that move.* A defined name's relative references are kept
+  from A1 and read from the cell that uses it, round the sheet's edge:
+  lo-tdf171828's sheet-local `rechne.Restkredit` reads `$G1048576`, the
+  row above, and `XFD1`, the column to the left. `Sheet!Name` is a name
+  (its `Hitab!Divisor`); it failed to parse, and every name using it was
+  #NAME? (5.16 -> 4.89; its #NUM! totals are still open).
+- *INDEX is no loop by its area.* It reads the one cell it picks, so
+  lo-tdf171828's G13, ISNUMBER(INDEX(G:G, MATCH(…))) in column G, is
+  blank in Excel's print, and its "Letzte Rate" the last payment's
+  12/31/2044; the static walk for loops took the whole column as read
+  and made G13 a loop's 0 (and the date 1/0/1900). The area still
+  marks it for recalculation; a pick of its own cell is a loop when
+  value() comes back to it. `--xlsx-check` with XLSX_CHECK_EVAL="Sheet!A1
+  =formula|…" evaluates formulas as that cell would.
+- *Rows past 18 pt.* Excel's print shows Times New Roman 20 fitted at 67
+  screen pixels and its bold at 66 (Tables' "Exp2 (2)" at 49%, rows a
+  whole printer dot: 99 and 98), where in proportion to 18 they were 68
+  and 67 (Tables 6.93 -> 6.66, p2 9.07 -> 6.90). Measured, not modelled:
+  carrying 18's row up by the font's own pixel line fits both, but
+  predicts 16 from 14 and 18 from 16 no better than proportion (22 of
+  76 exact either way).
+- *Centred text runs over its empty neighbours*, half what it lacks to
+  each side, each side as far as its cells are empty (lo-tdf171828's
+  I14, "unter Berücksichtung der Sondertilgungen", 376.8 to 562.7 where
+  Excel's is 377.3 to 563.2; ours stopped at its cell). The columns it
+  crosses count as printed, as left and right text's do: 45540_classic's
+  pie labels then print, but below Excel's (+0.15 each, the chart's own
+  layout). A chart draws nothing outside its frame.
+- *A face Excel has none of prints in Arial* (HelveticaNeue LightExt,
+  Frutiger 45 Light, Clear Sans, FreeSans, GE Inspira Sans,
+  BernhardFashion BT in lo-tdf171828's header; "Arial Cyr" too), where
+  Word's rule had made it Cambria: 48495 0.76 -> 0.51, 47862 0.19 ->
+  0.08, lo-orderOfCNumFmtElements' cells to within 0.01 pt of Excel's.
+- *Literals among the digits stay among them.* `###"."###"."##0` puts
+  1234567 as "1.234.567", and `#"."##0` puts 0 as ".0" (lo-tdf76115's
+  account numbers, which printed "0."); `(###) ###-####` is a phone number,
+  `00\ 00\ 00` (lo-tdf81939); the integer fills its placeholders from
+  the right, any more digits before the first, the fraction from the
+  left. Three such workbooks, all better.
+- *Functions to Excel's last digit.* AGGREGATE's options 4-7 keep the
+  SUBTOTAL and AGGREGATE cells they cover (0-3 leave them out), and
+  0, 2, 4, 6 the filtered rows; its 13 is MODE.SNGL, the first of a
+  tie, where ours took MEDIAN. A logical argument of 0 is FALSE
+  (NORM.S.DIST(x,0) is the density; ADDRESS's style). A variance is
+  taken as one, not a deviation squared. ROUND goes through the
+  number's 15 significant digits, as Excel's: an ulp's nudge of the
+  scaled number made 939.01382419233744 ...338 at 12 places. Every
+  formula of lo-functions-excel-2010 now agrees with Excel's (128
+  differed; 4.35 -> 4.19); no other of the 720 changed.
+- *A sheet's own names.* A name with a localSheetId is that sheet's:
+  each sheet reads its own before the book's, and `Sheet!Name` the
+  named sheet's (lo-named-ranges-global's two Local1s, 3 and 5, both
+  read 5). On reading, a book-wide name is never overwritten by a
+  sheet's of the same name.
+- *Header and footer lines.* Excel's header stands 1.2 pt below the
+  line of its margin and its footer 1.75 above, measured on the first
+  pages of the corpus (a Times 12 header 12.18 under the header margin,
+  ours 11.0; a Times 12 footer's baseline 4.64 over the footer margin,
+  ours 3.05; Arial 9.96 and Calibri 11.04 the same within 0.15). 94
+  workbooks with either: 83 better, 2 worse by 0.02 at most. Open:
+  Arial 11.04 footers (5 workbooks) stand 0.65 over Excel's with it.
+- *Arrays, element by element.* A one-number function (SIGN, ABS…)
+  takes an array element by element in any formula, a range in a
+  dynamic one; so do IFERROR and IFNA, MATCH over an array of keys
+  (exact keys through a table of first places), IF over an array of
+  conditions, and in a dynamic formula ROW and COLUMN of a range.
+  lo-forum-mso-en4-134670's distinct counts, SUM(SIGN(FREQUENCY(
+  IFERROR(IF(…, MATCH(B:B,B:B,0)),""), ROW(…)))), were 0: 153 cells now
+  Excel's. CEILING and FLOOR of a positive number by a negative step
+  are #NUM! (lo-ceiling-floor, every cell now Excel's).
+- *A hair border is one printer dot*, solid, as Excel prints it
+  (0.12 pt; its thin ones 0.96): ours drew 0.96 at half strength, a
+  grid of them heavy and black. The 12 workbooks with hair borders: 7
+  better, none worse (lo-tdf85617 3.55 -> 0.25, 54206 4.82 -> 1.62).
+- *Dashed and dotted borders* print Excel's runs, on and off in printer
+  dots (lo-cell-borders, a row of each kind): dotted 4 and 4, dashed 24
+  and 8, a dash-dot's dash 72 and dot 24 with gaps of 24, the medium
+  kinds the same at 16 dots wide, slantDashDot as mediumDashDot. Ours
+  were 25 and 17 for all. Open: mediumDashed starts 33 dots into its
+  run in Excel's.
+- *Tahoma* prints in Tahoma on Windows, at its hinted widths (it had
+  been Liberation Sans): the 38 workbooks in it, 5 better, one 0.01
+  worse (Excel_file_with_trash_item 4.71 -> 4.24). Open: bottom-aligned,
+  Excel's Tahoma 10 stands on its row's Calibri 11 baseline, a point
+  over ours, which puts a cell's descent a point over its foot.
+  Segoe UI, Georgia, Consolas, Book Antiqua and Calibri Light print in
+  their own faces too (Segoe UI's and Georgia's hinted widths with
+  them): the 16 workbooks in them, 3 better, none worse (lo-tdf76115
+  4.46 -> 4.03).
+  On Windows Verdana is Verdana, not DejaVu Sans at Verdana's widths:
+  its 28 workbooks 15 better, 4 worse by 0.05 at most (atp 0.68 ->
+  0.16, the format tests 0.03 to 0.24 better).
+  Arial and Times New Roman too, though their clones have their
+  measures: lo-pivottable_invalid_formats' page of Arial 10 stood within
+  half a point of Excel's and 9.9% apart, in the letters. All 720
+  workbooks: 98 better, 8 worse by 0.08 at most, 0.864 -> 0.856
+  (lo-tdf100034 4.27 -> 3.67, bug62181 4.15 -> 3.56, 46535 1.03 ->
+  0.48). And Calibri, over Carlito: 366 better, 8 worse by 0.02 at
+  most, 0.856 -> 0.816 (56702 3.84 -> 2.04, 51710 2.98 -> 1.91,
+  lo-forum-mso-de-104083 5.75 -> 4.74).
+  Aptos, Aptos Narrow and Aptos Display are not in Windows' fonts but in
+  Office's own cache (%LOCALAPPDATA%\Microsoft\FontCache\4\CloudFonts),
+  and Excel prints in them; registered from there: the 15 workbooks
+  naming them, 13 better, none worse, 0.526 -> 0.300. (The cache also
+  holds Dotum, Gulim, Meiryo, SimHei, MS Mincho and others, left out:
+  every print of a 돋움 workbook but 1_NoIden's is in Malgun Gothic.)
+  A face Windows has no file for (Helvetica Neue, Clear Sans, …) prints
+  in Arial, as Excel's does — Arial itself, with Arial's widths, where
+  it had been Liberation Sans: all 720, 11 better, 3 worse by 0.01
+  (lo-column-style-autofilter 0.83 -> 0.73).
+- *Malgun Gothic 6* fits a row of 23 pixels on the 192-dpi screen, where
+  in proportion to its 8 pt it was 26 (its 8 and 9 are both 35): the
+  bordered box at the foot of style-alternate-content, rows of 6, 10,
+  set 16.5, 10 and 6 pt, prints 64.32 pt tall in Excel's print and was
+  66.60 in ours (5.05 -> 4.74; no other workbook has Malgun under 8).
+- *Centred text stands four printer dots right of the middle* (0.48 pt
+  on the page): ours stood 0.45 left of Excel's on the median of 56
+  workbooks with centred cells, merged or lone, at page scales from 53%
+  to 100%, and of 27 of 30 with a General TRUE or #N/A. All 720: 84
+  better, 14 worse, 0.811 -> 0.799 (Tables 6.50 -> 5.25, AverageTaxRates
+  6.51 -> 5.48, VLookupFullColumn 1.16 -> 0.26). Open: italic centred
+  text stands further left in Excel's prints, 0.7 to 1.1 pt left of the
+  middle (lo-cell-anchored-hidden-shapes' Palatino Bold Italic titles,
+  54288's), +0.07 to +0.13 worse now; lo-ceiling-floor's booleans stood
+  in the middle (+0.48), and its right-aligned numbers 0.33 right of
+  Excel's — its LibreOffice `<col>` run of 8.71, something in it.
+- *A book with no theme part* takes Excel's own: a font of the minor
+  scheme prints in Aptos Narrow (major, Aptos Display), whatever it is
+  named, and its rows at Aptos Narrow's 15.24 — ten such books in
+  Excel's prints, none in Calibri — unless the font names a character set
+  (64508's, 64667's, in Calibri). The default font is the one cellXfs'
+  first entry uses: bug66675's is an empty `<font/>`, Calibri 11, whose
+  rows print at 14.52. The ten: 10 better, none worse
+  (lo-tdf82984_zip64XLSXImport 4.94 -> 0.35, 52348 3.90 -> 0.88,
+  lo-tdf147955 3.37 -> 1.66).
+- Open: 47813's default rows of Verdana 10 print 13.20 pt (110 dots),
+  where every other Verdana 10 book's print 12.96 (108), ours too; it
+  alone says defaultRowHeight 12.75 and no baseColWidth (Mac Excel 12).
+- *Rich text* is drawn run by run, each in its own font, where it stands
+  on one line (21 workbooks have such strings). A raised run, or a cell
+  whose font is raised (`vertAlign`), is two thirds of its size and half
+  its em up: 45540's "Number of Hires⁽¹⁾" at 90%, 6.0 pt and 37 dots of
+  75 in Excel's print, ours to 0.01 pt now. Lowered by the face's 0.14
+  em, not yet seen in a print. Not yet: rich text that wraps. The 25
+  workbooks: 9 better, 2 worse by 0.01.
+- Tried and taken back: rows on a page printed at a set scale rounded
+  otherwise. Tables' fitted Times New Roman 12 rows at 89% are 110.55
+  dots and print 110 (ours 111, 0.12 pt a row long), and lo-tdf167019's
+  at 85%, 110.4, print 110 too. Whole dots at 100% first, then scaled,
+  fixed Tables' pitch and broke lo-tdf167019's (+1.29). Cutting down at
+  the page's scale made 45540_classic and 45544 ten points worse. Of the
+  24 scaled workbooks neither beat rounding once.
+- *A run of one fill down the rows is one rect*, as Excel's page has
+  it (54288's grey blocks, one rect each in Excel's print, showed a pale
+  seam under every row of ours): all 720 workbooks, 8 better, 4 worse
+  by 0.02 at most (lo-tdf105272 2.08 -> 1.22, 54288 3.86 -> 3.43).
+- *A turned picture* is drawn turned (`a:xfrm@rot`), its anchor the
+  turned box with its sides swapped between 45° and 135°, as a shape's:
+  lo-twoCellAnchor_editAs_oneCell's at 240° prints 330 by 352 pt in
+  Excel's print, ours had stood upright in 218 by 284. The three such
+  workbooks: 4.01 -> 0.17, 0.73 -> 0.00, 0.19 -> 0.05.
+- *A merged area centres its text four printer dots higher* than a
+  lone cell in its row: 0.48 pt in Excel's prints of nine workbooks,
+  at 80% and at 100%, where ours stood level (Tables' "PRSI Liability"
+  over "GROSS", simple-monthly-budget, the 45540 forms). Set at the
+  foot, a merge stands level. The 33 workbooks with a centred merge:
+  the merged text now within 0.2 of Excel's against its row, the pixel
+  scores even (5 better, 8 worse by 0.12 at most, 3.735 -> 3.738): the
+  45540 forms' rows already stand 0.5 to 0.9 high, and the lift takes
+  their merged text with them.
+- *A cell's text against its row, by face* (open). Measured in Excel's
+  prints, from a cell's own thin bottom border (bottom-aligned) or the
+  rule above (top-aligned), unmerged and unwrapped. Ours sits on our
+  line's height, which is whole 96-dpi pixels, so it lands in whole
+  points: 4.00 for Calibri 11, 3.00 for Arial 10 and the small faces.
+  Excel, at the foot (baseline to border): Calibri 11 3.96, Calibri 10
+  3.60, Arial 10 3.12, Arial 10 bold 3.60, Times New Roman 7 2.52,
+  Lucida Sans Typewriter 10 3.30, Verdana 10 3.10. A point plus the
+  face's usWinDescent fits Calibri 11, Arial 10, Times 7 and Verdana to
+  0.02, but not Lucida or bold Arial (0.26 and 0.49 short), nor
+  bug62181's Arial 9 (0.15 over). Taken whole, it cost bug62181 1.08
+  and was taken back. Small text also stands on its row's larger font
+  at times: Tahoma 8 and Times 7 at Calibri 11's 3.96 where the row
+  has unstyled columns (conditional_formatting_with_formula_on_second_
+  sheet, lo-tdf118668), 57523's Calibri 10 on its row's empty Calibri
+  11 cells; but 45540_form's Times 7 keeps its own 2.52 beside Times 9
+  cells with values. At the head (rule to baseline): Calibri 11 11.04,
+  Calibri 10 9.96 (each its em), Verdana 10 10.38 (ours 11.00, the
+  format tests' text 0.6 low), Lucida 10.02. A lab of each face at a
+  few sizes, set at foot and head, under a border, would settle both.
+- *Printed headings' strip* (open). The format tests' columns stand
+  0.20 pt left of Excel's, their text with them: whole-dot advances took
+  away the extra width that had carried it back over Excel's, and the
+  eight format-test workbooks lost 0.07 to 0.93 for it. Excel's frame
+  starts at the margin (54.0, 14.16; 0.96 where the margin is 0), ours
+  0.48 in; and its strip, to column A's gridline, is three digits and
+  4.88 pt in Verdana 10, 4.38 in Calibri 11 (lo-tdf136721), 3.9 in
+  Arial 8 (lo-tdf131575) — ours three digits and 0.42 of the size
+  (4.2, 4.62, 3.36). No one rule fits the three yet: a lab of the
+  strip in a few faces and sizes would.
 - *Cells.* A General number on paper holds the column's characters less
   its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
   drawn turned; a row of turned text keeps the file's fit. Text runs
@@ -264,8 +502,32 @@ the same base; the commits give the numbers):
   taking the next node while its boxes' mean aspect does not worsen, and
   the whole next row where one row of both is squarer (2026-10-22:
   chart-treemap's 15 boxes within 0.06 pt, 6.81 -> 0.75). A `cx:`
-  title on a sheet stands 8.2 pt under the frame's top, 2.4 lower than
-  a `c:` one (eleven prints). Two bar groups on one pair of axes are one
+  title on a sheet has its baseline 18.76 pt under the frame's top
+  (chart-sunburst), 0.43 pt higher than a `c:` one's: twelve prints. (It
+  was set 2.4 lower once, from the glyphs' tops in Excel's PDF measured
+  against the top of our text's box; it printed 2.83 low in all twelve.)
+  A titled `cx:` chart's plot starts 0.45 pt lower, not a `c:` chart's
+  2.57; its category labels and foot 2.53 higher (not a box plot's); a
+  legend above stands 3.71 lower and the plot 6.37 further under it
+  (chart-clusteredColumn, chart-waterfall). An empty `cx:title` reads
+  "Chart Title", in Excel's print and PowerPoint's. A histogram's last
+  bin is a whole bin wide, past the largest sample ("(13.94, 17.88]"
+  over samples to 15), unless an overflow bin takes the rest. A 2013-
+  style `c:` chart's plot stands 1.72 pt further in at the left and any
+  `c:` chart's 1.25 at the right: 40 prints, the value labels 1.6 pt
+  left of Excel's (2026-10-25: 184 chart books 1.147 -> 1.105, 94
+  better, 10 worse, the worst +0.07: tdf119138's 2007-style labels,
+  already 6 pt off). Open: a 2007-style chart's left edge varies (-1.1
+  to +1.6 pt); chart-pareto-gapwidth's labels inside its bars' ends
+  (`inEnd`) and its gridlines, which Excel does not draw. On a sheet a `c:` chart's plot starts
+  2.57 pt lower under a title (2.05 in a 2007-style chart) and 1.25
+  higher with none (1.62), its foot where ours was: 70 column, line and
+  scatter charts, their titles already on Excel's baselines. A legend
+  below stands 2.2 pt higher and the plot's foot 4.43 (nine prints); a
+  data table's plot starts 11.1 pt under the frame, not 11.1 px
+  (2026-10-23: 184 chart books 1.237 -> 1.200, 97 better, 24 worse, the
+  worst +0.34: chart-tdf114139's 3-D pie, already too small and high).
+  Two bar groups on one pair of axes are one
   group; two line groups on two axes are drawn; a gradient chart area;
   a varied single bar series' legend of its points; labels at zero over
   negative values; "Series1"; an empty axis title's room. Open: a
@@ -285,13 +547,42 @@ the same base; the commits give the numbers):
   are drawn. A sheet's chart title (and plot under it) stands 2.5 pt
   lower than PowerPoint's; a pie whose labels stand round it gives them a
   line a side.
-  Open: a drawing's frame on a sheet stands 0.8 to 1.4 pt right of
-  Excel's and up to 2.4 pt wider (chart-funnel1, chart-treemap).
+  A printed page's cells stand 0.48 pt (four printer dots) in from the
+  left and top margins, its drawings not (2026-10-22): Excel's first
+  fills at (+0.48, +0.48) from ours in 140 of 210 workbooks, any face
+  and size — the rest had a drawing first. Not along an axis the page is
+  centred on. Every workbook: 1.148 -> 0.918 (468 better, 83 worse;
+  lo-forum-mso-en4-134670 9.76 -> 4.34, NumberFormatApproxTests 12.65 ->
+  7.34). Open: lo-tdf58243 (fit to page, centred across) wants no
+  vertical inset either (6.81 -> 7.90); lo-tdf91332's border 0.76 low;
+  Across a centred page the cells stand 0.48 LEFT of plain centring
+  (Excel centres them as if 0.96 wider): the 18 centred workbooks 4.321
+  -> 4.198, 11 better, Tables +0.59 and chart-tdf140489 +0.32 worse
+  (tdf140489's band 0.38 wider than Excel's at its 90%).
+  With the cells in place, right-aligned text keeps the left side's
+  margin (0.48 + a quarter digit): the 0.4 pt the right had stood closer
+  was measured against cells 0.48 left of Excel's. 0.918 -> 0.902 (277
+  better, 20 worse; bug62181 5.53 -> 4.37, 49609 +1.25).
+  A drawing's anchor offset on paper is not its share of the cell (as
+  from 2026-10-12) but its points scaled as Excel scales its 192 dpi
+  screen: across by the printer's digit over the screen's (Calibri 11
+  47 dots / 15 px = 1.003, Calibri 10 42 / 14 = 0.96), down by the row
+  scale. chart-treemap's and -testCombinedChartAxis's frames now within
+  0.3 pt of Excel's (were 0.8 to 2.9 right), 53568's pictures 0.30 ->
+  0.04; 277 drawing workbooks mean 1.292 -> 1.206 (161 better, 32
+  worse). A one-cell anchor's size is not scaled: scaled, tdf119138's
+  and tdf100084's charts printed larger than Excel's.
   Open, fitting: a wrapped word too long for its column breaks inside
   in Excel's screen layout otherwise than in ours, which measures the
   printed face against the screen's width: LIBRE_OFFICE-116306-0's
   "NONKQUB|ELA/NTLO…" fits five lines in Excel, seven in ours; 52716's
   e-mail addresses likewise.
+  Open: bug66675's "Nomination Point Name" header rows (ht 18, not
+  custom; bold Arial 9, wrapped, bottom-aligned; merged A:D and E:G)
+  print 15.24 pt in Excel's print, 127 dots, its centred "Gas" rows and
+  its data rows 14.52 — every such page 0.72 pt a table further off.
+  Not tried in a lab: the box's display is at 100% now, where a fitted
+  Calibri 11 row prints 15.24 (the references were made at 200%).
   Open: chart-fdo78080's chart (LibreOffice's: no c:title, no
   autoTitleDeleted, no varyColors) has no title in Excel's print and a
   legend of its points; ours titles it "col1" as PowerPoint would. One
@@ -307,7 +598,12 @@ the same base; the commits give the numbers):
   fillRef reaches the theme's fill style (a gradient of the accent). A
   page printing gridlines or headings is framed, 0.96 pt inside its edge
   at any scale. The POI fuzzer workbook prints on Letter in Excel though
-  it asks for A4: Excel repaired it; not ours to follow.
+  it asks for A4, every sheet at 0.92 of its scale (87% as 80%, 95%
+  as 87%), though neither printerSettings part says so: Excel repaired
+  it (sheet8's CRC is bad); not ours to follow. 1_NoIden's reference
+  is another machine's: it embeds Dotum, which every other print of a
+  돋움 workbook sets in Malgun Gothic, and its narrower columns put D
+  on a page of its own.
 - *Packages* (2026-10-18). Zip64 sizes and offsets are read
   (lo-tdf82984_zip64XLSXImport). An encrypted package (OLE compound
   file: EncryptionInfo, EncryptedPackage) opens where Excel's built-in
@@ -330,13 +626,33 @@ it, which rasterise darker than our single dot (lo-tdf100034's black
 grid against our grey). All nineteen workbooks that print gridlines got
 worse, 0.0 to 0.6 (GeneralFormatTests 8.32 -> 8.85): our lines stand a
 fraction of a point off Excel's, and a darker line only widens the miss.
-Also open: set row heights a printer dot short of Excel's at some
-heights (lo-tdf131575's 15 pt rows in Arial 8, 125.93 dots: Excel 126,
-ours 125). Not a threshold on the fraction: the set-height labs (h-a10,
-h-c11, no sheetView, so halved) have only their 20 pt rows one over, at
-fractions .78 and .91, while 40 pt at .82 is cut down — and no cut of a
-height linear in h makes 20 pt 81 dots and 40 pt 161. Some intermediate
-(the screen's pixels?) is rounded first.
+Set row heights a printer dot short of Excel's at some heights: cut
+down from 0.12 of a dot over, not from the height itself (2026-10-25).
+Every set height in the corpus at 100% fits it, and the cut alone did
+not: lo-tdf131575's 15 pt rows of Arial 8, 125.93 dots, print 126 (179
+rows); lo-tdf171828's 11.25 pt of Arial 10, 90.88, print 91 (101);
+picture.xlsx's 14 pt of Calibri 11, 118.88, print 118; 254.74 and 240.73
+print 254 and 240. The room is narrow, 0.118 to 0.123, so it is a fit,
+not Excel's arithmetic. Of the halved labs it makes Calibri's .91 one
+over and keeps .82 cut, but not Arial's .78 (one over in Excel's). 720
+workbooks: 0.755 -> 0.726, 12 better, 7 worse (lo-tdf131575 30.95 ->
+12.27, 45540_form -1.02; 52348 +0.39, its page 15 pt off already).
+
+A printed column is whole printer dots too, each rounded on its own:
+49609's 8.33 characters of Microsoft Sans Serif 8.25 are 316.67 dots,
+its rules 317.04 apart in Excel's print (0.774 -> 0.755, 250 better, 113
+worse). Printed headings are the default font's cell text, at a cell's
+foot four dots right of the middle, the column letters four dots lower
+again: they stood 0.6 to 2 pt low in their own style (twelve workbooks,
+all better). A left margin of 0 prints as eight printer dots, 0.96 pt:
+Excel's frame and cells stand that far in from the paper's edge in all
+four such workbooks with rules at their left, where a top margin of 0 is
+0 (nine zero-margin workbooks: 4.044 -> 2.254, 7 better, lo-bnc762542,
+centred, +0.06; 49609 19.87 -> 11.64, lo-tdf131575 12.16 -> 4.90).
+Open: their letters' widths in Arial 8 and Microsoft Sans
+Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
+line high print 15.24 where ours are 14.52, its text 4.9 pt over the
+foot, not 3 — no border, merge or wrap explains it yet.
 
 Tried and taken back, 2026-10-16: Lucida Sans Typewriter drawn in
 Liberation Mono: the right widths, a serifed face where Excel's is

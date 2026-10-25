@@ -21,8 +21,8 @@ SampleShow.pptx	summary pages=2 worst=1.75% mean=1.28%
 SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=0.90% mean=0.75%
 aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=5.18% mean=2.91%
-aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=21.17% mean=4.85%
-ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=10.64% mean=5.33%
+aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=21.17% mean=4.65%
+ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=10.54% mean=5.32%
 alterman_security.pptx	summary pages=23 worst=7.01% mean=4.33%
 aptia.pptx	summary pages=9 worst=4.61% mean=2.28%
 at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=6.16% mean=2.62%
@@ -61,8 +61,8 @@ line-chart.pptx	summary pages=1 worst=0.83% mean=0.83%
 lo-3columns.pptx	summary pages=1 worst=5.17% mean=5.17%
 lo-NumberedList-12ab-ab-34.pptx	summary pages=1 worst=2.14% mean=2.14%
 lo-ShapeLineProperties.pptx	summary pages=1 worst=1.69% mean=1.69%
-lo-ShapePlusImage.pptx	summary pages=1 worst=1.22% mean=1.22%
-lo-ShapeTextInflateTop.pptx	summary pages=1 worst=1.47% mean=1.47%
+lo-ShapePlusImage.pptx	summary pages=1 worst=1.16% mean=1.16%
+lo-ShapeTextInflateTop.pptx	summary pages=1 worst=1.45% mean=1.45%
 lo-TextFittingStored.pptx	summary pages=17 worst=1.22% mean=0.85%
 lo-accent-color.pptx	summary pages=2 worst=0.20% mean=0.11%
 lo-activex_checkbox.pptx	summary pages=1 worst=0.23% mean=0.23%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.04%
+lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.03%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-ole.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -266,7 +266,7 @@ lo-tdf113818-swivel.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf113822underline.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf114821.pptx	summary pages=1 worst=0.31% mean=0.31%
 lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.11% mean=0.11%
-lo-tdf114848.pptx	summary pages=6 worst=10.57% mean=3.58%
+lo-tdf114848.pptx	summary pages=6 worst=10.65% mean=3.60%
 lo-tdf114913.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf115394-zero.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-tdf115394.pptx	summary pages=5 worst=0.57% mean=0.49%
@@ -290,7 +290,7 @@ lo-tdf125360_1.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf125360_2.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf125551.pptx	summary pages=1 worst=1.67% mean=1.67%
 lo-tdf125554.pptx	summary pages=1 worst=0.06% mean=0.06%
-lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.32% mean=3.07%
+lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.32% mean=2.95%
 lo-tdf126234.pptx	summary pages=1 worst=0.77% mean=0.77%
 lo-tdf126324.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-tdf126741.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -329,7 +329,7 @@ lo-tdf137675.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf138148.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-tdf140714.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf140852.pptx	summary pages=1 worst=1.85% mean=1.85%
-lo-tdf140865Wordart3D.pptx	summary pages=1 worst=10.48% mean=10.48%
+lo-tdf140865Wordart3D.pptx	summary pages=1 worst=9.24% mean=9.24%
 lo-tdf141058-1.pptx	summary pages=1 worst=1.08% mean=1.08%
 lo-tdf141704.pptx	summary pages=7 worst=1.05% mean=0.50%
 lo-tdf142590.pptx	summary pages=3 worst=0.04% mean=0.04%
@@ -498,13 +498,13 @@ oox-shape-text-alignment.pptx	summary pages=1 worst=0.14% mean=0.14%
 oox-smartart-groupshape.pptx	summary pages=1 worst=0.10% mean=0.10%
 oox-table-shadow.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02%
-oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=2.85% mean=2.85%
-oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.16% mean=2.16%
+oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=3.02% mean=3.02%
+oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.31% mean=2.31%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.14% mean=0.14%
-oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=11.94% mean=11.94%
-oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=7.27% mean=7.27%
-oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=19.21% mean=19.21%
+oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=12.81% mean=12.81%
+oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=6.23% mean=6.23%
+oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=15.26% mean=15.26%
 oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.18% mean=0.18%
 oox-tdf144742_funnel.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf144742_mathEqual_mathNotEqual.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -516,7 +516,7 @@ oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=0.15% mean=0.15%
 oox-tdf149918_pie_textarea.pptx	summary pages=1 worst=0.45% mean=0.45%
 oox-tdf151008_eaVertAnchor.pptx	summary pages=1 worst=0.46% mean=0.46%
 oox-tdf154074_freeConnector.pptx	summary pages=1 worst=0.01% mean=0.01%
-oox-tdf155327_WordArtDefaultColor.pptx	summary pages=1 worst=7.07% mean=7.07%
+oox-tdf155327_WordArtDefaultColor.pptx	summary pages=1 worst=6.68% mean=6.68%
 oox-tdf155412_typeface.pptx	summary pages=1 worst=0.34% mean=0.34%
 oox-tdf163803_image_with_fill.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf164623.pptx	summary pages=1 worst=0.01% mean=0.01%

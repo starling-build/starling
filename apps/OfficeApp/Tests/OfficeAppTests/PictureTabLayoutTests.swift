@@ -71,6 +71,34 @@ final class PictureTabLayoutTests: XCTestCase {
         XCTAssertEqual(end(p), 450, accuracy: 0.5)
     }
 
+    func testAFormCheckBoxIsADrawnSquareOfWordsAdvance() throws {
+        // form_footnotes: Word draws a FORMCHECKBOX ("☐") as a 9.36pt
+        // square with 1.06 before and 1.08 after it at 10pt — an 11.5pt
+        // advance — standing 8.4 above the baseline.
+        var p = RichParagraph(text: "x\u{2610} Yes")
+        p.runs = [Run(length: p.text.utf16.count, style: CharStyle(fontSize: 10))]
+        p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let px = theme.pixelsPerPoint
+        let document = RichDocument(paragraphs: [p])
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        layout.width = 450 * px
+        layout.ensureLaidOut(document)
+        let painter = layout.geometry(0).painter
+        let boxes = try XCTUnwrap(painter.inlinePlaceholderBoxes).filter { $0.right - $0.left > 1 }
+        XCTAssertEqual(boxes.count, 1)
+        let box = try XCTUnwrap(boxes.first)
+        XCTAssertEqual((box.right - box.left) / px, 11.5, accuracy: 0.05)
+        let baseline = try XCTUnwrap(painter.computeLineMetrics().first).baseline
+        XCTAssertEqual((baseline - box.top) / px, 8.4, accuracy: 0.3)
+        // The box follows "x", and the space and "Yes" follow the box.
+        let x = layout.caretRect(RichPosition(paragraph: 0, offset: 1), document).left
+        XCTAssertEqual(box.left, x, accuracy: 0.3 * px)
+        let space = layout.caretRect(RichPosition(paragraph: 0, offset: 2), document).left
+        XCTAssertEqual(space, box.right, accuracy: 0.3 * px)
+    }
+
     func testPicturePositionsFollowTheirTabStops() throws {
         let layout = layout(trailingTabs: 0)
         let boxes = try XCTUnwrap(layout.geometry(0).painter.inlinePlaceholderBoxes).filter { $0.bottom - $0.top > 1 }

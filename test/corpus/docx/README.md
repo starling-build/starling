@@ -1,6 +1,6 @@
 # The .docx corpus, and Word's printing of it
 
-What Writer is measured against: 636 real Word documents, and for 617 of
+What Writer is measured against: 775 real Word documents, and for 756 of
 them the PDF that Microsoft Word itself prints. The counterpart of
 `test/corpus/pptx` and `test/corpus/xlsx`, and meant to work the same way.
 
@@ -151,8 +151,8 @@ changes). So the gate reprints the originals every time and the PDFs in
 ## Word's side
 
 `word/` was made on 2026-10-11 and -12 by Microsoft Word for Mac 16.113,
-except the `zh-*` prints, all 506 of which are Word for Mac 16.113.3,
-on 2026-10-16 and the third to seventh samples' 98 on 2026-10-17 and the eighth to twentieth samples' 260 on 2026-10-18 and the twenty-first's 20 on 2026-10-19 and the twenty-second's and twenty-third's 40 on 2026-10-22 (the first sample's 68 reprinted that day: by then Word set
+except the `zh-*` prints, all 645 of which are Word for Mac 16.113.3,
+on 2026-10-16 and the third to seventh samples' 98 on 2026-10-17 and the eighth to twentieth samples' 260 on 2026-10-18 and the twenty-first's 20 on 2026-10-19 and the twenty-second to twenty-seventh's 120 on 2026-10-22 and the twenty-eighth's 20, twenty-ninth's 19 and thirtieth's 20 on 2026-10-23 (the first sample's 68 reprinted that day: by then Word set
 楷体_GB2312 in Microsoft YaHei, where the 2026-10-12 prints had KaiTi,
 so the two halves had disagreed; the old prints are in git history;
 `zh-167ee06c…` reprinted alone on 2026-10-18 as well — its batch print
@@ -197,13 +197,13 @@ stays under the licence and copyright it came with:
 | names | from | licence |
 |---|---|---|
 | no prefix (130) | Apache POI, `test-data/document` | Apache License 2.0 |
-| `zh-*` (506) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
+| `zh-*` (645) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
 
 The POI files are what `test/docx-corpus.py` fetches: real documents from
 that project's bug reports, plus fuzzer cases that are deliberately
 broken.
 
-The `zh-*` files are twenty-three seeded samples of 679 Chinese
+The `zh-*` files are thirty seeded samples of 679 Chinese
 government documents: 68 (one in ten, `random.seed(20261011)`, the
 first, which the tables above measure) and 20 more added 2026-10-16
 (`random.seed(20261016)` among the rest of 15 to 400 KB, a fresh set
@@ -228,7 +228,14 @@ of gaps once the first stood at 98%) and 20 more on 2026-10-17
 (`random.seed(20261103)`, the nineteen at 95.4%) and 20 more
 (`random.seed(20261104)`, the twenty at 95.0%) and 20 more
 (`random.seed(20261105)`, the twenty-one at 94.5%) and 20 more
-(`random.seed(20261106)`, the twenty-two at 94.8%), all — policies mostly, with forms, reports, standards
+(`random.seed(20261106)`, the twenty-two at 94.8%) and 20 more
+(`random.seed(20261107)`, the twenty-three at 95.1%) and 20 more
+(`random.seed(20261108)`, the twenty-four at 94.9%) and 20 more
+(`random.seed(20261109)`, the twenty-five at 95.3%) and 20 more
+(`random.seed(20261110)`, the twenty-six at 95.2%) and 20 more
+(`random.seed(20261111)`, the twenty-seven at 95.9%) and the last 19
+(`random.seed(20261112)`, the twenty-eight at 95.9%: every one of 15 to 400 KB is in now) and 20 more of 400 to 800 KB
+(`random.seed(20261113)`, of the 22 there, the twenty-nine at 96.1%), all — policies mostly, with forms, reports, standards
 and teaching material — listed by
 `https://api.docxcorp.us/documents?topic=government&lang=zh` and fetched
 from `https://docxcorp.us/documents/<sha256>.docx`. The name after the

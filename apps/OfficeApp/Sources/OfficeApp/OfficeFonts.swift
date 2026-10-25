@@ -125,6 +125,23 @@ enum OfficeFonts {
             // characters, whose face Word has too: zh-6d1afa56's "√" in
             // 仿宋 is FangSong's in the print.)
             let eastAsianName = family.unicodeScalars.contains { $0.value >= 0x2E80 }
+            // (Word for Windows takes the table's alternate whatever the
+            // PANOSE: bug59058's MinionPro-Regular and drawing's
+            // PragmaticaC-Bold, alternate Times New Roman and PANOSE all
+            // zeros, are Times New Roman in its prints (word-win), where
+            // the Mac's are Cambria. And Windows' own FontSubstitutes name
+            // a script's variant of a face for the face: "Arial CYR" is
+            // Arial, "Times New Roman CYR" Times New Roman.)
+            if wordOnWindows, !eastAsianName {
+                for suffix in [" cyr", " ce", " baltic", " greek", " tur"] where n.hasSuffix(suffix) {
+                    return substitute(String(family.trimmingWhitespace().dropLast(suffix.count)))
+                }
+                if !wordMacFamilies.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
+                   alt.trimmingWhitespace().lowercased() != n {
+                    return substitute(alt)
+                }
+                if !wordMacFamilies.contains(n), let by = windowsSigFace(family) { return by == "ebrima" ? sans : substitute(by) }
+            }
             if !eastAsianName, !wordMacFamilies.contains(n) {
                 if let e = fontEntry(family) {
                     if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n { return substitute(alt) }
@@ -193,7 +210,10 @@ enum OfficeFonts {
     /// The font table's whole say on each name: its alternate, its
     /// `w:family` and whether its PANOSE is all zeros — what Word on a
     /// Mac goes by for a Latin name it has no face for (`substitute`).
-    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool }
+    /// A file's font-table entry: its alternate, family, whether its
+    /// PANOSE is all zeros, its charset, and the first two words of its
+    /// Unicode signature (`w:sig`'s usb0 and usb1).
+    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
     static func noteFontEntries(_ entries: [String: FontEntry]) {
         declaredLock.lock()
@@ -342,15 +362,34 @@ enum OfficeFonts {
         // Malgun; the format tests' Lucida Sans Typewriter is monospaced,
         // and Liberation Sans was not.
         if let face = windowsFaces[family.trimmingWhitespace().lowercased()] { return face }
-        #endif
+        // (And a face it has no file for is Arial's, as Excel prints it —
+        // Arial itself, where the clone's letters are Liberation Sans'.)
+        let clone = sheetClone(family)
+        if clone == sans, let arial = windowsFaces["arial"] { return arial }
+        return clone
+        #else
         return sheetClone(family)
+        #endif
+    }
+
+    /// Whether `sheetFace` is the named face itself, not a stand-in.
+    static func sheetFaceIsOwn(_ family: String) -> Bool {
+        #if os(Windows)
+        return windowsFaces[family.trimmingWhitespace().lowercased()] != nil
+        #else
+        return false
+        #endif
     }
 
     /// The clone of `sheetFace`, whatever the platform has: the face whose
     /// measures the sheet's print metrics borrow for a face nobody measured.
+    /// A name Excel has no face for prints in Arial, where Word's guess
+    /// was Cambria: HelveticaNeue LightExt (47862), Frutiger 45 Light,
+    /// Clear Sans, FreeSans, lo-tdf171828's header in BernhardFashion BT.
     static func sheetClone(_ family: String) -> String {
         let face = substitute(family)
-        if face == cambria, family.lowercased().containsSubstring("sans") { return sans }
+        let n = family.trimmingWhitespace().lowercased()
+        if face == cambria, !n.hasPrefix("cambria"), n != "caladea" { return sans }
         return face
     }
 
@@ -373,6 +412,15 @@ enum OfficeFonts {
             (["微軟正黑體", "microsoft jhenghei"], "Microsoft JhengHei", "msjh.ttc"),
             (["游ゴシック", "yu gothic"], "Yu Gothic", "YuGothR.ttc"),
             (["lucida sans typewriter"], "Lucida Sans Typewriter", "LTYPE.TTF"),
+            // (Excel_file_with_trash_item's Tahoma 10 stood a point under
+            // its row's Calibri in Liberation Sans.)
+            (["tahoma"], "Tahoma", "tahoma.ttf"),
+            (["segoe ui"], "Segoe UI", "segoeui.ttf"),
+            (["georgia"], "Georgia", "georgia.ttf"),
+            (["consolas"], "Consolas", "consola.ttf"),
+            (["book antiqua"], "Book Antiqua", "BKANT.TTF"),
+            (["calibri light"], "Calibri Light", "calibril.ttf"),
+            (["verdana"], "Verdana", "verdana.ttf"),
             (["lucida sans", "lucida sans regular"], "Lucida Sans", "LSANS.TTF"),
             (["lucida sans unicode"], "Lucida Sans Unicode", "l_10646.ttf"),
             (["comic sans ms"], "Comic Sans MS", "comic.ttf"),
@@ -385,8 +433,34 @@ enum OfficeFonts {
             (["garamond"], "Garamond", "GARA.TTF"),
             (["palatino linotype"], "Palatino Linotype", "pala.ttf"),
             (["britannic bold"], "Britannic Bold", "BRITANIC.TTF"),
+            // (Their clones have their measures, not their letters: a page of
+            // Arial 10, lo-pivottable_invalid_formats', within half a point of
+            // Excel's everywhere and 9.9% apart in its glyphs.)
+            (["arial"], "Arial", "arial.ttf"),
+            (["times new roman"], "Times New Roman", "times.ttf"),
+            (["calibri"], "Calibri", "calibri.ttf"),
+            (["cambria"], "Cambria", "cambria.ttc"),
+            (["courier new"], "Courier New", "cour.ttf"),
+            (["candara"], "Candara", "Candara.ttf"),
+            (["constantia"], "Constantia", "constan.ttf"),
+            (["corbel"], "Corbel", "corbel.ttf"),
         ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
+        for (face, _) in cloudFaces { m[face.lowercased()] = face }
         return m
+    }()
+
+    /// Faces Office downloads for itself, into its own font cache, which
+    /// Windows does not list — Excel prints Aptos Narrow, the default
+    /// font of today's workbooks, in Aptos Narrow — with the files of each.
+    /// Registered by `register`.
+    static let cloudFaces: [(face: String, files: [String])] = {
+        let cache = (ProcessInfo.processInfo.environment["LOCALAPPDATA"] ?? "") + "/Microsoft/FontCache/4/CloudFonts/"
+        return ["Aptos", "Aptos Narrow", "Aptos Display"].compactMap { face in
+            let dir = cache + face + "/"
+            let files = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [])
+                .filter { $0.lowercased().hasSuffix(".ttf") }.sorted().map { dir + $0 }
+            return files.isEmpty ? nil : (face, files)
+        }
     }()
     #endif
 
@@ -419,6 +493,50 @@ enum OfficeFonts {
     nonisolated(unsafe) private static var embeddedLines: [String: (ascent: Double, descent: Double)] = [:]
     /// The characters each loaded embedded face holds (its `cmap`).
     nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:]
+    /// Each loaded embedded face's own family, from its `name` table.
+    nonisolated(unsafe) private static var embeddedNames: [String: String] = [:]
+    /// The loaded embedded faces that carry bitmaps (`EBDT`).
+    nonisolated(unsafe) private static var embeddedBitmaps: Set<String> = []
+
+    /// Whether an sfnt has table `tag`.
+    static func hasTable(_ data: Data, _ tag: String) -> Bool {
+        let b = [UInt8](data)
+        guard b.count > 12 else { return false }
+        let count = Int(b[4]) << 8 | Int(b[5])
+        return (0 ..< count).contains { t in
+            let at = 12 + 16 * t
+            return at + 4 <= b.count && String(decoding: b[at ..< at + 4], as: UTF8.self) == tag
+        }
+    }
+
+    /// An sfnt's family name (`name` ID 1, Windows Unicode or Mac Roman).
+    static func familyName(_ data: Data) -> String? {
+        let b = [UInt8](data)
+        func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+        guard b.count > 12 else { return nil }
+        var name = -1
+        for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+            let at = 12 + 16 * t
+            if String(decoding: b[at ..< at + 4], as: UTF8.self) == "name" { name = u32(at + 8) }
+        }
+        guard name >= 0 else { return nil }
+        let count = u16(name + 2), strings = name + u16(name + 4)
+        var mac: String? = nil
+        for r in 0 ..< count {
+            let at = name + 6 + 12 * r
+            guard u16(at + 6) == 1 else { continue }
+            let platform = u16(at), length = u16(at + 8), offset = strings + u16(at + 10)
+            guard offset + length <= b.count else { continue }
+            if platform == 3 {
+                var units: [UInt16] = []
+                for k in stride(from: 0, to: length - 1, by: 2) { units.append(UInt16(u16(offset + k))) }
+                return String(decoding: units, as: UTF16.self)
+            }
+            if platform == 1, mac == nil { mac = String(decoding: b[offset ..< offset + length], as: UTF8.self) }
+        }
+        return mac
+    }
 
     /// The characters an sfnt's `cmap` maps (formats 4 and 12, Unicode
     /// subtables); nil where it has none this reads.
@@ -532,6 +650,8 @@ enum OfficeFonts {
         loadedEmbedded.insert(family)
         if let covered { embeddedCoverage[family] = covered }
         if let line = lineMetrics(data) { embeddedLines[family] = line }
+        if let own = familyName(data) { embeddedNames[family] = own }
+        if hasTable(data, "EBDT") { embeddedBitmaps.insert(family) }
         declaredLock.unlock()
         return family
     }
@@ -617,7 +737,10 @@ enum OfficeFonts {
         var latinBoldKerns: [UInt32: Double]? = nil
         /// Word emboldens a face that has no bold of its own, and sets
         /// each character wider: by `boldWiden` of an em, 1/48 where
-        /// that is not said.
+        /// that is not said. (Word for Mac only: Word for Windows keeps
+        /// the face's widths — in its prints (word-win) the bold 仿宋,
+        /// 宋体, 楷体 and 黑体 runs of 34 documents stand 1.00 to 1.007 em
+        /// apart, the Mac's 1.025 to 1.03.)
         var fakeBold: Bool
         var boldWiden: Double? = nil
         /// The baseline below the top of a single line, in ems: the
@@ -630,6 +753,9 @@ enum OfficeFonts {
         var scaledBaseline: Double? = nil
         /// `RichResolvedFace.symbolFamily`.
         var symbols: String? = nil
+        /// Whether its symbols are an em as a square face's, where it has a
+        /// table of ASCII widths besides (PMingLiU): nil, as having none.
+        var squareSymbols: Bool? = nil
         /// The same two for the face's bold, where it is a face of its
         /// own with other metrics.
         var boldHeight: Double? = nil
@@ -641,12 +767,70 @@ enum OfficeFonts {
     // came out a thousandth of an em wide — 20 on zh-f6686f89's line
     // "…（TSG S7001-2013）…。（      ）" put the "）" 0.02pt past the
     // margin, a line down, where Word's ends on it.)
+    /// Word for Windows' face for a Latin-named East Asian face it lacks
+    /// that the file's table does not describe (lab t160, Windows
+    /// 01QbbApP, each print the first of a fresh Word, after the font
+    /// packs): MS Mincho, a square face (its hhea .859 + .141 at Word's
+    /// 1.3), its letters and digits in Cambria, and the ideographs it
+    /// lacks in Microsoft JhengHei, on JhengHei's line. zh-f6686f89's
+    /// FZShuTi cover in word-win: the 36pt lines, each with a 单 or 总,
+    /// stand 1.73 em (JhengHei's) under 1.15 spacing, the 18pt date,
+    /// Mincho and Cambria only, 1.30. An invented name prints the same.
+    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 1.005)
+    /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
+    /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
+    /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
+    /// there.
+    static let windowsMinchoCovers: Set<UInt32>? = {
+        var out = Set<UInt32>()
+        for u in UInt32(0x2E80) ... 0xFFFF {
+            guard let scalar = Unicode.Scalar(u) else { continue }
+            if String(Character(scalar)).data(using: .shiftJIS) != nil { out.insert(u) }
+        }
+        return out.isEmpty ? nil : out
+    }()
+    /// The face Word for Windows sets an East Asian name it lacks in,
+    /// where that is not YaHei (nil): "mincho" (`windowsMincho`) or
+    /// "jhenghei". By the file's own font-table entry, as the map
+    /// test/corpus/docx/word-win-missing-faces-map.txt reads (Windows
+    /// 01QbbApP, 135 names, each the first document of a fresh Word):
+    /// an alternate it has wins (taken further on); with none, charset
+    /// 86 (GB2312) is YaHei, 88 (Big5) JhengHei, 80 (Shift-JIS) Yu
+    /// Gothic — YaHei's pitch to a third of a point, so left to it — and
+    /// any other charset Mincho with JhengHei; with no entry a Latin
+    /// name is Mincho with JhengHei (FZShuTi, FZXiaoBiaoSong-B05S) and a
+    /// Chinese one Yu Gothic, left to YaHei.
+    private static func windowsMissingFallback(_ family: String) -> String? {
+        let n = family.trimmingWhitespace().lowercased()
+        guard !n.isEmpty else { return nil }
+        let has = ["simsun", "宋体", "新宋体", "nsimsun", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
+                   "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
+                   "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "_gb2312", "华文", "stsong", "stkaiti",
+                   "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
+        guard !has.contains(where: { n.containsSubstring($0) }) else { return nil }
+        guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
+        if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
+           has.contains(where: { alt.containsSubstring($0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
+        switch e.charset.uppercased() {
+        case "86", "80", "": return nil
+        case "88": return "jhenghei"
+        default: return "mincho"
+        }
+    }
     private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 1024.0 / 1229.0, fakeBold: true, baseline: 1.005)
     // (YaHei's bold, msyhbd.ttc, is a face of its own and a line of it
     // is taller: Word sets bold YaHei lines 1.73 ems apart — 24.21 at
     // 14pt (zh-33aa9899's body), 27.66 at 16 and 34.62 at 20 (zh-7dc3afad's
     // contents) — where its regular's are 1.715. The extra goes half
     // above, half below.)
+    // (Arial Unicode MS by its hhea, 1.069 over and 0.271 under, at
+    // Word's 1.3 of that, the extra half above and half below: zh-4e5fe46f's
+    // empty 10pt marks in it step 20.16 at 278/240 in Word's print, 1.740
+    // em. Its Latin is Arial's; it has no bold, and Word emboldens it a
+    // fiftieth of an em wider a character, JhengHei Light's lab `bw` rate:
+    // zh-884c6e3e's bold 16pt steps 16.645 where YaHei's step 16.325.)
+    private static let arialUnicode = EastAsianFace(height: 1.742, latin: sans, latinScale: 1.0, fakeBold: true, boldWiden: 1.0 / 50,
+                                                    baseline: 1.270)
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances,
                                              latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns, fakeBold: false, baseline: 1.26,
@@ -671,6 +855,116 @@ enum OfficeFonts {
         0.3167, 0.3167, 0.5349, 0.6340, 0.3796, 0.5520, 0.6290, 0.5120, 0.6290, 0.5570, 0.3680, 0.6240, 0.6210, 0.2890, 0.3040,
         0.5840, 0.2890, 0.9340, 0.6210, 0.6140, 0.6290, 0.6290, 0.4090, 0.5100, 0.3740, 0.6210, 0.5180, 0.7710, 0.6130, 0.5220,
         0.5730, 0.3807, 0.2961, 0.3807, 0.6657,
+    ]
+
+    // Cambria's own Greek widths, U+0384 to U+03CE, and its bold's
+    // (cambria.ttc and cambriab.ttf, read off the Windows box by windows
+    // 01QbbApP; the 37 zh-d97c5474's print embeds are the same). Caladea
+    // has no Greek, and its fallback, DejaVu Sans, set it wider.
+    static let cambriaGreekAdvances: [UInt32: Double] = [
+        0x0384: 0.2847, 0x0385: 0.2847, 0x0386: 0.6187, 0x0387: 0.2441, 0x0388: 0.7061, 0x0389: 0.8125, 0x038A: 0.4502, 0x038C: 0.7358,
+        0x038E: 0.7783, 0x038F: 0.7563, 0x0390: 0.2842, 0x0391: 0.6230, 0x0392: 0.6113, 0x0393: 0.5361, 0x0394: 0.5957, 0x0395: 0.5752,
+        0x0396: 0.5376, 0x0397: 0.6865, 0x0398: 0.6533, 0x0399: 0.3242, 0x039A: 0.6294, 0x039B: 0.6055, 0x039C: 0.8154, 0x039D: 0.6807,
+        0x039E: 0.5718, 0x039F: 0.6533, 0x03A0: 0.6743, 0x03A1: 0.5679, 0x03A3: 0.5479, 0x03A4: 0.5928, 0x03A5: 0.6074, 0x03A6: 0.7852,
+        0x03A7: 0.5713, 0x03A8: 0.7827, 0x03A9: 0.6792, 0x03AA: 0.3242, 0x03AB: 0.6074, 0x03AC: 0.5742, 0x03AD: 0.4438, 0x03AE: 0.5430,
+        0x03AF: 0.2842, 0x03B0: 0.5410, 0x03B1: 0.5742, 0x03B2: 0.5552, 0x03B3: 0.5068, 0x03B4: 0.5249, 0x03B5: 0.4438, 0x03B6: 0.3999,
+        0x03B7: 0.5430, 0x03B8: 0.5469, 0x03B9: 0.2842, 0x03BA: 0.5269, 0x03BB: 0.4878, 0x03BC: 0.5459, 0x03BD: 0.4819, 0x03BE: 0.4048,
+        0x03BF: 0.5308, 0x03C0: 0.6021, 0x03C1: 0.5322, 0x03C2: 0.4312, 0x03C3: 0.5718, 0x03C4: 0.4780, 0x03C5: 0.5410, 0x03C6: 0.7119,
+        0x03C7: 0.4858, 0x03C8: 0.7192, 0x03C9: 0.7510, 0x03CA: 0.2842, 0x03CB: 0.5410, 0x03CC: 0.5308, 0x03CD: 0.5410, 0x03CE: 0.7510,
+    ]
+    static let cambriaBoldGreekAdvances: [UInt32: Double] = [
+        0x0384: 0.2861, 0x0385: 0.2861, 0x0386: 0.6519, 0x0387: 0.2319, 0x0388: 0.7153, 0x0389: 0.8604, 0x038A: 0.4897, 0x038C: 0.7744,
+        0x038E: 0.8403, 0x038F: 0.8062, 0x0390: 0.3281, 0x0391: 0.6519, 0x0392: 0.6514, 0x0393: 0.5508, 0x0394: 0.6421, 0x0395: 0.5776,
+        0x0396: 0.5664, 0x0397: 0.7217, 0x0398: 0.7051, 0x0399: 0.3496, 0x039A: 0.6816, 0x039B: 0.6523, 0x039C: 0.8462, 0x039D: 0.6792,
+        0x039E: 0.5913, 0x039F: 0.6953, 0x03A0: 0.7012, 0x03A1: 0.6138, 0x03A3: 0.5908, 0x03A4: 0.6392, 0x03A5: 0.6602, 0x03A6: 0.8018,
+        0x03A7: 0.6187, 0x03A8: 0.8379, 0x03A9: 0.7441, 0x03AA: 0.3496, 0x03AB: 0.6602, 0x03AC: 0.6191, 0x03AD: 0.4927, 0x03AE: 0.5991,
+        0x03AF: 0.3281, 0x03B0: 0.5801, 0x03B1: 0.6191, 0x03B2: 0.6011, 0x03B3: 0.5649, 0x03B4: 0.5708, 0x03B5: 0.4927, 0x03B6: 0.4561,
+        0x03B7: 0.5991, 0x03B8: 0.5801, 0x03B9: 0.3281, 0x03BA: 0.6040, 0x03BB: 0.5278, 0x03BC: 0.6084, 0x03BD: 0.5552, 0x03BE: 0.4448,
+        0x03BF: 0.5693, 0x03C0: 0.6279, 0x03C1: 0.5854, 0x03C2: 0.4780, 0x03C3: 0.6118, 0x03C4: 0.5571, 0x03C5: 0.5801, 0x03C6: 0.7539,
+        0x03C7: 0.5371, 0x03C8: 0.8018, 0x03C9: 0.7988, 0x03CA: 0.3281, 0x03CB: 0.5801, 0x03CC: 0.5693, 0x03CD: 0.5801, 0x03CE: 0.7988,
+    ]
+
+    // Nunito Sans's own widths, U+0020 to U+007E and Latin-1, the common
+    // marks past it and the five Greek letters it has (Δ Σ Ω μ π), in its
+    // Light (300), Regular and Bold (700) at its 12pt optical size:
+    // Office's cloud font, which Word for Windows and Word for Mac both
+    // set and embed (zh-d97c5474's and zh-8d72961c's subsets, every one of
+    // their widths equal to these). The stand-in was Carlito, some 9%
+    // narrower.
+    static let nunitoSansLightAdvances: [Double] = [
+        0.251, 0.219, 0.366, 0.600, 0.600, 0.923, 0.678, 0.211, 0.299, 0.299, 0.449, 0.600, 0.219, 0.420, 0.219,
+        0.269, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.219, 0.219, 0.600, 0.600,
+        0.600, 0.436, 0.945, 0.722, 0.671, 0.670, 0.733, 0.576, 0.542, 0.722, 0.756, 0.245, 0.310, 0.607, 0.535,
+        0.849, 0.736, 0.759, 0.624, 0.759, 0.661, 0.607, 0.594, 0.724, 0.678, 1.096, 0.640, 0.586, 0.582, 0.298,
+        0.269, 0.298, 0.600, 0.500, 0.500, 0.522, 0.575, 0.459, 0.575, 0.527, 0.319, 0.578, 0.560, 0.222, 0.225,
+        0.484, 0.285, 0.847, 0.560, 0.547, 0.575, 0.575, 0.342, 0.478, 0.335, 0.553, 0.509, 0.835, 0.515, 0.509,
+        0.459, 0.335, 0.254, 0.335, 0.600,
+    ]
+    static let nunitoSansLightOtherAdvances: [UInt32: Double] = [
+        0x00A0: 0.251, 0x00A1: 0.219, 0x00A2: 0.600, 0x00A3: 0.600, 0x00A4: 0.600, 0x00A5: 0.600, 0x00A6: 0.254, 0x00A7: 0.534,
+        0x00A8: 0.500, 0x00A9: 0.815, 0x00AA: 0.321, 0x00AB: 0.417, 0x00AC: 0.600, 0x00AD: 0.420, 0x00AE: 0.815, 0x00AF: 0.500,
+        0x00B0: 0.367, 0x00B1: 0.600, 0x00B2: 0.380, 0x00B3: 0.380, 0x00B4: 0.500, 0x00B5: 0.600, 0x00B6: 0.572, 0x00B7: 0.219,
+        0x00B8: 0.500, 0x00B9: 0.380, 0x00BA: 0.332, 0x00BB: 0.417, 0x00BC: 0.885, 0x00BD: 0.927, 0x00BE: 0.885, 0x00BF: 0.436,
+        0x00C0: 0.722, 0x00C1: 0.722, 0x00C2: 0.722, 0x00C3: 0.722, 0x00C4: 0.722, 0x00C5: 0.722, 0x00C6: 0.976, 0x00C7: 0.670,
+        0x00C8: 0.576, 0x00C9: 0.576, 0x00CA: 0.576, 0x00CB: 0.576, 0x00CC: 0.245, 0x00CD: 0.245, 0x00CE: 0.245, 0x00CF: 0.245,
+        0x00D0: 0.733, 0x00D1: 0.736, 0x00D2: 0.759, 0x00D3: 0.759, 0x00D4: 0.759, 0x00D5: 0.759, 0x00D6: 0.759, 0x00D7: 0.600,
+        0x00D8: 0.759, 0x00D9: 0.724, 0x00DA: 0.724, 0x00DB: 0.724, 0x00DC: 0.724, 0x00DD: 0.586, 0x00DE: 0.625, 0x00DF: 0.597,
+        0x00E0: 0.522, 0x00E1: 0.522, 0x00E2: 0.522, 0x00E3: 0.522, 0x00E4: 0.522, 0x00E5: 0.522, 0x00E6: 0.859, 0x00E7: 0.459,
+        0x00E8: 0.527, 0x00E9: 0.527, 0x00EA: 0.527, 0x00EB: 0.527, 0x00EC: 0.222, 0x00ED: 0.222, 0x00EE: 0.222, 0x00EF: 0.222,
+        0x00F0: 0.550, 0x00F1: 0.560, 0x00F2: 0.547, 0x00F3: 0.547, 0x00F4: 0.547, 0x00F5: 0.547, 0x00F6: 0.547, 0x00F7: 0.600,
+        0x00F8: 0.547, 0x00F9: 0.553, 0x00FA: 0.553, 0x00FB: 0.553, 0x00FC: 0.553, 0x00FD: 0.509, 0x00FE: 0.575, 0x00FF: 0.509,
+        0x2013: 0.500, 0x2014: 1.000, 0x2018: 0.219, 0x2019: 0.219, 0x201C: 0.372, 0x201D: 0.372, 0x2022: 0.524, 0x2026: 0.659,
+        0x0394: 0.722, 0x03A3: 0.600, 0x03A9: 0.769, 0x03BC: 0.553, 0x03C0: 0.573,
+    ]
+    static let nunitoSansAdvances: [Double] = [
+        0.257, 0.228, 0.391, 0.600, 0.600, 0.930, 0.693, 0.221, 0.317, 0.317, 0.450, 0.600, 0.228, 0.424, 0.228,
+        0.283, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.228, 0.228, 0.600, 0.600,
+        0.600, 0.443, 0.946, 0.729, 0.676, 0.673, 0.742, 0.583, 0.548, 0.726, 0.761, 0.256, 0.324, 0.625, 0.543,
+        0.855, 0.740, 0.767, 0.633, 0.767, 0.669, 0.615, 0.602, 0.728, 0.689, 1.101, 0.650, 0.596, 0.589, 0.315,
+        0.283, 0.315, 0.600, 0.500, 0.500, 0.530, 0.583, 0.463, 0.583, 0.532, 0.333, 0.586, 0.568, 0.232, 0.236,
+        0.500, 0.296, 0.856, 0.568, 0.556, 0.583, 0.583, 0.358, 0.481, 0.350, 0.561, 0.515, 0.841, 0.525, 0.514,
+        0.463, 0.352, 0.265, 0.352, 0.600,
+    ]
+    static let nunitoSansOtherAdvances: [UInt32: Double] = [
+        0x00A0: 0.257, 0x00A1: 0.228, 0x00A2: 0.600, 0x00A3: 0.600, 0x00A4: 0.600, 0x00A5: 0.600, 0x00A6: 0.265, 0x00A7: 0.545,
+        0x00A8: 0.500, 0x00A9: 0.815, 0x00AA: 0.327, 0x00AB: 0.441, 0x00AC: 0.600, 0x00AD: 0.424, 0x00AE: 0.815, 0x00AF: 0.500,
+        0x00B0: 0.371, 0x00B1: 0.600, 0x00B2: 0.380, 0x00B3: 0.380, 0x00B4: 0.500, 0x00B5: 0.600, 0x00B6: 0.588, 0x00B7: 0.228,
+        0x00B8: 0.500, 0x00B9: 0.380, 0x00BA: 0.339, 0x00BB: 0.441, 0x00BC: 0.893, 0x00BD: 0.937, 0x00BE: 0.893, 0x00BF: 0.443,
+        0x00C0: 0.729, 0x00C1: 0.729, 0x00C2: 0.729, 0x00C3: 0.729, 0x00C4: 0.729, 0x00C5: 0.729, 0x00C6: 0.981, 0x00C7: 0.673,
+        0x00C8: 0.583, 0x00C9: 0.583, 0x00CA: 0.583, 0x00CB: 0.583, 0x00CC: 0.256, 0x00CD: 0.256, 0x00CE: 0.256, 0x00CF: 0.256,
+        0x00D0: 0.742, 0x00D1: 0.740, 0x00D2: 0.767, 0x00D3: 0.767, 0x00D4: 0.767, 0x00D5: 0.767, 0x00D6: 0.767, 0x00D7: 0.600,
+        0x00D8: 0.767, 0x00D9: 0.728, 0x00DA: 0.728, 0x00DB: 0.728, 0x00DC: 0.728, 0x00DD: 0.596, 0x00DE: 0.634, 0x00DF: 0.615,
+        0x00E0: 0.530, 0x00E1: 0.530, 0x00E2: 0.530, 0x00E3: 0.530, 0x00E4: 0.530, 0x00E5: 0.530, 0x00E6: 0.861, 0x00E7: 0.463,
+        0x00E8: 0.532, 0x00E9: 0.532, 0x00EA: 0.532, 0x00EB: 0.532, 0x00EC: 0.232, 0x00ED: 0.232, 0x00EE: 0.232, 0x00EF: 0.232,
+        0x00F0: 0.559, 0x00F1: 0.568, 0x00F2: 0.556, 0x00F3: 0.556, 0x00F4: 0.556, 0x00F5: 0.556, 0x00F6: 0.556, 0x00F7: 0.600,
+        0x00F8: 0.556, 0x00F9: 0.561, 0x00FA: 0.561, 0x00FB: 0.561, 0x00FC: 0.561, 0x00FD: 0.514, 0x00FE: 0.583, 0x00FF: 0.514,
+        0x2013: 0.500, 0x2014: 1.000, 0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.394, 0x201D: 0.394, 0x2022: 0.524, 0x2026: 0.686,
+        0x0394: 0.729, 0x03A3: 0.600, 0x03A9: 0.778, 0x03BC: 0.561, 0x03C0: 0.587,
+    ]
+    static let nunitoSansBoldAdvances: [Double] = [
+        0.270, 0.248, 0.447, 0.600, 0.600, 0.945, 0.726, 0.242, 0.358, 0.358, 0.452, 0.600, 0.248, 0.434, 0.248,
+        0.313, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600, 0.248, 0.248, 0.600, 0.600,
+        0.600, 0.459, 0.950, 0.744, 0.688, 0.679, 0.762, 0.597, 0.562, 0.736, 0.773, 0.281, 0.355, 0.664, 0.562,
+        0.868, 0.748, 0.785, 0.652, 0.785, 0.686, 0.631, 0.621, 0.738, 0.713, 1.113, 0.672, 0.618, 0.605, 0.354,
+        0.313, 0.354, 0.600, 0.500, 0.500, 0.547, 0.600, 0.472, 0.600, 0.542, 0.364, 0.604, 0.585, 0.255, 0.259,
+        0.536, 0.319, 0.877, 0.585, 0.576, 0.600, 0.600, 0.392, 0.488, 0.384, 0.579, 0.527, 0.853, 0.546, 0.526,
+        0.474, 0.391, 0.289, 0.391, 0.600,
+    ]
+    static let nunitoSansBoldOtherAdvances: [UInt32: Double] = [
+        0x00A0: 0.270, 0x00A1: 0.248, 0x00A2: 0.600, 0x00A3: 0.600, 0x00A4: 0.600, 0x00A5: 0.600, 0x00A6: 0.289, 0x00A7: 0.569,
+        0x00A8: 0.500, 0x00A9: 0.815, 0x00AA: 0.339, 0x00AB: 0.494, 0x00AC: 0.600, 0x00AD: 0.434, 0x00AE: 0.815, 0x00AF: 0.500,
+        0x00B0: 0.379, 0x00B1: 0.600, 0x00B2: 0.380, 0x00B3: 0.380, 0x00B4: 0.500, 0x00B5: 0.600, 0x00B6: 0.625, 0x00B7: 0.248,
+        0x00B8: 0.500, 0x00B9: 0.380, 0x00BA: 0.353, 0x00BB: 0.494, 0x00BC: 0.911, 0x00BD: 0.959, 0x00BE: 0.911, 0x00BF: 0.459,
+        0x00C0: 0.744, 0x00C1: 0.744, 0x00C2: 0.744, 0x00C3: 0.744, 0x00C4: 0.744, 0x00C5: 0.744, 0x00C6: 0.992, 0x00C7: 0.679,
+        0x00C8: 0.597, 0x00C9: 0.597, 0x00CA: 0.597, 0x00CB: 0.597, 0x00CC: 0.281, 0x00CD: 0.281, 0x00CE: 0.281, 0x00CF: 0.281,
+        0x00D0: 0.762, 0x00D1: 0.748, 0x00D2: 0.785, 0x00D3: 0.785, 0x00D4: 0.785, 0x00D5: 0.785, 0x00D6: 0.785, 0x00D7: 0.600,
+        0x00D8: 0.785, 0x00D9: 0.738, 0x00DA: 0.738, 0x00DB: 0.738, 0x00DC: 0.738, 0x00DD: 0.618, 0x00DE: 0.654, 0x00DF: 0.653,
+        0x00E0: 0.547, 0x00E1: 0.547, 0x00E2: 0.547, 0x00E3: 0.547, 0x00E4: 0.547, 0x00E5: 0.547, 0x00E6: 0.865, 0x00E7: 0.472,
+        0x00E8: 0.542, 0x00E9: 0.542, 0x00EA: 0.542, 0x00EB: 0.542, 0x00EC: 0.255, 0x00ED: 0.255, 0x00EE: 0.255, 0x00EF: 0.255,
+        0x00F0: 0.580, 0x00F1: 0.585, 0x00F2: 0.576, 0x00F3: 0.576, 0x00F4: 0.576, 0x00F5: 0.576, 0x00F6: 0.576, 0x00F7: 0.600,
+        0x00F8: 0.576, 0x00F9: 0.579, 0x00FA: 0.579, 0x00FB: 0.579, 0x00FC: 0.579, 0x00FD: 0.526, 0x00FE: 0.600, 0x00FF: 0.526,
+        0x2013: 0.500, 0x2014: 1.000, 0x2018: 0.248, 0x2019: 0.248, 0x201C: 0.443, 0x201D: 0.443, 0x2022: 0.524, 0x2026: 0.745,
+        0x0394: 0.744, 0x03A3: 0.600, 0x03A9: 0.799, 0x03BC: 0.579, 0x03C0: 0.618,
     ]
 
     // Verdana's own widths, which its stand-in (DejaVu Sans, a few per
@@ -786,6 +1080,14 @@ enum OfficeFonts {
         0.3276, 0.1455, 0.5457, 0.3645, 0.3645, 0.3645, 0.3645, 0.2183, 0.3276, 0.1821, 0.3645, 0.3276, 0.4731, 0.3276, 0.3276,
         0.3276, 0.2188, 0.1702, 0.2188, 0.3826,
     ]
+    /// Browallia New's Thai widths, in ems, regular and bold: the face
+    /// Word for Mac draws "TH Sarabun New" in, measured from its print of
+    /// zh-6a4fc013 (the median step from each letter to the next, over
+    /// 19,801 Thai characters; marks none; "ำ" as "า", which the print
+    /// reads as "ํา"). Cordia New, which draws them, is within a few per
+    /// cent letter by letter and 0.5% over a line.
+    static let browalliaAdvances: [UInt32: Double] = [0x0E01: 0.418, 0x0E02: 0.407, 0x0E04: 0.417, 0x0E07: 0.3216, 0x0E08: 0.3702, 0x0E09: 0.434, 0x0E0A: 0.4132, 0x0E0B: 0.446, 0x0E0D: 0.5592, 0x0E0E: 0.4599, 0x0E0F: 0.453, 0x0E10: 0.3521, 0x0E13: 0.5907, 0x0E14: 0.421, 0x0E15: 0.425, 0x0E16: 0.4245, 0x0E17: 0.46, 0x0E18: 0.373, 0x0E19: 0.4441, 0x0E1A: 0.45, 0x0E1B: 0.4512, 0x0E1C: 0.427, 0x0E1D: 0.426, 0x0E1E: 0.495, 0x0E20: 0.467, 0x0E21: 0.4302, 0x0E22: 0.4062, 0x0E23: 0.3246, 0x0E25: 0.3864, 0x0E27: 0.3635, 0x0E28: 0.4161, 0x0E29: 0.4831, 0x0E2A: 0.3952, 0x0E2B: 0.456, 0x0E2D: 0.3931, 0x0E2F: 0.389, 0x0E30: 0.3236, 0x0E31: 0.0, 0x0E32: 0.3322, 0x0E33: 0.3322, 0x0E34: 0.0, 0x0E35: 0.0, 0x0E36: 0.0, 0x0E37: 0.0, 0x0E38: 0.0, 0x0E39: 0.0, 0x0E3A: 0.0, 0x0E40: 0.223, 0x0E41: 0.3882, 0x0E42: 0.2769, 0x0E43: 0.2599, 0x0E44: 0.3056, 0x0E46: 0.4688, 0x0E47: 0.0, 0x0E48: 0.0, 0x0E49: 0.0, 0x0E4A: 0.0, 0x0E4B: 0.0, 0x0E4C: 0.0, 0x0E4D: 0.0, 0x0E4E: 0.0]
+    static let browalliaBoldAdvances: [UInt32: Double] = [0x0E01: 0.4518, 0x0E02: 0.443, 0x0E04: 0.472, 0x0E07: 0.3416, 0x0E08: 0.408, 0x0E0A: 0.4387, 0x0E0B: 0.467, 0x0E0D: 0.5913, 0x0E10: 0.4071, 0x0E13: 0.644, 0x0E14: 0.4698, 0x0E15: 0.482, 0x0E16: 0.4441, 0x0E17: 0.486, 0x0E18: 0.435, 0x0E19: 0.4965, 0x0E1A: 0.4805, 0x0E1B: 0.484, 0x0E1C: 0.454, 0x0E1E: 0.502, 0x0E20: 0.4557, 0x0E21: 0.4815, 0x0E22: 0.4397, 0x0E23: 0.3692, 0x0E25: 0.4436, 0x0E27: 0.3969, 0x0E28: 0.4688, 0x0E29: 0.5004, 0x0E2A: 0.442, 0x0E2B: 0.4786, 0x0E2D: 0.4489, 0x0E30: 0.3561, 0x0E31: 0.0, 0x0E32: 0.3624, 0x0E33: 0.3624, 0x0E34: 0.0, 0x0E35: 0.0, 0x0E36: 0.0, 0x0E37: 0.0, 0x0E38: 0.0, 0x0E39: 0.0, 0x0E3A: 0.0, 0x0E40: 0.241, 0x0E41: 0.4348, 0x0E42: 0.2609, 0x0E43: 0.3027, 0x0E44: 0.3066, 0x0E47: 0.0, 0x0E48: 0.0, 0x0E49: 0.0, 0x0E4A: 0.0, 0x0E4B: 0.0, 0x0E4C: 0.0, 0x0E4D: 0.0, 0x0E4E: 0.0]
     static let arialBlackAdvances: [Double] = [
         0.3335, 0.333, 0.5, 0.6602, 0.667, 1, 0.8892, 0.2778, 0.3892, 0.3892, 0.5562, 0.6602, 0.333, 0.333, 0.333,
         0.2778, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.333, 0.333, 0.6602, 0.6602,
@@ -794,6 +1096,19 @@ enum OfficeFonts {
         0.2778, 0.3892, 0.6602, 0.5, 0.333, 0.667, 0.667, 0.667, 0.667, 0.667, 0.3892, 0.667, 0.667, 0.333, 0.333,
         0.667, 0.333, 1, 0.667, 0.667, 0.667, 0.667, 0.4438, 0.6108, 0.4438, 0.667, 0.6108, 0.9438, 0.667, 0.6108,
         0.5562, 0.3892, 0.2778, 0.3892, 0.6602,
+    ]
+    /// PMingLiU's ASCII as Word sets it, per em: Times' at 0.94 — the
+    /// stand-in's — but for the space, 0.26 and not 0.235 (the /Widths of
+    /// Word's embedded PMingLiU in 97 prints of the corpus; every other
+    /// character it prints agrees with the stand-in's to the unit).
+    private static let pMingLiUAdvances: [Double] = [
+        0.260, 0.313, 0.384, 0.470, 0.470, 0.782, 0.731, 0.169, 0.313, 0.313, 0.470, 0.530, 0.235, 0.313, 0.235,
+        0.261, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.261, 0.261, 0.530, 0.530,
+        0.530, 0.417, 0.866, 0.678, 0.627, 0.627, 0.678, 0.574, 0.522, 0.678, 0.678, 0.313, 0.365, 0.678, 0.574,
+        0.835, 0.678, 0.678, 0.522, 0.678, 0.627, 0.522, 0.574, 0.678, 0.678, 0.887, 0.678, 0.678, 0.574, 0.313,
+        0.261, 0.313, 0.441, 0.470, 0.313, 0.417, 0.470, 0.417, 0.470, 0.417, 0.313, 0.470, 0.470, 0.261, 0.261,
+        0.470, 0.261, 0.731, 0.470, 0.470, 0.470, 0.470, 0.313, 0.365, 0.261, 0.470, 0.470, 0.678, 0.470, 0.470,
+        0.417, 0.451, 0.188, 0.451, 0.508,
     ]
     private static let yaHeiAdvances: [Double] = [
         0.2959, 0.3125, 0.4355, 0.6382, 0.5864, 0.8896, 0.8701, 0.2563, 0.334, 0.334, 0.4551, 0.7417, 0.2407, 0.4326, 0.2407,
@@ -1018,6 +1333,20 @@ enum OfficeFonts {
         0.5322, 0.2593, 0.9263, 0.6084, 0.6309, 0.6323, 0.6338, 0.3721, 0.4561, 0.3628, 0.6084, 0.5127, 0.7749, 0.4893, 0.5186,
         0.4863, 0.3208, 0.252, 0.3208, 0.7373
     ]
+    // JhengHei UI Light's, where its print gives them: zh-167ee06c's
+    // embedded subset has the space, "(", ")", "-", "." and the digits
+    // but 7 and 9 (taken as the rest's 0.558; its "1" is 0.387 and its
+    // "4" 0.575). The rest are JhengHei's. Word for Mac emboldens the
+    // Light, so its bold is these and the face's spread.
+    private static let jhengHeiUILightAdvances: [Double] = [
+        0.296, 0.3042, 0.416, 0.6382, 0.5796, 0.8804, 0.8608, 0.2441, 0.306, 0.306, 0.4473, 0.7373, 0.2305, 0.43, 0.239,
+        0.417, 0.558, 0.387, 0.558, 0.558, 0.575, 0.558, 0.558, 0.558, 0.558, 0.558, 0.2305, 0.2305, 0.7373, 0.7373,
+        0.7373, 0.4844, 1.0312, 0.6929, 0.6143, 0.668, 0.7549, 0.5444, 0.5249, 0.7388, 0.7627, 0.2842, 0.3789, 0.6216, 0.5054,
+        0.9653, 0.8052, 0.814, 0.6011, 0.814, 0.6421, 0.5718, 0.5615, 0.7397, 0.6675, 1.0039, 0.6328, 0.5933, 0.6133, 0.3208,
+        0.4053, 0.3208, 0.7373, 0.4482, 0.2861, 0.5474, 0.6323, 0.4976, 0.6338, 0.5635, 0.333, 0.6338, 0.6089, 0.2593, 0.2588,
+        0.5322, 0.2593, 0.9263, 0.6084, 0.6309, 0.6323, 0.6338, 0.3721, 0.4561, 0.3628, 0.6084, 0.5127, 0.7749, 0.4893, 0.5186,
+        0.4863, 0.3208, 0.252, 0.3208, 0.7373
+    ]
     private static let jhengHeiBoldAdvances: [Double] = [
         0.25, 0.4824, 0.4619, 0.6387, 0.5957, 0.9023, 0.8828, 0.272, 0.3511, 0.3511, 0.4648, 0.7476, 0.2544, 0.4341, 0.2544,
         0.4414, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.5957, 0.2544, 0.2544, 0.7476, 0.7476,
@@ -1046,13 +1375,47 @@ enum OfficeFonts {
         0.332, 0.2783, 0.332, 0.6943
     ]
 
+    /// (No longer an em a glyph for an embedded SimSun with bitmaps: that
+    /// was Word for Mac's fault since 2026-10-18 — it draws any embedded
+    /// face as blank one-em glyphs — and the user chose Word's real
+    /// behaviour, Word for Windows' print, which sets the face's own
+    /// widths. The names and bitmaps are still recorded for whoever needs
+    /// them.)
     private static func eastAsianFace(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
+        eastAsianFaceAsNamed(family, ignoringEmbedding: ignoringEmbedding)
+    }
+
+    private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { return fallback == "mincho" ? windowsMincho : eastAsianFace("Microsoft JhengHei") }
+        // (The faces Word for Windows takes an embedded 仿宋_GB2312's missing
+        // characters from (`windowsSubsetFallback`), each on its own line,
+        // its win ascent and descent at Word's 1.3, the extra split evenly
+        // about them: MS Gothic's .859 + .141, Yu Gothic's .985 + .302.)
+        if wordOnWindows, has("ms gothic", "ｍｓ ゴシック") {
+            return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+        }
+        if wordOnWindows, has("yu gothic", "游ゴシック") {
+            return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
+        }
         if has("yahei ui") {
             return EastAsianFace(height: 1.67, latin: sans, latinScale: 1.07, latinAdvances: yaHeiUIAdvances, latinBoldAdvances: yaHeiUIBoldAdvances,
                                  latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns,
                                  fakeBold: false)
+        }
+        // (YaHei Light, msyhl.ttc, is a shorter line: Word for Windows
+        // measures it by its usWinAscent 2080 and usWinDescent 536 in 2048
+        // — regular's ascent is 2167 — at Word's 1.3, 1.6605 em, the extra
+        // half above and half below. zh-a7a889eb's contents, each line's
+        // mark and page number 微软雅黑 Light 14pt at 0.8125 auto, step 36.21
+        // in Word for Windows' print; at regular's line ours stepped 36.83.
+        // Word for Mac has no Light and sets regular's, as its print does.)
+        if has("yahei", "微软雅黑"), has("light"), !wordOnMac {
+            var light = yaHei
+            light.height = 2616 * 1.3 / 2048
+            light.baseline = (2080 + 2616 * 0.15) / 2048
+            return light
         }
         if has("yahei", "微软雅黑") { return yaHei }
         // (JhengHei UI's line is its own: an ascent of 2080 and a descent of
@@ -1068,12 +1431,21 @@ enum OfficeFonts {
         // cannot give the 14pt it is over.)
         if has("jhenghei ui") {
             return EastAsianFace(height: 1.651, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
-                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns,
+                                 latinAdvances: has("light") ? jhengHeiUILightAdvances : jhengHeiAdvances,
+                                 latinBoldAdvances: has("light") ? jhengHeiUILightAdvances : jhengHeiBoldAdvances, latinKerns: jhengHeiKerns,
                                  fakeBold: has("light"), boldWiden: 1.0 / 50, baseline: 1.206)
         }
         if has("jhenghei", "微軟正黑") {
-            return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
-                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false)
+            // (Word for Windows sets it at its hhea's 1.0757 + 0.2544 times
+            // 1.3, 1.729 — zh-cb57eaad's 12pt lines step 20.76 in word-win,
+            // the Mac's 1.74 20.88 — its baseline half the extra over the
+            // ascent, 1.275: zh-f6686f89's 36pt cover lines, JhengHei for
+            // what Mincho lacks (`windowsMincho`), stand their baselines
+            // 46pt under the line's top; without one the line took the
+            // drawing face's, Mincho's, 9.8pt high.)
+            return EastAsianFace(height: wordOnWindows ? 1.3301 * 1.3 : 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
+                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false,
+                                 baseline: wordOnWindows ? (1.3301 * 1.3 - 1.3301) / 2 + 1.0757 : nil)
         }
         if has("dengxian", "等线") {
             return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91],
@@ -1084,25 +1456,50 @@ enum OfficeFonts {
         // with 8..12 twips over 48 x 312, and 24 lines of 24pt with the
         // same over 24 x 624 — labs `ln`, `lb`, Word 16, 2026-10-16. The
         // 0.2 twip a line kept zh-e061a08e's page 1 a line long.)
-        if has("pmingliu", "新細明體") { return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, fakeBold: true) }
+        // (Its baseline is its hhea ascent, 820 of 1024, and half of what
+        // Word adds — 974/1024. With none of its own the engine spread a
+        // spaced line's extra over and under, and zh-b8de3ae2's 13.5pt
+        // notes at 1.39 lines stood 3.8pt under Word's print, where Word
+        // sets all of it under the text.)
+        if has("pmingliu", "新細明體") {
+            // (Its space as its own: 3.12 at 12pt, where the stand-in's was
+            // 2.82 — zh-1d3d66d3's "（資本門預算數） ×100％" ends at "100％" in
+            // Word's print of a 7-em cell and opens the next line "（以".)
+            return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, latinAdvances: pMingLiUAdvances,
+                                 fakeBold: true, baseline: 974.0 / 1024.0, squareSymbols: true)
+        }
         if has("stzhongsong", "华文中宋") {
             // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
             // 61pt, and 90.2 at 34% of its width.)
-            return EastAsianFace(height: 1.7225, latin: serif, latinScale: 1.16, fakeBold: true, baseline: 1.206,
-                                 scaledHeight: 1.478, scaledBaseline: 1.083)
+            // (Word for Windows takes the OS/2 line for all of it:
+            // zh-17ac8aa2's empty 22pt mark in it before the form's table
+            // is 5.5pt shorter in the word-win print than ours was at
+            // the hhea line, and every row after stood that much low.)
+            return EastAsianFace(height: wordOnWindows ? 1.478 : 1.7225, latin: serif, latinScale: 1.16, fakeBold: true,
+                                 baseline: wordOnWindows ? 1.083 : 1.206, scaledHeight: 1.478, scaledBaseline: 1.083)
         }
         // (hhea 0.8 + 0.236, no gap — the STXINWEI.ttf Word carries: a 24pt
         // line is 32.3pt, three pitches of a 15.6 grid, and zh-424775e4's
         // title, centred in them, has its baseline at 117.84 in Word's
         // print. Taken for YaHei's, ours was two pitches and every page
         // after it ran 15.6pt early.)
+        // (Word for Windows sets each 华文 face on its OS/2 win line at
+        // 1.3, the baseline its win ascent and 0.15 of that line's ems
+        // over — windows' lab t179, every face at 12 and 22pt fresh,
+        // within 0.06pt: 新魏 .781 + .236, 仿宋 and 楷体 .86 + .26. See
+        // 华文中宋 above.)
         if has("stxinwei", "华文新魏") {
+            if wordOnWindows { return EastAsianFace(height: 1.322, latin: serif, latinScale: 1.0, fakeBold: true, baseline: 0.934) }
             return EastAsianFace(height: 1.036 * 1.3, latin: serif, latinScale: 1.0, fakeBold: true, baseline: 0.8 + (1.036 * 1.3 - 1.036) / 2)
         }
-        if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
-        if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
+        if has("stfangsong", "华文仿宋") {
+            return EastAsianFace(height: wordOnWindows ? 1.456 : 1.71, latin: serif, latinScale: 1.0, fakeBold: false, baseline: wordOnWindows ? 1.028 : nil)
+        }
+        if has("stkaiti", "华文楷体") {
+            return EastAsianFace(height: wordOnWindows ? 1.456 : 1.7, latin: serif, latinScale: 1.04, fakeBold: true, baseline: wordOnWindows ? 1.028 : nil)
+        }
         if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
-        if has("arial unicode") { return EastAsianFace(height: 1.75, latin: sans, latinScale: 1.0, fakeBold: true) }
+        if has("arial unicode") { return arialUnicode }
         // (Noto Sans SC, which Word's fallback takes for some CJK
         // compatibility ideographs — `RichLayout._notoCompatibility`: its
         // hhea 1.16 + 0.288 ems with Word's 30% more, the baseline 1.377
@@ -1144,6 +1541,38 @@ enum OfficeFonts {
                 return eastAsianFace(alt)
             }
         }
+        // (Word for Windows with the Chinese font packs — the reference
+        // since 2026-10-24, word-win — sets 仿宋_GB2312 and 楷体_GB2312
+        // in its FangSong and KaiTi, whatever the table's alternate:
+        // 209 and 98 documents of the reprint. Word fixes a missing
+        // name's face once a process, from the first file that names it,
+        // and the first run, unwarmed, flipped between these and YaHei.)
+        // (Not where the file carries 仿宋_GB2312: what its subset lacks
+        // Word for Windows sets on YaHei's lines, as before the font
+        // packs — zh-5450d509's embedded 仿宋_GB2312 stands 31.2pt a
+        // 1.5-spaced 12pt line in word-win, YaHei's, not FangSong's 23.4,
+        // fresh-process print or not (db46d815). An embedded 楷体_GB2312's
+        // missing characters are KaiTi's, its lines the square face's:
+        // zh-1cfb652b 67.9 -> 87.5 with that; YaHei there, nothing better.)
+        if wordOnWindows, !isEmbedded(family) || (ignoringEmbedding && has("楷体_gb2312", "kaiti_gb2312")) {
+            if has("仿宋_gb2312", "fangsong_gb2312") { return eastAsianFace("仿宋", ignoringEmbedding: ignoringEmbedding) }
+            if has("楷体_gb2312", "kaiti_gb2312") { return eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding) }
+            // (And 標楷體 is its DFKai-SB, a square face like KaiTi but of
+            // a 1024-unit em: 1.3 em rounded up to a whole unit, 1332, as
+            // PMingLiU's (labs ln/lb), its ascent 820 and half the 308 Word
+            // adds under its baseline — kaiu.ttf, and Windows' lab `round`:
+            // 15.612pt a 12pt line, 18.213 at 14. zh-74b34f3b's 12pt footer,
+            // 49.6 up an 841.9 page, then reaches over the 36th exact 20pt
+            // line's foot at 776.7, which opens page 2 in Word's print; at
+            // KaiTi's 15.6 ours kept it, and every page after ran a line
+            // early. Lab `kai`: zh-d35cbbdb's glyphs on Word's baselines.)
+            if has("標楷", "dfkai") {
+                var face = eastAsianFace("楷体", ignoringEmbedding: ignoringEmbedding)
+                face.height = 1332.0 / 1024
+                face.baseline = (820.0 + (1332 - 1024) / 2) / 1024
+                return face
+            }
+        }
         // (As Word for Windows sets it, a name it has no face for is its font
         // table's alternate, where that is one it has — the other way round
         // from Word for Mac, which never reads it — and YaHei where it is
@@ -1174,6 +1603,15 @@ enum OfficeFonts {
         // FZShuTi, no entry either, is YaHei in its print.)
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), n.hasPrefix("fzxiaobiaosong"), n.unicodeScalars.allSatisfy({ $0.isASCII }) {
             return eastAsianFace("SimSun")
+        }
+        // (楷体_GB2312 is Arial Unicode MS in Word for Mac's prints — every
+        // one since 2026-10-18 20:57, when the printing Mac changed from
+        // setting it in YaHei with nothing in the files to tell; the
+        // older references were printed again (c3fce0af). zh-c5b5087b,
+        // zh-dc9cfa34, zh-e37f8d40 and zh-0aac9d1a dropped 30-40 points
+        // against the reprints while ours kept YaHei's taller lines.)
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), has("楷体_gb2312", "kaiti_gb2312") {
+            return arialUnicode
         }
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
@@ -1209,6 +1647,20 @@ enum OfficeFonts {
             var face = square
             face.height = 1.164 * 1.3
             face.baseline = 0.867 + 1.164 * 0.15
+            return face
+        }
+        // (SimSun's line is 1.2972 em, not 1.3: lab `f` (macOS-doc, Word
+        // for Mac, zh-7b125a21's package) sets its 10.5pt lines 13.614
+        // apart on the mean (1.2958-1.2973 em by the 0.24pt raster its
+        // print rounds to) and 12pt ones 15.559, by 宋体, SimSun or the
+        // CESI宋体 that stands for it alike; zh-0978dee9's 10pt cells are
+        // 12.976 apart over 30 lines (1.2972-1.2980), and their page foot
+        // takes a line by that. Ours, 13.65 at 10.5, fitted a line less
+        // to zh-7b125a21's page 90, and the fifteen pages after ran behind.)
+        if has("simsun", "宋体") {
+            var face = square
+            face.height = 1.2972
+            face.baseline = 1.005 - (1.3 - 1.2972) / 2
             return face
         }
         return square
@@ -1250,6 +1702,58 @@ enum OfficeFonts {
     /// YaHei — to compare with its prints. The default is the faces the
     /// author had (`fangSongFamily`, the 方正 titles' own line).
     private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    /// The face Word for Windows sets a Latin name it has no face for,
+    /// and whose font-table entry gives no alternate, by the entry's
+    /// Unicode signature — not its PANOSE (windows' labs `lint` and
+    /// `sigmap`, 2026-10-24: zh-c399c91a's "LinTimes", PANOSE Times's,
+    /// is Ebrima whatever its PANOSE or family; with no sig, Calibri).
+    /// Only the signatures the corpus holds: a Latin-only one, 00000003,
+    /// is Times New Roman (zh-e2dc9dce's "Times Roman"); 00000287/
+    /// 00000800 Calibri (zh-015abfaf's "Nimbus Roman"); 00007A87/
+    /// 80000000 Ebrima. nil: the table's other rules.
+    /// (Never for a face Word has, whatever its entry says: zh-2dfde99a's
+    /// table gives Times New Roman LinTimes' signature, as WPS writes it.)
+    private static func windowsSigFace(_ family: String) -> String? {
+        guard !wordMacFamilies.contains(family.trimmingWhitespace().lowercased()),
+              let e = fontEntry(family), e.alt?.isEmpty ?? true, let usb0 = e.usb0 else { return nil }
+        switch (usb0, e.usb1 ?? 0) {
+        case (0x0000_0003, 0): return "times new roman"
+        case (0x0000_0287, 0x0000_0800): return "calibri"
+        case (0x0000_7A87, 0x8000_0000): return "ebrima"
+        default: return nil
+        }
+    }
+    /// Ebrima's widths, in ems, and its bold's: the characters Word's
+    /// print of zh-c399c91a sets in it (its embedded subsets, ebrima.ttf
+    /// 2048 units); others keep the sans clone's.
+    static let ebrimaAdvances: [UInt32: Double] = [
+        0x20: 0.2739, 0x21: 0.2842, 0x22: 0.3921, 0x2A: 0.417, 0x2E: 0.2168, 0x2F: 0.3896,
+        0x30: 0.5391, 0x31: 0.5391, 0x32: 0.5391, 0x33: 0.5391, 0x34: 0.5391, 0x35: 0.5391, 0x36: 0.5391, 0x37: 0.5391,
+        0x38: 0.5391, 0x39: 0.5391, 0x43: 0.6191, 0x4D: 0.8979, 0x55: 0.687, 0x64: 0.5889, 0x72: 0.3477,
+    ]
+    static let ebrimaBoldAdvances: [UInt32: Double] = [0x20: 0.2759, 0x21: 0.3271, 0x22: 0.4932, 0x4D: 0.957, 0x64: 0.6191, 0x72: 0.3979]
+    /// How much wider Word for Windows sets each character of a face it
+    /// emboldens, in ems: one unit of that face's em — 1/256 for KaiTi,
+    /// FangSong, SimHei, SimSun and MS Mincho, 1/1024 for DFKai-SB,
+    /// PMingLiU and MingLiU, 1/2048 for JhengHei (windows' labs `bold`
+    /// and `bold2`, 2026-10-24: bold KaiTi 12pt steps 12.044, 1/256 em).
+    /// A name Windows lacks counts as the face its alternate gives.
+    /// (Not the Mac's 1/48, and not nothing: zh-457a8d62's bold 標楷體
+    /// 16pt on a character grid took a character a line more than Word,
+    /// every page after p2 a line ahead; a flat 1/256 for all took
+    /// zh-aa3f29a0's 20pt DFKai-SB title onto a second line, and the
+    /// alternate's 1/2048 keeps zh-167ee06c's 華康雅風體 — JhengHei UI
+    /// Light to Word — where it was.)
+    private static func windowsBoldWiden(_ family: String) -> Double {
+        func units(_ name: String) -> Double? {
+            let n = name.lowercased()
+            if ["標楷", "dfkai", "細明", "mingliu"].contains(where: { n.containsSubstring($0) }) { return 1024 }
+            if ["jhenghei", "正黑", "yahei", "雅黑"].contains(where: { n.containsSubstring($0) }) { return 2048 }
+            if ["kaiti", "楷体", "fangsong", "仿宋", "simhei", "黑体", "simsun", "宋体", "mincho", "明朝"].contains(where: { n.containsSubstring($0) }) { return 256 }
+            return nil
+        }
+        return 1 / (units(family) ?? altName(family).flatMap(units) ?? 256)
+    }
 
     /// The face a Song, Ming or Mincho name's ideographs are drawn in
     /// where the platform has none of those faces: Noto Serif CJK, in
@@ -1260,7 +1764,9 @@ enum OfficeFonts {
     /// stays sans, as YaHei is. It draws only what the stand-in lacks,
     /// so letters and digits keep their widths and the lines their breaks.
     private static func serifIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
-        #if os(Linux)
+        #if os(macOS)
+        return wordMacIdeographs(family, ea)
+        #elseif os(Linux)
         guard abs(ea.height - square.height) < 0.01 else { return nil }
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
@@ -1342,6 +1848,16 @@ enum OfficeFonts {
                 face.naturalHeight = 1.22
                 face.baseline = 0.94
             }
+            // (Ebrima, drawn as the sans clone at its own widths, on its
+            // own line: 2210 over and 514 under of 2048, its OS/2 win
+            // metrics — `windowsSigFace`.)
+            if wordOnWindows, windowsSigFace(family) == "ebrima" {
+                face.naturalHeight = 2724.0 / 2048
+                face.baseline = 2210.0 / 2048
+                face.missingGlyphAdvance = 1322.0 / 2048
+                face.otherAdvances = ebrimaAdvances
+                face.boldOtherAdvances = ebrimaBoldAdvances
+            }
             // (Lucida Sans Unicode keeps its own line too, a tall one:
             // 1.537 ems by its hhea, 2246 over and 901 under of 2048, no
             // gap — the face Word's print of bug59058 embeds. Its 9.5pt
@@ -1358,9 +1874,14 @@ enum OfficeFonts {
             // bullet on it is 1.225 ems. form_footnotes' 10pt lines with
             // a `w:sym` box, or a Symbol bullet, are 12.24 apart in
             // Word's print where the clone's were 11.5, and its first
-            // page ran 4pt short, a row over.
+            // page ran 4pt short, a row over. Segoe UI Symbol's is 2210
+            // over and 514 under of 2048, 1.330 ems: zh-a7a889eb's
+            // checklist cells, "☑12、…" at 12pt in 0.8625 auto lines, step
+            // 17.16 in Word for Windows' print, where the clone's line
+            // under SimSun's set them 0.8pt short a line.
             let symbolLines: [String: (height: Double, baseline: Double)] = [
                 "symbol": (1.225, 1.005), "wingdings": (1.11, 0.899), "wingdings 2": (1.054, 0.843), "wingdings 3": (1.139, 0.928),
+                "segoe ui symbol": (2724.0 / 2048, 2210.0 / 2048),
             ]
             if let own = symbolLines[family.trimmingWhitespace().lowercased()] {
                 face.naturalHeight = own.height
@@ -1369,6 +1890,28 @@ enum OfficeFonts {
             if clone != calibri {
                 face.otherAdvances = circled(1.2007)
                 face.boldOtherAdvances = circled(1.2207)
+            }
+            // (Cambria's Greek, which its stand-in lacks, at Cambria's widths:
+            // zh-d97c5474's Greek notice, in Cambria runs, left words to the
+            // next line in the fallback's that Word's lines hold.)
+            if clone == cambria {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(cambriaGreekAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(cambriaBoldGreekAdvances) { $1 }
+            }
+            // (Nunito Sans keeps its own widths and line: 1.364 ems by its
+            // hhea, 1011 over and 353 under of 1000, no gap. zh-d97c5474's
+            // 12pt notice in its Light steps 16.37 in Word's prints, where
+            // Carlito's 14.6 put every line of it high and a word long.)
+            let lower = family.trimmingWhitespace().lowercased()
+            if lower.hasPrefix("nunito sans") {
+                let light = lower.containsSubstring("light")
+                face.advances = light ? nunitoSansLightAdvances : nunitoSansAdvances
+                face.boldAdvances = nunitoSansBoldAdvances
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(light ? nunitoSansLightOtherAdvances : nunitoSansOtherAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(nunitoSansBoldOtherAdvances) { $1 }
+                face.naturalHeight = 1.364
+                face.baseline = 1.011
+                return face
             }
             // (Verdana set to its own widths and line — 1.2153 ems, its
             // hhea ascent and descent with no gap: drawing.docx's Verdana
@@ -1423,7 +1966,15 @@ enum OfficeFonts {
                 face.advances = cordiaNewAdvances
                 face.boldAdvances = cordiaNewBoldAdvances
                 #if os(macOS)
-                face.classScales = [1, 1, 1, 1, 0.75]
+                // (Under OFFICE_WORD_FONTS=mac, with Word's Cordia New loaded,
+                // the Thai itself in Cordia, at its own widths: drawn by
+                // Thonburi, scaled, PDFKit read whole clusters of it — the
+                // "คำ" of every "คำถาม" — back as nothing.)
+                if _cordiaLoaded {
+                    face.fallback = [cordiaNew]
+                    face.otherAdvances = (face.otherAdvances ?? [:]).merging(browalliaAdvances) { $1 }
+                    face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
+                } else { face.classScales = [1, 1, 1, 1, 0.75] }
                 #elseif os(Windows)
                 face.classScales = [1, 1, 1, 1, 0.729]
                 #else
@@ -1443,15 +1994,22 @@ enum OfficeFonts {
         // as the stand-in's symbols set them; taken for the square face,
         // ours drew YaHei's own 0.38 em quotes and its lines took a
         // character more than Word's.)
-        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) || Self.isEastAsianFace(family) ? eastAsianFace(family) : square
+        // (A Latin face Word for Windows has sets the East Asian text it
+        // holds none of as a name it lacks: MS Mincho, and JhengHei for
+        // what Mincho lacks, each on its own line — zh-d97c5474's Chinese,
+        // in runs that name only Latin faces (its style's theme ea is
+        // empty), steps 20.7 at 12pt single in word-win, JhengHei's 1.729
+        // em, where the square face made it 16.)
+        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) || Self.isEastAsianFace(family) ? eastAsianFace(family)
+            : wordOnWindows ? windowsMincho : square
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)
-            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0,
+            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? 1.0 / 48) : 0,
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
-            face.fullWidthSymbols = ea.latinAdvances == nil
+            face.fullWidthSymbols = ea.squareSymbols ?? (ea.latinAdvances == nil)
             // (Ideographs in a serif where the name is a Song, Ming or
             // Mincho face: `serifIdeographs`.)
             if !own || embeddedFamily(family) == nil, let serif = serifIdeographs(family, ea) { face.fallback = [serif] }
@@ -1466,10 +2024,32 @@ enum OfficeFonts {
             // 1.5-spaced 16pt lines that hold one are 41.2pt apart in
             // Word's print, YaHei's, where the subset's square line made
             // them 31.2.)
+            // (The ideographs Mincho lacks, in JhengHei on its line:
+            // `windowsMincho`.)
+            if wordOnWindows, !isEmbedded(family), ea.height == windowsMincho.height, ea.baseline == windowsMincho.baseline, ea.latin == cambria,
+               let covered = windowsMinchoCovers {
+                face.covers = covered
+                face.uncoveredFamily = "Microsoft JhengHei"
+            }
             if own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered),
                eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
                 face.covers = covered
                 face.uncoveredFamily = "Microsoft YaHei"
+                // (Word for Windows takes an embedded 仿宋_GB2312's missing
+                // characters from MS Gothic, else Yu Gothic, else Microsoft
+                // JhengHei, a stretch of them keeping the face it is in
+                // while that has the next: zh-e68a2f57, zh-c2f6d17a and
+                // zh-92373179's fresh word-win prints, 13,100 such
+                // characters, all but 17 so by the faces' own cmaps
+                // (`WindowsFallbackCovers`). Each line takes its faces'
+                // heights: zh-e68a2f57's TOC at 1.75 lines steps 44.4 with
+                // MS Gothic alone — its square line — and 56.4 with
+                // JhengHei; ours, YaHei for all, 56 throughout.)
+                if wordOnWindows, ["仿宋_gb2312", "fangsong_gb2312"].contains(where: { family.lowercased().containsSubstring($0) }) {
+                    face.uncoveredChain = [("MS Gothic", WindowsFallbackCovers.msGothic), ("Yu Gothic", WindowsFallbackCovers.yuGothic),
+                                           ("Microsoft JhengHei", nil)]
+                    face.uncoveredFamily = "Microsoft JhengHei"
+                }
             }
             face.symbolFamily = ea.symbols
             // (YaHei's ellipsis is its own width, not an em: 0.8135, and
@@ -1490,9 +2070,41 @@ enum OfficeFonts {
             // stand-in's is an em: zh-8d6f702e's "160—230" sets "—"
             // 17.18pt at 16pt on its grid of -0.21 in Word's print, ours
             // 15.79, and the line then took "累", which Word wraps.)
+            // (And its hyphenation point "‧", U+2027, a dot as narrow:
+            // 0.2407 em, 0.2861 bold. zh-5f9b6549's 標楷體 title,
+            // "…場域實證‧共創解題」補", fills its text box in Word's print,
+            // the dot 3.37pt at 14pt; ours set it half an em and wrapped
+            // "補".)
+            // (And its white circle "○", 0.604 em as its "■": zh-7654804a's
+            // "○○公司", placeholders in 標楷體 hinted East Asian, step 10.17
+            // at 16pt on a grid of +1.0076 in Word's print — 9.66 and half
+            // the grid, as a symbol of its own width takes — where the
+            // stand-in fell back to Liberation Sans's glyph and the whole
+            // addition, 10.67.)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
-                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395].merging(circled(1.0)) { $1 }
+                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604,
+                                      0x25CB: 0.604].merging(circled(1.0)) { $1 }
+                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
+            }
+            // (PMingLiU's en dash is an em, where the run sets it East
+            // Asian — hinted, or by its Latin face: zh-05699f05's
+            // "（100%+目標值）–基準維護件數】" in 新細明體 sets "–" 12.0 at
+            // 12pt in Word's print — beside ideographs, spaces, Latin
+            // letters or digits alike, hinted or not (lab `ds`) — where the
+            // stand-in drew Liberation Sans's 6.67, and the cell's line held
+            // the "數】" Word sends down. Its "×" is half an em, 6.0, but
+            // set so alone it let lines take what the no-break space beside
+            // it, 6.0 in Word's print and 2.82 in ours, gives back:
+            // zh-e061a08e's "數）×100％" took "（以". Left for both.)
+            // (The "×" at its half: zh-0daa510e's 12pt cell "（A）×75%＋我國
+            // 籍民" is one line in Word's print, "×" 5.95, where ours set it
+            // 6.91 and left "民".)
+            if ea.height == 1332.0 / 1024.0, face.otherAdvances == nil {
+                // (And "÷" 0.591, the half-width corner brackets half an em —
+                // the symbols of Word's embedded PMingLiU that are not an em,
+                // in every print of the corpus.)
+                face.otherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
+                face.boldOtherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
             }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
@@ -1500,6 +2112,15 @@ enum OfficeFonts {
             // and "°" and "×" are an em in SimSun and SimHei wherever
             // Word's prints have them; the stand-in drew its own 0.4 em
             // "°", and "5.5.1 坡度＜25°…" took the "土中。" Word's leaves.)
+            // (Arial Unicode MS's curly quotes are its own narrow ones, not an
+            // em: zh-0aac9d1a's 楷体_GB2312 heading "（一）物业服务企业守信“红名单”。"
+            // steps 5.52 at each quote at 16pt in Word's print, and no blank
+            // stands beside them.)
+            if ea.height == arialUnicode.height, ea.baseline == arialUnicode.baseline {
+                let quotes: [UInt32: Double] = [0x2018: 0.345, 0x2019: 0.345, 0x201C: 0.345, 0x201D: 0.345]
+                face.otherAdvances = quotes
+                face.boldOtherAdvances = quotes
+            }
             if ea.latin == mono, face.otherAdvances == nil {
                 let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1]
                 face.otherAdvances = gb
@@ -1512,7 +2133,7 @@ enum OfficeFonts {
             return face
         }
         var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
-                                    boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
+                                    boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? 1.0 / 48) : 0, classScales: ea.latinClasses, baseline: ea.baseline,
                                     isEastAsian: true)
         // (What the Latin stand-in lacks, the face the name stands for
         // draws: Word sets zh-117cf7c6's "※" bullet, 標楷體 with no hint,
@@ -1547,17 +2168,131 @@ enum OfficeFonts {
         // YaHei, its own). Chinese forms space their "年  月  日" lines
         // with them: zh-0aac9d1a's stamp line holds 18 before its "日"
         // and is 444pt to there in Word's print, where it was 336 here.
+        // (Not 標楷體's, which Word for Windows sets in DFKai-SB at half an
+        // em: zh-dc9e54ca's "附件一" + 37 U+00A0 + 23 spaces + "單位：新臺幣元",
+        // 12pt, is 480pt on one centred line in word-win, every space 6.0;
+        // ours, KaiTi's em each, wrapped "單位" and the form under it.)
         if ea.latin == mono, ea.latinAdvances == nil {
-            face.otherAdvances = [0xA0: 1.0]
-            face.boldOtherAdvances = [0xA0: 1.0]
+            let lower = family.lowercased()
+            let nbsp = wordOnWindows && (lower.containsSubstring("標楷") || lower.containsSubstring("dfkai")) ? 0.5 : 1.0
+            face.otherAdvances = [0xA0: nbsp]
+            face.boldOtherAdvances = [0xA0: nbsp]
+        }
+        // (Word for Windows sets the letters and digits an embedded subset
+        // lacks in Calibri, at Calibri's widths, and those it holds in the
+        // subset: zh-92373179's 仿宋_GB2312 holds four digits — its 155
+        // held letters and digits print in the subset, the 133 others in
+        // Calibri — and zh-5450d509's holds none, its "2017", "42" 6.12
+        // and 6.08 at 12pt in word-win where ours, the stand-in's half em,
+        // set 6.0, and its p1 line took "署，" Word's leaves.)
+        if wordOnWindows, own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered) {
+            for (u, w) in Self.calibriAlnumAdvances where !covered.contains(u) { face.otherAdvances = (face.otherAdvances ?? [:]).merging([u: w]) { $1 } }
+            for (u, w) in Self.calibriBoldAlnumAdvances where !covered.contains(u) { face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([u: w]) { $1 } }
         }
         return face
     }
+
+    /// Calibri's advances (ems, its hmtx: Word 16's Calibri.ttf and
+    /// Calibrib.ttf) for the ASCII letters and digits.
+    static let calibriAlnumAdvances: [UInt32: Double] = [0x30: 0.5068, 0x31: 0.5068, 0x32: 0.5068, 0x33: 0.5068, 0x34: 0.5068, 0x35: 0.5068, 0x36: 0.5068, 0x37: 0.5068, 0x38: 0.5068, 0x39: 0.5068, 0x41: 0.5786, 0x42: 0.5439, 0x43: 0.5332, 0x44: 0.6152, 0x45: 0.4883, 0x46: 0.4595, 0x47: 0.6309, 0x48: 0.6230, 0x49: 0.2520, 0x4A: 0.3188, 0x4B: 0.5195, 0x4C: 0.4204, 0x4D: 0.8550, 0x4E: 0.6455, 0x4F: 0.6621, 0x50: 0.5166, 0x51: 0.6729, 0x52: 0.5430, 0x53: 0.4595, 0x54: 0.4873, 0x55: 0.6416, 0x56: 0.5674, 0x57: 0.8896, 0x58: 0.5190, 0x59: 0.4873, 0x5A: 0.4683, 0x61: 0.4790, 0x62: 0.5254, 0x63: 0.4229, 0x64: 0.5254, 0x65: 0.4976, 0x66: 0.3052, 0x67: 0.4707, 0x68: 0.5254, 0x69: 0.2295, 0x6A: 0.2393, 0x6B: 0.4546, 0x6C: 0.2295, 0x6D: 0.7988, 0x6E: 0.5254, 0x6F: 0.5273, 0x70: 0.5254, 0x71: 0.5254, 0x72: 0.3486, 0x73: 0.3911, 0x74: 0.3350, 0x75: 0.5254, 0x76: 0.4517, 0x77: 0.7148, 0x78: 0.4331, 0x79: 0.4526, 0x7A: 0.3950]
+    static let calibriBoldAlnumAdvances: [UInt32: Double] = [0x30: 0.5068, 0x31: 0.5068, 0x32: 0.5068, 0x33: 0.5068, 0x34: 0.5068, 0x35: 0.5068, 0x36: 0.5068, 0x37: 0.5068, 0x38: 0.5068, 0x39: 0.5068, 0x41: 0.6060, 0x42: 0.5605, 0x43: 0.5293, 0x44: 0.6304, 0x45: 0.4878, 0x46: 0.4590, 0x47: 0.6372, 0x48: 0.6309, 0x49: 0.2666, 0x4A: 0.3311, 0x4B: 0.5469, 0x4C: 0.4229, 0x4D: 0.8740, 0x4E: 0.6587, 0x4F: 0.6763, 0x50: 0.5322, 0x51: 0.6860, 0x52: 0.5630, 0x53: 0.4727, 0x54: 0.4951, 0x55: 0.6528, 0x56: 0.5913, 0x57: 0.9062, 0x58: 0.5508, 0x59: 0.5195, 0x5A: 0.4780, 0x61: 0.4937, 0x62: 0.5366, 0x63: 0.4185, 0x64: 0.5366, 0x65: 0.5034, 0x66: 0.3164, 0x67: 0.4741, 0x68: 0.5366, 0x69: 0.2456, 0x6A: 0.2554, 0x6B: 0.4800, 0x6C: 0.2456, 0x6D: 0.8135, 0x6E: 0.5366, 0x6F: 0.5376, 0x70: 0.5366, 0x71: 0.5366, 0x72: 0.3555, 0x73: 0.3989, 0x74: 0.3467, 0x75: 0.5366, 0x76: 0.4731, 0x77: 0.7451, 0x78: 0.4595, 0x79: 0.4736, 0x7A: 0.3975]
 
     /// The faces this platform draws Chinese in where the named one is
     /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
     /// what the Latin side of an East Asian family falls back to first.
     nonisolated(unsafe) static var cjkFallback: [String] = []
+
+    /// The Chinese faces Word for Mac carries (its DFonts), registered
+    /// under their family names when OFFICE_WORD_FONTS=mac finds Word
+    /// installed: the ideographs of a print to compare are then drawn in
+    /// the face Word drew them in, where they were the system's PingFang
+    /// — whose outlines (`hvgl`, neither TrueType nor CFF) the PDF can
+    /// only carry as Type 3 glyphs, one font per few characters. PDFKit
+    /// read those back as lines broken where no line breaks, and
+    /// zh-b8de3ae2 scored 2 points under its own layout. Its symbols
+    /// are Word's too: "※" is 0.84 em in YaHei, an em in PingFang.
+    nonisolated(unsafe) static var _wordMacFacesLoaded = false
+    static func registerWordMacFaces() -> Bool {
+        let dir = "/Applications/Microsoft Word.app/Contents/Resources/DFonts/"
+        guard FileManager.default.fileExists(atPath: dir + "msyh.ttc") else { return false }
+        // (A collection's first face: SimSun's, YaHei's, MingLiU's — whose
+        // ideographs are PMingLiU's.)
+        for (file, families) in [("msyh.ttc", ["Microsoft YaHei"]), ("msyhbd.ttc", ["Microsoft YaHei"]), ("Simsun.ttc", ["SimSun"]),
+                                 ("SimHei.ttf", ["SimHei"]), ("Kaiti.ttf", ["KaiTi"]), ("Fangsong.ttf", ["FangSong"]),
+                                 ("mingliu.ttc", ["PMingLiU"]), ("Deng.ttf", ["DengXian"]), ("Dengb.ttf", ["DengXian"]),
+                                 ("STZHONGS.ttf", ["STZhongsong"]), ("STXINWEI.ttf", ["STXinwei"])]
+            where FileManager.default.fileExists(atPath: dir + file) {
+            for family in families { _ = flutter.swift_bridge.LoadFontFromFile(dir + file, family) }
+        }
+        _ = registerWordCordia()
+        _wordMacFacesLoaded = true
+        return true
+    }
+    @discardableResult
+    static func registerWordCordia() -> Bool {
+        let dir = "/Applications/Microsoft Word.app/Contents/Resources/DFonts/"
+        // (Thai: Cordia New, whose widths are Browallia New's, the face
+        // Word for Mac draws "TH Sarabun New" in — `thaiWordFaces`. Its
+        // bold is the collection's second face, which the engine's loader
+        // does not reach: taken out as a face of its own.)
+        if let cordia = FileManager.default.contents(atPath: dir + "cordia.ttc") {
+            var ok = flutter.swift_bridge.LoadFontFromFile(dir + "cordia.ttc", cordiaNew)
+            if ok, let bold = _collectionFace(cordia, 1) {
+                ok = bold.withUnsafeBytes { buffer in
+                    buffer.baseAddress.map { flutter.swift_bridge.LoadFontFromList($0.assumingMemoryBound(to: UInt8.self), buffer.count, cordiaNew) } ?? false
+                }
+            }
+            _cordiaLoaded = ok
+        }
+        return _cordiaLoaded
+    }
+    static let cordiaNew = "Cordia New"
+    nonisolated(unsafe) static var _cordiaLoaded = false
+    /// Face `index` of a TrueType collection as a font file of its own:
+    /// its table directory, with each table copied after it.
+    static func _collectionFace(_ data: Data, _ index: Int) -> Data? {
+        let b = [UInt8](data)
+        func u32(_ o: Int) -> Int { o + 4 <= b.count ? Int(b[o]) << 24 | Int(b[o + 1]) << 16 | Int(b[o + 2]) << 8 | Int(b[o + 3]) : 0 }
+        func u16(_ o: Int) -> Int { o + 2 <= b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        guard b.count > 12, b[0] == 0x74, b[1] == 0x74, b[2] == 0x63, b[3] == 0x66, index < u32(8) else { return nil }
+        let face = u32(12 + 4 * index), n = u16(face + 4)
+        guard n > 0, face + 12 + 16 * n <= b.count else { return nil }
+        var out = [UInt8](b[face ..< face + 12])
+        var body: [UInt8] = []
+        let start = 12 + 16 * n
+        var records: [UInt8] = []
+        for t in 0 ..< n {
+            let r = face + 12 + 16 * t, off = u32(r + 8), len = u32(r + 12)
+            guard off + len <= b.count else { return nil }
+            records += b[r ..< r + 8]
+            let at = start + body.count
+            records += [UInt8(at >> 24 & 0xFF), UInt8(at >> 16 & 0xFF), UInt8(at >> 8 & 0xFF), UInt8(at & 0xFF)]
+            records += b[r + 12 ..< r + 16]
+            body += b[off ..< off + len]
+            while body.count % 4 != 0 { body.append(0) }
+        }
+        out += records
+        out += body
+        return Data(out)
+    }
+    /// The Word face that draws a name's ideographs (`registerWordMacFaces`);
+    /// nil for YaHei's stand-ins, which the glyph fallback draws.
+    private static func wordMacIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
+        guard _wordMacFacesLoaded, ea.height != yaHei.height else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        if has("明體", "mingliu") { return "PMingLiU" }
+        if has("黑体", "simhei") { return "SimHei" }
+        if has("楷体", "kaiti") { return "KaiTi" }
+        if has("仿宋", "fangsong") { return "FangSong" }
+        if has("华文中宋", "stzhongsong") { return "STZhongsong" }
+        if has("华文新魏", "stxinwei") { return "STXinwei" }
+        if has("等线", "dengxian") { return "DengXian" }
+        // (宋体 and the names Word sets in it: FZXiaoBiaoSong by its ASCII
+        // name, and a Latin alternate's.)
+        if ea.height == square.height || has("宋", "simsun", "song") { return "SimSun" }
+        return nil
+    }
 
     /// Starling FangSong: Zhuque Fangsong (OFL) set to FangSong's metrics —
     /// its Latin half an em, its curly quotes and full-width forms an em,
@@ -1574,13 +2309,15 @@ enum OfficeFonts {
     /// document shown as its author had it, those too. (华文仿宋 is a
     /// face of its own, and keeps its own.)
     static func fangSongFamily(_ family: String) -> String? {
-        guard _fangSongLoaded else { return nil }
         let n = family.trimmingWhitespace().lowercased()
+        if _wordMacFacesLoaded, n == "仿宋" || n == "fangsong" { return "FangSong" }
+        guard _fangSongLoaded else { return nil }
         if n == "仿宋" || n == "fangsong" { return starlingFangSong }
         guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }
         // (As Word for Windows sets it: a name it lacks is FangSong only
         // where its font table gives 仿宋 for it — `wordOnWindows`.)
         if wordOnWindows {
+            if n == "仿宋_gb2312" || n == "fangsong_gb2312" { return starlingFangSong }
             let a = altName(family)?.trimmingWhitespace().lowercased() ?? ""
             return (a == "仿宋" || a == "fangsong") ? starlingFangSong : nil
         }
@@ -1711,6 +2448,11 @@ enum OfficeFonts {
         }
         faces += [("LibreFranklin-Medium.ttf", "Libre Franklin Medium"), ("LibreFranklin-MediumItalic.ttf", "Libre Franklin Medium")]
         faces += [("ArchivoBlack-Regular.ttf", "Archivo Black")]
+        // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
+        // bold with no italic: the face has none, and PowerPoint's print
+        // slants its regular — the engine does the same for a family with
+        // no italic, where Liberation Sans's own italic has other letters.)
+        faces += [("LiberationSans-Regular.ttf", "Starling Lucida Sans"), ("LiberationSans-Bold.ttf", "Starling Lucida Sans")]
         faces += [("SelawikDoc-Regular.ttf", "Selawik Doc"), ("SelawikDoc-Bold.ttf", "Selawik Doc"),
                   ("SelawikDoc-Light.ttf", "Selawik Doc Light"), ("SelawikDoc-Semilight.ttf", "Selawik Doc Semilight"),
                   ("SelawikDoc-Semibold.ttf", "Selawik Doc Semibold")]
@@ -1724,6 +2466,10 @@ enum OfficeFonts {
     static func register() -> Bool {
         if _registered { return _registrationSucceeded }
         _registered = true
+        // (Word for Windows sets "◎", "◇" and "◆" in Cambria Math, not
+        // Segoe UI Symbol, and their line stands no taller for them — lab
+        // e6p; "★" and "☆" are Segoe UI Symbol's there too, ~0.067em up.)
+        if wordOnWindows { RichTextTheme.segoeSymbolShapes.subtract([0x25CE, 0x25C7, 0x25C6]) }
         #if os(WASI)
         // The page preloads UI/default faces. Other document families are
         // requested by the paragraph builder when used and trigger relayout
@@ -1757,6 +2503,9 @@ enum OfficeFonts {
         // Word's has not. YaHei is the face Word for Mac sets these in.
         cjkFallback = ["Microsoft YaHei"]
         RichTextTheme.glyphFallback += cjkFallback
+        for (face, files) in cloudFaces {
+            for file in files { _ = flutter.swift_bridge.LoadFontFromFile(file, face) }
+        }
         #elseif os(Linux)
         // Chinese text, named: the engine's Linux font manager reads
         // /usr/share/fonts but finds no face for a character itself, so
@@ -1779,7 +2528,25 @@ enum OfficeFonts {
         // whatever was asked: no bold heading was bold. Named as a
         // fallback family it is matched like one, weight and all.
         RichTextTheme.glyphFallback = ["PingFang SC"]
+        // (Under OFFICE_WORD_FONTS=mac, Word's own: `registerWordMacFaces`.)
+        if wordOnMac, registerWordMacFaces() { RichTextTheme.glyphFallback = ["Microsoft YaHei", "PingFang SC"] }
+        // (Mac mode's alone, and here on purpose: macOS and iOS only.)
+        if wordOnMac { RichTextTheme.thaiBreaksAtSpaces = true }
+        // (Windows mode too: Word for Windows draws these Thai faces in
+        // Browallia New, whose widths are Cordia's, and Thonburi's text
+        // layer loses clusters — zh-6a4fc013's Thai pages.)
+        if wordOnWindows { registerWordCordia() }
         #endif
+        // (Word for Windows breaks Thai at its spaces as Word for Mac does:
+        // windows' lab, 52 of zh-6a4fc013's 54 matched lines. Only where
+        // the Thai is at Browallia's widths, Cordia's: on Linux's Noto
+        // Sans Thai at 0.66 its lines ran long — 91.7 -> 89.4, 638 lines
+        // to Word's 614 (office1's check).)
+        if wordOnWindows, _cordiaLoaded { RichTextTheme.thaiBreaksAtSpaces = true }
+        // (On every platform: set inside the macOS branch, Linux and
+        // Windows sweeps under OFFICE_WORD_FONTS=windows never had it, and
+        // bug59058's page 28 still lost its last line there.)
+        if wordOnWindows { RichTextTheme.wordWindowsPages = true }
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
             return false

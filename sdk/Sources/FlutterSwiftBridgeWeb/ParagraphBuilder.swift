@@ -182,6 +182,8 @@ extension flutter.swift_bridge {
         /// The style in force, innermost last. The first entry is the
         /// paragraph style's own text style and is never popped.
         private var styles: [ResolvedTextStyle]
+        /// The paragraph style asked for its lines' fractions (bit 13).
+        private var fractionalLineHeights = false
 
         /// The paint the next PushStyle's foreground is drawn with, and
         /// every one handed over so far, kept until the builder goes.
@@ -198,6 +200,8 @@ extension flutter.swift_bridge {
         private static let psFontStyle: Int32 = 1 << 4
         private static let psMaxLines: Int32 = 1 << 5
         private static let psTextHeightBehavior: Int32 = 1 << 6
+        /// Starling's: the lines keep their heights' fractions (Word's layout).
+        private static let psFractionalLineHeights: Int32 = 1 << 13
 
         public init(
             _ encoded_style: UnsafePointer<Int32>?,
@@ -236,6 +240,10 @@ extension flutter.swift_bridge {
                     // bit 1 the same for the last descent.
                     paragraphStyle_setTextHeightBehavior(
                         paragraphStyle, encoded[6] & 1 == 0, encoded[6] & 2 == 0)
+                }
+                if mask & Self.psFractionalLineHeights != 0 {
+                    paragraphStyle_setFractionalLineHeights(paragraphStyle, true)
+                    fractionalLineHeights = true
                 }
             }
 
@@ -567,7 +575,10 @@ extension flutter.swift_bridge {
             paragraphBuilder_dispose(skHandle)
             skHandle = 0
             styles.removeAll()
-            return paragraph == 0 ? nil : ParagraphBridge(skHandle: paragraph)
+            guard paragraph != 0 else { return nil }
+            let bridge = ParagraphBridge(skHandle: paragraph)
+            bridge.fractionalLineHeights = fractionalLineHeights
+            return bridge
         }
     }
 }

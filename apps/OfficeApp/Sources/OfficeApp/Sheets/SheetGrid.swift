@@ -263,6 +263,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// The sheet prints in black and white (`pageSetup@blackAndWhite`): no
     /// fills, its text and rules black.
     var printMono = false
+    /// The page's scale while its cells are painted, 0 otherwise: what
+    /// a cell's font is sized for on the printer (`_paintCell`).
+    var printTextScale = 0.0
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
@@ -306,9 +309,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             var lines: [Int: Double] = [:]   // by style
             func line(_ style: Int) -> Double {
                 if let known = lines[style] { return known }
-                let st = book.style(style)
-                let l = style == 0 || st.fontName == nil && st.fontSize == nil ? m.defaultRow
-                    : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
+                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book)
                 lines[style] = l
                 return l
             }
@@ -360,7 +361,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if ws.scriptRows.contains(r), let h = heights[r], h >= line { continue }
                 if abs(line - m.defaultRow) > 0.01 || heights[r] != nil { heights[r] = line }
             }
-            cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
+            let dots = printRowScale * 600 / 72
+            func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
+            // (A column in whole printer dots too, each its own: 49609's
+            // 8.33 characters of Microsoft Sans Serif 8.25 are 316.67 dots,
+            // and its rules in Excel's print stand 317.04 apart.)
+            cols = GridAxis(def: whole(ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit), overrides: widths.mapValues(whole), hidden: ws.hiddenCols, scale: scale)
             do {
                 // And as tall as its wrapped text's lines, in the column's width:
                 // so many of its font's fitted lines. (Excel fits a wrapped row
@@ -398,14 +404,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
                     guard lines > one * 1.5 else { continue }
-                    let line = st.fontName == nil && st.fontSize == nil ? m.defaultRow
-                        : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
-                    let tall = (lines / one).rounded() * line
+                    let tall = (lines / one).rounded() * Self._fittedLine(st, m, book)
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
             }
-            let dots = printRowScale * 600 / 72
-            func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
             // (A default height the sheet sets is a set height: cut down to
             // whole printer dots as any other. picture.xlsx's 14 pt rows are
             // 118 dots, 14.16, in Excel's print; rounded, 119 put its picture's
@@ -578,20 +580,38 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// Where a drawing's anchor puts it on screen.
     func drawingRect(_ anchor: SheetAnchor) -> Rect {
-        // An offset is a share of its cell — never past it (Excel holds a
-        // corner inside the cell it names), and on paper, where the cell has
-        // the printer's size, the same share of that.
+        // An offset is its points into its cell — never past it (Excel holds
+        // a corner inside the cell it names). On paper it is scaled as the
+        // screen is: across, by the printer's digit over the 192 dpi
+        // screen's (a column's own scale, its padding aside), and down by
+        // the row scale — not by its cell's share, a column's padding
+        // being the same few pixels at any width. Calibri 11's 47 dots
+        // over 15 px is 1.003: chart-treemap's frame 12.75 pt into a 51.13
+        // pt column F and 36.75 into M, 318.9 to 700.74 in Excel's print,
+        // where a share put ours at 319.66 to 703.18. Calibri 10's 42 over
+        // 14 is 0.96: 53568's 3 to 31.8 pt into B, 27.65 pt wide.
         let ws = controller.sheet, ca = cols, ra = rows
+        var across = 1.0, down = 1.0
+        if printing {
+            let book = controller.book
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            across = m.digit / (m.screenDigit * 72 / 192)
+            down = m.rowScale
+        }
         func at(_ m: SheetMarker) -> Offset {
             let w = ws.colWidth(m.col), h = ws.rowHeight(m.row)
-            return Offset(colX(m.col) + (w > 0 ? min(1, m.colOff / w) : 0) * ca.size(m.col),
-                          rowY(m.row) + (h > 0 ? min(1, m.rowOff / h) : 0) * ra.size(m.row))
+            return Offset(colX(m.col) + (w > 0 ? min(m.colOff * across * scale, ca.size(m.col)) : 0),
+                          rowY(m.row) + (h > 0 ? min(m.rowOff * down * scale, ra.size(m.row)) : 0))
         }
         switch anchor {
         case .twoCell(let from, let to):
             let a = at(from), b = at(to)
             return Rect.fromLTRB(a.dx, a.dy, max(a.dx, b.dx), max(a.dy, b.dy))
         case .oneCell(let from, let w, let h):
+            // (Its size as it says, not scaled as an offset is: scaled,
+            // chart-tdf119138's and -tdf100084's charts printed larger
+            // than Excel's, lo-tdf139763ShapeAnchor's shapes no longer
+            // exact.)
             let a = at(from)
             return Rect.fromLTWH(a.dx, a.dy, w * scale, h * scale)
         case .absolute(let x, let y, let w, let h):
@@ -606,7 +626,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .shape(let shape):
             shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
-            _paintPicture(canvas, path, data, in: r, crop: d.crop)
+            // A turned picture: its anchor holds the turned box, its sides
+            // swapped between 45° and 135° (lo-twoCellAnchor_editAs_oneCell's
+            // at 240°, a 330 by 352 pt box in Excel's print, where ours drew
+            // it upright in 218 by 284).
+            guard d.rotation != 0 else { _paintPicture(canvas, path, data, in: r, crop: d.crop); return }
+            let turn = (d.rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
+            let box = turn >= 45 && turn < 135 ? Rect.fromCenter(center: r.center, width: r.height, height: r.width) : r
+            canvas.save()
+            canvas.translate(r.center.dx, r.center.dy)
+            canvas.rotate(d.rotation * .pi / 180)
+            canvas.translate(-r.center.dx, -r.center.dy)
+            _paintPicture(canvas, path, data, in: box, crop: d.crop)
+            canvas.restore()
         case .chart:
             guard let chart else { return }
             // Excel's chart area: its own fill and outline where the chart
@@ -641,7 +673,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 stated.textSize = 10 * 4.0 / 3
                 if stated.titleSize == nil { stated.titleSize = 18 * 4.0 / 3 }
             }
-            if !chart.series.isEmpty { ChartPainter.paint(stated, canvas, r, pxPerPt: scale * 0.75, theme: theme) }
+            // Nothing of it outside its area, as Excel draws none: 45540's
+            // pie labels set below the frame printed over the cells there.
+            if !chart.series.isEmpty {
+                canvas.save()
+                canvas.clipRect(r)
+                ChartPainter.paint(stated, canvas, r, pxPerPt: scale * 0.75, theme: theme)
+                canvas.restore()
+            }
         }
     }
 
@@ -2093,8 +2132,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Fills, in reading order, each run of one colour along a row drawn as
     /// one rect: cell by cell, anti-aliasing leaves a pale seam at every
     /// edge between two (lo-pivottable_invalid_formats' table header),
-    /// and Excel's page has a rect per run.
+    /// and Excel's page has a rect per run. A run continues down the rows
+    /// it spans alike, as one rect too (54288's grey blocks, one rect each
+    /// in Excel's print, showed a seam under every row of ours).
     private func _fillRuns(_ canvas: any Canvas, _ p: Paint, _ fills: [(Rect, UInt32)]) {
+        var runs: [(Rect, UInt32)] = []
+        var open: [String: Int] = [:]   // left, right and colour → the run whose foot is open
         var i = 0
         while i < fills.count {
             var r = fills[i].0
@@ -2105,9 +2148,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 r = Rect.fromLTRB(r.left, r.top, fills[j].0.right, r.bottom)
                 j += 1
             }
+            let key = "\((r.left * 100).rounded()) \((r.right * 100).rounded()) \(f)"
+            if let k = open[key], abs(runs[k].0.bottom - r.top) < 0.01 {
+                runs[k].0 = Rect.fromLTRB(r.left, runs[k].0.top, r.right, r.bottom)
+            } else {
+                open[key] = runs.count
+                runs.append((r, f))
+            }
+            i = j
+        }
+        for (r, f) in runs {
             p.color = Color(Int64(0xFF00_0000) | Int64(f))
             canvas.drawRect(r, p)
-            i = j
         }
     }
 
@@ -2345,10 +2397,30 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 border.color = (printing && printMono ? nil : b.colors[side]).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.ink
                 // (On paper 8, 16 and 24 printer dots, as Excel prints them.)
                 border.strokeWidth = (kind == "medium" || kind.hasPrefix("medium") ? 2 : kind == "thick" ? 3 : 1) * (printing ? 0.96 : 1)
-                if kind == "hair" { border.color = border.color.withAlpha(140) }
+                // A hair line is one printer dot on paper, solid (54206's
+                // grid of them, 0.12 pt in Excel's print, where ours drew
+                // 0.96 at half strength); a faint pixel on a screen.
+                if kind == "hair" {
+                    if printing { border.strokeWidth = 72.0 / 600 } else { border.color = border.color.withAlpha(140) }
+                }
                 if kind == "double" {
                     canvas.drawLine(a, z, border)
                     canvas.drawLine(a + inward * 2, z + inward * 2, border)
+                    return
+                }
+                if printing, let pattern = Self._printDashes[kind.hasPrefix("slant") ? "mediumDashDot" : kind] {
+                    // On paper Excel's own runs, on and off in printer dots
+                    // (lo-cell-borders' lab of every kind, measured at 600 dpi).
+                    if kind.hasPrefix("slant") { border.strokeWidth = 2 * 0.96 }
+                    let length = (z - a).distance
+                    guard length > 0 else { return }
+                    let step = (z - a) / length
+                    var at = 0.0, i = 0
+                    while at < length {
+                        let run = pattern[i % pattern.count] * 72 / 600
+                        if i % 2 == 0 { canvas.drawLine(a + step * at, a + step * min(length, at + run), border) }
+                        at += run; i += 1
+                    }
                     return
                 }
                 if kind.containsSubstring("ash") || kind.containsSubstring("otted") {
@@ -2415,12 +2487,25 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static let excelTextScale = 7.0 / 7.43
 
     /// The text style a cell draws with.
-    private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
+    func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
-        return GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)),
+        // (On a page, its printer dots and its face's hinted widths:
+        // Arial's and Times' in their clones, which have their advances,
+        // and those of the faces Windows draws in their own files — Arial's
+        // for a face it has no file for, which it draws in Arial.)
+        let dots = printing && printTextScale > 0 ? printTextScale / scale * 600 / 72 : 0
+        let face = OfficeFonts.sheetFace(book.fontName(st))
+        var hint = ""
+        if dots > 0 {
+            var name = book.fontName(st).trimmingWhitespace().lowercased()
+            if face == "Arial" { name = "arial" }
+            let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
+            if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
+        }
+        return GridTextStyle(family: face,
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
-                             underline: st.underline, strike: st.strike, color: c)
+                             underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
@@ -2518,6 +2603,20 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                       right - clipLeft < tp.width + pad * 2 + inset {
                     clipLeft -= ca.size(col); col -= 1
                 }
+            } else if align == .center {
+                // Centred, half of what it lacks to each side, as far as
+                // that side's neighbours are empty (lo-tdf171828's I14 runs
+                // over H and J).
+                let side = (tp.width + pad * 2 - width) / 2
+                var col = a.col - 1
+                while col >= 0, left - clipLeft < side, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
+                    clipLeft -= ca.size(col); col -= 1
+                }
+                col = a.col + 1
+                while col < CellAddress.maxCols, col <= a.col + (printing ? 255 : 30), clipRight - right < side,
+                      ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
+                    clipRight += ca.size(col); col += 1
+                }
             }
         }
         // On paper the text stands in from its side half a point and a
@@ -2525,22 +2624,36 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // faces at ten sizes, 1.50 pt for Calibri 8 to 4.26 for Verdana 24,
         // within a printer dot), where ours stood a flat 1.5. (Wrapping
         // keeps the cell's margin `pad`: its widths are Excel's.) The
-        // right side stands 0.4 pt closer: a lab of right-aligned 3750 in
-        // the same fifty fonts measured it 0.34 to 0.43 under the left.
+        // right side the same: a lab of right-aligned 3750 had measured it
+        // 0.34 to 0.43 under the left, against cells that stood 0.48 left
+        // of Excel's (SheetPrint's inset) — with the cells in place,
+        // bug62181's right-aligned numbers stood 0.45 right of Excel's.
         let margin = printing
             ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
             : pad
-        let rightMargin = printing ? margin - 0.4 : margin
+        let rightMargin = margin
+        // And centred text four printer dots right of the middle: 0.45 pt
+        // on the median in Excel's prints of 56 workbooks, merged or not, at
+        // page scales 53% to 100% alike, and of a General TRUE or #N/A in 27
+        // of 30. (lo-ceiling-floor's stood in the middle — and its
+        // right-aligned numbers 0.33 right of Excel's: its columns, open.)
+        let centre = printing && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let tx: Double
         switch align {
         case .right: tx = right - rightMargin - inset - tp.width
-        case .center: tx = left + (width - lead - tp.width) / 2 + lead
+        case .center: tx = left + (width - lead - tp.width) / 2 + lead + centre
         default: tx = left + margin + inset + lead
         }
+        // On paper a merged area centres its text four printer dots higher
+        // than a lone cell does: Tables' "PRSI Liability" over its "GROSS",
+        // simple-monthly-budget's "Balance", style-alternate-content's
+        // labels, 0.48 pt in Excel's prints at 80% and at 100%. (A merge
+        // set at its foot stands where a lone cell's text does.)
+        let lift = printing && !spill && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let ty: Double
         switch st.vAlign {
         case .top: ty = top + 1
-        case .center: ty = top + (bottom - top - tp.height) / 2
+        case .center: ty = top + (bottom - top - tp.height) / 2 - lift
         case .bottom: ty = bottom - tp.height - 1
         }
         canvas.save()
@@ -2568,8 +2681,101 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             canvas.restore()
             return
         }
+        // Wrapped lines on paper are their font's fitted line apart, the
+        // line a row of it is fitted to, not the face's own: Arial 10's
+        // 12.36 pt (lo-tdf159581_optimalRowHeight, ours 11.0), Calibri
+        // 11's 14.52 (52716, ours 13.0), in Excel's prints of 26
+        // workbooks. The line the alignment holds — the last at the foot,
+        // the first at the head, the middle in the centre — stands where
+        // one line would (52716's last lines with their rows' numbers).
+        if printing && wraps {
+            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2))
+                .split(separator: "\n", omittingEmptySubsequences: false)
+            if lines.count > 1 {
+                let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+                let pitch = Self._fittedLine(st, m, book) * scale
+                let one = texts.painter("X", style).height, n = Double(lines.count - 1)
+                let y0: Double
+                switch st.vAlign {
+                case .top: y0 = top + 1
+                case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch - lift
+                case .bottom: y0 = bottom - one - 1 - n * pitch
+                }
+                for (i, line) in lines.enumerated() {
+                    let lp = texts.painter(String(line), style)
+                    let x: Double
+                    switch align {
+                    case .right: x = right - rightMargin - inset - lp.width
+                    case .center: x = left + (width - lead - lp.width) / 2 + lead + centre
+                    default: x = left + margin + inset + lead
+                    }
+                    lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
+                }
+                canvas.restore()
+                return
+            }
+        }
+        // A rich string on one line: run by run, each in its own font, on
+        // the line's baseline. A raised or lowered run is two thirds of its
+        // size, raised half its em — 45540_classic_Header's "Number of
+        // Hires⁽¹⁾", Arial Bold 10 at 90%: 6.0 pt on the page, 37 dots of 75
+        // up. (Lowered: its face's 0.14 em, not yet seen in a print.) A cell
+        // whose font is raised is one such run, and so is a run with no font
+        // of its own in it (the same workbook's "⁽¹⁾  Eleven students…").
+        let runs: [RichRun]? = {
+            if let r = ws.richText[a], case .text(let raw) = cell.value, raw == text, r.map(\.text).joined() == text { return r }
+            return st.script != 0 ? [RichRun(text: text)] : nil
+        }()
+        if let runs, lead == 0, !text.isEmpty, !text.containsSubstring("\n") {
+            let plain = texts.painter(text, style)
+            if !wraps || plain.width <= width - pad * 2 {
+                let line: Double
+                switch lineAlign {
+                case .center: line = tx + (tp.width - plain.width) / 2
+                case .right: line = tx + tp.width - plain.width
+                default: line = tx
+                }
+                let base = ty + plain.computeDistanceToActualBaseline(.alphabetic)
+                let parts = runs.map { run -> (TextPainter, Double) in
+                    var rs = st
+                    if run.bold != nil {
+                        rs.bold = run.bold ?? false; rs.italic = run.italic ?? false
+                        rs.underline = run.underline ?? false; rs.strike = run.strike ?? false
+                    }
+                    if let f = run.fontName { rs.fontName = f }
+                    if let z = run.size { rs.fontSize = z }
+                    if let c = run.color { rs.color = c }
+                    var s = _textStyle(rs, color: color, ink: ink)
+                    let em = s.size, script = run.bold == nil ? st.script : run.script
+                    if script != 0 { s.size = em * 2 / 3 }
+                    let rp = texts.painter(run.text, s)
+                    let shift = script > 0 ? em / 2 : script < 0 ? -em * 0.14 : 0
+                    return (rp, base - rp.computeDistanceToActualBaseline(.alphabetic) - shift)
+                }
+                let total = parts.reduce(0) { $0 + $1.0.width }
+                var x: Double
+                switch align {
+                case .center: x = line + (plain.width - total) / 2
+                case .right: x = line + plain.width - total
+                default: x = line
+                }
+                for (rp, y) in parts {
+                    rp.paint(canvas, printing ? Offset(x, y) : Offset(x.rounded(), y.rounded()))
+                    x += rp.width
+                }
+                canvas.restore()
+                return
+            }
+        }
         tp.paint(canvas, at(tx))
         canvas.restore()
+    }
+
+    /// A cell's font's line on paper, in points: the row Excel fits to
+    /// it in this workbook (`m`, the metrics of its default font).
+    static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
+        st.fontName == nil && st.fontSize == nil ? m.defaultRow
+            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
     }
 
     /// Text turned a quarter: up (`textRotation` 90, read from the foot)
@@ -2649,9 +2855,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         text.count > 1024 ? String(text.prefix(1024)) : text
     }
 
+    /// A dashed or dotted border's runs on paper, on and off, in printer
+    /// dots from the side's start: dotted 4 and 4, dashed 24 and 8, a
+    /// dash 72, a dot 24 and the gaps 24 (lo-cell-borders in Excel's print).
+    static let _printDashes: [String: [Double]] = [
+        "dotted": [4, 4], "dashed": [24, 8], "dashDot": [24, 24, 72, 24], "dashDotDot": [24, 24, 72, 24, 24, 24],
+        "mediumDashed": [72, 24], "mediumDashDot": [24, 24, 72, 24], "mediumDashDotDot": [24, 24, 72, 24, 24, 24],
+    ]
+
     /// The columns a text too long for its cell runs over, as `_paintCell`
     /// lets it: empty neighbours to the right of left-aligned text, to the
-    /// left of right-aligned. Nil when it stays in its own cell.
+    /// left of right-aligned, to both sides of centred. Nil when it stays
+    /// in its own cell.
     func textReach(_ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook) -> ClosedRange<Int>? {
         guard case .text(let raw) = cell.value else { return nil }
         let st = book.style(cell.style)
@@ -2662,7 +2877,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the wrong bound — and let only text five times too long run over:
         // NumberFormatTests' "Improper Fractions" in column D printed no
         // column E, where Excel prints five pages of it.)
-        guard width > 0, !st.wrap, st.hAlign != .center, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
+        guard width > 0, !st.wrap, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
         let text = Self.shown(NumberFormat.display(cell.value, st.numberFormat, width: 255).text)
         var need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
@@ -2672,7 +2887,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         guard need > width else { return nil }
         var have = width, lo = a.col, hi = a.col
-        if st.hAlign == .right {
+        if st.hAlign == .center {
+            let side = (need - width) / 2
+            var l = 0.0, r = 0.0
+            while lo > 0, l < side, ws.cells[CellAddress(row: a.row, col: lo - 1)]?.value.isEmpty ?? true {
+                lo -= 1; l += ca.size(lo)
+            }
+            while hi < CellAddress.maxCols - 1, hi < a.col + 255, r < side,
+                  ws.cells[CellAddress(row: a.row, col: hi + 1)]?.value.isEmpty ?? true {
+                hi += 1; r += ca.size(hi)
+            }
+        } else if st.hAlign == .right {
             while lo > 0, have < need, ws.cells[CellAddress(row: a.row, col: lo - 1)]?.value.isEmpty ?? true {
                 lo -= 1; have += ca.size(lo)
             }
@@ -2754,6 +2979,16 @@ struct GridTextStyle: Hashable {
     var underline = false
     var strike = false
     var color: Int64
+    /// On a page, the printer's dots in a unit of its layout; 0 on a
+    /// screen. Excel prints a font a whole number of 600-dpi dots an em
+    /// (Calibri 11 at 11.04 pt, 92 dots; Arial and Times 10 at 9.96, 83)
+    /// and each character a whole number of dots on from the last: Lucida
+    /// Sans Typewriter 10 steps 50 dots, its 0.6 em of 83 being 49.8, and
+    /// Verdana's digits 53 (52.77). `_TextCache` sets each character so.
+    var dots = 0.0
+    /// The face whose hinted widths it is set to (`SheetHinting`), where
+    /// what draws it has that face's advances; "" for none.
+    var hint = ""
 
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
@@ -2762,9 +2997,12 @@ struct GridTextStyle: Hashable {
         // Unkerned, as Excel sets a cell: kerned, Calibri's "UPDATE" fit
         // a line of CVLKRA's Remarks column that Excel's (36.3 pt, the
         // column less 3) is 0.3 pt too narrow for, and wraps as "UPDAT".
+        // And letter by letter: Excel draws no ligature, where Carlito
+        // joined lo-forum-mso-de-104083's "Werkauftrag" at "ft" and
+        // "Position" at "ti".
         return Flutter.TextStyle(color: Color(color), fontSize: size,
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
-                                 fontFeatures: [FontFeature("kern", 0)],
+                                 fontFeatures: [FontFeature("kern", 0), FontFeature("liga", 0), FontFeature("clig", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
                                  fontFamily: family)
     }
@@ -2799,13 +3037,15 @@ final class _TextCache {
     /// `NumberFormat` marks it): each pad a space spaced out to x's width,
     /// blank on the page and nothing in its text but the space.
     private func _span(_ text: String, _ style: GridTextStyle) -> TextSpan {
-        guard text.contains(NumberFormat.padMark) else { return TextSpan(text: text, style: style.flutter) }
+        guard text.contains(NumberFormat.padMark) else {
+            return _spaces(text, style) ? TextSpan(children: _spaced(text, style)) : TextSpan(text: text, style: style.flutter)
+        }
         // (A lone space measures as its advance only between letters.)
-        let space = _width("a a", style) - _width("aa", style)
+        let space = _measure("a a", style) - _measure("aa", style)
         var spans: [InlineSpan] = [], run = "", padding = false
         for ch in text {
             if padding {
-                if !run.isEmpty { spans.append(TextSpan(text: run, style: style.flutter)); run = "" }
+                if !run.isEmpty { spans += _spaced(run, style); run = "" }
                 spans.append(TextSpan(text: " ", style: style.flutter.copyWith(letterSpacing: _width(String(ch), style) - space)))
                 padding = false
             } else if ch == NumberFormat.padMark {
@@ -2814,8 +3054,52 @@ final class _TextCache {
                 run.append(ch)
             }
         }
-        if !run.isEmpty { spans.append(TextSpan(text: run, style: style.flutter)) }
+        if !run.isEmpty { spans += _spaced(run, style) }
         return TextSpan(children: spans)
+    }
+
+    /// The face's own widths, where its stand-in has other ones: Verdana's,
+    /// drawn in DejaVu Sans (a few per cent wider in its letters, narrower
+    /// in its space — the format tests' lines ran past Excel's), in ems.
+    private func _own(_ ch: Character, _ style: GridTextStyle) -> Double? {
+        guard style.family == OfficeFonts.verdana, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value else { return nil }
+        if v >= 0x20, v <= 0x7E { return (style.bold ? OfficeFonts.verdanaBoldAdvances : OfficeFonts.verdanaAdvances)[Int(v - 0x20)] }
+        return (style.bold ? OfficeFonts.verdanaBoldOtherAdvances : OfficeFonts.verdanaOtherAdvances)[v]
+    }
+    /// Whether `run` is set character by character: in a face with its
+    /// own widths, or on a page (`GridTextStyle.dots`) — save where its
+    /// script joins or stacks its letters, which only the whole run shapes.
+    private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
+        guard style.family == OfficeFonts.verdana || style.dots > 0 else { return false }
+        return !run.unicodeScalars.contains { v in
+            let x = v.value
+            return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)
+                || (0x1000 ... 0x109F).contains(x) || (0x1780 ... 0x17FF).contains(x) || (0x200C ... 0x200F).contains(x)
+                || (0xFB1D ... 0xFDFF).contains(x) || (0xFE70 ... 0xFEFF).contains(x)
+        }
+    }
+
+    /// One character's advance as set: its face's own, or the stand-in's
+    /// (`natural`); on a page, at the font's whole dots an em, to the
+    /// whole dot, or its face's hinted width there.
+    private func _advance(_ ch: Character, _ natural: Double, _ style: GridTextStyle) -> Double {
+        let a = _own(ch, style).map { $0 * style.size } ?? natural
+        guard style.dots > 0, style.size > 0 else { return a }
+        let em = (style.size * style.dots).rounded()
+        let hinted = style.hint.isEmpty ? 0 : SheetHinting.departure(style.hint, em: Int(em), ch)
+        return ((a / style.size * em).rounded() + Double(hinted)) / style.dots
+    }
+
+    /// A run as spans, each character spaced out (or in) to its advance.
+    private func _spaced(_ run: String, _ style: GridTextStyle) -> [InlineSpan] {
+        guard _spaces(run, style) else { return [TextSpan(text: run, style: style.flutter)] }
+        // (A lone space measures as its advance only between letters.)
+        let space = _measure("a a", style) - _measure("aa", style)
+        return run.map { ch -> InlineSpan in
+            let natural = ch == " " ? space : _measure(String(ch), style)
+            let a = _advance(ch, natural, style)
+            return TextSpan(text: String(ch), style: a == natural ? style.flutter : style.flutter.copyWith(letterSpacing: a - natural))
+        }
     }
 
     /// Wrapped text broken where Excel breaks it: a word that does not
@@ -2879,7 +3163,15 @@ final class _TextCache {
     }
 
     private var _widths: [Key: Double] = [:]
+    /// The width `s` is set to: each character's advance, where it is
+    /// set character by character.
     private func _width(_ s: String, _ style: GridTextStyle) -> Double {
+        guard _spaces(s, style) else { return _measure(s, style) }
+        let space = s.containsSubstring(" ") ? _measure("a a", style) - _measure("aa", style) : 0
+        return s.reduce(0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) }
+    }
+    /// The stand-in's own width of `s`.
+    private func _measure(_ s: String, _ style: GridTextStyle) -> Double {
         let k = Key(text: s, style: style, width: -1, align: .left)
         if let w = _widths[k] { return w }
         if _widths.count > 20000 { _widths.removeAll() }

@@ -39,6 +39,8 @@ struct CellStyle: Hashable, Sendable {
     var italic = false
     var underline = false
     var strike = false
+    /// The font's `vertAlign`: 1 superscript, -1 subscript.
+    var script = 0
     var fontName: String? = nil
     var fontSize: Double? = nil
     var color: UInt32? = nil       // 0xRRGGBB
@@ -73,6 +75,18 @@ struct CellStyle: Hashable, Sendable {
     }
 
     static let plain = CellStyle()
+}
+
+/// A run of a rich string (a shared string's `r`): its text, and the font
+/// its `rPr` gives — nil where it gives none and the cell's font holds.
+struct RichRun: Hashable, Sendable {
+    var text: String
+    var bold: Bool? = nil, italic: Bool? = nil, underline: Bool? = nil, strike: Bool? = nil
+    var size: Double? = nil
+    var fontName: String? = nil
+    var color: UInt32? = nil
+    /// 1 raised (superscript), -1 lowered (subscript).
+    var script = 0
 }
 
 struct Cell: Sendable {
@@ -214,6 +228,9 @@ final class Worksheet {
     /// file has it, is kept (45544's "Number of Hires⁽¹⁾" header rows).
     /// Rows of turned text (`CellStyle.rotation`) likewise.
     var scriptRows: Set<Int> = []
+    /// Cells holding a rich string, as its runs. Drawn so only while their
+    /// text is still the cell's (an edit leaves them behind).
+    var richText: [CellAddress: [RichRun]] = [:]
     /// A formatted row's span as the file gave it (`spans`): the columns
     /// in it the file has no cell for. Excel makes them cells in the row's
     /// format, and a fill or border there prints (FormatConditionTests'
@@ -311,6 +328,7 @@ final class Worksheet {
         s.viewAttrs = viewAttrs
         s.hasView = hasView
         s.scriptRows = scriptRows
+        s.richText = richText
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
         s.tables = tables
@@ -411,6 +429,23 @@ final class Workbook {
 
     init(sheets: [Worksheet] = [Worksheet(name: "Sheet1")]) {
         self.sheets = sheets
+    }
+
+    /// A defined name's formula, as `sheet` reads it: that sheet's own
+    /// name of it (`localSheetId`), else the book's. `Sheet!Name` is the
+    /// named sheet's. (lo-named-ranges-global's Sheet1 reads its own
+    /// Local1, 3, where the book's table held another sheet's, 5.)
+    func nameText(_ n: String, sheet: Int? = nil) -> String? {
+        var bare = n, home = sheet
+        if let bang = n.lastIndex(of: "!") {
+            bare = String(n[n.index(after: bang)...])
+            var s = String(n[..<bang])
+            if s.hasPrefix("'"), s.hasSuffix("'"), s.count >= 2 { s = String(s.dropFirst().dropLast()).replacingAll("''", with: "'") }
+            home = self.sheet(named: s)
+        }
+        let key = bare.uppercased()
+        if let home, let own = fileNames.last(where: { $0.localSheet == home && $0.name.uppercased() == key }) { return own.text }
+        return names[key]
     }
 
     func sheet(named name: String) -> Int? {

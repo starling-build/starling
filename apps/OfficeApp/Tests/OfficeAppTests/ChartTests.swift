@@ -307,4 +307,13 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(xml.contains("<c:doughnutChart>") && xml.contains("<c:holeSize val=\"75\"/>"))
         XCTAssertEqual(try reread(c), c)
     }
+    func testAPiePointsOwnLabelTextIsRead() throws {
+        // zh-61aaad09's pie writes its labels out, "109646, 15.85%": Word
+        // prints them as they stand, where ours drew the percent alone, "16%".
+        let pie = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><c:chart><c:plotArea><c:pieChart><c:varyColors val=\"1\"/><c:ser><c:dLbls><c:dLbl><c:idx val=\"0\"/><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>109646, 15.85%</a:t></a:r></a:p></c:rich></c:tx><c:dLblPos val=\"bestFit\"/><c:showVal val=\"1\"/><c:showPercent val=\"1\"/></c:dLbl><c:showVal val=\"0\"/><c:showPercent val=\"0\"/></c:dLbls><c:val><c:numLit><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>109646</c:v></c:pt><c:pt idx=\"1\"><c:v>582054</c:v></c:pt></c:numLit></c:val></c:ser></c:pieChart></c:plotArea></c:chart></c:chartSpace>"
+        let c = try XCTUnwrap(ChartXML.read(XNode.parse(Data(pie.utf8))!, color: { _ in nil }))
+        XCTAssertEqual(c.pieLabels?.texts[0], "109646, 15.85%")
+        XCTAssertNil(c.pieLabels?.texts[1])
+    }
+
 }

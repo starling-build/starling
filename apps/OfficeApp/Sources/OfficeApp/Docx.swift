@@ -44,6 +44,8 @@ final class XNode {
         return nil
     }
     func all(_ name: String) -> [XNode] { children.filter { $0.name == name } }
+    /// Every descendant by name, depth first.
+    func descendants(_ name: String) -> [XNode] { children.flatMap { ($0.name == name ? [$0] : []) + $0.descendants(name) } }
 
     /// The tree with each name in a namespace of `prefixes` (by URI) under
     /// that prefix, whatever the file called it; the rest as they were.
@@ -249,8 +251,19 @@ enum DocxFormat {
             while let n = stack.popLast() {
                 if n.name == "w:sectPr" { sects.append(n) } else if n.name != "w:tbl" { stack.append(contentsOf: n.children.reversed()) }
             }
+            // (A continuous section on paper of another size or the other
+            // way round starts a page all the same: zh-3ab8a2fb's landscape
+            // "附件2" table, continuous after a portrait section, opens page
+            // 22 in Word's print; ours set its label at page 21's foot, and
+            // the document ran a page long.)
+            func paper(_ s: XNode) -> String {
+                let size = s.first("w:pgSz")
+                return "\(size?["w:w"] ?? "")x\(size?["w:h"] ?? "")"
+            }
             for (i, sect) in sects.enumerated().dropLast() {
-                sect.attrs["x-next-breaks"] = (sects[i + 1].first("w:type")?["w:val"] ?? "nextPage") != "continuous" ? "1" : "0"
+                let next = sects[i + 1]
+                let breaks = (next.first("w:type")?["w:val"] ?? "nextPage") != "continuous" || paper(next) != paper(sect)
+                sect.attrs["x-next-breaks"] = breaks ? "1" : "0"
             }
         }
         for extra in root.all("w:body").dropFirst() {
@@ -277,6 +290,7 @@ enum DocxFormat {
         var keptHeaderFooters: [KeptHeaderFooter] = []
         var titlePage = false
         var evenAndOddHeaders = false
+        var footerFramed = false
         var keptCompat: String? = nil
         // The default tab distance: 35.4pt in a third of the corpus (metric
         // Word's 1.25cm), and every typed "4.2.8.<tab>text" lands
@@ -319,6 +333,19 @@ enum DocxFormat {
                 // three-line header, form_footnotes' blank footer that still
                 // reserves its height, FancyFoot's ruled Cambria line,
                 // headerFooter's footer at the left margin).
+                // (A framed paragraph in a footer raised over the footer's
+                // top — `w:framePr` with a negative `w:y`, so it stands up
+                // into the body's room — and Word for Mac lets the body's
+                // lines part with no widow control: lab wc2 (Word 16, mode
+                // 14); its w:y set to 0 or 1 (lab wc3), the lines stay
+                // together again. Not a frame at or under the footer's top:
+                // the 36 references whose page numbers stand 1 to 8 twips
+                // down keep widow control in Word's prints.)
+                func raisedFrame(_ n: XNode) -> Bool {
+                    if n.name == "w:framePr", let y = n["w:y"].flatMap(Double.init), y < 0 { return true }
+                    return n.children.contains(where: raisedFrame)
+                }
+                if ref.name == "w:footerReference", raisedFrame(node) { footerFramed = true }
                 let path = _resolvePath("word", target)
                 notes.keep(path)
                 guard notes.kept[path] != nil else { continue }
@@ -375,6 +402,10 @@ enum DocxFormat {
         // A table style's conditional parts: the first row's fill and run
         // look, the body rows' bands.
         var tableConds: [String: _Cond] = [:]
+        // A table style's own text size, by its chain, where the Normal style
+        // says none of its own (`tableSizes`).
+        var tableSizes: [String: Double] = [:]
+        var normalStatesSize = false
         // Table styles (and the default one) that fix the layout: a table
         // that says nothing itself is then not autofitted.
         var fixedTableStyles = Set<String>()
@@ -475,6 +506,7 @@ enum DocxFormat {
                         case "firstRow":
                             if cond.headerFill == nil { cond.headerFill = fill }
                             if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
+                            if cond.headerBorders == nil { cond.headerBorders = part.first("w:tcPr")?.first("w:tcBorders") }
                         case "firstCol":
                             if cond.firstColChar == nil, let rPr = part.first("w:rPr") { cond.firstColChar = _charStyle(rPr, base: CharStyle()) }
                         case "band1Horz": if cond.band1 == nil { cond.band1 = fill }
@@ -485,6 +517,23 @@ enum DocxFormat {
                     cur = node.first("w:basedOn")?["w:val"]
                 }
                 tableConds[id] = cond
+            }
+            // (A table style's text size stands under the paragraph's own
+            // style, over the document's defaults: zh-e2dc9dce's form, style
+            // "表格格線1" at 10pt under a Normal that says no size over 12pt
+            // defaults, sets its cells' unsized text at 10pt in Word's print;
+            // ours at 12, its rows grew and its lines wrapped elsewhere.)
+            normalStatesSize = styles.all("w:style").contains { style in
+                style["w:type"] == "paragraph" && (style["w:default"] == "1" || style["w:styleId"] == "Normal")
+                    && style.first("w:rPr")?.first("w:sz") != nil
+            }
+            for id in tableNodes.keys {
+                var seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    if let v = node.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init) { tableSizes[id] = v / 2; break }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
             }
             for id in tableNodes.keys {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
@@ -740,8 +789,21 @@ enum DocxFormat {
                 abstract[id] = levels
                 abstractFormats[id] = formats
             }
+            // (A definition that only names a numbering style —
+            // w:numStyleLink — has its levels in the definition that
+            // style is (w:styleLink): zh-12c4f07a's "3.1.1" items are a
+            // list over such a one, which ours, finding no levels, drew
+            // as bullets.)
+            var styleLinked: [String: String] = [:]
+            var numStyleLinks: [String: String] = [:]
+            for a in numbering.all("w:abstractNum") {
+                guard let id = a["w:abstractNumId"] else { continue }
+                if let s = a.first("w:styleLink")?["w:val"] { styleLinked[s] = id }
+                if let s = a.first("w:numStyleLink")?["w:val"] { numStyleLinks[id] = s }
+            }
             for n in numbering.all("w:num") {
-                guard let id = n["w:numId"], let aid = n.first("w:abstractNumId")?["w:val"] else { continue }
+                guard let id = n["w:numId"], var aid = n.first("w:abstractNumId")?["w:val"] else { continue }
+                if (abstract[aid] ?? [:]).isEmpty, let style = numStyleLinks[aid], let linked = styleLinked[style] { aid = linked }
                 var levels = abstract[aid] ?? [:]
                 var formats = abstractFormats[aid] ?? [:]
                 // A level the list itself redefines (w:lvlOverride with a
@@ -905,7 +967,17 @@ enum DocxFormat {
                 let first = paragraphs.count
                 for p in _paragraphs(node, currentCell != nil ? cellNormal() : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
-                    if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
+                    // (A page break that ends the paragraph holding a
+                    // section's mark is that section's break, as Word lays
+                    // it — and where the next section is continuous there
+                    // is none: zh-e2dc9dce's contents end in a page break
+                    // and a continuous section, and Word for Windows sets
+                    // chapter 1's title picture, the paragraph after, on
+                    // the contents page, the body from page 3; ours gave
+                    // the picture a page and ran a page long to the end.)
+                    let sectionsOwn = currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
+                        && p.paragraph.style.sectionBreaksPage == false
+                    if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
                 if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
                 // A text box whose text holds a table (`_Shared.boxTables`):
@@ -921,6 +993,7 @@ enum DocxFormat {
                         let counts = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
                                       notes.seenComments, notes.fieldShown)
                         paragraphs = []; currentCell = nil; recordingBody = false; pendingPageBreak = false
+                        cellChar = CharStyle()
                         notes.inTextBox = true
                         for child in content.children { walkBlock(child, indent: 0, depth: 1) }
                         notes.inTextBox = false
@@ -969,6 +1042,30 @@ enum DocxFormat {
                 let gridWidth = (node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.reduce(0, +) ?? 0) / 20
                 var image = ImageAttachment(data: Data(), width: max(1, gridWidth), height: 1, name: "table")
                 image.textBox = box
+                // (One placed as it floats, `w:tblpPr`, stands where it says,
+                // from the cell, and the text goes round it — lab `tf` on
+                // Word for Windows: zh-291fcea7 p5's flowchart boxes, placed
+                // against the "page" at 29.25 and 320.85pt and centred on the
+                // "margin", stand 29.5 and 321.2pt from the cell's left edge
+                // and centred on the cell, side by side; ours stacked them
+                // down the cell.)
+                if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
+                    var f = ImageFloat()
+                    f.horizontalFrom = "cell"
+                    f.verticalFrom = "paragraph"
+                    if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
+                    f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
+                    f.wraps = true
+                    image.float = f
+                    // (Placed so, it stands at its box's corner inside it: the
+                    // box's copy of its style floats it no further.)
+                    for (key, var st) in box.tableStyles {
+                        st.floatOffsetY = nil; st.floatRaiseY = nil; st.floatX = nil; st.floatXAnchor = nil
+                        st.pageAnchored = false; st.pageOffsetY = nil; st.floatsOverText = false; st.alignment = .left
+                        box.tableStyles[key] = st
+                    }
+                    image.textBox = box
+                }
                 var para = RichParagraph(image: image, style: cellBase)
                 if let frag = _keptFragment(node, notes) {
                     keptTableCount += 1
@@ -1030,10 +1127,51 @@ enum DocxFormat {
                 // checklist, flattened as a table in a cell is, ran four
                 // pages where Word's print parts it over two. Read as the
                 // body; the wrapper goes back as written while the text is.
+                // (Each cell keeps the room the wrapper gave it above and
+                // below, as a nested table's do — see there: zh-045c5a75's
+                // law text stands in a wrapper of 0.75pt margins and
+                // spacing, and Word sets its first line 2.35pt lower than
+                // ours, the row that parts at page 9's foot a line shorter.)
                 let before = paragraphs.count
-                for tr in unwrapped(node, "w:tr") {
-                    for tc in unwrapped(tr, "w:tc") {
-                        for child in tc.children { walkBlock(child, indent: indent, depth: depth) }
+                let rows = unwrapped(node, "w:tr")
+                let tableMargins = _cellMargins(node.first("w:tblPr"))
+                let spacing = node.first("w:tblPr")?.first("w:tblCellSpacing").flatMap { sp -> Double? in
+                    (sp["w:type"] ?? "dxa") == "dxa" ? Double(sp["w:w"] ?? "").map { $0 / 20 } : nil
+                } ?? 0
+                for (r, tr) in rows.enumerated() {
+                    for tc in unwrapped(tr, "w:tc").prefix(1) {
+                        let first = paragraphs.count
+                        // (The cell's mark under a table it ends with takes
+                        // no room in Word, as under a nested one: 60329's
+                        // rows, each a table and that mark, stood a line
+                        // apart read as the body's.)
+                        var children = tc.children
+                        if let last = children.last, last.name == "w:p", children.dropLast().last?.name == "w:tbl",
+                           !last.children.contains(where: { $0.name != "w:pPr" }) { children.removeLast() }
+                        for child in children { walkBlock(child, indent: indent, depth: depth) }
+                        guard paragraphs.count > first else { continue }
+                        // (A row of one paragraph keeps the height the row
+                        // was given as that line's least: 60329's 9pt
+                        // spacer row holds a 1pt empty mark, and Word's
+                        // print has the 9pt between its tables.)
+                        if paragraphs.count == first + 1, !children.contains(where: { $0.name == "w:tbl" }),
+                           let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact",
+                           let v = Double(h["w:val"] ?? ""), v > 0,
+                           paragraphs[first].style.lineHeightPoints == nil || paragraphs[first].style.lineHeightIsMinimum {
+                            paragraphs[first].style.lineHeightPoints = max(paragraphs[first].style.lineHeightPoints ?? 0, v / 20)
+                            paragraphs[first].style.lineHeightIsMinimum = true
+                        }
+                        let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
+                        paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
+                        paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
+                        // (And on each page the row goes on to — see
+                        // `RichParagraphStyle.frameInsetTop`.)
+                        if rows.count == 1 {
+                            for k in first ..< paragraphs.count {
+                                paragraphs[k].style.frameInsetTop = (m.top ?? 0) + spacing * 2
+                                paragraphs[k].style.frameInsetBottom = (m.bottom ?? 0) + spacing * 2
+                            }
+                        }
                     }
                 }
                 if paragraphs.count > before, let frag = _keptFragment(node, notes) {
@@ -1086,7 +1224,16 @@ enum DocxFormat {
                 // (The table's own colour when its cells decided the switch
                 // and named none: bug57031's grey frames came back black.)
                 style.borderColor = borders?.color ?? _borders(node.first("w:tblPr"), "w:tblBorders")?.color
-                style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
+                // (The width a side no cell states takes is the table's own,
+                // else its style's, where either says one — the cells decide
+                // only whether it is ruled: zh-bbbb2e6a's review form rules
+                // its cells' outer sides 1.5pt and leaves the rows to Table
+                // Grid's 0.5pt, its 96.6pt rows 97.1 apart in Word's print;
+                // ours took 1.5 between them, 98.1, and the form's closing
+                // lines went to a page of their own.)
+                let tableSaid = _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders
+                let widthFrom = cellBorders != nil && tableSaid?.on == true ? tableSaid : borders
+                style.borderWidth = widthFrom?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
                 // The line style: the cells' when they decided, else the
                 // table's own (a table ruled by its cells' nil sides still
                 // names outset on its tblBorders).
@@ -1133,6 +1280,7 @@ enum DocxFormat {
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
                 let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
+                let tableStyleSize = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableSizes[$0] }
                 let look = node.first("w:tblPr")?.first("w:tblLook")
                 let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
@@ -1208,6 +1356,9 @@ enum DocxFormat {
                         style.floatOffsetY = v / 20
                     }
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
+                        style.floatRaiseY = -v / 20
+                    }
                     if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
                         style.floatX = v / 20
                         style.floatXAnchor = pos["w:horzAnchor"] ?? "text"
@@ -1261,11 +1412,22 @@ enum DocxFormat {
                         if h["w:hRule"] == "exact" { style.rowsExactHeight.insert(r) }
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
+                    // (A row's own cell spacing of none: zh-147bdae0's
+                    // commitment tables state 0 and most of their rows
+                    // nil, and those rows step a line apart in Word's print
+                    // — 21.1pt a one-line row, ours 21.6, the 0.5pt line
+                    // taken twice — where its first rows, 0 again, stand
+                    // their lines in pairs.)
+                    if style.cellSpacing != nil,
+                       let sp = tr.first("w:trPr")?.first("w:tblCellSpacing") ?? tr.first("w:tblPrEx")?.first("w:tblCellSpacing"),
+                       sp["w:type"] == "nil" {
+                        style.rowsUnspaced.insert(r)
+                    }
                     if let v = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? ""), v > 0 { style.rowsGridBefore[r] = v }
-                    // Its borders and its cell margins (the table's own
+                    // Its cell spacing, borders and cell margins (the table's own
                     // and each cell's go back beside them).
                     if let ex = tr.first("w:tblPrEx") {
-                        let kept = ["w:tblBorders", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
+                        let kept = ["w:tblCellSpacing", "w:tblBorders", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
                         if !kept.isEmpty { style.rowExceptions[r] = "<w:tblPrEx>" + kept + "</w:tblPrEx>" }
                     }
                 }
@@ -1275,6 +1437,54 @@ enum DocxFormat {
                     return w == nil || w?["w:type"] == "auto"
                 }.count
                 if !cells.isEmpty, widthless * 2 > cells.count, !style.fixedLayout { style.autoCellWidths = true }
+                if !cells.isEmpty, widthless == cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout { style.contentFit = true }
+                // (… and one whose stated cells are whole columns of one
+                // width in twips, the rest auto: those columns keep their
+                // width and the others are fitted — zh-72da925e's rain
+                // tables, a 794-twip rank column beside six auto ones, are
+                // 39.6/46.1/57.1/45.9/57.3/51.9/57.1pt in Word's print, the
+                // year columns widened past a grid that parted "2001" / "年".)
+                if !cells.isEmpty, !style.contentFit, widthless * 2 > cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout {
+                    var fixed: [Int: Double] = [:], auto = Set<Int>(), mixed = false
+                    for tr in unwrapped(node, "w:tr") {
+                        var col = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
+                        for tc in unwrapped(tr, "w:tc") {
+                            let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if w == nil || w?["w:type"] == "auto" {
+                                auto.formUnion(col ..< col + span)
+                            } else if w?["w:type"] == "dxa", span == 1, let v = Double(w?["w:w"] ?? ""), v > 0, fixed[col].map({ $0 == v / 20 }) ?? true {
+                                fixed[col] = v / 20
+                            } else { mixed = true }
+                            col += span
+                        }
+                    }
+                    if !mixed, !fixed.isEmpty, auto.isDisjoint(with: fixed.keys) {
+                        style.contentFit = true
+                        style.contentFitFixed = fixed
+                    }
+                }
+                // (A spaced table of a stated share whose cells state shares
+                // of it, column by column: zh-045c5a75's article table,
+                // 85% with cells of 12% and 2% and one auto.)
+                if style.widthPercent != nil, (style.cellSpacing ?? 0) > 0, !style.fixedLayout {
+                    var shares: [Int: Double] = [:], noWrap = Set<Int>(), mixed = false
+                    for tr in unwrapped(node, "w:tr") {
+                        var col = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
+                        for tc in unwrapped(tr, "w:tc") {
+                            let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if w?["w:type"] == "pct", span == 1, let v = Double((w?["w:w"] ?? "").replacingAll("%", with: "")) {
+                                let share = (w?["w:w"] ?? "").hasSuffix("%") ? v : v / 50
+                                if let had = shares[col], abs(had - share) > 0.01 { mixed = true }
+                                shares[col] = share
+                                if tc.first("w:tcPr")?.first("w:noWrap") != nil { noWrap.insert(col) }
+                            } else if w != nil, w?["w:type"] != "auto" { mixed = true }
+                            col += span
+                        }
+                    }
+                    if !mixed, !shares.isEmpty { style.columnPercents = shares; style.noWrapColumns = noWrap }
+                }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
@@ -1359,6 +1569,23 @@ enum DocxFormat {
                             for (side, from) in [("top", r == 0 ? "top" : "insideH"), ("left", column == 0 ? "left" : "insideV"),
                                                  ("bottom", lastRowHere ? "bottom" : "insideH"), ("right", lastColHere ? "right" : "insideV")] {
                                 guard said?.first("w:" + side) == nil, let e = rex.first("w:" + from) else { continue }
+                                made.children.append(XNode(name: "w:" + side, attrs: e.attrs))
+                            }
+                            if !made.children.isEmpty { rowSides = made }
+                        }
+                        // (The header row's own lines from the table style's
+                        // `firstRow`, where the cell states none: zh-61aaad09's
+                        // "浅色网格" header rules its foot 2.25pt, drawn so in
+                        // Word's print and the two rows either side of it each
+                        // half that taller; ours drew 1pt and stood 1.2 short.
+                        // Not the foot of a cell merged on down: Word ends the
+                        // merged "销售方式" cell on the inside line.)
+                        if r == 0, firstRowOn, let hb = cond.headerBorders {
+                            let said = tcPr?.first("w:tcBorders")
+                            let mergesOn = tcPr?.first("w:vMerge")?["w:val"] == "restart"
+                            let made = rowSides ?? XNode(name: "w:tcBorders", attrs: [:])
+                            for side in ["top", "left", "bottom", "right"] where !(side == "bottom" && mergesOn) {
+                                guard said?.first("w:" + side) == nil, made.first("w:" + side) == nil, let e = hb.first("w:" + side) else { continue }
                                 made.children.append(XNode(name: "w:" + side, attrs: e.attrs))
                             }
                             if !made.children.isEmpty { rowSides = made }
@@ -1464,6 +1691,8 @@ enum DocxFormat {
                         if direction != nil, currentCell?.textDirection != .horizontal || direction == "lrTbV" { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
+                        notes.cellSizeFromTable = false
+                        if cellChar.fontSize == nil, !normalStatesSize, let size = tableStyleSize { cellChar.fontSize = size; notes.cellSizeFromTable = true }
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -1522,7 +1751,16 @@ enum DocxFormat {
                 let final = para.style.sectionXML == nil && i == paragraphs.count - 1 && start > 0 && finalColumns != nil
                 guard para.cell == nil, para.style.sectionXML != nil || final else { continue }
                 defer { start = i + 1 }
-                guard para.style.sectionBreaksPage == false || final, let sx = para.style.sectionXML ?? finalColumns,
+                // (… or one that follows another on its page itself, a
+                // page starting after it: zh-b8de3ae2's "資料來源" | " ",
+                // a column break into a second column of 422pt before a
+                // section of its own page, has the space in the second
+                // column at the note's height in Word's print, where ours
+                // took the break for a page — a blank page, every page
+                // after it one late.)
+                let opensOnItsPage = start > 0 && para.style.sectionXML.flatMap { XNode.parse(Data($0.utf8)) }?
+                    .descendant("w:type")?["w:val"] == "continuous"
+                guard para.style.sectionBreaksPage == false || final || opensOnItsPage, let sx = para.style.sectionXML ?? finalColumns,
                       let gaps = _sectionColumns(sx, final ? finalPage : para.style.sectionPage), gaps.count > 1,
                       paragraphs[start ... i].allSatisfy({ $0.cell == nil }) else { continue }
                 var columns: [[RichParagraph]] = [[]]
@@ -1594,6 +1832,7 @@ enum DocxFormat {
                 tableColumns[id] = widths
                 var ts = TableStyle()
                 ts.borders = false
+                ts.sectionColumns = true
                 ts.cellMarginTop = 0; ts.cellMarginLeft = 0; ts.cellMarginBottom = 0; ts.cellMarginRight = 0
                 tableStyles[id] = ts
                 var xml = "", kept: [KeptRel] = []
@@ -1661,7 +1900,8 @@ enum DocxFormat {
                 // second's line — Normal's 1.15 lines and 10pt after. A
                 // footer is the one line in that style: as Normal, the
                 // page held a line fewer than Word's.)
-                let phantom: Data? = path.hasPrefix("phantom:") ? Data((
+                let phantom: Data? = path == "phantom:mark" ? Data("<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:p/></w:hdr>".utf8)
+                    : path.hasPrefix("phantom:") ? Data((
                     "<w:\(path.hasSuffix("header") ? "hdr" : "ftr") xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
                     + "<w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p>"
                     + (path.hasSuffix("header") ? "<w:p/>" : "")
@@ -1695,7 +1935,16 @@ enum DocxFormat {
             for (s, entries) in perSection.enumerated() {
                 for key in entries.keys.sorted() {
                     guard let hf = entries[key] else { continue }
-                    let made = paragraphsOf(hf.part)
+                    var made = paragraphsOf(hf.part)
+                    // (And a header it has ends in one more empty Normal
+                    // paragraph: lab `5f` (zh-5f9b6549's package, Word 16,
+                    // 2026-10-22) — its two empty header marks are followed
+                    // by a 12pt Normal one, 67.3 to 80.6, and the body starts
+                    // under it, 8.6pt below its 72pt margin; with Normal at
+                    // 24pt that mark is 24pt, and without the background it
+                    // is gone and the body starts at the margin. The footer
+                    // stays as it is.)
+                    if hf.kind == .header, !made.isEmpty, root.first("w:background") != nil, !Self.wordOnWindows { made += paragraphsOf("phantom:mark") }
                     if !made.isEmpty {
                         headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: made, section: numbered ? s : nil))
                     }
@@ -1711,7 +1960,11 @@ enum DocxFormat {
             // to 793. bib-chernigovka matched none of Word's lines, each
             // page's text 18 to 50pt higher than Word's. (So do 61991
             // and 51921-Word-Crash067, whose margins happen to hold it.)
-            if root.first("w:background") != nil {
+            // (Word for Mac's only: Word for Windows lays such a file out
+            // with no marks at all — its prints (word-win) of zh-b875d786,
+            // zh-c599aaa1, zh-15f67ef1 and zh-4adfcce2 start the body at
+            // the margin, 7 to 29pt above the Mac's.)
+            if root.first("w:background") != nil, !Self.wordOnWindows {
                 for kind in [KeptHeaderFooter.Kind.header, .footer] where !headerFooters.contains(where: { $0.kind == kind }) {
                     let made = paragraphsOf(kind == .header ? "phantom:header" : "phantom:footer")
                     if !made.isEmpty { headerFooters.append(RichHeaderFooter(kind: kind, type: "default", paragraphs: made)) }
@@ -1829,6 +2082,7 @@ enum DocxFormat {
         document.keptHeaderFooters = keptHeaderFooters
         document.titlePage = titlePage
         document.evenAndOddHeaders = evenAndOddHeaders
+        document.widowControlSuspended = footerFramed
         document.keptCompat = keptCompat
         document.defaultTabStop = defaultTabStop
         if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }
@@ -1917,8 +2171,11 @@ enum DocxFormat {
                 let alt = font.first("w:altName")?["w:val"]
                 if let alt, !alt.isEmpty { alts[name] = alt }
                 let panose = font.first("w:panose1")?["w:val"] ?? ""
+                let sig = font.first("w:sig")
                 entries[name] = OfficeFonts.FontEntry(alt: alt, family: font.first("w:family")?["w:val"] ?? "auto",
-                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" })
+                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" }, charset: charset,
+                                                      usb0: sig?["w:usb0"].flatMap { UInt32($0, radix: 16) },
+                                                      usb1: sig?["w:usb1"].flatMap { UInt32($0, radix: 16) })
             }
             OfficeFonts.noteAltNames(alts)
             OfficeFonts.noteFontEntries(entries)
@@ -1954,6 +2211,8 @@ enum DocxFormat {
                 ?? (part("word/styles.xml") == nil)
             document.indentNotNumberingTabStop = settings.first("w:compat")?.first("w:doNotUseIndentAsNumberingTabStop").map { !_isOff($0) } ?? false
             document.balancesSpaceWidth = settings.first("w:compat")?.first("w:balanceSingleByteDoubleByteWidth").map { !_isOff($0) } ?? false
+            document.underlinesTrailingSpaces = settings.first("w:compat")?.first("w:ulTrailSpace").map { !_isOff($0) } ?? false
+            document.spacesForUnderline = settings.first("w:compat")?.first("w:spaceForUL").map { !_isOff($0) } ?? false
             document.adjustsLineHeightInTable = settings.first("w:compat")?.first("w:adjustLineHeightInTable").map { !_isOff($0) } ?? false
             document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
@@ -1968,9 +2227,17 @@ enum DocxFormat {
             }
         }
         if let styles = part("word/styles.xml").flatMap(XNode.parse) {
-            // The defaults' language, or Normal's over it.
+            // The defaults' language, or Normal's over it — each of its
+            // three by itself: zh-63a571aa's Normal says only
+            // `w:bidi="ar-SA"`, its East Asian text the defaults' zh-TW,
+            // whose centred "。" keeps its em before "」" in Word's print;
+            // ours took no East Asian language and closed it up.
             let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
-            if let lang = normal?.first("w:rPr")?.first("w:lang") ?? styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang") {
+            let own = normal?.first("w:rPr")?.first("w:lang")
+            let defaults = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")
+            if let own, let defaults {
+                document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
+            } else if let lang = own ?? defaults {
                 document.defaultLangXML = PptxXML.serialize(lang)
             }
         }
@@ -2125,6 +2392,9 @@ enum DocxFormat {
     /// measures of `w:ind` and `w:spacing`.
     /// Settings kept as written (`RichDocument.keptSettings`), in four
     /// groups by where the schema puts them.
+    /// `OFFICE_WORD_FONTS=windows`: laid out as Word for Windows does where
+    /// it differs from Word for Mac (the background's header marks).
+    static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
     static let _keptSettingNames: [[String]] = [
         ["w:embedTrueTypeFonts", "w:embedSystemFonts", "w:saveSubsetFonts",
          "w:alignBordersAndEdges", "w:bordersDoNotSurroundHeader", "w:bordersDoNotSurroundFooter"],
@@ -2179,6 +2449,103 @@ enum DocxFormat {
                              (x - origin.0 + w) * kx - at(2, 7.2), (y - origin.1 + h) * ky - at(3, 3.6))
     }
 
+    /// A lone VML shape's text rectangle, as fractions of its box: its
+    /// `v:shapetype`'s `textboxrect` (among `types`, by id) where that
+    /// is plain numbers, else VML's own for the type (`o:spt`) — nil for
+    /// a rectangle or a type not known here. The rounded ones inset by
+    /// 0.2929 of their corner (`adj`, 2700 of 21600 for the alternate
+    /// process, 5400 for the round rectangle).
+    static func _vmlTextRect(_ node: XNode, types: [XNode]) -> Rect? {
+        guard let shape = node.name == "v:shape" ? node : node.descendant("v:shape") else { return nil }
+        let typeId = shape["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
+        if let id = typeId, let type = types.first(where: { $0["id"] == id }),
+           let raw = type.first("v:path")?["textboxrect"]?.split(separator: ";").first {
+            let v = raw.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            let cs = (type["coordsize"] ?? "21600,21600").split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            guard v.count == 4, cs.count == 2, cs[0] > 0, cs[1] > 0, v[2] > v[0], v[3] > v[1] else { return nil }
+            return Rect.fromLTRB(v[0] / cs[0], v[1] / cs[1], v[2] / cs[0], v[3] / cs[1])
+        }
+        let spt = shape["o:spt"].flatMap { Int(Double($0) ?? -1) }
+            ?? typeId.flatMap { $0.hasPrefix("_x0000_t") ? Int($0.dropFirst(8)) : nil }
+        guard let spt else { return nil }
+        let adj = (shape["adj"] ?? "").split(separator: ",", omittingEmptySubsequences: false).first.flatMap { Double($0.trimmingWhitespace()) }
+        let box: (Double, Double, Double, Double)
+        switch spt {
+        case 2, 176:
+            let k = (adj ?? (spt == 2 ? 5400 : 2700)) * 0.2929
+            box = (k, k, 21600 - k, 21600 - k)
+        case 3, 120: box = (3163, 3163, 18437, 18437)
+        case 110: box = (5400, 5400, 16200, 16200)
+        case 116: box = (1018, 3163, 20582, 18437)
+        default: return nil
+        }
+        return Rect.fromLTRB(box.0 / 21600, box.1 / 21600, box.2 / 21600, box.3 / 21600)
+    }
+
+    /// Every text box in a VML group, nested groups' too, in document
+    /// order: its content, where its text stands in the outermost group
+    /// in points from its top left (`_vmlTextPlace`'s reckoning, through
+    /// each group's `coordorigin` and `coordsize`), and whether it stands
+    /// at the box's foot (`v-text-anchor:bottom`). A shape whose
+    /// `v:shapetype` (among `types`, by id) gives a `textboxrect` sets
+    /// its text in that: zh-6e6b9821's flowchart "preparation" hexagon
+    /// (`_x0000_t117`, 4353 to 17214 of 21600 across) has its text at
+    /// 217pt in Word's print, 50pt in from the box's edge.
+    static func _vmlTextPlaces(_ group: XNode, types: [XNode] = []) -> [(content: XNode, place: Rect, atFoot: Bool)] {
+        func style(_ n: XNode) -> [String: String] {
+            var out: [String: String] = [:]
+            for pair in (n["style"] ?? "").split(separator: ";") {
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                if kv.count == 2 { out[kv[0].trimmingWhitespace()] = String(kv[1]).trimmingWhitespace() }
+            }
+            return out
+        }
+        func pair(_ raw: String?, _ fallback: (Double, Double)) -> (Double, Double) {
+            let v = (raw ?? "").split(separator: ",", omittingEmptySubsequences: false).map { Double($0.trimmingWhitespace()) }
+            return (v.count > 0 ? v[0] ?? fallback.0 : fallback.0, v.count > 1 ? v[1] ?? fallback.1 : fallback.1)
+        }
+        let g = style(group)
+        guard let gw = g["width"].flatMap(_length), let gh = g["height"].flatMap(_length), gw > 0, gh > 0 else { return [] }
+        var out: [(content: XNode, place: Rect, atFoot: Bool)] = []
+        // A group's children in its own coordinates → points in the outermost.
+        func walk(_ group: XNode, _ map: @escaping (Rect) -> Rect) {
+            let origin = pair(group["coordorigin"], (0, 0)), size = pair(group["coordsize"], (1000, 1000))
+            guard size.0 > 0, size.1 > 0 else { return }
+            for child in group.children {
+                let sh = style(child)
+                guard let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
+                      let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { continue }
+                var r = map(Rect.fromLTWH(x - origin.0, y - origin.1, w, h))
+                if child.name == "v:group" {
+                    let inner = pair(child["coordsize"], (1000, 1000))
+                    guard inner.0 > 0, inner.1 > 0 else { continue }
+                    walk(child) { q in Rect.fromLTWH(r.left + q.left * r.width / inner.0, r.top + q.top * r.height / inner.1,
+                                                     q.width * r.width / inner.0, q.height * r.height / inner.1) }
+                } else if _vmlShapes.contains(child.name), let textbox = child.first("v:textbox"),
+                          let content = textbox.descendant("w:txbxContent") {
+                    let inset = (textbox["inset"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0)) }
+                    func at(_ k: Int, _ d: Double) -> Double { k < inset.count ? inset[k] ?? d : d }
+                    if let id = child["type"].map({ $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }),
+                       let type = types.first(where: { $0["id"] == id }),
+                       let raw = type.first("v:path")?["textboxrect"]?.split(separator: ";").first,
+                       case let v = raw.split(separator: ",").compactMap({ Double($0.trimmingWhitespace()) }), v.count == 4 {
+                        let cs = pair(type["coordsize"], (21600, 21600))
+                        if cs.0 > 0, cs.1 > 0, v[2] > v[0], v[3] > v[1] {
+                            r = Rect.fromLTRB(r.left + v[0] / cs.0 * r.width, r.top + v[1] / cs.1 * r.height,
+                                              r.left + v[2] / cs.0 * r.width, r.top + v[3] / cs.1 * r.height)
+                        }
+                    }
+                    out.append((content, Rect.fromLTRB(r.left + at(0, 7.2), r.top + at(1, 3.6), r.right - at(2, 7.2), r.bottom - at(3, 3.6)),
+                                sh["v-text-anchor"]?.hasPrefix("bottom") == true))
+                }
+            }
+        }
+        let size = pair(group["coordsize"], (1000, 1000))
+        guard size.0 > 0, size.1 > 0 else { return [] }
+        walk(group) { r in Rect.fromLTWH(r.left * gw / size.0, r.top * gh / size.1, r.width * gw / size.0, r.height * gh / size.1) }
+        return out
+    }
+
     /// Where an anchored drawing floats (`wp:anchor`: its two positions
     /// and its wrapping), or nil for one in the line. A VML shape floats
     /// when its style positions it absolutely — the outermost one: a
@@ -2209,6 +2576,8 @@ enum DocxFormat {
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
+            if let w = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].lazy.compactMap({ anchor.first($0) }).first,
+               let side = w["wrapText"], side == "left" || side == "right" { f.wrapSide = side }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             // (A height that is a share of the page's or margins': 60316's
@@ -2246,6 +2615,22 @@ enum DocxFormat {
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
+            if let side = shape.first("w10:wrap")?["side"], side == "left" || side == "right" { f.wrapSide = side }
+            // (Behind the text — a z-index under 0 — no text wraps beside it,
+            // whatever its wrap says: zh-6d402586's annex is one empty
+            // paragraph anchoring a 786pt flowchart picture, wrap "tight"
+            // and z-index -251652097, on a page of 770; Word prints it on
+            // that page alone, ours wrapped the paragraph's line under the
+            // picture, past the foot, and left the page blank.)
+            if let z = st.split(separator: ";").compactMap({ pair -> Double? in
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                return kv.count == 2 && kv[0].trimmingWhitespace() == "z-index" ? Double(String(kv[1]).trimmingWhitespace()) : nil
+            }).first, z < 0 {
+                // (A top-and-bottom one still takes its band: zh-7773163d's
+                // 153pt boxes at z under 0 push the text below them in
+                // Word's print as they did in ours.)
+                f.wraps = false
+            }
             Self._bandPage(&f)
             return f
         }
@@ -2259,7 +2644,12 @@ enum DocxFormat {
     /// print; taken as a block in its anchor's line, ours stood the box
     /// in the flow and the page ran 50pt long.
     static func _bandPage(_ f: inout ImageFloat) {
-        guard f.takesRoom, f.verticalAlign == nil, f.verticalFrom == "page" || f.verticalFrom == "margin" else { return }
+        // (So does one placed down from its paragraph: zh-6d402586's box of
+        // revision dates, 38pt under the second title line it is anchored
+        // in, stands at the right margin in Word's print, the title in its
+        // place and "一、前言" under the box; set in the line, ours stood
+        // the box at the paragraph's start and the title after it.)
+        guard f.takesRoom, f.verticalAlign == nil, ["page", "margin", "paragraph"].contains(f.verticalFrom) else { return }
         f.takesRoom = false
         f.bandsPage = true
     }
@@ -2267,6 +2657,34 @@ enum DocxFormat {
     static let _eastAsianSwitches = ["w:suppressLineNumbers", "w:suppressAutoHyphens", "w:kinsoku", "w:wordWrap", "w:overflowPunct", "w:topLinePunct", "w:autoSpaceDE", "w:autoSpaceDN", "w:adjustRightInd", "w:snapToGrid", "w:mirrorIndents"]
     static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
     static let _eastAsianSpacing = ["w:beforeLines", "w:afterLines"]
+
+    /// A group's text boxes (`wps:wsp` holding `w:txbxContent`), those of
+    /// the groups nested in it too, in document order, each at its place
+    /// in the group's own child space (EMU).
+    static func _groupTextBoxes(_ group: XNode) -> [(box: XNode, place: Rect)] {
+        func number(_ n: XNode?, _ key: String) -> Double { Double(n?[key] ?? "") ?? 0 }
+        var out: [(box: XNode, place: Rect)] = []
+        func walk(_ children: [XNode], _ place: @escaping (Rect) -> Rect) {
+            for child in children {
+                let xfrm = (child.first("wps:spPr") ?? child.first("wpg:grpSpPr"))?.first("a:xfrm")
+                let r = Rect.fromLTWH(number(xfrm?.first("a:off"), "x"), number(xfrm?.first("a:off"), "y"),
+                                      number(xfrm?.first("a:ext"), "cx"), number(xfrm?.first("a:ext"), "cy"))
+                if child.name == "wps:wsp", child.descendant("w:txbxContent") != nil {
+                    out.append((child, place(r)))
+                } else if child.name == "wpg:grpSp", let xfrm {
+                    let chOff = xfrm.first("a:chOff"), chExt = xfrm.first("a:chExt")
+                    let kx = number(chExt, "cx") > 0 ? r.width / number(chExt, "cx") : 1
+                    let ky = number(chExt, "cy") > 0 ? r.height / number(chExt, "cy") : 1
+                    let cx = number(chOff, "x"), cy = number(chOff, "y")
+                    walk(child.children) { inner in
+                        place(Rect.fromLTWH(r.left + (inner.left - cx) * kx, r.top + (inner.top - cy) * ky, inner.width * kx, inner.height * ky))
+                    }
+                }
+            }
+        }
+        walk(group.children) { $0 }
+        return out
+    }
 
     /// Half a shape's outline width (points), which Word adds to its
     /// text's insets whether or not the outline is drawn (see the text
@@ -2393,6 +2811,12 @@ enum DocxFormat {
             }
         }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
+        // (A style's own break before, too — and a paragraph's "off" over
+        // it: zh-499adba6's Heading 2 says pageBreakBefore, and Word's print
+        // opens page 23 with its "（一）權力、決策與影響力", where ours, which
+        // read the break only from the paragraph's own properties, set it
+        // at page 22's foot, and the book ran three pages short from there.)
+        if let b = pPr.first("w:pageBreakBefore") { style.pageBreakBefore = !_isOff(b) }
         if let d = pPr.first("w:divId")?["w:val"] { style.divId = d }
         for tag in _eastAsianSwitches { if let n = pPr.first(tag) { style.eastAsian[tag] = _isOff(n) ? "0" : "1" } }
         if let v = pPr.first("w:textAlignment")?["w:val"] { style.eastAsian["w:textAlignment"] = v }
@@ -2559,10 +2983,16 @@ enum DocxFormat {
         var inHeaderFooter = false
         /// Reading a text box's paragraphs (a box inside a box is not read).
         var inTextBox = false
+        /// The cell's run base takes its size from the table's style
+        /// (`tableSizes`): a paragraph whose own style states one keeps that.
+        var cellSizeFromTable = false
         /// A text box whose text holds a table, by its attachment's id:
         /// its `w:txbxContent`, for the body's reader to read again with
         /// its tables (this reader sets paragraphs only).
         var boxTables: [String: XNode] = [:]
+        /// The VML shape types read so far (`v:shapetype`): Word writes
+        /// each once, where it is first used.
+        var shapeTypes: [XNode] = []
         var fieldShown = false   // the innermost field's result has text
         let rootNS: [String: String]
         let part: (String) -> Data?
@@ -2650,6 +3080,8 @@ enum DocxFormat {
         var firstColChar: CharStyle? = nil
         var band1: Color? = nil
         var band2: Color? = nil
+        /// The header row's cell borders (`firstRow`'s `w:tcBorders`).
+        var headerBorders: XNode? = nil
     }
 
     /// Whether `data` is a picture the image codec reads: PNG, JPEG,
@@ -2870,6 +3302,14 @@ enum DocxFormat {
                                     _ cellResolve: ((String) -> RichParagraphStyle?)? = nil) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
+        // (The table style's size stands under the paragraph's own style:
+        // zh-e2dc9dce's flow table, styled at 10pt, sets its "01 標題壹"
+        // headings at that style's 14pt in Word's print.)
+        var cellChar = cellChar
+        if notes.cellSizeFromTable, let id = p.first("w:pPr")?.first("w:pStyle")?["w:val"], let ours = styleIds[id],
+           sheet[ours]?.char.fontSize != nil {
+            cellChar.fontSize = nil
+        }
         // The paragraph mark's look (w:pPr/w:rPr): an empty paragraph is
         // as tall as its mark's font — a 28pt mark is a 28pt spacer. Word
         // honours it in every spelling (probed 2026-10-09 with 30 marks of
@@ -2877,10 +3317,15 @@ enum DocxFormat {
         // otherwise was wrong). bib-chernigovka's cover is 7 such spacers
         // at 16pt, and without them its first table ran onto page one.
         var markStyle: CharStyle? = nil
+        var styleBreak = false
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] {
                 sheet.apply(ours, to: &style)
+                // (`apply` keeps the paragraph's break, as an edit that
+                // restyles one must; read from the file, the style's is
+                // the paragraph's too — see `_paragraphProps`.)
+                if sheet[ours]?.paragraph.pageBreakBefore == true, !style.pageBreakBefore { style.pageBreakBefore = true; styleBreak = true }
                 if let inCell = cellResolve?(id) {
                     let named = style.named, heading = style.heading
                     style = inCell
@@ -2954,6 +3399,18 @@ enum DocxFormat {
             if pPr.first("w:pageBreakBefore") != nil, !_isOff(pPr.first("w:pageBreakBefore")!) {
                 style.pageBreakBefore = true
             }
+            // (Not a break before a paragraph that is only a section's end,
+            // with no run in it: zh-499adba6's contents section ends in an
+            // empty Heading 2, and Word's print has no page for it — the
+            // next section's page is the break; ours set it on a page alone.
+            // A direct w:pageBreakBefore too: zh-ae2dd08d's landscape
+            // 附表三 section ends in such a paragraph, and Word goes on to
+            // the portrait 附表四 with no page between; ours printed one
+            // with only its footer, and every page after was one late.)
+            if style.pageBreakBefore, pPr.first("w:sectPr") != nil {
+                func hasRun(_ n: XNode) -> Bool { n.children.contains { $0.name == "w:r" || hasRun($0) } }
+                if !p.children.contains(where: { $0.name != "w:pPr" && ($0.name == "w:r" || hasRun($0)) }) { style.pageBreakBefore = false }
+            }
             // A section ending here (its sectPr sits in this paragraph's
             // properties) starts the next on a new page unless continuous;
             // the section's own headers and page size are not kept, the
@@ -3000,6 +3457,7 @@ enum DocxFormat {
         var leadingBreak = false   // the paragraph opens with a page break
         var leadingColumnBreak = false   // ... and that break is a column break
         var leadingBreakRPr: String? = nil   // ... in a run with these properties
+        var splitBefore = false   // the text being read is the rest of a split w:p
         func flush(pageBreakAfter: Bool) {
             var para: RichParagraph
             if inlineImages.count == 1, text == RichParagraph.inlineImageCharacter, let only = inlineImages.values.first {
@@ -3025,6 +3483,8 @@ enum DocxFormat {
                 para.inlineImages = inlineImages
             }
             para.style.positionalTabs = positionalTabs
+            para.style.continuesParagraph = splitBefore
+            splitBefore = false
             para.normalize()
             para.bookmarks = notes.pendingBookmarks
             notes.pendingBookmarks = []
@@ -3059,6 +3519,7 @@ enum DocxFormat {
         /// The kept-verbatim attachment for `node`, or nil when a part it
         /// names is missing.
         func objectAttachment(_ node: XNode) -> ImageAttachment? {
+            notes.shapeTypes += node.descendants("v:shapetype")
             var w = 300.0, h = 200.0
             var isRule = false
             if let extent = node.descendant("wp:extent"),
@@ -3112,6 +3573,13 @@ enum DocxFormat {
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
+            // (A level line — no height — takes no room in the line whatever
+            // its wrapping: zh-f47b8a74's red rules under its letterhead,
+            // two lines wrapped top and bottom in an empty paragraph, are
+            // drawn in Word's print over that paragraph's own 28pt line;
+            // set in the line at their size they made it none, drew
+            // nothing, and every line after stood 30pt high.)
+            if h == 0, att.float?.takesRoom == true { att.float?.takesRoom = false }
             // A straight line or a plain box, drawn by the layout: its
             // line's width and colour (`a:ln`), and a solid fill.
             // (Not a group's: its first child's shape is not the group's —
@@ -3156,7 +3624,12 @@ enum DocxFormat {
                     var stack = Array(content.children.reversed())
                     while let n = stack.popLast() {
                         if n.name == "w:p" {
-                            for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, cellChar, nil) { inside.append(b.paragraph) }
+                            // (A text box's paragraphs take nothing of the
+                            // table its anchor stands in: zh-e2dc9dce's
+                            // flow-chart boxes, anchored in cells of a table
+                            // styled at 10pt, print at the defaults' 12pt —
+                            // lab `ts`, Word for Mac.)
+                            for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil) { inside.append(b.paragraph) }
                         } else if n.name != "w:tbl" {
                             stack.append(contentsOf: n.children.reversed())
                         } else {
@@ -3172,12 +3645,17 @@ enum DocxFormat {
                 var parts: [RichTextBox.Part] = []
                 var perPart = false
                 if let group = node.descendant("wpg:wgp") {
-                    let boxes = group.all("wps:wsp").filter { $0.descendant("w:txbxContent") != nil }
+                    // (The boxes of the groups in it too, each at its place
+                    // in the group: zh-ae2dd08d p21's flowchart nests its
+                    // boxes two groups deep, and ours read only the first
+                    // box's text, set across the whole group.)
+                    let placed = Self._groupTextBoxes(group)
+                    let boxes = placed.map(\.box)
                     let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
                     let ext = Double(gx?.first("a:ext")?["cy"] ?? "") ?? 0, chExt = Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0
                     let k = chExt > 0 && ext > 0 ? ext / chExt : 1
-                    let widths = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:ext")?["cx"] ?? "") ?? -1 }
-                    let lefts = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:off")?["x"] ?? "") ?? -1 }
+                    let widths = placed.map(\.place.width)
+                    let lefts = placed.map(\.place.left)
                     if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content,
                        Set(widths).count == 1, Set(lefts).count == 1, widths[0] > 0 {
                         // (From the group's own origin, `a:chOff`: zh-799c91cd's
@@ -3189,13 +3667,11 @@ enum DocxFormat {
                         // 3.6pt under "掛號"'s none stood its text 3.8pt high.)
                         func topInset(_ b: XNode) -> Double { (Double(b.first("wps:bodyPr")?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6) + Self._halfOutline(b.first("wps:spPr")) }
                         let firstInset = topInset(boxes[0])
-                        for b in boxes.dropFirst() {
-                            let xfrm = b.first("wps:spPr")?.first("a:xfrm")
+                        for (b, place) in placed.dropFirst() {
                             let first = inside.count
                             read(b.descendant("w:txbxContent")!)
-                            parts.append(RichTextBox.Part(first: first, top: ((Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) - oy) * k / 12700
-                                                          + topInset(b) - firstInset,
-                                                          height: (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700,
+                            parts.append(RichTextBox.Part(first: first, top: (place.top - oy) * k / 12700 + topInset(b) - firstInset,
+                                                          height: place.height * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
                     } else if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content {
@@ -3211,12 +3687,11 @@ enum DocxFormat {
                         let kx = Double(gx?.first("a:chExt")?["cx"] ?? "").flatMap { c in Double(gx?.first("a:ext")?["cx"] ?? "").map { c > 0 ? $0 / c : 1 } } ?? 1
                         let ox = Double(gx?.first("a:chOff")?["x"] ?? "") ?? 0, oy = Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0
                         let groupWidth = (Double(gx?.first("a:ext")?["cx"] ?? "") ?? 0) / 12700
-                        for (n, b) in boxes.enumerated() {
-                            let xfrm = b.first("wps:spPr")?.first("a:xfrm")
-                            let x = ((Double(xfrm?.first("a:off")?["x"] ?? "") ?? 0) - ox) * kx / 12700
-                            let y = ((Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) - oy) * k / 12700
-                            let w = (Double(xfrm?.first("a:ext")?["cx"] ?? "") ?? 0) * kx / 12700
-                            let h = (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700
+                        for (n, (b, place)) in placed.enumerated() {
+                            let x = (place.left - ox) * kx / 12700
+                            let y = (place.top - oy) * k / 12700
+                            let w = place.width * kx / 12700
+                            let h = place.height * k / 12700
                             let body = b.first("wps:bodyPr")
                             var l = Double(body?["lIns"] ?? "").map { $0 / 12700 } ?? 7.2, t = Double(body?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6
                             var r = Double(body?["rIns"] ?? "").map { $0 / 12700 } ?? 7.2, bottom = Double(body?["bIns"] ?? "").map { $0 / 12700 } ?? 3.6
@@ -3225,6 +3700,14 @@ enum DocxFormat {
                             if let geom = b.first("wps:spPr")?.first("a:prstGeom"), let prst = geom["prst"], prst != "rect", w > 0, h > 0,
                                let g = PresetGeometry.geometry(prst, width: w * 12700, height: h * 12700, adjustments: PresetGeometry.adjustments(geom)),
                                let rect = g.textRect {
+                                l += rect.left * w; t += rect.top * h
+                                r += (1 - rect.right) * w; bottom += (1 - rect.bottom) * h
+                            } else if let geom = b.first("wps:spPr")?.first("a:custGeom"), w > 0, h > 0,
+                                      // (A freeform's own text rectangle, its `a:rect` over
+                                      // its guides: zh-ae2dd08d's flowchart diamonds wrap
+                                      // "是否通過TTQS評核" in their middle half in Word's
+                                      // print, three lines where the whole box held one.)
+                                      let rect = FreeformGeometry.parse(geom, width: w * 12700, height: h * 12700)?.textRect {
                                 l += rect.left * w; t += rect.top * h
                                 r += (1 - rect.right) * w; bottom += (1 - rect.bottom) * h
                             }
@@ -3236,6 +3719,22 @@ enum DocxFormat {
                             }
                             parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b"))
                         }
+                    }
+                } else if let group = Self._vmlTop(node), group.name == "v:group",
+                          case let places = Self._vmlTextPlaces(group, types: notes.shapeTypes), places.count > 1, places[0].content === content {
+                    // (A VML group of text boxes alike: each box's text at its
+                    // own place in the group. zh-6e6b9821 p3's flowchart is a
+                    // group of eleven boxes and ten arrows; ours set the first
+                    // box's text across the group and read no other.)
+                    perPart = true
+                    for (n, b) in places.enumerated() {
+                        let first = n == 0 ? 0 : inside.count
+                        if n > 0 { read(b.content) }
+                        for q in first ..< inside.count {
+                            inside[q].style.indentLeft += b.place.left
+                            inside[q].style.indentRight += max(0, att.width - b.place.right)
+                        }
+                        parts.append(RichTextBox.Part(first: first, top: b.place.top, height: max(0, b.place.height), atFoot: b.atFoot))
                     }
                 }
                 notes.inTextBox = false
@@ -3254,6 +3753,7 @@ enum DocxFormat {
                     } else if let body = node.descendant("wps:bodyPr") {
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
+                        box.fitsAsDrawing = box.fitsText
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
                         if let v = Double(body["rIns"] ?? "") { box.insetRight = v / 12700 }
@@ -3271,9 +3771,15 @@ enum DocxFormat {
                         // "36" and "297" are `vert270` boxes 10.5pt wide and
                         // 21 tall, read upward in Word's print; across, "297"
                         // wrapped in the 10.5pt.)
+                        // (And `eaVert`, East Asian vertical writing: down as
+                        // `vert`, an ideograph upright in it. zh-c4f2be3b's
+                        // landscape pages number themselves in an `eaVert`
+                        // box at the page's left, "- 33 -" reading down in
+                        // Word's print; ours set it across.)
                         switch body["vert"] {
                         case "vert270": box.textDirection = .up
                         case "vert": box.textDirection = .down
+                        case "eaVert": box.textDirection = .down; box.uprightIdeographs = true
                         default: break
                         }
                         // (A shape that is not a rectangle sets its text in
@@ -3286,6 +3792,13 @@ enum DocxFormat {
                            let g = PresetGeometry.geometry(prst, width: att.width * 12700, height: att.height * 12700,
                                                            adjustments: PresetGeometry.adjustments(geom)),
                            let r = g.textRect {
+                            box.insetLeft += r.left * att.width
+                            box.insetTop += r.top * att.height
+                            box.insetRight += (1 - r.right) * att.width
+                            box.insetBottom += (1 - r.bottom) * att.height
+                        } else if node.descendant("a:prstGeom") == nil, let geom = node.descendant("a:custGeom"),
+                                  att.width > 0, att.height > 0,
+                                  let r = FreeformGeometry.parse(geom, width: att.width * 12700, height: att.height * 12700)?.textRect {
                             box.insetLeft += r.left * att.width
                             box.insetTop += r.top * att.height
                             box.insetRight += (1 - r.right) * att.width
@@ -3310,6 +3823,20 @@ enum DocxFormat {
                         if parts.count > 1, let v = parts[1] { box.insetTop = v }
                         if parts.count > 2, let v = parts[2] { box.insetRight = v }
                         if parts.count > 3, let v = parts[3] { box.insetBottom = v }
+                    }
+                    // (A lone VML shape that is not a rectangle sets its text
+                    // in its type's text rectangle, as one in a group does —
+                    // the file's `v:shapetype`, else VML's own: zh-60c80728
+                    // p35's flowchart is 22 lone "alternate process" boxes
+                    // (o:spt 176, inset 0, no shapetype in the file), and
+                    // Word's print sets "由港区专" a line in the 54.25pt one at
+                    // 10.5pt, where the whole width took "由港区专项".)
+                    if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
+                       att.width > 0, att.height > 0, let r = Self._vmlTextRect(node, types: notes.shapeTypes) {
+                        box.insetLeft += r.left * att.width
+                        box.insetTop += r.top * att.height
+                        box.insetRight += (1 - r.right) * att.width
+                        box.insetBottom += (1 - r.bottom) * att.height
                     }
                     // (A box fitted to its text's height: zh-a78d52e7's
                     // second paragraph holds a 78.75pt one round an empty
@@ -3336,9 +3863,31 @@ enum DocxFormat {
             // and a shape alone that the outline above does not draw — an
             // ellipse, a triangle, a box filled from the theme
             // (shapes-with-text's, whose white text stood on nothing).
+            // (And a lone line with an arrow at an end, which the outline
+            // draws without: zh-2e7ef069's flowchart connectors, each a
+            // `wps:wsp` line with `a:tailEnd type="arrow"`, printed as bare
+            // lines.)
+            let arrowed = node.descendant("wpg:wgp") == nil && (node.descendant("wps:spPr")?.first("a:ln").map { ln in
+                [ln.first("a:headEnd"), ln.first("a:tailEnd")].contains { ($0?["type"]).map { $0 != "none" } ?? false }
+            } ?? false)
+            if arrowed, att.outline?.kind == .line { att.outline = nil }
             if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+            } else if node.descendant("wpg:wgp") == nil, let group = _vmlTop(node), group.name == "v:group" {
+                // (A VML group's lines and boxes likewise: zh-6e6b9821's
+                // flowchart printed its text alone, no arrows or edges.)
+                WriterGroups.registerVML(group, types: notes.shapeTypes, for: att.id, picture: { rid in
+                    guard let rel = notes.rels[rid], !rel.external, let data = notes.part(_resolvePath("word", rel.target)),
+                          Self._isRasterImage(data) else { return nil }
+                    return data
+                })
+            } else if node.descendant("wpg:wgp") == nil, node.descendant("wps:wsp") == nil, att.outline == nil,
+                      let shape = _vmlTop(node), ["v:rect", "v:roundrect", "v:oval", "v:shape"].contains(shape.name),
+                      !(shape.first("v:imagedata").map { $0["r:id"] != nil || $0["o:relid"] != nil } ?? false) {
+                // (A VML shape alone: its edges and fill — zh-7773163d's
+                // framed steps on p35 printed their text alone.)
+                WriterGroups.registerVMLShape(shape, types: notes.shapeTypes, for: att.id)
             }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.
@@ -3385,6 +3934,7 @@ enum DocxFormat {
                 // editor shows the picture in the line.
                 att.data = data
                 att.name = target.lastPathComponent
+                if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
                 // (Turned, a photo taken sideways: a quarter turn makes
                 // its box as tall as it was wide — zh-37b6536f.)
                 if let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
@@ -3408,6 +3958,11 @@ enum DocxFormat {
                 att.sourceWidth = w
                 att.sourceHeight = h
             }
+            // (A picture that is a WMF or EMF is played as an object's
+            // is (`WriterMetafiles`); no image codec reads it. zh-8d72961c's
+            // page 2 is one, its Arabic and Latin text in ExtTextOutW
+            // records, and printed as the grey stand-in.)
+            if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
             addInline(att)
         }
         func addText(_ s: String, _ cs: CharStyle) {
@@ -3595,6 +4150,7 @@ enum DocxFormat {
                         else {
                             flush(pageBreakAfter: true)
                             built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = runPropertiesXML
+                            splitBefore = true
                         }
                     } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
@@ -3667,8 +4223,12 @@ enum DocxFormat {
                     // run's own text and needs no number.
                     let footnote = child.name == "w:footnoteReference"
                     guard footnote ? notes.footnotes : notes.endnotes, let id = Int(child["w:id"] ?? "") else { break }
+                    // (Raised as its run says — its "footnote reference"
+                    // style, most often: zh-7a16a243's marks are in runs
+                    // that name no style, and Word's print sets "5" at the
+                    // text's size on the line, 9.6pt wide where ours, raised
+                    // and small, took 5.8 and a character more a line.)
                     var mark = cs
-                    mark.script = .superscript
                     mark.note = NoteReference(kind: footnote ? .footnote : .endnote, id: id)
                     if child["w:customMarkFollows"] == "1" || child["w:customMarkFollows"] == "true" {
                         addText("\u{200B}", mark)
@@ -3732,7 +4292,16 @@ enum DocxFormat {
                         var att = ImageAttachment(data: Data(), width: 1, height: 1, name: child.name)
                         att.sourceXML = frag.xml
                         att.sourceRels = frag.rels
-                        if let m = WriterMath.register(child, for: att.id, size: 11) {
+                        // (Its runs' size where they say none: the paragraph's —
+                        // its mark's, its style's, Normal's. zh-db07d44e's
+                        // cell equation is 12pt in Word's print, Normal's, and
+                        // breaks where 11 would hold a piece more.)
+                        var mathSize: Double = 11
+                        if let n = sheet["Normal"]?.char.fontSize { mathSize = n }
+                        if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
+                        if let n = cellChar.fontSize { mathSize = n }
+                        if let n = markStyle?.fontSize { mathSize = n }
+                        if let m = WriterMath.register(child, for: att.id, size: mathSize) {
                             att.width = m.width
                             att.height = m.height
                             att.baseline = m.baseline
@@ -3904,21 +4473,42 @@ enum DocxFormat {
     static func _isInvisibleWrapper(_ node: XNode) -> Bool {
         guard let pr = node.first("w:tblPr"), pr.first("w:tblStyle") == nil, pr.first("w:tblpPr") == nil,
               pr.first("w:shd") == nil,
-              node.first("w:tblGrid")?.all("w:gridCol").count == 1 else { return false }
+              let columns = node.first("w:tblGrid")?.all("w:gridCol").count, columns >= 1 else { return false }
         func drawn(_ b: XNode?, except: Set<String>) -> Bool {
             guard let b else { return false }
             return b.children.contains { side in
                 !except.contains(side.name) && !["none", "nil"].contains(side["w:val"] ?? "none")
             }
         }
-        if drawn(pr.first("w:tblBorders"), except: ["w:insideV"]) { return false }
+        // (One column never draws its insideV; more would.)
+        if drawn(pr.first("w:tblBorders"), except: columns == 1 ? ["w:insideV"] : []) { return false }
+        // (Nor is a column beside it anything but room: 60329's body is a
+        // 678.75pt column of tables in cells and an 82.35pt one empty in
+        // every row, and Word sets each table at the margin, its own grid
+        // wide, parting over pages; flattened as tables in a cell are,
+        // their columns stood one under another.)
+        func empty(_ tc: XNode) -> Bool {
+            var stack = tc.children
+            while let n = stack.popLast() {
+                if ["w:t", "w:tbl", "w:drawing", "w:pict", "w:object", "w:sym", "w:tab", "w:br"].contains(n.name) { return false }
+                stack.append(contentsOf: n.children)
+            }
+            return true
+        }
         var nests = false
         for tr in node.all("w:tr") {
             let cells = tr.all("w:tc")
-            guard cells.count == 1, let tc = cells.first else { return false }
-            let tcPr = tc.first("w:tcPr")
-            if drawn(tcPr?.first("w:tcBorders"), except: []) { return false }
-            if let fill = tcPr?.first("w:shd")?["w:fill"], !["auto", "FFFFFF", "ffffff"].contains(fill) { return false }
+            guard let tc = cells.first, cells.count == 1 || cells.dropFirst().allSatisfy(empty) else { return false }
+            // (… and no row of more than a line's height: a frame whose rows
+            // are set to a height is laid out by them.)
+            if columns > 1, let h = tr.first("w:trPr")?.first("w:trHeight"),
+               h["w:hRule"] == "exact" || (Double(h["w:val"] ?? "") ?? 0) > 400 { return false }
+            for c in cells {
+                let tcPr = c.first("w:tcPr")
+                if drawn(tcPr?.first("w:tcBorders"), except: []) { return false }
+                if let fill = tcPr?.first("w:shd")?["w:fill"], !["auto", "FFFFFF", "ffffff"].contains(fill) { return false }
+                if tcPr?.first("w:gridSpan") != nil || tcPr?.first("w:vMerge") != nil { return false }
+            }
             if tc.all("w:tbl").isEmpty == false { nests = true }
         }
         return nests
@@ -4460,6 +5050,9 @@ enum DocxFormat {
                     let st = doc.keptCharacterStyleIds[note.kind == .footnote ? "footnote reference" : "endnote reference"]
                         ?? (note.kind == .footnote ? "FootnoteReference" : "EndnoteReference")
                     let custom = piece.filter { $0 != "\u{200B}" && !$0.isNumber }
+                    // (A mark the file set on the baseline keeps it, under
+                    // the reference style's superscript.)
+                    if s.script != .superscript { rPr += "<w:vertAlign w:val=\"baseline\"/>" }
                     body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/>\(rPr)</w:rPr>"
                     body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
                     body += "</w:r>"

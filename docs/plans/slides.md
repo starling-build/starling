@@ -2548,6 +2548,51 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**Looked at and left, 2026-10-22 (late):**
+- GeomLec1's bold Lucida Sans Unicode. PowerPoint fakes it (render mode
+  2, fill and stroke) for "Euclid" and the grey "common notions", but
+  not for the red "postulates", also `b="1"`: no rule from one deck.
+  Making the bold from the regular cost the deck 0.34, so its bold stays
+  Liberation Sans Bold.
+- A run's own outline (`a:rPr/a:ln`) outside WordArt is still not drawn.
+  Only tdf114848's footer (a 1.45 pt white line over red 12 pt text,
+  which reads white in PowerPoint's print) and HowWeRefactor's six runs
+  have one among the decks with a print. `_clearedPainter`'s span copy
+  would carry a stroked second pass, if it is ever worth it.
+- 60810's worst pages (p22, p10, p4: 6-7%) are screenshots, the
+  difference their resampling's; AES p8 (7.5%) is Verdana's stand-in's
+  glyphs, the layout line for line.
+
+**WordArt's letters fitted capital top to descender foot, 2026-10-22**
+(sweep 254: corpus mean 0.9202 → 0.9101; WordArtBitmapFill −3.95,
+Wordart3D −1.24, ThemeColorTransparency −1.04, WordArtDefaultColor
+−0.39, FontWorkScaleX −0.12; ImportWordArtGradient +0.87, the
+tdf125085 pair +0.15 and +0.17). A warped line's band was mapped to
+its box less 0.13 above and 0.03 below (0.2 with no descender). The
+glyphs' boxes are one em, so the capitals stand only a few hundredths
+in and a descender hangs past the foot (Archivo Black's "y" by 0.017
+em): WordArtBitmapFill's "Happy" stood 10 pt over its frame's top and
+"Birthday"'s "y" 8 pt under its foot, where PowerPoint's print keeps
+both inside, its letters about 7% shorter. Fitted over the 20 WordArt
+decks (75.6 in sum at the old values; 0.04 above and −0.02 or 0.15
+below, 70.1): 0.04 / −0.02 / 0.15. ImportWordArtGradient, whose two
+lines' pitch was fitted at the old values, is the one that loses.
+
+**Lucida Sans Unicode's italic slanted from its regular, 2026-10-22**
+(sweep 253: corpus mean 0.9206 → 0.9202; aascu 5864 4.85 → 4.65,
+GeomLec1 5.33 → 5.32; none worse). The face has no italic, and
+PowerPoint's print slants its regular (aascu 5864's p34 quote, `i="1"`,
+embeds only LucidaSansUnicode). Ours drew Liberation Sans Italic, whose
+letters are another design (a one-storey "a", a narrower "f"). The stand-in
+is now Liberation Sans's regular and bold under a family of their own
+("Starling Lucida Sans", no italic), and the engine slants the regular as
+PowerPoint does. Making the bold from the regular as well, as PowerPoint
+also does, set GeomLec1 0.34 worse: its bold stays Liberation Sans Bold.
+(A note for whoever reads these comparison images: the left panel is
+PowerPoint's and the middle ours. At the size an image comes in, an
+italic read as upright here and sent a first attempt the wrong way; the
+fonts a page embeds settle it.)
+
 **A top bevel lit as PowerPoint lights the 2007 intense effect,
 2026-10-22** (sweep 252 against control sweep 251 at the same head:
 corpus mean 0.9208 → 0.9206; 60810 −0.07, tdf155412_typeface −0.03;

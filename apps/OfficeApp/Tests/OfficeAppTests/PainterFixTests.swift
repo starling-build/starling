@@ -111,6 +111,93 @@ final class PainterFixTests: XCTestCase {
         XCTAssertNil(OfficeFonts.face("Arial", eastAsian: false)?.advances, "Arial is its stand-in's own width")
     }
 
+    func testJhengHeiUILightIsSetAtItsOwnWidths() throws {
+        // zh-167ee06c's 華康雅風體W3(P), alternate JhengHei UI Light: Word's
+        // print sets its digits and brackets in that face, its "1" 0.387 em
+        // and the rest 0.558 (the /Widths of the subset it embeds), and
+        // "…開始前一個月" is one line. At JhengHei's 0.58 — bold, 0.6 — the
+        // "月" went to the next. The Light has no bold: Word emboldens it,
+        // so its bold is the same widths and the face's spread.
+        let face = try XCTUnwrap(OfficeFonts.face("Microsoft JhengHei UI Light", eastAsian: false))
+        for table in [try XCTUnwrap(face.advances), try XCTUnwrap(face.boldAdvances)] {
+            XCTAssertEqual(table.count, 95, "U+0020 to U+007E")
+            func width(_ c: Character) -> Double { table[Int(c.asciiValue!) - 0x20] }
+            XCTAssertEqual(width("1"), 0.387)
+            XCTAssertEqual(width("2"), 0.558)
+            XCTAssertEqual(width("4"), 0.575)
+            XCTAssertEqual(width(" "), 0.296)
+            XCTAssertEqual(width("("), 0.306)
+            XCTAssertEqual(width("."), 0.239)
+        }
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Microsoft JhengHei", eastAsian: false)?.advances)[0x31 - 0x20], 0.5796,
+                       "JhengHei itself keeps its own")
+    }
+
+    func testYaHeiLightIsALineOfItsOwnWinAscent() throws {
+        // msyhl.ttc's usWinAscent is 2080 in 2048 where regular's is 2167,
+        // the same 536 under: Word for Windows steps zh-a7a889eb's 14pt
+        // contents lines of 微软雅黑 Light (0.8125 auto, 17.3 before) 36.21
+        // apart, 1.6605 em a line, where at regular's 1.715 ours took 36.83.
+        let light = try XCTUnwrap(OfficeFonts.face("微软雅黑 Light", eastAsian: true))
+        XCTAssertEqual(try XCTUnwrap(light.naturalHeight), 1.6605, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(light.baseline), 1.2072, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Microsoft YaHei Light", eastAsian: true)?.naturalHeight), 1.6605, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("微软雅黑", eastAsian: true)?.naturalHeight), 1.715, "regular keeps its own")
+    }
+
+    func testSegoeUISymbolIsALineOfItsOwnAscentAndDescent() throws {
+        // seguisym.ttf: 2210 over and 514 under of 2048. zh-a7a889eb's
+        // "☑12、…" cells (12pt, 0.8625 auto) step 17.16 in Word for
+        // Windows' print; the clone's line under SimSun's set them 0.8 short.
+        let face = try XCTUnwrap(OfficeFonts.face("Segoe UI Symbol", eastAsian: false))
+        XCTAssertEqual(try XCTUnwrap(face.naturalHeight), 1.3301, accuracy: 0.0005)
+        XCTAssertEqual(try XCTUnwrap(face.baseline), 1.0791, accuracy: 0.0005)
+    }
+
+    func testNunitoSansIsItsOwnWidthsAndLine() throws {
+        // Office's cloud Nunito Sans, embedded in Word's prints of
+        // zh-d97c5474: a 1.364 em line (hhea 1011/353 of 1000), and its
+        // Light's space 0.251, "M" 0.849, "à" 0.522; its Bold's space 0.270.
+        let light = try XCTUnwrap(OfficeFonts.face("Nunito Sans Light", eastAsian: false))
+        XCTAssertEqual(try XCTUnwrap(light.naturalHeight), 1.364)
+        XCTAssertEqual(try XCTUnwrap(light.baseline), 1.011)
+        let a = try XCTUnwrap(light.advances)
+        XCTAssertEqual(a.count, 95, "U+0020 to U+007E")
+        XCTAssertEqual(a[0], 0.251)
+        XCTAssertEqual(a[Int(Character("M").asciiValue!) - 0x20], 0.849)
+        XCTAssertEqual(try XCTUnwrap(light.otherAdvances?[0xE0]), 0.522)
+        XCTAssertEqual(try XCTUnwrap(light.otherAdvances?[0x0394]), 0.722, "its own Δ, which zh-d97c5474's Greek sets in it")
+        XCTAssertEqual(try XCTUnwrap(light.boldAdvances)[0], 0.270)
+        XCTAssertEqual(try XCTUnwrap(OfficeFonts.face("Nunito Sans", eastAsian: false)?.naturalHeight), 1.364)
+    }
+
+    func testCambriasGreekIsCambriasWidths() throws {
+        // Caladea has no Greek: zh-d97c5474's Cambria runs of it are set
+        // at Cambria's own widths, "α" 1176 of 2048 and its bold's 1268.
+        let face = try XCTUnwrap(OfficeFonts.face("Cambria", eastAsian: false))
+        XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0x03B1]), 0.5742, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(face.boldOtherAdvances?[0x03B1]), 0.6191, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0x03A9]), 0.6792, accuracy: 0.0001)
+    }
+
+    func testPMingLiUsSpaceAndTimesSignAreItsOwnWidths() throws {
+        // Word's embedded PMingLiU sets the space 0.26 em (97 prints'
+        // /Widths) where the stand-in set 0.235, and "×" half an em:
+        // zh-0daa510e's 12pt cell "（A）×75%＋我國籍民" is one line in Word's
+        // print, "×" 5.95; ours set it 6.91 and left "民". Its symbols stay
+        // an em as a square face's, its digits the stand-in's.
+        for name in ["新細明體", "PMingLiU"] {
+            let face = try XCTUnwrap(OfficeFonts.face(name, eastAsian: true))
+            let table = try XCTUnwrap(OfficeFonts.face(name, eastAsian: false)?.advances)
+            XCTAssertEqual(table.count, 95, "U+0020 to U+007E")
+            XCTAssertEqual(table[0], 0.26, accuracy: 0.0005)
+            XCTAssertEqual(table[Int(Character("0").asciiValue!) - 0x20], 0.47, accuracy: 0.0005)
+            XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0xD7]), 0.5)
+            XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0xF7]), 0.591, "\"÷\", as Word's embedded PMingLiU")
+            XCTAssertTrue(face.fullWidthSymbols)
+        }
+    }
+
     func testMathPresetsDrawAsOnePiece() {
         let r = Rect.fromLTWH(0, 0, 200, 200)
         for name in ["mathEqual", "mathNotEqual", "mathMultiply", "mathDivide"] {
@@ -674,6 +761,29 @@ final class MetafileTests: XCTestCase {
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
         XCTAssertEqual(color, Color(0xFF0000FF))
         XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 20, 60, 70), "through the world transform")
+    }
+
+    func testAnEMFsGlyphNumbersAreNotText() throws {
+        // zh-8d72961c's page 2, an EMF: its Arabic is ExtTextOutW with
+        // ETO_GLYPH_INDEX, Arial's glyph numbers, which read as UTF-16
+        // drew a row of Greek and Cyrillic. Text plays; glyph numbers don't.
+        func textOut(_ s: String, options: Int) -> [UInt8] {
+            var units = s.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+            while units.count % 4 != 0 { units.append(0) }
+            // bounds, mode, x and y scales, reference, count, string offset, options, rectangle, dx offset
+            let ints = [0, 0, 99, 99, 1, 0, 0, 10, 50, s.utf16.count, 76, options, 0, 0, 0, 0, 0]
+            return le32(84) + le32(76 + units.count) + ints.flatMap(le32) + units
+        }
+        var header: [UInt8] = []
+        for v in [1, 108, 0, 0, 99, 99, 0, 0, 2646, 2646] { header += le32(v) }
+        header += [0x20, 0x45, 0x4D, 0x46]
+        for v in [0x10000, 0, 0, 0, 0, 0, 0] { header += le32(v) }
+        for v in [1024, 768, 271, 203] { header += le32(v) }
+        header += [UInt8](repeating: 0, count: 108 - header.count)
+        let file = header + textOut("Arabic", options: 0x4) + textOut("\u{3DD}\u{38E}\u{3E3}", options: 0x14) + le32(14) + le32(20) + le32(0) + le32(0) + le32(20)
+        let m = try XCTUnwrap(Metafile(Data(file), id: "g"))
+        let texts = m.steps.compactMap { step -> String? in if case .text(let run) = step { return run.text }; return nil }
+        XCTAssertEqual(texts, ["Arabic"])
     }
 
     func testTextInAFaceWithoutTheGlyphsFallsBack() {

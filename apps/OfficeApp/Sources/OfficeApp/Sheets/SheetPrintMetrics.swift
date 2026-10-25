@@ -54,9 +54,14 @@ struct SheetPrintMetrics {
     /// (`scale`, `rowScale` or less), and cut down to whole dots of the
     /// printer's 600 dpi — 20 pt in Arial 10 prints 161 dots, not 161.57
     /// (labs of twelve set heights in Arial 10 and Calibri 11, Excel 16,
-    /// 2026-10-15: 22 of 24 to the dot, the others one over).
+    /// 2026-10-15: 22 of 24 to the dot, the others one over). Cut down
+    /// from 0.12 of a dot over: lo-tdf131575's 15 pt rows of Arial 8,
+    /// 125.93 dots, print 126 (179 rows), lo-tdf171828's 11.25 pt of
+    /// Arial 10, 90.88, print 91 (101), where picture.xlsx's 14 pt of
+    /// Calibri 11, 118.88, print 118 — and the lab's Calibri rows at .91
+    /// one over, at .83 not.
     static func setRow(_ h: Double, scale: Double) -> Double {
-        (h * scale * 600 / 72 + 1e-6).rounded(.down) * 72 / 600
+        (h * scale * 600 / 72 + 0.12).rounded(.down) * 72 / 600
     }
 
     func fittedRow(_ font: SheetPrintMetrics) -> Double {
@@ -81,7 +86,13 @@ struct SheetPrintMetrics {
         return px * 72 / 192
     }
 
-    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double] }
+    /// `offTable`: screen rows at sizes off the table, where Excel's print
+    /// showed them — Tables' rows of Times New Roman 20 print 67 px, of its
+    /// bold 66, where in proportion to 18 they were 68 and 67;
+    /// style-alternate-content's of Malgun Gothic 6, 23 px where in
+    /// proportion to 8 they were 26 (Malgun's 8 and 9 are both 35: no line
+    /// to extend).
+    private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double], offTable: [Double: Double] = [:] }
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
     private static let faces: [String: Face] = [
         "calibri": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
@@ -91,7 +102,7 @@ struct SheetPrintMetrics {
         "verdana": Face(digit: [43, 48, 53, 56, 58, 64, 74, 85, 95], row: [88, 100, 108, 114, 122, 129, 150, 169, 189], screenRow: [26, 30, 33, 35, 36, 39, 47, 53, 61],
             screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31]),
         "times new roman": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 96, 106, 112, 116, 126, 145, 165, 184], screenRow: [27, 31, 35, 36, 37, 41, 47, 54, 61],
-            screenDigit: [11, 12, 14, 14, 14, 16, 19, 22, 24]),
+            screenDigit: [11, 12, 14, 14, 14, 16, 19, 22, 24], offTable: [20: 67]),
         "courier new": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [79, 88, 96, 103, 107, 115, 133, 151, 167], screenRow: [28, 32, 35, 37, 38, 42, 48, 56, 62],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
         "tahoma": Face(digit: [37, 41, 45, 48, 50, 55, 64, 73, 82], row: [89, 98, 108, 114, 119, 129, 149, 168, 189], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
@@ -115,7 +126,7 @@ struct SheetPrintMetrics {
         "century gothic": Face(digit: [37, 42, 46, 49, 51, 55, 65, 74, 83], row: [91, 99, 108, 116, 119, 128, 151, 169, 193], screenRow: [26, 32, 35, 36, 38, 41, 46, 54, 61],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23]),
         "yu gothic": Face(digit: [37, 42, 46, 49, 51, 56, 65, 74, 83], row: [113, 128, 140, 149, 154, 164, 192, 219, 245], screenRow: [34, 40, 44, 45, 47, 53, 59, 69, 78],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "microsoft yahei": Face(digit: [39, 44, 49, 52, 54, 59, 69, 78, 88], row: [99, 109, 121, 125, 130, 144, 163, 185, 208], screenRow: [30, 33, 37, 38, 40, 43, 51, 61, 65],
@@ -161,7 +172,7 @@ struct SheetPrintMetrics {
         "verdana bold": Face(digit: [48, 53, 59, 63, 65, 71, 83, 95, 107], row: [88, 100, 108, 114, 122, 129, 150, 169, 189], screenRow: [26, 30, 33, 35, 36, 39, 47, 53, 61],
             screenDigit: [15, 17, 19, 20, 21, 23, 26, 31, 34]),
         "times new roman bold": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 96, 105, 111, 116, 126, 146, 165, 184], screenRow: [27, 30, 34, 35, 36, 40, 46, 53, 60],
-            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24], offTable: [20: 66]),
         "tahoma bold": Face(digit: [43, 48, 53, 56, 59, 64, 75, 85, 96], row: [89, 98, 108, 114, 119, 129, 149, 168, 189], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31]),
         "courier new bold": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [84, 93, 100, 109, 113, 122, 142, 158, 178], screenRow: [28, 32, 36, 37, 39, 43, 49, 57, 63],
@@ -224,7 +235,7 @@ struct SheetPrintMetrics {
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)
         let between = size > sizes[0] && size < sizes[sizes.count - 1]
         let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded(between ? .up : .toNearestOrAwayFromZero)
-        let screenRow = max(1, at(f.screenRow, size).rounded())
+        let screenRow = max(1, (f.offTable[size] ?? at(f.screenRow, size)).rounded())
         // The default column, as that Excel's screen made it: the digit there
         // in whole pixels, its padding, and the sum up to a multiple of 8.
         let screenDigit = max(1, at(f.screenDigit, size).rounded())
