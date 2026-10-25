@@ -114,6 +114,22 @@ enum OfficeFonts {
             // characters, whose face Word has too: zh-6d1afa56's "√" in
             // 仿宋 is FangSong's in the print.)
             let eastAsianName = family.unicodeScalars.contains { $0.value >= 0x2E80 }
+            // (Word for Windows takes the table's alternate whatever the
+            // PANOSE: bug59058's MinionPro-Regular and drawing's
+            // PragmaticaC-Bold, alternate Times New Roman and PANOSE all
+            // zeros, are Times New Roman in its prints (word-win), where
+            // the Mac's are Cambria. And Windows' own FontSubstitutes name
+            // a script's variant of a face for the face: "Arial CYR" is
+            // Arial, "Times New Roman CYR" Times New Roman.)
+            if wordOnWindows, !eastAsianName {
+                for suffix in [" cyr", " ce", " baltic", " greek", " tur"] where n.hasSuffix(suffix) {
+                    return substitute(String(family.trimmingWhitespace().dropLast(suffix.count)))
+                }
+                if !wordMacFamilies.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
+                   alt.trimmingWhitespace().lowercased() != n {
+                    return substitute(alt)
+                }
+            }
             if !eastAsianName, !wordMacFamilies.contains(n) {
                 if let e = fontEntry(family) {
                     if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n { return substitute(alt) }
