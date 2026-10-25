@@ -4698,7 +4698,12 @@ public final class RichLayout {
                 // with what the page holds: the room lost at the foot
                 // of the page before is not owed again under the cell.)
                 func pageHeight() -> Double {
-                    guard theme.wordRules, c.stretched > 0.01 else { return c.ownRowHeight }
+                    // (Not only where the flow stretched it: zh-38d26944's
+                    // "成果精度" cell, centred and merged over rows 16 and 17,
+                    // fits the two rows in the flow; Word keeps its first
+                    // line in row 16 on p12 and grows row 17 on p13 to the
+                    // two it takes over, 53.16 where the row is 45.14.)
+                    guard theme.wordRules else { return c.ownRowHeight }
                     var need = 0.0, continued = false
                     for piece in _pages[page] where piece.part != .rules && piece.paragraph < i && !piece.repeated {
                         let m = piece.paragraph
