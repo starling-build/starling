@@ -5234,8 +5234,16 @@ zh-1cfb652b 87.5.
 ### zh-e68a2f57 (word-win, 60/1193 lines, 63 pages for 60) — CLAIMED, step 1 landed (Mac 7bd18d8e, macOS-doc, 2026-10-25)
 Step 1: the Windows fallback chain for an embedded 仿宋_GB2312's missing characters (MS Gothic → Yu Gothic → JhengHei,
 sticky, by the faces' cmaps, each on its own 1.3 x win line). w33 -> w34: 5.0 -> 10.9 (61 pages), zh-5450d509 +1.8,
-zh-8d72961c +27.7, nothing lower. Left (still claimed): Word's lines hold a character more here — "〕" set in Cambria at
+zh-8d72961c +27.7, nothing lower. Step 2 measured, RELEASED (Mac 7bd18d8e, 2026-10-25). Word's lines hold a character more here — "〕" set in Cambria at
 0.33 em beside digits ("〔2023〕234"), fallback characters narrowed in justified lines (JhengHei "发" 15.6, "〔" 15.24 at 16pt).
+Measured: (1) any visible character not fallen back ends a stretch, a digit as a held ideograph does — with that the chain
+matches all 13,171 fallen-back characters of the three prints (not pushed: no score moves on its own). (2) A "〔" or "〕" that
+opens a stretch (after a held character or a digit) is Cambria Math's, 0.35 em, on no line of its own — every Cambria bracket
+in word-win (zh-540dc149, zh-5450d509, zh-c2f6d17a, zh-e68a2f57); one after a fallen-back character keeps that face. Built:
+zh-540dc149 +0.3, zh-e68a2f57 +0.2, but zh-5450d509 -0.6 — p1 "…第一次会议部" then takes "署，" ("，" hanging) where Word's
+print, its "〕" the same 0.35 em, wraps before "署": an unexplained Word fit there. (3) The narrowed "发" 15.6 / "〔" 15.24 sit in
+runs of w:spacing -6 under balanceSingleByteDoubleByteWidth and fit neither -0.3 nor -0.6. Also seen: ①-⑬ in Cambria Math at
+~1.19-1.23 em across many word-win prints (zh-18cb2079, zh-6cd1befe, zh-7b125a21, zh-92373179…), not only fallback documents.
 
 ### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
