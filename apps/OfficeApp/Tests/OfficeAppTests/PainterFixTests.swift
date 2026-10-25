@@ -146,6 +146,7 @@ final class PainterFixTests: XCTestCase {
             XCTAssertEqual(table[0], 0.26, accuracy: 0.0005)
             XCTAssertEqual(table[Int(Character("0").asciiValue!) - 0x20], 0.47, accuracy: 0.0005)
             XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0xD7]), 0.5)
+            XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0xF7]), 0.591, "\"÷\", as Word's embedded PMingLiU")
             XCTAssertTrue(face.fullWidthSymbols)
         }
     }

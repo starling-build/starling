@@ -1726,8 +1726,11 @@ enum OfficeFonts {
             // 籍民" is one line in Word's print, "×" 5.95, where ours set it
             // 6.91 and left "民".)
             if ea.height == 1332.0 / 1024.0, face.otherAdvances == nil {
-                face.otherAdvances = [0x2013: 1.0, 0xD7: 0.5]
-                face.boldOtherAdvances = [0x2013: 1.0, 0xD7: 0.5]
+                // (And "÷" 0.591, the half-width corner brackets half an em —
+                // the symbols of Word's embedded PMingLiU that are not an em,
+                // in every print of the corpus.)
+                face.otherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
+                face.boldOtherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
             }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
