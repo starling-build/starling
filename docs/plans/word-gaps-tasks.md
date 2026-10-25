@@ -4753,7 +4753,7 @@ Scored with `~/starling-word-check/lab/tools/sweep-win.sh`: OFFICE_WORD_FONTS=wi
   - zh-f6686f89  75.8    571 lines    22/22  (mac 100.0)
   - zh-e64d4997  84.2    506 lines    12/12  (mac  85.4)
   - zh-043aab43  84.4    514 lines    12/12  (mac  85.6)
-  - zh-61a05efc  90.3    155 lines      4/4  (mac 100.0)
+  - zh-61a05efc  90.3    155 lines      4/4  (mac 100.0)  [CLAIMED Linux 017F2GnT 2026-10-24, asked by macos]
   - zh-a7a889eb  90.4   1107 lines    41/41  (mac  97.3)
   - zh-424775e4  92.7    370 lines    13/13  (mac  97.6)
   - zh-9db183d5  95.0    260 lines    11/11  (mac  96.5)
