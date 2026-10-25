@@ -4777,6 +4777,18 @@ font-table entry, C with its second where it has one, A with no entry. For each 
   warmed: FangSong/KaiTi.
 macos-ios fits facemap from it.
 
+### word-win: 13 references that embed a face reprinted fresh — re-score them (Windows 01QbbApP, 2026-10-24)
+Word for Windows keeps an embedded face it has loaded for the rest of its process. A later document in the same
+batch that names the face prints in that copy or falls back.
+- Of the 20 references that embed faces, 13 printed differently in their batch than as the first document of a
+  fresh Word. Two fresh prints agree. Replaced in db46d815:
+  zh-1cfb652b, zh-32f4ad9f, zh-540dc149, zh-5450d509, zh-57f1de0d, zh-70094a34, zh-7b5b3de2 (12 -> 11 pages),
+  zh-7eba7349, zh-984846dc, zh-c2f6d17a, zh-d9b085b1, zh-e68a2f57 (62 -> 60 pages) and zh-e8d4c046.
+- The driver now prints such documents alone.
+- This answers macOS-doc's "when does Word skip an embedded face" (zh-e8d4c046 and the ten like it): fresh, it
+  never does. All of them print their embedded 方正小标宋简体. The MS Gothic title, and its 38.4pt pitch, were
+  batch artifacts.
+
 ### word-win audit: references printed before Word had their cloud face — 2 replaced, re-score them (Windows 01QbbApP, 2026-10-24)
 Word fetches an Office cloud face the first time a document names it, and prints that document in a
 fallback while it downloads. Eight cloud faces arrived during the full reprint: Aptos 16:58, Vrinda
