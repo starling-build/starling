@@ -11035,11 +11035,25 @@ public final class RichLayout {
                 // 9.55 over with the "）" hung. Not the pause marks: with
                 // every final "。" kept so the same document ran a page long.
                 // Nor a Latin ")": zh-e0ca7252's "…免載於招標文件)" hangs it.)
+                // (Nor, from 2013's layout where marks are compressed, an
+                // East Asian mark after a Latin letter or digit: labs t170e
+                // and t175 (Windows 01QbbApP, Word for Windows; zh-15f60bac's
+                // and zh-021b8feb's packages, mode 15, 標楷體) — zh-021b8feb's
+                // "…與輔具試用、" hangs its "、" from about 21pt over at 14pt,
+                // its marks having given all they can, and goes down past
+                // 23; with "6" for "用" it never hangs and goes down at
+                // 12.5. zh-15f60bac's "…詳表5第4、6、" leaves "6、" 18.75 over;
+                // ours hung the "、" and squeezed the rest.)
+                let afterLatin: Bool = {
+                    guard squeezes, !legacy, units[tail] >= 0x2E80, tail > 0 else { return false }
+                    let u = units[tail - 1]
+                    return (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A)
+                }()
                 let hang = hangs && !holdsFinal && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
-                    && !runRulesOff(tail)
+                    && !runRulesOff(tail) && !afterLatin
                     ? (closesUp(tail) || document.hangsHalf || closedUpTo ? min(ems[tail] * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
                 // (Whole, a spaced mark hangs its spaced width: lab `p01`
                 // (macOS-doc, zh-01bbcd4d's package, 16pt spaced to 17) hangs
