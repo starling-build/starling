@@ -2543,6 +2543,19 @@ public final class RichLayout {
                 var alone = rows.map { _ in false }
                 var own = rows.map { _ in 0.0 }
                 var measured: [RichParagraph: Double] = [:]
+                // (Word for Windows lets a cell that starts in such a row
+                // hold it up only where no row it reaches has a cell of its
+                // own, which would take its text: zh-b8de3ae2's "比率(%)"
+                // starts in an 11.3pt row and runs into the values' row, and
+                // Word keeps the row at 11.3 (lab b8row9, Windows 01QbbApP),
+                // where its first line made ours 13.55 and each year's rows
+                // 1.9pt longer.)
+                var standing = rows.map { _ in false }
+                if RichTextTheme.wordWindowsPages {
+                    for (r, row) in rows.enumerated() {
+                        for k in row.first ..< row.end where _cells[k]!.rowSpan == 1 || _cells[k]!.vertical { standing[r] = true; break }
+                    }
+                }
                 for (r, row) in rows.enumerated() {
                     var seen: Set<Int> = []
                     for k in row.first ..< row.end {
@@ -2551,7 +2564,8 @@ public final class RichLayout {
                         if cell.rowSpan == 1 || cell.vertical { alone[r] = true; continue }
                         let pads = cell.pad.top + cell.pad.bottom - cell.ruleBelow
                         let firstLine = _painters[k].flatMap { Self._lineBottoms($0).first }
-                        own[r] = max(own[r], (firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads)
+                        let rests = (r + 1 ..< min(rows.count, r + cell.rowSpan)).contains { standing[$0] }
+                        if !rests { own[r] = max(own[r], (firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads) }
                         let continued = document.paragraphs[k].cell?.continuationParagraphs ?? []
                         for offset in 1 ..< cell.rowSpan where r + offset < rows.count && offset - 1 < continued.count {
                             var h = 0.0
