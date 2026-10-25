@@ -10593,7 +10593,17 @@ public final class RichLayout {
             let from = start
             start = end
             guard b > a else {
-                for box in probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: end)) { pending += box.right - box.left }
+                var w = 0.0
+                for box in probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: end)) { w += box.right - box.left }
+                // (One after a no-break space is that space's: the em a
+                // no-break space after an ideograph takes rides on it.
+                // zh-c6ab068c's "…予以公开。" + U+00A0 ends its paragraph,
+                // and the joiner's 7pt, given to nothing after it, was
+                // lost — the stretch taken whole here and parted by the
+                // engine, "开。" a line down where Word's print squeezes
+                // the line's marks for it.)
+                if a > 0, units[a - 1] == 0xA0, !pieces.isEmpty, pieces[pieces.count - 1].b == a { pieces[pieces.count - 1].w += w }
+                else { pending += w }
                 continue
             }
             var last = b
