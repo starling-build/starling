@@ -493,6 +493,12 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// (drawing.docx: five such marks of 8.5pt, five lines of 0.48pt in
     /// Word's print). Read from the file's shape, not written back.
     public var markUnderNestedTable = false
+    /// Points: the room a page's frame — a one-cell table read as the
+    /// body (Word's invisible wrapper) — keeps inside each page it goes on
+    /// to, over the text and under it: its cell's top and bottom margin
+    /// and twice its cell spacing. Set on each of its paragraphs.
+    public var frameInsetTop = 0.0
+    public var frameInsetBottom = 0.0
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// The glyph this bulleted paragraph shows, when the file names one

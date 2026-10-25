@@ -1164,6 +1164,14 @@ enum DocxFormat {
                         let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
                         paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
                         paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
+                        // (And on each page the row goes on to — see
+                        // `RichParagraphStyle.frameInsetTop`.)
+                        if rows.count == 1 {
+                            for k in first ..< paragraphs.count {
+                                paragraphs[k].style.frameInsetTop = (m.top ?? 0) + spacing * 2
+                                paragraphs[k].style.frameInsetBottom = (m.bottom ?? 0) + spacing * 2
+                            }
+                        }
                     }
                 }
                 if paragraphs.count > before, let frag = _keptFragment(node, notes) {

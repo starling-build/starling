@@ -2998,7 +2998,21 @@ public final class RichLayout {
             }
             // (Between the header and the footer, where they reach past
             // the margins.)
-            let insets = _bodyInsets(page: physical, document)
+            var insets = _bodyInsets(page: physical, document)
+            // (A page a frame goes on to keeps the frame's room inside it
+            // again, over the text and under it, as Word parts the frame's
+            // one row: zh-045c5a75's law text stands in a wrapper of 0.75pt
+            // margins and spacing, and Word sets each page after the first
+            // 2.25pt lower than ours and stops 2.25pt higher; ours had
+            // that room only where the frame began and ended, took a line
+            // more at page 10's foot, and every page after ran a line
+            // ahead.)
+            if theme.wordRules, page > 0, para < count, case let st = document.paragraphs[para].style,
+               st.frameInsetTop > 0 || st.frameInsetBottom > 0,
+               _pages[page - 1].contains(where: { $0.paragraph < count && !$0.repeated && document.paragraphs[$0.paragraph].style.frameInsetTop + document.paragraphs[$0.paragraph].style.frameInsetBottom > 0 }) {
+                insets.top += _px(st.frameInsetTop)
+                insets.bottom += _px(st.frameInsetBottom)
+            }
             while _pageInsetTop.count <= physical { _pageInsetTop.append(0) }
             _pageInsetTop[physical] = insets.top
             contentH = max(1, _px(pageSetup(forPage: physical).height) - insets.top - insets.bottom)
