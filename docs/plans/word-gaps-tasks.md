@@ -4847,13 +4847,15 @@ Word for Windows keeps a synthetically emboldened face's widths. Long bold 仿�
 - **Worse:** zh-72da925e 81 → 76, zh-c4f2be3b 99.7 → 95.6, EmbeddedDocument 100 → 33 (3 lines).
 - Lab tools `misslist.py` and `yoff.py` read the same way when DOCX_LINE_READER=mupdf is set.
 
-### T162. zh-b875d786: every page 6.1pt low against word-win — CLAIMED (Linux office1, 2026-10-24)
+### T162. zh-b875d786: every page 6.1pt low against word-win — CLOSED, nothing to do (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df), routed by macos. 0.0 against word-win
 with all 181 lines matched: each page's text a constant 6.1pt under Word's
 (first baseline 91.0 against 84.9; 宋体 body, top margin 1440). Not T155-T159's
 (the same with and without them); not low at w4 (9e957126). Bisecting 9e957126
 and 0844bdd6 first, as macos suggests.
 - bceef902: the matcher takes a line's baseline from the spans that hold text only. Under PyMuPDF a closing space can share a line at its own baseline: EmbeddedDocument's "4" read 4pt low and went from 100 to 33. w5 was rescored with it (zh 92.6, POI 85.5). Linux scores move slightly the same way.
+Closed: my sweep's tip predated 9e957126 (no Mac w:background header marks in
+Windows mode), one of its five. At fea9fd0d it is 100 against word-win.
 
 ### T161. POI on Windows: what separates wp5 (85.5) from the Mac's np (90.9) — CLAIMED (Mac 01Xgpbk5, 2026-10-24)
 
