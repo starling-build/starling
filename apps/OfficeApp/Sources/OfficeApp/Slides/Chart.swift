@@ -1193,6 +1193,14 @@ enum ChartXML {
             } else if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
                 s.color = _meanColor(g, color)
             }
+            // (Its labels moved one by one, as a combination's line's are:
+            // zh-b8de3ae2's 3-D bars' close values, apart in Word's print,
+            // stood over each other.)
+            for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
+                guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
+                      let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
+                s.labelNudges[i] = Offset(x, y)
+            }
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
@@ -3143,6 +3151,11 @@ enum ChartPainter {
         }
 
         var labels: [(String, Offset, Int)] = []
+        /// A bar's label moved as the file says (`ChartSeries.labelNudges`,
+        /// fractions of the frame).
+        func nudge(_ j: Int, _ i: Int) -> Offset {
+            c.series[safe: j]?.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
+        }
         // Labels from cells, each with the bar it stands in the end of.
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
         let fill = Paint()
@@ -3275,7 +3288,7 @@ enum ChartPainter {
                     if horizontal {
                         let top = centre + group / 2 - Double(j) * step - bar
                         rect = Rect.fromLTRB(min(p0, p1), top, max(p0, p1), top + bar)
-                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy), j))
+                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
@@ -3289,7 +3302,7 @@ enum ChartPainter {
                         let size = c.series[j].labelSize ?? c.baseTextSize
                         let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : -8 * k
                         labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy
-                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off), j))
+                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + nudge(j, i), j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
                     // depth, its own depth a 1 + gapDepth share of it.
