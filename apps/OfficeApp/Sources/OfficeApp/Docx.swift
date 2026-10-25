@@ -1129,10 +1129,28 @@ enum DocxFormat {
                     (sp["w:type"] ?? "dxa") == "dxa" ? Double(sp["w:w"] ?? "").map { $0 / 20 } : nil
                 } ?? 0
                 for (r, tr) in rows.enumerated() {
-                    for tc in unwrapped(tr, "w:tc") {
+                    for tc in unwrapped(tr, "w:tc").prefix(1) {
                         let first = paragraphs.count
-                        for child in tc.children { walkBlock(child, indent: indent, depth: depth) }
+                        // (The cell's mark under a table it ends with takes
+                        // no room in Word, as under a nested one: 60329's
+                        // rows, each a table and that mark, stood a line
+                        // apart read as the body's.)
+                        var children = tc.children
+                        if let last = children.last, last.name == "w:p", children.dropLast().last?.name == "w:tbl",
+                           !last.children.contains(where: { $0.name != "w:pPr" }) { children.removeLast() }
+                        for child in children { walkBlock(child, indent: indent, depth: depth) }
                         guard paragraphs.count > first else { continue }
+                        // (A row of one paragraph keeps the height the row
+                        // was given as that line's least: 60329's 9pt
+                        // spacer row holds a 1pt empty mark, and Word's
+                        // print has the 9pt between its tables.)
+                        if paragraphs.count == first + 1, !children.contains(where: { $0.name == "w:tbl" }),
+                           let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact",
+                           let v = Double(h["w:val"] ?? ""), v > 0,
+                           paragraphs[first].style.lineHeightPoints == nil || paragraphs[first].style.lineHeightIsMinimum {
+                            paragraphs[first].style.lineHeightPoints = max(paragraphs[first].style.lineHeightPoints ?? 0, v / 20)
+                            paragraphs[first].style.lineHeightIsMinimum = true
+                        }
                         let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
                         paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
                         paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
@@ -4425,21 +4443,42 @@ enum DocxFormat {
     static func _isInvisibleWrapper(_ node: XNode) -> Bool {
         guard let pr = node.first("w:tblPr"), pr.first("w:tblStyle") == nil, pr.first("w:tblpPr") == nil,
               pr.first("w:shd") == nil,
-              node.first("w:tblGrid")?.all("w:gridCol").count == 1 else { return false }
+              let columns = node.first("w:tblGrid")?.all("w:gridCol").count, columns >= 1 else { return false }
         func drawn(_ b: XNode?, except: Set<String>) -> Bool {
             guard let b else { return false }
             return b.children.contains { side in
                 !except.contains(side.name) && !["none", "nil"].contains(side["w:val"] ?? "none")
             }
         }
-        if drawn(pr.first("w:tblBorders"), except: ["w:insideV"]) { return false }
+        // (One column never draws its insideV; more would.)
+        if drawn(pr.first("w:tblBorders"), except: columns == 1 ? ["w:insideV"] : []) { return false }
+        // (Nor is a column beside it anything but room: 60329's body is a
+        // 678.75pt column of tables in cells and an 82.35pt one empty in
+        // every row, and Word sets each table at the margin, its own grid
+        // wide, parting over pages; flattened as tables in a cell are,
+        // their columns stood one under another.)
+        func empty(_ tc: XNode) -> Bool {
+            var stack = tc.children
+            while let n = stack.popLast() {
+                if ["w:t", "w:tbl", "w:drawing", "w:pict", "w:object", "w:sym", "w:tab", "w:br"].contains(n.name) { return false }
+                stack.append(contentsOf: n.children)
+            }
+            return true
+        }
         var nests = false
         for tr in node.all("w:tr") {
             let cells = tr.all("w:tc")
-            guard cells.count == 1, let tc = cells.first else { return false }
-            let tcPr = tc.first("w:tcPr")
-            if drawn(tcPr?.first("w:tcBorders"), except: []) { return false }
-            if let fill = tcPr?.first("w:shd")?["w:fill"], !["auto", "FFFFFF", "ffffff"].contains(fill) { return false }
+            guard let tc = cells.first, cells.count == 1 || cells.dropFirst().allSatisfy(empty) else { return false }
+            // (… and no row of more than a line's height: a frame whose rows
+            // are set to a height is laid out by them.)
+            if columns > 1, let h = tr.first("w:trPr")?.first("w:trHeight"),
+               h["w:hRule"] == "exact" || (Double(h["w:val"] ?? "") ?? 0) > 400 { return false }
+            for c in cells {
+                let tcPr = c.first("w:tcPr")
+                if drawn(tcPr?.first("w:tcBorders"), except: []) { return false }
+                if let fill = tcPr?.first("w:shd")?["w:fill"], !["auto", "FFFFFF", "ffffff"].contains(fill) { return false }
+                if tcPr?.first("w:gridSpan") != nil || tcPr?.first("w:vMerge") != nil { return false }
+            }
             if tc.all("w:tbl").isEmpty == false { nests = true }
         }
         return nests
