@@ -133,6 +133,23 @@ final class PainterFixTests: XCTestCase {
                        "JhengHei itself keeps its own")
     }
 
+    func testPMingLiUsSpaceAndTimesSignAreItsOwnWidths() throws {
+        // Word's embedded PMingLiU sets the space 0.26 em (97 prints'
+        // /Widths) where the stand-in set 0.235, and "×" half an em:
+        // zh-0daa510e's 12pt cell "（A）×75%＋我國籍民" is one line in Word's
+        // print, "×" 5.95; ours set it 6.91 and left "民". Its symbols stay
+        // an em as a square face's, its digits the stand-in's.
+        for name in ["新細明體", "PMingLiU"] {
+            let face = try XCTUnwrap(OfficeFonts.face(name, eastAsian: true))
+            let table = try XCTUnwrap(OfficeFonts.face(name, eastAsian: false)?.advances)
+            XCTAssertEqual(table.count, 95, "U+0020 to U+007E")
+            XCTAssertEqual(table[0], 0.26, accuracy: 0.0005)
+            XCTAssertEqual(table[Int(Character("0").asciiValue!) - 0x20], 0.47, accuracy: 0.0005)
+            XCTAssertEqual(try XCTUnwrap(face.otherAdvances?[0xD7]), 0.5)
+            XCTAssertTrue(face.fullWidthSymbols)
+        }
+    }
+
     func testMathPresetsDrawAsOnePiece() {
         let r = Rect.fromLTWH(0, 0, 200, 200)
         for name in ["mathEqual", "mathNotEqual", "mathMultiply", "mathDivide"] {

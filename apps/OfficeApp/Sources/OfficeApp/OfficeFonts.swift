@@ -719,6 +719,9 @@ enum OfficeFonts {
         var scaledBaseline: Double? = nil
         /// `RichResolvedFace.symbolFamily`.
         var symbols: String? = nil
+        /// Whether its symbols are an em as a square face's, where it has a
+        /// table of ASCII widths besides (PMingLiU): nil, as having none.
+        var squareSymbols: Bool? = nil
         /// The same two for the face's bold, where it is a face of its
         /// own with other metrics.
         var boldHeight: Double? = nil
@@ -899,6 +902,19 @@ enum OfficeFonts {
         0.2778, 0.3892, 0.6602, 0.5, 0.333, 0.667, 0.667, 0.667, 0.667, 0.667, 0.3892, 0.667, 0.667, 0.333, 0.333,
         0.667, 0.333, 1, 0.667, 0.667, 0.667, 0.667, 0.4438, 0.6108, 0.4438, 0.667, 0.6108, 0.9438, 0.667, 0.6108,
         0.5562, 0.3892, 0.2778, 0.3892, 0.6602,
+    ]
+    /// PMingLiU's ASCII as Word sets it, per em: Times' at 0.94 — the
+    /// stand-in's — but for the space, 0.26 and not 0.235 (the /Widths of
+    /// Word's embedded PMingLiU in 97 prints of the corpus; every other
+    /// character it prints agrees with the stand-in's to the unit).
+    private static let pMingLiUAdvances: [Double] = [
+        0.260, 0.313, 0.384, 0.470, 0.470, 0.782, 0.731, 0.169, 0.313, 0.313, 0.470, 0.530, 0.235, 0.313, 0.235,
+        0.261, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.470, 0.261, 0.261, 0.530, 0.530,
+        0.530, 0.417, 0.866, 0.678, 0.627, 0.627, 0.678, 0.574, 0.522, 0.678, 0.678, 0.313, 0.365, 0.678, 0.574,
+        0.835, 0.678, 0.678, 0.522, 0.678, 0.627, 0.522, 0.574, 0.678, 0.678, 0.887, 0.678, 0.678, 0.574, 0.313,
+        0.261, 0.313, 0.441, 0.470, 0.313, 0.417, 0.470, 0.417, 0.470, 0.417, 0.313, 0.470, 0.470, 0.261, 0.261,
+        0.470, 0.261, 0.731, 0.470, 0.470, 0.470, 0.470, 0.313, 0.365, 0.261, 0.470, 0.470, 0.678, 0.470, 0.470,
+        0.417, 0.451, 0.188, 0.451, 0.508,
     ]
     private static let yaHeiAdvances: [Double] = [
         0.2959, 0.3125, 0.4355, 0.6382, 0.5864, 0.8896, 0.8701, 0.2563, 0.334, 0.334, 0.4551, 0.7417, 0.2407, 0.4326, 0.2407,
@@ -1220,7 +1236,11 @@ enum OfficeFonts {
         // notes at 1.39 lines stood 3.8pt under Word's print, where Word
         // sets all of it under the text.)
         if has("pmingliu", "新細明體") {
-            return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, fakeBold: true, baseline: 974.0 / 1024.0)
+            // (Its space as its own: 3.12 at 12pt, where the stand-in's was
+            // 2.82 — zh-1d3d66d3's "（資本門預算數） ×100％" ends at "100％" in
+            // Word's print of a 7-em cell and opens the next line "（以".)
+            return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, latinAdvances: pMingLiUAdvances,
+                                 fakeBold: true, baseline: 974.0 / 1024.0, squareSymbols: true)
         }
         if has("stzhongsong", "华文中宋") {
             // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
@@ -1621,7 +1641,7 @@ enum OfficeFonts {
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
-            face.fullWidthSymbols = ea.latinAdvances == nil
+            face.fullWidthSymbols = ea.squareSymbols ?? (ea.latinAdvances == nil)
             // (Ideographs in a serif where the name is a Song, Ming or
             // Mincho face: `serifIdeographs`.)
             if !own || embeddedFamily(family) == nil, let serif = serifIdeographs(family, ea) { face.fallback = [serif] }
@@ -1686,9 +1706,12 @@ enum OfficeFonts {
             // set so alone it let lines take what the no-break space beside
             // it, 6.0 in Word's print and 2.82 in ours, gives back:
             // zh-e061a08e's "數）×100％" took "（以". Left for both.)
+            // (The "×" at its half: zh-0daa510e's 12pt cell "（A）×75%＋我國
+            // 籍民" is one line in Word's print, "×" 5.95, where ours set it
+            // 6.91 and left "民".)
             if ea.height == 1332.0 / 1024.0, face.otherAdvances == nil {
-                face.otherAdvances = [0x2013: 1.0]
-                face.boldOtherAdvances = [0x2013: 1.0]
+                face.otherAdvances = [0x2013: 1.0, 0xD7: 0.5]
+                face.boldOtherAdvances = [0x2013: 1.0, 0xD7: 0.5]
             }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`

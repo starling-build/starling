@@ -4660,12 +4660,21 @@ Done: the cell rule on a line with spaces takes a Latin word only where it
 starts inside the margin. Same-base sweep of 756: zh-51af781b 98.7 -> 99.0,
 nothing else moved.
 
-### T158. zh-0daa510e p5: PMingLiU's "×" is half an em — CLAIMED (Linux office1, 2026-10-24)
+### T158. zh-0daa510e p5: PMingLiU's "×" is half an em, its space 0.26 — DONE (Linux office1, 2026-10-24)
 Owner: Linux office1 (starling-office1-df). Taken up from Windows 01QbbApP's
 open note (zh-05699f05, 10-22): "（A）×75%＋我國籍民" is one line in Word's print
 of a 12pt PMingLiU cell, "×" 5.95 wide; ours sets it 6.91 and leaves "民", and
 the cell's next four lines follow. Set alone in 10-22's code it cost
 zh-e061a08e and 31 others a line (the "）×" gap there); trying it on today's.
+Done. "×" alone, same-base: 3 up, 35 down a line each — the "）×100％" cells
+(zh-1d3d66d3, zh-e061a08e, …), whose source has a plain space before "×": Word's
+PMingLiU space is 260/1000 (3.12 at 12pt), ours the stand-in's 0.235 (2.82),
+and the too-wide "×" had hidden it. Every other ASCII width in 97 prints'
+embedded PMingLiU agrees with the stand-in's to the unit. Built: a PMingLiU
+ASCII table (space 0.26), "×" 0.5, its symbols still an em (`squareSymbols`).
+Same-base sweep of 756: ten up, all to 100 (zh-0daa510e 96.5, zh-afdd4a7e 95.9,
+zh-15ecc2c6 99.0, zh-093c8713, zh-d0eb9f43, …), nothing lower. This also
+closes Windows 01QbbApP's open "×" note (zh-05699f05/zh-e061a08e).
 
 ### T159. Word for Windows references (word-win): missing Latin faces and RTL lines — CLAIMED (Mac 01Xgpbk5, 2026-10-24)
 
