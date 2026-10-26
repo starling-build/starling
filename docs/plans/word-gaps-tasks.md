@@ -6140,8 +6140,15 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   zh-053f8706 1414 / 1414 (KaiTi), zh-0978dee9 10035 / 10024 (FangSong; where local and bundled differ, bundled's lines are in Word's
   print 49 times to local's 13 — SimSun table pages (p127-128), SimSun installed since T203; against T203's own local output
   only pp243/284/307 change, the new lines Word's 4 to 1), zh-4f70ee2d 512 / 462 (the ③ fallback, office1's). Bundled output identical. Left: bold
-  faces with no bold are drawn as Type3 glyphs in our PDF (Skia's synthetic bold); 仿宋_GB2312 bodies (zh-6d1afa56, zh-053f8706)
-  stay StarlingFangSong where Word substitutes FangSong — the name Windows lacks keeps the stand-in.
+  faces with no bold are drawn as Type3 glyphs in our PDF (Skia's synthetic bold) — OPEN, not urgent (macos): the text extracts,
+  but the PDF carries no real font for it.
+  DONE dcfd36b6 (routed by macos): in local mode a name the machine lacks is set in the installed face its stand-in is a clone of —
+  the face Word sets it in: 仿宋_GB2312 in FangSong (Windows' FontSubstitutes has FangSong_GB2312=FangSong; Word's prints agree), an
+  East Asian name's Latin with it; the Latin clones' originals (Arial, Times New Roman, Courier New, Calibri, Cambria, Verdana).
+  A stand-in that is already the machine's face (YaHei for a 方正 name) keeps Word's corrections. Local vs word-win: zh-6d1afa56
+  1621 -> 1656 (bundled 1621), body and digits FangSong as in Word's print; zh-053f8706 1414 holds (now FangSong); zh-ae2dd08d,
+  zh-505b9619, zh-0978dee9, bug65649, Bug51170 unchanged; bundled identical. On Mac and Linux local mode too, a clone's original
+  is drawn where installed (e.g. Arial for a name given Liberation Sans).
 - T204 ("mode 14 compresses no punctuation") — MEASURED Windows 01QbbApP 2026-10-25, premise wrong, released. Lab cm (each
   document's package, compatibilityMode 14 -> 15): zh-5be7e156 and zh-015abfaf break their first-miss lines as ours at 15, not at
   14; zh-57f1de0d's line is the same at both (Word keeps 》 and ： whole in its embedded 方正仿宋_GBK, ours 13.35). But labs m14b-e
