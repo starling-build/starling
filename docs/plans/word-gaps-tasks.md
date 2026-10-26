@@ -6362,4 +6362,6 @@ indent, overflowing the cell, while the indent is short of the cell's right edge
 leaves that first line's content out from there on — 20pt and up: nothing. The edge is the cell's width less its left margin:
 ovi's 31.6pt in a 40pt column at 5.4 margins is drawn, 60pt is not; the document's cell at 108 margins (31.6 >= 19.45-5.4) is not.
 Only the first line goes: "5 abc def" loses "5" and wraps "abc" / "def" from line 2. T210's box "A" (24pt indent, 23.5pt box)
-fits the same rule. Ours draws the character always, at x98.2 whatever the indent. Not claimed.
+fits the same rule. Ours draws the character always, at x98.2 whatever the indent. CLAIMED Windows 01QbbApP (zh-9bcea239 and
+  T210's p12 "A", by arrangement with lenovo-2): wip/indent-past-cell 81d9f7bc — in a cell or box such a first line's word is
+  hidden; ovi/ovi2 now Word's; zh-9bcea239 391 -> 406/422, zh-b24b396a 327 -> 328, zh-9e020c95/zh-70094a34 unchanged. Pairing.
