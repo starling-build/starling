@@ -6494,3 +6494,9 @@ Sans" and no Unicode signature (usb 0/0), so `windowsSigFace` does not apply and
 drew it in Ebrima, windows-1's box in Calibri, and zh-b0207333 — the corpus's one other entry like it — prints Calibri. The
 face is the reference machine's own fallback for a missing name, which no file rule reproduces from one document.
 
+### T216. zh-147bdae0 p39: a run of kept table rows goes over with the row after it — CLAIMED (Linux office1, starling-office1-95, 2026-10-26, routed by macos)
+Four indicator rows whose paragraphs say keepNext, then the unkept "聯絡資訊" row, open p39 in Word's print, the header row
+alone at p38's foot; ours filled p38 with two of them (the row code weighed a kept row only against the paragraph after
+the table). Rule: such a run goes over where the page cannot hold it and the first row after it, and one page can — a run
+longer than a page parts as rows do (zh-64044a1d's all-kept equipment list, parted between "8" and "9"). Pair running.
+
