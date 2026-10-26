@@ -54,6 +54,6 @@ Then verify the domain in Google Search Console and submit `/sitemap.xml`.
 Packaging alone neither creates DNS records nor submits pages to Google.
 
 Product names are Writer, Slides, and Sheets. Microsoft names appear only in
-file-compatibility descriptions. The former `/word/`, `/excel/`, and
-`/powerpoint/` addresses redirect to the branded pages and retain launch query
-parameters. Only canonical branded URLs appear in the sitemap.
+file-compatibility descriptions. Only `/writer/`, `/slides/`, and `/sheets/`
+are published as app entry pages and included in the sitemap. The former
+`/word/`, `/excel/`, and `/powerpoint/` addresses are removed, with no redirects.

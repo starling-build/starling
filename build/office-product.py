@@ -134,20 +134,6 @@ def build(runtime, out):
         page = out / path.strip('/') / 'index.html'
         page.parent.mkdir(exist_ok=True)
         page.write_text(template.substitute(values))
-    # Keep previously shared and submitted URLs useful. Pages cannot issue
-    # per-path server redirects; use an immediate refresh plus a script that
-    # preserves launch parameters (for example ?start=example).
-    for old, new in {'word': 'writer', 'excel': 'sheets', 'powerpoint': 'slides'}.items():
-        destination = f'/{new}/'
-        alias = out / old / 'index.html'
-        alias.parent.mkdir(exist_ok=True)
-        alias.write_text(f'''<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Starling {APPS[new]['label']}</title><link rel="canonical" href="{ORIGIN}{destination}">
-<meta http-equiv="refresh" content="0;url={destination}">
-<script>location.replace({json.dumps(destination)} + location.search + location.hash);</script>
-</head><body><p><a href="{destination}">Open Starling {APPS[new]['label']}</a></p></body></html>
-''')
     (out / 'CNAME').write_text('office.starling.build\n')
     (out / '.nojekyll').touch()
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\n\nSitemap: {ORIGIN}/sitemap.xml\n')
