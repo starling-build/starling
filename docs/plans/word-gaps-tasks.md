@@ -6391,3 +6391,12 @@ First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tbl
 
 ### T-grid. The character-grid squeeze, as one model — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos)
 Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, ， least, the pair needing two cells) and zh-3c055c9b (92.5; p2 mid-line marks kept whole where ours squeezes, digit gaps 6.4-7.0 to ours 4.2; p9/p13 final marks squeezed where ours sends them down). Labs from windows-1.
+
+### zh-8628cfbe p13 (93.3, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
+Cell paragraph "2.與去年實際數比較，相同者得基準分75分，每增(減)…" (kinsoku 0, overflowPunct 0, compressPunctuation, mode 15,
+zh-TW): Word's line ends "…75分", every character 12.12 apart (the line justified) and "，" after "較" whole; ours squeezes that
+"，" to 7.4 and takes the next "，" at the end. Tried: under kinsoku 0 a closing mark that is a piece alone does not take
+the line's marks' squeeze — 12 of the 65 kinsoku-0 documents fell (zh-c15af02e 98.9 -> 6.0, zh-3c055c9b 92.5 -> 33.2,
+zh-c5b5087b 100 -> 42.1, zh-8628cfbe itself 93.3 -> 75.3), reverted. So Word does squeeze for a closing mark there; what
+keeps this line's "，" whole is something else (the cell? overflowPunct 0? the mark after an ideograph and before one?).
+
