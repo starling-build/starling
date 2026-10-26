@@ -6447,10 +6447,17 @@ MEASURED and RELEASED by lenovo-2 (several small causes, none cheap):
 ### zh-92373179: 99.3 Windows mode, 65.9 Mac mode (macos's n14) — CLOSED, not a layout gap (Linux 01F2SWc8, 2026-10-26, routed by macos)
 Mac mode on the tip scores 65.5, but the layout matches the Mac print: on 10 of its 11 pages every one of Word's lines has one of ours within 3pt (p11 misses one of 12), with the same line counts (p6/p7/p9 differ by table rows). The misses are the reference's text: from p5 on, Word for Mac's PDF maps its embedded font's glyphs to the wrong characters ("…面 1CC•€米以上SF2CC•€米的G2分…", "-L廉政›度,œ•的G1分"), so no line's four-character edge can match. (p1-4 lose only "招", mapped to nothing, which the scorer already allows.) A fresh Mac print with text that extracts, or a scorer that falls back to line positions when a reference line is unreadable, would show it at about 99.
 
-### T215. No automatic space after Latin-face digits that follow a full-width mark — CLAIMED (Linux office1, starling-office1-95, 2026-10-26, routed by macos from windows-1's lab tdn)
+### T215. No automatic space after Latin-face digits that follow a full-width mark — TRIED, DROPPED (Linux office1, starling-office1-95, 2026-10-26, routed by macos from windows-1's lab tdn)
 zh-147bdae0 p64 "討，102年": Word for Windows sets "102" (Times New Roman) after the "，" with no automatic space either side —
 "年" 1.8 after "2", where after "的" it is 4.08 / 3.24 and in 標楷體 digits 4.68. The digits' run takes its paragraph style's
-w:hint eastAsia, which sets no digit East Asian: the face decides. Pair running.
+w:hint eastAsia, which sets no digit East Asian: the face decides.
+Tried as stated (no automatic space after a run of Latin-face digits that directly follows U+3001-303F / FF01-FF0F /
+FF1A-FF20 / FF3B-FF40 / FF5B-FF65): zh-147bdae0 94.4 -> 94.7, but same-base pairs, 756 docs, engine 8bc30c5c89a, had 38
+lower in Windows mode (zh-ab1ea005 99.9 -> 34.5, zh-7b5b3de2 100 -> 40.4, zh-51af781b 99.7 -> 67.9, zh-875759ff 99.7 ->
+76.7, zh-db07d44e 98.6 -> 86.9 and 33 by under 2) and 46 moved in Mac mode (96.899 -> 96.414). So Word does space digits
+after a full-width mark in general; tdn's "，102年" stands unspaced for something narrower — its digits' run takes the
+paragraph style's w:hint eastAsia, and its autoSpaceDN is on only by a table style over docDefaults' 0. Reverted. A lab
+that crosses those two (the hint, and autoSpaceDN from the table style vs. the paragraph) would split it.
 
 
 ### Mac-mode batch triage (Mac 7bd18d8e, 2026-10-26, routed by macos; scores from n3, Mac mode, tip before T213)
