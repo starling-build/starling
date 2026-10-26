@@ -8347,29 +8347,7 @@ public final class RichLayout {
         // 01QbbApP lab th, 2026-10-23) and Word for Mac's alike set
         // "ตอบ : 1." alone and the overlong stretch after it from the
         // next line's start. 61.2 -> 67.9 against word-win.)
-        var thaiJoins: Set<Int> = []
-        if theme.wordRules, RichTextTheme.thaiBreaksAtSpaces, p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
-            let units = Array(p.text.utf16)
-            let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
-            var k = 0
-            while k < units.count {
-                guard units[k] != 0x20, units[k] != 0x3000, units[k] != 0x0A else { k += 1; continue }
-                var end = k, thai = false, width = 0.0
-                while end < units.count, units[end] != 0x20, units[end] != 0x3000, units[end] != 0x0A {
-                    let u = units[end]
-                    if (0x0E01 ... 0x0E5B).contains(u) {
-                        thai = true
-                        width += [0x0E31, 0x0E34, 0x0E35, 0x0E36, 0x0E37, 0x0E38, 0x0E39, 0x0E3A, 0x0E47, 0x0E48, 0x0E49, 0x0E4A, 0x0E4B, 0x0E4C, 0x0E4D, 0x0E4E].contains(u) ? 0 : 0.42 * em
-                    } else { width += 0.5 * em }
-                    end += 1
-                }
-                // (The first stretch against the first line's room, after
-                // its indent and number: that one is where it would stand.)
-                let room = k == 0 ? textWidth - max(0, lead) : textWidth
-                if thai, width <= room || k > 0 { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
-                k = end
-            }
-        }
+        let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
         let hanJoins = theme.wordRules ? Self._hanJoins(p, document) : []
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
@@ -11047,6 +11025,34 @@ public final class RichLayout {
     ///
     /// In a table's cell no mark hangs; the marks inside a line give
     /// there as anywhere.
+    /// The offsets `_span` keeps Thai together at (word joiners): see there.
+    private func _thaiJoins(_ p: RichParagraph, _ document: RichDocument, named: RichNamedStyle?, textWidth: Double, lead: Double) -> Set<Int> {
+        var thaiJoins: Set<Int> = []
+        if theme.wordRules, RichTextTheme.thaiBreaksAtSpaces, p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
+            let units = Array(p.text.utf16)
+            let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+            var k = 0
+            while k < units.count {
+                guard units[k] != 0x20, units[k] != 0x3000, units[k] != 0x0A else { k += 1; continue }
+                var end = k, thai = false, width = 0.0
+                while end < units.count, units[end] != 0x20, units[end] != 0x3000, units[end] != 0x0A {
+                    let u = units[end]
+                    if (0x0E01 ... 0x0E5B).contains(u) {
+                        thai = true
+                        width += [0x0E31, 0x0E34, 0x0E35, 0x0E36, 0x0E37, 0x0E38, 0x0E39, 0x0E3A, 0x0E47, 0x0E48, 0x0E49, 0x0E4A, 0x0E4B, 0x0E4C, 0x0E4D, 0x0E4E].contains(u) ? 0 : 0.42 * em
+                    } else { width += 0.5 * em }
+                    end += 1
+                }
+                // (The first stretch against the first line's room, after
+                // its indent and number: that one is where it would stand.)
+                let room = k == 0 ? textWidth - max(0, lead) : textWidth
+                if thai, width <= room || k > 0 { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
+                k = end
+            }
+        }
+        return thaiJoins
+    }
+
     /// `RichDocument.joinsHanAfterSpace`: the offsets (UTF-16) inside each
     /// stretch after a space, to the next space or tab, that holds Han
     /// text — kept together, the engine breaking one longer than a line
@@ -11152,6 +11158,13 @@ public final class RichLayout {
         let percentStarts = _percentStarts(document)
         // (Nor inside Han text `_span` joins: `_hanJoins`.)
         let hanJoins = wordRules ? Self._hanJoins(p, document) : []
+        // (And Thai `_span` keeps together, one piece as the engine has it:
+        // set apart, each letter was judged a word of its own — Word for
+        // Mac's p17 heading of zh-6a4fc013, "…ใช้วิธีคำนวณ…ใช่หรือไม่?", is
+        // taken whole with its "：" squeezed and its "?" hung, where ours
+        // held back the "ม" that started near the margin.)
+        let thaiJoins = _thaiJoins(p, document, named: _named(p, document), textWidth: width, lead: 0)
+        func thaiLetter(_ u: UInt16) -> Bool { u >= 0x0E01 && u <= 0x0E5B }
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, !hanJoins.contains(o), let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
             // (But not an opening mark at a line's end, either way: Word
@@ -11325,7 +11338,7 @@ public final class RichLayout {
                 && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
                last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a)
-                || hanJoins.contains(a) {
+                || hanJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
                 if (opens || closesAfterSpaces) && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
                 g.b = b
@@ -11544,8 +11557,18 @@ public final class RichLayout {
                 // (mode 12, doNotCompress, 標楷體 14pt) ends "…委外機構(公 司)"
                 // with its ")" 4.8pt past the margin in Word's print, "司"
                 // inside; ours broke at the space before "司".)
+                // (Word for Mac hangs a Latin "?", "." or ")" at a justified
+                // Thai line's end, mid-paragraph too: lab `tthai`
+                // (zh-6a4fc013's p17 heading "…ใช่หรือไม่?", Browallia
+                // bold) keeps it one line with its "?" 7pt past the margin
+                // — "." and ")" the same, its run's w:cs or not — and wraps
+                // it set left or under overflowPunct 0. Word for Windows
+                // wraps it.)
+                let macThai = !RichTextTheme.wordWindowsPages && p.style.alignment == .justify
+                    && [0x3F, 0x2E, 0x29].contains(units[tail]) && units.contains { $0 >= 0x0E01 && $0 <= 0x0E5B }
                 let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
                     || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80
+                    || macThai
                 // (Before Word 2013's layout, in a document that compresses
                 // punctuation, Taiwan's centred marks give nothing at a
                 // line's end to be taken, and the paragraph's own last one
