@@ -1768,8 +1768,15 @@ public final class RichLayout {
                     // are 708.7pt in a column of 697.9 in Word's print, and
                     // ours, scaled to the column, wrapped "序号" at 15pt in
                     // a cell of 29.4.)
+                    // (… and by what it is set out into the left margin as
+                    // well: zh-9ba2ead7's 446.6pt score tables, set out
+                    // 20.7pt in a column of 415, stand at their grids in
+                    // Word for Windows' print — from the margin less the
+                    // outdent and a cell margin to the margin and the
+                    // other — where ours, scaled to the column, wrapped
+                    // "物业服务企业".)
                     else if theme.wordRules,
-                            _px(sum) <= width + _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4)) + 1 { scale = 1 }
+                            _px(sum) <= width + _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4) + max(0, -ts.indent)) + 1 { scale = 1 }
                 }
                 // (Whole pixels, down — from a hair over: 63.5pt is 1270px
                 // at the print's scale, which the scale's 4/3 times 15
