@@ -5526,8 +5526,16 @@ public final class RichLayout {
                     // figure 6 on page 40; Word opens page 41 with it and
                     // "一、目的", ours kept it by its last line's overhang
                     // and sent "目的" on alone, and ran a page behind.)
+                    // (Nor a whole first member that fits by its lines but not
+                    // with its space after: the next member's start then
+                    // has no room on the page, and the run goes over all
+                    // the same. zh-64044a1d's "(七)上班上課情形", one 18pt
+                    // line and 9 after under 25.9pt of room, opens page 29
+                    // in Word's print with the five kept headings after
+                    // it; ours kept it at page 28's foot alone.)
                     violated = k > i ? cum + start(k) > room + 0.01
-                        : _cells[i] == nil && whole(i) && start(i) > room + 0.01 && _heights[i] <= contentH + 0.01
+                        : _cells[i] == nil && whole(i) && _heights[i] <= contentH + 0.01
+                            && (start(i) > room + 0.01 || (i + 1 < count && document.paragraphs[i].style.sectionXML == nil))
                     break
                 }
                 if !violated, !ended, k < count, k > i, (_cells[k] != nil || !document.paragraphs[k].style.keepNext) {
