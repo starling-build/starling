@@ -6027,7 +6027,7 @@ LAB DONE (Windows 01QbbApP, 2026-10-25, ~/starling-doc-check/lab/c61, chart1 in 
 - No manual layout: every side 5pt further in: plot top 286.9 (frame + 11.7), table foot 407.0 (frame - 5.0), table 107.0-445.6, labels 5 right and 5 down.
 So with a data table, a manual inner layout means 5pt less inset on all four sides (top 6.7, bottom 0, the table's left 12.0 from the frame), and only its w is read, capped by the legend. Ours' 11.1 / 4.9 are the no-layout figures.
 
-### zh-3f871b7d 87.8 (word-win): a middle dot set a full em — BUILT, PARKED on the middle dot's squeeze (Mac 01Xgpbk5, 2026-10-25)
+### zh-3f871b7d 87.8 (word-win): a middle dot set a full em — DONE 75e4cc0a, 87.8 -> 100 (Mac 01Xgpbk5's widths, landed with the dot's squeeze by Linux 01F2SWc8, 2026-10-25)
 Word sets a hinted "·" (U+00B7) in SimSun, whose U+00B7 is an em: SimSun is fixed-pitch, and of what it maps from
 U+00A1 to U+024F, eight are an em (¤ § ¨ ° ± · × ÷) and 110 half one (read from Word's Simsun.ttc). Built: SimSun's
 face takes those widths where a run sets them East Asian (EastAsianFace.otherAdvances). zh-3f871b7d 87.8 -> 100.
@@ -6052,7 +6052,8 @@ With T181's too-generous witnesses (zh-e0ca7252, zh-57f1de0d, zh-505b9619, zh-cd
 Its p48-56 drift was w:mirrorIndents on a numbered list: the mirror swapped the paragraph's side indents, but a list's
 text edge is its level's, so the list was never mirrored. Fixed in RichLayout (pair w32 -> w33).
 
-### A full-width middle dot gives in a line's fit — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-25, routed by macos; from the Mac 01Xgpbk5 and lenovo-3)
+### A full-width middle dot gives in a line's fit — DONE 75e4cc0a (Linux 01F2SWc8 lenovo-3, 2026-10-25, routed by macos; from the Mac 01Xgpbk5 and lenovo-3)
+DONE with the Mac's SimSun widths in one commit (75e4cc0a): a "·" set an em is among the marks that give (half itself), and a paragraph whose only such mark is one is fitted. Same-base pair h183 against word-win, 756 of 756: zh-3f871b7d 87.8 -> 100, zh-a7a889eb 98.1 -> 99.6, zh-b5359de4 96.4 -> 96.7, nothing lower; zh-b9af65b5 stays 100. Not done: "・" (U+30FB), no witness. NOTE for anyone applying the widths patch by hand: its first hunk's context matches FangSong's block as well as SimSun's, and with fuzz git put it in FangSong's.
 Word sets a hinted "·" (U+00B7) in SimSun at an em, and gives some of it where a line needs room: zh-b9af65b5's cell
 line "元/建筑平米·月" (10.5pt) has the dot's glyph 10.56 wide and "月" 8.16 after it (2.4 given, about a quarter em).
 zh-3f871b7d's "…在青岛·上合…" has room and keeps the full em. Our fitter has no middle-dot class (opening and closing marks
