@@ -6108,6 +6108,28 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   Found: on Windows ours embeds Carlito / Caladea / Liberation for Calibri / Cambria / TNR though the real faces are
   installed; F01's Georgia, Garamond, Century Gothic and Consolas come out at other sizes or widths (0.84 against LibreOffice's 0.98).
 
+- T203 Windows check (Windows 01QbbApP, 2026-10-25, build of 1be7bdc8): local mode works. Showcase against Word for Windows' F*.pdf:
+  F01 25/28 lines local vs 17/28 bundled, its faces exactly Word's (Aptos, Calibri, Cambria, Century Gothic, Consolas, Garamond,
+  Georgia, Segoe UI); F02 12/13 and F17 60/63 either way; every local miss is Word's fi/ffi/ti ligatures reading back scrambled.
+  OFFICE_FONT_SOURCE unset = local; office-settings.txt fonts=bundled|installed honoured at launch (the in-app switch not driven).
+  word-win, bundled -> local: bug65649 6744/6744 both, 60293 4/4, Bug51170 191/191, bug59058 1557/1557; zh-4f70ee2d 512 -> 462:
+  p14's "③" (U+2462) — Word draws it in Cambria Math at 19.44, bundled in DejaVu Sans at 19.5, local in DejaVu Sans at its own
+  14.34, so "方" fits — routed to office1. Faces Windows has that the face table lacks (stand-ins even in local): 仿宋/FangSong,
+  黑体/SimHei, 楷体/KaiTi, 等线/DengXian, PMingLiU/MingLiU, 標楷體/DFKai-SB, MS Mincho, Cambria Math, Symbol, Wingdings, Lucida Console.
+- Windows face list from DirectWrite — CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos): installedFamilies on Windows from
+  DirectWrite's system font collection, localized family names included (仿宋 and FangSong), in place of the face table; then
+  local-vs-bundled spot checks on zh documents in 仿宋 / 黑体 / 楷体 / 新細明體.
+- T204 ("mode 14 compresses no punctuation") — MEASURED Windows 01QbbApP 2026-10-25, premise wrong, released. Lab cm (each
+  document's package, compatibilityMode 14 -> 15): zh-5be7e156 and zh-015abfaf break their first-miss lines as ours at 15, not at
+  14; zh-57f1de0d's line is the same at both (Word keeps 》 and ： whole in its embedded 方正仿宋_GBK, ours 13.35). But labs m14b-e
+  (zh-5be7e156's package, 仿宋 16pt spacing 0, justified, 26 characters with 0-4 commas, the last pushed over by the right
+  indent): modes 12 and 14 squeeze alike, taking the character up to half an em over measured in Word's layout widths (16.0 a
+  character where the PDF draws 15.96), whatever the number of marks; mode 15 more with more marks. Ours matches Word on all 27
+  m14b cases. So zh-5be7e156's extra "家" is not the squeeze rule. Lab gsp (p1's section: linesAndChars -842, balance): Normal's
+  16pt (spacing -6) unjustified steps 15.20 in Word, as ours (spacing twice under balance: 0 -> 15.79, -12 -> 14.60). Left open:
+  Word's justified lines there step 15.24, its brackets beside Latin text stay whole (ours 13.90), and its gap from "46" to
+  "号" fills the cell (7.4, ours 3.4). Lab files ~/starling-doc-check/lab/{cm,m14b,m14c,m14d,m14e,gsp} on the Windows box.
+
 ### T203. Installed fonts by default, Starling's stand-ins as a setting — DONE 5997dae3 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (the user's decision, from the office comparison report, 4610d248). A family the
 machine has is drawn in it; otherwise today's mapping. A setting ("Use fonts installed on this computer", default on / "Use
