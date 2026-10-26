@@ -1918,7 +1918,7 @@ enum OfficeFonts {
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         let face = standInFace(family, eastAsian: eastAsian)
         guard let family, let face else { return face }
-        guard let own = installed(family) ?? installedOriginal(of: face.family, for: family) else { return face }
+        guard let own = installed(family) ?? installedOriginal(of: face.family, for: family, math: face.setsMath) else { return face }
         return installedFace(own, as: face)
     }
 
@@ -1932,7 +1932,17 @@ enum OfficeFonts {
     /// Asian name's Latin is its face's too, not its clone's (a square
     /// face's Liberation Mono is not Courier New): zh-6d1afa56's
     /// 仿宋_GB2312 digits are FangSong's in Word's print.
-    static func installedOriginal(of standIn: String, for family: String) -> String? {
+    /// (Only where Word has no face of the name either: a math face, or off
+    /// Windows a face Word brings with it, is that face in Word's print,
+    /// not the clone's original. bug59058's Cambria Math — in Word for Mac's
+    /// own fonts, not the Mac's — went to Times New Roman, its ∑ out of a
+    /// system fallback at 14.3pt where Word's is 6.86, and the document fell
+    /// from 99.9 to 76.5 against the Mac's prints.)
+    static func installedOriginal(of standIn: String, for family: String, math: Bool) -> String? {
+        guard !math else { return nil }
+        #if !os(Windows)
+        guard !wordMacFamilies.contains(family.trimmingWhitespace().lowercased()) else { return nil }
+        #endif
         let n = standIn.trimmingWhitespace().lowercased()
         let original: String? = isEastAsianFace(family)
             ? (n == starlingFangSong.lowercased() || fangSongFamily(family) == starlingFangSong ? "FangSong" : nil)
@@ -2003,7 +2013,8 @@ enum OfficeFonts {
     /// `fontFamilyResolver`): the machine's own (`installed`), else the
     /// stand-in (`substitute`, which the layout's rules still read).
     static func drawn(_ family: String) -> String {
-        installed(family) ?? installedOriginal(of: substitute(family), for: family) ?? substitute(family)
+        installed(family) ?? installedOriginal(of: substitute(family), for: family, math: standInFace(family, eastAsian: false)?.setsMath ?? false)
+            ?? substitute(family)
     }
 
     /// The machine's faces by name, lowercased: fontconfig's families on
