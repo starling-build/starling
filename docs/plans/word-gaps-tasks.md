@@ -6432,3 +6432,22 @@ zh-147bdae0 p64 "討，102年": Word for Windows sets "102" (Times New Roman) af
 "年" 1.8 after "2", where after "的" it is 4.08 / 3.24 and in 標楷體 digits 4.68. The digits' run takes its paragraph style's
 w:hint eastAsia, which sets no digit East Asian: the face decides. Pair running.
 
+
+### Mac-mode batch triage (Mac 7bd18d8e, 2026-10-26, routed by macos; scores from n3, Mac mode, tip before T213)
+Reference text first (chars, garbled share, similarity of Mac reference text to the Windows one):
+- REFERENCE ARTEFACTS (the Mac print's text layer is garbled): zh-a031fa16 55.1 (99.8% unmapped), zh-c2229d4a 75.1 (74%),
+  zh-529fa492 81.2 (62%; its p7 em-digits question was settled earlier as the Mac reference's). Nothing to fix.
+- zh-5c7787f5 79.5 -> 100 on n3: already fixed.
+- zh-3fe252ff 28.9: first misses are the bullet — Mac print extracts "Ø" (Wingdings), ours "➢" — scorer-side; 1531 misses
+  over 94 pages need a second look past the bullets.
+- zh-e0ca7252 63.1: first misses are enclosed numbers "○1" (the Mac print extracts the ring, ours only the digit) —
+  text extraction; next misses not looked at.
+- zh-86547e97 46.6: p14 table text differs ("每罚款数额200元" vs ours "罚款数额100元") — likely tracked changes shown
+  differently on the Mac; to check.
+- REAL, line fit: zh-884c6e3e 47.2 (p2, ours a character ahead), zh-c5b5087b 53.5 (p5, ours a character ahead).
+- REAL, vertical: zh-8d72961c 59.6 (p1 lines 4-6pt low in ours), zh-291fcea7 61.1 (p4 flow-chart labels),
+  zh-76700e5f 82.2 (header/appendix labels).
+- REAL, pagination: zh-e2dc9dce 6.8 (Windows 98.8) — Mac Word gives the contents a blank page 3 that Word for Windows and
+  ours do not: after the TOC field's end, an empty paragraph ending a continuous section holds a page break run, then an
+  empty 26pt paragraph, then another break paragraph; Mac Word honours both breaks, Windows (and ours) one. CLAIMED.
+  zh-6aa8bd7c 14.1 (33 Mac pages / 23 Windows / 32 ours; p6 table) — pagination, not looked at.
