@@ -6989,18 +6989,10 @@ public final class RichLayout {
             // `wraps`: where the lines the column wraps the paragraph into
             // start (PowerPoint's, measured below); a tab on such a line
             // is measured from the line's own start, at the indent.
-            // (The engine moves a line on by half its first character's
-            // spacing — not a placeholder's: see `x` below.)
-            let origin: Double = {
-                func first(_ span: InlineSpan, _ spacing: Double?) -> Double? {
-                    guard let t = span as? TextSpan else { return nil }
-                    let own = t.style?.letterSpacing ?? spacing
-                    if let text = t.text, !text.isEmpty { return own ?? 0 }
-                    for c in t.children ?? [] { if let hit = first(c, own) { return hit } }
-                    return nil
-                }
-                return min(0, (first(probeSpan, nil) ?? 0) / 2)
-            }()
+            // (The line starts at its left edge: the engine no longer moves
+            // it on by half its first character's spacing — starling-engine's
+            // patches/skia-no-line-spacing-shift.patch.)
+            let origin = 0.0
             func measure(_ wraps: [Int]) {
             tabs = [:]
             hangs = [:]
