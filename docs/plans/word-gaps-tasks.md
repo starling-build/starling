@@ -6219,3 +6219,9 @@ Owner: Linux lenovo-2. Scored on office's tip (a40bb3bf) on lenovo-2's own engin
 
 ### T207. zh-7a16a243: 74.4 against word-win (95.3 on the Mac's) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
 Engine 8bc30c5c89a (lenovo-2's), base 346a5033: 268 lines missed, p8-p16 nearly whole (27-30 a page), p26-p31 a few.
+
+### zh-0978dee9 cell baselines (local 10024 / bundled 10035 lines on Windows) — OPEN finding, not claimed (office1 + windows, 2026-10-25)
+Not T203's: Word's print is SimSun + Courier New (p45/p127/p128), lines break alike in all three, and local sits 0.1-0.2pt
+under bundled (the strut's even leading splits by the drawn face's ascent/descent). The gap both modes share: p127's cells
+stand 0.3-0.5pt under Word's, the 10pt SimSun column at x117.9 0.8-0.9 (Word 100.1 / 113.1 / 126.0, bundled 100.9 / 113.9
+/ 126.8), and the matcher regroups cells into rows by y. windows' PDFs: ~/starling-doc-check/t346-{local,bundled}/pdf.
