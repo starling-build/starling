@@ -2973,6 +2973,25 @@ public final class RichLayout {
     /// and under a forced strut do not add up to the painter's height
     /// (585, 560, 560 for three lines of 560): there every line ends
     /// as far below its baseline as the last does.
+    /// The grid's half of the room under a paragraph's first line's text,
+    /// px: by the face of its first characters (not a box's place, nor
+    /// the smallest on the line, `_overhang`). 0 off the grid.
+    private func _firstLineGridHalf(_ i: Int, _ document: RichDocument) -> Double {
+        let p = document.paragraphs[i]
+        guard theme.wordRules, p.image == nil, p.cell == nil, p.style.eastAsian["w:snapToGrid"] != "0",
+              let pitch = _grid(i, document).pitch else { return 0 }
+        var at = p.text.startIndex
+        for run in p.runs {
+            let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.endIndex) ?? p.text.endIndex
+            let text = p.text[at ..< end]
+            at = end
+            guard text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) else { continue }
+            let ea = text.contains { Self.isEastAsian($0, hinted: false) }
+            return _px(theme.gridOverhang(for: run.style, in: p.style, named: _named(p, document), eastAsian: ea, gridPitch: pitch))
+        }
+        return i < _overhang.count ? _overhang[i] : 0
+    }
+
     static func _lineBottoms(_ painter: TextPainter) -> [Double] {
         // (A paragraph whose lines keep their fractions is the sum of its
         // lines' advances: on the Mac a 1.5-spaced line of YaHei reports
@@ -5511,6 +5530,27 @@ public final class RichLayout {
             if i > 0, _cells[i - 1] == nil, y > 0.01, resumeCursor == nil {
                 y -= min(y, max(0, _tops[i - 1] + _heights[i - 1] - top))
             }
+            // (Whether a page's head takes this paragraph's space before
+            // off — see where the paragraph is set.)
+            let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i]) : 0
+            var leavesLead = false
+            if theme.wordRules, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
+                let st = document.paragraphs[i].style
+                let newSection = i > 0 && document.paragraphs[i - 1].style.sectionXML != nil
+                let ownBreak = _pageBreak[i] && !st.pageBreakInline && !st.breakEndsPrevious
+                leavesLead = !newSection && !st.pageBreakInline && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
+            }
+            // How much of it a page's head takes off, for where a line
+            // under a float first stands (below): zh-27a874b7's chart
+            // anchor opens a section under the last one's 9pt after, so
+            // its 9pt before goes and its line stands over the chart;
+            // zh-d62da4dd's, under none, keeps it, and the line goes
+            // under (lab t3d, Word for Windows).
+            var headSkip = 0.0
+            if theme.wordRules, RichTextTheme.wordWindowsPages, y < 0.01, page > 0, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
+                if leavesLead { headSkip = pageFresh ? lead : 0 }
+                else if i > 0, _cells[i - 1] == nil { headSkip = min(lead, _spacing(i - 1, document).after) }
+            }
             // Pictures that text wraps round (2026-10-14, zh-37b6536f's
             // photographs, from Word's print):
             // - a paragraph with less than an em beside the pictures over
@@ -5549,7 +5589,30 @@ public final class RichLayout {
                     return widest < em ? over.map(\.bottom).min() : nil
                 }
                 var guardSteps = 0
-                while let below = noRoom(at: y, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                // (Word tries the line where it first stood, then a step
+                // down at a time — its line less the grid's half of the
+                // room under the text, and its space before — and takes
+                // the first try whose top is clear of the float's foot:
+                // lab t3d (windows-1, Word for Windows), zh-27a874b7's
+                // title "圖1" (16pt bold JhengHei, single, an 18pt grid),
+                // first at 108, stands at 108 + k x 31.84 — 299.1, 330.9,
+                // 330.9, 330.9, 362.7 as the chart's foot moves 298.8 to
+                // 334.8 — (36 + 27.66) / 2 a step; ours set it at the foot.
+                // The half is the face of its first characters', not the
+                // smallest on the line. Not with a push of its own. Word
+                // for Windows' lines only: see `pushUnder`.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, i < _floatPush.count, _floatPush[i] < 0.01, noRoom(at: y, []) != nil,
+                   let line = Self._lineBottoms(geometry(i).painter).first,
+                   case let step = lead + line - _firstLineGridHalf(i, document), step > 1 {
+                    var t = y + lead - headSkip
+                    while let below = noRoom(at: t, []), guardSteps < 20 {
+                        t += max(1, ((below - t) / step - 0.001).rounded(.up)) * step
+                        guardSteps += 1
+                    }
+                    y = max(y, t - lead)
+                } else {
+                    while let below = noRoom(at: y, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                }
                 // (A table placed down the page keeps the whole of a line
                 // off it, not only the line's top: zh-10eab555's contents
                 // line 17, which would reach into the issuing table, goes
@@ -5618,15 +5681,24 @@ public final class RichLayout {
                 if _anchorsOnly(i, document) {
                     anchorRun.append(i)
                     func lineTop(_ k: Int) -> Double? {
-                        if k == i { return y + _spaceBefore[k] }
+                        if k == i { return y + _spaceBefore[k] - headSkip }
                         guard let piece = _pages[page].last(where: { $0.paragraph == k && $0.part == .all }) else { return nil }
                         return piece.pageY + (_tops[k] + _spaceBefore[k] - piece.flowTop)
                     }
                     func lineHeight(_ k: Int) -> Double { _heights[k] - _spaceBefore[k] }
-                    if let first = anchorRun.firstIndex(where: { k in lineTop(k).map { noRoom(at: $0, height: lineHeight(k), []) != nil } ?? false }),
+                    // (The line alone meets the picture, not its space
+                    // after: zh-27a874b7's empty anchor, 27pt under a chart
+                    // 27.3 down, stays over it. Not a picture's own
+                    // paragraph, whose band stands from its text's top:
+                    // zh-f47b8a74's "第  页共  页" box goes over its line.)
+                    func meets(_ k: Int) -> Double {
+                        theme.wordRules && RichTextTheme.wordWindowsPages && document.paragraphs[k].image == nil
+                            ? max(0.02, lineHeight(k) - _spacing(k, document).after) : lineHeight(k)
+                    }
+                    if let first = anchorRun.firstIndex(where: { k in lineTop(k).map { noRoom(at: $0, height: meets(k), []) != nil } ?? false }),
                        var at = lineTop(anchorRun[first]) {
                         var steps = 0
-                        while let below = noRoom(at: at, height: lineHeight(anchorRun[first]), []), steps < 20 { at = below; steps += 1 }
+                        while let below = noRoom(at: at, height: meets(anchorRun[first]), []), steps < 20 { at = below; steps += 1 }
                         for k in anchorRun[first...] {
                             guard let old = lineTop(k) else { continue }
                             let delta = at - old
@@ -5635,7 +5707,9 @@ public final class RichLayout {
                             for image in document.paragraphs[k].inlineImages.values { _floatShiftY[image.id] = -delta }
                             if let image = document.paragraphs[k].image { _floatShiftY[image.id] = -delta }
                             if k == i {
-                                y += delta
+                                // (Off the page's head, the line keeps all
+                                // of its space before.)
+                                y += delta - headSkip
                             } else {
                                 for n in _pages[page].indices where _pages[page][n].paragraph == k {
                                     let moved = _pages[page][n]
@@ -5715,14 +5789,6 @@ public final class RichLayout {
                     if back.page == page { y = back.y }
                     frameReturn = nil
                 }
-            }
-            let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i]) : 0
-            var leavesLead = false
-            if theme.wordRules, lead > 0.01, cursor <= top + 0.01 {
-                let st = document.paragraphs[i].style
-                let newSection = i > 0 && document.paragraphs[i - 1].style.sectionXML != nil
-                let ownBreak = _pageBreak[i] && !st.pageBreakInline && !st.breakEndsPrevious
-                leavesLead = !newSection && !st.pageBreakInline && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
             }
             // A paragraph that ends its section and holds only floating
             // objects takes no room (see `_layoutParagraph`), but stands on
@@ -7822,8 +7888,14 @@ public final class RichLayout {
         // 208.8, 226.8, 262.8; with 18pt before, 18 + 45k; zh-27a874b7's
         // title steps the same way from 36, by 31.84). The push is what is
         // added to the space before.
+        // (A line of an exact height, as the lab's: a single line goes to
+        // the foot — zh-4adfcce2's title, the box's anchor, stands just
+        // under the box in the Mac's print, where three steps of its
+        // line sent it 19pt lower; zh-d62da4dd's exact anchor steps in
+        // both prints.)
         let pushUnder: (Double) -> Double = { foot in
-            guard let first = firstLine(), first.line + before > 1 else { return foot }
+            guard let exact = style.lineHeightPoints, exact > 0, !style.lineHeightIsMinimum,
+                  let first = firstLine(), first.line + before > 1 else { return foot }
             let step = first.line + before
             let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
             return max(0, first.top + k * step - before)
