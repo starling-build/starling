@@ -6487,4 +6487,10 @@ table stands one paragraph holding a lone U+00A0 in a "LinTimes" run (12pt, kern
 is two (ours draws it in DejaVu, the stand-in lacking U+00A0, at 123.22). Ebrima's own line, 2724/2048 = 1.33 em, is one
 grid's worth over two pitches' half: what makes Word's line over 31.2pt is not found (the mark is 12pt Normal: TNR / 宋体).
 A lab: the paragraph alone, the nbsp as a space, in Times, without the grid.
+Lab tnb (windows-1): it is the face. Ebrima's 12pt line is 15.96 (win 2210 + 514 / 2048), just over the 15.6 pitch, so the
+nbsp's line takes two: the run in Ebrima gives 53.04 title-to-rule, the reference's exactly; as is, Word on windows-1's box
+sets LinTimes in Calibri (14.65, one pitch) and gives 39.96, ours alike. Not built: this LinTimes entry has altName "DejaVu
+Sans" and no Unicode signature (usb 0/0), so `windowsSigFace` does not apply and ours goes by the alternate; the reference
+drew it in Ebrima, windows-1's box in Calibri, and zh-b0207333 — the corpus's one other entry like it — prints Calibri. The
+face is the reference machine's own fallback for a missing name, which no file rule reproduces from one document.
 
