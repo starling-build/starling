@@ -6310,3 +6310,6 @@ stands 10.57 under the 72pt margin in Mac Word, 8.75 in ours, 0 in Windows'. Mac
 baseline 78.48 (Standard's 新細明體, the anchor run's?) that no other print or ours shows. Next: a Mac Word lab on the reference
 point of a paragraph-relative box in a paragraph whose first line cannot stand beside it.
 
+### T210. zh-b24b396a: 90.3 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-26)
+Engine 8bc30c5c89a, tip 712205cb: 35 lines missed, p12 4, p13 27, p14 4.
+
