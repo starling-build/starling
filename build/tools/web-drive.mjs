@@ -5,6 +5,8 @@
 // then runs the actions given, in order:
 //
 //   click X Y            press and release the left button at CSS X,Y
+//   modclick ctrl|meta X Y  click with Control or Meta held (follow a link)
+//   rightclick X Y       open the context menu at CSS X,Y
 //   move X Y             move the pointer
 //   touchdrag X Y DX DY  one finger: down at X,Y, dragged by DX,DY, lifted
 //   dblclick X Y         two presses in quick succession (selects a word)
@@ -110,7 +112,29 @@ let failed = false;
 try {
   while (args.length) {
     const op = args.shift();
-    if (op === 'click') {
+    if (op === 'modclick') {
+      const modifier = args.shift();
+      if (!['ctrl', 'meta'].includes(modifier)) throw new Error('modclick expects ctrl or meta');
+      const x = +args.shift(), y = +args.shift();
+      const key = modifier === 'ctrl' ? 'Control' : 'Meta';
+      const modifiers = modifier === 'ctrl' ? 2 : 4;
+      const windowsVirtualKeyCode = modifier === 'ctrl' ? 17 : 91;
+      await mouse('mouseMoved', x, y); await sleep(50);
+      await send('Input.dispatchKeyEvent', { type:'keyDown', key, code:key+'Left', windowsVirtualKeyCode, modifiers });
+      await sleep(80);
+      await send('Input.dispatchMouseEvent', { type:'mousePressed', x, y, button:'left', buttons:1, clickCount:1, modifiers });
+      await sleep(80);
+      await send('Input.dispatchMouseEvent', { type:'mouseReleased', x, y, button:'left', buttons:0, clickCount:1, modifiers });
+      await send('Input.dispatchKeyEvent', { type:'keyUp', key, code:key+'Left', windowsVirtualKeyCode, modifiers:0 });
+      await sleep(300);
+    } else if (op === 'rightclick') {
+      const x = +args.shift(), y = +args.shift();
+      await mouse('mouseMoved', x, y); await sleep(50);
+      await send('Input.dispatchMouseEvent', { type:'mousePressed', x, y, button:'right', buttons:2, clickCount:1 });
+      await sleep(80);
+      await send('Input.dispatchMouseEvent', { type:'mouseReleased', x, y, button:'right', buttons:0, clickCount:1 });
+      await sleep(300);
+    } else if (op === 'click') {
       const x = +args.shift(), y = +args.shift();
       await mouse('mouseMoved', x, y); await sleep(50);
       await mouse('mousePressed', x, y); await sleep(80);
@@ -151,9 +175,12 @@ try {
     } else if (op === 'chord') {
       const mod = args.shift(); const k = args.shift();
       const modKey = mod === 'ctrl' ? { key: 'Control', code: 'ControlLeft', modifiers: 2 } : { key: 'Meta', code: 'MetaLeft', modifiers: 4 };
+      // Navigation keys keep their physical code (Home, End, ArrowLeft…);
+      // KeyHOME is not a browser key code and cannot drive Ctrl+Home.
+      const code = /^[a-z]$/i.test(k) ? 'Key' + k.toUpperCase() : /^[0-9]$/.test(k) ? 'Digit' + k : k;
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key: modKey.key, code: modKey.code, modifiers: modKey.modifiers });
-      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code: 'Key' + k.toUpperCase(), modifiers: modKey.modifiers });
-      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: 'Key' + k.toUpperCase(), modifiers: modKey.modifiers });
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, modifiers: modKey.modifiers });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers: modKey.modifiers });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key: modKey.key, code: modKey.code });
       await sleep(200);
     } else if (op === 'eval') {

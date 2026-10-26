@@ -768,7 +768,7 @@ final class OfficeShellState: State<StatefulWidget> {
             }
         }
         if let link = c.currentLink {
-            item("Open Link") { hostOpenURL?(link) }
+            item("Open Link") { [weak self] in self?._followLink(link) }
             item("Edit Link…") { [weak self] in self?._openLink() }
             item("Remove Link") { c.setLink(nil) }
             sep()
@@ -1002,6 +1002,12 @@ final class OfficeShellState: State<StatefulWidget> {
         ])
     }
 
+    private func _followLink(_ link: String) {
+        if !WriterLinks.follow(link, in: controller, openURL: { hostOpenURL?($0) }) {
+            _flash("The link’s destination is no longer in this document.")
+        }
+    }
+
     private func _pageArea(_ fluent: FluentThemeData) -> Widget {
         let backdrop = OfficeAppearance.canvas(fluent)
         // Paper stays paper in dark mode, as Google Docs keeps it: only the
@@ -1029,6 +1035,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 guard let self, self._linkHover != link else { return }
                 self.setState { self._linkHover = link }
             },
+            onLinkActivate: { [weak self] link in self?._followLink(link) },
             // Format Painter applies when a selection gesture ends, as Word does.
             onSelectionGestureEnd: { [weak self] in
                 guard let self, let painted = self.session.paintedStyle else { return }

@@ -635,7 +635,9 @@ public final class RichEditableState: State<StatefulWidget> {
         let rect = _layout.caretRect(pos, _controller.document)
         let (_, lineEnd) = _layout.lineBounds(pos, _controller.document)
         let endRect = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: lineEnd), _controller.document)
-        let x = _canvasPoint(local).dx
+        // Caret rectangles use text-flow coordinates; the canvas also
+        // includes page margins and the column's horizontal offset.
+        let x = _layout.flowPoint(_canvasPoint(local)).dx
         guard x <= endRect.left, x >= rect.left - 2 || pos.offset > 0 else { return nil }
         return para.style(at: pos.offset + 1).link
     }
