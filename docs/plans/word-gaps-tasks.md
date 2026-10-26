@@ -6310,6 +6310,15 @@ stands 10.57 under the 72pt margin in Mac Word, 8.75 in ours, 0 in Windows'. Mac
 baseline 78.48 (Standard's 新細明體, the anchor run's?) that no other print or ours shows. Next: a Mac Word lab on the reference
 point of a paragraph-relative box in a paragraph whose first line cannot stand beside it.
 
-### T210. zh-b24b396a: 90.3 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-26)
+### T210. zh-b24b396a: 90.3 against word-win — RELEASED, measured (Linux office1, starling-office1-95, 2026-10-26)
 Engine 8bc30c5c89a, tip 712205cb: 35 lines missed, p12 4, p13 27, p14 4.
+All three pages are drawings (wpg groups of text boxes: 附录D's archive-box figures). Two causes seen, neither fixed:
+- p13's dimension labels: 16 "30" boxes, 11.9 x 7.8pt, bodyPr vert270, insets 0, firstLine 300 (15pt, past the 7.8pt line).
+  Word's print sets "3" and "0" on lines of their own, the "3" 9.3pt left of the "0" (x290 / x299.5) — its first line outside
+  the box's left — where ours keeps "30" on one line at x297.8. Sizing the first line's lead to the character's own width
+  (so only it fits) changed nothing here, and forcing a break after it took zh-9e020c95 99.6 -> 19.7 and zh-70094a34 100 ->
+  89.6 (an empty line where the line wrapped anyway): both reverted. How an over-indented line stacks in a vert270 box is open.
+- p12: Text Box 49 ("A", 23.5pt wide, insets 7.2, firstLine 480 = 24pt) is absent from Word's print; ours draws it a line down
+  at no indent, 4.9pt under Text Box 86's "A". Word seems to leave out a first character its indent puts past the box.
+  The rotated WordArt "（全宗名称）" (rot 18120000, textSlantDown, spAutoFit) stands 43pt higher in ours.
 
