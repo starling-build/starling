@@ -6347,3 +6347,12 @@ First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" 
 
 ### zh-4e5fe46f: 90.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26)
 wip/parted-floats 63e7a955: a parting paragraph's floats drawn whole with its first piece (p6's 496pt table box showed one row). 218 -> 221/240. Left: the box 3pt high — its anchor paragraph's place (lab sb: offsets from space before are Word's).
+
+### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
+zh-9bcea239 (92.7) p11: the score cells (tcW 389 = 19.45pt, firstLine 632 = 31.6pt, jc center, vAlign center, HTML autospacing)
+hold "5", "4", "5", "6"; Word's print draws none of them, ours draws each at x189.3. Lab ovi (Word for Windows, its package, a
+fixed table, Times 15pt): with tcW 389 or 800 and firstLine 632 Word DRAWS the first character, at x121.6 past the cell (ours
+108.0); with tcW 800 and firstLine 1200 it OMITS it (ours draws it); the rest of a longer text wraps as ours. So Word sets an
+overflowing first character at a fixed place past the cell and leaves it out from some indent on — the document's cells (same
+width and indent as the lab's drawn case, plus autospacing and its own cell margins) are past that point. Same family as
+T210's text-box "A" (lenovo-2). Next: vary the cell margins and the indent finely to find where it is dropped. Lab ~/starling-doc-check/lab/ovi.
