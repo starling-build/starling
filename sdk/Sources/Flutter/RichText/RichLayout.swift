@@ -3887,7 +3887,12 @@ public final class RichLayout {
                 // goes over, one of 25 at least parts, as one with no
                 // height does — whatever its cells' alignment, and a
                 // cell merged down into it leaves its lines with it).
-                if first, !fresh, y > 0.01, stated > 0, stated + ruleUnder(c) > avail + 0.01 {
+                // (With its rule under it as well as the one over it, even
+                // where the row parts and its part would take none — lab
+                // t206, Word for Windows: zh-dc9cfa34's row 43, at least
+                // 39.55pt under 0.5pt rules, goes over whole with 40.3
+                // left; at least 22 parts with 24.2 left and 23.5 does not.)
+                if first, !fresh, y > 0.01, stated > 0, stated + max(ruleUnder(c), theme.wordRules ? c.ruleBelow : 0) > avail + 0.01 {
                     newPage()
                     if repeats { repeatHeader(of: c.table, before: i) }
                     if c.row > 0 { continueSpans(into: i, c) }
