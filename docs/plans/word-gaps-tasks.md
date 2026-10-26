@@ -6374,6 +6374,7 @@ fits the same rule. Ours draws the character always, at x98.2 whatever the inden
 
 ### T212. zh-9ba2ead7: 94.1 against word-win (14 missed of 238, 12 pages) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w15 list)
 First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tblW auto, tblInd -414) stand at their grids in Word's print, 63.7-510.3, the margin less the outdent and a cell margin to the margin plus the other. Ours scales them to the 415pt column, and the header cell "物业服务企业" wraps a character. The keep-the-grid allowance for an autofit table (cell margins + 1) is to count a negative indent too. Pairing in both modes.
+DONE d3add605: word-win zh-9ba2ead7 94.1 -> 99.2, zh-e68a2f57 97.7 -> 99.7, zh-6aa8bd7c 99.3 -> 99.5; word/ zh-9ba2ead7 92.6 -> 97.5, zh-e68a2f57 92.1 -> 94.1; nothing lower in either (pairs at edbfb563, lenovo-2's engine).
 
 ### Mac 7bd18d8e, 2026-10-26: measured and routed by macos
 - a7deebe4 + 5b26fd5d paired in Mac mode too (sweep.sh n1 -> n2, both reverted against the tip): nothing moved.
