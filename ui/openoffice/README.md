@@ -111,3 +111,11 @@ preview URLs include content hashes so returning visitors get the new images.
 
 The old `slides/`, `slides.js`, and product-local `styles.css` remain legacy
 presentation samples and are not part of the website build.
+
+## Analytics
+
+`ui/cloudflare-analytics.js` loads Cloudflare Web Analytics on
+`office.starling.build` and `openoffice.starling.build`, using the existing
+Starling site token from `ui/main.js`. Local previews do not send analytics.
+Packaging includes and versions the loader; it does not add document-content
+tracking or custom editor events.

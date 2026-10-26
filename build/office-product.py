@@ -96,6 +96,7 @@ def build(runtime, out):
         shutil.copy2(ROOT / 'web/office/examples' / info['example'], out / 'examples')
     for name in ['site.css', 'launch.js']:
         shutil.copy2(SOURCE / name, out / name)
+    shutil.copy2(ROOT / 'ui/cloudflare-analytics.js', out / 'cloudflare-analytics.js')
     template = Template((SOURCE / 'page.html').read_text())
     for kind in [None, *APPS]:
         info = APPS.get(kind)
@@ -130,7 +131,8 @@ def build(runtime, out):
             new_actions=actions, examples=examples,
             faq=''.join(f'<details><summary>{html.escape(q)}</summary><p>{html.escape(a)}</p></details>' for q, a in faq),
             config=json.dumps(config).replace('<', '\\u003c'),
-            css_version=digest(SOURCE / 'site.css')[:16], js_version=digest(SOURCE / 'launch.js')[:16])
+            css_version=digest(SOURCE / 'site.css')[:16], js_version=digest(SOURCE / 'launch.js')[:16],
+            analytics_version=digest(ROOT / 'ui/cloudflare-analytics.js')[:16])
         page = out / path.strip('/') / 'index.html'
         page.parent.mkdir(exist_ok=True)
         page.write_text(template.substitute(values))

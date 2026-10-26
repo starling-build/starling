@@ -57,3 +57,11 @@ Product names are Writer, Slides, and Sheets. Microsoft names appear only in
 file-compatibility descriptions. Only `/writer/`, `/slides/`, and `/sheets/`
 are published as app entry pages and included in the sitemap. The former
 `/word/`, `/excel/`, and `/powerpoint/` addresses are removed, with no redirects.
+
+## Analytics
+
+`ui/cloudflare-analytics.js` loads Cloudflare Web Analytics on
+`office.starling.build` and `openoffice.starling.build`, using the existing
+Starling site token from `ui/main.js`. Local previews do not send analytics.
+Packaging includes and versions the loader; it does not add document-content
+tracking or custom editor events.

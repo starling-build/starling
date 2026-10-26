@@ -10,9 +10,11 @@ if [ -e "$OUT" ]; then
 fi
 mkdir -p "$OUT/starling/desktop" "$OUT/office/img" "$OUT/office/video"
 cp "$ROOT/ui/index.html" "$ROOT/ui/styles.css" "$ROOT/ui/main.js" "$ROOT/ui/CNAME" "$OUT/starling/"
+cp "$ROOT/ui/cloudflare-analytics.js" "$OUT/starling/"
 cp -R "$ROOT/ui/img" "$ROOT/ui/video" "$OUT/starling/"
 cp "$ROOT/ui/desktop/index.html" "$OUT/starling/desktop/"
 cp "$ROOT/ui/openoffice/index.html" "$ROOT/ui/styles.css" "$OUT/office/"
+cp "$ROOT/ui/cloudflare-analytics.js" "$OUT/office/"
 cp -R "$ROOT/ui/img/office" "$OUT/office/img/"
 cp "$ROOT/ui/openoffice/download.html" "$ROOT/ui/openoffice/download.css" "$ROOT/ui/openoffice/download.js" "$OUT/office/"
 cp -R "$ROOT/ui/openoffice/images" "$OUT/office/"
@@ -35,7 +37,7 @@ for site in [root / 'starling', root / 'office']:
         source = html.read_text().replace('styles.css"', f'styles.css?v={css}"')
         if js:
             source = source.replace('main.js"', f'main.js?v={js}"')
-        for asset in ['download.css', 'download.js']:
+        for asset in ['download.css', 'download.js', 'cloudflare-analytics.js']:
             if (site / asset).exists():
                 version = hashlib.sha256((site / asset).read_bytes()).hexdigest()[:12]
                 source = source.replace(f'{asset}"', f'{asset}?v={version}"')
