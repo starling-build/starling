@@ -192,7 +192,8 @@ enum WordArt {
     /// letters' own) and a look, fitted into `area` by `warp`.
     @discardableResult
     static func paint(lines paragraphs: [[(text: String, style: Flutter.TextStyle, look: RunLook?)]], alignment: ParagraphAlignment,
-                      warp: TextWarp, area: Rect, canvas: any Canvas, pxPerPt px: Double, shadow: Shadow? = nil) -> Bool {
+                      warp: TextWarp, area: Rect, canvas: any Canvas, pxPerPt px: Double, shadow: Shadow? = nil,
+                      fitsPath: Bool = false) -> Bool {
         guard draws(warp), area.width > 1, area.height > 1 else { return false }
         var lines: [Line] = []
         for runs in paragraphs {
@@ -206,7 +207,7 @@ enum WordArt {
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
         guard !lines.isEmpty else { return true }
-        _paint(lines, warp, area, canvas, pxPerPt: px, cache: nil, shadow: shadow)
+        _paint(lines, warp, area, canvas, pxPerPt: px, cache: nil, shadow: shadow, fitsPath: fitsPath)
         return true
     }
 
@@ -228,7 +229,7 @@ enum WordArt {
     /// The lines fitted into `area` and drawn: the shadow first, if any,
     /// then the letters.
     private static func _paint(_ lines: [Line], _ warp: TextWarp, _ area: Rect, _ canvas: any Canvas,
-                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?) {
+                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false) {
         /// Set while the shadow is drawn: every letter in it, filled.
         var shadowPaint: Paint? = nil
         /// One glyph through the map of its cell: `origin` its top left,
@@ -316,7 +317,7 @@ enum WordArt {
         /// One drawing of every letter, through `draw`.
         func pass() {
             if followsPath.contains(warp.preset) {
-                _paintAlongEllipse(lines, warp, area, draw)
+                _paintAlongEllipse(lines, warp, area, fits: fitsPath, draw)
                 return
             }
             // The bands: one for the whole text, or several — deflate-inflate's
@@ -498,7 +499,7 @@ enum WordArt {
     /// Arch, circle and button: each line at its own size along the
     /// area's ellipse, its baseline on the curve — shrunk only when it is
     /// longer than its stretch of it.
-    private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect,
+    private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect, fits: Bool = false,
                                            _ draw: (Glyph, Offset, Offset, Offset) -> Void) {
         let rx = area.width / 2, ry = area.height / 2, c = area.center
         /// A line along the arc from `start`, sweeping `sweep` degrees
@@ -513,7 +514,11 @@ enum WordArt {
             }
             let arc = lens[steps]
             guard arc > 0, line.width > 0 else { return }
-            let k = min(1, arc / line.width)
+            // (Fitted to its path — VML's `fitshape`/`fitpath`, Word's
+            // WordArt — the line runs the arc's whole length, grown or
+            // shrunk: F13's 30pt "Arch Up: Open software" spans its
+            // 450 x 88 box's upper half in Word's print, about 52pt.)
+            let k = fits ? arc / line.width : min(1, arc / line.width)
             let used = line.width * k
             var s = line.alignment == .center ? (arc - used) / 2 : line.alignment == .right ? arc - used : 0
             func at(_ d: Double) -> (Offset, Offset) {

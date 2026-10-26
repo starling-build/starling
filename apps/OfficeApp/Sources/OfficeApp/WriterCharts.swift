@@ -241,6 +241,11 @@ enum WriterGroups {
         var look: RunLook?
         var shadow: WordArt.Shadow?
         var alignment: ParagraphAlignment
+        /// The textpath's own size, in points (`font-size`), and whether
+        /// it is fitted to its path (`fitshape`/`fitpath`): text set
+        /// along an arch keeps its size, or runs the arc's length.
+        var size: Double = 36
+        var fitsPath = false
     }
     /// VML's text shapes (`o:spt` 136 to 175), in the order DrawingML's
     /// text warps take them.
@@ -562,7 +567,9 @@ enum WriterGroups {
             }()
             return WordArtText(lines: text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init), warp: TextWarp(preset: _vmlTextWarps[spt - 136], xml: ""),
                                family: family, bold: st["font-weight"] == "bold", italic: st["font-style"] == "italic",
-                               color: base, look: look.isPlain ? nil : look, shadow: shadow, alignment: align)
+                               color: base, look: look.isPlain ? nil : look, shadow: shadow, alignment: align,
+                               size: points(st["font-size"]) ?? 36,
+                               fitsPath: !off(path["fitshape"] ?? "f") || !off(path["fitpath"] ?? "f"))
         }
         let g = style(group)
         guard let gw = points(g["width"]), let gh = points(g["height"]), gw > 0, gh > 0 else { return false }
@@ -840,10 +847,13 @@ enum WriterGroups {
                 // to a heavy face too: Archivo Black has no Cyrillic, and
                 // WordWithAttachments' "Мой текст здесь" came out light.)
                 let black = art.family.trimmingWhitespace().lowercased().hasSuffix(" black")
-                let base = Flutter.TextStyle(color: art.color, fontSize: 36, fontWeight: black ? .w900 : art.bold ? .bold : .normal,
+                // (At its size on the canvas, which is in the page's
+                // pixels: a bare 36 drew F13's arch, which keeps its
+                // letters' size, 1.8pt high.)
+                let base = Flutter.TextStyle(color: art.color, fontSize: art.size * (sx + sy) / 2, fontWeight: black ? .w900 : art.bold ? .bold : .normal,
                                              fontStyle: art.italic ? .italic : .normal, fontFamily: family)
                 WordArt.paint(lines: art.lines.map { [($0, base, art.look)] }, alignment: art.alignment, warp: art.warp,
-                              area: r, canvas: canvas, pxPerPt: (sx + sy) / 2, shadow: art.shadow)
+                              area: r, canvas: canvas, pxPerPt: (sx + sy) / 2, shadow: art.shadow, fitsPath: art.fitsPath)
                 canvas.restore()
                 continue
             }
