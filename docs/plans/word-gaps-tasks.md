@@ -6098,8 +6098,9 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
 - T201. Charts — CLAIMED macos-ios (after zh-b8de3ae2): F07 a three-ring doughnut drawn as one ring; F04 a deleted legend entry
   still shown (also xlsx chart-deleted_legend_entry2's "First"); F09 a 3-D surface drawn as an empty gray box; F03 major unit 2
   where Word's is 1; F10 data-table borders darker and legend keys wider than Word's.
-- T202. WordArt and shape effects — CLAIMED macOS-doc (after zh-38d26944): F13 Arch Up (VML WordArt) collapses to a small mark,
+- T202. WordArt and shape effects — DONE macOS-doc (Mac 7bd18d8e, f4270dcb + f890482c): F13 Arch Up (VML WordArt) collapses to a small mark,
   Wave and Curve Up differ; F14 blur, fill overlay and inner shadow dropped.
+  DONE: (1) Arch Up: the textpath's text was laid out at fontSize 36 in the canvas's pixels (20 a point), 1.8pt high; it now takes its font-size in points, and a fitted path (fitshape/fitpath) runs the arc's length — about 52pt, as in Word's print. Wave and Curve Up: their VML adj come out at DrawingML's defaults (9931/21600 is 45977 exactly), and they look as Word's; not changed. (2) F14: a:fillOverlay blended into the box's solid fill (Word's 963F46), a:blur as a blurred fill, a:innerShdw dark on the side dir points to (45°: bottom and right in Word's print — the opposite of what Slides' painter does; its tdf99030 untouched). Pair w62 -> w63: no score moved, four PDFs changed below a visible difference. Released.
 - T203. Installed fonts by default — CLAIMED office1, the user's decision (2026-10-25): "give user the choice, default to local
   font". A document's face that the machine has is drawn in it; a setting (kept across launches) picks the bundled stand-ins
   instead; an env override (e.g. OFFICE_FONT_SOURCE=bundled) pins every harness to bundled, so no baseline moves. The
