@@ -9451,8 +9451,16 @@ public final class RichLayout {
                         // lab `p01`, zh-01bbcd4d's "…组织成员”。" at 16pt spaced
                         // to 17 sets the "”" 8.49 before the "。" in Word's
                         // print; ours, half the em off, 9.0.)
+                        // (And a mark condensed keeps half its condensed width:
+                        // zh-5be7e156's Normal, spaced -0.3 with the widths
+                        // balanced (so -0.6 a full-width character) on a grid
+                        // of -0.21, sets "）、" and "》（" 7.6 apart in Word's
+                        // print — half of 15.2 — where ours, half the em off
+                        // and all of the spacing kept, set 7.3, and its p1
+                        // line took a "家" Word leaves.)
                         let quoteAdd = theme.wordRules && (ch == "\u{201D}" || ch == "\u{2019}") ? max(0, spacing) * (doubles ? 2 : 1) : 0
-                        extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0) + quoteAdd) / 2
+                        let condensed = theme.wordRules && spacing < 0 ? spacing * (doubles ? 2 : 1) : 0
+                        extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0) + quoteAdd + condensed) / 2
                     }
                 }
                 if heldSpaces.contains(offset) {
