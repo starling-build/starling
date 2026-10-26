@@ -1954,7 +1954,13 @@ enum OfficeFonts {
 
     /// `face` made the machine's own: the drawn family, and of the stand-in's
     /// settings only what Word does with the face whatever draws it — its
-    /// line, its baseline, the widening of a face it emboldens.
+    /// line, its baseline, the widening of a face it emboldens — and what
+    /// Word does past the face's own glyphs: the widths it sets characters
+    /// past ASCII at, read from its print, and the faces it falls back to.
+    /// (Windows' local check of zh-4f70ee2d, 512 -> 462 lines: p14's line
+    /// opens "③", which Times New Roman lacks; Word sets it in Cambria
+    /// Math, 19.44 wide, and the stand-in's table says so — the installed
+    /// Times without it fell back to DejaVu Sans' 14.34, and "方" came up.)
     static func installedFace(_ own: String, as standIn: RichResolvedFace) -> RichResolvedFace {
         var face = RichResolvedFace(family: own, naturalHeight: standIn.naturalHeight, boldSpread: standIn.boldSpread,
                                     baseline: standIn.baseline, isEastAsian: standIn.isEastAsian)
@@ -1972,6 +1978,13 @@ enum OfficeFonts {
         // ours, and zh-ae2dd08d's bold cell "材料費編列" lost its "列".)
         if face.boldSpread > 0 { face.boldSpread -= 5.0 / 256 }
         #endif
+        face.otherAdvances = standIn.otherAdvances
+        face.boldOtherAdvances = standIn.boldOtherAdvances
+        face.fullWidthSymbols = standIn.fullWidthSymbols
+        face.missingGlyphAdvance = standIn.missingGlyphAdvance
+        face.lacksCompatibilityIdeographs = standIn.lacksCompatibilityIdeographs
+        face.fallback = standIn.fallback
+        face.symbolFamily = standIn.symbolFamily
         return face
     }
 
