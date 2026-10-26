@@ -9773,7 +9773,13 @@ public final class RichLayout {
                         // 1.5 wider; "คำถามที่ 4 ：" ran a point long and
                         // sent its question to the next line.)
                         var spacing = (s.letterSpacing ?? 0) + extra
-                        if theme.wordRules, ch.unicodeScalars.count > 1, let u = ch.unicodeScalars.first?.value, u >= 0x0E00, u < 0x0E80 {
+                        // (And any character past ASCII the face draws in
+                        // pieces: on the Mac the fallback for zh-d97c5474's
+                        // Cambria Greek sets "ή", "ό" as a letter and an
+                        // accent, and each took Cambria's width correction
+                        // twice — its lines 1.7% short, a word more each.)
+                        if theme.wordRules, extra != 0, let u = ch.unicodeScalars.first?.value,
+                           (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.count > 1) || (u >= 0x80 && !(0x0E00 ..< 0x0E80).contains(u)) {
                             spacing /= Double(_glyphCount(s, ch))
                         }
                         spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: spacing)))
