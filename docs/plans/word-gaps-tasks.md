@@ -6128,9 +6128,17 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   p14's "③" (U+2462) — Word draws it in Cambria Math at 19.44, bundled in DejaVu Sans at 19.5, local in DejaVu Sans at its own
   14.34, so "方" fits — routed to office1. Faces Windows has that the face table lacks (stand-ins even in local): 仿宋/FangSong,
   黑体/SimHei, 楷体/KaiTi, 等线/DengXian, PMingLiU/MingLiU, 標楷體/DFKai-SB, MS Mincho, Cambria Math, Symbol, Wingdings, Lucida Console.
-- Windows face list from DirectWrite — CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos): installedFamilies on Windows from
-  DirectWrite's system font collection, localized family names included (仿宋 and FangSong), in place of the face table; then
-  local-vs-bundled spot checks on zh documents in 仿宋 / 黑体 / 楷体 / 新細明體.
+- Windows face list — DONE Windows 01QbbApP 2026-10-25, 1f711355 + 088e87af (routed by macos). installedFamilies on Windows now
+  takes every family the font files name (their `name` tables, as DirectWrite lists them; Windows\Fonts and the user's fonts),
+  each localized name to the English one (仿宋 -> FangSong, 新細明體 -> PMingLiU), the face table's names over them; symbol-encoded
+  faces (Symbol, Wingdings…) left out. 354 files in 0.04s. 088e87af: DirectWrite's bold simulation sets each character of a face
+  with no bold 5/256 em wider, Word only one unit of the face's em — lab `bw` (Word for Windows; 標楷體/楷体/黑体/仿宋/新細明體 bold
+  10-24pt): bold DFKai-SB 12pt 12.246 -> 12.012 (Word 12.014), forty rows within 0.017. Spot check against word-win, bundled /
+  local: zh-ae2dd08d 2699 / 2712 (DFKaiShu-SB, as Word), zh-505b9619 2607 / 2607 (DFKaiShu-SB), zh-6d1afa56 1621 / 1621 (SimHei),
+  zh-053f8706 1414 / 1414 (KaiTi), zh-0978dee9 10035 / 10024 (FangSong; where the two differ the local line is Word's more often,
+  the -11 is the matcher's grouping), zh-4f70ee2d 512 / 462 (the ③ fallback, office1's). Bundled output identical. Left: bold
+  faces with no bold are drawn as Type3 glyphs in our PDF (Skia's synthetic bold); 仿宋_GB2312 bodies (zh-6d1afa56, zh-053f8706)
+  stay StarlingFangSong where Word substitutes FangSong — the name Windows lacks keeps the stand-in.
 - T204 ("mode 14 compresses no punctuation") — MEASURED Windows 01QbbApP 2026-10-25, premise wrong, released. Lab cm (each
   document's package, compatibilityMode 14 -> 15): zh-5be7e156 and zh-015abfaf break their first-miss lines as ours at 15, not at
   14; zh-57f1de0d's line is the same at both (Word keeps 》 and ： whole in its embedded 方正仿宋_GBK, ours 13.35). But labs m14b-e
