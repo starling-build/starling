@@ -5677,6 +5677,19 @@ public final class RichLayout {
                (i < _floatImages.count && _floatImages[i] != nil) || (i < _inline.count && _inline[i].contains { $0.float != nil }) {
                 add(PagePiece(paragraph: i, flowTop: top, flowBottom: top, page: page, pageY: y))
             }
+            // (An empty mark of a continuous section that does not fit what
+            // is left of the page takes none of it there, and opens no page:
+            // zh-b8de3ae2's p9 ends in "資料來源：本所會計室" at 779 and the five
+            // empty marks after it — the 4- and 2-column sections between —
+            // stand nowhere in Word for Windows' print, p10 opening with
+            // "表2". Where they fit they take their room, as under its
+            // chart 10; see `_layoutParagraph`.)
+            if RichTextTheme.wordWindowsPages, theme.wordRules, resumeCursor == nil, _cells[i] == nil,
+               case let mark = document.paragraphs[i], mark.text.isEmpty, mark.image == nil, mark.style.sectionXML != nil,
+               mark.style.sectionBreaksPage == false, bottom - cursor > contentH - y + 0.01 {
+                add(PagePiece(paragraph: i, flowTop: top, flowBottom: top, page: page, pageY: y))
+                cursor = bottom
+            }
             while cursor < bottom - 0.01 {
                 if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
                 // (Space kept at a page's top is less the space after of
@@ -8137,7 +8150,17 @@ public final class RichLayout {
         let onlyFloats = p.image.map(clear)
             ?? (!p.text.isEmpty && !p.inlineImages.isEmpty && p.text.unicodeScalars.allSatisfy { $0 == "\u{FFFC}" }
                 && p.inlineImages.values.allSatisfy(clear))
-        if theme.wordRules, (p.text.isEmpty && p.image == nil) || onlyFloats, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
+        // (Not where the next section goes on down the same page: there
+        // the mark is a paragraph like any other, its space and its line —
+        // zh-b8de3ae2's chart 10 has three empty marks of continuous
+        // sections under its source line, 19.6, 5.9 and 16.0pt in Word
+        // for Windows' print, the body's first baseline 502.27 to their
+        // sum's 502.3; ours gave them none and ran a line high to p27.)
+        // (Only where its section holds nothing else, lab t197: with a
+        // line of text in 266's section Word gives 266 no room at all.)
+        if theme.wordRules, (p.text.isEmpty && p.image == nil) || onlyFloats, style.sectionXML != nil, p.cell == nil,
+           !(RichTextTheme.wordWindowsPages && style.sectionBreaksPage == false && !onlyFloats
+             && (i == 0 || document.paragraphs[i - 1].style.sectionXML != nil)) { _heights[i] = 0 }
         // (So does a floating table nested in a cell: Word gives it no
         // paragraph of its own, only its place — see the reader's
         // `w:tblpPr`.)
