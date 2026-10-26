@@ -2664,7 +2664,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         switch st.vAlign {
         case .top: ty = top + 1
         case .center: ty = top + (bottom - top - tp.height) / 2 - lift
-        case .bottom: ty = bottom - tp.height - 1
+        case .bottom: ty = printing ? _footTop(st, book, ws, row: a.row, tp, bottom: bottom) : bottom - tp.height - 1
         }
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(clipLeft + 1, top, clipRight - 1, bottom))
@@ -2709,7 +2709,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 switch st.vAlign {
                 case .top: y0 = top + 1
                 case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch - lift
-                case .bottom: y0 = bottom - one - 1 - n * pitch
+                case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
                 for (i, line) in lines.enumerated() {
                     let lp = texts.painter(String(line), style)
@@ -2789,6 +2789,55 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
         st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
             : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
+    }
+
+    /// On paper, where a line of text set at a cell's foot has its top:
+    /// Excel stands it in a box its font's fitted line high, the baseline
+    /// that face's ascent down from the box's head and the box on the
+    /// foot — or the box of the font the row's empty cells take, where
+    /// that is the taller below its baseline: the row's style, else their
+    /// columns', else the default font (as a row is fitted). So the
+    /// baseline is no part of the face's own descent: in the baseline lab
+    /// (Excel 16, set rows of 20 and 30 pt) it stood 4.02 above the foot
+    /// for every face of 8 to 11 pt in a Calibri 11 book (Calibri 12:
+    /// 4.5, 14: 4.98, 18: 6.3), and 3.42, 3.18, 3.06 and 2.82 in books of
+    /// Calibri 9, Arial 10, Verdana 10 and Microsoft Sans Serif 8.25 —
+    /// fitted line less ascent, to within 0.15 — where ours stood its
+    /// descent and a pixel above it, 3.0 for most faces of 8 to 10 pt,
+    /// 2.0 for Microsoft Sans Serif. bug62181's Arial 9, in rows styled
+    /// Arial 9 in an Arial 10 book, stand at Arial 9's 3.1, not 3.31.
+    func _footTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter, bottom: Double) -> Double {
+        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+        // A style's fitted line less its face's ascent, the ascent taken up
+        // to whole dots of the printer's 600 dpi: the face's own ascent
+        // where it is known, the painter's where not. (Uncut, the corpus's
+        // Calibri 11 text stood 0.11 high in Excel's prints of 118
+        // workbooks and its Arial 10 0.15 high in 40; cut, 3.96 and 3.24.)
+        func below(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> Double {
+            let a = SheetPrintMetrics.ascent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
+                ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
+            return (Self._fittedLine(s, m, book) - (a * 600 / 72).rounded(.up) * 72 / 600) * scale
+        }
+        func below(_ style: Int) -> Double {
+            let s = book.style(style)
+            return below(s, texts.painter("X", _textStyle(s, color: nil, ink: Color(0xFF00_0000))))
+        }
+        var empty: Double
+        if let rs = ws.rowStyle(row) {
+            empty = below(rs)
+        } else {
+            empty = -.infinity
+            var covered = 0, next = 0
+            for run in ws.colAttrRuns.filter({ $0.attrs["style"] != nil }).sorted(by: { $0.lo < $1.lo }) {
+                empty = max(empty, below(Int(run.attrs["style"] ?? "") ?? 0))
+                let lo = max(run.lo, next)
+                if run.hi >= lo { covered += run.hi - lo + 1; next = run.hi + 1 }
+            }
+            if covered < CellAddress.maxCols { empty = max(empty, below(0)) }
+        }
+        // (The painter draws its baseline its ascent down to the whole
+        // point, 10 for Calibri 11's 10.47, whatever it reports.)
+        return bottom - max(below(st, tp), empty) - tp.computeDistanceToActualBaseline(.alphabetic).rounded()
     }
 
     /// Text turned a quarter: up (`textRotation` 90, read from the foot)
