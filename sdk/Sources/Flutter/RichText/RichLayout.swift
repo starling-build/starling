@@ -496,6 +496,46 @@ public final class RichTextTheme {
         return lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height / size
     }
 
+    /// The height of an auto line whose text is all raised by its
+    /// `w:position`, as a multiple of the text's size, and how far above
+    /// the engine's baseline the text then stands, in points (below,
+    /// negative). Word grows
+    /// the line rather than move the text up in it: lab t198 (Word for
+    /// Windows, zh-f2835e26's head row, 11.5pt SimSun, 14.88 a line) has
+    /// it max(14.88, 11.58 + r) tall for a raise r — unchanged to r ≈ 3.3,
+    /// then growing with it — the text standing under its top where an
+    /// unraised line's does, 11.78 to 11.90; on a 15.6pt grid it takes as
+    /// many pitches as that height does, centred in them (pos 15: two,
+    /// 31.2, the text 17.90 down). Word for Mac's is the same: zh-10e3a42be's
+    /// opening line, 15.5pt raised 7.5 at 1.13 lines, has the text where
+    /// unraised and the next line 3.1 lower in Mac Word's print (by this,
+    /// 2.9); taller by the whole raise, the page ran 5pt low. Nil where
+    /// the face's metrics are not known.
+    public func raisedLineHeight(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                                 eastAsian: Bool, gridPitch: Double?) -> (height: Double, raise: Double)? {
+        let r = style.raised ?? named?.char.raised ?? 0
+        guard wordRules, NativeParagraphBuilder.supportsBaselineShift, paragraph.lineHeightPoints == nil, r > 0 else { return nil }
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return nil }
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        let n = natural * size
+        // (The raised text's em stands on the line's foot: 11.5 + r
+        // against the lab's 11.58 + r.)
+        let grown = max(n, size + r)
+        // (The engine keeps the text's baseline where the unraised line
+        // has it, the extra below; Word centres the grown height in the
+        // line it takes as it centres the unraised one in its own. The
+        // text moves by the difference — down, on a grid; not at all off
+        // one, the line grown under it.)
+        let one = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+        let line = lineBox(size: size, natural: grown / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+        return (line / size, ((one - n) - (line - grown)) / 2)
+    }
+
     /// How far below the page's foot a line on a line grid may reach and
     /// still be set there, in points: Word centres the text's natural
     /// height in the pitches it takes, and the line fits where the room
@@ -8490,6 +8530,24 @@ public final class RichLayout {
         // (Which characters are a note's number: no automatic space stands
         // beside one, see below.)
         let raised: [Bool] = p.runs.flatMap { repeatElement($0.style.note != nil, count: $0.length) }
+        // (Whether all the paragraph's text is raised by one `w:position`,
+        // its lines then grown for it: `raisedLineHeight`.)
+        let wholeRaised: Bool = {
+            guard theme.wordRules, p.style.lineHeightPoints == nil else { return false }
+            var raise: Double? = nil
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                if run.style.inlineImage != nil { return false }
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x3000 }) {
+                    let r = run.style.raised ?? named?.char.raised ?? 0
+                    guard r > 0, raise == nil || raise == r else { return false }
+                    raise = r
+                }
+                at = end
+            }
+            return raise != nil
+        }()
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
             let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
@@ -8587,6 +8645,8 @@ public final class RichLayout {
             func style(_ kind: Int) -> TextStyle {
                 if let s = styles[kind] { return s }
                 var styled = run
+                let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
+                if let grown { styled.raised = grown.raise }
                 if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
                 if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
@@ -8602,6 +8662,7 @@ public final class RichLayout {
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+                if let grown, s.fontSize ?? 0 > 0.5 { s = s.copyWith(height: grown.height) }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
