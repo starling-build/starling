@@ -6796,6 +6796,15 @@ public final class RichLayout {
             _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
+            // (Across its hanging indent, as in the body — see above: a
+            // centred "□" item in a cell of zh-20c1d74a's p46 form,
+            // "□回收地址" in a 63.4pt cell on a 12pt hang, is one line
+            // from the cell's text edge in Word's print; ours kept the
+            // hang and set "址" on a line of its own.)
+            if theme.wordRules, let wl = wordList, wl.first < 0, style.alignment == .center || style.alignment == .right {
+                left += _px(wl.first)
+                textWidth -= _px(wl.first)
+            }
             // (A cell that does not wrap (`w:noWrap`) keeps its text on
             // its line, over its spacing if it must: zh-045c5a75's
             // "第 15-1 條" is whole in Word's print, in a column its widest
