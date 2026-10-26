@@ -6391,6 +6391,7 @@ First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tbl
 
 ### T-grid. The character-grid squeeze, as one model — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos)
 Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, ， least, the pair needing two cells) and zh-3c055c9b (92.5; p2 mid-line marks kept whole where ours squeezes, digit gaps 6.4-7.0 to ours 4.2; p9/p13 final marks squeezed where ours sends them down). Labs from windows-1.
+- Measured (Linux 01F2SWc8, 2026-10-26, tip at 11501a03, engine 5357bf0b374), all on cells of about 17.0: Word REFUSES zh-72da925e p13 "「基" 23.5 over (」，： mid, n 20, no automatic gaps) and zh-3c055c9b p2 "費、" 22.9 over (，「、 mid + the final 、, n 20, 5 gaps; ours squeezes ，「、 to 11.29 each); Word TAKES zh-3c055c9b p9 "號、" 17.8 over (one mid 、 at its full half 8.6, the final 、 a quarter 4.3, n 18, 6 gaps; ours refuses), and p13 "…第257頁】，" (】 down to 4.2 before the final ，). Our grid share test takes the first two and refuses the third. Lab "tg" asked of windows-1 (one-, two-, three-mark lines, mid vs final, with digit gaps, 20 vs 10 a line).
 
 ### zh-8628cfbe p13 (93.3, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
 Cell paragraph "2.與去年實際數比較，相同者得基準分75分，每增(減)…" (kinsoku 0, overflowPunct 0, compressPunctuation, mode 15,
