@@ -7767,8 +7767,8 @@ public final class RichLayout {
         // pixels down from its top: its space before as pagination keeps it
         // where the paragraph opens a section on a new page (less the space
         // after the paragraph before), then the line.
-        let lineEndsAbove: (Double) -> Bool = { [self] down in
-            guard theme.wordRules, let first = painter.computeLineMetrics().first else { return false }
+        let firstLine: () -> (top: Double, line: Double)? = { [self] in
+            guard theme.wordRules, let first = painter.computeLineMetrics().first else { return nil }
             var top = before
             if i > 0, let xml = document.paragraphs[i - 1].style.sectionXML, !xml.containsSubstring("\"continuous\""), _cells[i - 1] == nil {
                 top = max(0, before - _spacing(i - 1, document).after)
@@ -7777,7 +7777,27 @@ public final class RichLayout {
             var line = first.height
             if let exact = style.lineHeightPoints, !style.lineHeightIsMinimum, exact > 0 { line = _px(exact) }
             else if line < 1 { line = _px(p.runs.first?.style.fontSize ?? theme.fontSize) }
-            return top + line <= down + 0.01
+            return (top, line)
+        }
+        let lineEndsAbove: (Double) -> Bool = { down in
+            guard let first = firstLine() else { return false }
+            return first.top + first.line <= down + 0.01
+        }
+        // How far down a line its float leaves no room beside goes: Word
+        // steps it from where it first stood by the line and its space
+        // before at a time, as if each try were a fresh line paying its
+        // before again, and takes the first step clear of the float's
+        // foot (lab t3d, Word for Windows, zh-d62da4dd's item 21: an exact
+        // 27pt line under 9pt before, first at 9, set at 261 under a chart
+        // whose foot is 244.8 down — at 225, 261, 297 as the foot moves
+        // 208.8, 226.8, 262.8; with 18pt before, 18 + 45k; zh-27a874b7's
+        // title steps the same way from 36, by 31.84). The push is what is
+        // added to the space before.
+        let pushUnder: (Double) -> Double = { foot in
+            guard let first = firstLine(), first.line + before > 1 else { return foot }
+            let step = first.line + before
+            let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
+            return max(0, first.top + k * step - before)
         }
         if theme.wordRules, p.cell == nil {
             let column = _flowWidth(i)
@@ -7832,7 +7852,7 @@ public final class RichLayout {
                 // under its 【附件五】 box, b 11430 EMU, 0.9pt below the
                 // frame's foot in Word for Windows.)
                 if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0),
-                   !lineEndsAbove(_px(float.y)) { push = max(push, _px(float.y) + _px(image.height + float.effectBottom)) }
+                   !lineEndsAbove(_px(float.y)) { push = max(push, pushUnder(_px(float.y) + _px(image.height + float.effectBottom))) }
             }
         }
         // (In a table cell too, across the cell's text — lab `wc` on Word
