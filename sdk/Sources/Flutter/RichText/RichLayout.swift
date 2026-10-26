@@ -11725,7 +11725,15 @@ public final class RichLayout {
                     let u = units[tail - 1]
                     return (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A)
                 }()
-                let hung = hangs && !holdsFinal && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                // (Nor, in a face Word compresses nothing in, the paragraph's
+                // last mark with a space after it: Word for Windows sends
+                // zh-57f1de0d's "…基本物资。 " down as "资。", and its
+                // "…整洁、卫生。 " and "…信息等）。 " so, where the same marks
+                // with nothing after them hang. Not in other faces: there
+                // Word hangs them — zh-4c5da793 and zh-2b955411 fell to 16
+                // and 36 with every such mark kept in.)
+                let spacedEnd = paragraphEnd && tail + 1 < units.count && units[tail + 1] == 0x20 && uncompressed(tail)
+                let hung = hangs && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
