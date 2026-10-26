@@ -6344,3 +6344,6 @@ docs, engine 8bc30c5c89a: Windows zh-1cfb652b 94.6 -> 98.3, zh-55087b5f 91.8 -> 
 
 ### zh-015abfaf: 62.4 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos)
 First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" (a Latin "”" hung), Word leaves it; mode 14. Lab next.
+
+### zh-4e5fe46f: 90.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26)
+wip/parted-floats 63e7a955: a parting paragraph's floats drawn whole with its first piece (p6's 496pt table box showed one row). 218 -> 221/240. Left: the box 3pt high — its anchor paragraph's place (lab sb: offsets from space before are Word's).
