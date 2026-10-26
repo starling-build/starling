@@ -6256,3 +6256,6 @@ Not T203's: Word's print is SimSun + Courier New (p45/p127/p128), lines break al
 under bundled (the strut's even leading splits by the drawn face's ascent/descent). The gap both modes share: p127's cells
 stand 0.3-0.5pt under Word's, the 10pt SimSun column at x117.9 0.8-0.9 (Word 100.1 / 113.1 / 126.0, bundled 100.9 / 113.9
 / 126.8), and the matcher regroups cells into rows by y. windows' PDFs: ~/starling-doc-check/t346-{local,bundled}/pdf.
+
+### T208. zh-8d6f702e: 86.1 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Engine 8bc30c5c89a, tip dab58685: 125 lines missed — one on nearly every page (p1-p37), and p38-p42 most of each.
