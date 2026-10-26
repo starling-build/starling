@@ -6407,3 +6407,6 @@ p28's foot: "(七)上班上課情形" (heading 4, kept with the next by heading 
 of room; ours set it there alone, Word opens p29 with it and the five kept headings after. The run's first member fits by its
 lines but not with its space after, so the next member cannot start on the page: the run goes over. Pair running.
 
+
+### T213. zh-147bdae0: 94.4 against word-win (124 missed of 2218, 75 pages) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w15 list)
+Rescored at the tip (5206b9ce + 9caa0c29), lenovo-2's engine: p19 30, p27 9, p39 17, p64 7, p72 17, p73 42. History under the T-notes of 2026-10-24 (017F2GnT): cell spacing collapse, list after in cells, p45's "人".
