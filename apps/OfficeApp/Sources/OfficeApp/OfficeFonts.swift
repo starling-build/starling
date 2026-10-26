@@ -2237,8 +2237,16 @@ enum OfficeFonts {
             // Ours set them unscaled: 693 lines on 29 pages. On Windows the
             // fallback is Leelawadee UI, 0.729 (Windows 01QbbApP).)
             if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) {
-                face.advances = cordiaNewAdvances
-                face.boldAdvances = cordiaNewBoldAdvances
+                // (Its spaces Browallia's, which Word draws them in, not
+                // Cordia's: Word for Windows' print of zh-6a4fc013 sets 818
+                // regular ones at 0.222 em and 483 bold at 0.181, where
+                // Cordia's are 0.182 and 0.224 — its bold "คำถามที่ 9 ："
+                // took 0.7pt a space too much and its line one fewer word.)
+                var regular = cordiaNewAdvances, bold = cordiaNewBoldAdvances
+                regular[0] = 0.222
+                bold[0] = 0.181
+                face.advances = regular
+                face.boldAdvances = bold
                 #if os(macOS)
                 // (Under OFFICE_WORD_FONTS=mac, with Word's Cordia New loaded,
                 // the Thai itself in Cordia, at its own widths: drawn by

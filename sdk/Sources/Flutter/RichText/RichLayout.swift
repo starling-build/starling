@@ -11244,6 +11244,26 @@ public final class RichLayout {
             guard let g, g.last > g.a, g.last < g.b else { return false }
             return Self._openingUnits.contains(units[g.last - 1])
         }
+        // (Thai measured on the text laid out as one line: the probe at no
+        // width parts "จั" after the consonant, whose box then measures
+        // nothing — zh-6a4fc013's "คำถามที่ 9 ：การจัดสรร…" came to 77pt
+        // under its width, so the line was never squeezed, where Word's
+        // print squeezes it to hold "เป็นอย่างไร?". Each piece there is the
+        // advance from its start to the next piece's.)
+        let shownUnits = Array(span.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+        let thaiText = wordRules && shownUnits.count == total && shownUnits.contains { $0 >= 0x0E01 && $0 <= 0x0E5B }
+        let flat: TextPainter? = thaiText ? {
+            let t = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
+            if !inline.isEmpty { t.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+            t.layout(minWidth: 0, maxWidth: 10_000_000)
+            return t
+        }() : nil
+        defer { flat?.dispose() }
+        func flatX(_ o: Int) -> Double {
+            guard let flat else { return 0 }
+            if o >= total { return flat.width }
+            return flat.getOffsetForCaret(TextPosition(offset: o), Rect.zero).dx
+        }
         while start < total {
             let r = probe.getLineBoundary(TextPosition(offset: start))
             let end = min(total, max(start + 1, r.end))
@@ -11269,7 +11289,9 @@ public final class RichLayout {
             let trail = boxes(last, b)
             // (From the line's own start: one may sit on this line too.)
             var lineWidth = pending
-            if last > a {
+            if last > a, flat != nil, (a ..< last).contains(where: { units[$0] >= 0x0E01 && units[$0] <= 0x0E5B }) {
+                lineWidth += max(0, flatX(map.painter(last - 1) + 1) - flatX(from))
+            } else if last > a {
                 for box in probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: map.painter(last - 1) + 1)) {
                     lineWidth += box.right - box.left
                 }
