@@ -6135,8 +6135,9 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   with no bold 5/256 em wider, Word only one unit of the face's em — lab `bw` (Word for Windows; 標楷體/楷体/黑体/仿宋/新細明體 bold
   10-24pt): bold DFKai-SB 12pt 12.246 -> 12.012 (Word 12.014), forty rows within 0.017. Spot check against word-win, bundled /
   local: zh-ae2dd08d 2699 / 2712 (DFKaiShu-SB, as Word), zh-505b9619 2607 / 2607 (DFKaiShu-SB), zh-6d1afa56 1621 / 1621 (SimHei),
-  zh-053f8706 1414 / 1414 (KaiTi), zh-0978dee9 10035 / 10024 (FangSong; where the two differ the local line is Word's more often,
-  the -11 is the matcher's grouping), zh-4f70ee2d 512 / 462 (the ③ fallback, office1's). Bundled output identical. Left: bold
+  zh-053f8706 1414 / 1414 (KaiTi), zh-0978dee9 10035 / 10024 (FangSong; where local and bundled differ, bundled's lines are in Word's
+  print 49 times to local's 13 — SimSun table pages (p127-128), SimSun installed since T203; against T203's own local output
+  only pp243/284/307 change, the new lines Word's 4 to 1), zh-4f70ee2d 512 / 462 (the ③ fallback, office1's). Bundled output identical. Left: bold
   faces with no bold are drawn as Type3 glyphs in our PDF (Skia's synthetic bold); 仿宋_GB2312 bodies (zh-6d1afa56, zh-053f8706)
   stay StarlingFangSong where Word substitutes FangSong — the name Windows lacks keeps the stand-in.
 - T204 ("mode 14 compresses no punctuation") — MEASURED Windows 01QbbApP 2026-10-25, premise wrong, released. Lab cm (each
