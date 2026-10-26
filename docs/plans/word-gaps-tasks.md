@@ -5751,6 +5751,21 @@ in browalliaBoldAdvances, ~0.02 a letter). (b) Word takes a tab before Thai to t
 tab, none after): Q5 "คำถามที่ 5 ：<tab>แรงงาน…" sets the tab from 64 to 88 and breaks the question there; ours leaves
 the tab alone on a line. Tried (ZWSP before such a tab, WJ after, and no held-tab break after in justified paragraphs):
 76.5 -> 67.9/61.7, the held tabs of "ตอบ :<tab><tab>…" interfere. Not landed.
+### Engine: no half-letter-spacing line shift — LANDED (Mac 01Xgpbk5 with macos, 2026-10-26; found by windows 01QbbApP)
+starling-engine c34c8aa8eba, patches/skia-no-line-spacing-shift.patch: skparagraph's TextLine no longer moves a line by half its
+first cluster's letter spacing ("TODO: This is the fix for flutter. Must be removed..."). Run::addSpacesEvenly already spaces each
+glyph after it, as Word does; the shift put condensed lines 0.3pt and autospaced openers 1.9pt off. Centred/right lines never had
+it (TextLine::format assigns fShift). sdk commits with it, office d4de9ca0..8b8ddef0 (rebased by macos):
+- tabs measure from the line's edge (the tab pass's `origin` term goes);
+- a vertical (tbRlV) column keeps the half spacing where the engine kept it — left/justified lines only (zh-f2835e26's
+  "综 合 实 力"; zh-b0401810's centred cells never had it);
+- Thai measured whole in the East Asian fitter (one-line advances) and Browallia's space widths (0.222/0.181 em) — zh-6a4fc013 Q9;
+- Word for Mac hangs a Latin ? . ) at a justified Thai line's end (lab tthai), and the fitter takes the Thai joins as one piece.
+Pairs on macos' checkout, w15/n10 (old engine) -> w21/n16 (new + the five, plus T167's cec8a534/463a81e2): Windows
+zh-6a4fc013 76.5 -> 83.4, Mac 68.1 -> 84.9; zh-7773163d 14.3 -> 95.3 / 89.0 -> 95.1 (T167's); nothing lower in either mode.
+Rebuild your engines (native + skwasm) after pulling: §1.7 re-applies the patches (announced to lenovo-2, lenovo-3, office1,
+windows). Next, with the user: skia-long-word-next-line (a word longer than a line goes to the next one first, as Word does).
+
 ### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
 396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
 so test/run.sh's "office: native vs browser" step compared against a stale 10-13 stage and checked nothing since.
