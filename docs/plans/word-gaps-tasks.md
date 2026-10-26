@@ -5911,6 +5911,10 @@ default, mode) parts the 32 documents that compress none from the rest; the othe
 GSUB vert only, no GPOS, upm 256, compressed 45%) differs in OS/2 ulCodePageRange1 (0x40000, no Latin-1, against
 0x40001), ulUnicodeRange (no CJK Symbols and Punctuation bit 48, no Halfwidth/Fullwidth bit 68) and PANOSE proportion 9
 (installed 仿宋's too, which compresses). Lab asked of windows-1: the embedded face patched per field (f0-f4).
+Lab tfz (windows-1, ~/starling-doc-check/lab/tfz on the Windows box): none of those fields, nor hhea/head/post/vhea/name/
+hinting, nor the face's name, turns it on; installed 仿宋 and zh-984846dc's GB2312 face data under the same entry compress
+(》13.33, ：13.39). The cmaps, the marks' hmtx/vmtx, GSUB and ink boxes match across the two faces. The visible difference is
+coverage: the GBK face is near complete (21,991 cmap entries) where the other is a real subset (741). Coverage lab c1-c4 asked.
 
 ### Screen of word-win documents under 90, by the cause of the first miss (Mac 01Xgpbk5, 2026-10-25, asked by macos)
 Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The first miss is the first Word line ours does
