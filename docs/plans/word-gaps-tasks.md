@@ -5918,6 +5918,13 @@ Lab tfz (windows-1, ~/starling-doc-check/lab/tfz on the Windows box): none of th
 hinting, nor the face's name, turns it on; installed 仿宋 and zh-984846dc's GB2312 face data under the same entry compress
 (》13.33, ：13.39). The cmaps, the marks' hmtx/vmtx, GSUB and ink boxes match across the two faces. The visible difference is
 coverage: the GBK face is near complete (21,991 cmap entries) where the other is a real subset (741). Coverage lab c1-c4 asked.
+Cause (windows-1, lab tfz c1-c9 + bisect): Word probes the face's 「 (U+300C); mapped to a glyph of advance 0 (Word's subset
+embedding empties unused glyphs but keeps the cmap), it compresses no mark in that face. DONE (Mac 7bd18d8e, next commit):
+uncompressedFaces from the embedded data, the marks there give nothing, the automatic gaps still do; pair w73 -> w74
+78.9 -> 81.3, nothing else moved. Locally 93.6 with a second rule — a paragraph's last mark with a space after it does not
+hang (p21 "…基本物资。 ", "…整洁、卫生。 ", "…信息等）。 ") — but in every face it dropped eight (zh-4c5da793 85.6 -> 16.2,
+zh-2b955411 100 -> 35.6, …: Word hangs them where it compresses), so it is to be narrowed to uncompressed faces and paired
+after the line-shift relink. Still CLAIMED. Left after that: p28 "…互动；", ours fits "动" 0.1pt inside the margin.
 
 ### Screen of word-win documents under 90, by the cause of the first miss (Mac 01Xgpbk5, 2026-10-25, asked by macos)
 Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The first miss is the first Word line ours does
