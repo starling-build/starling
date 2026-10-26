@@ -6388,3 +6388,6 @@ First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tbl
   ours, its paragraph on p13; Word takes the heading over. Looking.
 - zh-e49d7943 (92.8) — CLAIMED. p17-18: "○○" parts in Word's print (mode 14) and not in ours (3aa850c4 parts geometric
   shapes from mode 15 only); our fitter already takes the first "○" (x459-476 of 481.9) — the engine keeps the pair.
+
+### T-grid. The character-grid squeeze, as one model — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos)
+Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, ， least, the pair needing two cells) and zh-3c055c9b (92.5; p2 mid-line marks kept whole where ours squeezes, digit gaps 6.4-7.0 to ours 4.2; p9/p13 final marks squeezed where ours sends them down). Labs from windows-1.
