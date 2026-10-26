@@ -6216,3 +6216,6 @@ Owner: Linux lenovo-2. History above: the pies' geometry matches Word to 3pt (Ma
 
 ### T206. zh-72da925e (60.5) and zh-dc9cfa34 (84.8): what T181 did not fix — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, routed by macos)
 Owner: Linux lenovo-2. Scored on office's tip (a40bb3bf) on lenovo-2's own engine (~/tmp/lenovo2-engine, 8bc30c5c89a): zh-72da925e 60.5 (1228/1246, 39/39), zh-dc9cfa34 84.8 (257/259, 10/10). Each first miss gets checked against today's two rules: compression and justification only under a CJK rPrDefault face (lenovo-3's), and modes 12 and 14 squeezing like 15. A miss that is either one goes to lenovo-3 as a witness.
+
+### T207. zh-7a16a243: 74.4 against word-win (95.3 on the Mac's) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+Engine 8bc30c5c89a (lenovo-2's), base 346a5033: 268 lines missed, p8-p16 nearly whole (27-30 a page), p26-p31 a few.
