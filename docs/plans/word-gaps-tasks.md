@@ -6329,6 +6329,7 @@ an alternate: 12 Times, 12 Arial, one 新細明體, one Segoe Print).
 
 ### T210. zh-b24b396a: 90.3 against word-win — RELEASED, measured (Linux office1, starling-office1-95, 2026-10-26)
 CLAIMED Linux lenovo-2 (starling-d6), 2026-10-26, routed by macos. Guard zh-9e020c95; pairs in both modes.
+DONE 2e458492 (lenovo-2), p13's half: in a turned box a first line indented past its length holds its first character alone, so "0" stands on its own line as in Word (x297.8 against 299.5). 90.3 -> 90.6; pairs at 7c6340b0 in both modes, nothing else moved. Left to windows (agreed with macos): Word leaves out a first line whose indent reaches past its cell or box (11ee793c, labs ovi/ovi2). That drops p12's "A" and, likely, p13's stray "3"s; zh-9bcea239 is its other witness.
 Engine 8bc30c5c89a, tip 712205cb: 35 lines missed, p12 4, p13 27, p14 4.
 All three pages are drawings (wpg groups of text boxes: 附录D's archive-box figures). Two causes seen, neither fixed:
 - p13's dimension labels: 16 "30" boxes, 11.9 x 7.8pt, bodyPr vert270, insets 0, firstLine 300 (15pt, past the 7.8pt line).
