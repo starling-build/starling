@@ -6308,7 +6308,7 @@ and 0. It contradicts zh-d68ac84a (RichLayout ~11316: mode 14, charSpace -5544, 
 giving exactly its half, on a character grid) would decide between mode, grid and the break-rules switch. Also (3)'s "："
 hangs half past the margin in Word's print though the style says overflowPunct 0. Not mine; windows has the numbers.
 
-### T209. zh-4adfcce2 (Mac mode): the title under the top box stands 2.1pt high once at the box's foot — CLAIMED (Linux office1, starling-office1-95, 2026-10-26, routed by macos from lenovo-2's T205 find)
+### T209. zh-4adfcce2 (Mac mode): the title under the top box stands 2.1pt high once at the box's foot — DONE (see below) (Linux office1, starling-office1-95, 2026-10-26, routed by macos from lenovo-2's T205 find)
 Not the title's line: bold 標楷體 14pt is Microsoft YaHei Bold in Mac Word's print, YaHei's line is ~1.72 em (the 12pt body cells
 step 20.4-20.64 there, ours alike), and 24.2 = 1.73 x 14 is right; lenovo-2's 18.4 was an inference, not a measure. Mac Word sets
 the title at the box's foot (baseline 153.84 = foot 135.37 + 0.45 effect + YaHei bold's 17.75 + 0.28). What differs is the box:
@@ -6321,6 +6321,11 @@ nothing moves the box (88.32) or the title (153.84). The cause is the header: Ma
 header's last when the file has w:background (Docx.swift's phantom mark, lab `5f`), and here it is 12pt PMingLiU (" " at
 78.48, to 82.57) where zh-5f9b6549's — byte-identical Normal, defaults, header, font table, theme, settings flags — is Times
 (78.0). Ours sets it in Times for both (13.7), 1.8 short here. A part-swap lab (4adf with 5f9's parts one at a time) is asked.
+Lab t209b: only fontTable.xml flips it. 4adf's "Liberation Serif" (Normal's face) has altName 新細明體, charset 88, no
+PANOSE; 5f9's none. Word for Mac lacks Liberation faces and sets them in the table's alternate, as any Latin name it lacks
+(OfficeFonts.substitute); ours had mapped "liberation *" to the clones first. Done (OfficeFonts.macTableAlternate, Mac mode
+only): box 88.31-135.36 for Word's 88.32-135.37. Pairs, 756 docs, both modes: nothing moved (26 files give a Liberation name
+an alternate: 12 Times, 12 Arial, one 新細明體, one Segoe Print).
 
 ### T210. zh-b24b396a: 90.3 against word-win — RELEASED, measured (Linux office1, starling-office1-95, 2026-10-26)
 CLAIMED Linux lenovo-2 (starling-d6), 2026-10-26, routed by macos. Guard zh-9e020c95; pairs in both modes.
