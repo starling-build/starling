@@ -5705,7 +5705,7 @@ fitted to the box, plus half the stroke above and below, plus the shadow's y off
 +3.2, +3.7 and +3.2 where b2 measured +4.5, +3.8 and +3.0. That sum, 10.1 of 11.3, would be enough. But wa's stroke
 cases don't fit: 1pt alone gives model 1.7, measured 2.9; 4pt gives model 4.7, measured 30.8. So it isn't built,
 per macos's condition that pagination changes only where the drawing agrees with Word. Next: the stroke lab, or
-Word's own WordArt render (its EMF) to read the ink extent from.
+Word's own WordArt render (its EMF) to read the ink extent from. [Mac 7bd18d8e 2026-10-25, CLAIMED: model extent = 0.66 + a + max(a, shadow y), a ≈ 1.12 per side for a 1pt stroke; a shadow offset="3pt" has y 0, a perspective one keeps VML's default 2pt — art1 4.0/4.5, art2 3.8/3.8, art3 2.9/3.0, ",3pt"+1pt 4.9/5.2, sum 10.7 of 11.3; the 4pt stroke (+30.8) unexplained, suspected miter spikes. Stroke lab (weights, round joins, round/straight letters, the two shadows alone) asked of windows-1; waiting.]
 
 ### T184. Windows mode: the other 华文 faces on their OS/2 line (windows' lab t179) — DONE 4c848788 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. 新魏 1.322/0.934, 仿宋 and 楷体 1.456/1.028 in Windows mode, as T179 did for 中宋.
