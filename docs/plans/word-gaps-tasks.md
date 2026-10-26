@@ -5749,7 +5749,12 @@ so test/run.sh's "office: native vs browser" step compared against a stale 10-13
   wasm32's outlined copy of a big enum passes its largest payload field by field. EditOp (two RichParagraphStyles inline)
   hit it and is now `indirect`. Another enum or struct holding several RichParagraphStyle/CharStyle values can do the same as
   those grow.
-- **Open:** with the stage current, office-layout.sh still fails for real. All three documents break every line the same way,
+- **DONE (browser text engine, 2026-10-25):** the browser now runs our own skwasm (c436e31f50a fractional line heights,
+  1e327d91201 scaleX, 8bc30c5c89a baseline shift; build/web-app.sh refuses a skwasm missing those exports), and
+  office-layout.sh is green with no height tolerance: Mac, and Linux once the native side ran a fresh engine (lenovo-2,
+  host_release_lenovo2 at 8bc30c5c89a, all 6 patches; welcome, textedit, word-boringcrypto and both saved copies exact;
+  round 3's 18.4/18.6 empty lines were its stale 10-18 snapshot). Redeploying the live sites waits on the user. Was:
+- **Was open:** with the stage current, office-layout.sh still fails for real. All three documents break every line the same way,
   but line HEIGHTS differ by fractions (welcome: title 45.5 native vs 46.0 web, body 19.3 vs 19.0). CAUSE: 7ee9e843 (10-17)
   keeps Word lines' fractions through starling-engine's patches/skia-fractional-line-heights.patch (ParagraphStyle bit 13);
   the browser runs Google's prebuilt skwasm, which lacks it and rounds. A 10-13 native build gives 46.0/23.0/19.0, as the
