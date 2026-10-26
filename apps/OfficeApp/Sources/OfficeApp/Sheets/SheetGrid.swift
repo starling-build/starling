@@ -329,6 +329,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
                 if covered < CellAddress.maxCols { blank = max(blank, m.defaultRow) }
             }
+            // A row the file has no record of: the sheet's default height
+            // where it sets one, else fitted as the empty cells in it are,
+            // in their columns' fonts — FormulaSheetRange's rows 5-9, under
+            // a column of bold Arial 10, print at its 12.72, and
+            // NumberFormatTests' gaps under its Lucida Sans Typewriter
+            // columns at that face's 13.32.
+            let unsized = ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale) : blank
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
             // of 14.52, and their rows grow to Arial's 15.24 once Wrap Text
@@ -362,7 +369,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // (A row of super- or subscript keeps the file's fit: `Worksheet.scriptRows`.)
                 if heights[r] == 0 { continue }
                 if ws.scriptRows.contains(r), let h = heights[r], h >= line { continue }
-                if abs(line - m.defaultRow) > 0.01 || heights[r] != nil { heights[r] = line }
+                if abs(line - unsized) > 0.01 || heights[r] != nil { heights[r] = line }
             }
             let dots = printRowScale * 600 / 72
             func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
@@ -415,7 +422,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // whole printer dots as any other. picture.xlsx's 14 pt rows are
             // 118 dots, 14.16, in Excel's print; rounded, 119 put its picture's
             // foot 3.4 pt low.)
-            rows = GridAxis(def: whole(ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale) : m.defaultRow),
+            rows = GridAxis(def: whole(unsized),
                             overrides: heights.mapValues(whole), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
             cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
@@ -2776,8 +2783,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A cell's font's line on paper, in points: the row Excel fits to
     /// it in this workbook (`m`, the metrics of its default font).
+    /// (Bold counts where the face's bold has a line of its own, though the
+    /// style names neither face nor size: FormulaSheetRange's bold Arial 10
+    /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
     static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
-        st.fontName == nil && st.fontSize == nil ? m.defaultRow
+        st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
             : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
     }
 

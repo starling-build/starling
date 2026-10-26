@@ -655,7 +655,11 @@ Calibri 11's 14.52 in Excel's print (the 24 workbooks with such merges:
 1.868 -> 1.829, that one 4.97 -> 4.02, nothing worse). A book with no
 font at all and no theme (47889's empty styleSheet, 56278 with no styles
 part) prints in Excel's own default, Aptos Narrow 11, its rows at 15.24:
-all four such books (0.558 -> 0.040, 56278 1.59 -> 0.11). Open: their letters' widths in Arial 8 and Microsoft Sans
+all four such books (0.558 -> 0.040, 56278 1.59 -> 0.11). A bold
+face has its own fitted line where the style names no face or size
+(FormulaSheetRange's bold Arial 10, 35 screen pixels, 12.72), and a row
+the file never lists is fitted in its columns' fonts, not the default
+(NumberFormatTests 4.64 -> 3.92, GeneralFormatTests 3.70 -> 3.12). Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.
