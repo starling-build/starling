@@ -7827,7 +7827,21 @@ public final class RichLayout {
         // page number's text box in a 9pt run, its mark 14pt, and Word's
         // line is the mark's — the box, which hangs from the line's top,
         // stood 8.3pt low on every page.)
-        if theme.wordRules,
+        // (So does the rest of a page-break paragraph that is nothing but
+        // spaces, with or without floating objects: its line is its
+        // mark's, however large the spaces —
+        // lab t194 (Word for Windows, windows-1): zh-20c1d74a p15 opens
+        // with the rest of a page-break paragraph, two wrapNone boxes
+        // and a " " in 標楷體, and Word's line is the TNR mark's 13.8, as
+        // without the boxes or with the space at 24pt; with "文" for it,
+        // 標楷體's 15.6.)
+        // (Only where a page break opens it, as there: a lone " "
+        // paragraph of its own stands on its run's line in Word's prints —
+        // zh-61aaad09's 14pt 楷体 one, zh-f0bd9ea8's.)
+        let spacesOnly = theme.wordRules && p.style.pageBreakInline && p.image == nil && p.text.unicodeScalars.contains(" ")
+            && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " })
+            && p.inlineImages.values.allSatisfy({ $0.float.map { !$0.takesRoom } ?? false })
+        if theme.wordRules, spacesOnly ||
            p.image.map({ $0.float.map { !$0.takesRoom } ?? false }) ?? (!p.inlineImages.isEmpty && !p.text.isEmpty
                && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })
                && p.inlineImages.values.allSatisfy({ $0.float.map { !$0.takesRoom } ?? false })) {
@@ -7846,7 +7860,7 @@ public final class RichLayout {
             probe.fractionalLineHeights = theme.wordRules
             if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
-            bodyHeight = max(bodyHeight, probe.height)
+            bodyHeight = spacesOnly ? probe.height : max(bodyHeight, probe.height)
             probe.dispose()
         }
         // A tab at the paragraph's end whose stop lies past the right
