@@ -7933,7 +7933,12 @@ public final class RichLayout {
         // counter paragraphs — 1pt text on 0.7pt exact lines, before
         // each annex heading — left the heading 1.4pt higher than Word's
         // print has it, and page 8's foot then held a row line more.)
-        if theme.wordRules, p.text.isEmpty, p.image == nil, !style.lineCollapsed, let exact = style.lineHeightPoints, exact > 0 {
+        // (Not the mark under a nested table, which has none whatever its
+        // spacing: zh-20c1d74a p18's, on an exact 20pt line, under its
+        // 其他申請補助機關名稱 table — Word's row is its stated 116.85,
+        // ours 20 more, and the page ran 14pt low from there.)
+        if theme.wordRules, p.text.isEmpty, p.image == nil, !style.lineCollapsed, let exact = style.lineHeightPoints, exact > 0,
+           !_markUnderNestedTable(i, document) {
             bodyHeight = max(bodyHeight, _px(exact))
         }
         if let image = p.image {
