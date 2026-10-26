@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title</title>
+  <meta name="description" content="$description">
+  <link rel="canonical" href="$canonical">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="$title">
+  <meta property="og:description" content="$description">
+  <meta property="og:url" content="$canonical">
+  <meta property="og:image" content="https://office.starling.build/assets/writer-sample.png">
+  <meta name="theme-color" content="#f7f8fa">
+  <link rel="icon" href="/assets/starling-writer.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css?v=$css_version">
+  <script id="office-config" type="application/json">$config</script>
+  <script type="module" src="/launch.js?v=$js_version"></script>
+</head>
+<body>
+  <div id="website">
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Starling Office home"><img src="/assets/starling-writer.svg" width="30" height="30" alt="">Starling Office</a>
+      <span class="device-status"><span aria-hidden="true">●</span> Files stay on your device</span>
+      <a href="https://openoffice.starling.build/">About Starling ↗</a>
+    </header>
+    <div class="workspace">
+      <aside class="sidebar">
+        <nav aria-label="Apps">$navigation</nav>
+        <div class="sidebar-bottom"><a href="https://openoffice.starling.build/download.html">Get the desktop app ↗</a><a href="https://github.com/starling-build/starling">Source code ↗</a></div>
+      </aside>
+      <main id="main" class="workspace-main">
+        <div class="page-heading">
+          <h1>$heading</h1>
+          <p>$lead</p>
+          <ul class="intro-benefits" aria-label="Using Starling Office"><li>Free &amp; open source</li><li>No account</li><li>No cloud uploads</li></ul>
+        </div>
+        <section class="open-panel" id="drop-zone" aria-labelledby="open-heading">
+          <div class="open-symbol" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5h6l2 2h10v12H3z"/><path d="M3 10h18"/></svg></div>
+          <div class="open-description"><h2 id="open-heading">$open_heading</h2><p>$file_hint <span class="drop-hint">Or drag it here.</span></p></div>
+          <label class="button primary file-button">Open file<input id="starling-file" type="file" accept="$accept" aria-label="$open_heading" disabled></label>
+          <p id="file-error" role="alert" hidden></p>
+          <noscript><p>Enable JavaScript to run the editor on your device. No file upload is needed.</p></noscript>
+        </section>
+        <section class="create-section" aria-labelledby="create-heading"><h2 id="create-heading">Create new</h2><div class="new-actions">$new_actions</div></section>
+        <section class="examples" aria-labelledby="examples-heading"><div class="section-heading"><h2 id="examples-heading">Try an example</h2><span>Editable sample files</span></div><div class="example-list">$examples</div></section>
+        <p class="save-note">Save your changes to your device before closing the editor. No account or cloud backup.</p>
+        <details class="help"><summary>File formats, privacy &amp; help</summary><div class="faq">$faq</div></details>
+        <footer>Free &amp; open source. No login or credit card. <a href="https://openoffice.starling.build/download.html">Desktop apps ↗</a><p>Starling is independent software, not affiliated with Microsoft. Word, Excel, and PowerPoint are Microsoft trademarks.</p></footer>
+      </main>
+    </div>
+  </div>
+  <section id="editor" aria-label="Office editor" hidden>
+    <canvas id="office-canvas" tabindex="0" aria-label="Document editing area"></canvas>
+    <div id="loading" role="status"><div><img src="/assets/starling-writer.svg" width="52" height="52" alt=""><h2>Opening your workspace</h2><p id="loading-text">Loading the editor…</p><progress id="loading-progress" aria-label="Editor loading"></progress><p>Your file stays on this device.</p><a href="$path">Back to Office</a></div></div>
+    <div id="font-status" role="status" hidden><span></span><button type="button" hidden>Retry fonts</button></div>
+    <div id="editor-error" role="alert" hidden><h2>The editor couldn’t open.</h2><p>Your original file hasn’t been changed. Reload this page to try again.</p><a class="button primary" href="$path">Return to Office</a></div>
+  </section>
+</body>
+</html>

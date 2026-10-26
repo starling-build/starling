@@ -1,0 +1,108 @@
+/* Product workspace; the project presentation lives on openoffice.starling.build. */
+:root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #262a36; background: #f7f8fa; font-synthesis: none; --accent: #5146a1; --muted: #697080; --line: #e3e5eb; }
+* { box-sizing: border-box; }
+body { margin: 0; font-size: 14px; line-height: 1.5; }
+a { color: inherit; text-underline-offset: 4px; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+a:focus-visible, button:focus-visible, summary:focus-visible, .file-button:focus-within { outline: 3px solid #8c7de0; outline-offset: 4px; }
+.skip { position: absolute; top: -100px; }
+.skip:focus { top: 10px; z-index: 10; background: white; padding: 12px; }
+.topbar { height: 66px; display: flex; align-items: center; gap: 24px; padding: 0 28px; background: white; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 650; text-decoration: none; white-space: nowrap; }
+.topbar > a:last-child { margin-left: auto; font-size: 12px; color: var(--muted); text-decoration: none; }
+.device-status { color: var(--muted); font-size: 12px; margin-left: 32px; }
+.device-status span { color: #438866; margin-right: 5px; font-size: 9px; }
+.workspace { display: grid; grid-template-columns: 216px 1fr; min-height: calc(100vh - 66px); }
+.sidebar { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: #fbfbfd; padding: 28px 14px 20px; }
+.sidebar nav { display: grid; gap: 7px; }
+.sidebar nav a { display: flex; gap: 12px; align-items: center; padding: 11px 12px; border-radius: 6px; text-decoration: none; color: #575e6d; font-weight: 500; }
+.sidebar nav a:hover { background: #f0f0f5; }
+.sidebar nav a[aria-current=page] { background: #eeebfa; color: #493c93; }
+.home-symbol { font-size: 26px; line-height: 24px; width: 24px; text-align: center; }
+.sidebar-bottom { display: grid; gap: 16px; margin-top: auto; padding: 40px 12px 0; font-size: 12px; color: var(--muted); }
+.sidebar-bottom a { text-decoration: none; }
+.workspace-main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 43px 48px 24px; min-width: 0; }
+h1 { font-size: 29px; line-height: 1.25; letter-spacing: -.8px; font-weight: 650; margin: 0 0 8px; }
+.page-heading p { color: var(--muted); margin: 0; max-width: 650px; line-height: 1.65; }
+.intro-benefits { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; padding: 0; margin: 14px 0 0; color: #596173; font-size: 12px; }
+.intro-benefits li::before { content: '✓'; color: #438866; margin-right: 6px; }
+.open-panel { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; border: 1px dashed #b9bccb; background: white; padding: 30px 25px; border-radius: 10px; margin-top: 28px; }
+.open-panel.dragover { border-color: var(--accent); background: #f1eefa; box-shadow: 0 0 0 3px #5146a120; }
+.open-symbol { width: 43px; height: 43px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; color: #70758b; font-size: 26px; }
+h2 { font-size: 15px; font-weight: 650; margin: 0 0 14px; }
+.open-description { flex: 1; }
+.open-description h2 { margin: 0 0 5px; font-size: 16px; }
+.open-description p { margin: 0; color: var(--muted); font-size: 12px; }
+.button { display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; padding: 10px 22px; font-weight: 600; text-decoration: none; }
+.primary { background: var(--accent); color: white; }
+.file-button { position: relative; cursor: pointer; white-space: nowrap; }
+.file-button input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.file-button:hover { background: #43388d; }
+#file-error { flex-basis: 100%; color: #a52d23; margin: 0; }
+.create-section { margin-top: 29px; }
+.new-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.create-card { display: flex; align-items: center; gap: 12px; padding: 20px 16px; min-height: 90px; border: 1px solid var(--line); border-radius: 9px; background: white; text-decoration: none; }
+.create-card:hover { border-color: #aca2d4; background: #fdfcff; }
+.create-card img { flex-shrink: 0; }
+.create-card strong { display: block; font-size: 13px; font-weight: 600; }
+.create-card small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.plus { margin-left: auto; font-size: 21px; color: #84879a; }
+.examples { margin-top: 32px; }
+.section-heading { display: flex; align-items: baseline; gap: 16px; }
+.section-heading > span { margin-left: auto; font-size: 11px; color: var(--muted); }
+.example-list { border: 1px solid var(--line); border-radius: 9px; background: white; overflow: hidden; }
+.example-row { display: flex; gap: 14px; align-items: center; padding: 14px 18px; text-decoration: none; }
+.example-row + .example-row { border-top: 1px solid #eff0f4; }
+.example-row:hover { background: #f7f6fc; }
+.example-row img { flex-shrink: 0; }
+.example-row strong { display: block; font-size: 13px; font-weight: 500; }
+.example-row small { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+.file-type { margin-left: auto; color: var(--muted); font-size: 11px; }
+.example-open { font-size: 12px; color: var(--accent); margin-left: 22px; }
+.save-note { font-size: 12px; color: var(--muted); margin: 18px 0 24px; }
+.help { font-size: 12px; color: #606777; border-top: 1px solid var(--line); padding-top: 16px; }
+summary { cursor: pointer; }
+.faq { padding: 8px 14px; max-width: 760px; }
+.faq details { padding: 10px 0; }
+.faq p { margin: 8px 0 0; line-height: 1.7; }
+footer { color: var(--muted); font-size: 11px; margin-top: 26px; }
+footer p { font-size: 10px; margin: 7px 0 0; }
+.editing{overflow:hidden;background:#f5f5f5}#editor{position:fixed;inset:0}#office-canvas{display:block;width:100%;height:100%;touch-action:none}#loading,#editor-error{position:fixed;inset:0;display:grid;place-items:center;text-align:center;background:#fbfcf8;padding:24px}#loading h2{font-size:26px;margin-top:24px}#loading p{color:var(--muted);font-size:14px}#loading progress{width:240px;accent-color:var(--accent);margin-bottom:18px}#loading a{font-size:14px}#editor-error{z-index:5;display:flex;flex-direction:column;justify-content:center}#editor-error h2{font-size:28px}#font-status{position:fixed;right:16px;bottom:38px;border-radius:7px;padding:10px;background:#193d31;color:white;font-size:13px}#font-status button{margin-left:10px}
+@media (max-width: 1100px) {
+  .workspace-main { padding: 32px 28px 24px; }
+  .new-actions { grid-template-columns: 1fr; gap: 9px; }
+  .create-card { min-height: 68px; padding: 13px 16px; }
+  .create-card img { width: 32px; height: 32px; }
+}
+@media (max-width: 700px) {
+  .topbar { height: 58px; padding: 0 18px; gap: 12px; }
+  .topbar > a:last-child { display: none; }
+  .brand { font-size: 15px; }
+  .brand img { width: 26px; height: 26px; }
+  .device-status { margin-left: auto; font-size: 10px; max-width: 105px; line-height: 1.35; }
+  .workspace { display: block; }
+  .sidebar { padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar nav { display: flex; gap: 3px; justify-content: space-between; }
+  .sidebar nav a { display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; font-size: 10px; flex: 1; }
+  .sidebar nav img { width: 21px; height: 21px; }
+  .home-symbol { font-size: 24px; line-height: 21px; }
+  .sidebar-bottom { display: none; }
+  .workspace-main { padding: 24px 18px; }
+  h1 { font-size: 25px; }
+  .page-heading p { font-size: 12px; }
+  .intro-benefits { font-size: 10px; gap: 7px 12px; margin-top: 12px; }
+  .open-panel { padding: 20px; margin-top: 22px; gap: 14px; }
+  .open-symbol { width: 34px; height: 34px; font-size: 22px; }
+  .open-description h2 { font-size: 14px; }
+  .open-description p { font-size: 11px; }
+  .drop-hint { display: none; }
+  .file-button { width: 100%; }
+  .create-section, .examples { margin-top: 24px; }
+  .example-row { padding: 13px 12px; gap: 10px; }
+  .example-open { margin-left: auto; font-size: 11px; }
+  .file-type { display: none; }
+  .example-row small { max-width: 200px; font-size: 10px; }
+  .section-heading > span { font-size: 10px; }
+}

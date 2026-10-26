@@ -56,18 +56,19 @@ def check_package(original, saved, second=False):
                 'pictures': len(a.findall('.//w:drawing', NS))}
 
 
-def drive(out, phase, index, source, actions, url, port, load_ms):
+def drive(out, phase, index, source, actions, url, port, load_ms, entry_page=False):
     check = '(() => { const name = window.starling?.debug("name"); if (name !== ' + json.dumps(NAME) + ') throw Error("Wrong file: " + name); return name; })()'
     env = dict(os.environ, URL=url, PORT=str(port + index), W='1440', H='1000',
                CHROME_PROFILE=str(out / (phase + '-profile')))
-    cmd = ['node', str(ROOT / 'build/tools/web-drive.mjs'), 'wait', str(load_ms),
-           'chord', 'ctrl', 'o', 'wait', '400', 'setfile', str(source), 'wait', '6000',
+    opening = (['wait', '1000', 'setfile', str(source), 'wait', str(load_ms)] if entry_page else
+               ['wait', str(load_ms), 'chord', 'ctrl', 'o', 'wait', '400', 'setfile', str(source), 'wait', '6000'])
+    cmd = ['node', str(ROOT / 'build/tools/web-drive.mjs'), *opening,
            'eval', check, *map(str, actions)]
     with (out / (phase + '.log')).open('w') as log:
         subprocess.run(cmd, env=env, check=True, timeout=150, stdout=log, stderr=subprocess.STDOUT)
 
 
-def run(out, url, port, load_ms):
+def run(out, url, port, load_ms, entry_page=False):
     out.mkdir(parents=True, exist_ok=False)
     for directory in ['input', 'first-save', 'second-save']:
         (out / directory).mkdir()
@@ -79,19 +80,19 @@ def run(out, url, port, load_ms):
         'click', 410, 351, 'chord', 'ctrl', 'Home', 'chord', 'ctrl', 'b',
         'type', TITLE, 'chord', 'ctrl', 'b', 'press', 'Enter', 'type', BODY, 'wait', 800,
         'dump', 'layout', out/'edited-layout.txt', 'downloads', first.parent,
-        'chord', 'ctrl', 's', 'wait', 3000, 'shot', out/'saved.png'], url, port, load_ms)
+        'chord', 'ctrl', 's', 'wait', 3000, 'shot', out/'saved.png'], url, port, load_ms, entry_page)
     result = check_package(original, first)
     print('PASS first download: edits, bold, original text, tables, images, footer and links', flush=True)
     drive(out, 'reopen-edit', 1, first, [
         'dump', 'layout', out/'reopened-layout.txt', 'shot', out/'reopened.png',
         'click', 410, 351, 'chord', 'ctrl', 'Home', 'type', SECOND, 'press', 'Enter', 'wait', 800,
         'dump', 'layout', out/'second-edited-layout.txt', 'downloads', second.parent,
-        'chord', 'ctrl', 's', 'wait', 3000, 'shot', out/'second-saved.png'], url, port, load_ms)
+        'chord', 'ctrl', 's', 'wait', 3000, 'shot', out/'second-saved.png'], url, port, load_ms, entry_page)
     assert (out/'edited-layout.txt').read_bytes() == (out/'reopened-layout.txt').read_bytes(), 'First reopen changed layout'
     check_package(original, second, second=True)
     print('PASS fresh-session reopen and second edit/save', flush=True)
     drive(out, 'final-reopen', 2, second, [
-        'dump', 'layout', out/'final-layout.txt', 'shot', out/'final-reopened.png'], url, port, load_ms)
+        'dump', 'layout', out/'final-layout.txt', 'shot', out/'final-reopened.png'], url, port, load_ms, entry_page)
     assert (out/'second-edited-layout.txt').read_bytes() == (out/'final-layout.txt').read_bytes(), 'Second reopen changed layout'
     assert digest(SOURCE) == digest(original) == original_hash, 'Original file was modified'
     result.update(url=url, original_sha256=original_hash, first_save_sha256=digest(first),
@@ -107,5 +108,6 @@ if __name__ == '__main__':
     parser.add_argument('--url', default='https://writer.starling.build/')
     parser.add_argument('--port', type=int, default=9752)
     parser.add_argument('--load-ms', type=int, default=18000)
+    parser.add_argument('--entry-page', action='store_true', help='Choose the file on the product page before the editor loads')
     args = parser.parse_args()
-    run(args.out.resolve(), args.url, args.port, args.load_ms)
+    run(args.out.resolve(), args.url, args.port, args.load_ms, args.entry_page)
