@@ -2662,8 +2662,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lift = printing && !spill && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let ty: Double
         switch st.vAlign {
-        case .top: ty = top + 1
-        case .center: ty = top + (bottom - top - tp.height) / 2 - lift
+        case .top: ty = printing ? _printTop(st, book, ws, row: a.row, tp, top: top, bottom: bottom, .top) : top + 1
+        case .center: ty = (printing ? _printTop(st, book, ws, row: a.row, tp, top: top, bottom: bottom, .center) : top + (bottom - top - tp.height) / 2) - lift
         case .bottom: ty = printing ? _footTop(st, book, ws, row: a.row, tp, bottom: bottom) : bottom - tp.height - 1
         }
         canvas.save()
@@ -2707,8 +2707,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let one = texts.painter("X", style).height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
-                case .top: y0 = top + 1
-                case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch - lift
+                case .top: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
+                case .center: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
                 for (i, line) in lines.enumerated() {
@@ -2807,37 +2807,67 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// 2.0 for Microsoft Sans Serif. bug62181's Arial 9, in rows styled
     /// Arial 9 in an Arial 10 book, stand at Arial 9's 3.1, not 3.31.
     func _footTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter, bottom: Double) -> Double {
+        _printTop(st, book, ws, row: row, tp, top: bottom, bottom: bottom, .bottom)
+    }
+
+    /// Where a line of text has its top on paper, by the vertical
+    /// alignment, from the same box as `_footTop`'s (the fitted line, the
+    /// baseline K over its foot). Set at the head, the box stands four
+    /// printer dots under the row's top; centred, four dots under the
+    /// middle: in the alignment lab (Arial 10, Calibri 11 and 9,
+    /// Microsoft Sans Serif 8.25 books; rows of 30, 20 and their fit) a
+    /// head's baseline stood F − K + 0.48 under the row's top and a
+    /// centre's (H − F)/2 + F − K + 0.48, all to within 0.06 — where ours
+    /// stood a point and the rounded ascent down, up to 1 pt low.
+    func _printTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter,
+                   top: Double, bottom: Double, _ align: CellStyle.VAlign) -> Double {
         let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
         // A style's fitted line less its face's ascent, the ascent taken up
         // to whole dots of the printer's 600 dpi: the face's own ascent
         // where it is known, the painter's where not. (Uncut, the corpus's
         // Calibri 11 text stood 0.11 high in Excel's prints of 118
         // workbooks and its Arial 10 0.15 high in 40; cut, 3.96 and 3.24.)
-        func below(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> Double {
+        // (And the ascent so cut: the box's part over its baseline.)
+        func box(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> (below: Double, above: Double) {
             let a = SheetPrintMetrics.ascent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
                 ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
-            return (Self._fittedLine(s, m, book) - (a * 600 / 72).rounded(.up) * 72 / 600) * scale
+            let up = (a * 600 / 72).rounded(.up) * 72 / 600
+            return ((Self._fittedLine(s, m, book) - up) * scale, up * scale)
         }
-        func below(_ style: Int) -> Double {
+        func box(_ style: Int) -> (below: Double, above: Double) {
             let s = book.style(style)
-            return below(s, texts.painter("X", _textStyle(s, color: nil, ink: Color(0xFF00_0000))))
+            return box(s, texts.painter("X", _textStyle(s, color: nil, ink: Color(0xFF00_0000))))
         }
-        var empty: Double
+        func most(_ a: (below: Double, above: Double), _ b: (below: Double, above: Double)) -> (below: Double, above: Double) {
+            (max(a.below, b.below), max(a.above, b.above))
+        }
+        var empty: (below: Double, above: Double)
         if let rs = ws.rowStyle(row) {
-            empty = below(rs)
+            empty = box(rs)
         } else {
-            empty = -.infinity
+            empty = (-.infinity, -.infinity)
             var covered = 0, next = 0
             for run in ws.colAttrRuns.filter({ $0.attrs["style"] != nil }).sorted(by: { $0.lo < $1.lo }) {
-                empty = max(empty, below(Int(run.attrs["style"] ?? "") ?? 0))
+                empty = most(empty, box(Int(run.attrs["style"] ?? "") ?? 0))
                 let lo = max(run.lo, next)
                 if run.hi >= lo { covered += run.hi - lo + 1; next = run.hi + 1 }
             }
-            if covered < CellAddress.maxCols { empty = max(empty, below(0)) }
+            if covered < CellAddress.maxCols { empty = most(empty, box(0)) }
+        }
+        // (A head's or middle's box is the row's too: a Lucida Sans
+        // Typewriter cell among Verdana's empty ones stands on Verdana's
+        // baseline in DateFormatTests, where its own put it 1.1 high.)
+        let b = most(box(st, tp), empty), k = b.below, up = b.above
+        let dots4 = 4 * 72 / 600 * scale / (printTextScale > 0 ? printTextScale : 1)
+        let baseline: Double
+        switch align {
+        case .top: baseline = top + dots4 + up
+        case .center: baseline = (top + bottom) / 2 + (up - k) / 2 + dots4
+        case .bottom: baseline = bottom - k
         }
         // (The painter draws its baseline its ascent down to the whole
         // point, 10 for Calibri 11's 10.47, whatever it reports.)
-        return bottom - max(below(st, tp), empty) - tp.computeDistanceToActualBaseline(.alphabetic).rounded()
+        return baseline - tp.computeDistanceToActualBaseline(.alphabetic).rounded()
     }
 
     /// Text turned a quarter: up (`textRotation` 90, read from the foot)

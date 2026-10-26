@@ -671,7 +671,17 @@ where ours stood 1 px over the descent (3.0, 2.0). 720 workbooks: 0.694
 -> 0.662 with the row fits above, 157 better, 40 worse (chart-tdf98690
 2.64 -> 0.66, lo-functions-excel-2010 2.90 -> 0.93; lo-tdf100034 +0.73,
 46535 +0.59). Open: Verdana 10 books' text stays 0.5 low; top- and
-centre-aligned text (49609) is untouched. Open: their letters' widths in Arial 8 and Microsoft Sans
+centre-aligned text (49609) is untouched.
+Text at a cell's head or middle stands in the same box, four printer dots
+lower: a head's baseline F - K + 0.48 under the row's top, a middle's
+(H - F)/2 + F - K + 0.48 (the alignment lab, ~/starling-xls-check/lab-bl
+v-*.xlsx: Arial 10, Calibri 11 and 9, Microsoft Sans Serif 8.25 books, to
+within 0.06), the box's ascent part the row's empty cells' where larger
+(DateFormatTests' Lucida Sans Typewriter on Verdana's baseline). The 107
+workbooks with such text: 1.942 -> 1.840, 43 better, 19 worse (49609
+11.64 -> 5.16, lo-tdf131575 4.90 -> 3.69; worst +0.18). Open: on pages
+printed at a scale Excel's labs fit s*K + 0.42*(s - 1), but 32 scaled
+workbooks came out worse with it (not built). Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.
