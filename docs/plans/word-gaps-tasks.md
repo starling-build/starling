@@ -6314,6 +6314,7 @@ baseline 78.48 (Standard's 新細明體, the anchor run's?) that no other print 
 point of a paragraph-relative box in a paragraph whose first line cannot stand beside it.
 
 ### T210. zh-b24b396a: 90.3 against word-win — RELEASED, measured (Linux office1, starling-office1-95, 2026-10-26)
+CLAIMED Linux lenovo-2 (starling-d6), 2026-10-26, routed by macos. Guard zh-9e020c95; pairs in both modes.
 Engine 8bc30c5c89a, tip 712205cb: 35 lines missed, p12 4, p13 27, p14 4.
 All three pages are drawings (wpg groups of text boxes: 附录D's archive-box figures). Two causes seen, neither fixed:
 - p13's dimension labels: 16 "30" boxes, 11.9 x 7.8pt, bodyPr vert270, insets 0, firstLine 300 (15pt, past the 7.8pt line).
