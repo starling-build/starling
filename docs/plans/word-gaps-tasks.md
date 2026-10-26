@@ -6240,8 +6240,16 @@ Owner: Linux lenovo-2. Scored on office's tip (a40bb3bf) on lenovo-2's own engin
 - zh-dc9cfa34 DONE 00e55a19: 84.8 -> 99.2 (same-base pair on the tip at 2833b6e4, lenovo-2's engine, 756 docs, nothing else moved). p8's foot: row 43 (at least 39.55pt, every cell centred, 0.5pt rules) goes to p9 whole in Word, with 40.3 left; ours parted it 2+2. windows-1's lab t206: Word parts an at-least row only where the room holds its stated height and both its rules; at 24.2 left, at least 22 parts and 23.5 doesn't. The body's foot there is the footer's whenever the margin is smaller (13 paragraphs and a 144pt box). Ours counted only the rule over the row. Not a squeeze rule.
 - zh-72da925e (still 60.5; its first miss is NOT either of today's two rules): p13, the paragraph at document.xml offset 83330 (style 5, kinsoku 0 from Normal, overflowPunct 0, linesAndChars grid 457/4127, pitch 17.0075). Line 2 "模型」案初步成果簡報會議中，有專家表示：" leaves "「基" in Word; ours takes it 23.5 over, its three marks giving 25.5 (half a cell each). windows-1's lab t206b sweeps w:right: Word takes it from 3.0-4.0pt wider, so its limit is about 20. With only "，" and "：" giving (」→甲), they give 15.5-16.5 together, about 8 each. With only "」" giving, it gives under 14.5, about 4 if the gives add. Lang zh-CN changes nothing, and neither does kinsoku 1. So the "」" before an ideograph gives about a quarter cell on this grid. Tried and dropped: no squeeze at all under kinsoku 0 (14 docs down, zh-72da925e itself to 5.8).
 
-### T207. zh-7a16a243: 74.4 against word-win (95.3 on the Mac's) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T207. zh-7a16a243: 74.4 against word-win (95.3 on the Mac's) — DONE f397cee0 -> 94.9 (Linux office1, starling-office1-95, 2026-10-25)
 Engine 8bc30c5c89a (lenovo-2's), base 346a5033: 268 lines missed, p8-p16 nearly whole (27-30 a page), p26-p31 a few.
+Done f397cee0: a footnote parted over two pages was cut at the engine's line box (baseline - ascent + height), and a strut
+line's box stands above its row — 0.45pt in these 10pt 標楷體 notes. Note 14 kept 0.45 less of p6 and its rest stood 0.45 low
+on p7, under a rule 1.63 higher than Word's (an unparted note's is 1.16 — see below): p7's last line, "6、依臺北市政府核定之
+本件細" (grid foot 542.05 against our notes' top 541.71), went to p8, and p8-p16 ran a line late. Cuts are now the rows'
+bottoms (_lineBottoms). Same-base pairs, 756 docs, engine 8bc30c5c89a: Windows zh-7a16a243 74.4 -> 94.9, nothing else moved;
+Mac nothing moved. Left: p26-p31's few. Also seen, not done: in every document with notes our rule stands 1.1-1.45pt above
+Word's against the first note's baseline (19.08 there, ours 20.25 at 10pt; 1.44 for 11pt Calibri Normal), yet the same lines
+fit — the area agrees, only where the rule is drawn in its separator line (ours at its middle) differs.
 
 ### zh-0978dee9 cell baselines (local 10024 / bundled 10035 lines on Windows) — OPEN finding, not claimed (office1 + windows, 2026-10-25)
 Not T203's: Word's print is SimSun + Courier New (p45/p127/p128), lines break alike in all three, and local sits 0.1-0.2pt
