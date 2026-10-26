@@ -823,6 +823,17 @@ public struct ShapeOutline: Hashable, Sendable {
     public var fill: Color? = nil
     /// A line that runs from the bottom left to the top right.
     public var flipped = false
+    /// A box's effects (`a:effectLst`): its blur's radius (`a:blur`),
+    /// in points, 0 for none; and its inner shadow (`a:innerShdw`) —
+    /// what lies outside it, moved by `dx`/`dy` and blurred by `blur`,
+    /// seen inside it.
+    public var blur = 0.0
+    public var innerShadow: (color: Color, dx: Double, dy: Double, blur: Double)? {
+        get { _innerShadow.map { ($0.color, $0.dx, $0.dy, $0.blur) } }
+        set { _innerShadow = newValue.map { InnerShadow(color: $0.color, dx: $0.dx, dy: $0.dy, blur: $0.blur) } }
+    }
+    private struct InnerShadow: Hashable, Sendable { var color: Color; var dx: Double; var dy: Double; var blur: Double }
+    private var _innerShadow: InnerShadow? = nil
     public init(kind: Kind, color: Color?, width: Double) { self.kind = kind; self.color = color; self.width = width }
 }
 

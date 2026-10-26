@@ -3602,6 +3602,45 @@ enum DocxFormat {
                                            width: (Double(ln?["w"] ?? "") ?? 9525) / 12700)
                 outline.fill = rgb(sp)
                 outline.flipped = sp.first("a:xfrm")?["flipV"] == "1"
+                // Its effects (F14, Word's print): a colour laid over the fill
+                // and blended into it, a blur, an inner shadow.
+                if geom == "rect", let effects = sp.first("a:effectLst") {
+                    func effectColor(_ n: XNode?) -> Color? {
+                        guard let n else { return nil }
+                        if let c = n.first("a:scrgbClr") {
+                            // (Linear 0-100000 per channel, to sRGB.)
+                            func ch(_ k: String) -> Int64 {
+                                let l = max(0, min(1, (Double(c[k] ?? "") ?? 0) / 100_000))
+                                let v = l <= 0.0031308 ? 12.92 * l : 1.055 * pow(l, 1 / 2.4) - 0.055
+                                return Int64((v * 255).rounded())
+                            }
+                            let alpha = (Double(c.first("a:alpha")?["val"] ?? "") ?? 100_000) / 100_000
+                            return Color(Int64((alpha * 255).rounded()) << 24 | ch("r") << 16 | ch("g") << 8 | ch("b"))
+                        }
+                        return colors.color(in: n)
+                    }
+                    if let o = effects.first("a:fillOverlay"), let base = outline.fill, let over = effectColor(o.first("a:solidFill")) {
+                        let mode = o["blend"] ?? "over"
+                        func blend(_ b: Int, _ o: Int) -> Double {
+                            let b = Double(b) / 255, o = Double(o) / 255
+                            switch mode {
+                            case "mult": return b * o
+                            case "screen": return 1 - (1 - b) * (1 - o)
+                            case "darken": return min(b, o)
+                            case "lighten": return max(b, o)
+                            default: return o
+                            }
+                        }
+                        let a = Double(over.alpha) / 255
+                        func mix(_ b: Int, _ o: Int) -> Int64 { Int64(((blend(b, o) * a + Double(b) / 255 * (1 - a)) * 255).rounded()) }
+                        outline.fill = Color(Int64(base.alpha) << 24 | mix(base.red, over.red) << 16 | mix(base.green, over.green) << 8 | mix(base.blue, over.blue))
+                    }
+                    if let r = Double(effects.first("a:blur")?["rad"] ?? ""), r > 0 { outline.blur = r / 12700 }
+                    if let sh = effects.first("a:innerShdw"), let c = effectColor(sh) {
+                        let dist = (Double(sh["dist"] ?? "") ?? 0) / 12700, dir = (Double(sh["dir"] ?? "") ?? 0) / 60000 * .pi / 180
+                        outline.innerShadow = (c, dist * cos(dir), dist * sin(dir), (Double(sh["blurRad"] ?? "") ?? 0) / 12700)
+                    }
+                }
                 if outline.color != nil || outline.fill != nil { att.outline = outline }
             }
             // A text box's text, for the layout to set in it: the

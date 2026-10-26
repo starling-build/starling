@@ -12866,7 +12866,32 @@ public final class RichLayout {
             let paint = Paint()
             paint.style = .fill
             paint.color = fill
+            // (Blurred — `a:blur`, F14's left box: Word's print spreads its
+            // edge over the radius either side.)
+            if outline.blur > 0 { paint.maskFilter = MaskFilter(blur: .normal, _px(outline.blur) / 2) }
             canvas.drawRect(rect, paint)
+            // (An inner shadow, as Slides draws one: the dark beyond the
+            // box, moved and blurred, seen only inside it — F14's right
+            // box, dark along its bottom and right in Word's print. Its
+            // dir 45° is the way the shadow falls inside, so the dark
+            // outside comes in from that side: moved against it.)
+            if let ish = outline.innerShadow {
+                let dx = -_px(ish.dx), dy = -_px(ish.dy)
+                let around = Path()
+                around.fillType = .evenOdd
+                around.addRect(rect.inflate(_px(ish.blur) * 2 + abs(dx) + abs(dy) + 2))
+                around.addRect(rect)
+                let p = Paint()
+                p.style = .fill
+                p.isAntiAlias = true
+                p.color = ish.color
+                if ish.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, _px(ish.blur) / 2) }
+                canvas.save()
+                canvas.clipRect(rect)
+                canvas.translate(dx, dy)
+                canvas.drawPath(around, p)
+                canvas.restore()
+            }
         }
         guard let color = outline.color else { return drawn }
         let stroke = Paint()
