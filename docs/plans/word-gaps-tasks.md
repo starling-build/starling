@@ -5732,7 +5732,7 @@ model (browalliaAdvances on its Thai stand-in plus thaiBreaksAtSpaces) and re-tu
 Measured, not landed (macos: one Thai document, the overfit risk): an over-long stretch that is not the paragraph's first
 joined whole, so it moves to the next line and breaks where it fills there (windows' lab: "starts on the next line"),
 the first one (after a list label) still broken in place. 61.2 -> 67.9, 616/622 lines.
-LANDED 451d6fc1 (67.9). Then Mac 01Xgpbk5 (2026-10-25, routed by macos): 67.9 -> 76.5, see the commit after this board
+LANDED 451d6fc1 (67.9). Then Mac 01Xgpbk5 (2026-10-25, routed by macos): 67.9 -> 76.5, DONE 345fce5f; the board
 update. (1) A space in a w:cs run keeps its width under balanceSingleByteDoubleByteWidth ("คำถามที่ 4 ："'s 3.5pt spaces,
 ours 8); w:cs is now a kept run property. (2) The engine spaces every glyph, so a Thai cluster drawn as several glyphs took
 its width correction n times (Cordia's "คำ" is three: 14.3 for the table's 13.35); divided by the glyph count. Pair w43 -> w44:
