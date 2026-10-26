@@ -5732,7 +5732,16 @@ model (browalliaAdvances on its Thai stand-in plus thaiBreaksAtSpaces) and re-tu
 Measured, not landed (macos: one Thai document, the overfit risk): an over-long stretch that is not the paragraph's first
 joined whole, so it moves to the next line and breaks where it fills there (windows' lab: "starts on the next line"),
 the first one (after a list label) still broken in place. 61.2 -> 67.9, 616/622 lines.
-LANDED 451d6fc1 (67.9). CLAIMED again, Mac 01Xgpbk5 (2026-10-25, routed by macos): what is left past 67.9.
+LANDED 451d6fc1 (67.9). Then Mac 01Xgpbk5 (2026-10-25, routed by macos): 67.9 -> 76.5, see the commit after this board
+update. (1) A space in a w:cs run keeps its width under balanceSingleByteDoubleByteWidth ("คำถามที่ 4 ："'s 3.5pt spaces,
+ours 8); w:cs is now a kept run property. (2) The engine spaces every glyph, so a Thai cluster drawn as several glyphs took
+its width correction n times (Cordia's "คำ" is three: 14.3 for the table's 13.35); divided by the glyph count. Pair w43 -> w44:
+only this document moved; Mac mode 61.4 -> 67.9. LEFT, released: (a) Q2 "คำถามที่  2：<tab>นายจ้าง…": Word wraps the tab and
+the question to the next line, ours fits it by 0.01px, our Thai running ~2pt narrower over the line (per-letter drift
+in browalliaBoldAdvances, ~0.02 a letter). (b) Word takes a tab before Thai to the next line with it (break before the
+tab, none after): Q5 "คำถามที่ 5 ：<tab>แรงงาน…" sets the tab from 64 to 88 and breaks the question there; ours leaves
+the tab alone on a line. Tried (ZWSP before such a tab, WJ after, and no held-tab break after in justified paragraphs):
+76.5 -> 67.9/61.7, the held tabs of "ตอบ :<tab><tab>…" interfere. Not landed.
 ### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
 396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
 so test/run.sh's "office: native vs browser" step compared against a stale 10-13 stage and checked nothing since.
