@@ -6355,4 +6355,10 @@ fixed table, Times 15pt): with tcW 389 or 800 and firstLine 632 Word DRAWS the f
 108.0); with tcW 800 and firstLine 1200 it OMITS it (ours draws it); the rest of a longer text wraps as ours. So Word sets an
 overflowing first character at a fixed place past the cell and leaves it out from some indent on — the document's cells (same
 width and indent as the lab's drawn case, plus autospacing and its own cell margins) are past that point. Same family as
-T210's text-box "A" (lenovo-2). Next: vary the cell margins and the indent finely to find where it is dropped. Lab ~/starling-doc-check/lab/ovi.
+T210's text-box "A" (lenovo-2). Lab ~/starling-doc-check/lab/ovi.
+RULE, lab ovi2 (the document's own score cell, margins 0, firstLine stepped 300-1400): Word draws the first line's content at its
+indent, overflowing the cell, while the indent is short of the cell's right edge — 15pt in the 19.45pt cell, "5" at x105.0 — and
+leaves that first line's content out from there on — 20pt and up: nothing. The edge is the cell's width less its left margin:
+ovi's 31.6pt in a 40pt column at 5.4 margins is drawn, 60pt is not; the document's cell at 108 margins (31.6 >= 19.45-5.4) is not.
+Only the first line goes: "5 abc def" loses "5" and wraps "abc" / "def" from line 2. T210's box "A" (24pt indent, 23.5pt box)
+fits the same rule. Ours draws the character always, at x98.2 whatever the indent. Not claimed.
