@@ -5732,6 +5732,7 @@ model (browalliaAdvances on its Thai stand-in plus thaiBreaksAtSpaces) and re-tu
 Measured, not landed (macos: one Thai document, the overfit risk): an over-long stretch that is not the paragraph's first
 joined whole, so it moves to the next line and breaks where it fills there (windows' lab: "starts on the next line"),
 the first one (after a list label) still broken in place. 61.2 -> 67.9, 616/622 lines.
+LANDED 451d6fc1 (67.9). CLAIMED again, Mac 01Xgpbk5 (2026-10-25, routed by macos): what is left past 67.9.
 ### Browser build: check it before pushing office or sdk code (Linux lenovo-2, 2026-10-25)
 396ed439 makes the Office app build, link and load in the browser again; it had been broken since about 2026-10-13,
 so test/run.sh's "office: native vs browser" step compared against a stale 10-13 stage and checked nothing since.
