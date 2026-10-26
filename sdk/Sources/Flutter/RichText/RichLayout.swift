@@ -8359,6 +8359,7 @@ public final class RichLayout {
                 k = end
             }
         }
+        let hanJoins = theme.wordRules ? Self._hanJoins(p, document) : []
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
             // `RichParagraphStyle.markUnderNestedTable`.)
@@ -9079,6 +9080,11 @@ public final class RichLayout {
                 else if thaiJoins.contains(offset), let b = before,
                         let pb = b.unicodeScalars.first?.value, let pc = ch.unicodeScalars.first?.value,
                         (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                else if hanJoins.contains(offset) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -11010,6 +11016,31 @@ public final class RichLayout {
     ///
     /// In a table's cell no mark hangs; the marks inside a line give
     /// there as anywhere.
+    /// `RichDocument.joinsHanAfterSpace`: the offsets (UTF-16) inside each
+    /// stretch after a space, to the next space or tab, that holds Han
+    /// text — kept together, the engine breaking one longer than a line
+    /// where it fills. Empty where the document does not say so.
+    static func _hanJoins(_ p: RichParagraph, _ document: RichDocument) -> Set<Int> {
+        guard RichTextTheme.wordWindowsPages, document.joinsHanAfterSpace else { return [] }
+        let units = Array(p.text.utf16)
+        func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
+        var joins: Set<Int> = []
+        var k = 0
+        while k < units.count {
+            guard units[k] == 0x20 || units[k] == 0x3000 else { k += 1; continue }
+            var start = k + 1
+            while start < units.count, units[start] == 0x20 || units[start] == 0x3000 { start += 1 }
+            var end = start, han = false
+            while end < units.count, !blank(units[end]) {
+                if (0x3400 ... 0x9FFF).contains(units[end]) || (0xF900 ... 0xFAFF).contains(units[end]) { han = true }
+                end += 1
+            }
+            if han { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
+            k = max(end, start)
+        }
+        return joins
+    }
+
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
                                     runsPast: Set<Int> = []) -> [Int: Double] {
@@ -11168,6 +11199,7 @@ public final class RichLayout {
         // width and of its fit.
         struct Piece { var a: Int; var b: Int; var last: Int; var w: Double; var trail: Double; var hard: Bool }
         var pieces: [Piece] = []
+        let hanJoins = wordRules ? Self._hanJoins(p, document) : []
         var start = 0           // painter offset
         let total = units.count + inserts.count
         // (Walked by the lines' boundaries, and measured by the boxes
@@ -11238,7 +11270,8 @@ public final class RichLayout {
             let closesAfterSpaces = wordRules && document.usesEastAsianLayout && !kinsokuOff && !runRulesOff(a) && a < units.count
                 && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
-               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a) {
+               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a)
+                || hanJoins.contains(a) {
                 if (opens || closesAfterSpaces) && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
                 g.b = b
@@ -14328,6 +14361,7 @@ public final class RichLayout {
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
         sub.balancesSpaceWidth = document.balancesSpaceWidth
+        sub.joinsHanAfterSpace = document.joinsHanAfterSpace
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
         sub.defaultLangXML = document.defaultLangXML
@@ -14495,6 +14529,7 @@ public final class RichLayout {
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
         sub.balancesSpaceWidth = document.balancesSpaceWidth
+        sub.joinsHanAfterSpace = document.joinsHanAfterSpace
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
         sub.defaultLangXML = document.defaultLangXML
@@ -15198,6 +15233,7 @@ public final class RichLayout {
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
         sub.balancesSpaceWidth = document.balancesSpaceWidth
+        sub.joinsHanAfterSpace = document.joinsHanAfterSpace
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
         sub.defaultLangXML = document.defaultLangXML
