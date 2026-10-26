@@ -15883,7 +15883,22 @@ public final class RichLayout {
                         } else if overflowsExactRow {
                             canvas.clipRect(Rect.fromLTRB(clipL, top + _baselineShift(i, document), clipR, pageRect(p).bottom))
                         } else if opensWithFloats {
-                            canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + _baselineShift(i, document)))
+                            // (… and those floats whole below it too, its own
+                            // text still cut at the piece: zh-4e5fe46f's
+                            // 496pt table in a box, anchored 38pt over a
+                            // paragraph that parts at page 6's foot (a second
+                            // picture in it), runs on down to the paper's edge
+                            // in Word's print; ours showed its header row.)
+                            let window = Path()
+                            window.addRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + _baselineShift(i, document)))
+                            if theme.wordRules, i < _inline.count {
+                                let g = geometry(i)
+                                for image in _inline[i] {
+                                    guard let float = image.float, !float.takesRoom else { continue }
+                                    window.addRect(_floatRect(float, image, g, i).shift(Offset(left, top - piece.flowTop)))
+                                }
+                            }
+                            canvas.clipPath(window, doAntiAlias: false)
                         } else {
                             // The window moves with the text: a paragraph drawn
                             // above its line box (`baselineShift`) would
