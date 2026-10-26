@@ -12,7 +12,7 @@ import Foundation
 enum OfficeLayoutDump {
     static func text(_ document: RichDocument, pageSetup: PageSetup) -> String {
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
-        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.fontFamilyResolver = OfficeFonts.drawn
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
         theme.averageCharWidth = OfficeFonts.averageCharWidth

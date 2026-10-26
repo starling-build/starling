@@ -88,7 +88,7 @@ final class OfficeSession {
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         // The document keeps Word's font names; this picks the shipped
         // clone each is drawn with (OfficeFonts, Resources/fonts/README.md).
-        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.fontFamilyResolver = OfficeFonts.drawn
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
         theme.averageCharWidth = OfficeFonts.averageCharWidth

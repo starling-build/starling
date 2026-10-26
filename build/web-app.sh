@@ -36,7 +36,8 @@
 # --check is the size gate (docs/plans/wasm-size.md): the link records why
 # each archive member was pulled in, and the build FAILS if the legacy
 # Foundation module or ICU is among them, or if app.wasm is over BUDGET.
-# The budget goes down as the plan lands and is never raised.
+# The framework's budget (CounterApp's) goes down as the plan lands and is
+# never raised; OfficeApp has a ceiling of its own (see --check below).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -270,7 +271,7 @@ if [ "$OWN" != published ]; then
         echo "no skwasm built at $OWN — build it (docs/BUILDING.md §1.7), or set STARLING_SKWASM_DIR" >&2
         exit 1
     fi
-    for export in pdf_write paragraphStyle_setFractionalLineHeights; do
+    for export in pdf_write paragraphStyle_setFractionalLineHeights textStyle_setScaleX textStyle_setBaselineShift; do
         grep -q "$export" "$OWN/skwasm.js" || { echo "skwasm at $OWN predates $export — rebuild it (docs/BUILDING.md §1.7)" >&2; exit 1; }
     done
     CACHE="$OWN"
@@ -305,7 +306,14 @@ if [ "$CHECK" = 1 ]; then
     [ -s "$WHY" ] || { echo "error: --check needs a build (drop --no-build)" >&2; exit 1; }
     # The budget is CounterApp's — the framework alone, near enough. An app
     # gets its own code on top; Office (4.4k lines, zlib) was 0.6 MB more.
-    [ "$TARGET" = CounterApp ] || BUDGET=$((BUDGET + 2000000))
+    # OfficeApp is the whole suite now (Writer, Sheets, Slides, PDF export):
+    # 21.3 MB on 2026-10-25, when the user accepted a bigger Office download,
+    # so it has its own ceiling rather than the framework's plus 2 MB.
+    case "$TARGET" in
+        CounterApp) ;;
+        OfficeApp) BUDGET=24000000 ;;
+        *) BUDGET=$((BUDGET + 2000000)) ;;
+    esac
     [ "$CONFIG" = release ] || BUDGET=$((BUDGET * 4))
     command -v wasm-opt >/dev/null || BUDGET=$((BUDGET * 2))
     python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm" --why "$WHY" --budget "$BUDGET"

@@ -64,6 +64,11 @@ void textStyle_addFontFamilies(sk_ptr style, sk_ptr fontFamilies, int32_t count)
 SKWASM(textStyle_setFontSize) void textStyle_setFontSize(sk_ptr style, float size);
 SKWASM(textStyle_setLetterSpacing)
 void textStyle_setLetterSpacing(sk_ptr style, float letterSpacing);
+// Starling's (engine text/text_style.cpp, through patches/skia-scale-x.patch):
+// the run's glyphs drawn and advanced this much narrower or wider. Absent
+// from Google's published skwasm; the host binds it to nothing there.
+SKWASM(textStyle_setScaleX) void textStyle_setScaleX(sk_ptr style, float scaleX);
+SKWASM(textStyle_setBaselineShift) void textStyle_setBaselineShift(sk_ptr style, float shift);
 SKWASM(textStyle_setWordSpacing)
 void textStyle_setWordSpacing(sk_ptr style, float wordSpacing);
 SKWASM(textStyle_setHeight) void textStyle_setHeight(sk_ptr style, float height);

@@ -329,6 +329,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
                 if covered < CellAddress.maxCols { blank = max(blank, m.defaultRow) }
             }
+            // A row the file has no record of: the sheet's default height
+            // where it sets one, else fitted as the empty cells in it are,
+            // in their columns' fonts — FormulaSheetRange's rows 5-9, under
+            // a column of bold Arial 10, print at its 12.72, and
+            // NumberFormatTests' gaps under its Lucida Sans Typewriter
+            // columns at that face's 13.32.
+            let unsized = ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale) : blank
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
             // of 14.52, and their rows grow to Arial's 15.24 once Wrap Text
@@ -340,8 +347,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             var fit: [Int: Double] = [:]     // by row
             for (a, cell) in ws.cells where refits(a.row) {
+                // (Nor is one merged down over rows, wrapping or not:
+                // LIBRE_OFFICE-128382-0's date of Calibri 14 in D22:D23
+                // leaves both rows at Calibri 11's 14.52 in Excel's print.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
-                   book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
+                   g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
                 let l = line(cell.style)
                 if l > fit[a.row] ?? 0 { fit[a.row] = l }
             }
@@ -359,7 +369,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // (A row of super- or subscript keeps the file's fit: `Worksheet.scriptRows`.)
                 if heights[r] == 0 { continue }
                 if ws.scriptRows.contains(r), let h = heights[r], h >= line { continue }
-                if abs(line - m.defaultRow) > 0.01 || heights[r] != nil { heights[r] = line }
+                if abs(line - unsized) > 0.01 || heights[r] != nil { heights[r] = line }
             }
             let dots = printRowScale * 600 / 72
             func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
@@ -412,7 +422,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // whole printer dots as any other. picture.xlsx's 14 pt rows are
             // 118 dots, 14.16, in Excel's print; rounded, 119 put its picture's
             // foot 3.4 pt low.)
-            rows = GridAxis(def: whole(ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale) : m.defaultRow),
+            rows = GridAxis(def: whole(unsized),
                             overrides: heights.mapValues(whole), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
             cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
@@ -624,7 +634,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         switch d.kind {
         case .other: return
         case .shape(let shape):
-            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
+            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.drawn(theme.bodyFont))
         case .picture(let path, let data):
             // A turned picture: its anchor holds the turned box, its sides
             // swapped between 45° and 135° (lo-twoCellAnchor_editAs_oneCell's
@@ -688,7 +698,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (WMF, EMF — what an embedded object's picture usually is) played.
     private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
         if let played = _metafile(path, data) {
-            played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.substitute($0) })
+            played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.drawn($0) })
         } else if !Metafile.isMetafile(data), let image = _image(path, data) {
             let w = Double(image.width), h = Double(image.height)
             let src = crop.map { Rect.fromLTRB($0[0] * w, $0[1] * h, w - $0[2] * w, h - $0[3] * h) } ?? Rect.fromLTWH(0, 0, w, h)
@@ -1716,7 +1726,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard let a = _hoverNote, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
         let r = rect(a)
         let width = 200 * zoom, pad = 6 * zoom
-        let body = GridTextStyle(family: OfficeFonts.substitute("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
+        let body = GridTextStyle(family: OfficeFonts.drawn("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
         var head = body
         head.bold = true
         // A threaded comment's legacy copy starts with Excel's own banner; show the words.
@@ -1765,7 +1775,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let r = rect(c.active)
         guard r.bottom > headerHeight, r.right > headerWidth else { return }
         let width = 200 * zoom, pad = 6 * zoom
-        let body = GridTextStyle(family: OfficeFonts.substitute("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
+        let body = GridTextStyle(family: OfficeFonts.drawn("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
         var head = body
         head.bold = true
         let title = prompt.title.isEmpty ? nil : texts.painter(prompt.title, head, maxWidth: width - pad * 2)
@@ -2654,7 +2664,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         switch st.vAlign {
         case .top: ty = top + 1
         case .center: ty = top + (bottom - top - tp.height) / 2 - lift
-        case .bottom: ty = bottom - tp.height - 1
+        case .bottom: ty = printing ? _footTop(st, book, ws, row: a.row, tp, bottom: bottom) : bottom - tp.height - 1
         }
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(clipLeft + 1, top, clipRight - 1, bottom))
@@ -2699,7 +2709,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 switch st.vAlign {
                 case .top: y0 = top + 1
                 case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch - lift
-                case .bottom: y0 = bottom - one - 1 - n * pitch
+                case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
                 for (i, line) in lines.enumerated() {
                     let lp = texts.painter(String(line), style)
@@ -2773,9 +2783,61 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A cell's font's line on paper, in points: the row Excel fits to
     /// it in this workbook (`m`, the metrics of its default font).
+    /// (Bold counts where the face's bold has a line of its own, though the
+    /// style names neither face nor size: FormulaSheetRange's bold Arial 10
+    /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
     static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
-        st.fontName == nil && st.fontSize == nil ? m.defaultRow
+        st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
             : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
+    }
+
+    /// On paper, where a line of text set at a cell's foot has its top:
+    /// Excel stands it in a box its font's fitted line high, the baseline
+    /// that face's ascent down from the box's head and the box on the
+    /// foot — or the box of the font the row's empty cells take, where
+    /// that is the taller below its baseline: the row's style, else their
+    /// columns', else the default font (as a row is fitted). So the
+    /// baseline is no part of the face's own descent: in the baseline lab
+    /// (Excel 16, set rows of 20 and 30 pt) it stood 4.02 above the foot
+    /// for every face of 8 to 11 pt in a Calibri 11 book (Calibri 12:
+    /// 4.5, 14: 4.98, 18: 6.3), and 3.42, 3.18, 3.06 and 2.82 in books of
+    /// Calibri 9, Arial 10, Verdana 10 and Microsoft Sans Serif 8.25 —
+    /// fitted line less ascent, to within 0.15 — where ours stood its
+    /// descent and a pixel above it, 3.0 for most faces of 8 to 10 pt,
+    /// 2.0 for Microsoft Sans Serif. bug62181's Arial 9, in rows styled
+    /// Arial 9 in an Arial 10 book, stand at Arial 9's 3.1, not 3.31.
+    func _footTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter, bottom: Double) -> Double {
+        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+        // A style's fitted line less its face's ascent, the ascent taken up
+        // to whole dots of the printer's 600 dpi: the face's own ascent
+        // where it is known, the painter's where not. (Uncut, the corpus's
+        // Calibri 11 text stood 0.11 high in Excel's prints of 118
+        // workbooks and its Arial 10 0.15 high in 40; cut, 3.96 and 3.24.)
+        func below(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> Double {
+            let a = SheetPrintMetrics.ascent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
+                ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
+            return (Self._fittedLine(s, m, book) - (a * 600 / 72).rounded(.up) * 72 / 600) * scale
+        }
+        func below(_ style: Int) -> Double {
+            let s = book.style(style)
+            return below(s, texts.painter("X", _textStyle(s, color: nil, ink: Color(0xFF00_0000))))
+        }
+        var empty: Double
+        if let rs = ws.rowStyle(row) {
+            empty = below(rs)
+        } else {
+            empty = -.infinity
+            var covered = 0, next = 0
+            for run in ws.colAttrRuns.filter({ $0.attrs["style"] != nil }).sorted(by: { $0.lo < $1.lo }) {
+                empty = max(empty, below(Int(run.attrs["style"] ?? "") ?? 0))
+                let lo = max(run.lo, next)
+                if run.hi >= lo { covered += run.hi - lo + 1; next = run.hi + 1 }
+            }
+            if covered < CellAddress.maxCols { empty = max(empty, below(0)) }
+        }
+        // (The painter draws its baseline its ascent down to the whole
+        // point, 10 for Calibri 11's 10.47, whatever it reports.)
+        return bottom - max(below(st, tp), empty) - tp.computeDistanceToActualBaseline(.alphabetic).rounded()
     }
 
     /// Text turned a quarter: up (`textRotation` 90, read from the foot)
@@ -2914,7 +2976,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let r = rect(e.cell)
         let st = controller.style(at: e.cell)
         var style = _textStyle(st, color: nil, ink: ink)
-        if e.text.first == "=" { style.family = OfficeFonts.substitute("Calibri") }
+        if e.text.first == "=" { style.family = OfficeFonts.drawn("Calibri") }
         let text = String(e.text)
         let tp = texts.painter(text.isEmpty ? " " : text, style)
         let pad = 2 * zoom

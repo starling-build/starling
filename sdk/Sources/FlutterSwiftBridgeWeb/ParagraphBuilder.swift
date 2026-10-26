@@ -69,6 +69,10 @@ private struct ResolvedTextStyle {
     var families: [String] = []
     var fontSize: Float?
     var letterSpacing: Float?
+    /// Starling's horizontal scale (skwasm's textStyle_setScaleX).
+    var scaleX: Float?
+    /// Starling's baseline shift (skwasm's textStyle_setBaselineShift).
+    var baselineShift: Float?
     var wordSpacing: Float?
     var height: Float?
     var halfLeading: Bool?
@@ -99,6 +103,8 @@ private struct ResolvedTextStyle {
 
         if let fontSize { textStyle_setFontSize(style, fontSize) }
         if let letterSpacing { textStyle_setLetterSpacing(style, letterSpacing) }
+        if let scaleX { textStyle_setScaleX(style, scaleX) }
+        if let baselineShift { textStyle_setBaselineShift(style, baselineShift) }
         if let wordSpacing { textStyle_setWordSpacing(style, wordSpacing) }
         if let height { textStyle_setHeight(style, height) }
         if let halfLeading { textStyle_setHalfLeading(style, halfLeading) }
@@ -353,6 +359,8 @@ extension flutter.swift_bridge {
         private static let tsShadows: Int32 = 1 << 17
         private static let tsFontFeatures: Int32 = 1 << 18
         private static let tsFontVariations: Int32 = 1 << 19
+        /// Starling: a horizontal scale, its float's bits in slot 8.
+        private static let tsScaleX: Int32 = 1 << 20
 
         public func PushStyle(
             _ encoded_style: UnsafePointer<Int32>?,
@@ -407,6 +415,9 @@ extension flutter.swift_bridge {
             if mask & Self.tsTextBaseline != 0 { style.baseline = encoded[7] }
             if mask & Self.tsFontSize != 0 { style.fontSize = Float(font_size) }
             if mask & Self.tsLetterSpacing != 0 { style.letterSpacing = Float(letter_spacing) }
+            if mask & Self.tsScaleX != 0 { style.scaleX = Float(bitPattern: UInt32(bitPattern: encoded[8])) }
+            // (The shift SetBaselineShift left for this push, as the native bridge takes it.)
+            if let shift = pendingShift { style.baselineShift = shift; pendingShift = nil }
             if mask & Self.tsWordSpacing != 0 { style.wordSpacing = Float(word_spacing) }
             if mask & Self.tsHeight != 0 { style.height = Float(height) }
             if mask & Self.tsLocale != 0 { style.locale = locale.map { String(cString: $0) } ?? "" }
@@ -520,11 +531,11 @@ extension flutter.swift_bridge {
 
         /// The paint the NEXT PushStyle's foreground is drawn with, in place
         /// of its plain colour (the native bridge's SetForegroundPaint).
-        /// The native bridge's SetBaselineShift. skwasm has no baseline
-        /// shift to set, so nothing comes of it here; the layout keeps
-        /// drawing raised runs over their line on the web
-        /// (`NativeParagraphBuilder.supportsBaselineShift`).
-        public func SetBaselineShift(_ shift: Double) {}
+        /// The native bridge's SetBaselineShift: the NEXT PushStyle's run
+        /// set that far down from its line (skwasm's
+        /// textStyle_setBaselineShift, ours).
+        public func SetBaselineShift(_ shift: Double) { pendingShift = Float(shift) }
+        private var pendingShift: Float?
 
         public func SetForegroundPaint(
             _ paintData: UnsafeRawPointer?, _ shader: UnsafeRawPointer?,

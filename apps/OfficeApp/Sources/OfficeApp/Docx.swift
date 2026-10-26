@@ -2149,7 +2149,11 @@ enum DocxFormat {
             }
             var faces: [String: String] = [:]
             for font in table.all("w:font") {
-                guard let name = font["w:name"], OfficeFonts.isEastAsianFace(name),
+                // (And, in Word for Windows, one with a Latin name whose entry
+                // names an East Asian charset, for its line: zh-1cfb652b's
+                // GWZT-EN, charset 86 — see `OfficeFonts.face`.)
+                guard let name = font["w:name"],
+                      OfficeFonts.isEastAsianFace(name) || Self.wordOnWindows && ["86", "88", "80", "81"].contains(font.first("w:charset")?["w:val"]?.uppercased() ?? ""),
                       let embed = font.first("w:embedRegular") ?? font.first("w:embedBold"),
                       let rid = embed["r:id"], let key = embed["w:fontKey"], let target = faceTargets[rid] else { continue }
                 let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
@@ -3601,6 +3605,45 @@ enum DocxFormat {
                                            width: (Double(ln?["w"] ?? "") ?? 9525) / 12700)
                 outline.fill = rgb(sp)
                 outline.flipped = sp.first("a:xfrm")?["flipV"] == "1"
+                // Its effects (F14, Word's print): a colour laid over the fill
+                // and blended into it, a blur, an inner shadow.
+                if geom == "rect", let effects = sp.first("a:effectLst") {
+                    func effectColor(_ n: XNode?) -> Color? {
+                        guard let n else { return nil }
+                        if let c = n.first("a:scrgbClr") {
+                            // (Linear 0-100000 per channel, to sRGB.)
+                            func ch(_ k: String) -> Int64 {
+                                let l = max(0, min(1, (Double(c[k] ?? "") ?? 0) / 100_000))
+                                let v = l <= 0.0031308 ? 12.92 * l : 1.055 * pow(l, 1 / 2.4) - 0.055
+                                return Int64((v * 255).rounded())
+                            }
+                            let alpha = (Double(c.first("a:alpha")?["val"] ?? "") ?? 100_000) / 100_000
+                            return Color(Int64((alpha * 255).rounded()) << 24 | ch("r") << 16 | ch("g") << 8 | ch("b"))
+                        }
+                        return colors.color(in: n)
+                    }
+                    if let o = effects.first("a:fillOverlay"), let base = outline.fill, let over = effectColor(o.first("a:solidFill")) {
+                        let mode = o["blend"] ?? "over"
+                        func blend(_ b: Int, _ o: Int) -> Double {
+                            let b = Double(b) / 255, o = Double(o) / 255
+                            switch mode {
+                            case "mult": return b * o
+                            case "screen": return 1 - (1 - b) * (1 - o)
+                            case "darken": return min(b, o)
+                            case "lighten": return max(b, o)
+                            default: return o
+                            }
+                        }
+                        let a = Double(over.alpha) / 255
+                        func mix(_ b: Int, _ o: Int) -> Int64 { Int64(((blend(b, o) * a + Double(b) / 255 * (1 - a)) * 255).rounded()) }
+                        outline.fill = Color(Int64(base.alpha) << 24 | mix(base.red, over.red) << 16 | mix(base.green, over.green) << 8 | mix(base.blue, over.blue))
+                    }
+                    if let r = Double(effects.first("a:blur")?["rad"] ?? ""), r > 0 { outline.blur = r / 12700 }
+                    if let sh = effects.first("a:innerShdw"), let c = effectColor(sh) {
+                        let dist = (Double(sh["dist"] ?? "") ?? 0) / 12700, dir = (Double(sh["dir"] ?? "") ?? 0) / 60000 * .pi / 180
+                        outline.innerShadow = (c, dist * cos(dir), dist * sin(dir), (Double(sh["blurRad"] ?? "") ?? 0) / 12700)
+                    }
+                }
                 if outline.color != nil || outline.fill != nil { att.outline = outline }
             }
             // A text box's text, for the layout to set in it: the
@@ -4645,7 +4688,9 @@ enum DocxFormat {
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
-            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout":
+            // (`w:cs`, the run's text taken as complex script, kept for
+            // the layout too: see `RichLayout`'s wide spaces.)
+            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout", "w:cs":
                 if child.name == "w:position", let v = Double(child["w:val"] ?? "") { cs.raised = v / 2 }
                 // (The character scale, for the layout too.)
                 if child.name == "w:w", let v = Double((child["w:val"] ?? "").replacingAll("%", with: "")), v > 0 {
@@ -4699,7 +4744,7 @@ enum DocxFormat {
         if !keptRun.isEmpty {
             var all = _keptRunProperties(base.keptXML)
             for (k, v) in keptRun { all[k] = v }
-            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
+            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }

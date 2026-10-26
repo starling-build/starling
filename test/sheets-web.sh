@@ -7,6 +7,9 @@
 # (OFFICE_APP, default apps/OfficeApp/.build/debug/OfficeApp).
 #
 #   test/sheets-web.sh [OUTDIR]
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE="$ROOT/.stage-web-OfficeApp"

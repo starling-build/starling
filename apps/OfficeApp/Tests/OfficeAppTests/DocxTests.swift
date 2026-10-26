@@ -3307,6 +3307,50 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(lines(text, raised: false, width: natural - 10), 2, "a plain \"2\" and its space are a word: the brackets give nothing")
     }
 
+    func testAParagraphsLastMarkHangsOnlyOnceTheMarksCannotGiveTheLine() throws {
+        // zh-e0ca7252 p13 (mode 15, compressPunctuation, justified): "…，依第17款
+        // 辦理。" is 21.55pt over at 14pt, two commas and the "。" able to give
+        // 21 and the automatic spaces round "17" 1.75: Word sends "理。" down,
+        // the commas whole. Ours hung the "。" and squeezed the commas. Where
+        // the marks can give it all the line is taken squeezed, the "。"
+        // inside (zh-505b9619's "…工作天。"); where they cannot, the "。" hangs
+        // (zh-021b8feb's "…核定。").
+        try requireFitterWidths()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        func layout(_ text: String, width: Double) -> RichLayout {
+            var plain = CharStyle()
+            plain.fontFamily = "宋体"
+            plain.eastAsiaFontFamily = "宋体"
+            plain.fontSize = 12
+            plain.keptXML = "<w:lang w:eastAsia=\"zh-TW\"/>"
+            var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: plain)])
+            p.style.alignment = .justify
+            var doc = RichDocument(paragraphs: [p])
+            doc.compatibilityMode = 15
+            doc.characterSpacingControl = "compressPunctuation"
+            doc.usesEastAsianLayout = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = width * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return l
+        }
+        func lines(_ text: String, over: Double) -> Int {
+            let natural = layout(text, width: 2000).geometry(0).painter.computeLineMetrics()[0].width / theme.pixelsPerPoint
+            return layout(text, width: natural - over).geometry(0).painter.computeLineMetrics().count
+        }
+        // Two commas and the "。" give 6 each at 12pt, the two spaces round "17" 1.5.
+        let two = String(repeating: "一", count: 8) + "，" + String(repeating: "二", count: 8) + "，依第17款辦理。"
+        XCTAssertEqual(lines(two, over: 15), 1, "the marks give the 15: squeezed, the \"。\" inside")
+        XCTAssertEqual(lines(two, over: 18.5), 2, "more than the marks' 18 but not their 21 with the spaces: no hang, so it goes down")
+        // One comma and the "。": 12 to give, so 14 over hangs the "。" and squeezes the comma.
+        let one = String(repeating: "一", count: 12) + "，" + String(repeating: "二", count: 12) + "核定。"
+        XCTAssertEqual(lines(one, over: 14), 1, "past what the marks give: the \"。\" hangs")
+    }
+
     func testAHeadingKeptWithAMultipleSpacedLineLetsThatLineReachPastTheFoot() throws {
         // zh-34a6519a p28: "5.2.3 防台风Ⅱ级应急响应" keeps with a 1.5-spaced
         // paragraph whose first line ends 2.9pt past the foot by its
@@ -3486,6 +3530,43 @@ final class DocxTests: XCTestCase {
         }
         XCTAssertEqual(width("°"), 10.5, accuracy: 0.05, "an em")
         XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
+    }
+
+    func testAHintedMiddleDotInSongTiIsAnEmAndGivesAsAMark() throws {
+        // zh-3f871b7d p1: "…在青岛·上" — a hinted "·" Word sets in 宋体, an em
+        // (SimSun is fixed-pitch), where ours set the stand-in's 0.33 and
+        // the line took "合". And it gives like a mark: zh-b9af65b5's line
+        // "元/建筑平米·月" (mode 14, 10.5pt) sets the dot 8.16 to keep "月".
+        try requireFitterWidths()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        func layout(_ text: String, width: Double) -> RichLayout {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontHint = "eastAsia"
+            style.fontSize = 10.5
+            var doc = RichDocument(paragraphs: [RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])])
+            doc.compatibilityMode = 14
+            doc.characterSpacingControl = "compressPunctuation"
+            doc.usesEastAsianLayout = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = width * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return l
+        }
+        func natural(_ text: String) -> Double {
+            (layout(text, width: 4000).geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(natural("一·一") - natural("一一"), 10.5, accuracy: 0.05, "an em")
+        let text = "元/建筑平米·月"
+        let whole = natural(text)
+        func lines(over: Double) -> Int { layout(text, width: whole - over).geometry(0).painter.computeLineMetrics().count }
+        XCTAssertEqual(lines(over: 2.25), 1, "the dot gives the 2.25 \"月\" is over")
+        XCTAssertEqual(lines(over: 6.75), 2, "more than its half: \"月\" goes down")
     }
 
     func testANoBreakSpaceAfterALatinDigitIsTheSpacesHalfEm() throws {

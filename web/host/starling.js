@@ -636,12 +636,13 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   };
 
   // Starling's additions to skwasm (lib/web_ui/skwasm/pdf.cpp, and
-  // text/paragraph_style.cpp's fractional line heights) exist only in a
+  // text/paragraph_style.cpp's fractional line heights, text_style.cpp's
+  // horizontal scale) exist only in a
   // skwasm built from our engine. With Google's published one each is
   // bound to a function that answers 0 — what the export itself returns
   // when it fails — so the app still starts and only that feature is off.
   const skImports = { ...sk };
-  for (const name of ['pdf_write', 'paragraphStyle_setFractionalLineHeights']) {
+  for (const name of ['pdf_write', 'paragraphStyle_setFractionalLineHeights', 'textStyle_setScaleX', 'textStyle_setBaselineShift']) {
     if (typeof skImports[name] !== 'function') skImports[name] = () => 0;
   }
   const instance = await WebAssembly.instantiate(await appModule, {

@@ -1065,6 +1065,51 @@ enum OfficeRecovery {
     }
 }
 
+/// The user's settings, kept across launches in one small file beside the
+/// recent-files list (`key=value` lines). A driven instance keeps its own,
+/// as it does its recent files.
+enum OfficeSettings {
+    private static var _file: String {
+        let dir = ProcessInfo.processInfo.environment["OFFICE_RECOVERY_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? homeDirectory() + "/.config/starling"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        return dir + "/office-settings.txt"
+    }
+    nonisolated(unsafe) private static var _values: [String: String]? = nil
+    private static var values: [String: String] {
+        if let v = _values { return v }
+        var v: [String: String] = [:]
+        #if !os(WASI)
+        if let text = try? String(contentsOfFile: _file, encoding: .utf8) {
+            for line in text.split(separator: "\n") {
+                let parts = line.split(separator: "=", maxSplits: 1).map { String($0).trimmingWhitespace() }
+                if parts.count == 2 { v[parts[0]] = parts[1] }
+            }
+        }
+        #endif
+        _values = v
+        return v
+    }
+    private static func set(_ key: String, _ value: String) {
+        var v = values
+        v[key] = value
+        _values = v
+        #if !os(WASI)
+        try? v.keys.sorted().map { "\($0)=\(v[$0]!)" }.joined(separator: "\n").write(toFile: _file, atomically: true, encoding: .utf8)
+        #endif
+    }
+
+    /// Draw a document's fonts with the faces this computer has, where it
+    /// has them (the default), or always with Starling's matching fonts.
+    static var useInstalledFonts: Bool {
+        get { values["fonts"] != "bundled" }
+        set {
+            set("fonts", newValue ? "installed" : "bundled")
+            OfficeFonts.fontSourceChanged()
+        }
+    }
+}
+
 enum OfficeRecent {
     private static var _file: String {
         // (A driven instance keeps its list with its recovery copies:

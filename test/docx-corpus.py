@@ -17,6 +17,8 @@ ask to recover it.
 import argparse
 import json
 import os
+# (Starling's own fonts, whatever this machine has: see OfficeFonts.fontSource.)
+os.environ.setdefault("OFFICE_FONT_SOURCE", "bundled")
 import re
 import subprocess
 import sys

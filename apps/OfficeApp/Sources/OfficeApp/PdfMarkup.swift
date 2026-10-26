@@ -96,7 +96,7 @@ struct PdfMarkup {
                             close()
                             open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
                                         family: (run.style.fontFamily ?? source.styles.resolve(p.style)?.char.fontFamily
-                                            ?? source.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.substitute))
+                                            ?? source.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.drawn))
                         }
                         // A list item deleted with its mark loses its number
                         // too, which Word writes "<#>" (delins's tika items).
@@ -334,7 +334,7 @@ struct PdfMarkup {
         // (Its text in Comment Text's face, else Normal's: WordWithAttachments'
         // in Times under Tahoma labels, testComment's in Calibri.)
         let face = (document.styles.styles.first { $0.name.lowercased() == "annotation text" }?.char.fontFamily
-            ?? document.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.substitute)
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.drawn)
         var out: [Note] = []
         let silent = silentComments(document)
         for id in order where !silent.contains(id) {
@@ -381,7 +381,7 @@ struct PdfMarkup {
             // ems, and it is what Word for Windows sets for a Balloon Text
             // in a Mac face it lacks: 58067's Lucida Grande, lab bp's no
             // style at all.)
-            let segoe = (OfficeFonts.substitute("Segoe UI"), 9.0, Optional(1.33))
+            let segoe = (OfficeFonts.drawn("Segoe UI"), 9.0, Optional(1.33))
             guard let style = document.styles.styles.first(where: { $0.name.lowercased() == "balloon text" }) else {
                 return windows ? segoe : (OfficeFonts.serif, 9, nil)
             }
@@ -391,7 +391,7 @@ struct PdfMarkup {
             // the padding, where the clone's line put them 15.75 apart.)
             let family = style.char.fontFamily ?? "Tahoma"
             if windows, family.trimmingWhitespace().lowercased() == "lucida grande" { return segoe }
-            return (OfficeFonts.substitute(family), style.char.fontSize ?? 8,
+            return (OfficeFonts.drawn(family), style.char.fontSize ?? 8,
                     family.trimmingWhitespace().lowercased() == "tahoma" ? 1.207 : nil)
         }()
         for note in notes {

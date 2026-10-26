@@ -110,7 +110,7 @@ enum ReadBench {
             let opened = try OfficeFormats.read(data, named: name)
             t2 = now()
             let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
-            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.fontFamilyResolver = OfficeFonts.drawn
             let setup = opened.pageSetup ?? .letter
             let layout = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
             layout.scale = 1.0

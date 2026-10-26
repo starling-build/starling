@@ -11,7 +11,7 @@ import FluentSystemIcons
 import Foundation
 
 enum BackstagePage: Int, CaseIterable {
-    case home, new, open, info, save, saveAs, export, print, close
+    case home, new, open, info, save, saveAs, export, print, options, close
     /// Not in the rail: the picture picker Insert → Pictures opens.
     case insertPicture
     /// Not in the rail: Home's publication creation and folder picker.
@@ -27,6 +27,7 @@ enum BackstagePage: Int, CaseIterable {
         case .saveAs: return "Save As"
         case .export: return "Export"
         case .print: return "Print"
+        case .options: return "Options"
         case .close: return "Close"
         case .insertPicture: return "Insert Picture"
         case .openSite: return "Open Publication"
@@ -44,6 +45,7 @@ enum BackstagePage: Int, CaseIterable {
         case .saveAs: return FluentSystemIcons.save
         case .export: return FluentSystemIcons.documentPdf
         case .print: return FluentSystemIcons.print
+        case .options: return FluentSystemIcons.settings
         case .close: return FluentSystemIcons.chromeClose
         case .insertPicture: return FluentSystemIcons.image
         case .openSite: return FluentSystemIcons.folderOpen
@@ -139,6 +141,7 @@ final class Backstage: StatelessWidget {
                                     fluent, action: hostPrintPDF != nil
                                     ? ("Print…", { [session] in session.onPrint?() })
                                     : ("Export PDF", { [session] in session.onExport?("pdf") }))
+        case .options: return _options(fluent)
         case .insertPicture: return _picturePanel(fluent)
         case .openSite: return _sitePanel(fluent)
         case .createSite:
@@ -362,6 +365,40 @@ final class Backstage: StatelessWidget {
             Chrome.vgap(4),
             Text("The full notices ship with the app as THIRD_PARTY_NOTICES.md.", style: secondary),
         ])
+    }
+
+    /// The user's settings: which faces draw a document's fonts.
+    private func _options(_ fluent: FluentThemeData) -> Widget {
+        let secondary = fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)
+        let installed = OfficeFonts.fontSource == .local
+        func choice(_ title: String, _ detail: String, _ on: Bool, _ local: Bool) -> Widget {
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Column(crossAxisAlignment: .start, children: [
+                Checkbox(checked: on, onChanged: { [self] _ in
+                    OfficeSettings.useInstalledFonts = local
+                    _go(.options)
+                }, content: Text(title, style: fluent.typography.body)),
+                Padding(padding: EdgeInsets(left: 28, top: 2, right: 0, bottom: 0), child: Text(detail, style: secondary)),
+            ]))
+        }
+        var rows: [Widget] = [
+            _heading("Options", fluent),
+            Text("Fonts", style: fluent.typography.subtitle),
+            Chrome.vgap(8),
+        ]
+        #if os(WASI)
+        rows.append(Text("Documents are drawn with Starling's matching fonts.", style: secondary))
+        #else
+        rows.append(choice("Use fonts installed on this computer",
+                           "A document's fonts are drawn with this computer's own, where it has them, and with Starling's matching fonts where it does not.",
+                           installed, true))
+        rows.append(choice("Use Starling's matching fonts",
+                           "Always draw with the fonts Starling ships, so a document lays out the same on every computer.",
+                           !installed, false))
+        rows.append(Text(OfficeFonts.fontSourcePinned
+                         ? "OFFICE_FONT_SOURCE is set for this session, and decides over this setting."
+                         : "Applies to documents opened from now on.", style: secondary))
+        #endif
+        return Column(crossAxisAlignment: .start, children: rows)
     }
 
     private func _export(_ fluent: FluentThemeData) -> Widget {

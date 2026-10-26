@@ -5,6 +5,9 @@ import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
+#if os(macOS)
+import CoreText
+#endif
 
 /// The document faces Office ships: Liberation Sans/Serif/Mono, Carlito and
 /// Caladea — metric clones of Arial/Times/Courier, Calibri and Cambria — so
@@ -15,8 +18,9 @@ import Foundation
 /// A document keeps the font names it came with; `substitute` maps a name
 /// to the shipped face at render time (the theme's `fontFamilyResolver`),
 /// the way Google Docs draws "Times New Roman" with Tinos. So the file
-/// round-trips its fonts untouched, and looks the same on every platform,
-/// because no platform's own fonts are ever consulted.
+/// round-trips its fonts untouched. Where the machine has the face the
+/// document names, that face draws it (`fontSource`, the user's choice;
+/// `drawn`), and the stand-ins only where it has none.
 ///
 /// Found by searching for the SwiftPM resource bundle, never through
 /// `Bundle.module`: that accessor bakes the BUILD directory's absolute path
@@ -354,6 +358,7 @@ enum OfficeFonts {
     /// Excel's: chart-tdf150434's "Open Sans" prints sans, where ours was
     /// Caladea and its long text ran a page short.
     static func sheetFace(_ family: String) -> String {
+        if let own = installed(family) { return own }
         #if os(Windows)
         // A face Windows has and this app has no clone of is the face, for
         // every character of the cell: style-alternate-content's 맑은 고딕
@@ -374,6 +379,7 @@ enum OfficeFonts {
 
     /// Whether `sheetFace` is the named face itself, not a stand-in.
     static func sheetFaceIsOwn(_ family: String) -> Bool {
+        if installed(family) != nil { return true }
         #if os(Windows)
         return windowsFaces[family.trimmingWhitespace().lowercased()] != nil
         #else
@@ -462,6 +468,77 @@ enum OfficeFonts {
             return files.isEmpty ? nil : (face, files)
         }
     }()
+
+    /// Every family name this Windows's font files give themselves, in each
+    /// language they give it, to the one they give in English — 仿宋 and
+    /// FangSong to FangSong, 新細明體 to PMingLiU — read from the files'
+    /// `name` tables, as DirectWrite lists them: the system's fonts and the
+    /// user's own. (The face table alone left FangSong, SimHei, KaiTi,
+    /// PMingLiU, DFKai-SB and DengXian to the stand-ins in local mode,
+    /// though every Windows has them.) A symbol-encoded face — Symbol,
+    /// Wingdings — is left out: a document's symbol characters are mapped
+    /// for the stand-ins, and its own code page would lose them.
+    private static let systemFamilies: [String: String] = {
+        let env = ProcessInfo.processInfo.environment
+        var m: [String: String] = [:]
+        for dir in [(env["WINDIR"] ?? "C:/Windows") + "/Fonts/", (env["LOCALAPPDATA"] ?? "") + "/Microsoft/Windows/Fonts/"] {
+            for file in (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [] {
+                let ext = String(file.lowercased().suffix(4))
+                guard ext == ".ttf" || ext == ".otf" || ext == ".ttc" || ext == ".otc" else { continue }
+                for (english, names) in familyNames(dir + file) {
+                    for name in names where m[name.lowercased()] == nil { m[name.lowercased()] = english }
+                }
+            }
+        }
+        return m
+    }()
+
+    /// The family names (name ID 1, Windows platform) of each face in a font
+    /// file, the English one first of all; none for a symbol-encoded face.
+    static func familyNames(_ path: String) -> [(english: String, names: [String])] {
+        guard let h = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { try? h.close() }
+        func read(_ at: UInt64, _ count: Int) -> [UInt8] {
+            guard count > 0, (try? h.seek(toOffset: at)) != nil, let d = try? h.read(upToCount: count) else { return [] }
+            return [UInt8](d)
+        }
+        func u16(_ b: [UInt8], _ i: Int) -> Int { i >= 0 && i + 1 < b.count ? Int(b[i]) << 8 | Int(b[i + 1]) : 0 }
+        func u32(_ b: [UInt8], _ i: Int) -> UInt64 { UInt64(u16(b, i)) << 16 | UInt64(u16(b, i + 2)) }
+        let head = read(0, 12)
+        guard head.count == 12 else { return [] }
+        var offsets: [UInt64] = [0]
+        if head[0 ..< 4].elementsEqual([0x74, 0x74, 0x63, 0x66]) {   // "ttcf"
+            let n = Int(min(u32(head, 8), 64))
+            let table = read(12, 4 * n)
+            offsets = (0 ..< n).map { u32(table, 4 * $0) }
+        }
+        var out: [(english: String, names: [String])] = []
+        for offset in offsets {
+            let tables = u16(read(offset, 12), 4)
+            let records = read(offset + 12, 16 * tables)
+            guard let k = (0 ..< tables).first(where: {
+                records.count >= 16 * $0 + 16 && records[16 * $0 ..< 16 * $0 + 4].elementsEqual([0x6E, 0x61, 0x6D, 0x65])   // "name"
+            }) else { continue }
+            let t = read(u32(records, 16 * k + 8), Int(min(u32(records, 16 * k + 12), 1 << 20)))
+            let count = u16(t, 2), strings = u16(t, 4)
+            var english: String? = nil, names: [String] = [], symbol = false
+            for r in 0 ..< count {
+                let at = 6 + 12 * r
+                guard u16(t, at) == 3 else { continue }
+                let encoding = u16(t, at + 2), language = u16(t, at + 4)
+                if encoding == 0 { symbol = true }
+                guard u16(t, at + 6) == 1, encoding == 1 || encoding == 10 else { continue }
+                let start = strings + u16(t, at + 10), length = u16(t, at + 8)
+                guard length >= 2, start + length <= t.count else { continue }
+                let units = stride(from: start, to: start + length - 1, by: 2).map { UInt16(t[$0]) << 8 | UInt16(t[$0 + 1]) }
+                let name = String(decoding: units, as: UTF16.self)
+                if language == 0x409 { english = name }
+                if !name.isEmpty { names.append(name) }
+            }
+            if !symbol, let first = english ?? names.first { out.append((first, names)) }
+        }
+        return out
+    }
     #endif
 
     private static func fontEntry(_ family: String) -> FontEntry? {
@@ -735,6 +812,10 @@ enum OfficeFonts {
         /// (`RichResolvedFace.kerns`).
         var latinKerns: [UInt32: Double]? = nil
         var latinBoldKerns: [UInt32: Double]? = nil
+        /// Its own widths, in ems, for characters past ASCII that a run sets
+        /// East Asian (hinted, `RichLayout.isEastAsian`): the stand-in draws
+        /// them at these (`RichResolvedFace.otherAdvances`).
+        var otherAdvances: [UInt32: Double]? = nil
         /// Word emboldens a face that has no bold of its own, and sets
         /// each character wider: by `boldWiden` of an em, 1/48 where
         /// that is not said. (Word for Mac only: Word for Windows keeps
@@ -776,7 +857,11 @@ enum OfficeFonts {
     /// FZShuTi cover in word-win: the 36pt lines, each with a 单 or 总,
     /// stand 1.73 em (JhengHei's) under 1.15 spacing, the 18pt date,
     /// Mincho and Cambria only, 1.30. An invented name prints the same.
-    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 1.005)
+    /// (Its baseline Mincho's own ascent, 220/256, under half the 1.3
+    /// line's extra: zh-8e8d4c40's "N、" labels lift their 標楷體 lines
+    /// 0.72pt in Word for Windows, 0.66 at the 1.005 it had, and page 2
+    /// took one line too many.)
+    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15)
     /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
     /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
     /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
@@ -807,7 +892,14 @@ enum OfficeFonts {
                    "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
                    "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "_gb2312", "华文", "stsong", "stkaiti",
                    "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
-        guard !has.contains(where: { n.containsSubstring($0) }) else { return nil }
+        // (A name that lists faces, as LibreOffice writes them — "新細明體,
+        // PMingLiU" — is no face Word for Windows has, whatever it lists:
+        // it goes by its own entry, zh-8e8d4c40's alternate Times New Roman
+        // at charset 00, Mincho — its list labels' "、" in MS Mincho in
+        // word-win, their lines topped by Mincho's ascent (macos-ios'
+        // measurement).)
+        let listed = n.containsSubstring(",")
+        guard listed || !has.contains(where: { n.containsSubstring($0) }) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
            has.contains(where: { alt.containsSubstring($0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
@@ -1661,10 +1753,45 @@ enum OfficeFonts {
             var face = square
             face.height = 1.2972
             face.baseline = 1.005 - (1.3 - 1.2972) / 2
+            // (SimSun is fixed-pitch: of what it maps from U+00A1 to U+024F,
+            // GB2312's eight are an em and the rest half one — read from
+            // Word's own Simsun.ttc. Set East Asian, its "·" is an em:
+            // zh-3f871b7d's "…在青岛·上合…", hinted, steps 15.96 at 16pt in
+            // Word for Windows' print, where the stand-in drew Liberation
+            // Sans's, 5.33, and its line took "合".)
+            face.otherAdvances = Dictionary(uniqueKeysWithValues: simSunFullLatin.map { ($0, 1.0) } + simSunHalfLatin.map { ($0, 0.5) })
+            return face
+        }
+        // (And FangSong's, in Word for Windows: zh-b00fef0d's 12pt
+        // 仿宋_GB2312 cells, FangSong in word-win, step 18.0 and 18.12 on the
+        // 1/600in raster, 18.03 on the mean — SimSun's 1.2972 em under the
+        // 278/240 lines of a styles part with no defaults; the square's 1.3
+        // made them 18.07, every three-line row 0.19 taller, and by p17's
+        // foot a row went over that Word parts.)
+        if wordOnWindows, has("仿宋", "fangsong") {
+            var face = square
+            face.height = 1.2972
+            face.baseline = 1.005 - (1.3 - 1.2972) / 2
             return face
         }
         return square
     }
+
+    /// SimSun's characters from U+00A1 to U+024F an em wide, and those half
+    /// one (Simsun.ttc, Word's own; it maps no others there).
+    private static let simSunFullLatin: [UInt32] = [0x00A4, 0x00A7, 0x00A8, 0x00B0, 0x00B1, 0x00B7, 0x00D7, 0x00F7]
+    private static let simSunHalfLatin: [UInt32] = [
+        0x00A1, 0x00A2, 0x00A3, 0x00A5, 0x00A6, 0x00A9, 0x00AA, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x00AF,
+        0x00B2, 0x00B3, 0x00B4, 0x00B5, 0x00B6, 0x00B8, 0x00B9, 0x00BA, 0x00BB, 0x00BC, 0x00BD, 0x00BE,
+        0x00BF, 0x00C0, 0x00C1, 0x00C2, 0x00C3, 0x00C4, 0x00C5, 0x00C6, 0x00C7, 0x00C8, 0x00C9, 0x00CA,
+        0x00CB, 0x00CC, 0x00CD, 0x00CE, 0x00CF, 0x00D0, 0x00D1, 0x00D2, 0x00D3, 0x00D4, 0x00D5, 0x00D6,
+        0x00D8, 0x00D9, 0x00DA, 0x00DB, 0x00DC, 0x00DD, 0x00DE, 0x00DF, 0x00E0, 0x00E1, 0x00E2, 0x00E3,
+        0x00E4, 0x00E5, 0x00E6, 0x00E7, 0x00E8, 0x00E9, 0x00EA, 0x00EB, 0x00EC, 0x00ED, 0x00EE, 0x00EF,
+        0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC,
+        0x00FD, 0x00FE, 0x00FF, 0x0101, 0x0113, 0x011B, 0x012B, 0x0144, 0x0148, 0x014D, 0x0152, 0x0153,
+        0x0160, 0x0161, 0x016B, 0x0178, 0x0192, 0x01CE, 0x01D0, 0x01D2, 0x01D4, 0x01D6, 0x01D8, 0x01DA,
+        0x01DC, 0x01F9,
+    ]
 
     // Times New Roman's Roman numerals, Ⅰ to Ⅻ and ⅰ to ⅻ (U+2160 and
     // U+2170 on), in ems, regular and bold: Word's Times has them and
@@ -1794,7 +1921,165 @@ enum OfficeFonts {
         return face
     }
 
+    /// The face to set `family` in (the theme's `faceResolver`): the stand-in
+    /// and its corrections (`standInFace`), or — where the machine has the
+    /// face itself and the user takes the machine's faces — that face, with
+    /// Word's line and baseline for it but none of the widths, scales or
+    /// substitutes that make a stand-in pass for it.
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
+        let face = standInFace(family, eastAsian: eastAsian)
+        guard let family, let face else { return face }
+        guard let own = installed(family) ?? installedOriginal(of: face.family, for: family, math: face.setsMath) else { return face }
+        return installedFace(own, as: face)
+    }
+
+    /// The machine's own face that the stand-in `standIn` is a clone of,
+    /// for a name the machine lacks: the face Word sets the name in. So
+    /// 仿宋_GB2312, which Windows substitutes with FangSong (FontSubstitutes'
+    /// FangSong_GB2312), is FangSong, as Word's print of zh-6d1afa56 has it,
+    /// and a Latin name Word gives Arial or Times New Roman is that. A
+    /// stand-in that is the machine's own face already — the YaHei a 方正
+    /// name is set in — has none, and keeps Word's corrections. An East
+    /// Asian name's Latin is its face's too, not its clone's (a square
+    /// face's Liberation Mono is not Courier New): zh-6d1afa56's
+    /// 仿宋_GB2312 digits are FangSong's in Word's print.
+    /// (Only where Word has no face of the name either: a math face, or off
+    /// Windows a face Word brings with it, is that face in Word's print,
+    /// not the clone's original. bug59058's Cambria Math — in Word for Mac's
+    /// own fonts, not the Mac's — went to Times New Roman, its ∑ out of a
+    /// system fallback at 14.3pt where Word's is 6.86, and the document fell
+    /// from 99.9 to 76.5 against the Mac's prints.)
+    static func installedOriginal(of standIn: String, for family: String, math: Bool) -> String? {
+        guard !math else { return nil }
+        #if !os(Windows)
+        guard !wordMacFamilies.contains(family.trimmingWhitespace().lowercased()) else { return nil }
+        #endif
+        let n = standIn.trimmingWhitespace().lowercased()
+        let original: String? = isEastAsianFace(family)
+            ? (n == starlingFangSong.lowercased() || fangSongFamily(family) == starlingFangSong ? "FangSong" : nil)
+            : [sans.lowercased(): "Arial", wordSans.lowercased(): "Arial", serif.lowercased(): "Times New Roman",
+               wordSerif.lowercased(): "Times New Roman", mono.lowercased(): "Courier New", calibri.lowercased(): "Calibri",
+               cambria.lowercased(): "Cambria", verdana.lowercased(): "Verdana"][n]
+        return original.flatMap(installed)
+    }
+
+    /// `face` made the machine's own: the drawn family, and of the stand-in's
+    /// settings only what Word does with the face whatever draws it — its
+    /// line, its baseline, the widening of a face it emboldens — and what
+    /// Word does past the face's own glyphs: the widths it sets characters
+    /// past ASCII at, read from its print, and the faces it falls back to.
+    /// (Windows' local check of zh-4f70ee2d, 512 -> 462 lines: p14's line
+    /// opens "③", which Times New Roman lacks; Word sets it in Cambria
+    /// Math, 19.44 wide, and the stand-in's table says so — the installed
+    /// Times without it fell back to DejaVu Sans' 14.34, and "方" came up.)
+    static func installedFace(_ own: String, as standIn: RichResolvedFace) -> RichResolvedFace {
+        var face = RichResolvedFace(family: own, naturalHeight: standIn.naturalHeight, boldSpread: standIn.boldSpread,
+                                    baseline: standIn.baseline, isEastAsian: standIn.isEastAsian)
+        face.scaledHeight = standIn.scaledHeight
+        face.scaledBaseline = standIn.scaledBaseline
+        face.boldHeight = standIn.boldHeight
+        face.boldBaseline = standIn.boldBaseline
+        face.setsMath = standIn.setsMath
+        #if os(Windows)
+        // (A face with no bold of its own, which Word emboldens, DirectWrite
+        // emboldens too, and sets each character 5/256 of an em wider for it,
+        // where Word widens it by one unit of the face's em alone: lab `bw`
+        // (Word for Windows, 標楷體, 楷体, 黑体, 仿宋 and 新細明體 at 10 to
+        // 24pt) — bold DFKai-SB 12pt steps 12.014 in Word's print, 12.246 in
+        // ours, and zh-ae2dd08d's bold cell "材料費編列" lost its "列".)
+        if face.boldSpread > 0 { face.boldSpread -= 5.0 / 256 }
+        #endif
+        face.otherAdvances = standIn.otherAdvances
+        face.boldOtherAdvances = standIn.boldOtherAdvances
+        face.fullWidthSymbols = standIn.fullWidthSymbols
+        face.missingGlyphAdvance = standIn.missingGlyphAdvance
+        face.lacksCompatibilityIdeographs = standIn.lacksCompatibilityIdeographs
+        face.fallback = standIn.fallback
+        face.symbolFamily = standIn.symbolFamily
+        return face
+    }
+
+    /// Where text is drawn from (T203, the user's choice): the faces this
+    /// machine has (`local`, the default), else the stand-ins this app
+    /// ships; or the stand-ins only (`bundled`). OFFICE_FONT_SOURCE=bundled
+    /// or local wins over the user's setting — every harness pins bundled,
+    /// so that no baseline moves with the machine's fonts. The web has no
+    /// list of the machine's faces: bundled only.
+    enum FontSource: String { case local, bundled }
+    nonisolated(unsafe) private static var _fontSource: FontSource? = nil
+    static var fontSource: FontSource {
+        #if os(WASI)
+        return .bundled
+        #else
+        if let s = _fontSource { return s }
+        let env = ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"].flatMap { FontSource(rawValue: $0.lowercased()) }
+        let s = env ?? (OfficeSettings.useInstalledFonts ? .local : .bundled)
+        _fontSource = s
+        return s
+        #endif
+    }
+    /// Whether the user's setting is overridden by OFFICE_FONT_SOURCE (the
+    /// settings page then says so).
+    static var fontSourcePinned: Bool { ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"].flatMap { FontSource(rawValue: $0.lowercased()) } != nil }
+    /// Forget the cached choice, after the user changes it.
+    static func fontSourceChanged() { _fontSource = nil }
+
+    /// The face the machine has for `family`, as it names it, where the user
+    /// takes the machine's faces; nil otherwise.
+    static func installed(_ family: String) -> String? {
+        guard fontSource == .local else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        guard !n.isEmpty else { return nil }
+        return installedFamilies[n]
+    }
+
+    /// The family a run named `family` is drawn in (the theme's
+    /// `fontFamilyResolver`): the machine's own (`installed`), else the
+    /// stand-in (`substitute`, which the layout's rules still read).
+    static func drawn(_ family: String) -> String {
+        installed(family) ?? installedOriginal(of: substitute(family), for: family, math: standInFace(family, eastAsian: false)?.setsMath ?? false)
+            ?? substitute(family)
+    }
+
+    /// The machine's faces by name, lowercased: fontconfig's families on
+    /// Linux, Core Text's on macOS, and on Windows every family its font
+    /// files name (`systemFamilies`), with the faces `windowsFaces` finds
+    /// the files of — Office's cloud faces among them — over those.
+    private static let installedFamilies: [String: String] = {
+        var m: [String: String] = [:]
+        #if os(Windows)
+        m = systemFamilies
+        for (name, face) in windowsFaces { m[name] = face }
+        #elseif os(macOS)
+        for name in (CTFontManagerCopyAvailableFontFamilyNames() as? [String]) ?? [] { m[name.lowercased()] = name }
+        #elseif os(Linux)
+        let tool = ["/usr/bin/fc-list", "/bin/fc-list"].first { FileManager.default.isExecutableFile(atPath: $0) }
+        if let tool {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: tool)
+            p.arguments = [":", "family"]
+            let out = Pipe()
+            p.standardOutput = out
+            p.standardError = FileHandle.nullDevice
+            if (try? p.run()) != nil {
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                p.waitUntilExit()
+                for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
+                    // (Each face's names, comma-separated — its own and its
+                    // localized ones, "SimSun,宋体" — any of which fontconfig
+                    // matches; "\-" escapes a hyphen.)
+                    for name in line.split(separator: ",") {
+                        let family = String(name).replacingAll("\\-", with: "-").trimmingWhitespace()
+                        if !family.isEmpty { m[family.lowercased()] = family }
+                    }
+                }
+            }
+        }
+        #endif
+        return m
+    }()
+
+    static func standInFace(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
         let own = isEastAsianFace(family)
         guard own || eastAsian else {
@@ -1985,6 +2270,25 @@ enum OfficeFonts {
                 face.classScales = [1, 1, 1, 1, 0.66]
                 #endif
             }
+            // (An embedded face whose font-table entry names an East Asian
+            // charset keeps Word for Windows' East Asian line though its
+            // name is Latin: 1.3 of its own ascent and descent, the extra
+            // split evenly. Lab ft/ft2 (windows, zh-1cfb652b's footer: an
+            // embedded GWZT-EN, charset 86, 0.863 + 0.250): its 14pt mark
+            // stands 14.45 over the baseline at 471 auto and 14.53 single —
+            // 12.08 + 2.34 — and its page number, a box hung from the
+            // paragraph, 6.07 higher than ours at the face's bare 1.113.)
+            if wordOnWindows, let registered = embeddedFamily(family), let entry = fontEntry(family),
+               ["86", "88", "80", "81"].contains(entry.charset.uppercased()) {
+                declaredLock.lock()
+                let line = embeddedLines[registered]
+                declaredLock.unlock()
+                if let line, line.ascent + line.descent > 0.5 {
+                    let h = line.ascent + line.descent
+                    face.naturalHeight = h * 1.3
+                    face.baseline = line.ascent + h * 0.15
+                }
+            }
             return face
         }
         // (A name the table declares Latin still sets East Asian text
@@ -2086,6 +2390,11 @@ enum OfficeFonts {
                                       0x25CB: 0.604].merging(circled(1.0)) { $1 }
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
             }
+            // (The face's own widths past ASCII: SimSun's, `EastAsianFace.otherAdvances`.)
+            if let own = ea.otherAdvances {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(own) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(own) { $1 }
+            }
             // (PMingLiU's en dash is an em, where the run sets it East
             // Asian — hinted, or by its Latin face: zh-05699f05's
             // "（100%+目標值）–基準維護件數】" in 新細明體 sets "–" 12.0 at
@@ -2121,8 +2430,13 @@ enum OfficeFonts {
                 face.otherAdvances = quotes
                 face.boldOtherAdvances = quotes
             }
+            // (And GB2312's primes, ′ and ″ (A1E4, A1E5), an em as well:
+            // zh-38d26944's "＞40″扣30分，方位角闭合差在20″～30″扣5分，＜20″"
+            // in 仿宋 steps 10.44-10.56 at each ″ at 10.5pt in Word for
+            // Windows' print; Starling FangSong's own ″ is 3.32, and the
+            // line took the "＜" Word sends on.)
             if ea.latin == mono, face.otherAdvances == nil {
-                let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1]
+                let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1, 0x2032: 1, 0x2033: 1]
                 face.otherAdvances = gb
                 face.boldOtherAdvances = gb
             }
@@ -2161,6 +2475,10 @@ enum OfficeFonts {
             face.otherAdvances = [0xB7: 0.2407].merging(circled(1.0)) { $1 }
             face.boldOtherAdvances = [0xB7: 0.4395].merging(circled(1.0)) { $1 }
         }
+        if let own = ea.otherAdvances {
+            face.otherAdvances = (face.otherAdvances ?? [:]).merging(own) { $1 }
+            face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(own) { $1 }
+        }
         // A no-break space in a square face is an em, where its space is
         // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +
         // "乙" at 12pt is 12pt a space in 宋体, 黑体, 楷体 and 仿宋, 6pt
@@ -2175,8 +2493,10 @@ enum OfficeFonts {
         if ea.latin == mono, ea.latinAdvances == nil {
             let lower = family.lowercased()
             let nbsp = wordOnWindows && (lower.containsSubstring("標楷") || lower.containsSubstring("dfkai")) ? 0.5 : 1.0
-            face.otherAdvances = [0xA0: nbsp]
-            face.boldOtherAdvances = [0xA0: nbsp]
+            // (And GB2312's primes ′ ″ an em, as in the East Asian face
+            // above: Word counts them the square face's own.)
+            face.otherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
+            face.boldOtherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
         }
         // (Word for Windows sets the letters and digits an embedded subset
         // lacks in Calibri, at Calibri's widths, and those it holds in the

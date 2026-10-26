@@ -649,7 +649,29 @@ Excel's frame and cells stand that far in from the paper's edge in all
 four such workbooks with rules at their left, where a top margin of 0 is
 0 (nine zero-margin workbooks: 4.044 -> 2.254, 7 better, lo-bnc762542,
 centred, +0.06; 49609 19.87 -> 11.64, lo-tdf131575 12.16 -> 4.90).
-Open: their letters' widths in Arial 8 and Microsoft Sans
+A cell merged down over rows is no part of their fit, wrapping or not:
+LIBRE_OFFICE-128382-0's Calibri 14 dates in D22:D23 leave both rows at
+Calibri 11's 14.52 in Excel's print (the 24 workbooks with such merges:
+1.868 -> 1.829, that one 4.97 -> 4.02, nothing worse). A book with no
+font at all and no theme (47889's empty styleSheet, 56278 with no styles
+part) prints in Excel's own default, Aptos Narrow 11, its rows at 15.24:
+all four such books (0.558 -> 0.040, 56278 1.59 -> 0.11). A bold
+face has its own fitted line where the style names no face or size
+(FormulaSheetRange's bold Arial 10, 35 screen pixels, 12.72), and a row
+the file never lists is fitted in its columns' fonts, not the default
+(NumberFormatTests 4.64 -> 3.92, GeneralFormatTests 3.70 -> 3.12).
+Text at a cell's foot stands on its font's fitted line, not its descent:
+the baseline is the fitted line less the face's Windows ascent (cut up
+to whole dots) above the foot, or the row's empty cells' font's where
+that is more (row style, else columns', else the default). The baseline
+lab (~/starling-xls-check/lab-bl, set rows of 20 and 30 pt): 4.02 for
+every face of 8-11 pt in a Calibri 11 book, 3.42 / 3.18 / 3.06 / 2.82
+for Calibri 9 / Arial 10 / Verdana 10 / Microsoft Sans Serif 8.25 books,
+where ours stood 1 px over the descent (3.0, 2.0). 720 workbooks: 0.694
+-> 0.662 with the row fits above, 157 better, 40 worse (chart-tdf98690
+2.64 -> 0.66, lo-functions-excel-2010 2.90 -> 0.93; lo-tdf100034 +0.73,
+46535 +0.59). Open: Verdana 10 books' text stays 0.5 low; top- and
+centre-aligned text (49609) is untouched. Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

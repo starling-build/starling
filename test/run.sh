@@ -16,6 +16,9 @@
 #
 # Not covered here (see the tiers in the release checklist): driving a live
 # desktop, installing real vendor apps, and the VM install/login gate.
+# (Starling's own fonts, whatever this machine has: a harness pins them so no
+# baseline moves with the machine — see OfficeFonts.fontSource.)
+export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"

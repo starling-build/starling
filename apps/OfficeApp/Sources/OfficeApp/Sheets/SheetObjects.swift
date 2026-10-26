@@ -314,7 +314,7 @@ extension FormControl {
         line.color = edge
         let fill = Paint()
         fill.style = .fill
-        var style = GridTextStyle(family: OfficeFonts.substitute(fontFace ?? "Segoe UI"), size: (fontSize ?? 9) * pt, color: Int64(ink.value))
+        var style = GridTextStyle(family: OfficeFonts.drawn(fontFace ?? "Segoe UI"), size: (fontSize ?? 9) * pt, color: Int64(ink.value))
         style.bold = bold; style.italic = italic; style.underline = underline
         func caption(in room: Rect, align: String, clip: Bool = true) {
             guard !text.isEmpty, room.width > 1 else { return }

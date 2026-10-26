@@ -2239,6 +2239,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     letterSpacing: Double? = nil,
     wordSpacing: Double? = nil,
     baselineShift: Double? = nil,
+    scaleX: Double? = nil,
     height: Double? = nil,
     leadingDistribution: TextLeadingDistribution? = nil,
     locale: Locale? = nil,
@@ -2267,6 +2268,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     self.letterSpacing = letterSpacing
     self.wordSpacing = wordSpacing
     self.baselineShift = baselineShift
+    self.scaleX = scaleX
     self.height = height
     self.leadingDistribution = leadingDistribution
     self.locale = locale
@@ -2349,6 +2351,10 @@ public struct TextStyle: Hashable, CustomStringConvertible {
   /// pixels (negative: up) — skparagraph's TextStyle::setBaselineShift,
   /// through the bridge's SetBaselineShift.
   public let baselineShift: Double?
+  /// Starling: the glyphs drawn and advanced this much narrower (under 1)
+  /// or wider — SkFont::setScaleX, through the engine's
+  /// patches/skia-scale-x.patch; nil or 1 for none. (No Dart counterpart.)
+  public let scaleX: Double?
 
   /// The height of this text span, as a multiplier of the font size.
   ///
@@ -2427,6 +2433,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
       && lhs.letterSpacing == rhs.letterSpacing
       && lhs.wordSpacing == rhs.wordSpacing
       && lhs.baselineShift == rhs.baselineShift
+      && lhs.scaleX == rhs.scaleX
       && lhs.height == rhs.height
       && lhs.leadingDistribution == rhs.leadingDistribution
       && lhs.locale == rhs.locale
@@ -2463,6 +2470,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     hasher.combine(letterSpacing)
     hasher.combine(wordSpacing)
     hasher.combine(baselineShift)
+    hasher.combine(scaleX)
     hasher.combine(height)
     hasher.combine(decorationThickness)
     hasher.combine(locale)
@@ -4331,12 +4339,10 @@ extension ParagraphBuilder {
 /// data to C++, which handles encoding internally.
 public class NativeParagraphBuilder: ParagraphBuilder {
   /// Starling: whether a style's `baselineShift` reaches the text — the
-  /// native bridge's SetBaselineShift. skwasm has no such setter.
-  #if os(WASI)
-  public static let supportsBaselineShift = false
-  #else
+  /// native bridge's SetBaselineShift, and in the browser skwasm's
+  /// textStyle_setBaselineShift (ours; Google's published skwasm has none,
+  /// and web-app.sh stages ours).
   public static let supportsBaselineShift = true
-  #endif
 
   /// The C++ bridge object that wraps txt::ParagraphBuilder.
   ///
@@ -4668,6 +4674,14 @@ public class NativeParagraphBuilder: ParagraphBuilder {
       for variation in fontVariations {
         variation.encode(into: &fontVariationsData)
       }
+    }
+
+    // Starling: a horizontal scale, its float's bits in slot 8 (unused
+    // upstream) under mask bit 20 — the engine's paragraph_builder_bridge.cc
+    // and the web bridge read them; an older engine ignores both.
+    if let scaleX = style.scaleX, scaleX != 1 {
+      mask |= (1 << 20)
+      encodedStyle[8] = Int32(bitPattern: Float(scaleX).bitPattern)
     }
 
     // Update the mask in encodedStyle after all bits are set
