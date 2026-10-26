@@ -6500,3 +6500,12 @@ alone at p38's foot; ours filled p38 with two of them (the row code weighed a ke
 the table). Rule: such a run goes over where the page cannot hold it and the first row after it, and one page can — a run
 longer than a page parts as rows do (zh-64044a1d's all-kept equipment list, parted between "8" and "9"). Pair running.
 
+### Sub-twip line fit on character grids (zh-5be7e156 p2, zh-8d6f702e p38) — MEASURED, released (Windows 01QbbApP, 2026-10-26, routed by macos)
+Witnesses: Word takes zh-5be7e156's p2 "冷" 0.011 over half an em (new engine, x0 110.05 against Word's 109.70) and zh-8d6f702e's p38
+"情" 0.007 over; zh-d68ac84a's documented "格" is refused at 0.0016. Lab twip2 (Word for Windows, zh-5be7e156's line in its own section,
+right indent stepped by one twip; modes 14 and 15): in mode 14 ours leaves a character exactly one twip sooner than Word at charSpace
+-842, -1200, -1600 and -3000 and with it at -2000 and -5544 (0 and -400 drop nowhere in the window); mode 15 drops nowhere but at
+0 and -2000, where Word drops and ours not. So ours is never looser than Word, never stricter by more than a twip. A 0.02pt allowance
+on such grids in mode < 15 brings -842 and -1600 to Word's but costs the documents: zh-5be7e156 769 -> 767, zh-8d6f702e 816 -> 801
+(lines elsewhere taken that Word leaves) — reverted. The gap is in how a gridded line's widths sum (a twip either way per line), not
+a tolerance; it needs Word's per-character rounding on a grid, which these labs do not pin. Labs ~/starling-doc-check/lab/{twip,twip2}.
