@@ -2670,9 +2670,12 @@ enum ChartPainter {
         // a tuple `var` that the closures below capture — "Lexical
         // borrows of SILBoxTypes must be of vars or captures" — and the
         // release build dies with exception 3.)
-        // (A value axis across the page — a bar chart's — keeps to eight:
-        // its labels stand side by side, and bar-chart's 8.2 runs 0 to 10
-        // in twos there where the same data up the page goes by ones.)
+        // (A value axis across the page — a bar chart's — takes a step for
+        // each three of its labels' ems, ten at most: its labels stand side
+        // by side. bar-chart's 8.2 on 394pt of 18pt labels runs 0 to 10 in
+        // twos in PowerPoint's print, where the same data up the page goes
+        // by ones; showcase F03's 9.2 on 486pt of 10pt labels runs 0 to 10
+        // by ones in Word for Windows', where eight steps made it twos.)
         // (Over a data table the plot is short, and its value axis takes
         // as many steps as its labels have room for, a label's height
         // each: zh-61aaad09's 45pt plot over its table goes 0 to 800000 in
@@ -2690,7 +2693,8 @@ enum ChartPainter {
         // (A 3-D bar chart's axis has no headroom: zh-b8de3ae2's four, Word's
         // print, run 107,660 to 120,000, 410,306 to 450,000, 130.3M to 140M
         // and 383.3M to 400M — the last 450M with the 5% a flat chart takes.)
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? (c.type == .bar ? 8 : 10),
+        let acrossSteps: Int? = horizontal ? max(2, min(10, Int(area0.width / (3 * labelSize * k)))) : nil
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? 10,
                                                                           headroom: c.barView != nil ? 0 : 0.05)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
