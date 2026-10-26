@@ -6146,3 +6146,6 @@ bundled pinned, Windows mode (word-win refs) and Mac mode, 756 docs each: nothin
 PIN YOUR PRIVATE SWEEP SCRIPTS: export OFFICE_FONT_SOURCE=bundled, or a machine with the real faces scores differently.
 Next: windows checks local mode (showcase F01's line breaks, a couple of corpus docs); the Windows list is the face table,
 not the registry, so a face outside it still falls back to the stand-in — a follow-up if F01 shows it.
+
+### T204. The 3-D pies: zh-27a874b7 (55.4) and zh-d62da4dd (56.6) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, moved from macos-ios by macos)
+Owner: Linux lenovo-2. History above: the pies' geometry matches Word to 3pt (Mac lab piefit); left were three label rules (inside placement, the fit test, outside stacking) and zh-27a874b7's caption 20pt low. Scores from here on the new engine (~/tmp/lenovo2-engine, 8bc30c5c89a).
