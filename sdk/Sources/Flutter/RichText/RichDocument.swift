@@ -2176,6 +2176,15 @@ public struct RichDocument: Hashable, Sendable {
     /// 15 a line's punctuation hangs and gives in a paragraph set any
     /// way; from 15 on only in a justified one.
     public var compatibilityMode: Int? = nil
+    /// Word for Windows, in the legacy mode (no `compatibilityMode`) and
+    /// with the defaults' East Asian face a Latin theme one
+    /// (`w:eastAsiaTheme` minorHAnsi): Han text after a space is one
+    /// word to the next space, which goes to the next line whole and is
+    /// broken by characters where it fills (Windows labs t167, t167b on
+    /// zh-7773163d — its "⚫案例 2：公務人員…" items each break after
+    /// "案例 "; with mode 15, or the face minorEastAsia, they fill the
+    /// line).
+    public var joinsHanAfterSpace = false
     /// Word's `w:useAltKinsokuLineBreakRules`: a closing mark hangs past
     /// the margin by half an em at most, not by all of itself.
     public var hangsHalf = false
