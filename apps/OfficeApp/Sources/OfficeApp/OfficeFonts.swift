@@ -1932,6 +1932,15 @@ enum OfficeFonts {
         face.boldHeight = standIn.boldHeight
         face.boldBaseline = standIn.boldBaseline
         face.setsMath = standIn.setsMath
+        #if os(Windows)
+        // (A face with no bold of its own, which Word emboldens, DirectWrite
+        // emboldens too, and sets each character 5/256 of an em wider for it,
+        // where Word widens it by one unit of the face's em alone: lab `bw`
+        // (Word for Windows, 標楷體, 楷体, 黑体, 仿宋 and 新細明體 at 10 to
+        // 24pt) — bold DFKai-SB 12pt steps 12.014 in Word's print, 12.246 in
+        // ours, and zh-ae2dd08d's bold cell "材料費編列" lost its "列".)
+        if face.boldSpread > 0 { face.boldSpread -= 5.0 / 256 }
+        #endif
         return face
     }
 
