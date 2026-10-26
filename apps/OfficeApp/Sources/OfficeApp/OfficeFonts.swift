@@ -1917,8 +1917,29 @@ enum OfficeFonts {
     /// substitutes that make a stand-in pass for it.
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         let face = standInFace(family, eastAsian: eastAsian)
-        guard let family, let face, let own = installed(family) else { return face }
+        guard let family, let face else { return face }
+        guard let own = installed(family) ?? installedOriginal(of: face.family, for: family) else { return face }
         return installedFace(own, as: face)
+    }
+
+    /// The machine's own face that the stand-in `standIn` is a clone of,
+    /// for a name the machine lacks: the face Word sets the name in. So
+    /// 仿宋_GB2312, which Windows substitutes with FangSong (FontSubstitutes'
+    /// FangSong_GB2312), is FangSong, as Word's print of zh-6d1afa56 has it,
+    /// and a Latin name Word gives Arial or Times New Roman is that. A
+    /// stand-in that is the machine's own face already — the YaHei a 方正
+    /// name is set in — has none, and keeps Word's corrections. An East
+    /// Asian name's Latin is its face's too, not its clone's (a square
+    /// face's Liberation Mono is not Courier New): zh-6d1afa56's
+    /// 仿宋_GB2312 digits are FangSong's in Word's print.
+    static func installedOriginal(of standIn: String, for family: String) -> String? {
+        let n = standIn.trimmingWhitespace().lowercased()
+        let original: String? = isEastAsianFace(family)
+            ? (n == starlingFangSong.lowercased() || fangSongFamily(family) == starlingFangSong ? "FangSong" : nil)
+            : [sans.lowercased(): "Arial", wordSans.lowercased(): "Arial", serif.lowercased(): "Times New Roman",
+               wordSerif.lowercased(): "Times New Roman", mono.lowercased(): "Courier New", calibri.lowercased(): "Calibri",
+               cambria.lowercased(): "Cambria", verdana.lowercased(): "Verdana"][n]
+        return original.flatMap(installed)
     }
 
     /// `face` made the machine's own: the drawn family, and of the stand-in's
@@ -1981,7 +2002,9 @@ enum OfficeFonts {
     /// The family a run named `family` is drawn in (the theme's
     /// `fontFamilyResolver`): the machine's own (`installed`), else the
     /// stand-in (`substitute`, which the layout's rules still read).
-    static func drawn(_ family: String) -> String { installed(family) ?? substitute(family) }
+    static func drawn(_ family: String) -> String {
+        installed(family) ?? installedOriginal(of: substitute(family), for: family) ?? substitute(family)
+    }
 
     /// The machine's faces by name, lowercased: fontconfig's families on
     /// Linux, Core Text's on macOS, and on Windows every family its font
