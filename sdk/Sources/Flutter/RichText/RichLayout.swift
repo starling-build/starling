@@ -716,6 +716,13 @@ public final class RichTextTheme {
             },
             fontFeatures: {
                 var features = disablesLigatures ? [FontFeature("liga", 0), FontFeature("clig", 0)] : []
+                // (Nor contextual alternates, which Word sets only where a run
+                // asks for them (`w14:cntxtAlts`): StarlingFangSong's calt
+                // takes a lone "—" to emdash.unjoined, a glyph no character
+                // maps to, and the PDF's text of zh-8d6f702e's "— 3 —"
+                // footers read "∴ 3 ∴" — its glyph number taken for a code
+                // point, one line a page lost to the reader.)
+                if wordRules { features.append(FontFeature("calt", 0)) }
                 // Word kerns a run only from the size its `w:kern` names
                 // up; the engine kerns every pair. Bug59058's caption in
                 // Times New Roman bold, kerned, fitted "State," on a line
