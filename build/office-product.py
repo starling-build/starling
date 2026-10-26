@@ -17,21 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'ui/office'
 ORIGIN = 'https://office.starling.build'
 APPS = {
-    'word': dict(label='Writer', office='Word', extension='docx', args=[],
+    'writer': dict(label='Writer', office='Word', extension='docx', args=[],
                  example='garden-brief.docx', icon='writer',
-                 title='Free Online Word Editor — Open DOCX, No Login | Starling',
+                 title='Starling Writer — Free Online Document Editor',
                  description='Open, edit, and save Word (.docx) documents in your browser for free. No account or cloud upload. Your files stay on your device.',
                  question='Can I edit a Word document without Microsoft Word?',
                  answer='Yes. Open a .docx file, edit it in Starling Writer, and use Save to download a Word-format copy. You do not need Microsoft Word installed.'),
-    'excel': dict(label='Sheets', office='Excel', extension='xlsx', args=['--sheets'],
+    'sheets': dict(label='Sheets', office='Excel', extension='xlsx', args=['--sheets'],
                   example='garden-budget.xlsx', icon='sheets',
-                  title='Free Online Excel Editor — Open XLSX, No Login | Starling',
+                  title='Starling Sheets — Free Online Spreadsheet Editor',
                   description='Open, edit, and save Excel (.xlsx) spreadsheets online for free. Work with formulas and charts on your device. No account or cloud upload.',
                   question='Can I open an Excel spreadsheet without Excel?',
                   answer='Yes. Open a .xlsx workbook in Starling Sheets to edit cells, work with formulas, and save an Excel-format copy. Excel macros and older .xls files are not supported here.'),
-    'powerpoint': dict(label='Slides', office='PowerPoint', extension='pptx', args=['--slides'],
+    'slides': dict(label='Slides', office='PowerPoint', extension='pptx', args=['--slides'],
                        example='garden-presentation.pptx', icon='slides',
-                       title='Free Online PowerPoint Editor — Open PPTX | Starling',
+                       title='Starling Slides — Free Online Presentation Editor',
                        description='Open, edit, and save PowerPoint (.pptx) presentations for free in your browser. No login or cloud upload. Your files stay on your device.',
                        question='Can I edit a PowerPoint file without PowerPoint?',
                        answer='Yes. Open a .pptx file in Starling Slides, edit the presentation, and save a PowerPoint-format copy. Older .ppt files are not supported here.'),
@@ -103,12 +103,12 @@ def build(runtime, out):
         path = f'/{kind}/' if kind else '/'
         navigation = '<a href="/"' + (' aria-current="page"' if not kind else '') + '><span class="home-symbol" aria-hidden="true">⌂</span>All apps</a>'
         navigation += ''.join(f'<a href="/{key}/"' + (' aria-current="page"' if key == kind else '')
-                              + f'><img src="/assets/starling-{data["icon"]}.svg" width="24" height="24" alt="">{dict(word="Documents", excel="Spreadsheets", powerpoint="Presentations")[key]}</a>' for key, data in APPS.items())
-        actions = ''.join(f'<a class="create-card" href="/{key}/?start=new" data-app="{key}" data-start="new"><img src="/assets/starling-{data["icon"]}.svg" width="40" height="40" alt=""><span><strong>Blank {dict(word="document", excel="spreadsheet", powerpoint="presentation")[key]}</strong><small>{data["label"]} · .{data["extension"]}</small></span><span class="plus" aria-hidden="true">+</span></a>' for key, data in selected.items())
+                              + f'><img src="/assets/starling-{data["icon"]}.svg" width="24" height="24" alt="">{data["label"]}</a>' for key, data in APPS.items())
+        actions = ''.join(f'<a class="create-card" href="/{key}/?start=new" data-app="{key}" data-start="new"><img src="/assets/starling-{data["icon"]}.svg" width="40" height="40" alt=""><span><strong>Blank {dict(writer="document", sheets="spreadsheet", slides="presentation")[key]}</strong><small>{data["label"]} · .{data["extension"]}</small></span><span class="plus" aria-hidden="true">+</span></a>' for key, data in selected.items())
         examples = ''
         for key, data in selected.items():
-            sample = dict(word='Garden handbook', excel='Garden budget', powerpoint='Garden presentation')[key]
-            detail = dict(word='Text, tables, pictures & links', excel='Formulas, charts & five worksheets', powerpoint='Nine slides, charts & speaker notes')[key]
+            sample = dict(writer='Garden handbook', sheets='Garden budget', slides='Garden presentation')[key]
+            detail = dict(writer='Text, tables, pictures & links', sheets='Formulas, charts & five worksheets', slides='Nine slides, charts & speaker notes')[key]
             examples += f'<a class="example-row" href="/{key}/?start=example" data-app="{key}" data-start="example"><img src="/assets/starling-{data["icon"]}.svg" width="28" height="28" alt=""><span><strong>{sample}</strong><small>{detail}</small></span><span class="file-type">.{data["extension"]}</span><span class="example-open">Open <span aria-hidden="true">↗</span></span></a>'
         faq = [(info['question'], info['answer'])] if info else [('Which files can I open?', 'Open .docx documents, .xlsx spreadsheets, and .pptx presentations. Choose a file and Starling opens the matching editor. Older .doc, .xls, and .ppt formats are not supported here.')]
         faq += [('Is it free? Do I need an account?', 'The editors are free and open source. No account, subscription, or credit card is required.'),
@@ -120,11 +120,11 @@ def build(runtime, out):
                       apps={k: {field: data[field] for field in ['label', 'args', 'example']} for k, data in APPS.items()})
         values = dict(
             title=info['title'] if info else 'Free Online Office Suite — No Login | Starling Office',
-            description=info['description'] if info else 'Open and edit Word, Excel, and PowerPoint files for free in your browser. No account, no cloud uploads. Your documents stay on your device.',
+            description=info['description'] if info else 'Starling Writer, Slides, and Sheets: free online document, presentation, and spreadsheet editors. No account or cloud uploads. Your files stay on your device.',
             canonical=ORIGIN + path, path=path, navigation=navigation,
-            heading=f'Free online {info["office"]} editor' if info else 'Your free online office',
-            lead=f'Open, edit, and save {info["office"]} (.{info["extension"]}) files with Starling {info["label"]}, right in your browser.' if info else 'Open, edit, and save Word, Excel, and PowerPoint files with Starling Office, right in your browser.',
-            open_heading=f'Open a {info["office"]} file' if info else 'Open from your device',
+            heading=f'Starling {info["label"]}' if info else 'Your free online office',
+            lead=f'Create and edit {dict(writer="documents", sheets="spreadsheets", slides="presentations")[kind]} in your browser. Open and save {info["office"]} (.{info["extension"]}) files with Starling {info["label"]}.' if info else 'Write with Writer, present with Slides, and work with spreadsheets in Sheets. Open and save .docx, .pptx, and .xlsx files in your browser.',
+            open_heading=f'Open a {dict(writer="document", sheets="spreadsheet", slides="presentation")[kind]}' if info else 'Open from your device',
             file_hint=f'Choose a .{info["extension"]} file from your device.' if info else '.docx, .xlsx, .pptx',
             accept='.' + info['extension'] if info else '.docx,.xlsx,.pptx',
             new_actions=actions, examples=examples,
@@ -134,10 +134,24 @@ def build(runtime, out):
         page = out / path.strip('/') / 'index.html'
         page.parent.mkdir(exist_ok=True)
         page.write_text(template.substitute(values))
+    # Keep previously shared and submitted URLs useful. Pages cannot issue
+    # per-path server redirects; use an immediate refresh plus a script that
+    # preserves launch parameters (for example ?start=example).
+    for old, new in {'word': 'writer', 'excel': 'sheets', 'powerpoint': 'slides'}.items():
+        destination = f'/{new}/'
+        alias = out / old / 'index.html'
+        alias.parent.mkdir(exist_ok=True)
+        alias.write_text(f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starling {APPS[new]['label']}</title><link rel="canonical" href="{ORIGIN}{destination}">
+<meta http-equiv="refresh" content="0;url={destination}">
+<script>location.replace({json.dumps(destination)} + location.search + location.hash);</script>
+</head><body><p><a href="{destination}">Open Starling {APPS[new]['label']}</a></p></body></html>
+''')
     (out / 'CNAME').write_text('office.starling.build\n')
     (out / '.nojekyll').touch()
     (out / 'robots.txt').write_text(f'User-agent: *\nAllow: /\n\nSitemap: {ORIGIN}/sitemap.xml\n')
-    (out / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + ''.join(f'  <url><loc>{ORIGIN}{path}</loc></url>\n' for path in ['/', '/word/', '/excel/', '/powerpoint/']) + '</urlset>\n')
+    (out / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + ''.join(f'  <url><loc>{ORIGIN}{path}</loc></url>\n' for path in ['/', '/writer/', '/slides/', '/sheets/']) + '</urlset>\n')
     provenance = json.loads((runtime / 'build-info.json').read_text()) if (runtime / 'build-info.json').exists() else {}
     (out / 'build-info.json').write_text(json.dumps(dict(runtime=runtime_config, runtime_provenance=provenance), indent=2) + '\n')
     print(f'Packaged product site: {out}')

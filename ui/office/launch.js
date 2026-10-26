@@ -82,7 +82,7 @@ function openFiles(files) {
   if (files.length !== 1) return showError('Please open one file at a time.');
   const file = files[0];
   const extension = file.name.split('.').pop().toLowerCase();
-  const kind = {docx: 'word', xlsx: 'excel', pptx: 'powerpoint'}[extension];
+  const kind = {docx: 'writer', xlsx: 'sheets', pptx: 'slides'}[extension];
   if (!kind) return showError('Choose a .docx, .xlsx, or .pptx file. Older .doc, .xls, and .ppt files aren’t supported here.');
   if (!file.size) return showError('This file is empty. Please choose another file.');
   error.hidden = true;

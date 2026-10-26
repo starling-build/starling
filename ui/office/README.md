@@ -2,8 +2,8 @@
 
 `office.starling.build` is a task-oriented entry to the existing Swift/WASM
 editors. The project landing page remains `openoffice.starling.build`.
-The homepage accepts DOCX, XLSX, and PPTX files; `/word/`, `/excel/`, and
-`/powerpoint/` give each task a useful, crawlable entry page. Each offers opening
+The homepage accepts DOCX, XLSX, and PPTX files; `/writer/`, `/sheets/`, and
+`/slides/` give each task a useful, crawlable entry page. Each offers opening
 a local file, creating a blank file, and editing a bundled example.
 
 The start screen introduces the suite with a short heading, one sentence, and
@@ -47,8 +47,13 @@ with the new URLs ending in `?start=example`, and check the local file workflow.
 For the product page's file picker, run:
 
 ```sh
-python3 test/writer-local-file-web.py --entry-page --url http://127.0.0.1:8152/word/ --out /tmp/product-file-check --load-ms 25000
+python3 test/writer-local-file-web.py --entry-page --url http://127.0.0.1:8152/writer/ --out /tmp/product-file-check --load-ms 25000
 ```
 
 Then verify the domain in Google Search Console and submit `/sitemap.xml`.
 Packaging alone neither creates DNS records nor submits pages to Google.
+
+Product names are Writer, Slides, and Sheets. Microsoft names appear only in
+file-compatibility descriptions. The former `/word/`, `/excel/`, and
+`/powerpoint/` addresses redirect to the branded pages and retain launch query
+parameters. Only canonical branded URLs appear in the sitemap.
