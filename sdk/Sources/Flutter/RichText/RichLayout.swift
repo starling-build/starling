@@ -7137,6 +7137,7 @@ public final class RichLayout {
                     trial.layout(minWidth: textWidth, maxWidth: textWidth)
                     let found = Array(_lineStarts(trial, _OffsetMap(lead: lead != 0 ? 1 : 0, inserts: ins1), count: units.count).dropFirst())
                     trial.dispose()
+
                     if found == wraps { break }
                     wraps = found
                     measure(wraps)
@@ -8461,6 +8462,21 @@ public final class RichLayout {
         // ones 7.5. zh-8415d258's signature opens with 155 of them
         // alternating, over two lines and a part in Word's print; ours
         // set them at the stand-in's 4.3 and the name rose a line.)
+        // (A space in a run that says it is complex script (`w:cs`) keeps
+        // its face's width: Word for Windows' print of zh-6a4fc013 sets
+        // "คำถามที่ 4 ：" with Browallia's 3.5pt spaces beside the full-width
+        // colon, where half an em took its line's 4.4pt and sent the
+        // question's text down.)
+        var complexSpaces: Set<Int> = []
+        if theme.wordRules, document.balancesSpaceWidth {
+            var start = 0
+            for r in p.runs {
+                defer { start += r.length }
+                guard let kept = r.style.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs w:val=\"1\"")
+                    || kept.containsSubstring("<w:cs w:val=\"true\"") || kept.containsSubstring("<w:cs w:val=\"on\"") else { continue }
+                complexSpaces.formUnion(start ..< start + r.length)
+            }
+        }
         if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
             var at = 0
             var run: [Int] = []
@@ -8471,9 +8487,9 @@ public final class RichLayout {
                 guard !run.isEmpty, document.balancesSpaceWidth else { return }
                 func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) } ?? false }
                 if nbsp.isEmpty {
-                    if !(latin(left) && latin(right)) { wideSpaces.formUnion(run) }
+                    if !(latin(left) && latin(right)) { wideSpaces.formUnion(run.filter { !complexSpaces.contains($0) }) }
                 } else if let first = run.first(where: { !nbsp.contains($0) }) {
-                    wideSpaces.formUnion(run.filter { $0 >= first })
+                    wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
                 }
             }
             for ch in p.text {
@@ -9570,7 +9586,17 @@ public final class RichLayout {
                         spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
                         inserts.append(offset + 1)
                     } else {
-                        spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
+                        // (The engine spaces every glyph, so a Thai letter
+                        // drawn with its marks as several takes its share
+                        // on each: Cordia's "คำ" is three glyphs, and the
+                        // 0.5pt it wanted made zh-6a4fc013's every "คำ"
+                        // 1.5 wider; "คำถามที่ 4 ：" ran a point long and
+                        // sent its question to the next line.)
+                        var spacing = (s.letterSpacing ?? 0) + extra
+                        if theme.wordRules, ch.unicodeScalars.count > 1, let u = ch.unicodeScalars.first?.value, u >= 0x0E00, u < 0x0E80 {
+                            spacing /= Double(_glyphCount(s, ch))
+                        }
+                        spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: spacing)))
                     }
                     start = after
                 }
@@ -10398,6 +10424,23 @@ public final class RichLayout {
         return w
     }
     private var _spaceWidths: [String: Double] = [:]
+    /// How many glyphs the engine draws `ch` in (at least 1): what a
+    /// spacing on it is taken that many times by, the engine spacing
+    /// each glyph of a cluster.
+    private func _glyphCount(_ style: TextStyle, _ ch: Character) -> Int {
+        let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+        if let n = _glyphCounts[key] { return n }
+        func width(_ spacing: Double) -> Double {
+            let t = TextPainter(text: TextSpan(text: String(ch), style: style.copyWith(letterSpacing: spacing)), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.width
+        }
+        let n = max(1, Int((width(10) - width(0)) / 10 + 0.5))
+        _glyphCounts[key] = n
+        return n
+    }
+    private var _glyphCounts: [String: Int] = [:]
 
     /// Paints a paragraph that has characters of a scale of their own
     /// (`CharStyle.horizontalScale`, Word's `w:w`) and says so — false

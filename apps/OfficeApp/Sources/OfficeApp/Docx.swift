@@ -4685,7 +4685,9 @@ enum DocxFormat {
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
-            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout":
+            // (`w:cs`, the run's text taken as complex script, kept for
+            // the layout too: see `RichLayout`'s wide spaces.)
+            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout", "w:cs":
                 if child.name == "w:position", let v = Double(child["w:val"] ?? "") { cs.raised = v / 2 }
                 // (The character scale, for the layout too.)
                 if child.name == "w:w", let v = Double((child["w:val"] ?? "").replacingAll("%", with: "")), v > 0 {
@@ -4739,7 +4741,7 @@ enum DocxFormat {
         if !keptRun.isEmpty {
             var all = _keptRunProperties(base.keptXML)
             for (k, v) in keptRun { all[k] = v }
-            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
+            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
