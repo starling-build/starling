@@ -6401,3 +6401,8 @@ the line's marks' squeeze — 12 of the 65 kinsoku-0 documents fell (zh-c15af02e
 zh-c5b5087b 100 -> 42.1, zh-8628cfbe itself 93.3 -> 75.3), reverted. So Word does squeeze for a closing mark there; what
 keeps this line's "，" whole is something else (the cell? overflowPunct 0? the mark after an ideograph and before one?).
 
+### T213. zh-64044a1d: 93.5 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-26, from macos's w15 list)
+p28's foot: "(七)上班上課情形" (heading 4, kept with the next by heading 1's keepNext; one 18pt line and 9 after) has 25.9pt
+of room; ours set it there alone, Word opens p29 with it and the five kept headings after. The run's first member fits by its
+lines but not with its space after, so the next member cannot start on the page: the run goes over. Pair running.
+
