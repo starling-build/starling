@@ -11831,6 +11831,14 @@ public final class RichLayout {
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail) && !afterLatin
+                    // (Nor, before 2013's layout where marks are compressed, a
+                    // Latin closing quote: lab `z01` (Word for Windows,
+                    // zh-015abfaf's package, mode 14, 16pt) takes "…比学赶帮超”"
+                    // only while its "，" can give what the pair stands over —
+                    // 7.14 at a right indent of -6pt, the line ending at the
+                    // margin — and never hangs the 6.57pt "”"; ours hung it and
+                    // took the pair 6pt further. Mode 15 takes it further.)
+                    && !(legacy && squeezes && document.hangsHalf && (units[tail] == 0x201D || units[tail] == 0x2019) && !wideQuote(tail))
                     ? (closesUp(tail) || document.hangsHalf || closedUpTo ? min(ems[tail] * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
                 // (From 2013's layout, where marks are compressed, the
                 // paragraph's last mark hangs only once the line's marks,
