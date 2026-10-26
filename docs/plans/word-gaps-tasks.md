@@ -6305,6 +6305,10 @@ same-size Latin stretch whose Word box fits inside the East Asian face's keeps `
 Partial dropped (windows, 2026-10-26): Word holds the 宋体+Courier lines at 13.0 but gives a line of Courier "16" alone its own
 11.1 — a height per line, which one strut per paragraph cannot give (forced, "16" would stand 13.0). Needs per-line heights in
 our own line layout: a model change, open for whoever takes line metrics next.
+SCOPED (Linux 01F2SWc8, 2026-10-26, for macos; temporary probe, not committed; tip 545f015d+, engine 5357bf0b374): over all 756 documents, paragraphs that mix faces of different line heights, and their lines by kind —
+- Windows mode: 5,061 such paragraphs (19,597 lines). Lines held by our one strut to a taller face they don't contain: 8, in 4 documents. Mixed lines in paragraphs given no strut (the engine stacks each face's box, where Word takes the tallest above + the tallest below): 153, in 46 documents. 48 documents in all; 35 of them already at 99+; the 13 under 99 have 1-12 such lines each (zh-7a16a243 12, zh-ae2dd08d 4, zh-7773163d 3, zh-31d580df 3, …). zh-0978dee9 itself is 99+.
+- Mac mode: 7,343 paragraphs (25,355 lines). Held short: 345 in 21 documents, nearly all zh-72da925e (163) and zh-86547e97 (71) — line-grid paragraphs, where holding every line to the tallest is Word's rule (zh-64044a1d), so most are probably right as they are. Stacked mixed: 380 in 55 documents (bug59058 180, zh-0978dee9 48). 24 of the 69 under 99.
+Verdict: not worth building now. At most a few tenths on a dozen documents a mode, against a model change that touches the engine's line metrics (one strut per paragraph today; per-line heights need an engine hook or a painter per line), _strut/_tallestOnEveryLine, the fitter's line boxes, pagination cuts (_lineBottoms) and caret/selection rects. Revisit if a lab shows the stacked-mixed lines are a whole-paragraph drift somewhere.
 
 ### T208. zh-8d6f702e: 86.1 against word-win — DONE a506e241 -> 90.8, the rest a witness (Linux office1, starling-office1-95, 2026-10-25)
 Engine 8bc30c5c89a, tip dab58685: 125 lines missed — one on nearly every page (p1-p37), and p38-p42 most of each.
