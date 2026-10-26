@@ -1901,8 +1901,18 @@ public final class RichLayout {
         // out — what the places below were measured against: zh-b0401810's
         // spaced "职业资格证书…", and zh-f2835e26's "综 合 实 力" (36 and 33
         // twips), which stood 2pt high in Word's print without it.)
+        // (Not where the engine set the line centred or to the right with
+        // room to spare: there its alignment replaced that shift — Skia's
+        // TextLine::format assigns it — and zh-b0401810's centred
+        // "职业资格证书…" (51 twips) never had it.)
+        let lineMetrics = painter.computeLineMetrics()
         func lead(_ k: Int) -> Double {
             let start = painter.getLineBoundary(TextPosition(offset: k)).start
+            if painter.textAlign == .center || painter.textAlign == .right || painter.textAlign == .end,
+               let line = lineMetrics.first(where: { m in
+                   let b = painter.getLineBoundary(TextPosition(offset: k))
+                   return painter.getLineBoundary(painter.getPositionForOffset(Offset(m.left + 0.01, m.baseline))).start == b.start
+               }), line.width < painter.width - 0.01 { return 0 }
             return (styles.indices.contains(start) ? styles[start]?.letterSpacing ?? 0 : 0) / 2
         }
         for (n, k) in shown.enumerated() {
