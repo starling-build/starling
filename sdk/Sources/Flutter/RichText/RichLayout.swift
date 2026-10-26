@@ -1159,6 +1159,9 @@ public final class RichLayout {
     /// spans its page's text: past it the child keeps its saved grid and
     /// its content overflows (pixels; nil elsewhere).
     private var _nestedCap: Double? = nil
+    /// A turned text box's layout (`RichTextBox.textDirection` not across):
+    /// its lines run along the box's height.
+    private var _turnedBox = false
     /// A nested table whose autofitting parent fitted its column narrower
     /// than the child's saved width: a share of it is a share of that
     /// column, under the saved grid too (lab dr2/h).
@@ -8512,6 +8515,19 @@ public final class RichLayout {
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
             .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        // (In a turned text box a first line indented past the line's
+        // length holds its first character alone, the rest from the next
+        // line: zh-b24b396a's "30" dimension labels — vert270 boxes 7.8pt
+        // long, a 15pt first-line indent — set "3" at the indent, past the
+        // box, and "0" on a line of its own in Word for Windows' print;
+        // the engine kept the number whole on one line. Turned boxes only:
+        // forcing the break across took zh-9e020c95 99.6 -> 19.7, where the
+        // line part there anyway.)
+        if theme.wordRules, _turnedBox, let index, _px(firstLineIndent(p, at: index, document)) > textWidth + 0.01,
+           let ch = p.text.first(where: { $0 != "\u{FFFC}" }), let at = p.text.firstIndex(of: ch) {
+            let next = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at) + ch.utf16.count
+            if next < p.text.utf16.count { wideStarts.insert(next) }
+        }
         // (Before a "×" or "÷" after an ideograph or a full-width mark Word
         // may part a line, as between ideographs; the engine takes "％×1.2"
         // for one word. zh-7a16a243's "…可達560％×1.2=672％)" ends a line at
@@ -14762,6 +14778,7 @@ public final class RichLayout {
         layout._nestedNarrowed = fitted.map { $0 < image.width - 0.5 } ?? false
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
+        layout._turnedBox = box.textDirection != .horizontal
         layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))
             : max(1, _px(image.height - box.insetTop - box.insetBottom))
         layout.ensureLaidOut(sub)
