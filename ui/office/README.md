@@ -73,3 +73,20 @@ repackaged runtimes apply `build/tools/office_web_fonts.py`; the effective font
 manifest is included in the runtime URL hash. The launcher overlaps fetching
 the manifest and host module. See `docs/perf/office-web-startup-20261026.md`
 for measured improvements and rendering checks.
+
+The product launcher preloads the app and renderer only after an editor action.
+Standalone Office pages preload these assets and the font manifest in the HTML
+head. Their URLs match the versioned runtime fetches, so each asset downloads
+once; visiting the product introduction does not download an editor.
+
+For smaller standard-gzip release assets, install `zopfli` in a build-only
+Python environment and set `STARLING_ZOPFLI_PYTHON` to that interpreter when
+running `build/web-app.sh`. Alternatively, before packaging an existing stage:
+
+```sh
+/path/to/build-venv/bin/python build/tools/optimize-web-gzip.py /path/to/stage/app.wasm.gz
+```
+
+This optional step verifies the decompressed bytes and keeps the smaller file.
+It adds no browser dependency. Repackage after compression so asset versions
+reflect the final bytes.

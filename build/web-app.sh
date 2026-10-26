@@ -302,6 +302,13 @@ for f in "$STAGE/app.wasm" "$STAGE/skwasm/skwasm.wasm"; do
     gzip -9 -k -f "$f"
 done
 
+# Opt-in release compression; use a Python with the build-only zopfli package.
+# The output remains standard gzip and decodes to the same WASM bytes.
+if [ -n "${STARLING_ZOPFLI_PYTHON:-}" ]; then
+    "$STARLING_ZOPFLI_PYTHON" "$REPO/build/tools/optimize-web-gzip.py" \
+        "$STAGE/app.wasm.gz" "$STAGE/skwasm/skwasm.wasm.gz"
+fi
+
 echo "staged  $STAGE  ($CONFIG, $SWIFT_SDK; $SKWASM_LABEL)"
 if [ "$CHECK" = 1 ]; then
     # A --check without a build has no fresh why-extract; say so rather

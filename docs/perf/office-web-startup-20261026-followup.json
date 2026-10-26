@@ -1,0 +1,168 @@
+{
+  "before": [
+    {
+      "measuredAt": "2026-10-26T09:10:43.755Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "readyMs": 9801.200000047684,
+          "settledMs": 10345.299999952316,
+          "document": "Document1",
+          "cache": "cold",
+          "transferBytes": 11967564,
+          "appRequestCount": 1,
+          "appStartMs": 311.7000000476837
+        },
+        {
+          "readyMs": 455.2000000476837,
+          "settledMs": 504.60000014305115,
+          "document": "Document1",
+          "cache": "warm",
+          "transferBytes": 0,
+          "appRequestCount": 1,
+          "appStartMs": 74.60000014305115
+        }
+      ]
+    },
+    {
+      "measuredAt": "2026-10-26T09:11:07.505Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "readyMs": 9847.399999856949,
+          "settledMs": 10411.599999904633,
+          "document": "Document1",
+          "cache": "cold",
+          "transferBytes": 11967564,
+          "appRequestCount": 1,
+          "appStartMs": 280.39999985694885
+        },
+        {
+          "readyMs": 455.40000009536743,
+          "settledMs": 503.7999999523163,
+          "document": "Document1",
+          "cache": "warm",
+          "transferBytes": 0,
+          "appRequestCount": 1,
+          "appStartMs": 70.09999990463257
+        }
+      ]
+    },
+    {
+      "measuredAt": "2026-10-26T09:11:31.124Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "readyMs": 9720.100000143051,
+          "settledMs": 10286.400000095367,
+          "document": "Document1",
+          "cache": "cold",
+          "transferBytes": 11967564,
+          "appRequestCount": 1,
+          "appStartMs": 276.2000000476837
+        },
+        {
+          "readyMs": 441.90000009536743,
+          "settledMs": 500.7999999523163,
+          "document": "Document1",
+          "cache": "warm",
+          "transferBytes": 0,
+          "appRequestCount": 1,
+          "appStartMs": 70.70000004768372
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "measuredAt": "2026-10-26T09:10:55.460Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "readyMs": 9375.400000095367,
+          "settledMs": 9933.400000095367,
+          "document": "Document1",
+          "cache": "cold",
+          "transferBytes": 11632029,
+          "appRequestCount": 1,
+          "appStartMs": 159.79999995231628
+        },
+        {
+          "readyMs": 441.89999985694885,
+          "settledMs": 490.2999999523163,
+          "document": "Document1",
+          "cache": "warm",
+          "transferBytes": 0,
+          "appRequestCount": 1,
+          "appStartMs": 56.89999985694885
+        }
+      ]
+    },
+    {
+      "measuredAt": "2026-10-26T09:11:19.141Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "readyMs": 9413.799999952316,
+          "settledMs": 9981.299999952316,
+          "document": "Document1",
+          "cache": "cold",
+          "transferBytes": 11632029,
+          "appRequestCount": 1,
+          "appStartMs": 161.90000009536743
+        },
+        {
+          "readyMs": 445.5,
+          "settledMs": 494.2999999523163,
+          "document": "Document1",
+          "cache": "warm",
+          "transferBytes": 0,
+          "appRequestCount": 1,
+          "appStartMs": 57.799999952316284
+        }
+      ]
+    },
+    {
+      "measuredAt": "2026-10-26T09:11:42.698Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "readyMs": 9357.100000143051,
+          "settledMs": 9950.600000143051,
+          "document": "Document1",
+          "cache": "cold",
+          "transferBytes": 11632029,
+          "appRequestCount": 1,
+          "appStartMs": 167.5
+        },
+        {
+          "readyMs": 440,
+          "settledMs": 488.90000009536743,
+          "document": "Document1",
+          "cache": "warm",
+          "transferBytes": 0,
+          "appRequestCount": 1,
+          "appStartMs": 57.09999990463257
+        }
+      ]
+    }
+  ]
+}

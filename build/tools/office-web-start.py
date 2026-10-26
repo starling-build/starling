@@ -2,6 +2,7 @@
 """Configure a staged Office page to open its bundled, editable example."""
 import argparse
 import hashlib
+import html as html_module
 import json
 from pathlib import Path
 import re
@@ -48,6 +49,18 @@ def configure(site: Path, app: str) -> None:
     html = re.sub(
         r"(?P<prefix>fonts:\s*['\"])(?P<asset>fonts/manifest\.json)(?:\?[^'\"]*)?(?P<quote>['\"])",
         version, html)
+    # Match the final, versioned fetch URLs exactly. Refresh on every configure
+    # so a previously staged page cannot preload an obsolete app or manifest.
+    html = re.sub(r'<!-- office-preloads -->.*?<!-- /office-preloads -->\n?', '', html, flags=re.S)
+    app_url = re.search(r"app:\s*['\"]([^'\"]+)['\"]", html).group(1)
+    renderer = re.search(r"skwasmBase:\s*['\"]([^'\"]+)['\"]", html).group(1)
+    fonts_url = re.search(r"fonts:\s*['\"]([^'\"]+)['\"]", html).group(1)
+    preloads = '<!-- office-preloads -->\n' + ''.join(
+        '<link rel="preload" as="fetch" crossorigin="anonymous" href="'
+        + html_module.escape(url, quote=True) + '">\n'
+        for url in [app_url, renderer + 'skwasm.wasm', fonts_url]
+    ) + '<!-- /office-preloads -->\n'
+    html = html.replace('</head>', preloads + '</head>', 1)
     (site / 'examples').mkdir(exist_ok=True)
     shutil.copy2(example, site / 'examples' / name)
     page.write_text(html)

@@ -62,3 +62,39 @@ node test/office-startup-web.mjs \
 Omit the network options for an unthrottled live-site check. The tool starts
 its own temporary browser profile and records cold and warm loads, resource
 sizes, phases, first-frame time, and when pending font downloads finish.
+
+## Follow-up: earlier downloads and stronger gzip
+
+The next pass preloads the app and renderer at the moment an editor action
+starts, overlapping their transfer with the host's JavaScript import chain.
+The standalone Office packager emits matching, versioned preload links in the
+HTML head, including the font manifest. The product introduction still fetches
+no runtime before an action.
+
+An optional build-only Zopfli step shrinks the app's gzip file from 7,722,647
+to 7,386,914 bytes. Decompressing either produces the exact same 21,210,560-byte
+WASM binary. Browser decoding and app code are unchanged. The optional build
+setting is `STARLING_ZOPFLI_PYTHON`, pointing to a Python with `zopfli` installed.
+Existing stages can use `build/tools/optimize-web-gzip.py` before packaging.
+
+Same controlled conditions as above, three fresh profiles per version and a
+cached reload each. Before is the already optimized font-loading deployment;
+after adds preload and stronger gzip. Run summaries are in
+[office-web-startup-20261026-followup.json](office-web-startup-20261026-followup.json).
+
+| Median metric | Before | After |
+| --- | ---: | ---: |
+| First frame, cold | 9.80 s | 9.38 s |
+| Fonts settled, cold | 10.35 s | 9.95 s |
+| Same-origin startup resource transfers | 11.97 MB | 11.63 MB |
+| App download begins after navigation | 280 ms | 162 ms |
+| First frame, cached | 0.46 s | 0.44 s |
+
+This is an additional 4% improvement in first-frame time under the tested
+network conditions. Cached timing is essentially unchanged. Each preloaded
+app and renderer downloaded once, with no duplicate requests. Blank Writer
+screenshots were pixel-identical. Writer, Slides, and Sheets examples opened
+and saved with existing content checks passing. Standalone Writer also saved
+its populated example and fetched each preloaded resource once. Packaging was
+checked for idempotence and matching content versions; gzip checks cover
+byte preservation, repeated compression, and invalid-input rejection.

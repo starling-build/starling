@@ -44,6 +44,17 @@ async function launch(kind, mode, file) {
       args = [app.example];
     }
     const runtime = config.runtime;
+    // Start the large downloads as soon as the user opens an editor. Waiting
+    // for the host module and its imports adds several network round trips.
+    // Matching fetch's CORS mode lets the host reuse these responses.
+    for (const href of [runtime.app, runtime.renderer + 'skwasm.wasm']) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'fetch';
+      link.crossOrigin = 'anonymous';
+      link.href = href;
+      document.head.append(link);
+    }
     // Fetch the manifest alongside the host module and its imports, saving a
     // network round trip before the host can start the required font downloads.
     const [{startStarling}, fonts] = await Promise.all([
