@@ -6149,6 +6149,19 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   1621 -> 1656 (bundled 1621), body and digits FangSong as in Word's print; zh-053f8706 1414 holds (now FangSong); zh-ae2dd08d,
   zh-505b9619, zh-0978dee9, bug65649, Bug51170 unchanged; bundled identical. On Mac and Linux local mode too, a clone's original
   is drawn where installed (e.g. Arial for a name given Liberation Sans).
+- zh-5be7e156 p1 ("家" taken where Word leaves it) — CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos). wip/t5be-markhalf =
+  01f376fe in macos' pairs: a mark set half wide beside another keeps half its condensed width (Word: "）、" "》（" 7.6 at
+  spacing -0.6 balanced, grid -0.21; ours 7.3). Lab fit2 (that line justified in p1's section, right indent in 0.25pt steps):
+  Word leaves "家" from 1.75pt inside, ours from 1.25 outside before, 0.25 inside after; 595 -> 596, first miss p1 -> p7.
+  Labs, Word for Windows, zh-5be7e156's package: mk — in mode 14 commas, 、, ：；, （）, 《》 and “” all give alike, to half an em
+  (ours = Word, 42 cases); dg2 — the digit/ideograph automatic space is a quarter em as ours under grid, balance and spacing
+  (Word's 7.4 on p1 is justification slack put into that space); grid — under linesAndChars, Word's printed advance is size +
+  charSpace/4096 within ~0.03 for charSpace -842/-400/+400/+1000 at 10.5-22pt, as ours (no change to the flat model). thr — the
+  take threshold on a two-comma line in p1's section: grid type `lines` Word = ours; linesAndChars Word leaves the character
+  1.0-1.5pt sooner than ours at charSpace 0 or -842, spacing 0 or -6, and holds one character fewer at charSpace 0 (27 to
+  28 under `lines`): the residual (p7's "库", ~1.3pt) is how a linesAndChars grid sets the line's cells for the fit, not
+  the charSpace width. Next: a cell lab under linesAndChars (measure, indent, N cells). Labs ~/starling-doc-check/lab/
+  {fit,fit2,nat,mk,dg2,grid,thr} on the Windows box.
 - T204 ("mode 14 compresses no punctuation") — MEASURED Windows 01QbbApP 2026-10-25, premise wrong, released. Lab cm (each
   document's package, compatibilityMode 14 -> 15): zh-5be7e156 and zh-015abfaf break their first-miss lines as ours at 15, not at
   14; zh-57f1de0d's line is the same at both (Word keeps 》 and ： whole in its embedded 方正仿宋_GBK, ours 13.35). But labs m14b-e
