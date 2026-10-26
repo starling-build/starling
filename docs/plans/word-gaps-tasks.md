@@ -6293,3 +6293,13 @@ and 0. It contradicts zh-d68ac84a (RichLayout ~11316: mode 14, charSpace -5544, 
 12, charSpace -849, doNotUseEastAsianBreakRules. No single tolerance or twip rounding fits both: a third witness (a mark
 giving exactly its half, on a character grid) would decide between mode, grid and the break-rules switch. Also (3)'s "："
 hangs half past the margin in Word's print though the style says overflowPunct 0. Not mine; windows has the numbers.
+
+### T209. zh-4adfcce2 (Mac mode): the title under the top box stands 2.1pt high once at the box's foot — CLAIMED (Linux office1, starling-office1-95, 2026-10-26, routed by macos from lenovo-2's T205 find)
+Not the title's line: bold 標楷體 14pt is Microsoft YaHei Bold in Mac Word's print, YaHei's line is ~1.72 em (the 12pt body cells
+step 20.4-20.64 there, ours alike), and 24.2 = 1.73 x 14 is right; lenovo-2's 18.4 was an inference, not a measure. Mac Word sets
+the title at the box's foot (baseline 153.84 = foot 135.37 + 0.45 effect + YaHei bold's 17.75 + 0.28). What differs is the box:
+Mac Word's 88.32-135.37, ours 86.5-133.55, and word-win's 77.75-124.8 — posOffset +5.75 from its paragraph, so the paragraph
+stands 10.57 under the 72pt margin in Mac Word, 8.75 in ours, 0 in Windows'. Mac Word's print also has a 12pt PMingLiU " " at
+baseline 78.48 (Standard's 新細明體, the anchor run's?) that no other print or ours shows. Next: a Mac Word lab on the reference
+point of a paragraph-relative box in a paragraph whose first line cannot stand beside it.
+
