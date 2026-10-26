@@ -6001,7 +6001,7 @@ smaller-mark case, where "温" starts there) is not built. A first build without
 zh-291fcea7 (page-anchored tables) 20 and zh-cec9d337 (a centred 26-row table) 33. Same-base pair, 756: zh-7eba7349 81.5 ->
 100, nothing else moved. Rechecked on the tip after 65510187.
 
-### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — MEASURED, PARKED (Linux office1, starling-office1-95, 2026-10-25)
+### T194. zh-20c1d74a p15: four empty paragraphs, 13.8 each, the fourth on p16 in Word — CLAIMED (Mac 7bd18d8e, macOS-doc, 2026-10-25, taken over from office1, routed by macos)
 Owner: Linux office1, routed by macos (windows' lab, board f6738fc2). Check whether ours carries two, or sizes them taller.
 Ours carries two: p15's text stands 1.65-1.99pt low from its first body line ("附件一之一" at 80.79 to Word's 78.96, the
 form's top rule 110.17 to 108.14), so its third empty paragraph passes the foot. The offset comes before the table: p15 opens
