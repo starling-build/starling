@@ -5184,7 +5184,13 @@ Base w7 is the tip on the reprinted references: zh 73.6, POI 89.4. With the refi
 - **Missing faces:** test/corpus/docx/word-win-missing-faces.txt lists the 332 zh documents that still name a face this box lacks, not embedded and mostly 方正. windows' fresh-process check found their fallback stable. Still, measure the fallback before fitting a rule to any of them.
 - Next (bd's go-ahead): T160, the Mincho fallback for a missing Latin-named face with no table entry.
 
-### T167. zh-7773163d: 14.3 at w9, Word for Windows 66 pages against ours 61 — CLAIMED (Mac 01Xgpbk5, 2026-10-24), Windows labs DONE (t167, t167b, t167c); engine side with macos-ios
+### T167. zh-7773163d: 14.3 at w9, Word for Windows 66 pages against ours 61 — DONE ff01e2d6: 93.9, 66/66 (Mac 01Xgpbk5, 2026-10-25), Windows labs DONE (t167, t167b, t167c); engine side with macos-ios
+DONE ff01e2d6 (Mac 01Xgpbk5): (1) xml:space is inherited — the document's w:document says "preserve", and ours stripped the
+edge spaces of its 316 runs ("<w:t>案例 </w:t>"), so there was no space to break after; (2) the labs' rule as
+RichDocument.joinsHanAfterSpace (no compatibilityMode + rPrDefault eastAsiaTheme minorHAnsi/majorHAnsi/…Ascii): Han after a
+space joined to the next space, in the spans and as one piece in the East Asian fitter, Windows mode only. Either alone:
+14.3. Pair w45 -> w46: 14.3 -> 93.9, nothing else moved; Mac refs 90.1 -> 96.0 (zh-202582e2, the other root-preserve doc,
+98.6 held). No engine change needed. Left (93.9) not looked at. Released.
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t167, each variant fresh: **the legacy compat mode**, an empty <w:compat>
 with no compatibilityMode. In it, Word for Windows treats Han text after a breakable space (ASCII or U+3000) as one
 unbreakable word. So the line breaks at the space, then force-breaks by characters.
