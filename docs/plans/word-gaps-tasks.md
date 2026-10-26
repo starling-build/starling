@@ -5190,7 +5190,10 @@ edge spaces of its 316 runs ("<w:t>案例 </w:t>"), so there was no space to bre
 RichDocument.joinsHanAfterSpace (no compatibilityMode + rPrDefault eastAsiaTheme minorHAnsi/majorHAnsi/…Ascii): Han after a
 space joined to the next space, in the spans and as one piece in the East Asian fitter, Windows mode only. Either alone:
 14.3. Pair w45 -> w46: 14.3 -> 93.9, nothing else moved; Mac refs 90.1 -> 96.0 (zh-202582e2, the other root-preserve doc,
-98.6 held). No engine change needed. Left (93.9) not looked at. Released.
+98.6 held). No engine change needed. Then 93.9 -> 95.3 (see the next commit's log: joined words as one piece in the
+East Asian fitter and not hung; list labels spaced past nothing clamped). LEFT, released: p17's page-top first baseline
+3.45pt low (a ⚫ list item in 20pt; ours 88.55, Word 85.1); p44 Word sets "，" at a line's start where ours keeps
+"規定，"; its labels stand 8.65pt left of Word's until the engine's half-spacing line shift goes (wip/no-line-shift-sdk).
 [LAB DONE Windows 01QbbApP 2026-10-24, lab t167, each variant fresh: **the legacy compat mode**, an empty <w:compat>
 with no compatibilityMode. In it, Word for Windows treats Han text after a breakable space (ASCII or U+3000) as one
 unbreakable word. So the line breaks at the space, then force-breaks by characters.
