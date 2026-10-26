@@ -6101,16 +6101,26 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
 - T202. WordArt and shape effects — DONE macOS-doc (Mac 7bd18d8e, f4270dcb + f890482c): F13 Arch Up (VML WordArt) collapses to a small mark,
   Wave and Curve Up differ; F14 blur, fill overlay and inner shadow dropped.
   DONE: (1) Arch Up: the textpath's text was laid out at fontSize 36 in the canvas's pixels (20 a point), 1.8pt high; it now takes its font-size in points, and a fitted path (fitshape/fitpath) runs the arc's length — about 52pt, as in Word's print. Wave and Curve Up: their VML adj come out at DrawingML's defaults (9931/21600 is 45977 exactly), and they look as Word's; not changed. (2) F14: a:fillOverlay blended into the box's solid fill (Word's 963F46), a:blur as a blurred fill, a:innerShdw dark on the side dir points to (45°: bottom and right in Word's print — the opposite of what Slides' painter does; its tdf99030 untouched). Pair w62 -> w63: no score moved, four PDFs changed below a visible difference. Released.
-- T203. Installed fonts by default — CLAIMED office1, the user's decision (2026-10-25): "give user the choice, default to local
+- T203. Installed fonts by default — DONE 5997dae3 (office1), the user's decision (2026-10-25): "give user the choice, default to local
   font". A document's face that the machine has is drawn in it; a setting (kept across launches) picks the bundled stand-ins
   instead; an env override (e.g. OFFICE_FONT_SOURCE=bundled) pins every harness to bundled, so no baseline moves. The
   stand-in corrections (SimSun Latin widths, the Mincho baseline, …) apply only to stand-ins. windows checks local mode on Windows.
   Found: on Windows ours embeds Carlito / Caladea / Liberation for Calibri / Cambria / TNR though the real faces are
   installed; F01's Georgia, Garamond, Century Gothic and Consolas come out at other sizes or widths (0.84 against LibreOffice's 0.98).
 
-### T203. Installed fonts by default, Starling's stand-ins as a setting — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T203. Installed fonts by default, Starling's stand-ins as a setting — DONE 5997dae3 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos (the user's decision, from the office comparison report, 4610d248). A family the
 machine has is drawn in it; otherwise today's mapping. A setting ("Use fonts installed on this computer", default on / "Use
 Starling's matching fonts"), kept across launches; bundled only where there is no local list (web). OFFICE_FONT_SOURCE=
 bundled|local wins over it, and every harness pins bundled. Stand-in corrections keyed to "this is the stand-in". Gate: a
 same-base pair, bundled pinned, moves nothing in Windows and Mac modes; then windows checks local mode (showcase F01).
+Done 5997dae3. OfficeFonts.face() draws an installed family as itself (its own metrics; the stand-in's corrections are
+not applied), else the old mapping (now standInFace). The installed list: the Windows face table on Windows, CoreText's family
+names on macOS, `fc-list : family` on Linux; WASI is always bundled. Backstage has an Options page with the two choices,
+saved in office-settings.txt (key fonts=installed|bundled); it applies to documents opened afterwards. OFFICE_FONT_SOURCE wins
+and the page says so. Drawing sites (sheets, slides, charts, math, PDF markup, ribbon, convert, dumps) all go through
+OfficeFonts.drawn. Every test/ harness and corpus script now defaults OFFICE_FONT_SOURCE=bundled. Gate: same-base pairs with
+bundled pinned, Windows mode (word-win refs) and Mac mode, 756 docs each: nothing moved (97.281 / 96.802 both sides).
+PIN YOUR PRIVATE SWEEP SCRIPTS: export OFFICE_FONT_SOURCE=bundled, or a machine with the real faces scores differently.
+Next: windows checks local mode (showcase F01's line breaks, a couple of corpus docs); the Windows list is the face table,
+not the registry, so a face outside it still falls back to the stand-in — a follow-up if F01 shows it.
