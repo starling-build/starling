@@ -11829,8 +11829,6 @@ public final class RichLayout {
                     // in "…於109年6月15" 7.8pt over, its comma and ten spaces
                     // giving 24.5 and "月"'s half inside, and leaves the line
                     // before it its "109", 22.6 of 22.75 and starting 2pt in.)
-                    let latinWord = modern && !wide && !inCell && !onCharacterGrid && !lineOther
-                        && x + before / 2 <= width + edge && room > 0 && hang == 0 && need <= room + hair
                     // (One letter or digit, and only that of what is taken
                     // besides its marks: not "②", not a hyphen.)
                     // (A word's own: not a piece of a longer one that a
@@ -11841,6 +11839,15 @@ public final class RichLayout {
                     let oneLatin = (a ..< last).filter { !isSpace(units[$0]) && !Self._closingUnits.contains(units[$0]) && !Self._openingUnits.contains(units[$0]) }
                         .map { Self._isLatinWordUnit(units[$0]) ? 1 : 2 } == [1]
                         && !(a > 0 && Self._isLatinWordUnit(units[a - 1]))
+                    // (A word of one Latin character from 2013's layout too,
+                    // wherever it starts inside the margin, as lab `lw` found
+                    // before it: zh-1b74ed91's "…包含建議3項" (mode 15, DFKai-SB
+                    // 16pt) ends with "3" starting 1.25pt inside, its two marks
+                    // and the spaces round it giving the 6.75. Not with a mark
+                    // of its own: zh-15f60bac's "…詳表5第4、6、" leaves "6、"
+                    // 18.75 over.)
+                    let latinWord = modern && !wide && !inCell && !onCharacterGrid && !lineOther
+                        && (x + before / 2 <= width + edge || oneLatin && own.isEmpty && x < width) && room > 0 && hang == 0 && need <= room + hair
                     let latinBefore = a > 0 && Self._isLatinWordUnit(units[a - 1]) || a > 0 && units[a - 1] == 0x2D
                     // (From 2013's layout a body line with word spaces weighs
                     // them too, at 0.44 of themselves, as a grid's spaces are
@@ -11857,8 +11864,11 @@ public final class RichLayout {
                     // and the spaces round the dash. Not for the paragraph's
                     // last character, no mark after it, which the older test
                     // keeps: zh-84702a67's "填表日期：    年   月   日" takes
-                    // "日" with the "：" at its half, twenty spaces whole.)
-                    let wordSpaced = modern && lineOther && !onCharacterGrid && !inCell && !(paragraphEnd && hung == 0)
+                    // "日" with the "：" at its half, twenty spaces whole A closing bracket
+                    // ending the paragraph is no such character: zh-33aa9899's
+                    // "(五)…須上傳「台灣社區通」" takes "通」" 2.96pt over, its
+                    // "」" halved to end on the margin in Word's print.)
+                    let wordSpaced = modern && lineOther && !onCharacterGrid && !inCell && !(paragraphEnd && hung == 0 && (!own.contains(tail) || Self._pauseMarks.contains(units[tail])))
                     let spacedStretch = wordSpaced ? wordSpaces.reduce(0.0) { $0 + $1.w } * 0.44 : 0
                     // (The paragraph's last mark kept from hanging, by the
                     // share test with the automatic spaces weighed at half:
