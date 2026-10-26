@@ -2117,11 +2117,25 @@ public struct RichDocument: Hashable, Sendable {
     /// `w:eastAsia` en-US, "…abcdefgh)" and "…測試測試測試" leave "，" and
     /// "）" to open the next line, where under zh-CN they stay; and
     /// zh-6600d539 (en-US) starts a line "，針對平臺…" in Word's print.
+    /// (Text whose East Asian language nothing states is Word's own
+    /// language's, and Word for Windows' — the reference's, en-US — has no
+    /// such rules where the settings say `w:doNotUseEastAsianBreakRules`:
+    /// zh-55087b5f's "…提高服务水平，促进…", no `w:lang` in its run, its
+    /// styles or its defaults, fills its justified line to "平" in Word's
+    /// print and opens the next with "，", where ours hung the mark. Its
+    /// fellows bear it out: of the 198 files with the switch, those that
+    /// state a language score 99.9 and those that do not 98.8.)
     public var eastAsianLineRules: Bool {
-        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return true }
+        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else {
+            return !(RichTextTheme.wordWindowsPages && breakRulesOnlyForEastAsian)
+        }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
     public var themeFontLangXML: String? = nil
+    /// The settings' `w:doNotUseEastAsianBreakRules`: Word's East Asian
+    /// line rules hold only for text in an East Asian language (see
+    /// `eastAsianLineRules`).
+    public var breakRulesOnlyForEastAsian = false
     /// The settings' `w:characterSpacingControl` value when the file
     /// states one ("compressPunctuation" in Chinese documents: Word then
     /// squeezes adjacent full-width punctuation, and lines break later).

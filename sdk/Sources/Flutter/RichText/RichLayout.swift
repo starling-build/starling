@@ -14537,6 +14537,7 @@ public final class RichLayout {
         sub.joinsHanAfterSpace = document.joinsHanAfterSpace
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
+        sub.breakRulesOnlyForEastAsian = document.breakRulesOnlyForEastAsian
         sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
@@ -14705,6 +14706,7 @@ public final class RichLayout {
         sub.joinsHanAfterSpace = document.joinsHanAfterSpace
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
+        sub.breakRulesOnlyForEastAsian = document.breakRulesOnlyForEastAsian
         sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
@@ -15409,6 +15411,7 @@ public final class RichLayout {
         sub.joinsHanAfterSpace = document.joinsHanAfterSpace
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
+        sub.breakRulesOnlyForEastAsian = document.breakRulesOnlyForEastAsian
         sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
