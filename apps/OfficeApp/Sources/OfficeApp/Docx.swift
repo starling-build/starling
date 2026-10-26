@@ -2162,6 +2162,7 @@ enum DocxFormat {
                 guard let raw = part(path), let data = OfficeFonts.deobfuscate(raw, key: key),
                       let family = OfficeFonts.loadEmbedded(data) else { continue }
                 faces[name] = family
+                if OfficeFonts.mapsToZeroAdvance(data, 0x300C) { document.uncompressedFaces.insert(name) }
             }
             OfficeFonts.noteEmbeddedFaces(faces)
             var alts: [String: String] = [:]

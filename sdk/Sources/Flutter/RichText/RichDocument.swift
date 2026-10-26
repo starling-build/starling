@@ -2158,6 +2158,13 @@ public struct RichDocument: Hashable, Sendable {
     /// Word for Windows then compresses no punctuation, whatever the
     /// languages and `w:characterSpacingControl` say.
     public var eastAsianDefaultFaceIsLatin = false
+    /// The embedded faces Word for Windows compresses no punctuation in:
+    /// those whose "「" is a glyph of no advance — lab tfz (windows-1,
+    /// zh-57f1de0d's 方正仿宋_GBK, which Word's subset embedding left with
+    /// 「」『』 empty): mending that one advance to 256 alone set "》" and
+    /// "：" at 13.33 and took a character more a line; any other table, or
+    /// a smaller cmap without 「, compressed too.
+    public var uncompressedFaces: Set<String> = []
     /// Word's `w:spaceForUL`: an exact line's text set by its middle
     /// (`w:textAlignment` "center") has its own line centred in the exact
     /// one. Without it the middle stands where the baseline would be.

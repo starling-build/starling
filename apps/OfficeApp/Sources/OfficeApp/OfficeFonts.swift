@@ -722,6 +722,50 @@ enum OfficeFonts {
         return family
     }
 
+    /// Whether a face maps a character to a glyph of no advance (`cmap`'s
+    /// Windows Unicode subtable, then `hmtx`); false where it maps none.
+    /// Word's own subset embedding keeps the whole `cmap` and empties the
+    /// glyphs the document does not use, to no outline and no advance.
+    static func mapsToZeroAdvance(_ data: Data, _ scalar: UInt32) -> Bool {
+        let d = [UInt8](data)
+        func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        guard d.count > 12, scalar <= 0xFFFF else { return false }
+        func table(_ tag: String) -> Int? {
+            let t = Array(tag.utf8)
+            for k in 0 ..< u16(4) {
+                let e = 12 + 16 * k
+                guard e + 16 <= d.count else { return nil }
+                if Array(d[e ..< e + 4]) == t { return u32(e + 8) }
+            }
+            return nil
+        }
+        guard let cmap = table("cmap"), let hhea = table("hhea"), let hmtx = table("hmtx") else { return false }
+        var sub: Int? = nil
+        for k in 0 ..< u16(cmap + 2) {
+            let r = cmap + 4 + 8 * k
+            if u16(r) == 3, u16(r + 2) == 1 || u16(r + 2) == 10, u16(cmap + u32(r + 4)) == 4 { sub = cmap + u32(r + 4); break }
+        }
+        guard let f = sub else { return false }
+        let c = Int(scalar), segs = u16(f + 6) / 2
+        let ends = f + 14, starts = ends + 2 * segs + 2, deltas = starts + 2 * segs, offsets = deltas + 2 * segs
+        var glyph = 0
+        for i in 0 ..< segs where c <= u16(ends + 2 * i) {
+            guard c >= u16(starts + 2 * i) else { return false }
+            let ro = u16(offsets + 2 * i)
+            if ro == 0 { glyph = (c + u16(deltas + 2 * i)) & 0xFFFF }
+            else {
+                let g = u16(offsets + 2 * i + ro + 2 * (c - u16(starts + 2 * i)))
+                glyph = g == 0 ? 0 : (g + u16(deltas + 2 * i)) & 0xFFFF
+            }
+            break
+        }
+        guard glyph != 0 else { return false }
+        let metrics = u16(hhea + 34)
+        guard metrics > 0 else { return false }
+        return u16(hmtx + 4 * min(glyph, metrics - 1)) == 0
+    }
+
     /// An embedded font part's bytes as a font: ECMA-376 part 1, 17.8.1 —
     /// the first 32 bytes are XORed with the `w:fontKey` GUID, its 32 hex
     /// digits read as 16 bytes from the last pair to the first.
