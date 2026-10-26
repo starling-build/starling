@@ -6286,6 +6286,9 @@ under the baseline at 10pt, Liberation Mono 3.0 — and the descent wins. Word s
 above plus the most any reaches below, by Word's own split per face (RichResolvedFace.baseline / naturalHeight), and 宋体's
 13.0 keeps >= 3.0 below. Whole fix: per-line height max(t_i * size) + max((natural_i - t_i) * size). Partial: in `_strut`, a
 same-size Latin stretch whose Word box fits inside the East Asian face's keeps `uniform`. windows may take the partial.
+Partial dropped (windows, 2026-10-26): Word holds the 宋体+Courier lines at 13.0 but gives a line of Courier "16" alone its own
+11.1 — a height per line, which one strut per paragraph cannot give (forced, "16" would stand 13.0). Needs per-line heights in
+our own line layout: a model change, open for whoever takes line metrics next.
 
 ### T208. zh-8d6f702e: 86.1 against word-win — DONE a506e241 -> 90.8, the rest a witness (Linux office1, starling-office1-95, 2026-10-25)
 Engine 8bc30c5c89a, tip dab58685: 125 lines missed — one on nearly every page (p1-p37), and p38-p42 most of each.
@@ -6312,6 +6315,11 @@ Mac Word's 88.32-135.37, ours 86.5-133.55, and word-win's 77.75-124.8 — posOff
 stands 10.57 under the 72pt margin in Mac Word, 8.75 in ours, 0 in Windows'. Mac Word's print also has a 12pt PMingLiU " " at
 baseline 78.48 (Standard's 新細明體, the anchor run's?) that no other print or ours shows. Next: a Mac Word lab on the reference
 point of a paragraph-relative box in a paragraph whose first line cannot stand beside it.
+Lab t209 (macos/macOS-doc, Mac Word, nine variants: title face and size, no title, Standard 12/10, wrapSquare/topAndBottom):
+nothing moves the box (88.32) or the title (153.84). The cause is the header: Mac Word adds one empty paragraph after a
+header's last when the file has w:background (Docx.swift's phantom mark, lab `5f`), and here it is 12pt PMingLiU (" " at
+78.48, to 82.57) where zh-5f9b6549's — byte-identical Normal, defaults, header, font table, theme, settings flags — is Times
+(78.0). Ours sets it in Times for both (13.7), 1.8 short here. A part-swap lab (4adf with 5f9's parts one at a time) is asked.
 
 ### T210. zh-b24b396a: 90.3 against word-win — RELEASED, measured (Linux office1, starling-office1-95, 2026-10-26)
 CLAIMED Linux lenovo-2 (starling-d6), 2026-10-26, routed by macos. Guard zh-9e020c95; pairs in both modes.
