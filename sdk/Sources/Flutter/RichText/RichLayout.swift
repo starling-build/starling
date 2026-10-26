@@ -15384,7 +15384,16 @@ public final class RichLayout {
                         if let field = run.style.field {
                             // (One number per field, however many runs its old result was in.)
                             let word = field.trimmingWhitespace().uppercased().split(separator: " ").first.map(String.init) ?? ""
+                            // (In full-width digits where the result it keeps was:
+                            // zh-1b74ed91's footer holds "PAGE \* MERGEFORMAT" with
+                            // "２０" as its result, and Word for Windows prints each
+                            // page's "１４" so, in the East Asian face — whose line
+                            // stands its footer 0.6pt taller than "14" in Times, and
+                            // p14's empty paragraph over the table's title no longer
+                            // fits above it.)
+                            let wide = !piece.isEmpty && piece.unicodeScalars.allSatisfy { $0.value >= 0xFF10 && $0.value <= 0xFF19 }
                             piece = lastField == field ? "" : (word == "PAGE" ? shown : count)
+                            if wide { piece = String(piece.unicodeScalars.map { $0.value >= 0x30 && $0.value <= 0x39 ? Character(Unicode.Scalar($0.value - 0x30 + 0xFF10)!) : Character($0) }) }
                             // (A field's result is one piece: Word parts
                             // "- 10 -" (numberInDash) at none of its spaces
                             // — zh-c3dd22c4's, in a box sized by "- 1 -",
