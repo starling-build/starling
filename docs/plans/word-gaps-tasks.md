@@ -5751,6 +5751,12 @@ in browalliaBoldAdvances, ~0.02 a letter). (b) Word takes a tab before Thai to t
 tab, none after): Q5 "คำถามที่ 5 ：<tab>แรงงาน…" sets the tab from 64 to 88 and breaks the question there; ours leaves
 the tab alone on a line. Tried (ZWSP before such a tab, WJ after, and no held-tab break after in justified paragraphs):
 76.5 -> 67.9/61.7, the held tabs of "ตอบ :<tab><tab>…" interfere. Not landed.
+### zh-d97c5474 on the Mac: 89.1 -> 100 against word-win — DONE 52cd19c7 (Mac 01Xgpbk5, 2026-10-26, routed by macos)
+After lenovo-3's Arabic (fbb4fef4, 97.8 on Linux) the Mac scored 89.1: all five misses the Greek paragraph. The Mac's fallback
+for Cambria's Greek draws "ή", "ό", "ύ" as letter + accent, and the engine spaces each glyph, so Cambria's width correction
+landed twice (lines 1.7% short). The glyph-count division of 345fce5f now covers any character past ASCII. Pairs on engine
+c34c8aa8eba: w51 -> w52 only this one moved; n222 -> n223 nothing moved.
+
 ### Engine: no half-letter-spacing line shift — LANDED (Mac 01Xgpbk5 with macos, 2026-10-26; found by windows 01QbbApP)
 starling-engine c34c8aa8eba, patches/skia-no-line-spacing-shift.patch: skparagraph's TextLine no longer moves a line by half its
 first cluster's letter spacing ("TODO: This is the fix for flutter. Must be removed..."). Run::addSpacesEvenly already spaces each
