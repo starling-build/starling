@@ -1907,6 +1907,24 @@ enum OfficeFonts {
         let name = family ?? "Times New Roman"
         var face = RichResolvedFace(family: embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
+        // (Word for Windows' Arabic in Arial and Times New Roman, which the
+        // stand-ins have none of: Noto Naskh draws it, 11% wider than Arial
+        // over zh-d97c5474's Arabic paragraph — 1817pt to Word's 1634 —
+        // and its lines broke elsewhere. Each word is set to its joining
+        // forms' widths in Word's face.)
+        if wordOnWindows, embeddedFamily(name) == nil {
+            switch name.trimmingWhitespace().lowercased() {
+            case "arial":
+                // (In the sans Arabic, nearer Arial's than the Naskh is.)
+                face.fallback = [cambria, "Times New Roman", "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans"]
+                face.joinedAdvances = WindowsArabicAdvances.arial
+                face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
+            case "times new roman":
+                face.joinedAdvances = WindowsArabicAdvances.times
+                face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+            default: break
+            }
+        }
         return face
     }
 

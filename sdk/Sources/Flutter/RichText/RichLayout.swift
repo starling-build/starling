@@ -774,6 +774,12 @@ public struct RichResolvedFace: Sendable {
     /// New Roman's Roman numerals, Ⅳ wider than an em).
     public var otherAdvances: [UInt32: Double]? = nil
     public var boldOtherAdvances: [UInt32: Double]? = nil
+    /// The original's Arabic advances by code point, presentation forms
+    /// among them (`ArabicForms.width`): each word of it is set to the
+    /// width its joining forms have there, where the stand-in's shaping
+    /// gives another.
+    public var joinedAdvances: [UInt32: Double]? = nil
+    public var boldJoinedAdvances: [UInt32: Double]? = nil
     /// How far below the top of its single line the face's baseline
     /// sits, in ems, as Word sets it (a Latin face's line gap goes above
     /// the ascent; an East Asian face's extra three tenths go half
@@ -8781,6 +8787,30 @@ public final class RichLayout {
             // each break it holds 0.6pt the fitter does not count, and
             // zh-b00fef0d's "…改革决策部署" lost "署" to the next line.)
             func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0) }
+            // (Arabic set to the original face's joining widths, word by
+            // word — it parts only at spaces: each word its own span, drawn
+            // condensed or widened to the width its joining forms have in
+            // that face (`RichResolvedFace.joinedAdvances`), which the line
+            // breaking then measures too. Spacing would split a joined
+            // word's shaping or, on a zero-width character, be measured and
+            // not drawn right to left — zh-d97c5474's lines broke as Word's
+            // and stood 47pt past the margin — and on the spaces it ran the
+            // words together, Noto Naskh being 11% wider than Arial.)
+            let joinedFace: RichResolvedFace? = {
+                guard theme.wordRules, run.rightToLeft else { return nil }
+                let normal = _normalChar(document)
+                let latin: String? = run.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily
+                let complex: String? = run.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily
+                return theme.complexFaceResolver?(complex ?? latin)
+            }()
+            func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) } ?? false }
+            func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
+                guard let joinedFace, let first = word.first, isArabic(first), word.allSatisfy(isArabic),
+                      let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5,
+                      let ems = ArabicForms.width(word.unicodeScalars.map { $0.value }, table) else { return s }
+                let shaped = _wordWidth(s, String(word))
+                return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
+            }
             var notoStyle: TextStyle? = nil
             var segoeStyle: TextStyle? = nil
             var spans: [TextSpan] = []
@@ -8788,7 +8818,7 @@ public final class RichLayout {
             var current: Int? = nil
             func flush(_ end: Substring.Index) {
                 guard let kind = current, start < end else { return }
-                spans.append(contentsOf: capped(text[start ..< end], run, style(kind)))
+                spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], style(kind))))
                 start = end
             }
             var offset = base
@@ -9193,6 +9223,7 @@ public final class RichLayout {
                 before = ch
                 wordHasLetter = ch.isASCII && (ch.isLetter || ch.isNumber || ch == "-") ? wordHasLetter || ch.isLetter : false
                 if let c = current, c != kind { flush(i) }
+                else if joinedFace != nil, isArabic(ch) != (beforeBefore.map(isArabic) ?? false) { flush(i) }
                 current = kind
                 // What this character is set wider or narrower by: Word's
                 // automatic space between an ideograph and the Latin
@@ -10480,6 +10511,18 @@ public final class RichLayout {
         return n
     }
     private var _glyphCounts: [String: Int] = [:]
+
+    /// A word as the stand-in shapes it, right to left, unspaced.
+    private func _wordWidth(_ style: TextStyle, _ word: String) -> Double {
+        let key = "\(word)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+        if let w = _wordWidths[key] { return w }
+        let t = TextPainter(text: TextSpan(text: word, style: style.copyWith(letterSpacing: 0)), textDirection: .rtl)
+        t.layout(minWidth: 0, maxWidth: 100_000)
+        defer { t.dispose() }
+        _wordWidths[key] = t.width
+        return t.width
+    }
+    private var _wordWidths: [String: Double] = [:]
 
     /// Paints a paragraph that has characters of a scale of their own
     /// (`CharStyle.horizontalScale`, Word's `w:w`) and says so — false
