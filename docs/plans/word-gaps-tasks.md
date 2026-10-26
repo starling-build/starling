@@ -6323,7 +6323,11 @@ All three pages are drawings (wpg groups of text boxes: 附录D's archive-box fi
   at no indent, 4.9pt under Text Box 86's "A". Word seems to leave out a first character its indent puts past the box.
   The rotated WordArt "（全宗名称）" (rot 18120000, textSlantDown, spAutoFit) stands 43pt higher in ours.
 
-### T211. zh-55087b5f: 91.8 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-26)
+### T211. zh-55087b5f: 91.8 against word-win — DONE 0ce2d0aa -> 95.6 (Linux office1, starling-office1-95, 2026-10-26)
 w:doNotUseEastAsianBreakRules and no East Asian language stated: Word for Windows (en-US) sets no East Asian line rules —
-"…提高服务水平，促进…" fills its justified line to "平" and opens the next with "，", where ours hung the mark. Pair running.
+"…提高服务水平，促进…" fills its justified line to "平" and opens the next with "，", where ours hung the mark.
+Done 0ce2d0aa (RichDocument.breakRulesOnlyForEastAsian, Windows mode): of the 198 files with the switch, those stating a
+language scored 99.9 and those not 98.8; without the switch the two groups score alike (98.8 / 99.1). Same-base pairs, 756
+docs, engine 8bc30c5c89a: Windows zh-1cfb652b 94.6 -> 98.3, zh-55087b5f 91.8 -> 95.6, nothing lower; Mac nothing moved
+(Word for Mac's own language is unmeasured — left as it was). Left in zh-55087b5f: p2's and p4's few.
 
