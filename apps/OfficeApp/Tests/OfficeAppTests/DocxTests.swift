@@ -3532,6 +3532,43 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
     }
 
+    func testAHintedMiddleDotInSongTiIsAnEmAndGivesAsAMark() throws {
+        // zh-3f871b7d p1: "…在青岛·上" — a hinted "·" Word sets in 宋体, an em
+        // (SimSun is fixed-pitch), where ours set the stand-in's 0.33 and
+        // the line took "合". And it gives like a mark: zh-b9af65b5's line
+        // "元/建筑平米·月" (mode 14, 10.5pt) sets the dot 8.16 to keep "月".
+        try requireFitterWidths()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        func layout(_ text: String, width: Double) -> RichLayout {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontHint = "eastAsia"
+            style.fontSize = 10.5
+            var doc = RichDocument(paragraphs: [RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])])
+            doc.compatibilityMode = 14
+            doc.characterSpacingControl = "compressPunctuation"
+            doc.usesEastAsianLayout = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = width * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return l
+        }
+        func natural(_ text: String) -> Double {
+            (layout(text, width: 4000).geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(natural("一·一") - natural("一一"), 10.5, accuracy: 0.05, "an em")
+        let text = "元/建筑平米·月"
+        let whole = natural(text)
+        func lines(over: Double) -> Int { layout(text, width: whole - over).geometry(0).painter.computeLineMetrics().count }
+        XCTAssertEqual(lines(over: 2.25), 1, "the dot gives the 2.25 \"月\" is over")
+        XCTAssertEqual(lines(over: 6.75), 2, "more than its half: \"月\" goes down")
+    }
+
     func testANoBreakSpaceAfterALatinDigitIsTheSpacesHalfEm() throws {
         // zh-a7a889eb p5: "3.5" + U+00A0 + U+0020 + "拟派…" in a 12pt 宋体 run
         // hinted East Asian — Word sets the no-break space 6pt, the space's

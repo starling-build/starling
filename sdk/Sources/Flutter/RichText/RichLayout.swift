@@ -10862,6 +10862,7 @@ public final class RichLayout {
         // (Marks to hang or squeeze, or a letter or digit an automatic
         // space may stand beside.)
         let marked = (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
+            || squeezes && units.contains(0xB7)   // (a middle dot set an em gives too: `wideDot`)
         guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
@@ -10986,6 +10987,7 @@ public final class RichLayout {
             }
             return w
         }
+        func wideDot(_ k: Int) -> Bool { units[k] == 0xB7 && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
         // (What `_span` put in before a character and the engine set
         // on a line of its own: a word joiner as wide as an opening
         // quote's blank. Its width goes with what follows it.)
@@ -11100,8 +11102,12 @@ public final class RichLayout {
             // of a line that ends with it.)
             let after = last > a ? gaps[last - 1] ?? 0 : 0
             let ownSpaces = last > a ? (a ..< last - 1).filter { gaps[$0] != nil } : []
+            // (A middle dot set an em — SimSun's "·", hinted East Asian —
+            // gives as a mark does: zh-b9af65b5's cell line "元/建筑平米·月"
+            // (mode 14, 10.5pt) sets the dot's 10.56 at 8.16 in Word for
+            // Windows' print to keep "月" on the line.)
             let own = (a ..< last).filter {
-                (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0)) && !closesUp($0)
+                (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0) || wideDot($0)) && !closesUp($0)
             }
             let em = a < ems.count ? ems[a] : 0
             let hair = min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)

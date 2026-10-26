@@ -724,6 +724,10 @@ enum OfficeFonts {
         /// (`RichResolvedFace.kerns`).
         var latinKerns: [UInt32: Double]? = nil
         var latinBoldKerns: [UInt32: Double]? = nil
+        /// Its own widths, in ems, for characters past ASCII that a run sets
+        /// East Asian (hinted, `RichLayout.isEastAsian`): the stand-in draws
+        /// them at these (`RichResolvedFace.otherAdvances`).
+        var otherAdvances: [UInt32: Double]? = nil
         /// Word emboldens a face that has no bold of its own, and sets
         /// each character wider: by `boldWiden` of an em, 1/48 where
         /// that is not said. (Word for Mac only: Word for Windows keeps
@@ -1661,6 +1665,13 @@ enum OfficeFonts {
             var face = square
             face.height = 1.2972
             face.baseline = 1.005 - (1.3 - 1.2972) / 2
+            // (SimSun is fixed-pitch: of what it maps from U+00A1 to U+024F,
+            // GB2312's eight are an em and the rest half one — read from
+            // Word's own Simsun.ttc. Set East Asian, its "·" is an em:
+            // zh-3f871b7d's "…在青岛·上合…", hinted, steps 15.96 at 16pt in
+            // Word for Windows' print, where the stand-in drew Liberation
+            // Sans's, 5.33, and its line took "合".)
+            face.otherAdvances = Dictionary(uniqueKeysWithValues: simSunFullLatin.map { ($0, 1.0) } + simSunHalfLatin.map { ($0, 0.5) })
             return face
         }
         // (And FangSong's, in Word for Windows: zh-b00fef0d's 12pt
@@ -1677,6 +1688,22 @@ enum OfficeFonts {
         }
         return square
     }
+
+    /// SimSun's characters from U+00A1 to U+024F an em wide, and those half
+    /// one (Simsun.ttc, Word's own; it maps no others there).
+    private static let simSunFullLatin: [UInt32] = [0x00A4, 0x00A7, 0x00A8, 0x00B0, 0x00B1, 0x00B7, 0x00D7, 0x00F7]
+    private static let simSunHalfLatin: [UInt32] = [
+        0x00A1, 0x00A2, 0x00A3, 0x00A5, 0x00A6, 0x00A9, 0x00AA, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x00AF,
+        0x00B2, 0x00B3, 0x00B4, 0x00B5, 0x00B6, 0x00B8, 0x00B9, 0x00BA, 0x00BB, 0x00BC, 0x00BD, 0x00BE,
+        0x00BF, 0x00C0, 0x00C1, 0x00C2, 0x00C3, 0x00C4, 0x00C5, 0x00C6, 0x00C7, 0x00C8, 0x00C9, 0x00CA,
+        0x00CB, 0x00CC, 0x00CD, 0x00CE, 0x00CF, 0x00D0, 0x00D1, 0x00D2, 0x00D3, 0x00D4, 0x00D5, 0x00D6,
+        0x00D8, 0x00D9, 0x00DA, 0x00DB, 0x00DC, 0x00DD, 0x00DE, 0x00DF, 0x00E0, 0x00E1, 0x00E2, 0x00E3,
+        0x00E4, 0x00E5, 0x00E6, 0x00E7, 0x00E8, 0x00E9, 0x00EA, 0x00EB, 0x00EC, 0x00ED, 0x00EE, 0x00EF,
+        0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC,
+        0x00FD, 0x00FE, 0x00FF, 0x0101, 0x0113, 0x011B, 0x012B, 0x0144, 0x0148, 0x014D, 0x0152, 0x0153,
+        0x0160, 0x0161, 0x016B, 0x0178, 0x0192, 0x01CE, 0x01D0, 0x01D2, 0x01D4, 0x01D6, 0x01D8, 0x01DA,
+        0x01DC, 0x01F9,
+    ]
 
     // Times New Roman's Roman numerals, Ⅰ to Ⅻ and ⅰ to ⅻ (U+2160 and
     // U+2170 on), in ems, regular and bold: Word's Times has them and
@@ -2117,6 +2144,11 @@ enum OfficeFonts {
                                       0x25CB: 0.604].merging(circled(1.0)) { $1 }
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
             }
+            // (The face's own widths past ASCII: SimSun's, `EastAsianFace.otherAdvances`.)
+            if let own = ea.otherAdvances {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(own) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(own) { $1 }
+            }
             // (PMingLiU's en dash is an em, where the run sets it East
             // Asian — hinted, or by its Latin face: zh-05699f05's
             // "（100%+目標值）–基準維護件數】" in 新細明體 sets "–" 12.0 at
@@ -2196,6 +2228,10 @@ enum OfficeFonts {
         if ea.height == yaHei.height {
             face.otherAdvances = [0xB7: 0.2407].merging(circled(1.0)) { $1 }
             face.boldOtherAdvances = [0xB7: 0.4395].merging(circled(1.0)) { $1 }
+        }
+        if let own = ea.otherAdvances {
+            face.otherAdvances = (face.otherAdvances ?? [:]).merging(own) { $1 }
+            face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(own) { $1 }
         }
         // A no-break space in a square face is an em, where its space is
         // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +
