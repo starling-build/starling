@@ -5902,6 +5902,15 @@ Squeeze capacity throughout, in mode 14 (compressPunctuation, FZFangSong-GBK 16p
 "…办法》第八条第一项规定：“…世界文" is about 6.4 over with "化": Word justifies, with "》" and "：" whole and "“" 7.56, while
 ours squeezes both to 13.35 and "“" to 7.1 and takes "化". The same holds on p1-2, p8, p11 and p21-33 (one line's drift).
 (Assigned to lenovo on 10-23 but never claimed; an embedded-face document, whose Mac references were unreliable.)
+CLAIMED Mac 7bd18d8e 2026-10-25 (moved from windows by macos). Still 78.9 on the tip (e5d58404 does not apply: the defaults'
+eastAsia is 宋体). Word compresses no mark anywhere in it: 2 of 1510 mid-line marks before an ideograph, where the corpus'
+416 compressPunctuation word-win prints compress 10-19% of each mark (》 15%, ： 9.5%). Embedded faces do compress (14 of 17
+documents set in one), and no settings or pPr switch (doNotUseEastAsianBreakRules, wordWrap/kinsoku/overflowPunct, hint
+default, mode) parts the 32 documents that compress none from the rest; the other 31 score 94-100 already. So it is the face.
+方正仿宋_GBK (FZFangSong-Z02) against zh-984846dc's 方正仿宋_GB2312 (FZFangSong-Z02S, same foundry and tables: vhea/vmtx,
+GSUB vert only, no GPOS, upm 256, compressed 45%) differs in OS/2 ulCodePageRange1 (0x40000, no Latin-1, against
+0x40001), ulUnicodeRange (no CJK Symbols and Punctuation bit 48, no Halfwidth/Fullwidth bit 68) and PANOSE proportion 9
+(installed 仿宋's too, which compresses). Lab asked of windows-1: the embedded face patched per field (f0-f4).
 
 ### Screen of word-win documents under 90, by the cause of the first miss (Mac 01Xgpbk5, 2026-10-25, asked by macos)
 Base: w25 (tip 451d6fc1, after the 0012bc50 reprint), scored with mupdf. The first miss is the first Word line ours does
