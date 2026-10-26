@@ -6371,3 +6371,6 @@ Only the first line goes: "5 abc def" loses "5" and wraps "abc" / "def" from lin
 fits the same rule. Ours draws the character always, at x98.2 whatever the indent. CLAIMED Windows 01QbbApP (zh-9bcea239 and
   T210's p12 "A", by arrangement with lenovo-2): wip/indent-past-cell 81d9f7bc — in a cell or box such a first line's word is
   hidden; ovi/ovi2 now Word's; zh-9bcea239 391 -> 406/422, zh-b24b396a 327 -> 328, zh-9e020c95/zh-70094a34 unchanged. Pairing.
+
+### T212. zh-9ba2ead7: 94.1 against word-win (14 missed of 238, 12 pages) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w15 list)
+First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tblW auto, tblInd -414) stand at their grids in Word's print, 63.7-510.3, the margin less the outdent and a cell margin to the margin plus the other. Ours scales them to the 415pt column, and the header cell "物业服务企业" wraps a character. The keep-the-grid allowance for an autofit table (cell margins + 1) is to count a negative indent too. Pairing in both modes.
