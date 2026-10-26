@@ -6509,3 +6509,5 @@ right indent stepped by one twip; modes 14 and 15): in mode 14 ours leaves a cha
 on such grids in mode < 15 brings -842 and -1600 to Word's but costs the documents: zh-5be7e156 769 -> 767, zh-8d6f702e 816 -> 801
 (lines elsewhere taken that Word leaves) — reverted. The gap is in how a gridded line's widths sum (a twip either way per line), not
 a tolerance; it needs Word's per-character rounding on a grid, which these labs do not pin. Labs ~/starling-doc-check/lab/{twip,twip2}.
+
+### zh-e49d7943: 94.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos): p19-20's turned table text, p22's table.
