@@ -681,7 +681,11 @@ within 0.06), the box's ascent part the row's empty cells' where larger
 workbooks with such text: 1.942 -> 1.840, 43 better, 19 worse (49609
 11.64 -> 5.16, lo-tdf131575 4.90 -> 3.69; worst +0.18). Open: on pages
 printed at a scale Excel's labs fit s*K + 0.42*(s - 1), but 32 scaled
-workbooks came out worse with it (not built). Open: their letters' widths in Arial 8 and Microsoft Sans
+workbooks came out worse with it (not built). A fitted sheet's rows are
+whole dots at the scale its pages come out at, as a scaled sheet's are
+(lo-tdf58243's 30.75 pt rows step 15.12 at 51%, 126 dots; ours stepped
+15.18): the 18 fitted workbooks 2.764 -> 2.529, 10 better, 3 worse
+(lo-tdf58243 7.81 -> 5.23, StructuredRefs 2.45 -> 1.66; Tables +0.10). Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

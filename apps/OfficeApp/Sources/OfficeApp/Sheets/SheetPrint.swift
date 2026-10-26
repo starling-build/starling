@@ -461,7 +461,11 @@ extension SheetGridState {
             _paintChartSheet(ws, setup: setup, pageCount: pageCount, title: title, filePath: filePath, maxPages: maxPages, into: &out)
             return
         }
-        printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
+        // (A fitted sheet's rows are whole dots at the scale its pages came
+        // out at, as a scaled one's are: lo-tdf58243's 30.75 pt rows step
+        // 15.12 at 51% in Excel's print, 126 dots, where ours, unrounded,
+        // stepped 15.18 and stood 1.2 low by its page's foot.)
+        printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : jobs.count == 1 ? jobs[0].scale : 0
         printMono = setup.blackAndWhite
         let ca = cols, ra = rows   // in points while printing
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
