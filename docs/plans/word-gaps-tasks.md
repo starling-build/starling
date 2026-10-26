@@ -6374,3 +6374,17 @@ fits the same rule. Ours draws the character always, at x98.2 whatever the inden
 
 ### T212. zh-9ba2ead7: 94.1 against word-win (14 missed of 238, 12 pages) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w15 list)
 First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tblW auto, tblInd -414) stand at their grids in Word's print, 63.7-510.3, the margin less the outdent and a cell margin to the margin plus the other. Ours scales them to the 415pt column, and the header cell "物业服务企业" wraps a character. The keep-the-grid allowance for an autofit table (cell margins + 1) is to count a negative indent too. Pairing in both modes.
+
+### Mac 7bd18d8e, 2026-10-26: measured and routed by macos
+- a7deebe4 + 5b26fd5d paired in Mac mode too (sweep.sh n1 -> n2, both reverted against the tip): nothing moved.
+- zh-3c055c9b (92.5) — measured, routed to lenovo-3 (the character-grid squeeze model, with zh-72da925e). Grid 457/4127,
+  overflowPunct 0, mode 15, installed 標楷體. p2 "…同意，不實填寫「109年5月24日、餐": Word keeps "，" and "「" whole (17.1),
+  ours gives each 5.7 and takes "費、"; Word's automatic digit gaps 6.4-7.0, ours 4.2-4.3. p9 "…號、" and p13 "…頁】，": Word
+  squeezes the line's final marks to take them, ours sends them down.
+- zh-9bcea239 (92.7) — its misses are the first-character-past-its-cell rule (lab ovi/ovi2); routed to lenovo-2 with T210.
+- zh-34a6519a (92.7) — CLAIMED. p11's two misses are the reader, not layout: baselines match Word's to 0.1pt, but our
+  full-width "“" is a Latin quote after a spacer (Liberation Sans span " “"), whose box keeps mupdf from merging the name
+  cell's line with it as it does Word's. p12: heading 2.4 (style 2, keepNext; Normal widowControl 0) stays at the foot in
+  ours, its paragraph on p13; Word takes the heading over. Looking.
+- zh-e49d7943 (92.8) — CLAIMED. p17-18: "○○" parts in Word's print (mode 14) and not in ours (3aa850c4 parts geometric
+  shapes from mode 15 only); our fitter already takes the first "○" (x459-476 of 481.9) — the engine keeps the pair.
