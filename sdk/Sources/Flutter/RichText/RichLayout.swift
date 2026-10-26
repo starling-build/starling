@@ -6451,8 +6451,19 @@ public final class RichLayout {
         // (And where it takes none: zh-18cb2079's grid of characters says
         // no charSpace, and its justified 16pt lines end at 27 cells,
         // 511.55, in a 442pt column — ours set 28 by squeezing marks.)
+        // (Its cells are Normal's characters as spaced, too — twice where
+        // widths are balanced: labs `cell`–`cell4` (Word for Windows,
+        // zh-5be7e156's package, 16pt, Normal spaced -0.3, charSpace 0 and
+        // -842, columns of 405 to 475pt): a line keeps a character only
+        // while the column's whole 15.4pt cells, less its indents, hold it —
+        // 28 of them in 442.25, gone at 0.25pt of indent, where cells of 16
+        // left ours 1.0 more, and 1.75 and 2.25 at -842 and 465pt. A run
+        // spaced otherwise than Normal is held to the same cells: 29
+        // characters of 16, unspaced, need 2pt of the margin given back in
+        // a 465pt column of 30.)
         if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0.0001 {
-            let cell = _px((_normalChar(document)?.fontSize ?? theme.fontSize) + add)
+            let spacing = (_normalChar(document)?.letterSpacing ?? 0) * (document.balancesSpaceWidth ? 2 : 1)
+            let cell = _px((_normalChar(document)?.fontSize ?? theme.fontSize) + add + spacing)
             if cell > 0 { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
         }
         // A floating frame: as wide as it says, from where it says.
