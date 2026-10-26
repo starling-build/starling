@@ -6103,6 +6103,13 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
 - T201. Charts — CLAIMED macos-ios (after zh-b8de3ae2): F07 a three-ring doughnut drawn as one ring; F04 a deleted legend entry
   still shown (also xlsx chart-deleted_legend_entry2's "First"); F09 a 3-D surface drawn as an empty gray box; F03 major unit 2
   where Word's is 1; F10 data-table borders darker and legend keys wider than Word's.
+  DONE 5c5d43a4 (Mac 01Xgpbk5) for F04, F07, F09, F10: deleted legend entries left out; a doughnut of n series as n rings, the
+  first innermost; a data table that states its lines draws them so, with square keys in its text's ems; surface and 3-D
+  surface charts as a projected mesh in value bands (legend = the bands). On sheets the table's own size is scaled as every
+  stated size (chart-DataTable-MultipleLegendEntries' table stood 6.8pt for Excel's 9). Pair docx w40 -> w42: nothing moved;
+  xlsx chart guards all at or under base (ChartDataTable 1.12 -> 1.01, MultipleLegendEntries mean 3.17 -> 2.55, tdf159450
+  2.54 -> 2.10). LEFT, released: F03's major unit. Excel/Word choose the step count from the axis's own length, which the scale
+  doesn't know when it is chosen (bar-chart.pptx, axis ~310pt with 18pt labels, steps 2; F03, ~440pt, steps 1).
 - T202. WordArt and shape effects — DONE macOS-doc (Mac 7bd18d8e, f4270dcb + f890482c): F13 Arch Up (VML WordArt) collapses to a small mark,
   Wave and Curve Up differ; F14 blur, fill overlay and inner shadow dropped.
   DONE: (1) Arch Up: the textpath's text was laid out at fontSize 36 in the canvas's pixels (20 a point), 1.8pt high; it now takes its font-size in points, and a fitted path (fitshape/fitpath) runs the arc's length — about 52pt, as in Word's print. Wave and Curve Up: their VML adj come out at DrawingML's defaults (9931/21600 is 45977 exactly), and they look as Word's; not changed. (2) F14: a:fillOverlay blended into the box's solid fill (Word's 963F46), a:blur as a blurred fill, a:innerShdw dark on the side dir points to (45°: bottom and right in Word's print — the opposite of what Slides' painter does; its tdf99030 untouched). Pair w62 -> w63: no score moved, four PDFs changed below a visible difference. Released.
