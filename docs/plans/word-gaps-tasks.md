@@ -6386,9 +6386,14 @@ DONE d3add605: word-win zh-9ba2ead7 94.1 -> 99.2, zh-e68a2f57 97.7 -> 99.7, zh-6
 - zh-34a6519a (92.7) — CLAIMED. p11's two misses are the reader, not layout: baselines match Word's to 0.1pt, but our
   full-width "“" is a Latin quote after a spacer (Liberation Sans span " “"), whose box keeps mupdf from merging the name
   cell's line with it as it does Word's. p12: heading 2.4 (style 2, keepNext; Normal widowControl 0) stays at the foot in
-  ours, its paragraph on p13; Word takes the heading over. Looking.
+  ours, its paragraph on p13; Word takes the heading over. Built the same rule as T213's 1d98d3ed, which landed first
+  with the same pairs (92.7 -> 96.3) — mine dropped. RELEASED at 96.3. Left: p11's reader artefact above, and p14's
+  "3.2.2 防汛较大(III级)事件" (another heading at a foot, not looked at).
 - zh-e49d7943 (92.8) — CLAIMED. p17-18: "○○" parts in Word's print (mode 14) and not in ours (3aa850c4 parts geometric
   shapes from mode 15 only); our fitter already takes the first "○" (x459-476 of 481.9) — the engine keeps the pair.
+  DONE 9cea6a08 in Windows mode (Word for Windows parts shapes in every mode; Mac Word from 15 only — zh-06c46ba9 cost
+  0.2 on the Mac with every mode). Pairs: w78 -> w79 zh-e49d7943 92.8 -> 94.8, zh-12c4f07a +0.2, zh-06c46ba9 +0.1;
+  Mac path unchanged. RELEASED at 94.8. Left: p19-20's turned table text, p22's table.
 
 ### T-grid. The character-grid squeeze, as one model — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos)
 Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, ， least, the pair needing two cells) and zh-3c055c9b (92.5; p2 mid-line marks kept whole where ours squeezes, digit gaps 6.4-7.0 to ours 4.2; p9/p13 final marks squeezed where ours sends them down). Labs from windows-1.
