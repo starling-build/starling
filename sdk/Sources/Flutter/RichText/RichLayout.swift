@@ -14324,12 +14324,19 @@ public final class RichLayout {
 
     /// Where note `id` may part: the bottoms of its lines but the last,
     /// pixels from its top.
+    /// (The bottoms of the lines' rows as the page counts them,
+    /// `_lineBottoms`: the engine's own box of a strut's line can stand
+    /// above its row — 0.45pt in zh-7a16a243's 10pt 標楷體 notes — and a note
+    /// parted there kept that much less of its page, and its rest stood
+    /// as much lower on the next, under a rule 1.63pt higher than Word's
+    /// where an unparted note's is 1.16: page 7 then lost its last line,
+    /// "6、依臺北市政府核定之本件細", and pages 8 to 16 ran a line late.)
     private func _noteCuts(_ id: Int, width: Double, _ document: RichDocument) -> [Double] {
         guard let note = _note(id, width: width, document) else { return [] }
         var out: [Double] = []
         for k in note.document.paragraphs.indices {
             let g = note.layout.geometry(k)
-            for m in g.painter.computeLineMetrics() where m.lineNumber >= 0 { out.append(g.textTop + m.baseline - m.ascent + m.height) }
+            out += Self._lineBottoms(g.painter).map { g.textTop + $0 }
         }
         return out.sorted().filter { $0 > 0.5 && $0 < note.height - 0.5 }
     }
