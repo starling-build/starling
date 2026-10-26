@@ -62,6 +62,7 @@ enum OfficeFonts {
     /// the look of the name after that. Case-insensitive.
     static func substitute(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
+        if let alt = macTableAlternate(family) { return substitute(alt) }
         switch n {
         case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma",
              "segoe ui", "aptos", "arimo", "arial black":
@@ -206,6 +207,23 @@ enum OfficeFonts {
     /// A file's font-table entry: its alternate, family, whether its
     /// PANOSE is all zeros, its charset, and the first two words of its
     /// Unicode signature (`w:sig`'s usb0 and usb1).
+    /// The font table's alternate Word for Mac sets a Liberation face in,
+    /// which it has none of — as it does any Latin name it lacks (see
+    /// `substitute`), where the clones' names had stood for their
+    /// originals here. Lab t209b (Mac Word, zh-4adfcce2 with zh-5f9b6549's
+    /// fontTable.xml, the one part of six that moves it): Normal's
+    /// "Liberation Serif", alternate 新細明體 and no PANOSE, sets the
+    /// empty paragraph Word adds under a header (a file with a
+    /// background) in 12pt PMingLiU, 15.6 a line; with no alternate, in
+    /// Times — and the page's body 1.8pt higher. Nil elsewhere.
+    static func macTableAlternate(_ family: String) -> String? {
+        guard wordOnMac else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        guard n.hasPrefix("liberation "), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty, !e.panoseZero,
+              !alt.trimmingWhitespace().lowercased().hasPrefix("liberation") else { return nil }
+        return alt
+    }
+
     struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
     static func noteFontEntries(_ entries: [String: FontEntry]) {
@@ -2132,6 +2150,7 @@ enum OfficeFonts {
 
     static func standInFace(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
+        if let alt = macTableAlternate(family) { return standInFace(alt, eastAsian: eastAsian) }
         let own = isEastAsianFace(family)
         guard own || eastAsian else {
             // A Latin face: its clone, and where Word sets the baseline
