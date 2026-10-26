@@ -74,4 +74,23 @@ final class RichDocumentCodecTests: XCTestCase {
         let data = Data(#"{"schema":99,"document":{"paragraphs":[]}}"#.utf8)
         XCTAssertThrowsError(try RichDocumentEnvelope.decode(data))
     }
+
+    func testShapeEffectsSurviveEncoding() throws {
+        var shape = ShapeOutline(kind: .box, color: Color(0xFF336699), width: 1.5)
+        shape.fill = Color(0xFF963F46)
+        shape.blur = 10
+        shape.innerShadow = (Color(0x80000000), 3, 4, 2)
+        let back = try JSONDecoder().decode(ShapeOutline.self, from: JSONEncoder().encode(shape))
+        XCTAssertEqual(back, shape)
+        XCTAssertEqual(back.innerShadow?.dx, 3)
+        XCTAssertEqual(back.innerShadow?.color.toARGB32(), 0x80000000)
+    }
+
+    func testShapeSavedBeforeEffectsStillDecodes() throws {
+        let data = Data(#"{"kind":{"box":{}},"width":1.5,"flipped":false}"#.utf8)
+        let shape = try JSONDecoder().decode(ShapeOutline.self, from: data)
+        XCTAssertEqual(shape, ShapeOutline(kind: .box, color: nil, width: 1.5))
+        XCTAssertEqual(shape.blur, 0)
+        XCTAssertNil(shape.innerShadow)
+    }
 }

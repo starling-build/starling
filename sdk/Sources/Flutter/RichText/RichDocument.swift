@@ -832,9 +832,21 @@ public struct ShapeOutline: Hashable, Codable, Sendable {
         get { _innerShadow.map { ($0.color, $0.dx, $0.dy, $0.blur) } }
         set { _innerShadow = newValue.map { InnerShadow(color: $0.color, dx: $0.dx, dy: $0.dy, blur: $0.blur) } }
     }
-    private struct InnerShadow: Hashable, Sendable { var color: Color; var dx: Double; var dy: Double; var blur: Double }
+    private struct InnerShadow: Hashable, Codable, Sendable { var color: Color; var dx: Double; var dy: Double; var blur: Double }
     private var _innerShadow: InnerShadow? = nil
     public init(kind: Kind, color: Color?, width: Double) { self.kind = kind; self.color = color; self.width = width }
+    private enum CodingKeys: String, CodingKey { case kind, color, width, fill, flipped, blur, _innerShadow }
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try values.decode(Kind.self, forKey: .kind)
+        color = try values.decodeIfPresent(Color.self, forKey: .color)
+        width = try values.decode(Double.self, forKey: .width)
+        fill = try values.decodeIfPresent(Color.self, forKey: .fill)
+        flipped = try values.decode(Bool.self, forKey: .flipped)
+        // Documents saved before shape effects have no blur or shadow keys.
+        blur = try values.decodeIfPresent(Double.self, forKey: .blur) ?? 0
+        _innerShadow = try values.decodeIfPresent(InnerShadow.self, forKey: ._innerShadow)
+    }
 }
 
 public struct ImageAttachment: Hashable, Codable, Sendable {
