@@ -2208,7 +2208,7 @@ public final class RichLayout {
                 guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
                 return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
                                            timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1),
-                                           shapesPart: (document.compatibilityMode ?? 12) >= 15)
+                                           shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages)
             }).union(_looseWordOffsets(p, document, textWidth: 100_000, named: _named(p, document),
                                        pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
             func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
@@ -9310,7 +9310,7 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (And end one with an opening mark, where it is
                             // `w:kinsoku` 0 that turns them off in text of an
                             // East Asian language: zh-72da925e (zh-TW) ends
@@ -11326,7 +11326,7 @@ public final class RichLayout {
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
                                        timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1),
-                                       shapesPart: (document.compatibilityMode ?? 12) >= 15)
+                                       shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages)
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
@@ -13131,10 +13131,11 @@ public final class RichLayout {
         // (And between two geometric shapes, which Word parts as it does
         // ideographs: zh-7654804a's "…民間機構○" ends a line in Word's
         // print and "○公司" opens the next; the engine kept "○○" together
-        // and the paragraph ran a character behind. From 2013's layout:
-        // zh-06c46ba9 (mode 14) sends all of "○○○政府" down from "…擬以探討"
-        // in Word's print, the first "○" 1.56pt over where zh-7654804a's
-        // (mode 15) is taken 1.68 over.)
+        // and the paragraph ran a character behind. From 2013's layout on
+        // the Mac: zh-06c46ba9 (mode 14) sends all of "○○○政府" down from
+        // "…擬以探討" in Mac Word's print. Word for Windows parts them in
+        // every mode: zh-e49d7943 (mode 14) ends a line "…斷裂、○" and opens
+        // the next "○至○○段", and zh-06c46ba9's line parts in its print.)
         if shapesPart, let u = a.unicodeScalars.first?.value, let v = b.unicodeScalars.first?.value,
            (0x25A0 ... 0x25FF).contains(u), (0x25A0 ... 0x25FF).contains(v) { return true }
         // (And after a multiplication sign, which the engine reads as a
