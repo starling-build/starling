@@ -6478,3 +6478,13 @@ Reference text first (chars, garbled share, similarity of Mac reference text to 
   ours do not: after the TOC field's end, an empty paragraph ending a continuous section holds a page break run, then an
   empty 26pt paragraph, then another break paragraph; Mac Word honours both breaks, Windows (and ours) one. CLAIMED.
   zh-6aa8bd7c 14.1 (33 Mac pages / 23 Windows / 32 ours; p6 table) — pagination, not looked at.
+
+### zh-cb56e605 p7 (94.4, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — a lab question
+All 8 misses are p7's table, 12.8pt low in Word's print (rule 148.6, ours 135.8). Between the title (exact 29.4) and the
+table stands one paragraph holding a lone U+00A0 in a "LinTimes" run (12pt, kern 0; Windows' sig maps it to Ebrima,
+`windowsSigFace`), on a 15.6pt `lines` grid. Word's print draws the nbsp in Ebrima at 130.22 — the slot is three pitches
+(46.8 from the title's foot at 101.4 to the table's 148.6; centred, Ebrima's 15.96 puts the baseline at 129.8) — where ours
+is two (ours draws it in DejaVu, the stand-in lacking U+00A0, at 123.22). Ebrima's own line, 2724/2048 = 1.33 em, is one
+grid's worth over two pitches' half: what makes Word's line over 31.2pt is not found (the mark is 12pt Normal: TNR / 宋体).
+A lab: the paragraph alone, the nbsp as a space, in Times, without the grid.
+
