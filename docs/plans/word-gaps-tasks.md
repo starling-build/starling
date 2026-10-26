@@ -6267,6 +6267,29 @@ Not T203's: Word's print is SimSun + Courier New (p45/p127/p128), lines break al
 under bundled (the strut's even leading splits by the drawn face's ascent/descent). The gap both modes share: p127's cells
 stand 0.3-0.5pt under Word's, the 10pt SimSun column at x117.9 0.8-0.9 (Word 100.1 / 113.1 / 126.0, bundled 100.9 / 113.9
 / 126.8), and the matcher regroups cells into rows by y. windows' PDFs: ~/starling-doc-check/t346-{local,bundled}/pdf.
+Split by windows' labs c2/mix2/mix3 (~/starling-doc-check/lab/): the shared ~0.4 does not reproduce in a one-row table
+(first baselines 100.03 for Word's 100.10). The x117.9 column's extra is its Courier New ASCII: in ours each line holding a
+Courier character ("工;", "16", "业;", "料,") sits 0.1-0.2 high and the step after it is 0.3-0.4 long (Word 13.0 throughout),
+one run or a run per script alike. The paragraph mixes two line heights at one size, so `_strut` finds it not uniform and
+gives no strut; the engine then stacks each run's box — the 宋体 stand-in (YaHei, 1.3 em by YaHei's split) leaves ~2.6pt
+under the baseline at 10pt, Liberation Mono 3.0 — and the descent wins. Word sets a mixed line as the most any face reaches
+above plus the most any reaches below, by Word's own split per face (RichResolvedFace.baseline / naturalHeight), and 宋体's
+13.0 keeps >= 3.0 below. Whole fix: per-line height max(t_i * size) + max((natural_i - t_i) * size). Partial: in `_strut`, a
+same-size Latin stretch whose Word box fits inside the East Asian face's keeps `uniform`. windows may take the partial.
 
-### T208. zh-8d6f702e: 86.1 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T208. zh-8d6f702e: 86.1 against word-win — DONE a506e241 -> 90.8, the rest a witness (Linux office1, starling-office1-95, 2026-10-25)
 Engine 8bc30c5c89a, tip dab58685: 125 lines missed — one on nearly every page (p1-p37), and p38-p42 most of each.
+Done a506e241: the one a page was the footer, "— 3 —", read "∴ 3 ∴" from our PDF. StarlingFangSong's calt takes a lone
+"—" to emdash.unjoined (same advance, 1000), a glyph no character maps to, so the PDF's ToUnicode had no entry for it and
+MuPDF took its glyph number, 0x2234, for the code point. Word applies contextual alternates only where a run asks
+(w14:cntxtAlts): calt is off under Word's rules now. Same-base pairs, 756 docs, engine 8bc30c5c89a: Windows zh-8d6f702e
+86.1 -> 90.8, zh-5dc5ce34 92.1 -> 99.7, zh-6c568ae9 94.8 -> 100, zh-3da9d7f2 93.8 -> 98.0, zh-f2835e26 91.8 -> 95.7,
+zh-785e46f8 89.1 -> 92.6, four more by under half a point, nothing lower; Mac nothing moved.
+Left (70 of the 83): p38's "（3）当出现下列条件之一时，县防指可视情宣布应急响应结束：" is one line in Word, ours wraps "束：", and
+p38-p42 follow. A one-twip witness, measured by windows (lab z8, ~/starling-doc-check/lab/z8): for (1) "…对我县影响情" the
+"情" stands 7.9036pt over and the line's one mark "）" gives 7.8964 (half of 15.7927) — ours refuses by 0.0072, Word takes
+it (setting "）" at 7.92); with the right indent stepped a twip at a time Word takes it at 0 and refuses at +1, ours at -1
+and 0. It contradicts zh-d68ac84a (RichLayout ~11316: mode 14, charSpace -5544, not taken at 0.0016 over); this is mode
+12, charSpace -849, doNotUseEastAsianBreakRules. No single tolerance or twip rounding fits both: a third witness (a mark
+giving exactly its half, on a character grid) would decide between mode, grid and the break-rules switch. Also (3)'s "："
+hangs half past the margin in Word's print though the style says overflowPunct 0. Not mine; windows has the numbers.
