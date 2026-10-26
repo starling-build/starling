@@ -6032,7 +6032,7 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differe
   the room. Tried and reverted: Windows-mode border widths in whole 600dpi dots (0.5 -> 0.48): no change here, zh-e1b09977
   98.6 -> 91.9 — Word lays out with the stated widths and draws the dots. A fix needs Word's running-total rounding of rows
   (lab `round`) in tables; not a quick rule.
-- CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): re-measure on the tip — 98 misses is more than one foot.
+- Re-measured (Linux 01F2SWc8, 2026-10-26, tip e731f8d2, engine 5357bf0b374): 85.6, and all its misses are p15 1, p16 51, p17 46 — the one p15 foot (the parted row's 0.09) and the two pages after it, at the end of an 18-page document. lenovo-2's reading holds: it needs Word's running-total row rounding. RELEASED.
 ### T192. zh-38d26944: 84.7 against word-win — MOVED to macOS-doc by the coordinator (2026-10-25; was Linux lenovo-2)
 MOVED (macos): the merged-cell half is now part of the entry below. lenovo-2's ″ (U+2033) width work stays with lenovo-2.
 
