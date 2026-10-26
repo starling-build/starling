@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 import re
 import shutil
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from office_web_fonts import prepare_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = {
@@ -15,6 +18,8 @@ EXAMPLES = {
 }
 
 def configure(site: Path, app: str) -> None:
+    manifest = site / 'fonts/manifest.json'
+    manifest.write_text(json.dumps(prepare_manifest(json.loads(manifest.read_text())), indent=2) + '\n')
     name = EXAMPLES[app]
     page = site / 'index.html'
     html = page.read_text()
@@ -39,6 +44,9 @@ def configure(site: Path, app: str) -> None:
         version, html)
     html = re.sub(
         r"(?P<prefix>from\s*['\"]\./)(?P<asset>starling\.js)(?:\?[^'\"]*)?(?P<quote>['\"])",
+        version, html)
+    html = re.sub(
+        r"(?P<prefix>fonts:\s*['\"])(?P<asset>fonts/manifest\.json)(?:\?[^'\"]*)?(?P<quote>['\"])",
         version, html)
     (site / 'examples').mkdir(exist_ok=True)
     shutil.copy2(example, site / 'examples' / name)

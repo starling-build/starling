@@ -44,12 +44,20 @@ async function launch(kind, mode, file) {
       args = [app.example];
     }
     const runtime = config.runtime;
-    const {startStarling} = await import(runtime.host);
+    // Fetch the manifest alongside the host module and its imports, saving a
+    // network round trip before the host can start the required font downloads.
+    const [{startStarling}, fonts] = await Promise.all([
+      import(runtime.host),
+      fetch(runtime.fonts).then(response => {
+        if (!response.ok) throw new Error('Could not load the font manifest.');
+        return response.json();
+      }),
+    ]);
     const fontStatus = document.querySelector('#font-status');
     const retryFonts = fontStatus.querySelector('button');
     window.starling = await startStarling({
       canvas, app: runtime.app, skwasmBase: runtime.renderer,
-      fonts: runtime.fonts, args, initialFiles, initialRoute: location.pathname,
+      fonts, args, initialFiles, initialRoute: location.pathname,
       onPhase(message) { document.querySelector('#loading-text').textContent = message; },
       onProgress(loaded, total) {
         const progress = document.querySelector('#loading-progress');

@@ -65,3 +65,11 @@ are published as app entry pages and included in the sitemap. The former
 Starling site token from `ui/main.js`. Local previews do not send analytics.
 Packaging includes and versions the loader; it does not add document-content
 tracking or custom editor events.
+
+## Startup performance
+
+Optional document fonts are requested only when used. Both new builds and
+repackaged runtimes apply `build/tools/office_web_fonts.py`; the effective font
+manifest is included in the runtime URL hash. The launcher overlaps fetching
+the manifest and host module. See `docs/perf/office-web-startup-20261026.md`
+for measured improvements and rendering checks.

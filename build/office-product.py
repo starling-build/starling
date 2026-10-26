@@ -11,9 +11,12 @@ import json
 from pathlib import Path
 import re
 import shutil
+import sys
 from string import Template
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'build/tools'))
+from office_web_fonts import prepare_manifest
 SOURCE = ROOT / 'ui/office'
 ORIGIN = 'https://office.starling.build'
 APPS = {
@@ -65,9 +68,13 @@ def build(runtime, out):
     files = sorted(p for name in roots for p in
                    ((runtime / name).rglob('*') if (runtime / name).is_dir() else [runtime / name]) if p.is_file())
     identity = hashlib.sha256()
+    # Include the effective font policy in the URL hash. Repackaging an older
+    # runtime must not reuse a cached manifest with eager optional fonts.
+    fonts = prepare_manifest(json.loads((runtime / 'fonts/manifest.json').read_text()))
     for file in files:
         identity.update(str(file.relative_to(runtime)).encode())
-        identity.update(bytes.fromhex(digest(file)))
+        identity.update(hashlib.sha256(json.dumps(fonts, sort_keys=True).encode()).digest()
+                        if file == runtime / 'fonts/manifest.json' else bytes.fromhex(digest(file)))
     prefix = '/runtime/' + identity.hexdigest()[:16] + '/'
     target = out / prefix.strip('/')
     target.mkdir(parents=True)
@@ -77,7 +84,6 @@ def build(runtime, out):
             shutil.copytree(source, target / name)
         else:
             shutil.copy2(source, target / name)
-    fonts = json.loads((target / 'fonts/manifest.json').read_text())
     for font in fonts:
         url = font['url']
         if url.startswith(('/', 'http:', 'https:')) or '..' in Path(url).parts:

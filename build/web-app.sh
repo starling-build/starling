@@ -253,6 +253,9 @@ fi
     echo
     echo "]"
 } > "$STAGE/fonts/manifest.json"
+if [ "$TARGET" = OfficeApp ]; then
+    python3 "$REPO/build/tools/office_web_fonts.py" "$STAGE/fonts/manifest.json"
+fi
 
 # skwasm, built from our engine (docs/BUILDING.md §1.7 has emsdk):
 #     cd engine/src && ./flutter/tools/gn --wasm --runtime-mode release

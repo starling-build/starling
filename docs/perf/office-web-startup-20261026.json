@@ -1,0 +1,3042 @@
+{
+  "before": [
+    {
+      "url": "http://127.0.0.1:8153/writer/?start=new",
+      "measuredAt": "2026-10-26T07:48:26.253Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 179.80000019073486
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 302.40000009536743
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 12619.700000047684
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 12642.100000143051
+            }
+          ],
+          "readyMs": 12904.200000047684,
+          "settledMs": 13457.5,
+          "timeOrigin": 1793000892083.4,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 57.40000009536743,
+              "startMs": 57.5,
+              "transfer": 2715,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 52.200000047683716,
+              "startMs": 57.700000047683716,
+              "transfer": 709,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 53,
+              "startMs": 57.700000047683716,
+              "transfer": 1204,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 54.200000047683716,
+              "startMs": 57.700000047683716,
+              "transfer": 1228,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 55.200000047683716,
+              "startMs": 57.700000047683716,
+              "transfer": 1267,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/launch.js",
+              "ms": 57.90000009536743,
+              "startMs": 57.700000047683716,
+              "transfer": 2152,
+              "encoded": 1852,
+              "decoded": 4760
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/starling.js",
+              "ms": 65.79999995231628,
+              "startMs": 179.60000014305115,
+              "transfer": 14835,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 0.7000000476837158,
+              "startMs": 185.20000004768372,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/font-loader.js",
+              "ms": 49.89999985694885,
+              "startMs": 245.80000019073486,
+              "transfer": 1318,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/keymap.js",
+              "ms": 54.299999952316284,
+              "startMs": 245.90000009536743,
+              "transfer": 4699,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 5446.399999856949,
+              "startMs": 302.10000014305115,
+              "transfer": 1784320,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/app.wasm.gz",
+              "ms": 12297.200000047684,
+              "startMs": 302.2000000476837,
+              "transfer": 7722947,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/manifest.json",
+              "ms": 46,
+              "startMs": 302.30000019073486,
+              "transfer": 1055,
+              "encoded": 755,
+              "decoded": 9335
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 85.90000009536743,
+              "startMs": 302.40000009536743,
+              "transfer": 16965,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Regular.ttf",
+              "ms": 150.70000004768372,
+              "startMs": 348.7000000476837,
+              "transfer": 24410,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Semibold.ttf",
+              "ms": 153.09999990463257,
+              "startMs": 348.80000019073486,
+              "transfer": 24663,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 275.69999980926514,
+              "startMs": 348.80000019073486,
+              "transfer": 17218,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/CupertinoIcons.ttf",
+              "ms": 642.1999998092651,
+              "startMs": 348.80000019073486,
+              "transfer": 124325,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/DejaVuSans.ttf",
+              "ms": 1815.6999998092651,
+              "startMs": 348.80000019073486,
+              "transfer": 382485,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/ArchivoBlack-Regular.ttf",
+              "ms": 389.90000009536743,
+              "startMs": 348.90000009536743,
+              "transfer": 41336,
+              "encoded": 41036,
+              "decoded": 90988
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Bold.ttf",
+              "ms": 1644.7000000476837,
+              "startMs": 348.90000009536743,
+              "transfer": 280126,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-BoldItalic.ttf",
+              "ms": 1959.9000000953674,
+              "startMs": 348.90000009536743,
+              "transfer": 322723,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Italic.ttf",
+              "ms": 2009.5,
+              "startMs": 348.90000009536743,
+              "transfer": 281618,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Regular.ttf",
+              "ms": 2646.7999999523163,
+              "startMs": 348.90000009536743,
+              "transfer": 268932,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/StarlingFangSong-Regular.ttf",
+              "ms": 9504.700000047684,
+              "startMs": 349,
+              "transfer": 3915065,
+              "encoded": 3914765,
+              "decoded": 5726240
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Bold.ttf",
+              "ms": 591.9000000953674,
+              "startMs": 12801.700000047684,
+              "transfer": 174686,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Italic.ttf",
+              "ms": 572.6999998092651,
+              "startMs": 12801.800000190735,
+              "transfer": 164476,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 579.7999999523163,
+              "startMs": 12801.800000190735,
+              "transfer": 166867,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Regular.ttf",
+              "ms": 596.6999998092651,
+              "startMs": 12801.800000190735,
+              "transfer": 179448,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "cold",
+          "transferBytes": 15923792
+        },
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 54.700000047683716
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 67.09999990463257
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 159.89999985694885
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 203.29999995231628
+            }
+          ],
+          "readyMs": 451.5,
+          "settledMs": 498.2999999523163,
+          "timeOrigin": 1793000905697.6,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 0.7000000476837158,
+              "startMs": 48.59999990463257,
+              "transfer": 0,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/launch.js",
+              "ms": 0.6999998092651367,
+              "startMs": 48.700000047683716,
+              "transfer": 0,
+              "encoded": 1852,
+              "decoded": 4760
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 1.7999999523162842,
+              "startMs": 48.799999952316284,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 1.7999999523162842,
+              "startMs": 48.799999952316284,
+              "transfer": 0,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 1.9000000953674316,
+              "startMs": 48.799999952316284,
+              "transfer": 0,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 1.2000000476837158,
+              "startMs": 48.799999952316284,
+              "transfer": 0,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/starling.js",
+              "ms": 0.39999985694885254,
+              "startMs": 54.700000047683716,
+              "transfer": 0,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/font-loader.js",
+              "ms": 0.5999999046325684,
+              "startMs": 64.20000004768372,
+              "transfer": 0,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/keymap.js",
+              "ms": 0.6999998092651367,
+              "startMs": 64.20000004768372,
+              "transfer": 0,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 35.5,
+              "startMs": 66.89999985694885,
+              "transfer": 0,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/app.wasm.gz",
+              "ms": 51.89999985694885,
+              "startMs": 67,
+              "transfer": 0,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/manifest.json",
+              "ms": 0.7000000476837158,
+              "startMs": 67.09999990463257,
+              "transfer": 0,
+              "encoded": 755,
+              "decoded": 9335
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 1.7000000476837158,
+              "startMs": 67.09999990463257,
+              "transfer": 0,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Regular.ttf",
+              "ms": 1,
+              "startMs": 136.09999990463257,
+              "transfer": 0,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Semibold.ttf",
+              "ms": 1.0999999046325684,
+              "startMs": 136.20000004768372,
+              "transfer": 0,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/DejaVuSans.ttf",
+              "ms": 10.099999904632568,
+              "startMs": 136.20000004768372,
+              "transfer": 0,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/CupertinoIcons.ttf",
+              "ms": 5.099999904632568,
+              "startMs": 136.20000004768372,
+              "transfer": 0,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 2.799999952316284,
+              "startMs": 136.29999995231628,
+              "transfer": 0,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/ArchivoBlack-Regular.ttf",
+              "ms": 3.5,
+              "startMs": 136.29999995231628,
+              "transfer": 0,
+              "encoded": 41036,
+              "decoded": 90988
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Bold.ttf",
+              "ms": 12.100000143051147,
+              "startMs": 136.39999985694885,
+              "transfer": 0,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-BoldItalic.ttf",
+              "ms": 13.100000143051147,
+              "startMs": 136.39999985694885,
+              "transfer": 0,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Italic.ttf",
+              "ms": 12.700000047683716,
+              "startMs": 136.39999985694885,
+              "transfer": 0,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Regular.ttf",
+              "ms": 12.799999952316284,
+              "startMs": 136.5,
+              "transfer": 0,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/StarlingFangSong-Regular.ttf",
+              "ms": 45,
+              "startMs": 136.5,
+              "transfer": 0,
+              "encoded": 3914765,
+              "decoded": 5726240
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Bold.ttf",
+              "ms": 3.200000047683716,
+              "startMs": 356.89999985694885,
+              "transfer": 0,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 3.200000047683716,
+              "startMs": 357,
+              "transfer": 0,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Italic.ttf",
+              "ms": 4.099999904632568,
+              "startMs": 357,
+              "transfer": 0,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Regular.ttf",
+              "ms": 4.299999952316284,
+              "startMs": 357,
+              "transfer": 0,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "warm",
+          "transferBytes": 0
+        }
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:8153/writer/?start=new",
+      "measuredAt": "2026-10-26T07:52:14.364Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 164.30000019073486
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 278.7000000476837
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 12640
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 12658.900000095367
+            }
+          ],
+          "readyMs": 12918.100000143051,
+          "settledMs": 13466.200000047684,
+          "timeOrigin": 1793001120216.6,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 46.30000019073486,
+              "startMs": 50.5,
+              "transfer": 2715,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 44.60000014305115,
+              "startMs": 50.700000047683716,
+              "transfer": 709,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/launch.js",
+              "ms": 50.60000014305115,
+              "startMs": 50.700000047683716,
+              "transfer": 2152,
+              "encoded": 1852,
+              "decoded": 4760
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 46.89999985694885,
+              "startMs": 50.80000019073486,
+              "transfer": 1204,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 48.299999952316284,
+              "startMs": 50.80000019073486,
+              "transfer": 1228,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 49.19999980926514,
+              "startMs": 50.80000019073486,
+              "transfer": 1267,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/starling.js",
+              "ms": 57.40000009536743,
+              "startMs": 164.20000004768372,
+              "transfer": 14835,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 0.7000000476837158,
+              "startMs": 178.10000014305115,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/font-loader.js",
+              "ms": 49.59999990463257,
+              "startMs": 222.10000014305115,
+              "transfer": 1318,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/keymap.js",
+              "ms": 54.200000047683716,
+              "startMs": 222.20000004768372,
+              "transfer": 4699,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 5423.5,
+              "startMs": 278.40000009536743,
+              "transfer": 1784320,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/app.wasm.gz",
+              "ms": 12347.200000047684,
+              "startMs": 278.5,
+              "transfer": 7722947,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/manifest.json",
+              "ms": 44.89999985694885,
+              "startMs": 278.60000014305115,
+              "transfer": 1055,
+              "encoded": 755,
+              "decoded": 9335
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 85.60000014305115,
+              "startMs": 278.7000000476837,
+              "transfer": 16965,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Regular.ttf",
+              "ms": 150.5,
+              "startMs": 323.90000009536743,
+              "transfer": 24410,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Semibold.ttf",
+              "ms": 152.90000009536743,
+              "startMs": 323.90000009536743,
+              "transfer": 24663,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/DejaVuSans.ttf",
+              "ms": 1817.5999999046326,
+              "startMs": 323.90000009536743,
+              "transfer": 382485,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 275.7000000476837,
+              "startMs": 324,
+              "transfer": 17218,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/CupertinoIcons.ttf",
+              "ms": 642.7000000476837,
+              "startMs": 324,
+              "transfer": 124325,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/ArchivoBlack-Regular.ttf",
+              "ms": 385.7999999523163,
+              "startMs": 324.10000014305115,
+              "transfer": 41336,
+              "encoded": 41036,
+              "decoded": 90988
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Bold.ttf",
+              "ms": 1646.2000000476837,
+              "startMs": 324.10000014305115,
+              "transfer": 280126,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-BoldItalic.ttf",
+              "ms": 1956.2000000476837,
+              "startMs": 324.10000014305115,
+              "transfer": 322723,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Italic.ttf",
+              "ms": 2009.2000000476837,
+              "startMs": 324.2000000476837,
+              "transfer": 281618,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Regular.ttf",
+              "ms": 2647.600000143051,
+              "startMs": 324.2000000476837,
+              "transfer": 268932,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/StarlingFangSong-Regular.ttf",
+              "ms": 9509.200000047684,
+              "startMs": 324.2000000476837,
+              "transfer": 3915065,
+              "encoded": 3914765,
+              "decoded": 5726240
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 577.5,
+              "startMs": 12816.600000143051,
+              "transfer": 166867,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Bold.ttf",
+              "ms": 589.2999999523163,
+              "startMs": 12816.600000143051,
+              "transfer": 174686,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Italic.ttf",
+              "ms": 570.2000000476837,
+              "startMs": 12816.700000047684,
+              "transfer": 164476,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Regular.ttf",
+              "ms": 594,
+              "startMs": 12816.700000047684,
+              "transfer": 179448,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "cold",
+          "transferBytes": 15923792
+        },
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 56.700000047683716
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 69.20000004768372
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 163.90000009536743
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 209.40000009536743
+            }
+          ],
+          "readyMs": 468.90000009536743,
+          "settledMs": 515.9000000953674,
+          "timeOrigin": 1793001133793,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 0.5999999046325684,
+              "startMs": 50.40000009536743,
+              "transfer": 0,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/launch.js",
+              "ms": 0.6000001430511475,
+              "startMs": 50.5,
+              "transfer": 0,
+              "encoded": 1852,
+              "decoded": 4760
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 1.2000000476837158,
+              "startMs": 50.5,
+              "transfer": 0,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 2,
+              "startMs": 50.60000014305115,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 1.8999998569488525,
+              "startMs": 50.60000014305115,
+              "transfer": 0,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 2.1000001430511475,
+              "startMs": 50.700000047683716,
+              "transfer": 0,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/starling.js",
+              "ms": 0.7000000476837158,
+              "startMs": 56.60000014305115,
+              "transfer": 0,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/font-loader.js",
+              "ms": 0.5,
+              "startMs": 66.5,
+              "transfer": 0,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/keymap.js",
+              "ms": 0.6000001430511475,
+              "startMs": 66.5,
+              "transfer": 0,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 38.40000009536743,
+              "startMs": 68.90000009536743,
+              "transfer": 0,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/manifest.json",
+              "ms": 0.8999998569488525,
+              "startMs": 69.10000014305115,
+              "transfer": 0,
+              "encoded": 755,
+              "decoded": 9335
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 1,
+              "startMs": 69.10000014305115,
+              "transfer": 0,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/app.wasm.gz",
+              "ms": 56.59999990463257,
+              "startMs": 69.10000014305115,
+              "transfer": 0,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Regular.ttf",
+              "ms": 0.7999999523162842,
+              "startMs": 139.70000004768372,
+              "transfer": 0,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Semibold.ttf",
+              "ms": 0.8999998569488525,
+              "startMs": 139.80000019073486,
+              "transfer": 0,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/DejaVuSans.ttf",
+              "ms": 5.5,
+              "startMs": 139.80000019073486,
+              "transfer": 0,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/CupertinoIcons.ttf",
+              "ms": 2.799999952316284,
+              "startMs": 139.90000009536743,
+              "transfer": 0,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 1.5999999046325684,
+              "startMs": 139.90000009536743,
+              "transfer": 0,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/ArchivoBlack-Regular.ttf",
+              "ms": 3.700000047683716,
+              "startMs": 139.90000009536743,
+              "transfer": 0,
+              "encoded": 41036,
+              "decoded": 90988
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Bold.ttf",
+              "ms": 6.5,
+              "startMs": 140,
+              "transfer": 0,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-BoldItalic.ttf",
+              "ms": 9.700000047683716,
+              "startMs": 140,
+              "transfer": 0,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Italic.ttf",
+              "ms": 10.5,
+              "startMs": 140,
+              "transfer": 0,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Regular.ttf",
+              "ms": 13.600000143051147,
+              "startMs": 140,
+              "transfer": 0,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/StarlingFangSong-Regular.ttf",
+              "ms": 46.5,
+              "startMs": 140,
+              "transfer": 0,
+              "encoded": 3914765,
+              "decoded": 5726240
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Bold.ttf",
+              "ms": 2.3999998569488525,
+              "startMs": 367.80000019073486,
+              "transfer": 0,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 3.299999952316284,
+              "startMs": 367.80000019073486,
+              "transfer": 0,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Italic.ttf",
+              "ms": 3.299999952316284,
+              "startMs": 367.90000009536743,
+              "transfer": 0,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Regular.ttf",
+              "ms": 4.799999952316284,
+              "startMs": 367.90000009536743,
+              "transfer": 0,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "warm",
+          "transferBytes": 0
+        }
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:8153/writer/?start=new",
+      "measuredAt": "2026-10-26T07:52:29.532Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 166.39999985694885
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 281.2000000476837
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 12574.799999952316
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 12594.799999952316
+            }
+          ],
+          "readyMs": 12847.200000047684,
+          "settledMs": 13396.799999952316,
+          "timeOrigin": 1793001135463.6,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 51.09999990463257,
+              "startMs": 52.200000047683716,
+              "transfer": 2715,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 45.90000009536743,
+              "startMs": 52.299999952316284,
+              "transfer": 709,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/launch.js",
+              "ms": 51.90000009536743,
+              "startMs": 52.299999952316284,
+              "transfer": 2152,
+              "encoded": 1852,
+              "decoded": 4760
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 47.10000014305115,
+              "startMs": 52.39999985694885,
+              "transfer": 1204,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 48.30000019073486,
+              "startMs": 52.39999985694885,
+              "transfer": 1228,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 49.60000014305115,
+              "startMs": 52.39999985694885,
+              "transfer": 1267,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/starling.js",
+              "ms": 55.700000047683716,
+              "startMs": 166.29999995231628,
+              "transfer": 14835,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 0.7999999523162842,
+              "startMs": 168.79999995231628,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/font-loader.js",
+              "ms": 52,
+              "startMs": 222.5,
+              "transfer": 1318,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/keymap.js",
+              "ms": 56.5,
+              "startMs": 222.59999990463257,
+              "transfer": 4699,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 5458.799999952316,
+              "startMs": 281.09999990463257,
+              "transfer": 1784320,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/manifest.json",
+              "ms": 51.39999985694885,
+              "startMs": 281.2000000476837,
+              "transfer": 1055,
+              "encoded": 755,
+              "decoded": 9335
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 93.5,
+              "startMs": 281.2000000476837,
+              "transfer": 16965,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/app.wasm.gz",
+              "ms": 12278.099999904633,
+              "startMs": 281.2000000476837,
+              "transfer": 7722947,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Regular.ttf",
+              "ms": 151.5,
+              "startMs": 333,
+              "transfer": 24410,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Semibold.ttf",
+              "ms": 155.29999995231628,
+              "startMs": 333.09999990463257,
+              "transfer": 24663,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/DejaVuSans.ttf",
+              "ms": 1815.4000000953674,
+              "startMs": 333.09999990463257,
+              "transfer": 382485,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 276.2999999523163,
+              "startMs": 333.2000000476837,
+              "transfer": 17218,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/ArchivoBlack-Regular.ttf",
+              "ms": 389.19999980926514,
+              "startMs": 333.2000000476837,
+              "transfer": 41336,
+              "encoded": 41036,
+              "decoded": 90988
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/CupertinoIcons.ttf",
+              "ms": 642.1999998092651,
+              "startMs": 333.2000000476837,
+              "transfer": 124325,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Bold.ttf",
+              "ms": 1649.5,
+              "startMs": 333.2000000476837,
+              "transfer": 280126,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-BoldItalic.ttf",
+              "ms": 1958.2999999523163,
+              "startMs": 333.2000000476837,
+              "transfer": 322723,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Italic.ttf",
+              "ms": 2009.2999999523163,
+              "startMs": 333.2999999523163,
+              "transfer": 281618,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Regular.ttf",
+              "ms": 2648.7000000476837,
+              "startMs": 333.2999999523163,
+              "transfer": 268932,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/StarlingFangSong-Regular.ttf",
+              "ms": 9489.200000047684,
+              "startMs": 333.2999999523163,
+              "transfer": 3915065,
+              "encoded": 3914765,
+              "decoded": 5726240
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Bold.ttf",
+              "ms": 588.2000000476837,
+              "startMs": 12748.799999952316,
+              "transfer": 174686,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Italic.ttf",
+              "ms": 567.3999998569489,
+              "startMs": 12749,
+              "transfer": 164476,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 575.5,
+              "startMs": 12749,
+              "transfer": 166867,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Regular.ttf",
+              "ms": 592.7000000476837,
+              "startMs": 12749,
+              "transfer": 179448,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "cold",
+          "transferBytes": 15923792
+        },
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 57.5
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 70.10000014305115
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 164.90000009536743
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 209
+            }
+          ],
+          "readyMs": 457.30000019073486,
+          "settledMs": 502.60000014305115,
+          "timeOrigin": 1793001148971.5,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 0.7999999523162842,
+              "startMs": 51.200000047683716,
+              "transfer": 0,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/launch.js",
+              "ms": 0.6999998092651367,
+              "startMs": 51.30000019073486,
+              "transfer": 0,
+              "encoded": 1852,
+              "decoded": 4760
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 1.9000000953674316,
+              "startMs": 51.40000009536743,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 2,
+              "startMs": 51.40000009536743,
+              "transfer": 0,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 2.4000000953674316,
+              "startMs": 51.40000009536743,
+              "transfer": 0,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 1.2000000476837158,
+              "startMs": 51.40000009536743,
+              "transfer": 0,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/starling.js",
+              "ms": 0.5,
+              "startMs": 57.40000009536743,
+              "transfer": 0,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/font-loader.js",
+              "ms": 0.5,
+              "startMs": 67.40000009536743,
+              "transfer": 0,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/keymap.js",
+              "ms": 0.5,
+              "startMs": 67.5,
+              "transfer": 0,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 39.200000047683716,
+              "startMs": 69.90000009536743,
+              "transfer": 0,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/app.wasm.gz",
+              "ms": 55.700000047683716,
+              "startMs": 69.90000009536743,
+              "transfer": 0,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/manifest.json",
+              "ms": 0.6000001430511475,
+              "startMs": 70,
+              "transfer": 0,
+              "encoded": 755,
+              "decoded": 9335
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 1.4000000953674316,
+              "startMs": 70,
+              "transfer": 0,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Regular.ttf",
+              "ms": 0.7999999523162842,
+              "startMs": 140.40000009536743,
+              "transfer": 0,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Selawik-Semibold.ttf",
+              "ms": 1,
+              "startMs": 140.5,
+              "transfer": 0,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/DejaVuSans.ttf",
+              "ms": 6.800000190734863,
+              "startMs": 140.5,
+              "transfer": 0,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/CupertinoIcons.ttf",
+              "ms": 3.5,
+              "startMs": 140.60000014305115,
+              "transfer": 0,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 3.200000047683716,
+              "startMs": 140.60000014305115,
+              "transfer": 0,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/ArchivoBlack-Regular.ttf",
+              "ms": 4.200000047683716,
+              "startMs": 140.60000014305115,
+              "transfer": 0,
+              "encoded": 41036,
+              "decoded": 90988
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Bold.ttf",
+              "ms": 8.099999904632568,
+              "startMs": 140.60000014305115,
+              "transfer": 0,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-BoldItalic.ttf",
+              "ms": 8.5,
+              "startMs": 140.70000004768372,
+              "transfer": 0,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Italic.ttf",
+              "ms": 11.200000047683716,
+              "startMs": 140.70000004768372,
+              "transfer": 0,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/Carlito-Regular.ttf",
+              "ms": 12,
+              "startMs": 140.70000004768372,
+              "transfer": 0,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/StarlingFangSong-Regular.ttf",
+              "ms": 45.799999952316284,
+              "startMs": 140.70000004768372,
+              "transfer": 0,
+              "encoded": 3914765,
+              "decoded": 5726240
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Bold.ttf",
+              "ms": 2.299999952316284,
+              "startMs": 367.30000019073486,
+              "transfer": 0,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 3.0999999046325684,
+              "startMs": 367.40000009536743,
+              "transfer": 0,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Italic.ttf",
+              "ms": 3.200000047683716,
+              "startMs": 367.40000009536743,
+              "transfer": 0,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/64a9fb4f4243957d/fonts/LiberationMono-Regular.ttf",
+              "ms": 4.700000047683716,
+              "startMs": 367.40000009536743,
+              "transfer": 0,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "warm",
+          "transferBytes": 0
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "url": "http://127.0.0.1:8154/writer/?start=new",
+      "measuredAt": "2026-10-26T07:48:23.108Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 180.29999995231628
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 303.59999990463257
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 9523.400000095367
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 9540.799999952316
+            }
+          ],
+          "readyMs": 9797.799999952316,
+          "settledMs": 10351.200000047684,
+          "timeOrigin": 1793000892067.4,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 45,
+              "startMs": 52.799999952316284,
+              "transfer": 2715,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 47,
+              "startMs": 53,
+              "transfer": 1204,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 45.40000009536743,
+              "startMs": 53,
+              "transfer": 709,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/launch.js",
+              "ms": 50.700000047683716,
+              "startMs": 53,
+              "transfer": 2318,
+              "encoded": 2018,
+              "decoded": 5109
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 48.10000014305115,
+              "startMs": 53.09999990463257,
+              "transfer": 1267,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 49,
+              "startMs": 53.09999990463257,
+              "transfer": 1228,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/starling.js",
+              "ms": 66.79999995231628,
+              "startMs": 179.70000004768372,
+              "transfer": 14835,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/manifest.json",
+              "ms": 54.09999990463257,
+              "startMs": 180.20000004768372,
+              "transfer": 1062,
+              "encoded": 762,
+              "decoded": 9397
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 0.6999998092651367,
+              "startMs": 194.40000009536743,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/font-loader.js",
+              "ms": 48.5,
+              "startMs": 247,
+              "transfer": 1318,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/keymap.js",
+              "ms": 53.200000047683716,
+              "startMs": 247.09999990463257,
+              "transfer": 4699,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 4317.200000047684,
+              "startMs": 302.7999999523163,
+              "transfer": 1784320,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 125.70000004768372,
+              "startMs": 303.59999990463257,
+              "transfer": 16965,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/app.wasm.gz",
+              "ms": 9204.400000095367,
+              "startMs": 303.59999990463257,
+              "transfer": 7722947,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Regular.ttf",
+              "ms": 157.40000009536743,
+              "startMs": 303.7999999523163,
+              "transfer": 24410,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Semibold.ttf",
+              "ms": 159.79999995231628,
+              "startMs": 303.7999999523163,
+              "transfer": 24663,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/DejaVuSans.ttf",
+              "ms": 1826.7000000476837,
+              "startMs": 303.7999999523163,
+              "transfer": 382485,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 282.39999985694885,
+              "startMs": 303.90000009536743,
+              "transfer": 17218,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/CupertinoIcons.ttf",
+              "ms": 737.3999998569489,
+              "startMs": 303.90000009536743,
+              "transfer": 124325,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Bold.ttf",
+              "ms": 1530.2999999523163,
+              "startMs": 303.90000009536743,
+              "transfer": 280126,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-BoldItalic.ttf",
+              "ms": 1855.1999998092651,
+              "startMs": 303.90000009536743,
+              "transfer": 322723,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Italic.ttf",
+              "ms": 2030.4000000953674,
+              "startMs": 304,
+              "transfer": 281618,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Regular.ttf",
+              "ms": 2403.7000000476837,
+              "startMs": 304,
+              "transfer": 268932,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Italic.ttf",
+              "ms": 572.5,
+              "startMs": 9696.5,
+              "transfer": 164476,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 579.5,
+              "startMs": 9696.5,
+              "transfer": 166867,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Bold.ttf",
+              "ms": 591.5,
+              "startMs": 9696.5,
+              "transfer": 174686,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Regular.ttf",
+              "ms": 596.3000001907349,
+              "startMs": 9696.599999904633,
+              "transfer": 179448,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "cold",
+          "transferBytes": 11967564
+        },
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 57.69999980926514
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 70
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 173.5
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 191.69999980926514
+            }
+          ],
+          "readyMs": 440.5,
+          "settledMs": 488,
+          "timeOrigin": 1793000902563.8,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 0.6999998092651367,
+              "startMs": 50.5,
+              "transfer": 0,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/launch.js",
+              "ms": 0.7000000476837158,
+              "startMs": 50.59999990463257,
+              "transfer": 0,
+              "encoded": 2018,
+              "decoded": 5109
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 2.1000001430511475,
+              "startMs": 50.69999980926514,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 2.1000001430511475,
+              "startMs": 50.69999980926514,
+              "transfer": 0,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 2.3000001907348633,
+              "startMs": 50.69999980926514,
+              "transfer": 0,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 1.3000001907348633,
+              "startMs": 50.69999980926514,
+              "transfer": 0,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/starling.js",
+              "ms": 0.7000000476837158,
+              "startMs": 57.39999985694885,
+              "transfer": 0,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/manifest.json",
+              "ms": 0.5999999046325684,
+              "startMs": 57.5,
+              "transfer": 0,
+              "encoded": 762,
+              "decoded": 9397
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/font-loader.js",
+              "ms": 0.5999999046325684,
+              "startMs": 66.59999990463257,
+              "transfer": 0,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/keymap.js",
+              "ms": 0.6000001430511475,
+              "startMs": 66.69999980926514,
+              "transfer": 0,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 74.29999995231628,
+              "startMs": 69.79999995231628,
+              "transfer": 0,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 1.2000000476837158,
+              "startMs": 69.89999985694885,
+              "transfer": 0,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/app.wasm.gz",
+              "ms": 47.90000009536743,
+              "startMs": 69.89999985694885,
+              "transfer": 0,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Regular.ttf",
+              "ms": 1.5,
+              "startMs": 70,
+              "transfer": 0,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Semibold.ttf",
+              "ms": 2.3999998569488525,
+              "startMs": 70,
+              "transfer": 0,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/DejaVuSans.ttf",
+              "ms": 7.599999904632568,
+              "startMs": 70.09999990463257,
+              "transfer": 0,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/CupertinoIcons.ttf",
+              "ms": 10,
+              "startMs": 70.09999990463257,
+              "transfer": 0,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 10.5,
+              "startMs": 70.09999990463257,
+              "transfer": 0,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Bold.ttf",
+              "ms": 14.700000047683716,
+              "startMs": 70.09999990463257,
+              "transfer": 0,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-BoldItalic.ttf",
+              "ms": 15.900000095367432,
+              "startMs": 70.19999980926514,
+              "transfer": 0,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Italic.ttf",
+              "ms": 21,
+              "startMs": 70.29999995231628,
+              "transfer": 0,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Regular.ttf",
+              "ms": 21.700000047683716,
+              "startMs": 70.29999995231628,
+              "transfer": 0,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Bold.ttf",
+              "ms": 3.200000047683716,
+              "startMs": 346.2999999523163,
+              "transfer": 0,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 3.200000047683716,
+              "startMs": 346.39999985694885,
+              "transfer": 0,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Italic.ttf",
+              "ms": 3.1999998092651367,
+              "startMs": 346.5,
+              "transfer": 0,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Regular.ttf",
+              "ms": 4.3999998569488525,
+              "startMs": 346.5,
+              "transfer": 0,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "warm",
+          "transferBytes": 0
+        }
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:8154/writer/?start=new",
+      "measuredAt": "2026-10-26T07:52:11.321Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 161.89999985694885
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 277.2999999523163
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 9562.599999904633
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 9581.099999904633
+            }
+          ],
+          "readyMs": 9834.799999952316,
+          "settledMs": 10391.399999856949,
+          "timeOrigin": 1793001120242.6,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 53,
+              "startMs": 47.200000047683716,
+              "transfer": 2715,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 48,
+              "startMs": 47.39999985694885,
+              "transfer": 709,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 49.200000047683716,
+              "startMs": 47.39999985694885,
+              "transfer": 1204,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 50.5,
+              "startMs": 47.39999985694885,
+              "transfer": 1228,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/launch.js",
+              "ms": 54.10000014305115,
+              "startMs": 47.39999985694885,
+              "transfer": 2318,
+              "encoded": 2018,
+              "decoded": 5109
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 51.5,
+              "startMs": 47.5,
+              "transfer": 1267,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/starling.js",
+              "ms": 58.90000009536743,
+              "startMs": 161.59999990463257,
+              "transfer": 14835,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/manifest.json",
+              "ms": 47.59999990463257,
+              "startMs": 161.70000004768372,
+              "transfer": 1062,
+              "encoded": 762,
+              "decoded": 9397
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 0.5,
+              "startMs": 165,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/font-loader.js",
+              "ms": 49.5,
+              "startMs": 221.09999990463257,
+              "transfer": 1318,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/keymap.js",
+              "ms": 54.299999952316284,
+              "startMs": 221.09999990463257,
+              "transfer": 4699,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 4293,
+              "startMs": 277.09999990463257,
+              "transfer": 1784320,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/app.wasm.gz",
+              "ms": 9266.299999952316,
+              "startMs": 277.2000000476837,
+              "transfer": 7722947,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 123.20000004768372,
+              "startMs": 277.2999999523163,
+              "transfer": 16965,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Regular.ttf",
+              "ms": 155.10000014305115,
+              "startMs": 277.39999985694885,
+              "transfer": 24410,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Semibold.ttf",
+              "ms": 156.20000004768372,
+              "startMs": 277.5,
+              "transfer": 24663,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 280.09999990463257,
+              "startMs": 277.5,
+              "transfer": 17218,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/CupertinoIcons.ttf",
+              "ms": 733.8999998569489,
+              "startMs": 277.5,
+              "transfer": 124325,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Bold.ttf",
+              "ms": 1526.0999999046326,
+              "startMs": 277.5,
+              "transfer": 280126,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/DejaVuSans.ttf",
+              "ms": 1823.8999998569489,
+              "startMs": 277.5,
+              "transfer": 382485,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-BoldItalic.ttf",
+              "ms": 1853.2000000476837,
+              "startMs": 277.5,
+              "transfer": 322723,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Italic.ttf",
+              "ms": 2027.2999999523163,
+              "startMs": 277.5,
+              "transfer": 281618,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Regular.ttf",
+              "ms": 2399.199999809265,
+              "startMs": 277.7000000476837,
+              "transfer": 268932,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Italic.ttf",
+              "ms": 575.5999999046326,
+              "startMs": 9734.700000047684,
+              "transfer": 164476,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 581.5,
+              "startMs": 9734.700000047684,
+              "transfer": 166867,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Bold.ttf",
+              "ms": 594.8999998569489,
+              "startMs": 9734.700000047684,
+              "transfer": 174686,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Regular.ttf",
+              "ms": 601.5999999046326,
+              "startMs": 9734.799999952316,
+              "transfer": 179448,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "cold",
+          "transferBytes": 11967564
+        },
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 57.90000009536743
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 70.70000004768372
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 167.59999990463257
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 187.40000009536743
+            }
+          ],
+          "readyMs": 473,
+          "settledMs": 521.5999999046326,
+          "timeOrigin": 1793001130744.5,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 0.6000001430511475,
+              "startMs": 51.59999990463257,
+              "transfer": 0,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/launch.js",
+              "ms": 0.6000001430511475,
+              "startMs": 51.59999990463257,
+              "transfer": 0,
+              "encoded": 2018,
+              "decoded": 5109
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 1.8999998569488525,
+              "startMs": 51.700000047683716,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 1.2999999523162842,
+              "startMs": 51.700000047683716,
+              "transfer": 0,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 2,
+              "startMs": 51.799999952316284,
+              "transfer": 0,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 2.1000001430511475,
+              "startMs": 51.799999952316284,
+              "transfer": 0,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/starling.js",
+              "ms": 0.5999999046325684,
+              "startMs": 57.700000047683716,
+              "transfer": 0,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/manifest.json",
+              "ms": 0.6000001430511475,
+              "startMs": 57.799999952316284,
+              "transfer": 0,
+              "encoded": 762,
+              "decoded": 9397
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/font-loader.js",
+              "ms": 0.5,
+              "startMs": 68,
+              "transfer": 0,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/keymap.js",
+              "ms": 0.5999999046325684,
+              "startMs": 68,
+              "transfer": 0,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 28.399999856948853,
+              "startMs": 70.40000009536743,
+              "transfer": 0,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/app.wasm.gz",
+              "ms": 31,
+              "startMs": 70.5,
+              "transfer": 0,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 1.1000001430511475,
+              "startMs": 70.59999990463257,
+              "transfer": 0,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Regular.ttf",
+              "ms": 2.0999999046325684,
+              "startMs": 70.70000004768372,
+              "transfer": 0,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Semibold.ttf",
+              "ms": 2.200000047683716,
+              "startMs": 70.79999995231628,
+              "transfer": 0,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/DejaVuSans.ttf",
+              "ms": 7.299999952316284,
+              "startMs": 70.79999995231628,
+              "transfer": 0,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/CupertinoIcons.ttf",
+              "ms": 9.399999856948853,
+              "startMs": 70.90000009536743,
+              "transfer": 0,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 10.599999904632568,
+              "startMs": 70.90000009536743,
+              "transfer": 0,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Bold.ttf",
+              "ms": 17.199999809265137,
+              "startMs": 70.90000009536743,
+              "transfer": 0,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-BoldItalic.ttf",
+              "ms": 17.59999990463257,
+              "startMs": 71,
+              "transfer": 0,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Italic.ttf",
+              "ms": 18.200000047683716,
+              "startMs": 71,
+              "transfer": 0,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Regular.ttf",
+              "ms": 18.5,
+              "startMs": 71,
+              "transfer": 0,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Bold.ttf",
+              "ms": 3.1000001430511475,
+              "startMs": 340.2999999523163,
+              "transfer": 0,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 3.1999998092651367,
+              "startMs": 340.40000009536743,
+              "transfer": 0,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Italic.ttf",
+              "ms": 3.5,
+              "startMs": 340.40000009536743,
+              "transfer": 0,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Regular.ttf",
+              "ms": 4.3999998569488525,
+              "startMs": 340.40000009536743,
+              "transfer": 0,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "warm",
+          "transferBytes": 0
+        }
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:8154/writer/?start=new",
+      "measuredAt": "2026-10-26T07:52:23.388Z",
+      "network": {
+        "mbps": 10,
+        "latencyMs": 40
+      },
+      "measurements": [
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 164.60000014305115
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 274.2000000476837
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 9482.600000143051
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 9498.600000143051
+            }
+          ],
+          "readyMs": 9752.100000143051,
+          "settledMs": 10309,
+          "timeOrigin": 1793001132424.6,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 50.5,
+              "startMs": 50.700000047683716,
+              "transfer": 2715,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 45.09999990463257,
+              "startMs": 50.90000009536743,
+              "transfer": 709,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 46.299999952316284,
+              "startMs": 50.90000009536743,
+              "transfer": 1204,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 47.5,
+              "startMs": 50.90000009536743,
+              "transfer": 1228,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 48.700000047683716,
+              "startMs": 50.90000009536743,
+              "transfer": 1267,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/launch.js",
+              "ms": 50.89999985694885,
+              "startMs": 50.90000009536743,
+              "transfer": 2318,
+              "encoded": 2018,
+              "decoded": 5109
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/starling.js",
+              "ms": 56.40000009536743,
+              "startMs": 164.29999995231628,
+              "transfer": 14835,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/manifest.json",
+              "ms": 45.59999990463257,
+              "startMs": 164.40000009536743,
+              "transfer": 1062,
+              "encoded": 762,
+              "decoded": 9397
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 1,
+              "startMs": 166.79999995231628,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/font-loader.js",
+              "ms": 46,
+              "startMs": 221.29999995231628,
+              "transfer": 1318,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/keymap.js",
+              "ms": 50.90000009536743,
+              "startMs": 221.29999995231628,
+              "transfer": 4699,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 4341.100000143051,
+              "startMs": 274,
+              "transfer": 1784320,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 130.39999985694885,
+              "startMs": 274.10000014305115,
+              "transfer": 16965,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/app.wasm.gz",
+              "ms": 9193.899999856949,
+              "startMs": 274.10000014305115,
+              "transfer": 7722947,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Regular.ttf",
+              "ms": 161.40000009536743,
+              "startMs": 274.2000000476837,
+              "transfer": 24410,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Semibold.ttf",
+              "ms": 164,
+              "startMs": 274.2999999523163,
+              "transfer": 24663,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/DejaVuSans.ttf",
+              "ms": 1830.6000001430511,
+              "startMs": 274.2999999523163,
+              "transfer": 382485,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 285.7999999523163,
+              "startMs": 274.40000009536743,
+              "transfer": 17218,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/CupertinoIcons.ttf",
+              "ms": 741.2000000476837,
+              "startMs": 274.40000009536743,
+              "transfer": 124325,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Bold.ttf",
+              "ms": 1533.0999999046326,
+              "startMs": 274.40000009536743,
+              "transfer": 280126,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-BoldItalic.ttf",
+              "ms": 1859,
+              "startMs": 274.40000009536743,
+              "transfer": 322723,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Italic.ttf",
+              "ms": 2034.5,
+              "startMs": 274.40000009536743,
+              "transfer": 281618,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Regular.ttf",
+              "ms": 2411.5999999046326,
+              "startMs": 274.40000009536743,
+              "transfer": 268932,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Bold.ttf",
+              "ms": 591.0999999046326,
+              "startMs": 9652.200000047684,
+              "transfer": 174686,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Italic.ttf",
+              "ms": 571.9000000953674,
+              "startMs": 9652.299999952316,
+              "transfer": 164476,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 579,
+              "startMs": 9652.299999952316,
+              "transfer": 166867,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Regular.ttf",
+              "ms": 595.8000001907349,
+              "startMs": 9652.299999952316,
+              "transfer": 179448,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "cold",
+          "transferBytes": 11967564
+        },
+        {
+          "phases": [
+            {
+              "text": "Loading the editor\u2026",
+              "ms": 58.40000009536743
+            },
+            {
+              "text": "Loading editor and fonts\u2026",
+              "ms": 71.20000004768372
+            },
+            {
+              "text": "Preparing fonts\u2026",
+              "ms": 176.40000009536743
+            },
+            {
+              "text": "Drawing document\u2026",
+              "ms": 195.30000019073486
+            }
+          ],
+          "readyMs": 441.40000009536743,
+          "settledMs": 490.30000019073486,
+          "timeOrigin": 1793001142844.9,
+          "document": "Document1",
+          "resources": [
+            {
+              "path": "/site.css",
+              "ms": 0.7000000476837158,
+              "startMs": 51.90000009536743,
+              "transfer": 0,
+              "encoded": 2415,
+              "decoded": 8291
+            },
+            {
+              "path": "/assets/starling-writer.svg",
+              "ms": 1.8999998569488525,
+              "startMs": 52.10000014305115,
+              "transfer": 0,
+              "encoded": 904,
+              "decoded": 3798
+            },
+            {
+              "path": "/assets/starling-sheets.svg",
+              "ms": 2.0999999046325684,
+              "startMs": 52.10000014305115,
+              "transfer": 0,
+              "encoded": 928,
+              "decoded": 3933
+            },
+            {
+              "path": "/assets/starling-slides.svg",
+              "ms": 2.0999999046325684,
+              "startMs": 52.10000014305115,
+              "transfer": 0,
+              "encoded": 967,
+              "decoded": 4229
+            },
+            {
+              "path": "/launch.js",
+              "ms": 0.5999999046325684,
+              "startMs": 52.10000014305115,
+              "transfer": 0,
+              "encoded": 2018,
+              "decoded": 5109
+            },
+            {
+              "path": "/cloudflare-analytics.js",
+              "ms": 1.2000000476837158,
+              "startMs": 52.10000014305115,
+              "transfer": 0,
+              "encoded": 409,
+              "decoded": 631
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/starling.js",
+              "ms": 0.7000000476837158,
+              "startMs": 58.10000014305115,
+              "transfer": 0,
+              "encoded": 14535,
+              "decoded": 44205
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/manifest.json",
+              "ms": 0.6999998092651367,
+              "startMs": 58.30000019073486,
+              "transfer": 0,
+              "encoded": 762,
+              "decoded": 9397
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/font-loader.js",
+              "ms": 0.5,
+              "startMs": 68.60000014305115,
+              "transfer": 0,
+              "encoded": 1018,
+              "decoded": 2473
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/keymap.js",
+              "ms": 0.5999999046325684,
+              "startMs": 68.60000014305115,
+              "transfer": 0,
+              "encoded": 4399,
+              "decoded": 18992
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+              "ms": 29.600000143051147,
+              "startMs": 71,
+              "transfer": 0,
+              "encoded": 1784020,
+              "decoded": 4289017
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/app.wasm.gz",
+              "ms": 46,
+              "startMs": 71.10000014305115,
+              "transfer": 0,
+              "encoded": 7722647,
+              "decoded": 7722647
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Regular.ttf",
+              "ms": 1.5,
+              "startMs": 71.20000004768372,
+              "transfer": 0,
+              "encoded": 24110,
+              "decoded": 44224
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/skwasm-f2bc4996fb630c7b/skwasm.js",
+              "ms": 0.7000000476837158,
+              "startMs": 71.20000004768372,
+              "transfer": 0,
+              "encoded": 16665,
+              "decoded": 61480
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Selawik-Semibold.ttf",
+              "ms": 2.3999998569488525,
+              "startMs": 71.30000019073486,
+              "transfer": 0,
+              "encoded": 24363,
+              "decoded": 44192
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/DejaVuSans.ttf",
+              "ms": 10.5,
+              "startMs": 71.40000009536743,
+              "transfer": 0,
+              "encoded": 382185,
+              "decoded": 759720
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/CupertinoIcons.ttf",
+              "ms": 9,
+              "startMs": 71.40000009536743,
+              "transfer": 0,
+              "encoded": 124025,
+              "decoded": 283452
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/FluentSystemIcons-Regular.ttf",
+              "ms": 5.799999952316284,
+              "startMs": 71.40000009536743,
+              "transfer": 0,
+              "encoded": 16918,
+              "decoded": 30248
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Bold.ttf",
+              "ms": 13,
+              "startMs": 71.40000009536743,
+              "transfer": 0,
+              "encoded": 279826,
+              "decoded": 682468
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-BoldItalic.ttf",
+              "ms": 13.800000190734863,
+              "startMs": 71.5,
+              "transfer": 0,
+              "encoded": 322423,
+              "decoded": 808508
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Italic.ttf",
+              "ms": 18.5,
+              "startMs": 71.5,
+              "transfer": 0,
+              "encoded": 281318,
+              "decoded": 615236
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/Carlito-Regular.ttf",
+              "ms": 18.59999990463257,
+              "startMs": 71.60000014305115,
+              "transfer": 0,
+              "encoded": 268632,
+              "decoded": 628032
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Bold.ttf",
+              "ms": 2.299999952316284,
+              "startMs": 350.2000000476837,
+              "transfer": 0,
+              "encoded": 174386,
+              "decoded": 307996
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-BoldItalic.ttf",
+              "ms": 3,
+              "startMs": 350.2000000476837,
+              "transfer": 0,
+              "encoded": 166567,
+              "decoded": 284068
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Italic.ttf",
+              "ms": 3.299999952316284,
+              "startMs": 350.2000000476837,
+              "transfer": 0,
+              "encoded": 164176,
+              "decoded": 281536
+            },
+            {
+              "path": "/runtime/c73a51c7c24ad144/fonts/LiberationMono-Regular.ttf",
+              "ms": 4.6000001430511475,
+              "startMs": 350.2000000476837,
+              "transfer": 0,
+              "encoded": 179148,
+              "decoded": 319508
+            }
+          ],
+          "cache": "warm",
+          "transferBytes": 0
+        }
+      ]
+    }
+  ]
+}
