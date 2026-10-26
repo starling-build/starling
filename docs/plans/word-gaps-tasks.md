@@ -6189,7 +6189,13 @@ in that checkout (one editable Word file, 17 sections F01-F17, Word's PDFs besid
   1621 -> 1656 (bundled 1621), body and digits FangSong as in Word's print; zh-053f8706 1414 holds (now FangSong); zh-ae2dd08d,
   zh-505b9619, zh-0978dee9, bug65649, Bug51170 unchanged; bundled identical. On Mac and Linux local mode too, a clone's original
   is drawn where installed (e.g. Arial for a name given Liberation Sans).
-- zh-5be7e156 p1 ("家" taken where Word leaves it) — CLAIMED Windows 01QbbApP 2026-10-25 (routed by macos). wip/t5be-markhalf =
+- zh-5be7e156 — DONE Windows 01QbbApP 2026-10-25: 1164bd7a (a mark condensed beside another keeps half its condensed width) and
+  a7e4342c (a linesAndChars grid's cells are Normal's size + charSpace/4096 + Normal's spacing, x2 under balance, labs cell-cell4).
+  Pairs: 1164bd7a zh-5dc5ce34 98.0 -> 99.7 (Mac 96.8 -> 98.5), zh-5be7e156 +0.1; a7e4342c zh-5be7e156 75.8 -> 97.8 Windows / 91.8
+  -> 97.4 Mac, zh-785e46f8 92.6 -> 97.4 / 90.8 -> 99.3, nothing lower. Next (user-approved, macos-ios on the Mac): skparagraph's
+  TextLine shifts each line right by half its first cluster's letter spacing ("fix for flutter"); Word has no such shift — p2's
+  "到2025年…的冷" starts 1.9pt in and drops "冷". Then Windows engine rebuild. Grid with positive charSpace left as it was.
+  Earlier history of this entry: wip/t5be-markhalf =
   01f376fe in macos' pairs: a mark set half wide beside another keeps half its condensed width (Word: "）、" "》（" 7.6 at
   spacing -0.6 balanced, grid -0.21; ours 7.3). Lab fit2 (that line justified in p1's section, right indent in 0.25pt steps):
   Word leaves "家" from 1.75pt inside, ours from 1.25 outside before, 0.25 inside after; 595 -> 596, first miss p1 -> p7.
