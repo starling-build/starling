@@ -11033,7 +11033,10 @@ public final class RichLayout {
         // columns, ten and one. Ours squeezed "（" and "，" to fit.)
         let turned = theme.wordRules && (_cells[i]?.vertical ?? false)
         let hangs = fitted && (!inCell || turned) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
+        // (Nor where the defaults name a Latin face for East Asian text, in
+        // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
+            && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin)
         // (From 2013's layout on a justified line's spaces give a quarter
         // of themselves for a word that is over: Cambria at 14pt takes
         // it 0.5pt over with one space and not 1.0, 1.5 with two and not

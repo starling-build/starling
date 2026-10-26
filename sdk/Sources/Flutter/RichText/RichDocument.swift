@@ -2153,6 +2153,11 @@ public struct RichDocument: Hashable, Sendable {
     /// — unless it stands between two Latin words. The spaces that push
     /// a signature across the page are then twice as wide in most faces.
     public var balancesSpaceWidth = false
+    /// Whether the defaults' run properties (`w:rPrDefault`) name a Latin
+    /// face for East Asian text — Times New Roman in `w:rFonts w:eastAsia`.
+    /// Word for Windows then compresses no punctuation, whatever the
+    /// languages and `w:characterSpacingControl` say.
+    public var eastAsianDefaultFaceIsLatin = false
     /// Word's `w:spaceForUL`: an exact line's text set by its middle
     /// (`w:textAlignment` "center") has its own line centred in the exact
     /// one. Without it the middle stands where the baseline would be.

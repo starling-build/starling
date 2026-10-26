@@ -2236,6 +2236,20 @@ enum DocxFormat {
             // `w:bidi="ar-SA"`, its East Asian text the defaults' zh-TW,
             // whose centred "。" keeps its em before "」" in Word's print;
             // ours took no East Asian language and closed it up.
+            // (A Latin face named for East Asian text in the defaults turns
+            // Word for Windows' punctuation compression off: labs tcd/q/x
+            // (windows-1, Word for Windows, zh-cd48112c's package) — its
+            // rPrDefault says eastAsia "Times New Roman", and every "，",
+            // "、", "“" and "”" is a whole em in its print; with 宋体 there
+            // the same paragraph squeezes its marks and takes a character
+            // more a line. Its languages, swapped every way, changed
+            // nothing.)
+            if let ea = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:eastAsia"],
+               !OfficeFonts.isEastAsianFace(ea),
+               ["times new roman", "times", "arial", "calibri", "cambria", "ms serif", "verdana", "tahoma", "helvetica", "courier new", "segoe ui", "georgia"]
+                .contains(ea.trimmingWhitespace().lowercased()) {
+                document.eastAsianDefaultFaceIsLatin = true
+            }
             let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
             let own = normal?.first("w:rPr")?.first("w:lang")
             let defaults = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")
