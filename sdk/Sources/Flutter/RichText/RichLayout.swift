@@ -11011,6 +11011,26 @@ public final class RichLayout {
                     : TextSpan(text: String(ch), style: spaced(advanced(ch, latin), document.balancesSpaceWidth ? _px(g) / 2 : _px(g)))
             })
         }
+        // (A spacing that takes a character back past its own start takes
+        // it back to it: zh-7773163d's "（%2）" level is spaced -17.3pt at
+        // 17pt, and Word's print stacks "（", "1" and "）" at the indent;
+        // the engine drew none of a label narrower than nothing, and the
+        // matcher found none of its lines.)
+        if theme.wordRules {
+            func clamped(_ span: InlineSpan, _ inherited: TextStyle?) -> InlineSpan {
+                guard let t = span as? TextSpan else { return span }
+                let style = t.style.map { inherited?.merge($0) ?? $0 } ?? inherited
+                if let text = t.text, !text.isEmpty, let st = style, let ls = st.letterSpacing, ls < 0,
+                   text.contains(where: { ls < -_glyphWidth(st.copyWith(letterSpacing: 0), $0) }) {
+                    return TextSpan(children: text.map { ch in
+                        TextSpan(text: String(ch), style: st.copyWith(letterSpacing: max(ls, -_glyphWidth(st.copyWith(letterSpacing: 0), ch))))
+                    })
+                }
+                guard let kids = t.children else { return span }
+                return TextSpan(text: t.text, children: kids.map { clamped($0, style) }, style: t.style)
+            }
+            span = clamped(span, nil) as? TextSpan ?? span
+        }
         let marker = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: strut)
         marker.layout(minWidth: 0, maxWidth: 100_000)
         return marker
@@ -11159,8 +11179,10 @@ public final class RichLayout {
             return Self._eastAsianLanguageNone(p.runs[runOf[o]].style, named: lineStyle)
         }
         let percentStarts = _percentStarts(document)
+        // (Nor inside Han text `_span` joins: `_hanJoins`.)
+        let hanJoins = wordRules ? Self._hanJoins(p, document) : []
         let breakBefore = Set(inserts.filter { o in
-            guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
+            guard o > 0, o < units.count, !hanJoins.contains(o), let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
             // (But not an opening mark at a line's end, either way: Word
             // carries "（" over with what it opens — zh-c5b5087b, its
             // defaults' East Asian language en-US and kinsoku off, has
@@ -11239,7 +11261,6 @@ public final class RichLayout {
         // width and of its fit.
         struct Piece { var a: Int; var b: Int; var last: Int; var w: Double; var trail: Double; var hard: Bool }
         var pieces: [Piece] = []
-        let hanJoins = wordRules ? Self._hanJoins(p, document) : []
         var start = 0           // painter offset
         let total = units.count + inserts.count
         // (Walked by the lines' boundaries, and measured by the boxes
@@ -11444,7 +11465,12 @@ public final class RichLayout {
             // not fit, "。" a line alone. In a cell, where nothing hangs,
             // its marks give: the form's cell line of a 317pt indent, 14
             // spaces and "）。", 9.85pt over, is one line in Word's print.)
-            if !fits, last > a, !openingAlone {
+            // (Nor a stretch of Han text joined as one word, `_hanJoins`:
+            // it goes down as Latin words do — zh-7773163d's "…保障？ 得依保障
+            // 法提起救濟？" breaks after the space in Word for Windows' print,
+            // where ours hung the "？" and kept the line.)
+            let joinedWord = last > a + 1 && hanJoins.contains(a + 1)
+            if !fits, last > a, !openingAlone, !joinedWord {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
