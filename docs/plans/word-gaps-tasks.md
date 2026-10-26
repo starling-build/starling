@@ -6084,9 +6084,16 @@ Owner: Linux lenovo-2. From T196: under "資料來源：本所會計室" three e
 - DONE e48c036a (lab t197, windows-1): an empty continuous-section mark takes its before + line where the section it
   ends holds nothing else; a line of text in that section and it takes none; where it doesn't fit the page it takes none and
   opens no page. Same-base pair, 756, on the 10-18 engine snapshot: zh-b8de3ae2 83.6 -> 86.5, nothing else moved.
-### T198. zh-f2835e26: a raised run's line height (w:position) — CLAIMED (Linux office1, starling-office1-95, 2026-10-25)
+### T198. zh-f2835e26: a raised run's line height (w:position) — DONE d4b24294 (Linux office1, starling-office1-95, 2026-10-25)
 Owner: Linux office1, routed by macos. Measured before (lines ~926, ~943; Mac lab pos4): Word makes a single (auto) line that
 holds a run raised r taller by r; ours sets the shift (d972fe9f) and keeps the height. Guards: zh-10e3a42be, zh-64044a1d.
+Done d4b24294, from windows-1's lab t198: an auto line whose text is all raised by one w:position is max(n, size + r) tall
+(n its natural line; 11.5pt SimSun: 14.88, and 11.58 + r in Word's print), the text standing where an unraised line's does;
+on a grid it takes the pitches that height does, centred in them (RichTextTheme.raisedLineHeight). Mac Word agrees: "taller by r"
+was wrong — zh-10e3a42be's opening line, 15.5pt raised 7.5, grows 3.1 in Mac Word's print; by r it fell 99.8 -> 98.5. Same-base
+pairs, 756 docs, office1's 10-17 engine: Windows zh-f2835e26 75.0 -> 91.8, zh-10e3a42be 99.8 -> 100; Mac 75.8 -> 93.4, 99.8 -> 100;
+nothing lower. Its p5 head row is Word's (62.9 / 309.65 for 63.12 / 309.65); what is left is the stacked 综合实力 column.
+Not done: a line holding raised text beside unraised (no lab), and exact or at-least lines (exact keep their height, d972fe9f).
 
 ### Office comparison report (starling-office-benchmark, 2026-10-25, pinned 30ed1feb) — five tasks, routed by bd at the user's request
 Report: ~/dev/starling/starling-office-benchmark/docs/perf/office-comparison (uncommitted): Starling and LibreOffice against fresh
