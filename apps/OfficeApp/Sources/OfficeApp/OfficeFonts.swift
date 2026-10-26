@@ -457,6 +457,77 @@ enum OfficeFonts {
             return files.isEmpty ? nil : (face, files)
         }
     }()
+
+    /// Every family name this Windows's font files give themselves, in each
+    /// language they give it, to the one they give in English — 仿宋 and
+    /// FangSong to FangSong, 新細明體 to PMingLiU — read from the files'
+    /// `name` tables, as DirectWrite lists them: the system's fonts and the
+    /// user's own. (The face table alone left FangSong, SimHei, KaiTi,
+    /// PMingLiU, DFKai-SB and DengXian to the stand-ins in local mode,
+    /// though every Windows has them.) A symbol-encoded face — Symbol,
+    /// Wingdings — is left out: a document's symbol characters are mapped
+    /// for the stand-ins, and its own code page would lose them.
+    private static let systemFamilies: [String: String] = {
+        let env = ProcessInfo.processInfo.environment
+        var m: [String: String] = [:]
+        for dir in [(env["WINDIR"] ?? "C:/Windows") + "/Fonts/", (env["LOCALAPPDATA"] ?? "") + "/Microsoft/Windows/Fonts/"] {
+            for file in (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [] {
+                let ext = String(file.lowercased().suffix(4))
+                guard ext == ".ttf" || ext == ".otf" || ext == ".ttc" || ext == ".otc" else { continue }
+                for (english, names) in familyNames(dir + file) {
+                    for name in names where m[name.lowercased()] == nil { m[name.lowercased()] = english }
+                }
+            }
+        }
+        return m
+    }()
+
+    /// The family names (name ID 1, Windows platform) of each face in a font
+    /// file, the English one first of all; none for a symbol-encoded face.
+    static func familyNames(_ path: String) -> [(english: String, names: [String])] {
+        guard let h = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { try? h.close() }
+        func read(_ at: UInt64, _ count: Int) -> [UInt8] {
+            guard count > 0, (try? h.seek(toOffset: at)) != nil, let d = try? h.read(upToCount: count) else { return [] }
+            return [UInt8](d)
+        }
+        func u16(_ b: [UInt8], _ i: Int) -> Int { i >= 0 && i + 1 < b.count ? Int(b[i]) << 8 | Int(b[i + 1]) : 0 }
+        func u32(_ b: [UInt8], _ i: Int) -> UInt64 { UInt64(u16(b, i)) << 16 | UInt64(u16(b, i + 2)) }
+        let head = read(0, 12)
+        guard head.count == 12 else { return [] }
+        var offsets: [UInt64] = [0]
+        if head[0 ..< 4].elementsEqual([0x74, 0x74, 0x63, 0x66]) {   // "ttcf"
+            let n = Int(min(u32(head, 8), 64))
+            let table = read(12, 4 * n)
+            offsets = (0 ..< n).map { u32(table, 4 * $0) }
+        }
+        var out: [(english: String, names: [String])] = []
+        for offset in offsets {
+            let tables = u16(read(offset, 12), 4)
+            let records = read(offset + 12, 16 * tables)
+            guard let k = (0 ..< tables).first(where: {
+                records.count >= 16 * $0 + 16 && records[16 * $0 ..< 16 * $0 + 4].elementsEqual([0x6E, 0x61, 0x6D, 0x65])   // "name"
+            }) else { continue }
+            let t = read(u32(records, 16 * k + 8), Int(min(u32(records, 16 * k + 12), 1 << 20)))
+            let count = u16(t, 2), strings = u16(t, 4)
+            var english: String? = nil, names: [String] = [], symbol = false
+            for r in 0 ..< count {
+                let at = 6 + 12 * r
+                guard u16(t, at) == 3 else { continue }
+                let encoding = u16(t, at + 2), language = u16(t, at + 4)
+                if encoding == 0 { symbol = true }
+                guard u16(t, at + 6) == 1, encoding == 1 || encoding == 10 else { continue }
+                let start = strings + u16(t, at + 10), length = u16(t, at + 8)
+                guard length >= 2, start + length <= t.count else { continue }
+                let units = stride(from: start, to: start + length - 1, by: 2).map { UInt16(t[$0]) << 8 | UInt16(t[$0 + 1]) }
+                let name = String(decoding: units, as: UTF16.self)
+                if language == 0x409 { english = name }
+                if !name.isEmpty { names.append(name) }
+            }
+            if !symbol, let first = english ?? names.first { out.append((first, names)) }
+        }
+        return out
+    }
     #endif
 
     private static func fontEntry(_ family: String) -> FontEntry? {
@@ -1904,12 +1975,14 @@ enum OfficeFonts {
     static func drawn(_ family: String) -> String { installed(family) ?? substitute(family) }
 
     /// The machine's faces by name, lowercased: fontconfig's families on
-    /// Linux, Core Text's on macOS, and on Windows the faces `windowsFaces`
-    /// finds the files of, Office's cloud faces with them.
+    /// Linux, Core Text's on macOS, and on Windows every family its font
+    /// files name (`systemFamilies`), with the faces `windowsFaces` finds
+    /// the files of — Office's cloud faces among them — over those.
     private static let installedFamilies: [String: String] = {
         var m: [String: String] = [:]
         #if os(Windows)
-        m = windowsFaces
+        m = systemFamilies
+        for (name, face) in windowsFaces { m[name] = face }
         #elseif os(macOS)
         for name in (CTFontManagerCopyAvailableFontFamilyNames() as? [String]) ?? [] { m[name.lowercased()] = name }
         #elseif os(Linux)
