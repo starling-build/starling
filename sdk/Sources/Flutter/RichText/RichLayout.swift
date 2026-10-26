@@ -1896,6 +1896,15 @@ public final class RichLayout {
                 && other.bottom - other.top > tallest.bottom - tallest.top { tallest = other }
             return (tallest.top + tallest.bottom) / 2
         }
+        // (Each column on by half its first character's letter spacing, as
+        // the engine set lines until skia-no-line-spacing-shift took that
+        // out — what the places below were measured against: zh-b0401810's
+        // spaced "职业资格证书…", and zh-f2835e26's "综 合 实 力" (36 and 33
+        // twips), which stood 2pt high in Word's print without it.)
+        func lead(_ k: Int) -> Double {
+            let start = painter.getLineBoundary(TextPosition(offset: k)).start
+            return (styles.indices.contains(start) ? styles[start]?.letterSpacing ?? 0 : 0) / 2
+        }
         for (n, k) in shown.enumerated() {
             guard var box = ownBoxes[n],
                   let ch = Unicode.Scalar(text[k]) else { continue }
@@ -1923,7 +1932,7 @@ public final class RichLayout {
             // Word sets a spaced run: zh-b0401810's "职业资格证书…" (51
             // twips, 15.6pt apart) stands 2.55pt higher in Word's print —
             // half its spacing — than ours, centred in each place, did.)
-            let along = box.left + min(box.right - box.left, glyph.width) / 2
+            let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k)
             canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + across(box))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
