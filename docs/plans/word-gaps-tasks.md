@@ -6323,3 +6323,7 @@ All three pages are drawings (wpg groups of text boxes: 附录D's archive-box fi
   at no indent, 4.9pt under Text Box 86's "A". Word seems to leave out a first character its indent puts past the box.
   The rotated WordArt "（全宗名称）" (rot 18120000, textSlantDown, spAutoFit) stands 43pt higher in ours.
 
+### T211. zh-55087b5f: 91.8 against word-win — CLAIMED (Linux office1, starling-office1-95, 2026-10-26)
+w:doNotUseEastAsianBreakRules and no East Asian language stated: Word for Windows (en-US) sets no East Asian line rules —
+"…提高服务水平，促进…" fills its justified line to "平" and opens the next with "，", where ours hung the mark. Pair running.
+
