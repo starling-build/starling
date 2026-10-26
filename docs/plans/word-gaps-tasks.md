@@ -6342,3 +6342,5 @@ language scored 99.9 and those not 98.8; without the switch the two groups score
 docs, engine 8bc30c5c89a: Windows zh-1cfb652b 94.6 -> 98.3, zh-55087b5f 91.8 -> 95.6, nothing lower; Mac nothing moved
 (Word for Mac's own language is unmeasured — left as it was). Left in zh-55087b5f: p2's and p4's few.
 
+### zh-015abfaf: 62.4 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos)
+First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" (a Latin "”" hung), Word leaves it; mode 14. Lab next.
