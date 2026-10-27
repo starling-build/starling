@@ -6729,3 +6729,13 @@ family (FontEntry.lastFamily), read in Mac mode only. Spot: Mac zh-4c5da793 26.0
 zh-c599aaa1 97.2 -> 100. Done: same-base pairs, 756 docs, c34c8aa8eba, final Mac references: Mac those two, nothing lower;
 Windows nothing moved. Closes the YaHei/SimSun split entry above.
 
+### zh-e0ca7252 (Mac 63.3, 613 missed from p22): a YaHei line Word does not squeeze — measured, lab asked (Linux office1, 2026-10-27)
+Reference confirmed by a fresh reprint (macos): body 標楷體 -> YaHei (no alternate, family script; tsim2's rule). Mode 15,
+compressPunctuation, justified, 14pt, ind left 1135 hanging 284. p22's "□1.依履約進度分期□查驗□審查（由機關於招標時載明），於最後一
+次…" ends at "一" in Mac Word's print, every ideograph 14.13 apart (the justify's spread), "（" and "，" whole at 14.14, "□" 9.26
+(0.661 em); ours squeezes "（" and "，" to 10.07 each, sets "□" 8.46 (0.604), and takes "期", and the pages after run early.
+Tried: "（" after an ideograph never gives — Word's prints have "（" between ideographs whole almost always (Mac YaHei 1,723 of
+1,834; Windows FangSong 1,473 of 1,519), but those are lines that needed no squeeze: the rule took 50+ documents down in both
+modes (zh-d68ac84a 99.9 -> 43.4 Windows, zh-db07d44e 98.6 -> 75.3). Reverted. Lab question: why this line takes no squeeze —
+the YaHei "□" at 0.661 em (its own width, not 0.604) may leave too much over for two halves, or Word may cap the squeeze per line.
+
