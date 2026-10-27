@@ -6397,7 +6397,8 @@ ovi's 31.6pt in a 40pt column at 5.4 margins is drawn, 60pt is not; the document
 Only the first line goes: "5 abc def" loses "5" and wraps "abc" / "def" from line 2. T210's box "A" (24pt indent, 23.5pt box)
 fits the same rule. Ours draws the character always, at x98.2 whatever the indent. CLAIMED Windows 01QbbApP (zh-9bcea239 and
   T210's p12 "A", by arrangement with lenovo-2): wip/indent-past-cell 81d9f7bc — in a cell or box such a first line's word is
-  hidden; ovi/ovi2 now Word's; zh-9bcea239 391 -> 406/422, zh-b24b396a 327 -> 328, zh-9e020c95/zh-70094a34 unchanged. Pairing.
+  hidden; ovi/ovi2 now Word's; zh-9bcea239 391 -> 406/422, zh-b24b396a 327 -> 328, zh-9e020c95/zh-70094a34 unchanged.
+  LANDED cf2997f8, in cells only and on Word for Windows pages only. Word for Mac's print of zh-9bcea239 keeps those lines, and that mode dropped 95.9 -> 94.7 with the rule. Pairs on 099b6831: Windows zh-9bcea239 92.7 -> 96.2, nothing down; Mac nothing moved. Text boxes are still open: T210's p12 "A" is not covered.
 
 ### T212. zh-9ba2ead7: 94.1 against word-win (14 missed of 238, 12 pages) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w15 list)
 First miss p11 (6), p12 (6), p8 (2): its autofit score tables (grid 446.6pt, tblW auto, tblInd -414) stand at their grids in Word's print, 63.7-510.3, the margin less the outdent and a cell margin to the margin plus the other. Ours scales them to the 415pt column, and the header cell "物业服务企业" wraps a character. The keep-the-grid allowance for an autofit table (cell margins + 1) is to count a negative indent too. Pairing in both modes.
@@ -6525,7 +6526,7 @@ on such grids in mode < 15 brings -842 and -1600 to Word's but costs the documen
 a tolerance; it needs Word's per-character rounding on a grid, which these labs do not pin. Labs ~/starling-doc-check/lab/{twip,twip2}.
 
 ### zh-e49d7943: 94.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos): p19-20's turned table text, p22's table.
-p21/p22 found and built, waiting on the pair (Windows 01QbbApP). wip/page-table-after-rows is 7f8a334d.
+p21/p22 LANDED c9d223ad (Windows 01QbbApP). Pairs on 099b6831: Windows zh-e49d7943 94.8 -> 97.6, Mac 94.5 -> 97.3, nothing down in either mode.
 "演習評鑑編組區分表" is a floating table placed against the page, at tblpY 2047. It follows a table whose "附記" rows end 201pt down page 21. Word's print starts page 22 with it, at its 102pt. Ours set it on page 21 under those rows, so pages 21 and 22 ran together.
 The fix: when another table's rows on the page already reach below the place, the floating table goes to the next page at its offset.
 Windows: 510 -> 525 of 538 lines. The page-placement witnesses are unchanged: zh-8d1a3d99, zh-6cd1befe, zh-60173bb6, zh-77bd4900, zh-a4b0f6ea, zh-19dde9e7 and zh-0b87285b.
