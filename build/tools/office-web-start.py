@@ -59,14 +59,24 @@ def configure(site: Path, app: str) -> None:
     html = re.sub(r'<!-- office-preloads -->.*?<!-- /office-preloads -->\n?', '', html, flags=re.S)
     app_url = re.search(r"app:\s*['\"]([^'\"]+)['\"]", html).group(1)
     renderer = re.search(r"skwasmBase:\s*['\"]([^'\"]+)['\"]", html).group(1)
+    html = re.sub(r"\s*skwasmBrotli:\s*['\"][^'\"]+['\"],", '', html)
+    renderer_brotli = None
+    renderer_asset = renderer + 'skwasm.wasm.br'
+    if ('export const supportsRendererBrotli = true;' in (site / 'starling.js').read_text()
+            and (site / renderer_asset).is_file()):
+        renderer_brotli = renderer_asset + '?v=' + hashlib.sha256((site / renderer_asset).read_bytes()).hexdigest()[:16]
+        html = re.sub(r'(\s*skwasmBase:)', lambda m: '\n    skwasmBrotli: ' + json.dumps(renderer_brotli) + ',' + m[1], html, count=1)
     fonts_url = re.search(r"fonts:\s*['\"]([^'\"]+)['\"]", html).group(1)
     preloads = '<!-- office-preloads -->\n<script>\n{\n'
     preloads += '  let appURL = ' + json.dumps(app_url) + ';\n'
+    preloads += '  let rendererURL = ' + json.dumps(renderer + 'skwasm.wasm') + ';\n'
     if brotli_url:
         preloads += "  try { new DecompressionStream('brotli'); appURL = " + json.dumps(brotli_url) + "; } catch {}\n"
+    if renderer_brotli:
+        preloads += "  try { new DecompressionStream('brotli'); rendererURL = " + json.dumps(renderer_brotli) + "; } catch {}\n"
     preloads += """  // Share responses with the host instead of relying on preload-cache reuse.
   globalThis.__starlingPreloads = {};
-  for (const url of [appURL, %s, %s]) {
+  for (const url of [appURL, rendererURL, %s]) {
     const response = fetch(url);
     response.catch(() => {}); // errors are handled when the host consumes it
     globalThis.__starlingPreloads[new URL(url, document.baseURI).href] = response;
@@ -74,7 +84,7 @@ def configure(site: Path, app: str) -> None:
 }
 </script>
 <!-- /office-preloads -->
-""" % (json.dumps(renderer + 'skwasm.wasm'), json.dumps(fonts_url))
+""" % json.dumps(fonts_url)
     html = re.sub(r'\s*preloaded: globalThis\.__starlingPreloads,', '', html)
     if shared_responses:
         html = re.sub(r'(\s*app:)', lambda m: '\n    preloaded: globalThis.__starlingPreloads,' + m[1], html, count=1)

@@ -302,7 +302,8 @@ install -m 644 "$CACHE/skwasm.js" "$CACHE/skwasm.wasm" "$STAGE/skwasm/"
 for f in "$STAGE/app.wasm" "$STAGE/skwasm/skwasm.wasm"; do
     rm -f "$f.br" "$f.gz"
     if command -v brotli >/dev/null; then brotli -q 11 -o "$f.br" "$f"; fi
-    gzip -9 -k -f "$f"
+    # Omit timestamps/names so rebuilding unchanged binaries keeps cache URLs.
+    gzip -9 -n -k -f "$f"
 done
 
 # Opt-in release compression; use a Python with the build-only zopfli package.

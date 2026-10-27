@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createFontLoader, fetchFontBytes } from '../../web/host/font-loader.js';
+import { createFontLoader, fetchFontBytes, fetchAssetResponse } from '../../web/host/font-loader.js';
 import { brotliCompressSync, createBrotliDecompress } from 'node:zlib';
 import { Duplex } from 'node:stream';
 
@@ -10,6 +10,25 @@ const entries = [
   { url: 'serif-bold.ttf', families: ['Serif', 'Alias'], lazy: true },
   { url: 'mono.ttf', families: ['Mono'], lazy: true },
 ];
+
+test('only immutable font URLs may reuse stale cached responses', async t => {
+  const options = [];
+  t.mock.method(globalThis, 'fetch', async (url, opts) => { options.push(opts); return new Response(new Uint8Array([1])); });
+  await fetchFontBytes({url:'font.ttf'});
+  await fetchFontBytes({url:'font.ttf', immutable:false});
+  await fetchFontBytes({url:'/runtime/fonts-hash/font.ttf', immutable:true});
+  assert.deepEqual(options, [undefined, undefined, {cache:'force-cache'}]);
+});
+
+test('a failed cached immutable response is reloaded, not retained forever', async t => {
+  const options = [];
+  t.mock.method(globalThis, 'fetch', async (url, opts) => {
+    options.push(opts);
+    return new Response('asset', {status:options.length === 1 ? 404 : 200});
+  });
+  assert.equal((await fetchAssetResponse('/runtime/hash/asset', true)).status, 200);
+  assert.deepEqual(options, [{cache:'force-cache'}, {cache:'reload'}]);
+});
 
 test('Brotli transport restores the exact font bytes and aliases share one fetch', async t => {
   const bytes = new TextEncoder().encode('original font bytes'), requests = [], registered = [];

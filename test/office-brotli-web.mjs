@@ -13,7 +13,7 @@ if (!options.url) throw Error('--url must be a Writer product page ending in ?st
 const browser = await webkit.launch();
 const results = [];
 try {
-  for (const mode of ['brotli', 'unsupported', 'missing', 'corrupt', 'font-missing', 'font-corrupt', ...(options.standalone ? ['standalone'] : [])]) {
+  for (const mode of ['brotli', 'unsupported', 'missing', 'corrupt', 'font-missing', 'font-corrupt', 'renderer-missing', 'renderer-corrupt', 'renderer-recover', 'renderer-failed', ...(options.standalone ? ['standalone'] : [])]) {
     const context = await browser.newContext({ viewport: {width:1440, height:1000} });
     try {
       if (mode === 'unsupported') await context.addInitScript(() => {
@@ -31,7 +31,7 @@ try {
       page.on('pageerror', error => errors.push(String(error)));
       page.on('request', request => {
         if (new URL(request.url()).pathname.match(/app\.wasm\.(br|gz)$/)) requests.push(request.url());
-        if (new URL(request.url()).pathname.endsWith('/skwasm.wasm')) renderers.push(request.url());
+        if (/\/skwasm\.wasm(\.br)?$/.test(new URL(request.url()).pathname)) renderers.push(request.url());
         const path = new URL(request.url()).pathname;
         if (/\/fonts\/.*\.(ttf|otf)(\.br)?$/.test(path)) fonts.push(path);
       });
@@ -47,15 +47,33 @@ try {
           contentType: 'application/octet-stream', body: 'invalid Brotli',
         }));
       }
+      if (mode.startsWith('renderer-')) {
+        let attempts = 0;
+        await page.route('**/skwasm.wasm.br*', route => mode === 'renderer-recover' && ++attempts > 1 ? route.continue() : route.fulfill({
+          status: mode === 'renderer-corrupt' ? 200 : 404,
+          contentType: 'application/octet-stream', body: 'invalid Brotli',
+        }));
+        if (mode === 'renderer-failed') await page.route('**/skwasm.wasm', route => route.fulfill({status:404, body:'missing'}));
+      }
       await page.goto(mode === 'standalone' ? options.standalone : options.url);
+      if (mode === 'renderer-failed') {
+        await page.locator('#editor-error').waitFor({state:'visible', timeout:60000});
+        assert.deepEqual(errors, []);
+        assert.equal(renderers.length, 4);
+        console.log('PASS renderer-failed: visible startup error, no hang');
+        results.push({mode, errorVisible:true});
+        continue;
+      }
       await page.waitForFunction(() => window.__ready && window.starling?.fontsPending() === 0, {}, {timeout:60000});
       const name = await page.evaluate(() => window.starling.debug('name'));
       assert.equal(name, mode === 'standalone' ? 'garden-brief.docx' : 'Document1');
       assert.deepEqual(errors, []);
-      assert.equal(renderers.length, 1, 'renderer must be fetched once');
+      assert.deepEqual(renderers.map(url => new URL(url).pathname.endsWith('.br') ? 'br' : 'original'),
+        mode === 'renderer-recover' ? ['br','br'] : mode === 'renderer-missing' ? ['br','br','original']
+          : mode === 'renderer-corrupt' ? ['br','original'] : mode === 'unsupported' ? ['original'] : ['br']);
       const formats = requests.map(url => new URL(url).pathname.split('.').at(-1));
       assert.deepEqual(formats, mode === 'unsupported' ? ['gz']
-        : mode === 'missing' || mode === 'corrupt' ? ['br', 'gz'] : ['br']);
+        : mode === 'missing' ? ['br','br','gz'] : mode === 'corrupt' ? ['br', 'gz'] : ['br']);
       assert.ok(fonts.length > 0);
       assert.ok(fonts.every(path => !path.includes('NotoSansSC') && !path.includes('FangSong')),
         'Chinese fonts must remain optional');
@@ -63,7 +81,7 @@ try {
         const compressed = fonts.filter(path => path.endsWith('.br'));
         const originals = fonts.filter(path => !path.endsWith('.br'));
         assert.ok(compressed.length > 0);
-        assert.deepEqual(compressed.map(path => path.slice(0,-3)).sort(), originals.sort());
+        assert.deepEqual([...new Set(compressed.map(path => path.slice(0,-3)))].sort(), originals.sort());
       } else {
         assert.ok(fonts.every(path => path.endsWith('.br') === (mode !== 'unsupported')));
       }

@@ -61,32 +61,42 @@ def build(runtime, out):
     for name in required:
         if not (runtime / name).is_file():
             raise ValueError(f'Missing runtime dependency: {name}')
-    roots = [app, 'starling.js', 'font-loader.js', 'keymap.js', str(renderer), 'fonts']
     shared_responses = 'export const supportsPreloadedAssets = true;' in (runtime / 'starling.js').read_text()
-    if shared_responses and (runtime / 'app.wasm.br').is_file():
-        roots.append('app.wasm.br')
-    if (runtime / 'fonts-word').exists():
-        roots.append('fonts-word')
-    # Version the complete runtime, including lazily loaded fonts and JS imports.
-    files = sorted(p for name in roots for p in
-                   ((runtime / name).rglob('*') if (runtime / name).is_dir() else [runtime / name]) if p.is_file())
-    identity = hashlib.sha256()
-    # Include the effective font policy in the URL hash. Repackaging an older
-    # runtime must not reuse a cached manifest with eager optional fonts.
+    # Independently version components so a loader or font update does not
+    # discard a cached, unchanged app/renderer (or vice versa).
     fonts = prepare_manifest(json.loads((runtime / 'fonts/manifest.json').read_text()))
-    for file in files:
-        identity.update(str(file.relative_to(runtime)).encode())
-        identity.update(hashlib.sha256(json.dumps(fonts, sort_keys=True).encode()).digest()
-                        if file == runtime / 'fonts/manifest.json' else bytes.fromhex(digest(file)))
-    prefix = '/runtime/' + identity.hexdigest()[:16] + '/'
-    target = out / prefix.strip('/')
-    target.mkdir(parents=True)
-    for name in roots:
-        source = runtime / name
-        if source.is_dir():
-            shutil.copytree(source, target / name)
-        else:
-            shutil.copy2(source, target / name)
+    for font in fonts:
+        font['immutable'] = True
+
+    def package_group(label, roots):
+        files = sorted(p for name in roots for p in
+                       ((runtime / name).rglob('*') if (runtime / name).is_dir() else [runtime / name]) if p.is_file())
+        identity = hashlib.sha256()
+        for file in files:
+            identity.update(str(file.relative_to(runtime)).encode())
+            identity.update(hashlib.sha256(json.dumps(fonts, sort_keys=True).encode()).digest()
+                            if file == runtime / 'fonts/manifest.json' else bytes.fromhex(digest(file)))
+        prefix = '/runtime/' + label + '-' + identity.hexdigest()[:16] + '/'
+        target = out / prefix.strip('/')
+        target.mkdir(parents=True)
+        for name in roots:
+            source = runtime / name
+            if source.is_dir():
+                shutil.copytree(source, target / name)
+            else:
+                shutil.copy2(source, target / name)
+        return prefix, target
+
+    host_prefix, _ = package_group('host', ['starling.js', 'font-loader.js', 'keymap.js'])
+    app_files = [app]
+    if shared_responses and (runtime / 'app.wasm.br').is_file():
+        app_files.append('app.wasm.br')
+    app_prefix, _ = package_group('app', app_files)
+    renderer_prefix, _ = package_group('renderer', [str(renderer)])
+    font_roots = ['fonts']
+    if (runtime / 'fonts-word').exists():
+        font_roots.append('fonts-word')
+    font_prefix, font_target = package_group('fonts', font_roots)
     for font in fonts:
         for field in ['url', 'brotli']:
             if field not in font:
@@ -94,15 +104,18 @@ def build(runtime, out):
             url = font[field]
             if url.startswith(('/', 'http:', 'https:')) or '..' in Path(url).parts:
                 raise ValueError(f'Expected a bundled font URL: {url}')
-            if not (target / url).is_file():
+            if not (font_target / url).is_file():
                 raise ValueError(f'Missing font: {url}')
-            font[field] = prefix + url
-    (target / 'fonts/manifest.json').write_text(json.dumps(fonts))
-    runtime_config = dict(host=prefix + 'starling.js', app=prefix + app,
-                          renderer=prefix + str(renderer) + '/', fonts=prefix + 'fonts/manifest.json',
-                          preloadResponses=shared_responses)
-    if 'app.wasm.br' in roots:
-        runtime_config['appBrotli'] = prefix + 'app.wasm.br'
+            font[field] = font_prefix + url
+    (font_target / 'fonts/manifest.json').write_text(json.dumps(fonts))
+    runtime_config = dict(host=host_prefix + 'starling.js', app=app_prefix + app,
+                          renderer=renderer_prefix + str(renderer) + '/', fonts=font_prefix + 'fonts/manifest.json',
+                          preloadResponses=shared_responses, immutableAssets=True)
+    if 'app.wasm.br' in app_files:
+        runtime_config['appBrotli'] = app_prefix + 'app.wasm.br'
+    if ('export const supportsRendererBrotli = true;' in (runtime / 'starling.js').read_text()
+            and (runtime / renderer / 'skwasm.wasm.br').is_file()):
+        runtime_config['rendererBrotli'] = renderer_prefix + str(renderer / 'skwasm.wasm.br')
     (out / 'assets').mkdir()
     (out / 'examples').mkdir()
     for info in APPS.values():

@@ -12,11 +12,12 @@
 // as, ask the browser where text may break, and drive frames and input.
 
 // The query versions the new helper export for cached standalone deployments.
-import { createFontLoader, fetchFontBytes } from './font-loader.js?v=font-bytes-1';
+import { createFontLoader, fetchFontBytes, fetchAssetResponse } from './font-loader.js?v=asset-cache-1';
 import { PHYSICAL, LOGICAL, LOGICAL_BY_LOCATION } from './keymap.js';
 
 // Packaging tools use this capability when reusing an existing web stage.
 export const supportsPreloadedAssets = true;
+export const supportsRendererBrotli = true;
 
 const WASI_ESUCCESS = 0;
 const WASI_EBADF = 8;
@@ -176,8 +177,9 @@ const HARD_LINE_BREAK = 100;
 // serve a precompressed file with Content-Encoding (GitHub Pages, where
 // writer.starling.build lives). Brotli is selected only when the browser
 // exposes its decoder; gzip remains available for every existing client.
-async function fetchWithProgress(url, onProgress, preloaded) {
-  const response = await (preloaded?.[new URL(url, document.baseURI).href] ?? fetch(url));
+async function fetchWithProgress(url, onProgress, preloaded, immutableAssets = false) {
+  const response = await (preloaded?.[new URL(url, document.baseURI).href]
+    ?? fetchAssetResponse(url, immutableAssets));
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
   const path = new URL(url, document.baseURI).pathname;
   const encoding = path.endsWith('.gz') ? 'gzip' : path.endsWith('.br') ? 'brotli' : null;
@@ -214,7 +216,7 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
-export async function startStarling({ canvas, app, appBrotli, preloaded, skwasmBase, fonts = [], args = [], onProgress, onPhase, onFontStatus, initialRoute, initialFiles = [], captureTab = true }) {
+export async function startStarling({ canvas, app, appBrotli, preloaded, immutableAssets = false, skwasmBase, skwasmBrotli, fonts = [], args = [], onProgress, onPhase, onFontStatus, initialRoute, initialFiles = [], captureTab = true }) {
   const startupFiles = Promise.all(initialFiles.map(async file => {
     const response = await fetch(file.url);
     if (!response.ok) throw new Error(`starling: ${file.url}: ${response.status}`);
@@ -238,24 +240,27 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, skwasmB
       onProgress(progress.app[0] + progress.skwasm[0], known ? progress.app[1] + progress.skwasm[1] : 0);
     }
   };
-  const skwasmModule = WebAssembly.compileStreaming(
-    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, document.baseURI), report('skwasm'), preloaded));
+  const compileModule = (original, brotli, kind) => {
+    let url = original;
+    if (brotli) {
+      try { new DecompressionStream('brotli'); url = brotli; } catch { /* use the original */ }
+    }
+    const module = WebAssembly.compileStreaming(fetchWithProgress(url, report(kind), preloaded, immutableAssets))
+      .catch(error => {
+        if (url === original) throw error;
+        console.warn(`starling: Brotli ${kind} unavailable; retrying original`, error);
+        report(kind)(0, 0);
+        return WebAssembly.compileStreaming(fetchWithProgress(original, report(kind), undefined, immutableAssets));
+      });
+    module.catch(() => {}); // observed below even if another startup asset fails
+    return module;
+  };
+  const skwasmModule = compileModule(new URL(`${skwasmBase}skwasm.wasm`, document.baseURI), skwasmBrotli, 'skwasm');
   // Compile independently: only instantiation needs the renderer's imports.
-  let appURL = app;
-  if (appBrotli) {
-    try { new DecompressionStream('brotli'); appURL = appBrotli; } catch { /* use gzip */ }
-  }
-  const appModule = WebAssembly.compileStreaming(fetchWithProgress(appURL, report('app'), preloaded))
-    .catch(error => {
-      if (appURL === app) throw error;
-      // A stale CDN edge or a failed decoder must not prevent opening a file.
-      console.warn('starling: Brotli app unavailable; retrying gzip', error);
-      report('app')(0, 0);
-      return WebAssembly.compileStreaming(fetchWithProgress(app, report('app')));
-    });
-  appModule.catch(() => {}); // observed below even if the renderer fails first
+  const appModule = compileModule(app, appBrotli, 'app');
   const fontManifest = typeof fonts === 'string'
-    ? (preloaded?.[new URL(fonts, document.baseURI).href] ?? fetch(fonts)).then(response => {
+    ? (preloaded?.[new URL(fonts, document.baseURI).href]
+      ?? fetchAssetResponse(fonts, immutableAssets)).then(response => {
         if (!response.ok) throw new Error(`starling: ${fonts}: ${response.status}`);
         return response.json();
       }) : Promise.resolve(fonts);
@@ -263,14 +268,16 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, skwasmB
     return { ...entry, bytes: await fetchFontBytes(entry) };
   })));
   fontFiles.catch(() => {});
-  const factory = (await import(skwasmUrl)).default;
+  // Reject compilation failures here rather than leaving Emscripten's
+  // callback-based initialization waiting forever for a missing renderer.
+  const [rendererHost, compiledRenderer] = await Promise.all([import(skwasmUrl), skwasmModule]);
+  const factory = rendererHost.default;
   const skwasm = await factory({
     skwasmSingleThreaded: true,
     mainScriptUrlOrBlob: skwasmUrl,
     instantiateWasm(imports, done) {
       (async () => {
-        const module = await skwasmModule;
-        done(await WebAssembly.instantiate(module, imports), module);
+        done(await WebAssembly.instantiate(compiledRenderer, imports), compiledRenderer);
       })();
       return {};
     },

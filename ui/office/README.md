@@ -28,8 +28,9 @@ python3 -m http.server 8152 --bind 0.0.0.0 --directory /tmp/office-product
 ```
 
 The output must be new. It includes all four pages, local assets, examples,
-robots.txt, sitemap.xml, CNAME, and one shared runtime. The runtime directory
-is content-addressed, including its JS imports and fonts. A build-info.json
+robots.txt, sitemap.xml, CNAME, and a runtime shared by all three apps. The app,
+renderer, JavaScript host, and font collection have independent content-addressed
+directories, so updating one does not discard the others from cache. A build-info.json
 retains deployment provenance when available. Font URLs are rewritten for
 deep entry pages. Existing app and landing deployments are not modified.
 
@@ -70,7 +71,7 @@ tracking or custom editor events.
 
 Optional document fonts are requested only when used. Both new builds and
 repackaged runtimes apply `build/tools/office_web_fonts.py`; the effective font
-manifest is included in the runtime URL hash. The launcher overlaps fetching
+manifest is included in the font collection URL hash. The launcher overlaps fetching
 the manifest and host module. See `docs/perf/office-web-startup-20261026.md`
 for measured improvements and rendering checks.
 
@@ -115,3 +116,23 @@ Keep the originals for unsupported browsers and automatic failure recovery.
 Both eager and deferred fonts use this transport, without changing which fonts
 are optional. The PDF backend still receives original font bytes.
 See `docs/perf/office-web-startup-20261026-font-transport.md` for measurements.
+
+The renderer also selects its precompressed Brotli file when supported, falling
+back to the original WASM URL and HTTP compression on failure. If neither copy
+loads, startup reports an error instead of hanging. Standalone pages version
+the renderer alternative and use ordinary HTTP caching.
+
+Only the product site's content-addressed assets use `force-cache` to reuse
+cached bytes past the HTTP freshness period. Failed responses are fetched again
+with `reload`, so a cached deployment-time 404 is not permanent. Original
+standalone font URLs retain normal caching. This applies to app assets only;
+user documents are not cached by this code. Future builds omit gzip timestamps
+and filenames, keeping unchanged compressed binaries reproducible.
+
+`test/office-product-cache.py` checks independent release URLs. With two packaged
+loader revisions served from the same origin, `test/office-cache-web.mjs` checks
+that unchanged app/renderer/font payloads are not downloaded again. Use
+`--before URL --after URL`, `--engine chromium` for installed Chrome (WebKit is
+the default), and `--stale true` with a test server returning `max-age=0`.
+The test uses a fresh persistent profile; retention in private contexts may differ.
+See `docs/perf/office-web-startup-20261026-component-cache.md` for results.

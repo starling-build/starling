@@ -44,17 +44,27 @@ async function launch(kind, mode, file) {
       args = [app.example];
     }
     const runtime = config.runtime;
+    const earlyFetch = async url => {
+      let response = await fetch(url, runtime.immutableAssets ? {cache:'force-cache'} : undefined);
+      if (!response.ok && runtime.immutableAssets) response = await fetch(url, {cache:'reload'});
+      return response;
+    };
     // Start the large downloads as soon as the user opens an editor. Waiting
     // for the host module and its imports adds several network round trips.
     // Pass the actual responses to the host: some browsers otherwise fetch
     // again after a <link rel=preload>, doubling these large downloads.
     let appURL = runtime.app;
-    if (runtime.appBrotli) {
-      try { new DecompressionStream('brotli'); appURL = runtime.appBrotli; } catch { /* use gzip */ }
+    let rendererURL = runtime.renderer + 'skwasm.wasm';
+    if (runtime.appBrotli || runtime.rendererBrotli) {
+      try {
+        new DecompressionStream('brotli');
+        appURL = runtime.appBrotli || appURL;
+        rendererURL = runtime.rendererBrotli || rendererURL;
+      } catch { /* use the original representations */ }
     }
     const preloaded = {};
-    for (const href of (runtime.preloadResponses ? [appURL, runtime.renderer + 'skwasm.wasm'] : [])) {
-      const response = fetch(href);
+    for (const href of (runtime.preloadResponses ? [appURL, rendererURL] : [])) {
+      const response = earlyFetch(href);
       response.catch(() => {}); // the host handles errors after its import
       preloaded[new URL(href, document.baseURI).href] = response;
     }
@@ -62,7 +72,7 @@ async function launch(kind, mode, file) {
     // network round trip before the host can start the required font downloads.
     const [{startStarling}, fonts] = await Promise.all([
       import(runtime.host),
-      fetch(runtime.fonts).then(response => {
+      earlyFetch(runtime.fonts).then(response => {
         if (!response.ok) throw new Error('Could not load the font manifest.');
         return response.json();
       }),
@@ -71,6 +81,8 @@ async function launch(kind, mode, file) {
     const retryFonts = fontStatus.querySelector('button');
     window.starling = await startStarling({
       canvas, app: runtime.app, appBrotli: runtime.appBrotli, preloaded, skwasmBase: runtime.renderer,
+      immutableAssets: runtime.immutableAssets,
+      skwasmBrotli: runtime.rendererBrotli,
       fonts, args, initialFiles, initialRoute: location.pathname,
       onPhase(message) { document.querySelector('#loading-text').textContent = message; },
       onProgress(loaded, total) {
