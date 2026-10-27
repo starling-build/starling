@@ -12514,7 +12514,7 @@ public final class RichLayout {
                             // word spaces' below — zh-dc25c47e's "□", 2.9pt over
                             // with 6.1 of stretch before it.)
                             : { let giving = modern && lineOther && wide ? all.filter { !Self._cornerUnits.contains(units[$0]) } : all
-                                return (!giving.isEmpty || giving.count == all.count) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
+                                return (!giving.isEmpty || giving.count == all.count) && !(hang > 0 && all.isEmpty) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
                                     && need / Double(max(1, giving.count)) <= width - x + (giving.count > 1 ? -_px(0.02) : hair) }())
                         // (… on a line with spaces in it — `ovc`'s had 41. On
                         // one without, a Latin word no more than half an em
@@ -12602,8 +12602,15 @@ public final class RichLayout {
                             // (After a Latin character — a word parted at its
                             // hyphen — the marks give for it as before: zh-424775e4
                             // ends "（US-led" 0.16pt inside in Word's print.)
+                            // (Not a one-character word that carries a closing
+                            // bracket of its own that cannot hang: that keeps the
+                            // start rule. zh-31d580df's "…說明2、3)" leaves "3)"
+                            // starting 0.15pt inside, 17.85 over with four marks
+                            // able to give 26.5; zh-06c46ba9's "（詳參附錄1）" takes
+                            // "1）" starting 10.7 in, and zh-0513f641's "附件4）"
+                            // hangs its bracket and is taken.)
                             || (!wide && x < width && (!inCell || need <= room + hair)
-                                && (oneLatin && need <= room + hair || x + before / 2 <= width + edge
+                                && (oneLatin && (hang > 0 || !own.contains { Self._closingUnits.contains(units[$0]) && !Self._pauseMarks.contains(units[$0]) }) && need <= room + hair || x + before / 2 <= width + edge
                                     || !onCharacterGrid && !inCell && latinBefore && all.contains { Self._pauseMarks.contains(units[$0]) }))
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
@@ -12722,7 +12729,12 @@ public final class RichLayout {
                     // four, each set at 1.62 of 3.0 in Word's print, where
                     // zh-c5f59397's "…噸級巡" leaves a plain "緝" 3.8 over.)
                     let closes = last > a && Self._closingUnits.contains(units[last - 1])
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes ? em / 2 : em / 4)
+                    // (A quarter, not half, where the closing mark hangs, and
+                    // nothing by the share test with no mark to give: zh-6d402586's
+                    // "…(以下稱1人1室房" leaves "間)：" 5.4pt over past its hung
+                    // "：" with eight automatic spaces; zh-1b74ed91's "…作業，"
+                    // is taken 1.0 over with three.)
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes && hang == 0 ? em / 2 : em / 4)
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
