@@ -6710,3 +6710,12 @@ Ours squeezes a mark to take one more character where Mac Word (mode 14) squeeze
   10.67 -> 8.88 and takes "A"; Mac Word sets every glyph whole (its "（" 10.71, spaces 5.35) and wraps "A".
 - zh-8dc59b5b 79.4: p1 "…是指局本级管理范围内实" — ours squeezes the "，" to 8.3 (7.7 given) and takes "实"; Mac keeps it 15.5
   and sends "实" down (half an em at 15.5pt is 7.75 — a sub-0.1pt edge, or a rule).
+
+### T226. Mac: a name Word lacks, no alternate, last table entry roman -> SimSun — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, lab tsim2)
+Lab tsim2 (Mac Word; macOS-doc built, macos printed), zh-4c5da793's fontTable alone edited: Word for Mac reads the LAST entry
+for a repeated name, and a name it lacks with no alternate is SimSun where that entry's w:family is roman, YaHei otherwise
+(7 for 7: only the roman entry SimSun, only the swiss YaHei, swapped YaHei, roman -> modern YaHei, the halves likewise; no
+宋体 entry needed). Our reader keeps the first entry (an East Asian one over charset 00); it now also notes the last one's
+family (FontEntry.lastFamily), read in Mac mode only. Spot: Mac zh-4c5da793 26.0 -> 85.3 (21 pages -> Word's 18),
+zh-c599aaa1 97.2 -> 100. Pair running.
+
