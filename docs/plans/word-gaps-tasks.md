@@ -6698,3 +6698,14 @@ did for the _GB2312 names. On the 32 files whose 方正 entry names 黑体/宋�
 zh-419ea527 72.5 -> 100, zh-23ee8575 87.5 -> 100, zh-8dc59b5b 79.5 -> 90.2, zh-6de512cb 97.7 -> 100, zh-625b6374 98.3 -> 98.9,
 none lower. Pair running.
 
+
+### Mac mode: fake bold 1.95% and firstLineChars as drawn — DONE (Mac 7bd18d8e, 2026-10-27, ee76953c + next)
+Labs tkai2/tflc (macos printed): Word for Mac widens an emboldened face by 1.95% of each advance (KaiTi, FangSong, SimSun
+alike), and counts firstLineChars from the first character as drawn. Mac n13 -> n15: zh-e7bdb543 5.0 -> 97.5, six up
+0.3-1.3; Windows nothing. Landed past one drop by the 2026-10-27 policy (verified fix, two errors had cancelled):
+### Squeeze-capacity edge in Mac mode — OPEN (lab tsq asked of macos)
+Ours squeezes a mark to take one more character where Mac Word (mode 14) squeezes nothing:
+- zh-7b08d744 99.5 -> 71.6 (fell with the bold fix): p6 cell "（      ）年（    ）A", bold 宋体 10.5pt — ours squeezes "）"
+  10.67 -> 8.88 and takes "A"; Mac Word sets every glyph whole (its "（" 10.71, spaces 5.35) and wraps "A".
+- zh-8dc59b5b 79.4: p1 "…是指局本级管理范围内实" — ours squeezes the "，" to 8.3 (7.7 given) and takes "实"; Mac keeps it 15.5
+  and sends "实" down (half an em at 15.5pt is 7.75 — a sub-0.1pt edge, or a rule).
