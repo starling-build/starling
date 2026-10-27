@@ -6659,3 +6659,12 @@ Tried and dropped (lenovo-2): (1) every text-floating table's rows using the roo
 
 ### zh-d0a207ac (95.6, word-win): Wingdings 2 checkboxes drawn as "£" — a product bug, measured, not claimed (Linux lenovo-2, 2026-10-27)
 Its form (p9-p16, two misses a page) writes checkboxes as `<w:sym w:font="Wingdings 2" w:char="00A3"/>`. Word prints a box (text U+F0A3, Wingdings2). Ours reads the character as U+00A3 in a Wingdings 2 run, and with no Wingdings 2 face it falls to the text face and DRAWS "£". Metafile.symbols maps Wingdings, Webdings and Symbol codes to Unicode glyphs for metafiles, but nothing does so for `w:sym` in runs, and it has no Wingdings 2 table (£ ☐, R ☑, S ☒, …). The fix belongs at drawing time, so the reader's w:sym round-trips. Scoring: Word's text keeps the private code U+F0A3, so even a right glyph scores a miss at a line's edge. It's the drawing that matters. Also p9: its "建筑面积" / "工程造价" labels 3pt apart in ours, one line in Word's.
+
+### Mac mode: _GB2312 faces by their font table's alternate — DONE (Mac 7bd18d8e, 2026-10-27, next commit)
+A fresh Word for Mac sets 仿宋_GB2312/楷体_GB2312 in the document's w:altName (仿宋 → FangSong, 楷体 → KaiTi, 宋体 → SimSun,
+Arial Unicode MS → that) and with none (or one it lacks) in YaHei; "FangSong_GB2312" with none in SimSun. Measured over the
+468 fresh reprints by matching each run's text to the printed face. Mac n11 -> n12 94.7 -> 97.4 (final refs); Windows nothing.
+Follow-ups, landed past with the user's approval:
+- zh-e7bdb543 95.0 -> 5.0: centred 楷体_GB2312 date line 0.025pt over 415.3; Mac Word's KaiTi advances ~0.14% narrower
+  (lab te7: 11.834 vs our 11.850, spaces 5.717 vs 5.725; PDF reports 11.9pt for 12). Lab tkai (scale at 10/12/16pt) next.
+- zh-8dc59b5b 86.3 -> 79.4: existing line-fit miss around "10万元以上" (p1), now in FangSong. Next.
