@@ -6027,7 +6027,11 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differ
 - DONE ba3ad333 (labs t190 and t187 2-3): the page closes under the cell's own bottom where stated, else the table's, and
   the row or its part must fit above it — for a part, all that is left of a cell too (it was measured against the half-point
   line). Same-base pair, 756: zh-e1b09977 82.2 -> 98.6, nothing else moved; mean 96.955 -> 96.976. Released.
-### T191. zh-4c5da793: 82.5 against word-win — 85.6 by caf8dc1e (T188's FangSong line), RELEASED (Linux lenovo-2, 2026-10-25); CLAIMED Mac 01Xgpbk5 (2026-10-26, routed by macos): p15's parted row, Word's 1/600in row rounding
+### T191. zh-4c5da793: 82.5 against word-win — 85.6 by caf8dc1e (T188's FangSong line), RELEASED (Linux lenovo-2, 2026-10-25); DONE Mac 01Xgpbk5 (2026-10-26): 85.6 -> 100 (see below)
+DONE (Mac 01Xgpbk5, 2026-10-26): a parted row's column cut, Windows mode, may go on within the same paragraph to a line that
+rounds to the foot's 1/600in dot (lab round's raster). Pairs w56 -> w58 / n227 -> n229: zh-4c5da793 85.6 -> 100, nothing else
+moved. Tried: a flat dot on the cut (zh-e1b09977 98.6 -> 91.9); the dot on `closed` everywhere and on new cuts (zh-4a90bb2f
+98.8 -> 96.5, its "领导小组意见" label went over); a row within a dot fitting whole (zh-4a90bb2f: Word parts that row).
 Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
 - Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
   parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
@@ -6439,6 +6443,11 @@ Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, �
   Dropped: a line-opening closing mark giving nothing (zh-c15af02e 98.9 -> 39.3). Left: zh-72da925e p13+ is its tables'
   cell wrap ("(內湖)", number and year apart) — not squeeze: 12pt cells add 0.96 a character in Word where ours add the grid's
   1.0076 (lenovo-2, lab asked of windows-1, theirs); zh-3c055c9b p2's "費、" refusal still disagrees with tg (final mark).
+- zh-3c055c9b p2 "費、" PARKED (Mac 01Xgpbk5, 2026-10-26) on windows-1's lab tfe (p2 in place, Word for Windows): (a) as is
+  and (e) — the "、" after 日 moved before 24 — hold the same characters on the same start; (a) refuses "費、", (e) takes it
+  with "，" and "、" giving ~2 each; removing the "「" before 109 also lets it. So which marks may give depends on where they
+  stand against the digit groups and the piece — not a count or a cap, and five points pin no rule that also holds tg.
+  (A "+2pt takes unsqueezed" reading was the line before taking "廳", windows-1 confirmed.) Ours takes it; left as is.
 
 ### zh-8628cfbe p13 (93.3, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
 Cell paragraph "2.與去年實際數比較，相同者得基準分75分，每增(減)…" (kinsoku 0, overflowPunct 0, compressPunctuation, mode 15,
