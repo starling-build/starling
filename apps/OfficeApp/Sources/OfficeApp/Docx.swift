@@ -2175,6 +2175,9 @@ enum DocxFormat {
                 // (An East Asian entry over a charset-00 one for a repeated
                 // name: see the charsets above.)
                 let charset = font.first("w:charset")?["w:val"] ?? ""
+                // (Whichever entry is kept, the last one's family: Word for
+                // Mac's, `FontEntry.lastFamily`.)
+                if entries[name] != nil { entries[name]!.lastFamily = font.first("w:family")?["w:val"] ?? "auto" }
                 if entries[name] != nil, charset == "00" || entryCharsets[name] != "00" { continue }
                 entryCharsets[name] = charset
                 let alt = font.first("w:altName")?["w:val"]

@@ -224,7 +224,12 @@ enum OfficeFonts {
         return alt
     }
 
-    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil }
+    struct FontEntry {
+        var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil
+        /// The family of the table's last entry for the name, where it repeats
+        /// one — the entry Word for Mac reads (lab tsim2, see `eastAsianFace`).
+        var lastFamily: String? = nil
+    }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
     static func noteFontEntries(_ entries: [String: FontEntry]) {
         declaredLock.lock()
@@ -1778,6 +1783,16 @@ enum OfficeFonts {
             // (The English name too: zh-202582e2's body is
             // "FangSong_GB2312", and its 15.5pt lines at 1.32 stand 35pt
             // apart in Word's print, YaHei's 1.72 em; ours took FangSong.)
+            // (With no alternate, a name whose table entry is of the roman
+            // family is SimSun instead — the last entry, where the table
+            // names it twice. Lab tsim2 (Mac Word, macOS-doc and macos):
+            // zh-4c5da793's 仿宋_GB2312, entries swiss then roman, is SimSun
+            // in a fresh Word for Mac's print; with only the swiss, the two
+            // swapped, or the roman made modern, YaHei; with only the roman,
+            // no 宋体 entry in the table, SimSun still.)
+            if wordOnMac, altName(family) == nil, let e = fontEntry(family), (e.lastFamily ?? e.family) == "roman" {
+                return eastAsianFace("SimSun")
+            }
             var standIn = yaHei
             standIn.symbols = "SimSun"
             return standIn
