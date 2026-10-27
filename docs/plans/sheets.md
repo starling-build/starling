@@ -693,7 +693,14 @@ Typewriter, Arial Narrow, Bookman Old Style, Century Gothic; LST over a
 foot 3.54 in Excel, 3.60 so, 3.96 with win's). 757 workbooks: 0.604 ->
 0.601, 15 better, 1 worse (NumberFormatApproxTests 5.88 -> 5.48,
 DateFormatTests 3.39 -> 3.09; lo-totalsRowFunction +0.06). Open: heads
-still stand about 0.17 low in that Verdana book. Open: their letters' widths in Arial 8 and Microsoft Sans
+still stand about 0.17 low in that Verdana book. Down a vertically
+centred page the cells stand 0.48 up from plain centring, as they stand
+0.48 left across a horizontally centred one (Excel centres as if 0.96
+taller): the 8 such workbooks 4.423 -> 4.026, 7 better, none worse
+(AverageTaxRates 5.38 -> 4.06, lo-tdf171828 3.81 -> 2.65, Tables 5.02 ->
+4.50). Open: on scaled pages the alignment lab fits a middle's four dots
+scaling with the page and a foot's 0.42 not, but 32 scaled workbooks came
+out worse with both (not built). Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

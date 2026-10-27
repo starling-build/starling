@@ -513,7 +513,9 @@ extension SheetGridState {
                 // pages, at any scale (lo-bnc762542's 36%, 45544's 100%),
                 // 0.24 to 0.55 pt left of where plain centring put ours.)
                 let inset = 0.48
-                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? 0 : inset
+                // (Down a centred page likewise, as if 0.96 taller: AverageTaxRates'
+                // rules, centred both ways, stand 0.48 above plain centring's.)
+                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? -inset : inset
                 var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
