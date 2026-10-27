@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createFontLoader } from '../../web/host/font-loader.js';
+import { createFontLoader, fetchFontBytes } from '../../web/host/font-loader.js';
+import { brotliCompressSync, createBrotliDecompress } from 'node:zlib';
+import { Duplex } from 'node:stream';
 
 const entries = [
   { url: 'ui.ttf', families: ['UI'] },
@@ -8,6 +10,50 @@ const entries = [
   { url: 'serif-bold.ttf', families: ['Serif', 'Alias'], lazy: true },
   { url: 'mono.ttf', families: ['Mono'], lazy: true },
 ];
+
+test('Brotli transport restores the exact font bytes and aliases share one fetch', async t => {
+  const bytes = new TextEncoder().encode('original font bytes'), requests = [], registered = [];
+  t.mock.method(globalThis, 'DecompressionStream', function(format) {
+    assert.equal(format, 'brotli');
+    return Duplex.toWeb(createBrotliDecompress());
+  });
+  t.mock.method(globalThis, 'fetch', async url => {
+    requests.push(url); return new Response(brotliCompressSync(bytes));
+  });
+  const loader = createFontLoader([{url:'font.ttf', brotli:'font.ttf.br', families:['Face','Alias'], lazy:true}], {
+    register(value) { registered.push(value); }, changed() {},
+  });
+  await Promise.all([loader.load('Face'), loader.load('Alias')]);
+  assert.deepEqual(requests, ['font.ttf.br']);
+  assert.equal(registered.length, 2);
+  for (const value of registered) assert.deepEqual(value, bytes);
+});
+
+test('unsupported Brotli fetches only the original font', async t => {
+  const requests = [], bytes = new Uint8Array([1,2,3]);
+  t.mock.method(globalThis, 'DecompressionStream', function() { throw new TypeError('unsupported'); });
+  t.mock.method(globalThis, 'fetch', async url => { requests.push(url); return new Response(bytes); });
+  assert.deepEqual(await fetchFontBytes({url:'font.ttf', brotli:'font.ttf.br'}), bytes);
+  assert.deepEqual(requests, ['font.ttf']);
+});
+
+for (const failure of ['missing', 'corrupt', 'network']) {
+  test(`a ${failure} compressed font falls back to the original`, async t => {
+    const requests = [], bytes = new Uint8Array([1,2,3]);
+    t.mock.method(globalThis, 'DecompressionStream', function() { return Duplex.toWeb(createBrotliDecompress()); });
+    t.mock.method(console, 'warn', () => {});
+    t.mock.method(globalThis, 'fetch', async url => {
+      requests.push(url);
+      if (url.endsWith('.br')) {
+        if (failure === 'network') throw new TypeError('network failure');
+        return new Response('invalid Brotli', {status: failure === 'missing' ? 404 : 200});
+      }
+      return new Response(bytes);
+    });
+    assert.deepEqual(await fetchFontBytes({url:'font.ttf', brotli:'font.ttf.br'}), bytes);
+    assert.deepEqual(requests, ['font.ttf.br', 'font.ttf']);
+  });
+}
 
 test('unused families stay unfetched; concurrent requests and aliases share files', async () => {
   const fetched = [], registered = [], changes = [];

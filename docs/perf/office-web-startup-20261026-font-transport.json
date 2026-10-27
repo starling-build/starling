@@ -1,0 +1,748 @@
+{
+  "network": {
+    "mbps": 10,
+    "latencyMs": 40,
+    "method": "Shared per-server response-body rate limit; fresh WebKit browser/context each run"
+  },
+  "results": [
+    {
+      "readyMs": 8230,
+      "settledMs": 8786,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/manifest.json",
+          "transfer": 1063,
+          "encoded": 763,
+          "start": 116,
+          "duration": 120,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Selawik-Regular.ttf",
+          "transfer": 24410,
+          "encoded": 24110,
+          "start": 272,
+          "duration": 123,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Selawik-Semibold.ttf",
+          "transfer": 24663,
+          "encoded": 24363,
+          "start": 272,
+          "duration": 208,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/FluentSystemIcons-Regular.ttf",
+          "transfer": 17218,
+          "encoded": 16918,
+          "start": 273,
+          "duration": 328,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/CupertinoIcons.ttf",
+          "transfer": 124325,
+          "encoded": 124025,
+          "start": 273,
+          "duration": 740,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Bold.ttf",
+          "transfer": 280126,
+          "encoded": 279826,
+          "start": 273,
+          "duration": 1621,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/DejaVuSans.ttf",
+          "transfer": 382485,
+          "encoded": 382185,
+          "start": 273,
+          "duration": 1865,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-BoldItalic.ttf",
+          "transfer": 322723,
+          "encoded": 322423,
+          "start": 273,
+          "duration": 1896,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Italic.ttf",
+          "transfer": 281618,
+          "encoded": 281318,
+          "start": 273,
+          "duration": 2095,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Regular.ttf",
+          "transfer": 268932,
+          "encoded": 268632,
+          "start": 273,
+          "duration": 2512,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Italic.ttf",
+          "transfer": 164476,
+          "encoded": 164176,
+          "start": 8133,
+          "duration": 583,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-BoldItalic.ttf",
+          "transfer": 166867,
+          "encoded": 166567,
+          "start": 8133,
+          "duration": 583,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Bold.ttf",
+          "transfer": 174686,
+          "encoded": 174386,
+          "start": 8133,
+          "duration": 583,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Regular.ttf",
+          "transfer": 179448,
+          "encoded": 179148,
+          "start": 8133,
+          "duration": 594,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9576118,
+      "variant": "before",
+      "run": 1
+    },
+    {
+      "readyMs": 7968,
+      "settledMs": 8436,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/manifest.json",
+          "transfer": 1353,
+          "encoded": 1053,
+          "start": 141,
+          "duration": 121,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Selawik-Regular.ttf.br",
+          "transfer": 22543,
+          "encoded": 22243,
+          "start": 288,
+          "duration": 134,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Selawik-Semibold.ttf.br",
+          "transfer": 22663,
+          "encoded": 22363,
+          "start": 288,
+          "duration": 158,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/FluentSystemIcons-Regular.ttf.br",
+          "transfer": 16386,
+          "encoded": 16086,
+          "start": 288,
+          "duration": 302,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/CupertinoIcons.ttf.br",
+          "transfer": 110442,
+          "encoded": 110142,
+          "start": 288,
+          "duration": 699,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Bold.ttf.br",
+          "transfer": 220943,
+          "encoded": 220643,
+          "start": 288,
+          "duration": 1243,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/DejaVuSans.ttf.br",
+          "transfer": 307695,
+          "encoded": 307395,
+          "start": 288,
+          "duration": 1463,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-BoldItalic.ttf.br",
+          "transfer": 244061,
+          "encoded": 243761,
+          "start": 288,
+          "duration": 1532,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Italic.ttf.br",
+          "transfer": 227986,
+          "encoded": 227686,
+          "start": 288,
+          "duration": 1705,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Regular.ttf.br",
+          "transfer": 212493,
+          "encoded": 212193,
+          "start": 289,
+          "duration": 1988,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Regular.ttf.br",
+          "transfer": 147555,
+          "encoded": 147255,
+          "start": 7369,
+          "duration": 1008,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-BoldItalic.ttf.br",
+          "transfer": 139723,
+          "encoded": 139423,
+          "start": 7873,
+          "duration": 481,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Italic.ttf.br",
+          "transfer": 137344,
+          "encoded": 137044,
+          "start": 7873,
+          "duration": 486,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Bold.ttf.br",
+          "transfer": 144996,
+          "encoded": 144696,
+          "start": 7873,
+          "duration": 489,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9119493,
+      "variant": "after",
+      "run": 1
+    },
+    {
+      "readyMs": 8276,
+      "settledMs": 8843,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/manifest.json",
+          "transfer": 1063,
+          "encoded": 763,
+          "start": 148,
+          "duration": 111,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Selawik-Regular.ttf",
+          "transfer": 24410,
+          "encoded": 24110,
+          "start": 302,
+          "duration": 119,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Selawik-Semibold.ttf",
+          "transfer": 24663,
+          "encoded": 24363,
+          "start": 302,
+          "duration": 157,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/FluentSystemIcons-Regular.ttf",
+          "transfer": 17218,
+          "encoded": 16918,
+          "start": 302,
+          "duration": 319,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/CupertinoIcons.ttf",
+          "transfer": 124325,
+          "encoded": 124025,
+          "start": 302,
+          "duration": 737,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Bold.ttf",
+          "transfer": 280126,
+          "encoded": 279826,
+          "start": 302,
+          "duration": 1591,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/DejaVuSans.ttf",
+          "transfer": 382485,
+          "encoded": 382185,
+          "start": 302,
+          "duration": 1761,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-BoldItalic.ttf",
+          "transfer": 322723,
+          "encoded": 322423,
+          "start": 302,
+          "duration": 1888,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Italic.ttf",
+          "transfer": 281618,
+          "encoded": 281318,
+          "start": 302,
+          "duration": 2086,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Regular.ttf",
+          "transfer": 268932,
+          "encoded": 268632,
+          "start": 302,
+          "duration": 2480,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Regular.ttf",
+          "transfer": 179448,
+          "encoded": 179148,
+          "start": 8181,
+          "duration": 596,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Bold.ttf",
+          "transfer": 174686,
+          "encoded": 174386,
+          "start": 8181,
+          "duration": 596,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Italic.ttf",
+          "transfer": 164476,
+          "encoded": 164176,
+          "start": 8181,
+          "duration": 596,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-BoldItalic.ttf",
+          "transfer": 166867,
+          "encoded": 166567,
+          "start": 8181,
+          "duration": 604,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9576118,
+      "variant": "before",
+      "run": 2
+    },
+    {
+      "readyMs": 7953,
+      "settledMs": 8427,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/manifest.json",
+          "transfer": 1353,
+          "encoded": 1053,
+          "start": 137,
+          "duration": 114,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Selawik-Semibold.ttf.br",
+          "transfer": 22663,
+          "encoded": 22363,
+          "start": 289,
+          "duration": 160,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Selawik-Regular.ttf.br",
+          "transfer": 22543,
+          "encoded": 22243,
+          "start": 289,
+          "duration": 178,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/FluentSystemIcons-Regular.ttf.br",
+          "transfer": 16386,
+          "encoded": 16086,
+          "start": 289,
+          "duration": 322,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/CupertinoIcons.ttf.br",
+          "transfer": 110442,
+          "encoded": 110142,
+          "start": 289,
+          "duration": 716,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Bold.ttf.br",
+          "transfer": 220943,
+          "encoded": 220643,
+          "start": 289,
+          "duration": 1233,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/DejaVuSans.ttf.br",
+          "transfer": 307695,
+          "encoded": 307395,
+          "start": 289,
+          "duration": 1379,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-BoldItalic.ttf.br",
+          "transfer": 244061,
+          "encoded": 243761,
+          "start": 289,
+          "duration": 1542,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Italic.ttf.br",
+          "transfer": 227986,
+          "encoded": 227686,
+          "start": 289,
+          "duration": 1728,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Regular.ttf.br",
+          "transfer": 212493,
+          "encoded": 212193,
+          "start": 289,
+          "duration": 1982,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Bold.ttf.br",
+          "transfer": 144996,
+          "encoded": 144696,
+          "start": 7860,
+          "duration": 483,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Italic.ttf.br",
+          "transfer": 137344,
+          "encoded": 137044,
+          "start": 7860,
+          "duration": 486,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Regular.ttf.br",
+          "transfer": 147555,
+          "encoded": 147255,
+          "start": 7860,
+          "duration": 500,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-BoldItalic.ttf.br",
+          "transfer": 139723,
+          "encoded": 139423,
+          "start": 7860,
+          "duration": 508,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9119493,
+      "variant": "after",
+      "run": 2
+    },
+    {
+      "readyMs": 8265,
+      "settledMs": 8823,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/manifest.json",
+          "transfer": 1063,
+          "encoded": 763,
+          "start": 154,
+          "duration": 121,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Selawik-Regular.ttf",
+          "transfer": 24410,
+          "encoded": 24110,
+          "start": 357,
+          "duration": 161,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Selawik-Semibold.ttf",
+          "transfer": 24663,
+          "encoded": 24363,
+          "start": 357,
+          "duration": 178,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/FluentSystemIcons-Regular.ttf",
+          "transfer": 17218,
+          "encoded": 16918,
+          "start": 358,
+          "duration": 302,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/CupertinoIcons.ttf",
+          "transfer": 124325,
+          "encoded": 124025,
+          "start": 358,
+          "duration": 735,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Bold.ttf",
+          "transfer": 280126,
+          "encoded": 279826,
+          "start": 358,
+          "duration": 1566,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/DejaVuSans.ttf",
+          "transfer": 382485,
+          "encoded": 382185,
+          "start": 358,
+          "duration": 1768,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-BoldItalic.ttf",
+          "transfer": 322723,
+          "encoded": 322423,
+          "start": 358,
+          "duration": 1869,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Italic.ttf",
+          "transfer": 281618,
+          "encoded": 281318,
+          "start": 358,
+          "duration": 2066,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/Carlito-Regular.ttf",
+          "transfer": 268932,
+          "encoded": 268632,
+          "start": 358,
+          "duration": 2463,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Bold.ttf",
+          "transfer": 174686,
+          "encoded": 174386,
+          "start": 8171,
+          "duration": 585,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Regular.ttf",
+          "transfer": 179448,
+          "encoded": 179148,
+          "start": 8171,
+          "duration": 588,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-Italic.ttf",
+          "transfer": 164476,
+          "encoded": 164176,
+          "start": 8171,
+          "duration": 595,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/fonts/LiberationMono-BoldItalic.ttf",
+          "transfer": 166867,
+          "encoded": 166567,
+          "start": 8171,
+          "duration": 595,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9576118,
+      "variant": "before",
+      "run": 3
+    },
+    {
+      "readyMs": 8044,
+      "settledMs": 8508,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/DejaVuSans.ttf.br",
+          "transfer": 307695,
+          "encoded": 307395,
+          "start": 0,
+          "duration": 1801,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/manifest.json",
+          "transfer": 1353,
+          "encoded": 1053,
+          "start": 136,
+          "duration": 111,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Selawik-Semibold.ttf.br",
+          "transfer": 22663,
+          "encoded": 22363,
+          "start": 340,
+          "duration": 130,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Selawik-Regular.ttf.br",
+          "transfer": 22543,
+          "encoded": 22243,
+          "start": 340,
+          "duration": 169,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/FluentSystemIcons-Regular.ttf.br",
+          "transfer": 16386,
+          "encoded": 16086,
+          "start": 340,
+          "duration": 294,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/CupertinoIcons.ttf.br",
+          "transfer": 110442,
+          "encoded": 110142,
+          "start": 340,
+          "duration": 689,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Bold.ttf.br",
+          "transfer": 220943,
+          "encoded": 220643,
+          "start": 340,
+          "duration": 1234,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-BoldItalic.ttf.br",
+          "transfer": 244061,
+          "encoded": 243761,
+          "start": 340,
+          "duration": 1526,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Italic.ttf.br",
+          "transfer": 227986,
+          "encoded": 227686,
+          "start": 340,
+          "duration": 1700,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/Carlito-Regular.ttf.br",
+          "transfer": 212493,
+          "encoded": 212193,
+          "start": 340,
+          "duration": 1977,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Bold.ttf.br",
+          "transfer": 144996,
+          "encoded": 144696,
+          "start": 7947,
+          "duration": 476,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Regular.ttf.br",
+          "transfer": 147555,
+          "encoded": 147255,
+          "start": 7947,
+          "duration": 494,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-Italic.ttf.br",
+          "transfer": 137344,
+          "encoded": 137044,
+          "start": 7947,
+          "duration": 501,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/6367979dcdd09159/fonts/LiberationMono-BoldItalic.ttf.br",
+          "transfer": 139723,
+          "encoded": 139423,
+          "start": 7947,
+          "duration": 504,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9119493,
+      "variant": "after",
+      "run": 3
+    }
+  ],
+  "resourceDetail": "Only font entries retained; bytes includes all same-origin startup resources."
+}

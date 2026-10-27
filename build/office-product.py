@@ -88,12 +88,15 @@ def build(runtime, out):
         else:
             shutil.copy2(source, target / name)
     for font in fonts:
-        url = font['url']
-        if url.startswith(('/', 'http:', 'https:')) or '..' in Path(url).parts:
-            raise ValueError(f'Expected a bundled font URL: {url}')
-        if not (target / url).is_file():
-            raise ValueError(f'Missing font: {url}')
-        font['url'] = prefix + url
+        for field in ['url', 'brotli']:
+            if field not in font:
+                continue
+            url = font[field]
+            if url.startswith(('/', 'http:', 'https:')) or '..' in Path(url).parts:
+                raise ValueError(f'Expected a bundled font URL: {url}')
+            if not (target / url).is_file():
+                raise ValueError(f'Missing font: {url}')
+            font[field] = prefix + url
     (target / 'fonts/manifest.json').write_text(json.dumps(fonts))
     runtime_config = dict(host=prefix + 'starling.js', app=prefix + app,
                           renderer=prefix + str(renderer) + '/', fonts=prefix + 'fonts/manifest.json',

@@ -1,10 +1,26 @@
 // Deferred families are fetched as a unit so regular/bold/italic metrics arrive
 // together. Keep successful files across retries; never cache a failed request.
-export function createFontLoader(entries, { register, fallback = () => {}, changed, status = () => {}, fetchBytes = async url => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url}: ${response.status}`);
+export async function fetchFontBytes(entry) {
+  let decoder;
+  if (entry.brotli) {
+    try { decoder = new DecompressionStream('brotli'); } catch { /* use the original font */ }
+  }
+  if (decoder) {
+    try {
+      const response = await fetch(entry.brotli);
+      if (!response.ok) throw new Error(`${entry.brotli}: ${response.status}`);
+      return new Uint8Array(await new Response(response.body.pipeThrough(decoder)).arrayBuffer());
+    } catch (error) {
+      console.warn('starling: compressed font unavailable; retrying original', error);
+    }
+  }
+  const response = await fetch(entry.url);
+  if (!response.ok) throw new Error(`${entry.url}: ${response.status}`);
   return new Uint8Array(await response.arrayBuffer());
-} }) {
+}
+
+export function createFontLoader(entries, { register, fallback = () => {}, changed, status = () => {},
+  fetchBytes = (url, entry) => fetchFontBytes(entry) }) {
   const families = new Map();
   for (const entry of entries.filter(entry => entry.lazy)) {
     for (const family of entry.families) {
@@ -23,7 +39,7 @@ export function createFontLoader(entries, { register, fallback = () => {}, chang
     const promise = Promise.resolve().then(async () => {
       await Promise.all(families.get(key).map(entry => {
         if (!files.has(entry.url)) {
-          const file = fetchBytes(entry.url).then(bytes => {
+          const file = fetchBytes(entry.url, entry).then(bytes => {
             for (const alias of entry.families) register(bytes, alias);
             // A deferred glyph fallback joins the chain once it is here.
             if (entry.fallback) fallback(entry.families[0]);

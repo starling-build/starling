@@ -11,7 +11,8 @@
 // between the two memories, hold the externref a finished render arrives
 // as, ask the browser where text may break, and drive frames and input.
 
-import { createFontLoader } from './font-loader.js';
+// The query versions the new helper export for cached standalone deployments.
+import { createFontLoader, fetchFontBytes } from './font-loader.js?v=font-bytes-1';
 import { PHYSICAL, LOGICAL, LOGICAL_BY_LOCATION } from './keymap.js';
 
 // Packaging tools use this capability when reusing an existing web stage.
@@ -259,9 +260,7 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, skwasmB
         return response.json();
       }) : Promise.resolve(fonts);
   const fontFiles = fontManifest.then(entries => Promise.all(entries.filter(entry => !entry.lazy).map(async entry => {
-    const response = await fetch(entry.url);
-    if (!response.ok) throw new Error(`starling: ${entry.url}: ${response.status}`);
-    return { ...entry, bytes: new Uint8Array(await response.arrayBuffer()) };
+    return { ...entry, bytes: await fetchFontBytes(entry) };
   })));
   fontFiles.catch(() => {});
   const factory = (await import(skwasmUrl)).default;

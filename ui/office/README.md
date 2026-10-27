@@ -106,3 +106,12 @@ environment, then run `test/office-brotli-web.mjs --url PRODUCT_WRITER_URL`
 This checks native Brotli, unsupported decoding, missing/corrupt responses,
 standalone startup, and that idle product pages download no editor.
 See `docs/perf/office-web-startup-20261026-webkit.md` for measured results.
+
+Font downloads also have optional Brotli alternatives. Office release builds
+with `brotli` installed run `build/tools/compress-web-fonts.py`; existing stages
+can run that helper before packaging. It verifies that every alternative
+restores the exact TTF/OTF bytes, then adds `brotli` URLs to the manifest.
+Keep the originals for unsupported browsers and automatic failure recovery.
+Both eager and deferred fonts use this transport, without changing which fonts
+are optional. The PDF backend still receives original font bytes.
+See `docs/perf/office-web-startup-20261026-font-transport.md` for measurements.

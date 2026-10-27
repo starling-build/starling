@@ -13,7 +13,7 @@ if (!options.url) throw Error('--url must be a Writer product page ending in ?st
 const browser = await webkit.launch();
 const results = [];
 try {
-  for (const mode of ['brotli', 'unsupported', 'missing', 'corrupt', ...(options.standalone ? ['standalone'] : [])]) {
+  for (const mode of ['brotli', 'unsupported', 'missing', 'corrupt', 'font-missing', 'font-corrupt', ...(options.standalone ? ['standalone'] : [])]) {
     const context = await browser.newContext({ viewport: {width:1440, height:1000} });
     try {
       if (mode === 'unsupported') await context.addInitScript(() => {
@@ -27,15 +27,23 @@ try {
         window.addEventListener('starling-reader-ready', () => { window.__ready = true; });
       });
       const page = await context.newPage();
-      const errors = [], requests = [], renderers = [];
+      const errors = [], requests = [], renderers = [], fonts = [];
       page.on('pageerror', error => errors.push(String(error)));
       page.on('request', request => {
         if (new URL(request.url()).pathname.match(/app\.wasm\.(br|gz)$/)) requests.push(request.url());
         if (new URL(request.url()).pathname.endsWith('/skwasm.wasm')) renderers.push(request.url());
+        const path = new URL(request.url()).pathname;
+        if (/\/fonts\/.*\.(ttf|otf)(\.br)?$/.test(path)) fonts.push(path);
       });
       if (mode === 'missing' || mode === 'corrupt') {
         await page.route('**/app.wasm.br*', route => route.fulfill({
           status: mode === 'missing' ? 404 : 200,
+          contentType: 'application/octet-stream', body: 'invalid Brotli',
+        }));
+      }
+      if (mode.startsWith('font-')) {
+        await page.route('**/fonts/*.br', route => route.fulfill({
+          status: mode === 'font-missing' ? 404 : 200,
           contentType: 'application/octet-stream', body: 'invalid Brotli',
         }));
       }
@@ -48,7 +56,18 @@ try {
       const formats = requests.map(url => new URL(url).pathname.split('.').at(-1));
       assert.deepEqual(formats, mode === 'unsupported' ? ['gz']
         : mode === 'missing' || mode === 'corrupt' ? ['br', 'gz'] : ['br']);
-      results.push({mode, name, formats});
+      assert.ok(fonts.length > 0);
+      assert.ok(fonts.every(path => !path.includes('NotoSansSC') && !path.includes('FangSong')),
+        'Chinese fonts must remain optional');
+      if (mode.startsWith('font-')) {
+        const compressed = fonts.filter(path => path.endsWith('.br'));
+        const originals = fonts.filter(path => !path.endsWith('.br'));
+        assert.ok(compressed.length > 0);
+        assert.deepEqual(compressed.map(path => path.slice(0,-3)).sort(), originals.sort());
+      } else {
+        assert.ok(fonts.every(path => path.endsWith('.br') === (mode !== 'unsupported')));
+      }
+      results.push({mode, name, formats, fontRequests:fonts.length});
       console.log(`PASS ${mode}: ${formats.join(' → ')}, ${name}`);
     } finally { await context.close(); }
   }

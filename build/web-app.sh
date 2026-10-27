@@ -255,6 +255,9 @@ fi
 } > "$STAGE/fonts/manifest.json"
 if [ "$TARGET" = OfficeApp ]; then
     python3 "$REPO/build/tools/office_web_fonts.py" "$STAGE/fonts/manifest.json"
+    if command -v brotli >/dev/null; then
+        python3 "$REPO/build/tools/compress-web-fonts.py" "$STAGE"
+    fi
 fi
 
 # skwasm, built from our engine (docs/BUILDING.md §1.7 has emsdk):
