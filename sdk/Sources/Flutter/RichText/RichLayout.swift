@@ -3864,7 +3864,7 @@ public final class RichLayout {
             if !theme.wordRules { for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } } }
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
-            struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double }
+            struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double; var owners: [Int] = [] }
             var columns: [Column] = []
             for k in i ..< j {
                 let d = _cells[k]!
@@ -3872,7 +3872,9 @@ public final class RichLayout {
                     columns.append(Column(members: [], cuts: [], bottom: 0, cut: c.rowTop))
                 }
                 columns[columns.count - 1].members.append(k)
-                columns[columns.count - 1].cuts.append(contentsOf: cellCuts(k))
+                let own = cellCuts(k)
+                columns[columns.count - 1].cuts.append(contentsOf: own)
+                columns[columns.count - 1].owners.append(contentsOf: repeatElement(k, count: own.count))
                 // (A cell merged down has the rows below for the rest.)
                 columns[columns.count - 1].bottom = d.rowSpan > 1 ? min(rowBottom, _tops[k] + _heights[k] + d.pad.bottom)
                     : _tops[k] + _heights[k] + d.pad.bottom
@@ -4087,7 +4089,22 @@ public final class RichLayout {
                         let limit = column.cut + avail - ruleUnder(c, parted: true) + 0.01
                         // (A cut, under the line the part is closed with —
                         // where the cell ends here, its own bottom has it.)
+                        // (To Word for Windows' raster: it sets rows on a 1/600in grid
+                        // from the running total (lab round), so a cut that rounds to the
+                        // foot's dot is on the page — zh-4c5da793 p15's row "对抚恤优待对象
+                        // 冒领…" keeps its second line in Word's print, 0.09pt past ours,
+                        // its row standing 0.11 high.)
                         let closed = column.cut + avail - ruleClosing(c) + 0.01
+                        // (The foot's dot, to which a cut that rounds is on the page —
+                        // to carry a cell's cut a line further in the same paragraph
+                        // only: a cell's whole bottom is measured as before, a cell with
+                        // no cut gets none by it, and none reaches a paragraph after —
+                        // zh-4a90bb2f's "领导小组意见" row lost its label to the next page.)
+                        let cutClosed: Double = {
+                            guard RichTextTheme.wordWindowsPages, _px(1) > 0 else { return closed }
+                            let dot = _px(72.0 / 600)
+                            return max(closed, ((closed - 0.01) / dot).rounded() * dot + dot / 2 - 0.001)
+                        }()
                         let d0 = _cells[column.members[0]]!
                         let blockTop = _tops[column.members[0]]
                         let blockBottom = _tops[column.members[column.members.count - 1]] + _heights[column.members[column.members.count - 1]]
@@ -4135,7 +4152,10 @@ public final class RichLayout {
                             // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= closed - (theme.wordRules ? d0.margin : 0) }) {
+                        } else if let at = column.cuts.lastIndex(where: { $0 > column.cut + 0.01 && $0 <= closed - (theme.wordRules ? d0.margin : 0) }),
+                                  case let owner = column.owners.indices.contains(at) ? column.owners[at] : -1,
+                                  let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner }).map({ column.cuts[$0] })
+                                    .last(where: { $0 <= cutClosed - (theme.wordRules ? d0.margin : 0) }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line
