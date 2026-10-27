@@ -6667,4 +6667,7 @@ Arial Unicode MS → that) and with none (or one it lacks) in YaHei; "FangSong_G
 Follow-ups, landed past with the user's approval:
 - zh-e7bdb543 95.0 -> 5.0: centred 楷体_GB2312 date line 0.025pt over 415.3; Mac Word's KaiTi advances ~0.14% narrower
   (lab te7: 11.834 vs our 11.850, spaces 5.717 vs 5.725; PDF reports 11.9pt for 12). Lab tkai (scale at 10/12/16pt) next.
-- zh-8dc59b5b 86.3 -> 79.4: existing line-fit miss around "10万元以上" (p1), now in FangSong. Next.
+- zh-8dc59b5b 86.3 -> 79.4: MEASURED (Mac 7bd18d8e) — not FangSong as such: p1's "第三条  本办法所称小型工程，…" (firstLine 643 /
+  firstLineChars 200, 仿宋_GB2312 15.5pt, mode 14) starts at 122.6 in Mac Word, 122.0 in ours (two-character indent 32.6 vs 32.0;
+  the twips say 32.15); with that 0.6 more Mac keeps "，" whole and sends "实" down, ours squeezes it to 8.3 and takes "实". Wants
+  a firstLineChars lab (paragraph at 15.5/16/12pt, mark size changed). Open.
