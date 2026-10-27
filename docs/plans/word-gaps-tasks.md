@@ -6536,3 +6536,7 @@ p19-20's turned text is still left.
 
 ### T218. Mac-mode line fit: zh-884c6e3e (Mac 47.2, Windows 100) and zh-c5b5087b (Mac 53.5 / 100), ours a character ahead — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, routed by macos from macOS-doc's triage)
 Measured on lenovo-2's c34c8aa8eba engine (~/tmp/lenovo2-engine2), Mac mode against word/. Pairs in both modes.
+- zh-6aa8bd7c (Mac 14.1) — DONE (Mac 7bd18d8e, 2026-10-26, next commit) -> 96.3: lab a6nw (Mac Word) — in a share-wide
+  table a noWrap column whose text could part takes its whole width, the rest giving it as they are wide past their own
+  narrowest (the mobile column then wraps its last digit). Mac n8 -> n10 only this moved; Windows untouched. First try
+  read w:noWrap w:val="0" as on and dropped eight. RELEASED.
