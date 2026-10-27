@@ -5670,7 +5670,7 @@ Witnesses NOT moved, for whoever goes next: zh-57f1de0d (mode 14, "》"/"：" gi
 Two more T181 witnesses (lenovo-2, 2026-10-27, Windows mode, routed to lenovo-3 by macos) — DONE cbb1dab50 (Linux 01F2SWc8 lenovo-3, 2026-10-27): both now break as Word does. (1) A one-character Latin word carrying a closing bracket that cannot hang keeps the start rule instead of being taken wherever the marks can give ("3)" starts 0.15pt inside; zh-06c46ba9's "1）" 10.7 in and zh-0513f641's hung "4）" still taken). (2) Past a hung mark, automatic spaces give at most a quarter em, not the half a closing piece gets, and the share test takes nothing with no mark to give ("間)：" 5.4 over with eight spaces wraps; zh-1b74ed91's "作業，" 1.0 over with three is taken). Tried and dropped: no hang after a Latin ")" (zh-505b9619's "(請載明)，" hangs in Word, 96.6 -> 92.0), and any own mark blocking the one-character rule (zh-54e91165, zh-f47b8a74, zh-0513f641 down 13-36). Same-base pairs, 756 docs, both modes: Windows zh-31d580df 95.5 -> 97.6, zh-6d402586 95.0 -> 95.5; Mac zh-6d402586 94.1 -> 94.7; nothing down.
 - zh-31d580df p8 "…之工地人員人數。(★參考撰寫說明2、3)": Word ends the line at "2、" and wraps "3)"; ours takes it, "over 17.85 need 17.85 room 26.5 of 4 marks, lead 18.0 set 12.0, 32 characters, 1 space" (compressPunctuation, no mode stated). p8-p9 then run a line ahead, 30 misses.
 - zh-6d402586 p5 "6、預為準備1人1室且有獨立衛浴房間(以下稱1人1室房" / "間)：…": ours takes "間)：" with the "：" hung, "over 19.4, hang 14, need 5.4, no marks, 8 spaces giving" (compressPunctuation, no mode stated). Word wraps.
-- zh-f39e54b6 p2 (94.5) "第十四條指定兌付銀行兌付縣庫支票，應依規定在支票上註記，按" / "日編製…": ours takes "日" "over 7.0 need 7.0 room 14.0 of 2 marks, 29 characters, 0 spaces, other true" (compressPunctuation, no mode stated); Word wraps. 8 misses p2-p4.
+- CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-27, routed by macos): zh-f39e54b6 p2 (94.5) "第十四條指定兌付銀行兌付縣庫支票，應依規定在支票上註記，按" / "日編製…": ours takes "日" "over 7.0 need 7.0 room 14.0 of 2 marks, 29 characters, 0 spaces, other true" (compressPunctuation, no mode stated); Word wraps. 8 misses p2-p4.
 
 ### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLOSED by windows' reprint 0012bc50: 56.5 -> 99.7 with no code change (its title is SimHei on both sides) (Linux 01F2SWc8, 2026-10-25)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
@@ -6639,7 +6639,7 @@ Its landscape p6 holds a 13-row table placed against the page (tblpY 2536) after
 DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either (pairs at a18ec01f). Left in Windows: ours still makes 8 pages to Word's 7.
 
 ### macos's w25 queue, measured (Linux office1, 2026-10-26, engine c34c8aa8eba) — none built
-- zh-13d11e99 (95.9 here): all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
+- zh-13d11e99 (95.9 here) — CLAIMED (Linux 01F2SWc8, 2026-10-27, routed by macos): all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
   555; the plot area's top lower in Word). Charts' (macos-ios, T201).
   Tried (office1, routed by macos): a titled 2013-style chart in a Word document, its plot 3pt lower (Chart.swift, beside the
   sheet's 2.57) — zh-13d11e99 95.9 -> 100, but chartex 100 -> 94.7 (87.7 with cx: charts too) and zh-b8de3ae2 90.9 -> 88.8,
