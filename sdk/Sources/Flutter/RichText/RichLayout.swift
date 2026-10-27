@@ -8963,6 +8963,18 @@ public final class RichLayout {
                    let h = theme.rubyLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
                     s = s.copyWith(height: h)
                 }
+                // (A run of tabs alone takes no line of its own in a paragraph of
+                // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
+                // — its 16pt bold tab after 14pt text, at the line's end, mid-line
+                // or 14pt, leaves the 1.5 lines 27.24 apart in Word's print, the
+                // 14pt text's; the tab's line set the heading 9pt lower.)
+                // (Text: not a drawing's anchor alone — zh-38d26944's red-headed
+                // rule stands in a paragraph of a tab and its line's anchor,
+                // whose line the tab holds.)
+                if theme.wordRules, !text.isEmpty, text.allSatisfy({ $0 == "\t" }),
+                   p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }), s.fontSize ?? 0 > 0.5 {
+                    s = s.copyWith(height: 0.01)
+                }
                 // (A run of spaces alone takes the line's height, not its own.)
                 if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
