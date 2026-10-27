@@ -6586,6 +6586,7 @@ public final class RichLayout {
     }
 
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        var p = p
         let style = p.style
         let wordList = _wordList(p, document)
         var sides = _sideIndents(p, at: i, document)
@@ -7025,6 +7026,23 @@ public final class RichLayout {
         // box alone on the first, so it stops an em short of the margin:
         // the character is on its line, if not as far over as Word's.)
         if theme.wordRules, lead > textWidth, !p.text.isEmpty {
+            // (In a cell, a first line indented to the cell's
+            // whole width or past it — its margins and the paragraph's side
+            // indents in it — shows
+            // nothing: Word leaves that line's word out and sets the rest
+            // from the second line. Lab `ovi2` (Word for Windows,
+            // zh-9bcea239's score cell, 19.45pt, margins 0): a 15pt first
+            // line draws its "5" past the cell, 20pt and on draw nothing;
+            // `ovi`: in a 40pt column at 5.4pt margins 31.6pt draws, 60 does
+            // not, and "5 abc def" loses only the "5"; zh-08e95de4's 31.2pt in
+            // a 33.75pt cell, 22.95 of text, draws its "基". zh-9bcea239's scores
+            // (31.6pt in 19.45) are in no line of Word's print. Not yet in a
+            // text box: zh-b24b396a's p13 "A" stands where p12's does not.
+            // Word for Windows only: Word for Mac's print of zh-9bcea239
+            // keeps lines that this leaves out, 95.9 -> 94.7 with it.)
+            if RichTextTheme.wordWindowsPages, p.cell != nil, let c = _cells[i], lead >= textWidth + ownLeft + right + c.pad.left + c.pad.right - 0.01 {
+                p = Self._hidingFirstWord(p)
+            }
             // (The first character's em: zh-70094a34's footer opens with
             // a 16pt "山" after a drawing's anchor, over 14pt text, and an
             // em of the text's left it no room — the line held nothing.)
@@ -10492,6 +10510,38 @@ public final class RichLayout {
     /// paragraph Normal's — the face and size a document's body text is
     /// set in when its runs name none, and what its own style leaves
     /// unsaid. (A heading with no entry keeps the theme's look.)
+    /// `p` with its first word hidden — up to and with its first space, or
+    /// its first character where that is East Asian: what a first line
+    /// indented past its cell shows of it (see `_layoutParagraph`).
+    static func _hidingFirstWord(_ p: RichParagraph) -> RichParagraph {
+        let units = Array(p.text.utf16)
+        guard let first = units.first else { return p }
+        var n = 1
+        if first < 0x2E80 {
+            // (Up to a line's break too: a turned box's first line ends after
+            // its first character — `_turnedBox`'s U+2028.)
+            while n < units.count, units[n - 1] != 0x20, units[n] != 0x2028, units[n] != 0x0A, units[n] != 0x09,
+                  units[n] < 0x2E80 || units[n] == 0x20 { n += 1 }
+        }
+        var q = p
+        var runs: [Run] = [], at = 0
+        for r in p.runs {
+            let end = at + r.length
+            if at < n, end > n {
+                var hidden = r.style; hidden.hidden = true
+                runs.append(Run(length: n - at, style: hidden)); runs.append(Run(length: end - n, style: r.style))
+            } else if end <= n {
+                var hidden = r.style; hidden.hidden = true
+                runs.append(Run(length: r.length, style: hidden))
+            } else {
+                runs.append(r)
+            }
+            at = end
+        }
+        q.runs = runs
+        return q
+    }
+
     /// A paragraph Word shows nothing of: its mark hidden (`w:vanish` on
     /// the mark, or in its paragraph style) and every run hidden. It takes
     /// no room and draws no border — bug59058's HTML "Top of Form"
