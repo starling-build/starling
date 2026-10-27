@@ -6580,3 +6580,11 @@ A paragraph's closing tab does set its line in general; this one's 16pt is on th
 under 14pt bold that the br's run shares — what makes Word ignore it here is unseen. Reverted. (Also tried first: spaces as
 well as tabs — zh-1563bd74 100 -> 10.3, its lines of spaces collapsed.)
 
+### zh-13552a3a p27 (94.8, word-win): measured, not claimed (Linux office1, 2026-10-26) — a merged cell's last line at a page's foot
+All 44 misses follow from p27: a 14-cell row (trHeight 2460 at least) whose long cell ("1.《中华人民共和国政府信息公开条例》…六部法律
+的决定》修正)", 16 lines at x269) is merged down over the next two rows. In Word's print the three rows end at 504.9, the merged
+cell's last line "正)" at 503 on p27, the centred cells beside it 8pt lower than ours; ours ends them at 489.4 and carries
+"正)" to the head of p28, and every page after follows. The row after them goes to p28 in both. So Word grows the last spanned
+row to hold the merged cell where the table parts after it; ours parts the merged cell instead (cf. 56a0ac99, "a row grows to
+a merged cell's carried lines though the flow did not stretch it"). Engine c34c8aa8eba, tip 57105ed3.
+
