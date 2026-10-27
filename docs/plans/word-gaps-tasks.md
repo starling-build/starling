@@ -6518,3 +6518,5 @@ on such grids in mode < 15 brings -842 and -1600 to Word's but costs the documen
 a tolerance; it needs Word's per-character rounding on a grid, which these labs do not pin. Labs ~/starling-doc-check/lab/{twip,twip2}.
 
 ### zh-e49d7943: 94.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos): p19-20's turned table text, p22's table.
+
+### zh-b8de3ae2 (90.8): its charts — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): the chart with the most misses first.
