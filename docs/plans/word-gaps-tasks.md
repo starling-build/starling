@@ -6533,6 +6533,7 @@ Windows: 510 -> 525 of 538 lines. The page-placement witnesses are unchanged: zh
 p19-20's turned text is still left.
 
 ### zh-b8de3ae2 (90.8): its charts — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): the chart with the most misses first.
+- p9 (the most, 9): the bar of pie's labels — DONE (Linux 01F2SWc8): one-line labels wrap past 0.1857 of the chart's width (Word wraps "罰款及賠償收入, 0.64%" at 100.0pt in a 538.5pt chart and keeps 99.9); Windows 89.9 -> 90.4, Mac 79.3 -> 80.0, nothing else moved. Left on p9: "圖1/圖2" titles 4pt off and the bar chart's "千元" axis title. Note: on the tip DocxTests.testARightStopAfterANegativelySpacedStartEndsAtTheStop fails with or without this change on engine 5357bf0b374 (probably the line-spacing-shift sdk commits awaiting the c34c8aa8eba engine).
 
 ### T218. Mac-mode line fit: zh-884c6e3e (Mac 47.2, Windows 100) and zh-c5b5087b (Mac 53.5 / 100), ours a character ahead — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, routed by macos from macOS-doc's triage)
 Measured on lenovo-2's c34c8aa8eba engine (~/tmp/lenovo2-engine2), Mac mode against word/. Pairs in both modes.
