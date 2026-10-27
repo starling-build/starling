@@ -6520,5 +6520,10 @@ on such grids in mode < 15 brings -842 and -1600 to Word's but costs the documen
 a tolerance; it needs Word's per-character rounding on a grid, which these labs do not pin. Labs ~/starling-doc-check/lab/{twip,twip2}.
 
 ### zh-e49d7943: 94.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos): p19-20's turned table text, p22's table.
+p21/p22 found and built, waiting on the pair (Windows 01QbbApP). wip/page-table-after-rows is 7f8a334d.
+"演習評鑑編組區分表" is a floating table placed against the page, at tblpY 2047. It follows a table whose "附記" rows end 201pt down page 21. Word's print starts page 22 with it, at its 102pt. Ours set it on page 21 under those rows, so pages 21 and 22 ran together.
+The fix: when another table's rows on the page already reach below the place, the floating table goes to the next page at its offset.
+Windows: 510 -> 525 of 538 lines. The page-placement witnesses are unchanged: zh-8d1a3d99, zh-6cd1befe, zh-60173bb6, zh-77bd4900, zh-a4b0f6ea, zh-19dde9e7 and zh-0b87285b.
+p19-20's turned text is still left.
 
 ### zh-b8de3ae2 (90.8): its charts — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): the chart with the most misses first.
