@@ -5670,6 +5670,7 @@ Witnesses NOT moved, for whoever goes next: zh-57f1de0d (mode 14, "》"/"：" gi
 Two more T181 witnesses (lenovo-2, 2026-10-27, Windows mode, routed to lenovo-3 by macos) — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-27):
 - zh-31d580df p8 "…之工地人員人數。(★參考撰寫說明2、3)": Word ends the line at "2、" and wraps "3)"; ours takes it, "over 17.85 need 17.85 room 26.5 of 4 marks, lead 18.0 set 12.0, 32 characters, 1 space" (compressPunctuation, no mode stated). p8-p9 then run a line ahead, 30 misses.
 - zh-6d402586 p5 "6、預為準備1人1室且有獨立衛浴房間(以下稱1人1室房" / "間)：…": ours takes "間)：" with the "：" hung, "over 19.4, hang 14, need 5.4, no marks, 8 spaces giving" (compressPunctuation, no mode stated). Word wraps.
+- zh-f39e54b6 p2 (94.5) "第十四條指定兌付銀行兌付縣庫支票，應依規定在支票上註記，按" / "日編製…": ours takes "日" "over 7.0 need 7.0 room 14.0 of 2 marks, 29 characters, 0 spaces, other true" (compressPunctuation, no mode stated); Word wraps. 8 misses p2-p4.
 
 ### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLOSED by windows' reprint 0012bc50: 56.5 -> 99.7 with no code change (its title is SimHei on both sides) (Linux 01F2SWc8, 2026-10-25)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
