@@ -10583,7 +10583,20 @@ public final class RichLayout {
             // firstLineChars, starts 63.4pt in in Word's print, two of
             // 22 × 1.35 + 2 — lab `b24`, and 48 at 100% — where ours
             // took 48 and set "标" on the first line.)
-            let wide: Double = first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
+            var wide: Double = first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
+            // (And, in Word for Mac, as the first character is drawn: bold
+            // in a face it emboldens is that much wider. Lab tflc, fresh Mac
+            // Word, zh-8dc59b5b's "第三条" bold 16pt FangSong under 200: its
+            // first line starts 32.65 in, 2 × 16.32; not bold, 32.00; at 100
+            // and 300, 16.30 and 48.95; at 15.5 and 12pt, 2 × 15.80 and
+            // 2 × 12.23. The mark's size and the grid do nothing.)
+            let ownBold: Bool = first?.style.bold ?? false
+            let styleBold: Bool = (named?.char.bold ?? false) && !(first?.style.off.contains(.bold) ?? false)
+            if !RichTextTheme.wordWindowsPages, ownBold || styleBold {
+                let eaName: String? = first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                let faceName: String? = eaName ?? first?.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
+                if let face = theme.faceResolver?(faceName, true), face.boldSpread > 0 { wide *= 1 + face.boldSpread }
+            }
             // (In whole twips, as Word keeps an indent: 2 characters of
             // 14.6465pt are 586 twips, 29.3pt — lab `hc` sets the line as
             // it does `w:firstLine="586"`, not as 29.293.)
