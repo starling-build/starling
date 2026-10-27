@@ -28,7 +28,7 @@ engine's pre-push formatting check. Fresh paired runs on this checkout at
 set to `~/starling-doc-check-starling-word-fidelity-codex/engine-pair`.
 The baseline bridge reverses only the long-word patch in a private TextWrapper
 source/object, linked with the same engine objects; the candidate is a copy of
-the already-built shared bridge. **No shared source or Mac engine relink.**
+the already-built shared bridge. **No Mac shared-source edit or engine relink.**
 
 Both unmodified lab scripts ran: `sweep-win.sh none long-base` / `sweep.sh none
 long-base`, then `sweep-win.sh long-base long-candidate` / `sweep.sh long-base
@@ -61,12 +61,43 @@ Toolchain warning: the first, discarded run used Xcode Swift 6.3.2 and crashed i
 `_fitEastAsianLines`' Dictionary lookup on zh-0060058e with **both** bridges.
 The historical Swift 6.2.1 toolchain converts it and completes both corpora.
 Discarded output is isolated in `invalid-xcode-6.3.2/`; none entered this pair.
-Linux/Windows engine rebuild follow-up is separate from this Mac confirmation.
+Linux follow-up: Lenovo `192.168.68.65` fetched/rebased to `39bb8cb9328`, applied
+only this patch (TextWrapper source hashes match the Mac pair), and rebuilt
+`host_release_lenovo2` with four jobs. Prior libraries are preserved under
+`~/tmp/codex-word-engine-c34c8aa8`; the new runtime is
+`~/tmp/codex-word-engine-39bb8cb9328`. Existing `~/tmp/lenovo2-engine` and other
+runtime copies were not replaced. New `libflutter_engine.so` SHA256:
+`6a075a1cdd9e84e6fbf8f7db8e3a94b8e9d3d7886020e7277d606b3c8856ae88`.
+Smoke pair on one existing Linux Office binary, both modes, the three witnesses:
+zh-7773163d Windows 1167→1169/1404; all five other counts unchanged, no failures.
+Artifacts copied to the Mac output root's `linux-smoke/`. This is a smoke check,
+not a second full Linux corpus pair. Windows rebuild awaits its SSH host/user
+(asked asynchronously); no Windows runtime was changed.
 
-#### Item 2 — IN PROGRESS: t135 continued-row height
-Next pair starts from current office (including the later Mac font/layout rules),
-with the confirmed candidate engine fixed for both sides. Applying the handoff's
-`~/starling-word-check/lab/t135-continuation.patch` only after the fresh base.
+#### Item 2 — PAIRED: t135 continued-row height (Codex, 2026-10-27)
+Applied the handoff's `~/starling-word-check/lab/t135-continuation.patch` on
+`78415381`, after fresh `office-base` sweeps. Windows continuation rows take the
+cell's own top border plus stated margins, excluding the previous row's bottom
+border. The Mac calculation stays unchanged. Same checkout, Swift 6.2.1, fixed
+engine `39bb8cb9328`, both engine variables pinned as above.
+Both scripts: `none office-base`, then `office-base t135`; exact full-identifier
+audit of 756 documents per mode: **zero missing, zero drops**. Windows:
+- zh-13552a3a **810→854/854 (94.8478→100%)**, all 44 misses recovered.
+- zh-0978dee9 **10035→10039/10095 (99.4056→99.4453%)**.
+All other matched-line counts unchanged; Mac unchanged throughout. Physical and
+scored page counts unchanged. The target's page-27 last row now stays on the page:
+its bottom border moves from 489.45 to 504.55pt (Word 504.94); its start from
+239.57 to 239.07 (Word 239.21). No cancelling-error exception needed.
+Artifacts: `w/ wp/ n/ np` prefixes with `office-base` and `t135`,
+`office-base--t135-exact.json`, source patch, provenance and logs in the output
+root above. Static lint passed. This Swift fix awaits the final Office unit and
+local browser gates before pushing; each subsequent change gets its own pair.
+
+#### Item 3 — IN PROGRESS: tc22 Mac ordinary spaces
+Use the completed t135 candidate as the next base (same source and engine).
+Mac ordinary spaces under balanceSingleByteDoubleByteWidth should retain their
+face's advance, as the tc22 Word lab shows. Keep mixed NBSP/plain-space handling
+and all other character-grid balancing intact; Windows behavior stays unchanged.
 
 ## How a fix is checked
 

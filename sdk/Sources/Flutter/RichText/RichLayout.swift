@@ -1127,6 +1127,10 @@ public final class RichLayout {
         /// rules: a row is that much taller than the height the file
         /// gave it.
         var rules: Double = 0
+        /// The width of the cell's own top rule (px) — its tcBorders, row or
+        /// table — without the row above's bottom line it shares: what a
+        /// part carried to a new page draws above itself.
+        var ownTopRule: Double = 0
         /// … and how much of that is the table's bottom rule, which a
         /// cell that reaches the last row carries.
         var ruleBelow: Double = 0
@@ -3929,8 +3933,20 @@ public final class RichLayout {
                 // page after it a line long.)
                 let margins = theme.wordRules
                     ? columns.map { column -> Double in let d0 = _cells[column.members[0]]!; return d0.pad.top + d0.pad.bottom }.max() ?? 0 : 0
+                // (Word for Windows: the part goes on at the stated height, its
+                // own top rule — the line it draws at the page's head, the
+                // row above's bottom one staying behind — and its cells'
+                // margins as stated. Lab trow (windows-1): at least 138pt with
+                // no margins, 0.25/0.5/1pt rules, goes on 138.26/138.50/138.98;
+                // with 0.75pt margins 139.82/140.06/140.54; zh-13552a3a's cells,
+                // their top nil under a ruled row, go on at 138.03 — ours, the
+                // row above's line taken for theirs, at 138.5.)
+                let windowsExtra: Double? = theme.wordRules && RichTextTheme.wordWindowsPages ? columns.map { column -> Double in
+                    let d0 = _cells[column.members[0]]!
+                    return d0.ownTopRule + max(0, d0.pad.top + d0.pad.bottom - d0.rules)
+                }.max() : nil
                 let stated = ts.rowsExactHeight.contains(c.row) || ts.rowHeights[c.row] == nil ? 0
-                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + max(c.rules - c.ruleBelow, margins - c.ruleBelow, 0))
+                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + (windowsExtra ?? max(c.rules - c.ruleBelow, margins - c.ruleBelow, 0)))
                 // (And no shorter than a cell merged down into it whose
                 // text went over with it, as a whole row is not — see
                 // `pageHeight`: zh-e6d54ae4's "（三）注重服務人員…" is merged
@@ -6822,6 +6838,7 @@ public final class RichLayout {
             // between every two rows, 31pt apart for rows 30 high.)
             var rules = 0.0
             var ruleBelow = 0.0
+            var ownTopRule = 0.0
             var ruleNext = 0.0
             // (A table with no style of its own — one made in the editor
             // — is ruled like one whose file says nothing more than
@@ -7006,6 +7023,7 @@ public final class RichLayout {
                 if c.row == 0 { top += frame("top") }
                 if top > 0 { pad = EdgeInsets(left: pad.left, top: pad.top + top, right: pad.right, bottom: pad.bottom) }
                 rules = top
+                ownTopRule = rule(c, "top")
                 // (A table that states its cell spacing — even none, as
                 // every HTML-converted table does — rules each cell on
                 // its own, the way the web's separated borders do: a
@@ -7060,6 +7078,7 @@ public final class RichLayout {
                                  verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
             _cells[i]!.ruleNext = ruleNext
             _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
+            _cells[i]!.ownTopRule = ownTopRule
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
             // (Across its hanging indent, as in the body — see above: a
