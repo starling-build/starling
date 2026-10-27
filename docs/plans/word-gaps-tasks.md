@@ -21,6 +21,53 @@ The long-word confirmation uses office `6ceb5145` as specified in the handoff;
 subsequent Swift changes use fresh paired runs on this checkout and one engine.
 Results and exact artifact provenance will be appended here before landing.
 
+#### Item 1 — DONE: long-word engine confirmation (Codex, 2026-10-27)
+Engine `39bb8cb9328` pushed to `origin/starling` after fetching/rebasing and the
+engine's pre-push formatting check. Fresh paired runs on this checkout at
+`6ceb5145`, Swift **6.2.1-RELEASE**, bundled fonts, PyMuPDF, both engine variables
+set to `~/starling-doc-check-starling-word-fidelity-codex/engine-pair`.
+The baseline bridge reverses only the long-word patch in a private TextWrapper
+source/object, linked with the same engine objects; the candidate is a copy of
+the already-built shared bridge. **No shared source or Mac engine relink.**
+
+Both unmodified lab scripts ran: `sweep-win.sh none long-base` / `sweep.sh none
+long-base`, then `sweep-win.sh long-base long-candidate` / `sweep.sh long-base
+long-candidate`. Completed PDFs were populated in parallel before the scripts'
+normal resume/scoring pass. Exact audit uses full document identifiers and
+integer matched-line counts, including changes below the scripts' display cutoff:
+
+| Mode | Documents | Missing / drops | Improvements |
+|---|---:|---:|---|
+| Windows | 645 Chinese + 111 POI | 0 / 0 | zh-6a4fc013 514→525/616 (83.4416→85.2273%); zh-7773163d 1338→1340/1404 (95.2991→95.4416%) |
+| Mac | 645 Chinese + 111 POI | 0 / 0 | zh-6a4fc013 517→529/614 (84.2020→86.1564%) |
+
+All other matched counts and page counts unchanged, including zh-fec5fa30.
+No cancelling-error exception needed. Artifacts under
+`~/starling-doc-check-starling-word-fidelity-codex/`: `wlong-*`, `wplong-*`,
+`nlong-*`, `nplong-*`, `long-base--long-candidate-exact.json`, phase provenance,
+corpus hashes, and `engine-baseline/` (reproducible compile/link commands).
+Bridge SHA256: base `e3feb7c651427b752d300243839cdff31f6554581a929a9c27c045c1dfaf3c6f`,
+candidate `e0c8478f57a59b810463abea525442a9d170968a990aa85bf0020d3b8e782868`.
+
+Checks: static lint passed; local Office wasm build passed. Native/browser checks
+have **identical output before/after**: textedit matches, both document round trips
+pass, word-boringcrypto retains its known 26 differing lines; welcome differs in
+platform-specific Cmd/Ctrl labels. No deployment. The broader repository tests
+still fail terminal-daemon/live-PTY child startup on this Mac; an initial run also
+lacked SDKROOT and STARLING_SKWASM_DIR (the explicit Office web build supplied the
+latter). Office unit tests remain required for the subsequent Swift changes.
+
+Toolchain warning: the first, discarded run used Xcode Swift 6.3.2 and crashed in
+`_fitEastAsianLines`' Dictionary lookup on zh-0060058e with **both** bridges.
+The historical Swift 6.2.1 toolchain converts it and completes both corpora.
+Discarded output is isolated in `invalid-xcode-6.3.2/`; none entered this pair.
+Linux/Windows engine rebuild follow-up is separate from this Mac confirmation.
+
+#### Item 2 — IN PROGRESS: t135 continued-row height
+Next pair starts from current office (including the later Mac font/layout rules),
+with the confirmed candidate engine fixed for both sides. Applying the handoff's
+`~/starling-word-check/lab/t135-continuation.patch` only after the fresh base.
+
 ## How a fix is checked
 
 The steering number is `test/docx-line-match.py WORK`: the share of
