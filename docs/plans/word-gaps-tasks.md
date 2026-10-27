@@ -6691,12 +6691,13 @@ or not. SimSun: zh-4c5da793 (26.0 in Mac mode, 21 pages for Word's 18), zh-6c447
 zh-c599aaa1, zh-d3d3f266, zh-e0268388, zh-13552a3a, zh-5450d509, zh-9ef811c8, zh-a917e13c, zh-abe7e063, zh-c10532da,
 zh-cbc2f113, zh-540dc149. A Mac lab swapping parts (as t209b) between zh-4c5da793 and a YaHei one would find it.
 
-### T225. Mac: a 方正 name takes its font table's alternate — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, from the Mac triage)
+### T225. Mac: a 方正 name takes its font table's alternate — DONE (Linux office1, starling-office1-95, 2026-10-27, from the Mac triage)
 zh-2f9463d6's p12 title in 方正小标宋简体 (alternate 黑体) is SimHei in a fresh Mac Word's print, as in Word for Windows', where
 our Mac mode set every 方正 name in YaHei ("方正 names fall back", from the old prints) and the title stood 9pt low. As a69b98a8
 did for the _GB2312 names. On the 32 files whose 方正 entry names 黑体/宋体/楷体/仿宋/新宋体: Mac zh-2f9463d6 56.6 -> 99.9,
 zh-419ea527 72.5 -> 100, zh-23ee8575 87.5 -> 100, zh-8dc59b5b 79.5 -> 90.2, zh-6de512cb 97.7 -> 100, zh-625b6374 98.3 -> 98.9,
-none lower. Pair running.
+none lower. Done: same-base pairs, 756 docs, engine c34c8aa8eba, final Mac references: Mac those six, nothing lower; Windows
+nothing moved.
 
 
 ### Mac mode: fake bold 1.95% and firstLineChars as drawn — DONE (Mac 7bd18d8e, 2026-10-27, ee76953c + next)
