@@ -6600,7 +6600,7 @@ tab and a rule's anchor lost its line. With text meaning a visible character, th
 Done: same-base pairs, 756 docs, engine c34c8aa8eba, Mac references a1188040: Windows zh-147bdae0 95.0 -> 97.6, Mac 95.5 ->
 95.9, nothing else moved in either. Left in zh-147bdae0: p19/p27 hyphenation (the user's), p64's one cell, a few singles.
 
-### zh-13552a3a p27 (94.8, word-win): measured, not claimed (Linux office1, 2026-10-26) — a merged cell's last line at a page's foot
+### zh-13552a3a p27 (94.8, word-win): measured (Linux office1, 2026-10-26); CLAIMED Mac 01Xgpbk5 (2026-10-27, routed by macos) — a merged cell's last line at a page's foot
 All 44 misses follow from p27: a 14-cell row (trHeight 2460 at least) whose long cell ("1.《中华人民共和国政府信息公开条例》…六部法律
 的决定》修正)", 16 lines at x269) is merged down over the next two rows. In Word's print the three rows end at 504.9, the merged
 cell's last line "正)" at 503 on p27, the centred cells beside it 8pt lower than ours; ours ends them at 489.4 and carries
