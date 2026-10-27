@@ -6560,3 +6560,8 @@ Tried and dropped in Mac mode: no squeeze at all (39 docs down); no squeeze unde
 
 ### zh-3fe252ff (Mac 28.9, Windows 99.5): one line on p22 — measured (Linux lenovo-2, 2026-10-26, from macos's queue), lab asked
 Not the bullet artefact past p13: from p23 to p60 ours runs one line behind Mac Word (22 misses a page). The cause is p22's rule paragraph "封面单位基本性质=“民主党派”时，10行1、2栏=0,5~9、11行1、2栏>0,或30行3栏=0,25~29、31行3栏>0, 否则…" (仿宋_GB2312 15pt, Mac Word's YaHei; justified; numbered). Its second line holds "…31行3栏>0," in Mac Word's print. Ours refuses ">0, " (23.53pt with the space before 否) 2.4pt over the 442.2 column, and every line after goes a line later. Word for Windows and ours agree there. Our Mac-mode digits (0.586 em) and digit-ideograph gaps (a quarter em) match Mac Word's. Wanted from the Mac: the paragraph alone, w:right swept, the first width at which line 2 holds ">0,"; and the same with the space before 否 removed, to tell whether Mac Word lets that space hang.
+
+### T219. zh-147bdae0 p72: a tab that ends a paragraph takes no line of its own — CLAIMED (Linux office1, starling-office1-95, 2026-10-26)
+"四、承諾事項" (14pt bold 標楷體, br, 14pt text) ends in a 16pt bold tab; Word's 1.5 lines stand 27pt apart (the 14pt text's),
+ours set the heading 9pt lower. Pair running (engine c34c8aa8eba, new Mac references a3304812).
+
