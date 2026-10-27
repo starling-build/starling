@@ -6680,3 +6680,12 @@ the push in pagination), set out of caution; zh-4adfcce2's Mac case was T209's h
 condition stays. Done: same-base pairs, 756 docs, engine c34c8aa8eba, final Mac references: Mac zh-27a874b7 54.3 -> 65.2,
 nothing else moved; Windows nothing moved.
 
+### Mac: 仿宋_GB2312 with no alternate is YaHei 133 times, SimSun 16 — OPEN, nothing in the files separates them (Linux office1, 2026-10-27)
+Each from today's reprints, one document per freshly launched Mac Word (macos), so a real choice per document. Same in both
+groups: the entry's panose1 02010609030101010101, usb0/usb1 00000001/080E0000, charset 86, family (modern/auto/swiss/roman
+either way); compatibilityMode; the defaults' East Asian language and face; themeFontLang; the theme's minor ea ("") and Hans
+(宋体 or 等线 — 等线 leans SimSun, 8 of 16, but 8 YaHei too); embedTrueTypeFonts; w:hint eastAsia; 仿宋_GB2312 named in ascii
+or not. SimSun: zh-4c5da793 (26.0 in Mac mode, 21 pages for Word's 18), zh-6c447317, zh-8415d258, zh-9c162f26, zh-b9af65b5,
+zh-c599aaa1, zh-d3d3f266, zh-e0268388, zh-13552a3a, zh-5450d509, zh-9ef811c8, zh-a917e13c, zh-abe7e063, zh-c10532da,
+zh-cbc2f113, zh-540dc149. A Mac lab swapping parts (as t209b) between zh-4c5da793 and a YaHei one would find it.
+
