@@ -6483,7 +6483,9 @@ Reference text first (chars, garbled share, similarity of Mac reference text to 
   zh-76700e5f 82.2 (header/appendix labels).
 - REAL, pagination: zh-e2dc9dce 6.8 (Windows 98.8) — Mac Word gives the contents a blank page 3 that Word for Windows and
   ours do not: after the TOC field's end, an empty paragraph ending a continuous section holds a page break run, then an
-  empty 26pt paragraph, then another break paragraph; Mac Word honours both breaks, Windows (and ours) one. CLAIMED.
+  empty 26pt paragraph, then another break paragraph; Mac Word honours both breaks, Windows (and ours) one. DONE (next
+  commit): the reader's "a break ending a continuous section's paragraph is the section's" rule (from this document's Windows
+  print) now holds only in Windows mode; Mac n6 -> n7 6.8 -> 95.8, Windows w81 -> w82 nothing moved. RELEASED.
   zh-6aa8bd7c 14.1 (33 Mac pages / 23 Windows / 32 ours; p6 table) — pagination, not looked at.
 
 ### zh-cb56e605 p7 (94.4, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — a lab question
