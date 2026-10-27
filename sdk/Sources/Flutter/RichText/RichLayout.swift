@@ -11949,9 +11949,17 @@ public final class RichLayout {
                 // wraps it.)
                 let macThai = !RichTextTheme.wordWindowsPages && p.style.alignment == .justify
                     && [0x3F, 0x2E, 0x29].contains(units[tail]) && units.contains { $0 >= 0x0E01 && $0 <= 0x0E5B }
+                // (And a Latin "," at a justified line's end, before Word
+                // 2013's layout too, in Word for Mac: lab `t3fe` (zh-3fe252ff's
+                // p22 rule paragraph, mode 14) holds "…31行3栏>0," 3.5pt past
+                // the margin, 4.5 one step narrower, the space after it or
+                // not; Word for Windows wraps it there. That file compresses
+                // nothing under the alternative kinsoku rules, where no
+                // mark of ours hangs: this one does.)
+                let macComma = theme.wordRules && !RichTextTheme.wordWindowsPages && p.style.alignment == .justify && units[tail] == 0x2C
                 let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
                     || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80
-                    || macThai
+                    || macThai || macComma
                 // (Before Word 2013's layout, in a document that compresses
                 // punctuation, Taiwan's centred marks give nothing at a
                 // line's end to be taken, and the paragraph's own last one
@@ -12035,7 +12043,7 @@ public final class RichLayout {
                 let hung = hangs && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
-                    && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
+                    && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma)
                     && !runRulesOff(tail) && !afterLatin
                     // (Nor, before 2013's layout where marks are compressed, a
                     // Latin closing quote: lab `z01` (Word for Windows,
