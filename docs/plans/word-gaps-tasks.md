@@ -6562,6 +6562,7 @@ p19-20's turned text is still left.
 
 ### T218. Mac-mode line fit: zh-884c6e3e (Mac 47.2, Windows 100) and zh-c5b5087b (Mac 53.5 / 100), ours a character ahead — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, routed by macos from macOS-doc's triage)
 Measured on lenovo-2's c34c8aa8eba engine (~/tmp/lenovo2-engine2), Mac mode against word/. Pairs in both modes.
+zh-884c6e3e against its reprinted reference (a3304812), Mac 51.4: the lines now break as Word's, and the misses are p2's foot. Ours keeps a 4th line of "2.商业用房…" (4 x 28.01 in 112.6 left), and Mac Word sends it to p3. The new print's text is YaHei at 16.08 for 16pt, so the page reads about 0.5% large. Its lines drift 0.4-0.8pt under ours toward the foot (28.08 a line against our 28.01), and that is all that parts the two at the foot. Released: not a rule.
 Lab t218 (macos, fresh Mac Word, packages by macOS-doc): both files are mode 14 (doNotUseEastAsianBreakRules, doNotWrapTextWithPunct, balanceSingleByteDoubleByteWidth; zh-c5b5087b also useAltKinsokuLineBreakRules).
 - zh-884c6e3e's paragraph alone squeezes freely in Mac Word and takes "征", starting at x111.44 as ours does; the document's reference starts it at 112.09. Its reference is among the 151 macos is reprinting (楷体_GB2312 was Arial Unicode MS then and is KaiTi now), so re-measure after the reprint.
 - zh-c5b5087b's paragraph alone refuses "无" in mode 14 with no mark giving until the line is 6pt wider, and takes it unsqueezed in mode 15.
