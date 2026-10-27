@@ -1661,12 +1661,25 @@ enum OfficeFonts {
         // (A name with an alternate the table gives is set in that,
         // where the alternate is one Word has.)
         // (Only for a name Word has no face for at all, and only to an
-        // alternate it has; 方正 names fall back. 楷体_GB2312 was KaiTi in
-        // the prints of 2026-10-12 and is YaHei in Word 16.113.3's, alt
-        // name or not: zh-78729cf9 reprinted, zh-17749c13's alt 楷体.)
+        // alternate it has; 方正 names fall back. 仿宋_GB2312 and
+        // 楷体_GB2312 are such names too: a fresh Word for Mac sets each
+        // in its table's alternate — 仿宋 in FangSong (zh-447f1d5c,
+        // zh-f59a76e9, 33 of the 151 reprinted 2026-10-26), 宋体 in SimSun
+        // (zh-146f4e02), Arial Unicode MS in that (zh-de97afa7) — and
+        // with none in YaHei (95). The KaiTi or YaHei, alt or not, and
+        // the Arial Unicode MS of the prints of 2026-10-12 to 10-24 were
+        // one Word process days old, not Word.)
         let wordHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                        "微软雅黑", "microsoft yahei", "幼圆", "全真楷書", "標楷", "方正", "小标宋"]
-        if wordOnMac, ignoringEmbedding || !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
+        let gb2312 = has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312")
+        // (By its English name and with no alternate, a Latin face Word
+        // lacks: its Chinese falls back to 宋体, as an alternate in Latin
+        // does below — zh-202582e2's "FangSong_GB2312" body is SimSun in
+        // a fresh Word for Mac's print, 118 runs of it.)
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), n == "fangsong_gb2312" || n == "kaiti_gb2312", altName(family) == nil {
+            return eastAsianFace("SimSun")
+        }
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), gb2312 || !wordHas.contains(where: { n.containsSubstring($0) }),
            let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
             let a = alt.trimmingWhitespace().lowercased()
             // (… JhengHei too: zh-167ee06c's 華康雅風體W3(P), alternate
@@ -1680,6 +1693,7 @@ enum OfficeFonts {
             // 3.7pt shorter than YaHei's.)
             if ["calibri", "arial", "times new roman", "cambria"].contains(a) { return eastAsianFace("SimSun") }
             let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體", "jhenghei"]
+                + (gb2312 ? ["仿宋", "fangsong", "arial unicode"] : [])
             if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
                 return eastAsianFace(alt)
             }
@@ -1746,15 +1760,6 @@ enum OfficeFonts {
         // FZShuTi, no entry either, is YaHei in its print.)
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), n.hasPrefix("fzxiaobiaosong"), n.unicodeScalars.allSatisfy({ $0.isASCII }) {
             return eastAsianFace("SimSun")
-        }
-        // (楷体_GB2312 is Arial Unicode MS in Word for Mac's prints — every
-        // one since 2026-10-18 20:57, when the printing Mac changed from
-        // setting it in YaHei with nothing in the files to tell; the
-        // older references were printed again (c3fce0af). zh-c5b5087b,
-        // zh-dc9cfa34, zh-e37f8d40 and zh-0aac9d1a dropped 30-40 points
-        // against the reprints while ours kept YaHei's taller lines.)
-        if wordOnMac, ignoringEmbedding || !isEmbedded(family), has("楷体_gb2312", "kaiti_gb2312") {
-            return arialUnicode
         }
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
@@ -2702,13 +2707,21 @@ enum OfficeFonts {
     /// Starling FangSong, in place of the system's fallback (PingFang, a
     /// sans). Its widths are FangSong's, so no line moves; only the
     /// drawing does. Under OFFICE_WORD_FONTS=mac only the names Word for
-    /// Mac draws in its own FangSong — 仿宋 and FangSong; there
-    /// 仿宋_GB2312 and the 方正 names are YaHei's, as in its prints. In a
+    /// Mac draws in its own FangSong — 仿宋 and FangSong, and 仿宋_GB2312
+    /// where its table's alternate is 仿宋; there the other 仿宋_GB2312
+    /// and the 方正 names are YaHei's, as in its prints. In a
     /// document shown as its author had it, those too. (华文仿宋 is a
     /// face of its own, and keeps its own.)
     static func fangSongFamily(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         if _wordMacFacesLoaded, n == "仿宋" || n == "fangsong" { return "FangSong" }
+        // (And, in Word for Mac, a _GB2312 name whose table gives it 仿宋:
+        // see `eastAsianFace`.)
+        if wordOnMac, n == "仿宋_gb2312" || n == "fangsong_gb2312",
+           case let a = altName(family)?.trimmingWhitespace().lowercased() ?? "", a == "仿宋" || a == "fangsong" {
+            if _wordMacFacesLoaded { return "FangSong" }
+            if _fangSongLoaded { return starlingFangSong }
+        }
         guard _fangSongLoaded else { return nil }
         if n == "仿宋" || n == "fangsong" { return starlingFangSong }
         guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }
