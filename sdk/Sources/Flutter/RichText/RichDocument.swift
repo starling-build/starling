@@ -2145,11 +2145,25 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// `w:eastAsia` en-US, "…abcdefgh)" and "…測試測試測試" leave "，" and
     /// "）" to open the next line, where under zh-CN they stay; and
     /// zh-6600d539 (en-US) starts a line "，針對平臺…" in Word's print.
+    /// (Text whose East Asian language nothing states is Word's own
+    /// language's, and Word for Windows' — the reference's, en-US — has no
+    /// such rules where the settings say `w:doNotUseEastAsianBreakRules`:
+    /// zh-55087b5f's "…提高服务水平，促进…", no `w:lang` in its run, its
+    /// styles or its defaults, fills its justified line to "平" in Word's
+    /// print and opens the next with "，", where ours hung the mark. Its
+    /// fellows bear it out: of the 198 files with the switch, those that
+    /// state a language score 99.9 and those that do not 98.8.)
     public var eastAsianLineRules: Bool {
-        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return true }
+        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else {
+            return !(RichTextTheme.wordWindowsPages && breakRulesOnlyForEastAsian)
+        }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
     public var themeFontLangXML: String? = nil
+    /// The settings' `w:doNotUseEastAsianBreakRules`: Word's East Asian
+    /// line rules hold only for text in an East Asian language (see
+    /// `eastAsianLineRules`).
+    public var breakRulesOnlyForEastAsian = false
     /// The settings' `w:characterSpacingControl` value when the file
     /// states one ("compressPunctuation" in Chinese documents: Word then
     /// squeezes adjacent full-width punctuation, and lines break later).
@@ -2181,6 +2195,18 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// — unless it stands between two Latin words. The spaces that push
     /// a signature across the page are then twice as wide in most faces.
     public var balancesSpaceWidth = false
+    /// Whether the defaults' run properties (`w:rPrDefault`) name a Latin
+    /// face for East Asian text — Times New Roman in `w:rFonts w:eastAsia`.
+    /// Word for Windows then compresses no punctuation, whatever the
+    /// languages and `w:characterSpacingControl` say.
+    public var eastAsianDefaultFaceIsLatin = false
+    /// The embedded faces Word for Windows compresses no punctuation in:
+    /// those whose "「" is a glyph of no advance — lab tfz (windows-1,
+    /// zh-57f1de0d's 方正仿宋_GBK, which Word's subset embedding left with
+    /// 「」『』 empty): mending that one advance to 256 alone set "》" and
+    /// "：" at 13.33 and took a character more a line; any other table, or
+    /// a smaller cmap without 「, compressed too.
+    public var uncompressedFaces: Set<String> = []
     /// Word's `w:spaceForUL`: an exact line's text set by its middle
     /// (`w:textAlignment` "center") has its own line centred in the exact
     /// one. Without it the middle stands where the baseline would be.
@@ -2199,6 +2225,15 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// 15 a line's punctuation hangs and gives in a paragraph set any
     /// way; from 15 on only in a justified one.
     public var compatibilityMode: Int? = nil
+    /// Word for Windows, in the legacy mode (no `compatibilityMode`) and
+    /// with the defaults' East Asian face a Latin theme one
+    /// (`w:eastAsiaTheme` minorHAnsi): Han text after a space is one
+    /// word to the next space, which goes to the next line whole and is
+    /// broken by characters where it fills (Windows labs t167, t167b on
+    /// zh-7773163d — its "⚫案例 2：公務人員…" items each break after
+    /// "案例 "; with mode 15, or the face minorEastAsia, they fill the
+    /// line).
+    public var joinsHanAfterSpace = false
     /// Word's `w:useAltKinsokuLineBreakRules`: a closing mark hangs past
     /// the margin by half an em at most, not by all of itself.
     public var hangsHalf = false

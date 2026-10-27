@@ -251,7 +251,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, colMax: Double, cols: GridAxis, rows: GridAxis)? = nil
     /// The sheet's print scale while it is cut into pages and painted: on
     /// paper each row is a whole number of the printer's dots at that scale
     /// (45544's default rows at 90% are 93 dots, 11.16 pt, where 103 × 0.9
@@ -260,6 +260,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// or a sheet fitted to its pages, whose scale is not known yet —
     /// leaves the rows as they are.
     var printRowScale = 0.0
+    /// The widest a column prints, in points before the page's scale: the
+    /// page's width between its margins. Excel's print cuts a wider column
+    /// down to it, and wraps its text in what is left (a lab of columns of
+    /// 92, 100 and 120 Calibri 11 characters, Excel 16, 2026-10-27: each
+    /// 511.2 pt between margins of 0.7 in on Letter, 468 between 1 in, the
+    /// same lines in all three; FillWithoutColor's User Guide, 96.3
+    /// characters, 543 pt in ours). 0 — on screen, or a sheet fitted to its
+    /// pages — leaves them as they are.
+    var printColumnMax = 0.0
     /// The sheet prints in black and white (`pageSetup@blackAndWhite`): no
     /// fills, its text and rules black.
     var printMono = false
@@ -271,7 +280,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
         if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing,
-           c.rowScale == printRowScale { return (c.cols, c.rows) }
+           c.rowScale == printRowScale, c.colMax == printColumnMax { return (c.cols, c.rows) }
         let cols: GridAxis, rows: GridAxis
         if printing {
             // On paper the sheet has the printer's sizes, not the screen's: a
@@ -373,10 +382,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             let dots = printRowScale * 600 / 72
             func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
+            func most(_ w: Double) -> Double { printColumnMax > 0 ? min(w, printColumnMax) : w }
             // (A column in whole printer dots too, each its own: 49609's
             // 8.33 characters of Microsoft Sans Serif 8.25 are 316.67 dots,
             // and its rules in Excel's print stand 317.04 apart.)
-            cols = GridAxis(def: whole(ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit), overrides: widths.mapValues(whole), hidden: ws.hiddenCols, scale: scale)
+            cols = GridAxis(def: most(whole(ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit)),
+                            overrides: widths.mapValues { most(whole($0)) }, hidden: ws.hiddenCols, scale: scale)
             do {
                 // And as tall as its wrapped text's lines, in the column's width:
                 // so many of its font's fitted lines. (Excel fits a wrapped row
@@ -447,7 +458,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             rows = GridAxis(def: ws.defaultRowHeightPt, overrides: heights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         }
-        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, cols, rows)
+        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, printColumnMax, cols, rows)
         return (cols, rows)
     }
 
@@ -2662,8 +2673,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lift = printing && !spill && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
         let ty: Double
         switch st.vAlign {
-        case .top: ty = top + 1
-        case .center: ty = top + (bottom - top - tp.height) / 2 - lift
+        case .top: ty = printing ? _printTop(st, book, ws, row: a.row, tp, top: top, bottom: bottom, .top) : top + 1
+        case .center: ty = (printing ? _printTop(st, book, ws, row: a.row, tp, top: top, bottom: bottom, .center) : top + (bottom - top - tp.height) / 2) - lift
         case .bottom: ty = printing ? _footTop(st, book, ws, row: a.row, tp, bottom: bottom) : bottom - tp.height - 1
         }
         canvas.save()
@@ -2707,8 +2718,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let one = texts.painter("X", style).height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
-                case .top: y0 = top + 1
-                case .center: y0 = top + (bottom - top - one) / 2 - n / 2 * pitch - lift
+                case .top: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
+                case .center: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
                 for (i, line) in lines.enumerated() {
@@ -2807,37 +2818,86 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// 2.0 for Microsoft Sans Serif. bug62181's Arial 9, in rows styled
     /// Arial 9 in an Arial 10 book, stand at Arial 9's 3.1, not 3.31.
     func _footTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter, bottom: Double) -> Double {
+        _printTop(st, book, ws, row: row, tp, top: bottom, bottom: bottom, .bottom)
+    }
+
+    /// Where a line of text has its top on paper, by the vertical
+    /// alignment, from the same box as `_footTop`'s (the fitted line, the
+    /// baseline K over its foot). Set at the head, the box stands four
+    /// printer dots under the row's top; centred, four dots under the
+    /// middle: in the alignment lab (Arial 10, Calibri 11 and 9,
+    /// Microsoft Sans Serif 8.25 books; rows of 30, 20 and their fit) a
+    /// head's baseline stood F − K + 0.48 under the row's top and a
+    /// centre's (H − F)/2 + F − K + 0.48, all to within 0.06 — where ours
+    /// stood a point and the rounded ascent down, up to 1 pt low.
+    func _printTop(_ st: CellStyle, _ book: Workbook, _ ws: Worksheet, row: Int, _ tp: TextPainter,
+                   top: Double, bottom: Double, _ align: CellStyle.VAlign) -> Double {
         let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
         // A style's fitted line less its face's ascent, the ascent taken up
         // to whole dots of the printer's 600 dpi: the face's own ascent
         // where it is known, the painter's where not. (Uncut, the corpus's
         // Calibri 11 text stood 0.11 high in Excel's prints of 118
         // workbooks and its Arial 10 0.15 high in 40; cut, 3.96 and 3.24.)
-        func below(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> Double {
+        // (And the ascent so cut: the box's part over its baseline.)
+        func box(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> (below: Double, above: Double) {
             let a = SheetPrintMetrics.ascent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
                 ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
-            return (Self._fittedLine(s, m, book) - (a * 600 / 72).rounded(.up) * 72 / 600) * scale
+            let up = (a * 600 / 72).rounded(.up) * 72 / 600
+            return ((Self._fittedLine(s, m, book) - up) * scale, up * scale)
         }
-        func below(_ style: Int) -> Double {
+        func box(_ style: Int) -> (below: Double, above: Double) {
             let s = book.style(style)
-            return below(s, texts.painter("X", _textStyle(s, color: nil, ink: Color(0xFF00_0000))))
+            return box(s, texts.painter("X", _textStyle(s, color: nil, ink: Color(0xFF00_0000))))
         }
-        var empty: Double
+        func most(_ a: (below: Double, above: Double), _ b: (below: Double, above: Double)) -> (below: Double, above: Double) {
+            (max(a.below, b.below), max(a.above, b.above))
+        }
+        var empty: (below: Double, above: Double)
         if let rs = ws.rowStyle(row) {
-            empty = below(rs)
+            empty = box(rs)
         } else {
-            empty = -.infinity
+            empty = (-.infinity, -.infinity)
             var covered = 0, next = 0
             for run in ws.colAttrRuns.filter({ $0.attrs["style"] != nil }).sorted(by: { $0.lo < $1.lo }) {
-                empty = max(empty, below(Int(run.attrs["style"] ?? "") ?? 0))
+                empty = most(empty, box(Int(run.attrs["style"] ?? "") ?? 0))
                 let lo = max(run.lo, next)
                 if run.hi >= lo { covered += run.hi - lo + 1; next = run.hi + 1 }
             }
-            if covered < CellAddress.maxCols { empty = max(empty, below(0)) }
+            if covered < CellAddress.maxCols { empty = most(empty, box(0)) }
+        }
+        let own = box(st, tp), k = most(own, empty).below
+        let dots4 = 4 * 72 / 600 * scale / (printTextScale > 0 ? printTextScale : 1)
+        let baseline: Double
+        switch align {
+        // (A head's box is the cell's own: a Lucida Sans Typewriter cell set
+        // at its head stands 10.02 under the top in a Verdana book, with or
+        // without Verdana beside it, where Verdana's stand 10.38.)
+        case .top: baseline = top + dots4 + own.above
+        // A middle is the font's own: its ascent and descent (Windows'),
+        // each up to whole dots, about the middle — whatever the row's
+        // other fonts or the book's. Calibri 11 centred in a row of Calibri
+        // 30, by row style, column style or an empty cell, stands where it
+        // does alone in Excel's print; Calibri 8, 14 and 20, Arial 8,
+        // Verdana 10 and Lucida Sans Typewriter 10, in Calibri 11 and
+        // Verdana 10 books, as the default fonts of four books, stand
+        // within 0.07 of that less 0.06 (labs of 39, 30 and 20 pt rows,
+        // Excel 16 at 100%, 2026-10-27; the corpus's references, at 200%,
+        // put Calibri 11 at 3.78, Arial 10 at 3.48, as so rounded).
+        // FillWithoutColor's centred notice, in a row styled Calibri 30,
+        // stood 6 pt low by the row's box.
+        case .center:
+            let size = book.fontSize(st)
+            if let a = SheetPrintMetrics.ascent(family: book.fontName(st)), let d = SheetPrintMetrics.descent(family: book.fontName(st)) {
+                func dots(_ v: Double) -> Double { (v * size * 600 / 72 - 1e-6).rounded(.up) * 72 / 600 }
+                baseline = (top + bottom) / 2 + (dots(a) - dots(d)) / 2 * scale
+            } else {
+                baseline = (top + bottom) / 2 + (own.above - own.below) / 2 + dots4
+            }
+        case .bottom: baseline = bottom - k
         }
         // (The painter draws its baseline its ascent down to the whole
         // point, 10 for Calibri 11's 10.47, whatever it reports.)
-        return bottom - max(below(st, tp), empty) - tp.computeDistanceToActualBaseline(.alphabetic).rounded()
+        return baseline - tp.computeDistanceToActualBaseline(.alphabetic).rounded()
     }
 
     /// Text turned a quarter: up (`textRotation` 90, read from the foot)

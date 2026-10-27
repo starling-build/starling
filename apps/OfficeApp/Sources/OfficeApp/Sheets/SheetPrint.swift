@@ -46,6 +46,8 @@ struct SheetPrintSetup: Equatable {
     var colBreaks: Set<Int> = []
 
     var pageSize: Size { landscape ? Size(paper.height, paper.width) : paper }
+    /// The page's width between its side margins.
+    var printableWidth: Double { max(36, pageSize.width - left - right) }
 
     /// The setup a sheet's file carried, from the elements kept as written.
     static func read(_ ws: Worksheet) -> SheetPrintSetup {
@@ -304,6 +306,7 @@ extension SheetGridState {
         defer {
             printing = false
             printRowScale = 0
+            printColumnMax = 0
             printMono = false
             if c.activeSheet != savedSheet { c.activeSheet = savedSheet }
             scrollX = savedX; scrollY = savedY
@@ -349,6 +352,7 @@ extension SheetGridState {
             let setup = SheetPrintSetup.read(ws)
             printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
             printMono = setup.blackAndWhite
+            printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
             let ca = cols, ra = rows   // in points while printing
             let head = _headingSize(setup, lastRow: areas.map(\.bottom).max() ?? 0)
             let titleH = (names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0) + head.height
@@ -461,8 +465,13 @@ extension SheetGridState {
             _paintChartSheet(ws, setup: setup, pageCount: pageCount, title: title, filePath: filePath, maxPages: maxPages, into: &out)
             return
         }
-        printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
+        // (A fitted sheet's rows are whole dots at the scale its pages came
+        // out at, as a scaled one's are: lo-tdf58243's 30.75 pt rows step
+        // 15.12 at 51% in Excel's print, 126 dots, where ours, unrounded,
+        // stepped 15.18 and stood 1.2 low by its page's foot.)
+        printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : jobs.count == 1 ? jobs[0].scale : 0
         printMono = setup.blackAndWhite
+        printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
         let ca = cols, ra = rows   // in points while printing
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
         let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []
@@ -509,7 +518,9 @@ extension SheetGridState {
                 // pages, at any scale (lo-bnc762542's 36%, 45544's 100%),
                 // 0.24 to 0.55 pt left of where plain centring put ours.)
                 let inset = 0.48
-                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? 0 : inset
+                // (Down a centred page likewise, as if 0.96 taller: AverageTaxRates'
+                // rules, centred both ways, stand 0.48 above plain centring's.)
+                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? -inset : inset
                 var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }

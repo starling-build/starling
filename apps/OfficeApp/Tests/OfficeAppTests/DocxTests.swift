@@ -3532,6 +3532,23 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
     }
 
+    func testALatinFaceForEastAsianTextInTheDefaultsIsRead() throws {
+        // zh-cd48112c: its rPrDefault names Times New Roman for East Asian
+        // text, and Word for Windows compresses none of its punctuation
+        // (labs tcd/x); with 宋体 there it does.
+        func opened(eastAsia: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+            var xml = String(decoding: entries[si].data, as: UTF8.self)
+            let at = try XCTUnwrap(xml.range(of: "<w:rPrDefault><w:rPr>"))
+            xml.replaceSubrange(at, with: "<w:rPrDefault><w:rPr><w:rFonts w:eastAsia=\"\(eastAsia)\"/>")
+            entries[si] = ZipEntry(name: "word/styles.xml", data: Data(xml.utf8))
+            return try DocxFormat.read(try Zip.write(entries)).document
+        }
+        XCTAssertTrue(try opened(eastAsia: "Times New Roman").eastAsianDefaultFaceIsLatin)
+        XCTAssertFalse(try opened(eastAsia: "宋体").eastAsianDefaultFaceIsLatin)
+    }
+
     func testAHintedMiddleDotInSongTiIsAnEmAndGivesAsAMark() throws {
         // zh-3f871b7d p1: "…在青岛·上" — a hinted "·" Word sets in 宋体, an em
         // (SimSun is fixed-pitch), where ours set the stand-in's 0.33 and

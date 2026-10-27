@@ -241,6 +241,7 @@ enum DocxFormat {
             return part(name)
         }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
+        _inheritSpace(root)
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
@@ -974,8 +975,10 @@ enum DocxFormat {
                     // and a continuous section, and Word for Windows sets
                     // chapter 1's title picture, the paragraph after, on
                     // the contents page, the body from page 3; ours gave
-                    // the picture a page and ran a page long to the end.)
-                    let sectionsOwn = currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
+                    // the picture a page and ran a page long to the end.
+                    // Only there: Mac Word keeps the break, and its print of
+                    // the same document has a page 3 of the picture alone.)
+                    let sectionsOwn = Self.wordOnWindows && currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
                         && p.paragraph.style.sectionBreaksPage == false
                     if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
@@ -1907,6 +1910,7 @@ enum DocxFormat {
                     + (path.hasSuffix("header") ? "<w:p/>" : "")
                     + "</w:\(path.hasSuffix("header") ? "hdr" : "ftr")>").utf8) : nil
                 guard let data = phantom ?? part(path), let node = XNode.parse(data) else { return [] }
+                _inheritSpace(node)
                 // (Their theme font references too: zh-a4b0f6ea's page
                 // numbers are `majorEastAsia`, 宋体, in a footer.)
                 _resolveThemeFonts(node, theme)
@@ -2160,6 +2164,7 @@ enum DocxFormat {
                 guard let raw = part(path), let data = OfficeFonts.deobfuscate(raw, key: key),
                       let family = OfficeFonts.loadEmbedded(data) else { continue }
                 faces[name] = family
+                if OfficeFonts.mapsToZeroAdvance(data, 0x300C) { document.uncompressedFaces.insert(name) }
             }
             OfficeFonts.noteEmbeddedFaces(faces)
             var alts: [String: String] = [:]
@@ -2219,6 +2224,7 @@ enum DocxFormat {
             document.spacesForUnderline = settings.first("w:compat")?.first("w:spaceForUL").map { !_isOff($0) } ?? false
             document.adjustsLineHeightInTable = settings.first("w:compat")?.first("w:adjustLineHeightInTable").map { !_isOff($0) } ?? false
             document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
+            document.breakRulesOnlyForEastAsian = settings.first("w:compat")?.first("w:doNotUseEastAsianBreakRules").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
                 .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
             document.flipsMirrorIndents = !(settings.first("w:compat")?.all("w:compatSetting")
@@ -2236,9 +2242,27 @@ enum DocxFormat {
             // `w:bidi="ar-SA"`, its East Asian text the defaults' zh-TW,
             // whose centred "。" keeps its em before "」" in Word's print;
             // ours took no East Asian language and closed it up.
+            // (A Latin face named for East Asian text in the defaults turns
+            // Word for Windows' punctuation compression off: labs tcd/q/x
+            // (windows-1, Word for Windows, zh-cd48112c's package) — its
+            // rPrDefault says eastAsia "Times New Roman", and every "，",
+            // "、", "“" and "”" is a whole em in its print; with 宋体 there
+            // the same paragraph squeezes its marks and takes a character
+            // more a line. Its languages, swapped every way, changed
+            // nothing.)
+            if let ea = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:eastAsia"],
+               !OfficeFonts.isEastAsianFace(ea),
+               ["times new roman", "times", "arial", "calibri", "cambria", "ms serif", "verdana", "tahoma", "helvetica", "courier new", "segoe ui", "georgia"]
+                .contains(ea.trimmingWhitespace().lowercased()) {
+                document.eastAsianDefaultFaceIsLatin = true
+            }
             let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
             let own = normal?.first("w:rPr")?.first("w:lang")
             let defaults = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")
+            // (`RichDocument.joinsHanAfterSpace`.)
+            let defaultEastAsia = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:eastAsiaTheme"]
+            document.joinsHanAfterSpace = document.compatibilityMode == nil
+                && ["minorHAnsi", "majorHAnsi", "minorAscii", "majorAscii"].contains(defaultEastAsia ?? "")
             if let own, let defaults {
                 document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
             } else if let lang = own ?? defaults {
@@ -4642,6 +4666,20 @@ enum DocxFormat {
     /// XML whitespace at either end is not text. A hand-written file's
     /// "<w:t>Before </w:t>" joins the run after it (Bug66263-paragraph);
     /// no-break and typographic spaces are characters and stay.
+    /// `xml:space` is inherited: a part whose root says "preserve" — Word
+    /// 2007's zh-7773163d does, on `w:document` — keeps every `w:t`'s
+    /// spaces that does not say otherwise. Ours read its 316 runs such as
+    /// "<w:t>案例 </w:t>" without their spaces: "⚫案例2：…" where Word's
+    /// print has "⚫ 案例 2：…" and breaks after the space.
+    private static func _inheritSpace(_ node: XNode, _ preserve: Bool = false) {
+        let here = node["xml:space"].map { $0 == "preserve" } ?? preserve
+        if node.name == "w:t" || node.name == "w:instrText" || node.name == "w:delText" {
+            if here, node["xml:space"] == nil { node.attrs["xml:space"] = "preserve" }
+            return
+        }
+        for child in node.children { _inheritSpace(child, here) }
+    }
+
     private static func _runText(_ t: XNode) -> String {
         if t["xml:space"] == "preserve" { return t.text }
         let ws: Set<Character> = [" ", "\t", "\n", "\r", "\r\n"]

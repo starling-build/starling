@@ -671,7 +671,50 @@ where ours stood 1 px over the descent (3.0, 2.0). 720 workbooks: 0.694
 -> 0.662 with the row fits above, 157 better, 40 worse (chart-tdf98690
 2.64 -> 0.66, lo-functions-excel-2010 2.90 -> 0.93; lo-tdf100034 +0.73,
 46535 +0.59). Open: Verdana 10 books' text stays 0.5 low; top- and
-centre-aligned text (49609) is untouched. Open: their letters' widths in Arial 8 and Microsoft Sans
+centre-aligned text (49609) is untouched.
+Text at a cell's head or middle stands in the same box, four printer dots
+lower: a head's baseline F - K + 0.48 under the row's top, a middle's
+(H - F)/2 + F - K + 0.48 (the alignment lab, ~/starling-xls-check/lab-bl
+v-*.xlsx: Arial 10, Calibri 11 and 9, Microsoft Sans Serif 8.25 books, to
+within 0.06), the box's ascent part the row's empty cells' where larger
+(DateFormatTests' Lucida Sans Typewriter on Verdana's baseline). The 107
+workbooks with such text: 1.942 -> 1.840, 43 better, 19 worse (49609
+11.64 -> 5.16, lo-tdf131575 4.90 -> 3.69; worst +0.18). Open: on pages
+printed at a scale Excel's labs fit s*K + 0.42*(s - 1), but 32 scaled
+workbooks came out worse with it (not built). A fitted sheet's rows are
+whole dots at the scale its pages come out at, as a scaled sheet's are
+(lo-tdf58243's 30.75 pt rows step 15.12 at 51%, 126 dots; ours stepped
+15.18): the 18 fitted workbooks 2.764 -> 2.529, 10 better, 3 worse
+(lo-tdf58243 7.81 -> 5.23, StructuredRefs 2.45 -> 1.66; Tables +0.10).
+A head's box is the cell's own font's (a Lucida Sans Typewriter cell at
+its head stands 10.02 under the top in a Verdana book, beside Verdana or
+not); a face's ascent is hhea's where that is the larger (Lucida Sans
+Typewriter, Arial Narrow, Bookman Old Style, Century Gothic; LST over a
+foot 3.54 in Excel, 3.60 so, 3.96 with win's). 757 workbooks: 0.604 ->
+0.601, 15 better, 1 worse (NumberFormatApproxTests 5.88 -> 5.48,
+DateFormatTests 3.39 -> 3.09; lo-totalsRowFunction +0.06). Open: heads
+still stand about 0.17 low in that Verdana book. Down a vertically
+centred page the cells stand 0.48 up from plain centring, as they stand
+0.48 left across a horizontally centred one (Excel centres as if 0.96
+taller): the 8 such workbooks 4.423 -> 4.026, 7 better, none worse
+(AverageTaxRates 5.38 -> 4.06, lo-tdf171828 3.81 -> 2.65, Tables 5.02 ->
+4.50). Open: on scaled pages the alignment lab fits a middle's four dots
+scaling with the page and a foot's 0.42 not, but 32 scaled workbooks came
+out worse with both (not built). A column wider than the page's
+width between its margins prints cut to that width, its text wrapped in
+it (lab of 92-, 100- and 120-character Calibri columns: 511.2 pt between
+0.7 in margins, the same lines; FillWithoutColor's User Guide 3.65 ->
+3.35, the 18 workbooks with such columns no worse). Centred text stands
+on its own font alone, its Windows ascent and descent each up to whole
+dots about the middle: no row style, column style, empty cell or book
+default moves it (labs of Calibri 8-30, Arial 8, Verdana 10, LST 10 in
+Calibri and Verdana books). FillWithoutColor's notice in a row styled
+Calibri 30 stood 6 pt low. The 116 aligned, scaled and fitted workbooks
+1.755 -> 1.746, 17 better, 5 worse (lo-tdf131575 -0.25; bug66675 +0.15,
+its drifting header rows). Open: a foot's box counts an empty cell's
+font (Calibri 30 in C beside a Calibri 11 foot: 10.98 over it in Excel,
+4.08 in ours); a merged wrapped text across a cut column wraps about a
+point wider than Excel's. Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

@@ -67,6 +67,7 @@ enum OfficeFonts {
         // the one shipped (Noto Sans SC, fetched when first asked for).
         if wordsOwn.contains(n) || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return "Noto Sans SC" }
         #endif
+        if let alt = macTableAlternate(family) { return substitute(alt) }
         switch n {
         case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma",
              "segoe ui", "aptos", "arimo", "arial black":
@@ -217,6 +218,23 @@ enum OfficeFonts {
     /// A file's font-table entry: its alternate, family, whether its
     /// PANOSE is all zeros, its charset, and the first two words of its
     /// Unicode signature (`w:sig`'s usb0 and usb1).
+    /// The font table's alternate Word for Mac sets a Liberation face in,
+    /// which it has none of — as it does any Latin name it lacks (see
+    /// `substitute`), where the clones' names had stood for their
+    /// originals here. Lab t209b (Mac Word, zh-4adfcce2 with zh-5f9b6549's
+    /// fontTable.xml, the one part of six that moves it): Normal's
+    /// "Liberation Serif", alternate 新細明體 and no PANOSE, sets the
+    /// empty paragraph Word adds under a header (a file with a
+    /// background) in 12pt PMingLiU, 15.6 a line; with no alternate, in
+    /// Times — and the page's body 1.8pt higher. Nil elsewhere.
+    static func macTableAlternate(_ family: String) -> String? {
+        guard wordOnMac else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        guard n.hasPrefix("liberation "), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty, !e.panoseZero,
+              !alt.trimmingWhitespace().lowercased().hasPrefix("liberation") else { return nil }
+        return alt
+    }
+
     struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
     static func noteFontEntries(_ entries: [String: FontEntry]) {
@@ -731,6 +749,50 @@ enum OfficeFonts {
         if hasTable(data, "EBDT") { embeddedBitmaps.insert(family) }
         declaredLock.unlock()
         return family
+    }
+
+    /// Whether a face maps a character to a glyph of no advance (`cmap`'s
+    /// Windows Unicode subtable, then `hmtx`); false where it maps none.
+    /// Word's own subset embedding keeps the whole `cmap` and empties the
+    /// glyphs the document does not use, to no outline and no advance.
+    static func mapsToZeroAdvance(_ data: Data, _ scalar: UInt32) -> Bool {
+        let d = [UInt8](data)
+        func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        guard d.count > 12, scalar <= 0xFFFF else { return false }
+        func table(_ tag: String) -> Int? {
+            let t = Array(tag.utf8)
+            for k in 0 ..< u16(4) {
+                let e = 12 + 16 * k
+                guard e + 16 <= d.count else { return nil }
+                if Array(d[e ..< e + 4]) == t { return u32(e + 8) }
+            }
+            return nil
+        }
+        guard let cmap = table("cmap"), let hhea = table("hhea"), let hmtx = table("hmtx") else { return false }
+        var sub: Int? = nil
+        for k in 0 ..< u16(cmap + 2) {
+            let r = cmap + 4 + 8 * k
+            if u16(r) == 3, u16(r + 2) == 1 || u16(r + 2) == 10, u16(cmap + u32(r + 4)) == 4 { sub = cmap + u32(r + 4); break }
+        }
+        guard let f = sub else { return false }
+        let c = Int(scalar), segs = u16(f + 6) / 2
+        let ends = f + 14, starts = ends + 2 * segs + 2, deltas = starts + 2 * segs, offsets = deltas + 2 * segs
+        var glyph = 0
+        for i in 0 ..< segs where c <= u16(ends + 2 * i) {
+            guard c >= u16(starts + 2 * i) else { return false }
+            let ro = u16(offsets + 2 * i)
+            if ro == 0 { glyph = (c + u16(deltas + 2 * i)) & 0xFFFF }
+            else {
+                let g = u16(offsets + 2 * i + ro + 2 * (c - u16(starts + 2 * i)))
+                glyph = g == 0 ? 0 : (g + u16(deltas + 2 * i)) & 0xFFFF
+            }
+            break
+        }
+        guard glyph != 0 else { return false }
+        let metrics = u16(hhea + 34)
+        guard metrics > 0 else { return false }
+        return u16(hmtx + 4 * min(glyph, metrics - 1)) == 0
     }
 
     /// An embedded font part's bytes as a font: ECMA-376 part 1, 17.8.1 —
@@ -1610,12 +1672,25 @@ enum OfficeFonts {
         // (A name with an alternate the table gives is set in that,
         // where the alternate is one Word has.)
         // (Only for a name Word has no face for at all, and only to an
-        // alternate it has; 方正 names fall back. 楷体_GB2312 was KaiTi in
-        // the prints of 2026-10-12 and is YaHei in Word 16.113.3's, alt
-        // name or not: zh-78729cf9 reprinted, zh-17749c13's alt 楷体.)
+        // alternate it has; 方正 names fall back. 仿宋_GB2312 and
+        // 楷体_GB2312 are such names too: a fresh Word for Mac sets each
+        // in its table's alternate — 仿宋 in FangSong (zh-447f1d5c,
+        // zh-f59a76e9, 33 of the 151 reprinted 2026-10-26), 宋体 in SimSun
+        // (zh-146f4e02), Arial Unicode MS in that (zh-de97afa7) — and
+        // with none in YaHei (95). The KaiTi or YaHei, alt or not, and
+        // the Arial Unicode MS of the prints of 2026-10-12 to 10-24 were
+        // one Word process days old, not Word.)
         let wordHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                        "微软雅黑", "microsoft yahei", "幼圆", "全真楷書", "標楷", "方正", "小标宋"]
-        if wordOnMac, ignoringEmbedding || !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
+        let gb2312 = has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312")
+        // (By its English name and with no alternate, a Latin face Word
+        // lacks: its Chinese falls back to 宋体, as an alternate in Latin
+        // does below — zh-202582e2's "FangSong_GB2312" body is SimSun in
+        // a fresh Word for Mac's print, 118 runs of it.)
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), n == "fangsong_gb2312" || n == "kaiti_gb2312", altName(family) == nil {
+            return eastAsianFace("SimSun")
+        }
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), gb2312 || !wordHas.contains(where: { n.containsSubstring($0) }),
            let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
             let a = alt.trimmingWhitespace().lowercased()
             // (… JhengHei too: zh-167ee06c's 華康雅風體W3(P), alternate
@@ -1629,6 +1704,7 @@ enum OfficeFonts {
             // 3.7pt shorter than YaHei's.)
             if ["calibri", "arial", "times new roman", "cambria"].contains(a) { return eastAsianFace("SimSun") }
             let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體", "jhenghei"]
+                + (gb2312 ? ["仿宋", "fangsong", "arial unicode"] : [])
             if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
                 return eastAsianFace(alt)
             }
@@ -1695,15 +1771,6 @@ enum OfficeFonts {
         // FZShuTi, no entry either, is YaHei in its print.)
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), n.hasPrefix("fzxiaobiaosong"), n.unicodeScalars.allSatisfy({ $0.isASCII }) {
             return eastAsianFace("SimSun")
-        }
-        // (楷体_GB2312 is Arial Unicode MS in Word for Mac's prints — every
-        // one since 2026-10-18 20:57, when the printing Mac changed from
-        // setting it in YaHei with nothing in the files to tell; the
-        // older references were printed again (c3fce0af). zh-c5b5087b,
-        // zh-dc9cfa34, zh-e37f8d40 and zh-0aac9d1a dropped 30-40 points
-        // against the reprints while ours kept YaHei's taller lines.)
-        if wordOnMac, ignoringEmbedding || !isEmbedded(family), has("楷体_gb2312", "kaiti_gb2312") {
-            return arialUnicode
         }
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
@@ -1918,6 +1985,24 @@ enum OfficeFonts {
         let name = family ?? "Times New Roman"
         var face = RichResolvedFace(family: embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
+        // (Word for Windows' Arabic in Arial and Times New Roman, which the
+        // stand-ins have none of: Noto Naskh draws it, 11% wider than Arial
+        // over zh-d97c5474's Arabic paragraph — 1817pt to Word's 1634 —
+        // and its lines broke elsewhere. Each word is set to its joining
+        // forms' widths in Word's face.)
+        if wordOnWindows, embeddedFamily(name) == nil {
+            switch name.trimmingWhitespace().lowercased() {
+            case "arial":
+                // (In the sans Arabic, nearer Arial's than the Naskh is.)
+                face.fallback = [cambria, "Times New Roman", "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans"]
+                face.joinedAdvances = WindowsArabicAdvances.arial
+                face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
+            case "times new roman":
+                face.joinedAdvances = WindowsArabicAdvances.times
+                face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+            default: break
+            }
+        }
         return face
     }
 
@@ -2081,6 +2166,7 @@ enum OfficeFonts {
 
     static func standInFace(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
+        if let alt = macTableAlternate(family) { return standInFace(alt, eastAsian: eastAsian) }
         let own = isEastAsianFace(family)
         guard own || eastAsian else {
             // A Latin face: its clone, and where Word sets the baseline
@@ -2248,8 +2334,16 @@ enum OfficeFonts {
             // Ours set them unscaled: 693 lines on 29 pages. On Windows the
             // fallback is Leelawadee UI, 0.729 (Windows 01QbbApP).)
             if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) {
-                face.advances = cordiaNewAdvances
-                face.boldAdvances = cordiaNewBoldAdvances
+                // (Its spaces Browallia's, which Word draws them in, not
+                // Cordia's: Word for Windows' print of zh-6a4fc013 sets 818
+                // regular ones at 0.222 em and 483 bold at 0.181, where
+                // Cordia's are 0.182 and 0.224 — its bold "คำถามที่ 9 ："
+                // took 0.7pt a space too much and its line one fewer word.)
+                var regular = cordiaNewAdvances, bold = cordiaNewBoldAdvances
+                regular[0] = 0.222
+                bold[0] = 0.181
+                face.advances = regular
+                face.boldAdvances = bold
                 #if os(macOS)
                 // (Under OFFICE_WORD_FONTS=mac, with Word's Cordia New loaded,
                 // the Thai itself in Cordia, at its own widths: drawn by
@@ -2624,13 +2718,21 @@ enum OfficeFonts {
     /// Starling FangSong, in place of the system's fallback (PingFang, a
     /// sans). Its widths are FangSong's, so no line moves; only the
     /// drawing does. Under OFFICE_WORD_FONTS=mac only the names Word for
-    /// Mac draws in its own FangSong — 仿宋 and FangSong; there
-    /// 仿宋_GB2312 and the 方正 names are YaHei's, as in its prints. In a
+    /// Mac draws in its own FangSong — 仿宋 and FangSong, and 仿宋_GB2312
+    /// where its table's alternate is 仿宋; there the other 仿宋_GB2312
+    /// and the 方正 names are YaHei's, as in its prints. In a
     /// document shown as its author had it, those too. (华文仿宋 is a
     /// face of its own, and keeps its own.)
     static func fangSongFamily(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         if _wordMacFacesLoaded, n == "仿宋" || n == "fangsong" { return "FangSong" }
+        // (And, in Word for Mac, a _GB2312 name whose table gives it 仿宋:
+        // see `eastAsianFace`.)
+        if wordOnMac, n == "仿宋_gb2312" || n == "fangsong_gb2312",
+           case let a = altName(family)?.trimmingWhitespace().lowercased() ?? "", a == "仿宋" || a == "fangsong" {
+            if _wordMacFacesLoaded { return "FangSong" }
+            if _fangSongLoaded { return starlingFangSong }
+        }
         guard _fangSongLoaded else { return nil }
         if n == "仿宋" || n == "fangsong" { return starlingFangSong }
         guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }

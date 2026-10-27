@@ -262,9 +262,14 @@ final class ChartTests: XCTestCase {
         XCTAssertNil(ChartXML.readBoxWhisker(XNode.parse(Data(funnel.utf8))!), "another chartex kind keeps its picture")
     }
 
+    /// A chart this app cannot draw reads as nothing, so the frame keeps
+    /// its own picture. (Every single kind is drawn since surfaces were,
+    /// 5c5d43a4; an area under a line is a combination still left alone.)
     func testAKindThisAppCannotDrawIsKept() {
-        let surface = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:surfaceChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:surfaceChart></c:plotArea></c:chart></c:chartSpace>"
-        XCTAssertNil(ChartXML.read(XNode.parse(Data(surface.utf8))!, color: { _ in nil }))
+        let ser = "<c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/>"
+        let combo = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:areaChart>\(ser)</c:areaChart><c:lineChart>\(ser)</c:lineChart></c:plotArea></c:chart></c:chartSpace>"
+        XCTAssertNil(ChartXML.read(XNode.parse(Data(combo.utf8))!, color: { _ in nil }))
+        XCTAssertNotNil(ChartXML.read(XNode.parse(Data(combo.replacingOccurrences(of: "<c:lineChart>\(ser)</c:lineChart>", with: "").utf8))!, color: { _ in nil }), "the area alone is drawn")
     }
 
     /// Columns with a line over them on the same axes are one chart: the

@@ -2535,7 +2535,11 @@ enum ChartPainter {
         let a = neg ? -hi0 : lo0, b = neg ? -lo0 : hi0
         guard a > 0, b > a, a > b * 5 / 6 else { return nil }
         let d = b - a
-        let lo = a - d / 2, hi = b + d * 0.05
+        // (5% of the run from where the axis starts, not of the values'
+        // spread: zh-b8de3ae2's chart 10 rates, 84.97 to 99.22, run 75 to
+        // 105 on its right axis in Word's print — 99.22 + 5% of 21.4 is
+        // 100.29 — where ours stopped at 100.)
+        let lo = a - d / 2, hi = b + (b - lo) * 0.05
         let rough = (hi - lo) / Double(max(1, intervals))
         let mag = pow(10, floor(log10(rough)))
         let norm = rough / mag
@@ -2670,9 +2674,12 @@ enum ChartPainter {
         // a tuple `var` that the closures below capture — "Lexical
         // borrows of SILBoxTypes must be of vars or captures" — and the
         // release build dies with exception 3.)
-        // (A value axis across the page — a bar chart's — keeps to eight:
-        // its labels stand side by side, and bar-chart's 8.2 runs 0 to 10
-        // in twos there where the same data up the page goes by ones.)
+        // (A value axis across the page — a bar chart's — takes a step for
+        // each three of its labels' ems, ten at most: its labels stand side
+        // by side. bar-chart's 8.2 on 394pt of 18pt labels runs 0 to 10 in
+        // twos in PowerPoint's print, where the same data up the page goes
+        // by ones; showcase F03's 9.2 on 486pt of 10pt labels runs 0 to 10
+        // by ones in Word for Windows', where eight steps made it twos.)
         // (Over a data table the plot is short, and its value axis takes
         // as many steps as its labels have room for, a label's height
         // each: zh-61aaad09's 45pt plot over its table goes 0 to 800000 in
@@ -2690,7 +2697,8 @@ enum ChartPainter {
         // (A 3-D bar chart's axis has no headroom: zh-b8de3ae2's four, Word's
         // print, run 107,660 to 120,000, 410,306 to 450,000, 130.3M to 140M
         // and 383.3M to 400M — the last 450M with the 5% a flat chart takes.)
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? (c.type == .bar ? 8 : 10),
+        let acrossSteps: Int? = horizontal ? max(2, min(10, Int(area0.width / (3 * labelSize * k)))) : nil
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? 10,
                                                                           headroom: c.barView != nil ? 0 : 0.05)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
@@ -3354,7 +3362,11 @@ enum ChartPainter {
                         // ours stood 8 over every bar, the −1.4 and −2.1
                         // on the axis line.)
                         let size = c.series[j].labelSize ?? c.baseTextSize
-                        let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : -8 * k
+                        // (In a document too, under a falling bar's foot: zh-b8de3ae2's
+                        // chart 10, every column below zero, has "-21,376,664" and
+                        // "-10,160,557" under their columns' feet in Word's print,
+                        // where ours set them all over the axis line.)
+                        let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
                         labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy
                             : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + nudge(j, i), j))
                     }
@@ -4385,7 +4397,12 @@ extension ChartPainter {
             // prints them.)
             if l.fitted, l.moves.isEmpty { l.outside = false }
             _pieLabels(c, l, canvas, frame: frame ?? plot, slices: placed, centre: centre, rx: rx, ry: ry, inner: 0,
-                       k: k, theme: theme, ink: ink ?? theme.text, point: { at($0, $1) })
+                       k: k, theme: theme, ink: ink ?? theme.text,
+                       // (From outside, a front slice's edge is its wall's foot:
+                       // lab tpie (windows-1, zh-d62da4dd's chart1, rotX 30) sets
+                       // "經濟", at three o'clock, a wall's depth lower than the
+                       // top face's edge would, its file's move taken off.)
+                       point: { a, f in at(a, f, f >= 1 && sin(a) > 0 ? deep : 0) })
         } else if c.dataLabels {
             for s in slices {
                 let pt = at((s.from + s.to) / 2, 0.7)
@@ -4481,6 +4498,14 @@ extension ChartPainter {
             // (Excel wraps a long label at about a fifth of the chart's width:
             // 45544's "Finance - Investment Banking" is three lines.)
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))
+            // (And a one-line label a little narrower: past 0.1857 of the
+            // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
+            // wide, keeps "補助及協助收入, 2.35%" (99.9pt at 10pt) on one line in
+            // Word's print and wraps "罰款及賠償收入, 0.64%" (100.0) after its
+            // comma. A label that wraps already keeps the fifth's box.)
+            if tp.computeLineMetrics().count == 1, tp.width > max(20 * k, frame.width * 0.1857) {
+                tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.1857))
+            }
             let pad = 3 * k
             let w = tp.width + pad * 2, h = tp.height + pad
             let dx = cos(s.mid), dy = sin(s.mid)
@@ -4521,7 +4546,11 @@ extension ChartPainter {
             } else if l.outside {
                 let gap = 4 * k
                 let edge = on(s.mid, 1)
-                at = Offset(edge.dx + dx * gap + (dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
+                // (Centred on its slice where it stands over or under it, within
+                // about ten degrees of upright: lab tpie's "建築", 0.75% at
+                // twelve o'clock, in Word's print, where ours stood a half
+                // width left; "金融", 13° off upright, keeps the half width.)
+                at = Offset(edge.dx + dx * gap + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
             } else {
                 // (A 3-D pie's 0.9 of the way out: the survey's.)
                 at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
