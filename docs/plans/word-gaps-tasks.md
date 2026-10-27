@@ -6474,6 +6474,10 @@ ideograph are spaced after "，" 221 times and unspaced 128, after "〕" 155 / 2
 zh-*). zh-7b5b3de2's "〔2014〕20 号" is spaced in Word's print, and the rule took the document 100 -> 40.4. So "，102年" is
 unspaced for a reason still unseen (the unspaced cases are likely documents whose autoSpaceDN is off, which ours already
 follows; zh-147bdae0's is on only by the table style). Dropped for good unless a lab names the switch.
+Cross (windows-1, lab tdn mk3/mk4): outside a table, Times digits after a full-width mark are spaced wherever autoSpaceDN is
+on — zh-147bdae0's paragraph alone in zh-7b5b3de2's package, or in its own with autoSpaceDN turned on, sets 2.5 after "2";
+ours already does. Only "，102年" in zh-147bdae0's Table Grid cell stays unspaced, its own autoSpaceDN on or not, where the
+same table's "2.102年7月29日" is spaced: one cell's case, left.
 
 
 ### Mac-mode batch triage (Mac 7bd18d8e, 2026-10-26, routed by macos; scores from n3, Mac mode, tip before T213)
