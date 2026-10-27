@@ -6606,3 +6606,14 @@ cells). Next step: how the reader sets rowSpan for this vMerge="restart" cell. R
 ### T222. zh-0b87285b: 96.8 against word-win, 8 pages to Word's 7 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w25 list)
 Its landscape p6 holds a 13-row table placed against the page (tblpY 2536) after "附件", with its title paragraph after it in the file. Word sets the title in the room above the table and all 13 rows on p6, the last ending 524.9pt down: 1.9 past the 523 margin, above the footer at 545.4. Ours sends the last row to p7, and the title after it. `anchoredParts` keeps such a table's head with it, but each row's own fit stopped at the margin. Pairing in both modes.
 DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either (pairs at a18ec01f). Left in Windows: ours still makes 8 pages to Word's 7.
+
+### macos's w25 queue, measured (Linux office1, 2026-10-26, engine c34c8aa8eba) — none built
+- zh-13d11e99 (95.9 here): all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
+  555; the plot area's top lower in Word). Charts' (macos-ios, T201).
+- zh-37b6536f (95.6): p2's last paragraph 6pt high (606 vs 612) at the page's foot, one line in.
+- zh-5a9a85c6 (95.7): p18-19, a floating table (vertAnchor text, horzAnchor page, tblpX 1957, tblpY 881, tblOverlap never) 44pt
+  under its title has its top past the 757 foot; Word sets its first row on p18 at 760.8-792.0 (over the footer) and the rest on
+  p19; ours takes it all to p19. Sent to lenovo-2 as a witness for T222.
+- zh-e51c31a7 (95.9): p5's form tail (dashed separators, "收件日期 年 月 日…", check-box rows) a few points off.
+- zh-77079ee8 (96.5): p5's organisation chart (EAP 推動小組 / 工作圈 / 服務組 text boxes) placed differently.
+
