@@ -6575,7 +6575,7 @@ Tried and dropped in Mac mode: no squeeze at all (39 docs down); no squeeze unde
 ### zh-3fe252ff (Mac 28.9, Windows 99.5): one line on p22 — measured (Linux lenovo-2, 2026-10-26, from macos's queue), lab asked
 Not the bullet artefact past p13: from p23 to p60 ours runs one line behind Mac Word (22 misses a page). The cause is p22's rule paragraph "封面单位基本性质=“民主党派”时，10行1、2栏=0,5~9、11行1、2栏>0,或30行3栏=0,25~29、31行3栏>0, 否则…" (仿宋_GB2312 15pt, Mac Word's YaHei; justified; numbered). Its second line holds "…31行3栏>0," in Mac Word's print. Ours refuses ">0, " (23.53pt with the space before 否) 2.4pt over the 442.2 column, and every line after goes a line later. Word for Windows and ours agree there. Our Mac-mode digits (0.586 em) and digit-ideograph gaps (a quarter em) match Mac Word's. Wanted from the Mac: the paragraph alone, w:right swept, the first width at which line 2 holds ">0,"; and the same with the space before 否 removed, to tell whether Mac Word lets that space hang.
 
-### T219. zh-147bdae0 p72: a tab that ends a paragraph takes no line of its own — TRIED, DROPPED (Linux office1, starling-office1-95, 2026-10-26)
+### T219. zh-147bdae0 p72: a run of tabs alone takes no line of its own — CLAIMED again (lab ttab) (Linux office1, starling-office1-95, 2026-10-26)
 "四、承諾事項" (14pt bold 標楷體, br, 14pt text) ends in a 16pt bold tab; Word's 1.5 lines stand 27pt apart (the 14pt text's),
 ours set the heading 9pt lower. Tried (a run of tabs alone at a paragraph's end of other text, height 0.01): zh-147bdae0
 95.0 -> 95.5, but same-base pairs, 756 docs, engine c34c8aa8eba, had 7 lower in Windows mode (zh-38d26944 99.7 -> 13.7,
@@ -6583,6 +6583,10 @@ zh-ab1ea005 99.9 -> 92.1, zh-9e8c1a98 100 -> 93.5, zh-6de512cb 100 -> 95.6) and 
 A paragraph's closing tab does set its line in general; this one's 16pt is on the heading's second line after a <w:br/>,
 under 14pt bold that the br's run shares — what makes Word ignore it here is unseen. Reverted. (Also tried first: spaces as
 well as tabs — zh-1563bd74 100 -> 10.3, its lines of spaces collapsed.)
+Lab ttab (windows-1): the 16pt tab adds nothing at the line's end, mid-line, at 14pt or removed; the br removed changes nothing
+either. The 15 drops were ours: a drawing's anchor (U+FFFC) counted as the paragraph's text, so zh-38d26944's paragraph of a
+tab and a rule's anchor lost its line. With text meaning a visible character, the 15 hold and zh-147bdae0 95.0 -> 97.6.
+Pair running.
 
 ### zh-13552a3a p27 (94.8, word-win): measured, not claimed (Linux office1, 2026-10-26) — a merged cell's last line at a page's foot
 All 44 misses follow from p27: a 14-cell row (trHeight 2460 at least) whose long cell ("1.《中华人民共和国政府信息公开条例》…六部法律
