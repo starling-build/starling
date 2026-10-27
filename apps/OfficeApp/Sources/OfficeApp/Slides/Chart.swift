@@ -2535,7 +2535,11 @@ enum ChartPainter {
         let a = neg ? -hi0 : lo0, b = neg ? -lo0 : hi0
         guard a > 0, b > a, a > b * 5 / 6 else { return nil }
         let d = b - a
-        let lo = a - d / 2, hi = b + d * 0.05
+        // (5% of the run from where the axis starts, not of the values'
+        // spread: zh-b8de3ae2's chart 10 rates, 84.97 to 99.22, run 75 to
+        // 105 on its right axis in Word's print — 99.22 + 5% of 21.4 is
+        // 100.29 — where ours stopped at 100.)
+        let lo = a - d / 2, hi = b + (b - lo) * 0.05
         let rough = (hi - lo) / Double(max(1, intervals))
         let mag = pow(10, floor(log10(rough)))
         let norm = rough / mag
