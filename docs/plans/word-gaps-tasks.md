@@ -6682,7 +6682,7 @@ the push in pagination), set out of caution; zh-4adfcce2's Mac case was T209's h
 condition stays. Done: same-base pairs, 756 docs, engine c34c8aa8eba, final Mac references: Mac zh-27a874b7 54.3 -> 65.2,
 nothing else moved; Windows nothing moved.
 
-### Mac: 仿宋_GB2312 with no alternate is YaHei 133 times, SimSun 16 — OPEN, nothing in the files separates them (Linux office1, 2026-10-27)
+### Mac: 仿宋_GB2312 with no alternate is YaHei 133 times, SimSun 16 — SOLVED by lab tsim2 (the last entry's family; see below) (Linux office1, 2026-10-27)
 Each from today's reprints, one document per freshly launched Mac Word (macos), so a real choice per document. Same in both
 groups: the entry's panose1 02010609030101010101, usb0/usb1 00000001/080E0000, charset 86, family (modern/auto/swiss/roman
 either way); compatibilityMode; the defaults' East Asian language and face; themeFontLang; the theme's minor ea ("") and Hans
@@ -6711,11 +6711,12 @@ Ours squeezes a mark to take one more character where Mac Word (mode 14) squeeze
 - zh-8dc59b5b 79.4: p1 "…是指局本级管理范围内实" — ours squeezes the "，" to 8.3 (7.7 given) and takes "实"; Mac keeps it 15.5
   and sends "实" down (half an em at 15.5pt is 7.75 — a sub-0.1pt edge, or a rule).
 
-### T226. Mac: a name Word lacks, no alternate, last table entry roman -> SimSun — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, lab tsim2)
+### T226. Mac: a name Word lacks, no alternate, last table entry roman -> SimSun — DONE (Linux office1, starling-office1-95, 2026-10-27, lab tsim2)
 Lab tsim2 (Mac Word; macOS-doc built, macos printed), zh-4c5da793's fontTable alone edited: Word for Mac reads the LAST entry
 for a repeated name, and a name it lacks with no alternate is SimSun where that entry's w:family is roman, YaHei otherwise
 (7 for 7: only the roman entry SimSun, only the swiss YaHei, swapped YaHei, roman -> modern YaHei, the halves likewise; no
 宋体 entry needed). Our reader keeps the first entry (an East Asian one over charset 00); it now also notes the last one's
 family (FontEntry.lastFamily), read in Mac mode only. Spot: Mac zh-4c5da793 26.0 -> 85.3 (21 pages -> Word's 18),
-zh-c599aaa1 97.2 -> 100. Pair running.
+zh-c599aaa1 97.2 -> 100. Done: same-base pairs, 756 docs, c34c8aa8eba, final Mac references: Mac those two, nothing lower;
+Windows nothing moved. Closes the YaHei/SimSun split entry above.
 
