@@ -804,7 +804,10 @@ final class MetafileTests: XCTestCase {
 
     func testSymbolFacesShowTheirGlyphs() {
         XCTAssertEqual(Metafile.symbols("n g", face: "Webdings"), "● ■")
-        XCTAssertEqual(Metafile.symbols("l\u{F06E}", face: "Wingdings 2"), "●■", "the private-range spelling too")
+        // Microsoft's Wingdings cmap calls F06C/F06E circle6/square6;
+        // Wingdings 2 has three/five there, not the same symbol alphabet.
+        XCTAssertEqual(Metafile.symbols("l\u{F06E}", face: "Wingdings"), "●■", "the private-range spelling too")
+        XCTAssertEqual(Metafile.symbols("£R\u{F053}", face: "Wingdings 2"), "☐☑☒", "Wingdings 2's own box codes")
         XCTAssertEqual(Metafile.symbols("n", face: "Arial"), "n")
     }
 
