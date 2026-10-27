@@ -8073,11 +8073,23 @@ public final class RichLayout {
         // under the box in the Mac's print, where three steps of its
         // line sent it 19pt lower; zh-d62da4dd's exact anchor steps in
         // both prints.)
-        let pushUnder: (Double) -> Double = { foot in
-            guard let exact = style.lineHeightPoints, exact > 0, !style.lineHeightIsMinimum,
-                  let first = firstLine(), first.line + before > 1 else { return foot }
-            let step = first.line + before
-            let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
+        // (And, in Word for Windows, a line on the line grid: by the grid
+        // line less the grid's half of the room under its text, until its
+        // text's top is clear of the foot — lab tph (windows-1,
+        // zh-37b6536f's p2): the empty anchor of a row of photos, 16pt
+        // 仿宋_GB2312 on a 15.6 grid, steps 26.0 = (31.2 + 20.8) / 2, its
+        // place holding while the foot moves 239.3 to 257.3; ours set it
+        // at the foot, and the row under it stood 5.5pt high.)
+        let pushUnder: (Double) -> Double = { [self] foot in
+            guard let first = firstLine(), first.line + before > 1 else { return foot }
+            if let exact = style.lineHeightPoints, exact > 0, !style.lineHeightIsMinimum {
+                let step = first.line + before
+                let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
+                return max(0, first.top + k * step - before)
+            }
+            guard RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, case let half = _firstLineGridHalf(i, document), half > 0.01,
+                  case let step = first.line - half + before, step > 1 else { return foot }
+            let k = max(0, ((foot - half - first.top) / step - 0.001).rounded(.up))
             return max(0, first.top + k * step - before)
         }
         if theme.wordRules, p.cell == nil {
@@ -8099,7 +8111,7 @@ public final class RichLayout {
                 var widest = 0.0, edge = firstLine
                 for s in sorted { widest = max(widest, s.0 - edge); edge = max(edge, s.1) }
                 widest = max(widest, column - max(0, lead) - right - edge)
-                if widest < em0 { push = max(push, sorted.map(\.2).max() ?? 0) }
+                if widest < em0 { push = max(push, pushUnder(sorted.map(\.2).max() ?? 0)) }
             }
             for image in p.inlineImages.values {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
