@@ -6739,3 +6739,6 @@ Tried: "（" after an ideograph never gives — Word's prints have "（" between
 modes (zh-d68ac84a 99.9 -> 43.4 Windows, zh-db07d44e 98.6 -> 75.3). Reverted. Lab question: why this line takes no squeeze —
 the YaHei "□" at 0.661 em (its own width, not 0.604) may leave too much over for two halves, or Word may cap the squeeze per line.
 
+
+### zh-c2229d4a (Mac 42.6, Windows 100): first Mac miss measured (Linux lenovo-2, 2026-10-27, from macos's queue) — lab wanted
+p2 "第四条  政府投资资金应当投向市场不能有效配置资源的社" holds "社" in Mac Word's print; ours (and Word for Windows) end at "…资源的". The line is 3 SimHei + 2 Times spaces + 23 FangSong at 16pt in a 447.9pt column, under balanceSingleByteDoubleByteWidth. Windows sets each space about 8.6 (half an em and the stretch); the Mac print sets each 6.1 (16pt at 1.005: about 6.08 natural), so 27 ideographs and 2 spaces fit. Ours, balanced, needs 0.1pt more. Tried and dropped: Mac mode ignoring balanceSingleByteDoubleByteWidth altogether (Mac mean 96.96 -> 91.0, dozens of documents down), so Mac Word does balance elsewhere. Wanted from the Mac: the paragraph alone, with and without the two spaces, the "第四条" run in FangSong instead of SimHei, and with balanceSingleByteDoubleByteWidth removed, reading the spaces' advance. p6 on (22 misses a page) not looked at yet.
