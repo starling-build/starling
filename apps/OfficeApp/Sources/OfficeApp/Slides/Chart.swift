@@ -3358,7 +3358,11 @@ enum ChartPainter {
                         // ours stood 8 over every bar, the −1.4 and −2.1
                         // on the axis line.)
                         let size = c.series[j].labelSize ?? c.baseTextSize
-                        let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : -8 * k
+                        // (In a document too, under a falling bar's foot: zh-b8de3ae2's
+                        // chart 10, every column below zero, has "-21,376,664" and
+                        // "-10,160,557" under their columns' feet in Word's print,
+                        // where ours set them all over the axis line.)
+                        let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
                         labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy
                             : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + nudge(j, i), j))
                     }
