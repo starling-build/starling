@@ -1679,6 +1679,11 @@ enum OfficeFonts {
         let wordHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                        "微软雅黑", "microsoft yahei", "幼圆", "全真楷書", "標楷", "方正", "小标宋"]
         let gb2312 = has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312")
+        // (A 方正 name likewise: zh-2f9463d6's 方正小标宋简体, alternate 黑体,
+        // sets its p12 title in SimHei in a fresh Word for Mac's print, as
+        // Word for Windows' does — 20pt on SimHei's line, where YaHei's
+        // stood it 9pt lower.)
+        let fangZheng = has("方正", "小标宋")
         // (By its English name and with no alternate, a Latin face Word
         // lacks: its Chinese falls back to 宋体, as an alternate in Latin
         // does below — zh-202582e2's "FangSong_GB2312" body is SimSun in
@@ -1686,7 +1691,7 @@ enum OfficeFonts {
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), n == "fangsong_gb2312" || n == "kaiti_gb2312", altName(family) == nil {
             return eastAsianFace("SimSun")
         }
-        if wordOnMac, ignoringEmbedding || !isEmbedded(family), gb2312 || !wordHas.contains(where: { n.containsSubstring($0) }),
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), gb2312 || fangZheng || !wordHas.contains(where: { n.containsSubstring($0) }),
            let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
             let a = alt.trimmingWhitespace().lowercased()
             // (… JhengHei too: zh-167ee06c's 華康雅風體W3(P), alternate
