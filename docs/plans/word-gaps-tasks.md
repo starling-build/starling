@@ -6601,6 +6601,11 @@ a merged cell's carried lines though the flow did not stretch it"). Engine c34c8
 Traced (office1): the row pre-pass's spanning stretch never sees this cell's ~250pt need — no spanning cell in the table
 asks more than 141pt — so the cell is not counted as spanning there (its rowSpan as read, or the vMerge continuation rows'
 cells). Next step: how the reader sets rowSpan for this vMerge="restart" cell. Released for now.
+CORRECTION (office1, later): the long cell is not merged — only column 1 ("7.高校毕业…", rows 23-24) is; the row is row 24 (trHeight
+3222 at least), 16 lines in its column-4 cell, on a landscape page (595.3 tall, bottom margin 90: foot 505.3). Word's row runs
+239.2 -> 504.9 and fits by 0.4; ours starts 0.4 lower (239.6, the rows above it 0.4 taller in sum) and needs the same 265.7, so
+it ends 0.4 past the foot and parts, "正)" to p28, and every page after follows. A sub-point drift above the row, in the family
+of macos-ios's T191 (a cut rounding to the foot's 1/600in dot). Released.
 
 
 ### T222. zh-0b87285b: 96.8 against word-win, 8 pages to Word's 7 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w25 list)
