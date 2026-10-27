@@ -8,6 +8,19 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### 2026-10-27 handoff continuation — CLAIMED
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).
+Taking the handoff's in-flight list in order, starting with the confirming pair for
+engine `39bb8cb9328`. Claude sessions stopped for the day per the user. Subsequent
+items: t135 continuation; tc22 Mac spaces; zh-72da925e Mac grid; T227 YaHei shapes;
+zh-f39e54b6, then zh-13d11e99 chart labels. Existing owners' notes remain below.
+No live-site deployment, no automatic-hyphenation decision, no shared-engine relink.
+Validation: both engine environment variables pinned; both sweep scripts, same-base
+pairs, full per-document comparison (including <0.3-point drops and missing files).
+The long-word confirmation uses office `6ceb5145` as specified in the handoff;
+subsequent Swift changes use fresh paired runs on this checkout and one engine.
+Results and exact artifact provenance will be appended here before landing.
+
 ## How a fix is checked
 
 The steering number is `test/docx-line-match.py WORK`: the share of
