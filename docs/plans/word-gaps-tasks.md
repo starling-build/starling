@@ -6536,6 +6536,10 @@ p19-20's turned text is still left.
 
 ### T218. Mac-mode line fit: zh-884c6e3e (Mac 47.2, Windows 100) and zh-c5b5087b (Mac 53.5 / 100), ours a character ahead — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, routed by macos from macOS-doc's triage)
 Measured on lenovo-2's c34c8aa8eba engine (~/tmp/lenovo2-engine2), Mac mode against word/. Pairs in both modes.
+Lab t218 (macos, fresh Mac Word, packages by macOS-doc): both files are mode 14 (doNotUseEastAsianBreakRules, doNotWrapTextWithPunct, balanceSingleByteDoubleByteWidth; zh-c5b5087b also useAltKinsokuLineBreakRules).
+- zh-884c6e3e's paragraph alone squeezes freely in Mac Word and takes "征", starting at x111.44 as ours does; the document's reference starts it at 112.09. Its reference is among the 151 macos is reprinting (楷体_GB2312 was Arial Unicode MS then and is KaiTi now), so re-measure after the reprint.
+- zh-c5b5087b's paragraph alone refuses "无" in mode 14 with no mark giving until the line is 6pt wider, and takes it unsqueezed in mode 15.
+Tried and dropped in Mac mode: no squeeze at all (39 docs down); no squeeze under useAltKinsokuLineBreakRules before mode 15 (mean 96.9 -> 89.5: most such Mac prints do squeeze). So zh-c5b5087b's refusal is narrower than that switch. Also dropped, from the same queue: a break line with no room taking a page of its own in Mac mode. zh-86547e97's blank p13 is a stale reference (lab t86: today's Mac Word prints 18 pages, no blank page), and the rule took many 100s down.
 - zh-6aa8bd7c (Mac 14.1) — DONE (Mac 7bd18d8e, 2026-10-26, next commit) -> 96.3: lab a6nw (Mac Word) — in a share-wide
   table a noWrap column whose text could part takes its whole width, the rest giving it as they are wide past their own
   narrowest (the mobile column then wraps its last digit). Mac n8 -> n10 only this moved; Windows untouched. First try
