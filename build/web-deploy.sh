@@ -80,10 +80,10 @@ git clone --depth 1 "$SITE" "$WORK/site" 2>/dev/null || {
 }
 find "$WORK/site" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 
-# The stage, minus the raw and brotli modules, plus the gzip one the page
-# will inflate; index.html points at it.
+# Keep gzip and the optional Brotli alternative. Office pages select the latter
+# only when the browser has a native decoder; other pages continue using gzip.
 cp -R "$STAGE"/. "$WORK/site/"
-rm -f "$WORK/site/app.wasm" "$WORK/site/app.wasm.br"
+rm -f "$WORK/site/app.wasm"
 sed -i '' "s|app: 'app.wasm'|app: 'app.wasm.gz'|" "$WORK/site/index.html"
 grep -q "app: 'app.wasm.gz'" "$WORK/site/index.html" || { echo "error: index.html has no app: 'app.wasm' to repoint" >&2; exit 1; }
 if [ -n "$ARGS" ]; then

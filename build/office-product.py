@@ -62,6 +62,9 @@ def build(runtime, out):
         if not (runtime / name).is_file():
             raise ValueError(f'Missing runtime dependency: {name}')
     roots = [app, 'starling.js', 'font-loader.js', 'keymap.js', str(renderer), 'fonts']
+    shared_responses = 'export const supportsPreloadedAssets = true;' in (runtime / 'starling.js').read_text()
+    if shared_responses and (runtime / 'app.wasm.br').is_file():
+        roots.append('app.wasm.br')
     if (runtime / 'fonts-word').exists():
         roots.append('fonts-word')
     # Version the complete runtime, including lazily loaded fonts and JS imports.
@@ -93,7 +96,10 @@ def build(runtime, out):
         font['url'] = prefix + url
     (target / 'fonts/manifest.json').write_text(json.dumps(fonts))
     runtime_config = dict(host=prefix + 'starling.js', app=prefix + app,
-                          renderer=prefix + str(renderer) + '/', fonts=prefix + 'fonts/manifest.json')
+                          renderer=prefix + str(renderer) + '/', fonts=prefix + 'fonts/manifest.json',
+                          preloadResponses=shared_responses)
+    if 'app.wasm.br' in roots:
+        runtime_config['appBrotli'] = prefix + 'app.wasm.br'
     (out / 'assets').mkdir()
     (out / 'examples').mkdir()
     for info in APPS.values():

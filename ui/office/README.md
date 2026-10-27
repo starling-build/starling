@@ -75,9 +75,9 @@ the manifest and host module. See `docs/perf/office-web-startup-20261026.md`
 for measured improvements and rendering checks.
 
 The product launcher preloads the app and renderer only after an editor action.
-Standalone Office pages preload these assets and the font manifest in the HTML
-head. Their URLs match the versioned runtime fetches, so each asset downloads
-once; visiting the product introduction does not download an editor.
+Standalone Office pages start these assets and the font manifest in the HTML
+head. The host consumes the original fetch responses, avoiding repeated downloads
+in browsers that do not reuse preload links; visiting the product introduction does not download an editor.
 
 For smaller standard-gzip release assets, install `zopfli` in a build-only
 Python environment and set `STARLING_ZOPFLI_PYTHON` to that interpreter when
@@ -90,3 +90,19 @@ running `build/web-app.sh`. Alternatively, before packaging an existing stage:
 This optional step verifies the decompressed bytes and keeps the smaller file.
 It adds no browser dependency. Repackage after compression so asset versions
 reflect the final bytes.
+
+When `brotli` is available, release builds also produce `app.wasm.br` at quality
+11. Product and standalone Office pages select it using native
+`DecompressionStream('brotli')` feature detection. Browsers without that decoder
+use gzip; a missing or invalid Brotli response also falls back to gzip. Both
+representations must decompress to the same app. Keep the gzip fallback when
+publishing. Packaging older hosts remains supported without the new preload
+path; current hosts advertise `supportsPreloadedAssets`.
+
+For browser coverage, install Playwright and its WebKit browser in a test-only
+environment, then run `test/office-brotli-web.mjs --url PRODUCT_WRITER_URL`
+(the URL ends in `?start=new`), optionally with `--standalone WRITER_URL`.
+`PLAYWRIGHT_MODULE` can point at that environment's `node_modules/playwright`.
+This checks native Brotli, unsupported decoding, missing/corrupt responses,
+standalone startup, and that idle product pages download no editor.
+See `docs/perf/office-web-startup-20261026-webkit.md` for measured results.

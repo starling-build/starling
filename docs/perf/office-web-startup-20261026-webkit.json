@@ -1,0 +1,220 @@
+{
+  "network": {
+    "mbps": 10,
+    "latencyMs": 40,
+    "method": "Shared per-server response-body rate limit; fresh WebKit browser/context each run"
+  },
+  "results": [
+    {
+      "readyMs": 16623,
+      "settledMs": 17172,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/185d0e0a335e1540/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 165,
+          "duration": 6984,
+          "initiator": "link"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/app.wasm.gz",
+          "transfer": 7387214,
+          "encoded": 7386914,
+          "start": 165,
+          "duration": 16059,
+          "initiator": "link"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 354,
+          "duration": 7070,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/app.wasm.gz",
+          "transfer": 7387214,
+          "encoded": 7386914,
+          "start": 354,
+          "duration": 15982,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 20803563,
+      "variant": "before",
+      "run": 1
+    },
+    {
+      "readyMs": 8376,
+      "settledMs": 8939,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/68fbc9607d868f95/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 150,
+          "duration": 4316,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/app.wasm.br",
+          "transfer": 5330897,
+          "encoded": 5330597,
+          "start": 150,
+          "duration": 7953,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9576118,
+      "variant": "after",
+      "run": 1
+    },
+    {
+      "readyMs": 16547,
+      "settledMs": 17115,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/185d0e0a335e1540/app.wasm.gz",
+          "transfer": 7387214,
+          "encoded": 7386914,
+          "start": 144,
+          "duration": 16047,
+          "initiator": "link"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 145,
+          "duration": 6927,
+          "initiator": "link"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 348,
+          "duration": 7050,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/app.wasm.gz",
+          "transfer": 7387214,
+          "encoded": 7386914,
+          "start": 348,
+          "duration": 15938,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 20803563,
+      "variant": "before",
+      "run": 2
+    },
+    {
+      "readyMs": 8284,
+      "settledMs": 8845,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/68fbc9607d868f95/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 144,
+          "duration": 4305,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/app.wasm.br",
+          "transfer": 5330897,
+          "encoded": 5330597,
+          "start": 144,
+          "duration": 7870,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9576118,
+      "variant": "after",
+      "run": 2
+    },
+    {
+      "readyMs": 16563,
+      "settledMs": 17126,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/185d0e0a335e1540/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 146,
+          "duration": 6923,
+          "initiator": "link"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/app.wasm.gz",
+          "transfer": 7387214,
+          "encoded": 7386914,
+          "start": 146,
+          "duration": 16043,
+          "initiator": "link"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 378,
+          "duration": 7017,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/185d0e0a335e1540/app.wasm.gz",
+          "transfer": 7387214,
+          "encoded": 7386914,
+          "start": 378,
+          "duration": 15918,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 20803563,
+      "variant": "before",
+      "run": 3
+    },
+    {
+      "readyMs": 8282,
+      "settledMs": 8837,
+      "name": "Document1",
+      "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+      "resources": [
+        {
+          "path": "/runtime/68fbc9607d868f95/skwasm-f2bc4996fb630c7b/skwasm.wasm",
+          "transfer": 1784320,
+          "encoded": 1784020,
+          "start": 143,
+          "duration": 4299,
+          "initiator": "fetch"
+        },
+        {
+          "path": "/runtime/68fbc9607d868f95/app.wasm.br",
+          "transfer": 5330897,
+          "encoded": 5330597,
+          "start": 143,
+          "duration": 7871,
+          "initiator": "fetch"
+        }
+      ],
+      "bytes": 9576118,
+      "variant": "after",
+      "run": 3
+    }
+  ],
+  "resourceDetail": "Only app/renderer entries retained; bytes includes all same-origin startup resources."
+}

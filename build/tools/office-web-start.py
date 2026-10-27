@@ -2,7 +2,6 @@
 """Configure a staged Office page to open its bundled, editable example."""
 import argparse
 import hashlib
-import html as html_module
 import json
 from pathlib import Path
 import re
@@ -49,17 +48,38 @@ def configure(site: Path, app: str) -> None:
     html = re.sub(
         r"(?P<prefix>fonts:\s*['\"])(?P<asset>fonts/manifest\.json)(?:\?[^'\"]*)?(?P<quote>['\"])",
         version, html)
+    html = re.sub(r"\s*appBrotli:\s*['\"][^'\"]+['\"],", '', html)
+    shared_responses = 'export const supportsPreloadedAssets = true;' in (site / 'starling.js').read_text()
+    brotli_url = None
+    if shared_responses and (site / 'app.wasm.br').is_file():
+        brotli_url = 'app.wasm.br?v=' + hashlib.sha256((site / 'app.wasm.br').read_bytes()).hexdigest()[:16]
+        html = re.sub(r'(\s*app:)', lambda m: '\n    appBrotli: ' + json.dumps(brotli_url) + ',' + m[1], html, count=1)
     # Match the final, versioned fetch URLs exactly. Refresh on every configure
     # so a previously staged page cannot preload an obsolete app or manifest.
     html = re.sub(r'<!-- office-preloads -->.*?<!-- /office-preloads -->\n?', '', html, flags=re.S)
     app_url = re.search(r"app:\s*['\"]([^'\"]+)['\"]", html).group(1)
     renderer = re.search(r"skwasmBase:\s*['\"]([^'\"]+)['\"]", html).group(1)
     fonts_url = re.search(r"fonts:\s*['\"]([^'\"]+)['\"]", html).group(1)
-    preloads = '<!-- office-preloads -->\n' + ''.join(
-        '<link rel="preload" as="fetch" crossorigin="anonymous" href="'
-        + html_module.escape(url, quote=True) + '">\n'
-        for url in [app_url, renderer + 'skwasm.wasm', fonts_url]
-    ) + '<!-- /office-preloads -->\n'
+    preloads = '<!-- office-preloads -->\n<script>\n{\n'
+    preloads += '  let appURL = ' + json.dumps(app_url) + ';\n'
+    if brotli_url:
+        preloads += "  try { new DecompressionStream('brotli'); appURL = " + json.dumps(brotli_url) + "; } catch {}\n"
+    preloads += """  // Share responses with the host instead of relying on preload-cache reuse.
+  globalThis.__starlingPreloads = {};
+  for (const url of [appURL, %s, %s]) {
+    const response = fetch(url);
+    response.catch(() => {}); // errors are handled when the host consumes it
+    globalThis.__starlingPreloads[new URL(url, document.baseURI).href] = response;
+  }
+}
+</script>
+<!-- /office-preloads -->
+""" % (json.dumps(renderer + 'skwasm.wasm'), json.dumps(fonts_url))
+    html = re.sub(r'\s*preloaded: globalThis\.__starlingPreloads,', '', html)
+    if shared_responses:
+        html = re.sub(r'(\s*app:)', lambda m: '\n    preloaded: globalThis.__starlingPreloads,' + m[1], html, count=1)
+    else:
+        preloads = ''
     html = html.replace('</head>', preloads + '</head>', 1)
     (site / 'examples').mkdir(exist_ok=True)
     shutil.copy2(example, site / 'examples' / name)

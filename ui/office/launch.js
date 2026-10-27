@@ -46,14 +46,17 @@ async function launch(kind, mode, file) {
     const runtime = config.runtime;
     // Start the large downloads as soon as the user opens an editor. Waiting
     // for the host module and its imports adds several network round trips.
-    // Matching fetch's CORS mode lets the host reuse these responses.
-    for (const href of [runtime.app, runtime.renderer + 'skwasm.wasm']) {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'fetch';
-      link.crossOrigin = 'anonymous';
-      link.href = href;
-      document.head.append(link);
+    // Pass the actual responses to the host: some browsers otherwise fetch
+    // again after a <link rel=preload>, doubling these large downloads.
+    let appURL = runtime.app;
+    if (runtime.appBrotli) {
+      try { new DecompressionStream('brotli'); appURL = runtime.appBrotli; } catch { /* use gzip */ }
+    }
+    const preloaded = {};
+    for (const href of (runtime.preloadResponses ? [appURL, runtime.renderer + 'skwasm.wasm'] : [])) {
+      const response = fetch(href);
+      response.catch(() => {}); // the host handles errors after its import
+      preloaded[new URL(href, document.baseURI).href] = response;
     }
     // Fetch the manifest alongside the host module and its imports, saving a
     // network round trip before the host can start the required font downloads.
@@ -67,7 +70,7 @@ async function launch(kind, mode, file) {
     const fontStatus = document.querySelector('#font-status');
     const retryFonts = fontStatus.querySelector('button');
     window.starling = await startStarling({
-      canvas, app: runtime.app, skwasmBase: runtime.renderer,
+      canvas, app: runtime.app, appBrotli: runtime.appBrotli, preloaded, skwasmBase: runtime.renderer,
       fonts, args, initialFiles, initialRoute: location.pathname,
       onPhase(message) { document.querySelector('#loading-text').textContent = message; },
       onProgress(loaded, total) {

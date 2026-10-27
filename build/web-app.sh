@@ -298,7 +298,7 @@ install -m 644 "$CACHE/skwasm.js" "$CACHE/skwasm.wasm" "$STAGE/skwasm/"
 # smaller than gzip on this module. gzip is always there.
 for f in "$STAGE/app.wasm" "$STAGE/skwasm/skwasm.wasm"; do
     rm -f "$f.br" "$f.gz"
-    if command -v brotli >/dev/null; then brotli -q 9 -o "$f.br" "$f"; fi
+    if command -v brotli >/dev/null; then brotli -q 11 -o "$f.br" "$f"; fi
     gzip -9 -k -f "$f"
 done
 

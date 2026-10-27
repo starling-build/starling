@@ -14,6 +14,9 @@
 import { createFontLoader } from './font-loader.js';
 import { PHYSICAL, LOGICAL, LOGICAL_BY_LOCATION } from './keymap.js';
 
+// Packaging tools use this capability when reusing an existing web stage.
+export const supportsPreloadedAssets = true;
+
 const WASI_ESUCCESS = 0;
 const WASI_EBADF = 8;
 const WASI_ENOSYS = 52;
@@ -166,17 +169,18 @@ const HARD_LINE_BREAK = 100;
 // headers (application/wasm among them) kept. `total` is unknown when HTTP
 // compression makes the response length differ from the decoded stream.
 //
-// A URL ending in `.gz` is a gzip file the page inflates itself, with
+// A URL ending in `.gz` or `.br` is a file the page inflates itself, with
 // DecompressionStream, into a Response typed application/wasm so streaming
 // compilation still applies. That is for a host that cannot be told to
 // serve a precompressed file with Content-Encoding (GitHub Pages, where
-// writer.starling.build lives): the 12 MB module travels as 4 MB, which
-// is what a server with brotli_static would have done with the .br.
-async function fetchWithProgress(url, onProgress) {
-  const response = await fetch(url);
+// writer.starling.build lives). Brotli is selected only when the browser
+// exposes its decoder; gzip remains available for every existing client.
+async function fetchWithProgress(url, onProgress, preloaded) {
+  const response = await (preloaded?.[new URL(url, document.baseURI).href] ?? fetch(url));
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
-  const gzipped = new URL(url, document.baseURI).pathname.endsWith('.gz');
-  if ((!onProgress && !gzipped) || !response.body) return response;
+  const path = new URL(url, document.baseURI).pathname;
+  const encoding = path.endsWith('.gz') ? 'gzip' : path.endsWith('.br') ? 'brotli' : null;
+  if ((!onProgress && !encoding) || !response.body) return response;
   // fetch exposes decoded bytes for HTTP compression, but Content-Length is
   // the compressed length. Do not report a fictitious percentage above 100%.
   const total = response.headers.get('Content-Encoding')
@@ -193,8 +197,8 @@ async function fetchWithProgress(url, onProgress) {
     }));
   }
   const headers = new Headers(response.headers);
-  if (gzipped) {
-    body = body.pipeThrough(new DecompressionStream('gzip'));
+  if (encoding) {
+    body = body.pipeThrough(new DecompressionStream(encoding));
     headers.set('Content-Type', 'application/wasm');
     headers.delete('Content-Length');
     headers.delete('Content-Encoding');
@@ -209,7 +213,7 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
-export async function startStarling({ canvas, app, skwasmBase, fonts = [], args = [], onProgress, onPhase, onFontStatus, initialRoute, initialFiles = [], captureTab = true }) {
+export async function startStarling({ canvas, app, appBrotli, preloaded, skwasmBase, fonts = [], args = [], onProgress, onPhase, onFontStatus, initialRoute, initialFiles = [], captureTab = true }) {
   const startupFiles = Promise.all(initialFiles.map(async file => {
     const response = await fetch(file.url);
     if (!response.ok) throw new Error(`starling: ${file.url}: ${response.status}`);
@@ -234,12 +238,23 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     }
   };
   const skwasmModule = WebAssembly.compileStreaming(
-    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, document.baseURI), report('skwasm')));
+    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, document.baseURI), report('skwasm'), preloaded));
   // Compile independently: only instantiation needs the renderer's imports.
-  const appModule = WebAssembly.compileStreaming(fetchWithProgress(app, report('app')));
+  let appURL = app;
+  if (appBrotli) {
+    try { new DecompressionStream('brotli'); appURL = appBrotli; } catch { /* use gzip */ }
+  }
+  const appModule = WebAssembly.compileStreaming(fetchWithProgress(appURL, report('app'), preloaded))
+    .catch(error => {
+      if (appURL === app) throw error;
+      // A stale CDN edge or a failed decoder must not prevent opening a file.
+      console.warn('starling: Brotli app unavailable; retrying gzip', error);
+      report('app')(0, 0);
+      return WebAssembly.compileStreaming(fetchWithProgress(app, report('app')));
+    });
   appModule.catch(() => {}); // observed below even if the renderer fails first
   const fontManifest = typeof fonts === 'string'
-    ? fetch(fonts).then(response => {
+    ? (preloaded?.[new URL(fonts, document.baseURI).href] ?? fetch(fonts)).then(response => {
         if (!response.ok) throw new Error(`starling: ${fonts}: ${response.status}`);
         return response.json();
       }) : Promise.resolve(fonts);
