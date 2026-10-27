@@ -6615,6 +6615,14 @@ CORRECTION (office1, later): the long cell is not merged — only column 1 ("7.�
 239.2 -> 504.9 and fits by 0.4; ours starts 0.4 lower (239.6, the rows above it 0.4 taller in sum) and needs the same 265.7, so
 it ends 0.4 past the foot and parts, "正)" to p28, and every page after follows. A sub-point drift above the row, in the family
 of macos-ios's T191 (a cut rounding to the foot's 1/600in dot). Released.
+MEASURED (Mac 01Xgpbk5, 2026-10-27): not a drift and not T191's. Every page of this table opens with a parted row's continuation,
+and that part is 0.5pt taller in ours: `stated` for a part that goes over is trHeight + max(rules − ruleBelow, margins −
+ruleBelow, 0), and here both terms are 0.5 (no cell margins; 0.5pt rules, which `pad` takes in), while Word goes on at the
+stated height itself — row 21's 2760 twips stands 90.02 -> 228.05 (138.03) in Word's print, 138.5 in ours; rows 20/22/23 the
+same (2959 -> 2969 px, 2982 -> 2992). The formula's terms come from labs rm1-rm3 (zh-b378d8c4: margins 0.75 over 0.5 rules)
+and the "28.5 -> 28.75" second half, so dropping either needs a lab: a parted row at least N, Word for Windows, crossing cell
+margins (0, 0.75pt) with rule widths (0.25, 0.5, 1pt) top/bottom, the continuation's height measured rule top to rule top.
+Released pending that lab.
 
 
 ### T222. zh-0b87285b: 96.8 against word-win, 8 pages to Word's 7 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w25 list)
