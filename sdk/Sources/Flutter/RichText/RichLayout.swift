@@ -11924,7 +11924,14 @@ public final class RichLayout {
             // 法提起救濟？" breaks after the space in Word for Windows' print,
             // where ours hung the "？" and kept the line.)
             let joinedWord = last > a + 1 && hanJoins.contains(a + 1)
-            if !fits, last > a, !openingAlone, !joinedWord {
+            // (Mac Word can compress a body line to keep an opening mark
+            // after a Latin character under kinsoku off: zh-72da925e p8
+            // ends in -「, sharing 7.43pt with its comma. A fresh Word lab
+            // also keeps 5「. Extending this to a mark after an ideograph
+            // wrongly compresses later lines of that same document.)
+            let macBodyOpener = openingAlone && !RichTextTheme.wordWindowsPages && !inCell
+                && a > 0 && units[a - 1] > 0x20 && units[a - 1] < 0x7F
+            if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang

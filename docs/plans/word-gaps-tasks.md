@@ -93,11 +93,59 @@ Artifacts: `w/ wp/ n/ np` prefixes with `office-base` and `t135`,
 root above. Static lint passed. This Swift fix awaits the final Office unit and
 local browser gates before pushing; each subsequent change gets its own pair.
 
-#### Item 3 — IN PROGRESS: tc22 Mac ordinary spaces
+#### Item 3 — REJECTED first candidate; needs narrower Word evidence: tc22 Mac ordinary spaces
 Use the completed t135 candidate as the next base (same source and engine).
 Mac ordinary spaces under balanceSingleByteDoubleByteWidth should retain their
 face's advance, as the tc22 Word lab shows. Keep mixed NBSP/plain-space handling
 and all other character-grid balancing intact; Windows behavior stays unchanged.
+Full pair `t135 → tc22` completed both scripts, 756 documents per mode, zero missing.
+Windows unchanged; Mac target **113→265/265 (42.6415→100%)**, but **149 documents
+drop**, including zh-e27cd8bf 613→197/613, zh-db07d44e 1735→1340/1765,
+zh-f39e54b6 140→3/148. The broad Mac ordinary-space exemption is **reverted**;
+no cancellation exception is claimed. Exact audit: `t135--tc22-exact.json`.
+The tc22 lab establishes the target's narrower spaces, not a universal Mac rule.
+A copied baseline executable initially lacked its sibling font resource bundles;
+those preliminary standalone lab positions are invalid (the full corpus pair
+used the normal build executable and its resources throughout). Next: isolate the
+font/style/justification condition using Word labs before another implementation.
+Fresh controls (`tc22-width-lab/`) narrow the condition: original left-aligned
+spaces are **6pt at 16pt**; a 5pt wider paragraph still has 6pt plus justify slack.
+Ordinary FangSong, SimSun, KaiTi and YaHei substitutions give **8pt**. Removing
+fontTable's embedRegular entries, keeping the original names/styles, also gives
+**8pt** (YaHei fallback). The embedded FangSong_GB2312 subset has UPM256 and no
+U+0020 or U+00A0 cmap entry. The distinguishing evidence is the embedded subset,
+not a universal Mac space rule. No implementation for that condition yet.
+
+#### Item 4 — grid candidate REJECTED; Latin-following opening mark PAIRED
+Use the verified t135 base after reverting the rejected tc22 candidate. Remove
+only the Windows gate for the paragraph-final half-grid addition, as the handoff
+requests; compare against current fresh Mac references, then inspect p8's final 「.
+Both scripts `t135 → grid-final`, 756 documents per mode, zero missing:
+Windows unchanged; Mac **zh-72da925e 1135→931/1309 (86.7074→71.1229%)**,
+all other counts unchanged. This reproduces the old regression **against current
+references**, so the handoff's stale-reference explanation is not supported.
+Reverted the gate removal; no cancellation exception. Artifact: `t135--grid-final-exact.json`.
+
+Separate p8 evidence: fresh private Word lab `grid-opener-lab/a-original-word.pdf`
+reproduces the corpus line ending `…最終目標-「`. With kinsoku off, Word compresses
+both the comma and opening quote; our explicit `openingAlone` exclusion refuses
+all compression and sends 「 down (need 7.4343pt). Word positions: 題172.8579,
+，188.0005, 另203.1430, -492.2820, 「495.9926. The no-compression Word control
+reflows the paragraph. Testing the existing compression machinery for a Mac body
+opening mark; Windows and cells retain their established behavior.
+Broad-body pair `t135 → opener`: both scripts, 756/mode, no missing; Windows
+unchanged, Mac zh-72da925e **1135→825/1309**, zh-e0ca7252 1056→1059/1669.
+Rejected despite correcting p8; no cancellation claim for the 310-line loss.
+A fresh control replacing the preceding hyphen with `5` also ends on `5「`.
+Next candidate restricts this compression to an opening mark immediately after
+an ASCII non-space character, still Mac body only. Both modes pair from t135.
+Narrowed pair **`t135 → opener-latin` passed**: both unmodified scripts,
+756/mode, zero missing/drops. Mac zh-72da925e **1135→1138/1309
+(86.7074→86.9366%)**; all other counts and physical/scored page counts unchanged
+in both modes. The three p8 misses are recovered, without the broad version's
+later-page regression. Static lint passed. No cancellation exception. Full audit
+`t135--opener-latin-exact.json`, phase/source logs
+under the same artifact root. Final Office unit/browser gates pending.
 
 ## How a fix is checked
 

@@ -8258,3 +8258,14 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   zh-3fe252ff, Windows mode, same base ab10de75, PyMuPDF matcher:
   Tika-792 66.7 -> 100, delins 69.5 -> 74.6, comment.docx's page count
   now Word's, nothing lower.
+
+
+- **Mac body lines can compress an opening mark after Latin text with
+  kinsoku off (2026-10-27).** zh-72da925e p8 ends `…最終目標-「` in
+  a fresh Word print; the comma and quote share 7.43pt. A control with
+  `5「` keeps the quote too. Permit the existing fitting calculation
+  for a standalone opening mark after an ASCII non-space character,
+  in Mac body text. Extending this to an opener after an ideograph
+  was rejected: the same document lost 310 matched lines. The narrow
+  version recovers the three p8 lines, 1135→1138/1309; paired full
+  Windows/Mac sweeps have no other score or page-count changes.
