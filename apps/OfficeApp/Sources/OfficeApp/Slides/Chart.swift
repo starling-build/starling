@@ -4397,7 +4397,12 @@ extension ChartPainter {
             // prints them.)
             if l.fitted, l.moves.isEmpty { l.outside = false }
             _pieLabels(c, l, canvas, frame: frame ?? plot, slices: placed, centre: centre, rx: rx, ry: ry, inner: 0,
-                       k: k, theme: theme, ink: ink ?? theme.text, point: { at($0, $1) })
+                       k: k, theme: theme, ink: ink ?? theme.text,
+                       // (From outside, a front slice's edge is its wall's foot:
+                       // lab tpie (windows-1, zh-d62da4dd's chart1, rotX 30) sets
+                       // "經濟", at three o'clock, a wall's depth lower than the
+                       // top face's edge would, its file's move taken off.)
+                       point: { a, f in at(a, f, f >= 1 && sin(a) > 0 ? deep : 0) })
         } else if c.dataLabels {
             for s in slices {
                 let pt = at((s.from + s.to) / 2, 0.7)
@@ -4541,7 +4546,11 @@ extension ChartPainter {
             } else if l.outside {
                 let gap = 4 * k
                 let edge = on(s.mid, 1)
-                at = Offset(edge.dx + dx * gap + (dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
+                // (Centred on its slice where it stands over or under it, within
+                // about ten degrees of upright: lab tpie's "建築", 0.75% at
+                // twelve o'clock, in Word's print, where ours stood a half
+                // width left; "金融", 13° off upright, keeps the half width.)
+                at = Offset(edge.dx + dx * gap + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
             } else {
                 // (A 3-D pie's 0.9 of the way out: the survey's.)
                 at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
