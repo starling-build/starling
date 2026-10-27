@@ -6624,6 +6624,11 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
 ### macos's w25 queue, measured (Linux office1, 2026-10-26, engine c34c8aa8eba) — none built
 - zh-13d11e99 (95.9 here): all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
   555; the plot area's top lower in Word). Charts' (macos-ios, T201).
+  Tried (office1, routed by macos): a titled 2013-style chart in a Word document, its plot 3pt lower (Chart.swift, beside the
+  sheet's 2.57) — zh-13d11e99 95.9 -> 100, but chartex 100 -> 94.7 (87.7 with cx: charts too) and zh-b8de3ae2 90.9 -> 88.8,
+  their titled charts already where Word's are. So the 3pt is this chart's, not a document chart's: its title is 14pt (the
+  others' default 14pt too?), its legend at the foot. Reverted; what differs between its chart and b8de3ae2's is the lead.
+- zh-13552a3a: see its own entry — the lever is the 0.4pt the rows above row 24 add up to (macos-ios: not T191's tolerance).
 - zh-37b6536f (95.6): p2's last paragraph 6pt high (606 vs 612) at the page's foot, one line in.
 - zh-5a9a85c6 (95.7): p18-19, a floating table (vertAnchor text, horzAnchor page, tblpX 1957, tblpY 881, tblOverlap never) 44pt
   under its title has its top past the 757 foot; Word sets its first row on p18 at 760.8-792.0 (over the footer) and the rest on
