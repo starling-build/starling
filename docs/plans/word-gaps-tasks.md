@@ -6525,6 +6525,9 @@ Sans" and no Unicode signature (usb 0/0), so `windowsSigFace` does not apply and
 drew it in Ebrima, windows-1's box in Calibri, and zh-b0207333 — the corpus's one other entry like it — prints Calibri. The
 face is the reference machine's own fallback for a missing name, which no file rule reproduces from one document.
 
+### T219. zh-72da925e p13+: table cells wrap a character early — DONE 904c1826 (Linux lenovo-2, starling-d6, 2026-10-26, routed by macos)
+Its 12pt cells on a linesAndChars grid of 1.0076 (balanceSingleByteDoubleByteWidth) wrapped "(內" / "湖)" and parted numbers from their years, and its tables paginated apart. Lab tgr (windows-1): Word sets characters at whole multiples of the pitch (positions cut to 600-dpi dots, so single steps alternate 12.95/13.07 around 13.0076; cells and sizes take the same addition). "(內湖)" is then 39.02 against its 39.05 column. Ours gave the paragraph's last half-width character the whole addition, since the half rule wanted a following character, so it measured 39.53. Fixed in Windows mode: word-win zh-72da925e 60.5 -> 95.8, nothing else moved. In Mac mode the same rule took it 86.7 -> 71.1 (its Mac reference may predate the reprints; recheck after a1188040), so it's gated.
+
 ### T216. zh-147bdae0 p39: a run of kept table rows goes over with the row after it — DONE -> 95.0 (Linux office1, starling-office1-95, 2026-10-26, routed by macos)
 Four indicator rows whose paragraphs say keepNext, then the unkept "聯絡資訊" row, open p39 in Word's print, the header row
 alone at p38's foot; ours filled p38 with two of them (the row code weighed a kept row only against the paragraph after
