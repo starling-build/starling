@@ -8269,3 +8269,15 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   was rejected: the same document lost 310 matched lines. The narrow
   version recovers the three p8 lines, 1135→1138/1309; paired full
   Windows/Mac sweeps have no other score or page-count changes.
+
+
+- **Mac balanced spaces in an embedded subset with a Latin ASCII face
+  (2026-10-27).** Where the embedded East Asian subset lacks U+0020 and
+  the run has a Latin ASCII face, ordinary balanced spaces take 3/8 em.
+  Fresh Word tc22 controls give 4.5/6/7.5pt at 12/16/20pt, and still
+  6pt at bold16pt; Times and Arial agree. Removing embedding or using
+  ordinary FangSong, SimSun, KaiTi or YaHei restores half an em. Naming
+  the subset for ASCII instead invokes a wider fallback, so that case
+  keeps its old rule; mixed NBSP runs do too. Paired Windows/Mac sweeps:
+  zh-c2229d4a Mac113→265/265, all other scores unchanged. The earlier
+  universal Mac exemption and subset-only candidate were rejected.

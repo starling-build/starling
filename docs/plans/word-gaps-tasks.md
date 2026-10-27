@@ -93,7 +93,7 @@ Artifacts: `w/ wp/ n/ np` prefixes with `office-base` and `t135`,
 root above. Static lint passed. This Swift fix awaits the final Office unit and
 local browser gates before pushing; each subsequent change gets its own pair.
 
-#### Item 3 — REJECTED first candidate; needs narrower Word evidence: tc22 Mac ordinary spaces
+#### Item 3 — PAIRED: subset spaces with an explicit Latin face
 Use the completed t135 candidate as the next base (same source and engine).
 Mac ordinary spaces under balanceSingleByteDoubleByteWidth should retain their
 face's advance, as the tc22 Word lab shows. Keep mixed NBSP/plain-space handling
@@ -114,7 +114,27 @@ Ordinary FangSong, SimSun, KaiTi and YaHei substitutions give **8pt**. Removing
 fontTable's embedRegular entries, keeping the original names/styles, also gives
 **8pt** (YaHei fallback). The embedded FangSong_GB2312 subset has UPM256 and no
 U+0020 or U+00A0 cmap entry. The distinguishing evidence is the embedded subset,
-not a universal Mac space rule. No implementation for that condition yet.
+not a universal Mac space rule.
+Follow-up scaling controls: 12pt→4.5pt spaces, 20pt→7.5pt, bold16pt→6pt (the
+letters widen but spaces do not). Testing **3/8 em only for an ordinary balanced
+space whose embedded East Asian face lacks U+0020**, preserving mixed-NBSP and
+Windows behavior. This uses the existing subset-coverage metadata. Pair from the
+accepted `opener-latin` baseline before the YaHei metrics change.
+First subset pair `opener-latin → tc22-subset`: both scripts, 756/mode,
+zero missing. Windows unchanged; Mac target **113→265/265**, but zh-5450d509
+**320→319/335**. **Rejected**; this is not a cancellation exception. Its
+`公开对 象` run names 仿宋_GB2312 for ASCII too, and Word's space is about
+6.25pt at 12pt, not 4.5. The subset holds only 5 glyphs and its Chinese falls
+back to YaHei. A fresh tc22 control naming that subset for ASCII reproduces
+8.336pt spaces at 16pt; explicitly naming Arial, like Times, keeps 6pt.
+Narrowed candidate requires a resolved **Latin ASCII face** as well as an
+embedded EA subset missing U+0020. Pair `opener-latin → tc22-latin` next.
+That refined pair **passed**: both unmodified scripts, 756 documents/mode,
+zero missing and zero drops. Mac zh-c2229d4a **113→265/265 (42.6415→100%)**;
+all other matched-line counts unchanged in both modes, including zh-5450d509.
+No cancellation exception. Static lint passed. Evidence: `opener-latin--tc22-latin-exact.json`,
+`tc22-width-lab/` Word controls, `tc22-subset-lab-positions.json`, provenance and
+source patches under the artifact root. Final Office unit/browser gates pending.
 
 #### Item 4 — grid candidate REJECTED; Latin-following opening mark PAIRED
 Use the verified t135 base after reverting the rejected tc22 candidate. Remove

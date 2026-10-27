@@ -8765,6 +8765,7 @@ public final class RichLayout {
         // run of them but one between two Latin characters — see
         // `RichDocument.balancesSpaceWidth`.
         var wideSpaces: Set<Int> = []
+        var ordinaryBalancedSpaces: Set<Int> = []
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
@@ -8811,7 +8812,11 @@ public final class RichLayout {
                 guard !run.isEmpty, document.balancesSpaceWidth else { return }
                 func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) } ?? false }
                 if nbsp.isEmpty {
-                    if !(latin(left) && latin(right)) { wideSpaces.formUnion(run.filter { !complexSpaces.contains($0) }) }
+                    if !(latin(left) && latin(right)) {
+                        let balanced = run.filter { !complexSpaces.contains($0) }
+                        wideSpaces.formUnion(balanced)
+                        ordinaryBalancedSpaces.formUnion(balanced)
+                    }
                 } else if let first = run.first(where: { !nbsp.contains($0) }) {
                     wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
                 }
@@ -9653,8 +9658,20 @@ public final class RichLayout {
                     // (The stand-in's spread is in the style's spacing,
                     // which the engine applies and the line above adds
                     // once more: off twice.)
-                    extra += em / 2 - _spaceWidth(s) + (s.letterSpacing ?? 0)
-                        - 2 * spread * (latinFace?.boldSpread ?? 0) + spread * (eaFace?.boldSpread ?? 0) / 2
+                    // (An embedded subset with no space glyph is different
+                    // on Mac with an explicit Latin face: tc22's embedded
+                    // FangSong_GB2312 over Times or Arial sets plain balanced
+                    // spaces at 3/8 em, left-aligned or justified. Removing
+                    // the embedding restores 1/2 em, as do ordinary named
+                    // FangSong, SimSun, KaiTi and YaHei. Mixed NBSP runs keep
+                    // their existing half-em rule.)
+                    let missingSpace = !RichTextTheme.wordWindowsPages && ordinaryBalancedSpaces.contains(offset)
+                        && latinFace?.isEastAsian == false && eaFace?.covers.map { !$0.contains(0x20) } == true
+                    // (The subset's spaces keep 3/8 em in bold too,
+                    // while its ideographs widen: the 12/16/20pt lab.)
+                    let fraction = missingSpace ? 0.375 : 0.5
+                    extra += em * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                        - 2 * spread * (latinFace?.boldSpread ?? 0) + (missingSpace ? 0 : spread * (eaFace?.boldSpread ?? 0) / 2)
                     // (A trailing space set in the ideographs' face (kind -2)
                     // has the stand-in's width in its spacing: that is not
                     // the run's own, and not counted twice — zh-9dd9ce6d's
