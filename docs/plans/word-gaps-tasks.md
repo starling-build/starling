@@ -6527,3 +6527,6 @@ Windows: 510 -> 525 of 538 lines. The page-placement witnesses are unchanged: zh
 p19-20's turned text is still left.
 
 ### zh-b8de3ae2 (90.8): its charts — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): the chart with the most misses first.
+
+### T216. Mac-mode line fit: zh-884c6e3e (Mac 47.2, Windows 100) and zh-c5b5087b (Mac 53.5 / 100), ours a character ahead — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, routed by macos from macOS-doc's triage)
+Measured on lenovo-2's c34c8aa8eba engine (~/tmp/lenovo2-engine2), Mac mode against word/. Pairs in both modes.
