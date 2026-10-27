@@ -3892,6 +3892,20 @@ public final class RichLayout {
             var first = true
             while true {
                 var avail = contentH - y
+                // (A table placed against the page whose rows from here on
+                // end above the footer's place sets them on this page, past
+                // the margin: zh-0b87285b's 13-row list ends 524.9pt down a
+                // 595pt page in Word for Windows' print, margin at 523 and
+                // footer at 545.4 — `anchoredParts` keeps its head with it,
+                // and ours sent its last row alone to page 7, its title
+                // after it.)
+                if theme.wordRules, first, document.tableStyles[c.table]?.pageAnchored == true {
+                    var bottom = c.rowTop + c.ownRowHeight, k = i
+                    while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                    let setup = pageSetup(forPage: page / _columns)
+                    let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
+                    if y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
+                }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
                 // 28.5pt at least is 28.75 at the head of Word's page.)
