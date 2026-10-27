@@ -8,6 +8,18 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Mac browser/native parity and remaining fidelity — CLAIMED (2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+User-directed order: (1) reproduce and fix the Mac-only word-boringcrypto
+browser/native mismatch (26 differing lines; web redeploy blocker), rebuilding
+private Mac native/skwasm artifacts as needed; (2) zh-f39e54b6 squeeze, then
+zh-13d11e99 chart labels where a measured rule holds; (3) fresh both-mode sweep,
+grep this board before claiming the next lowest unclaimed documents.
+Same-base pairs in both modes, both engine variables exported, no document
+drops except a Word-verified cancelling-error correction logged here.
+Fetch/rebase before pushing; no live deploy or automatic-hyphenation decision.
+Results and artifact provenance follow here as the work proceeds.
+
 ### 2026-10-27 handoff continuation — verified batch; follow-ups OPEN
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).
 Taking the handoff's in-flight list in order, starting with the confirming pair for
