@@ -2496,9 +2496,18 @@ enum OfficeFonts {
             // stand-in fell back to Liberation Sans's glyph and the whole
             // addition, 10.67.)
             if ea.height == yaHei.height {
+                // (YaHei's geometric shapes and arrows, measured in Word's
+                // msyh.ttc and msyhbd.ttc: both use these advances /2048.
+                // In particular □ is wider than ■; zh-e0ca7252's form
+                // lines wrapped late when □ inherited the black square.)
+                let shapes: [UInt32: Double] = [0x25A1: 1336.0 / 2048, 0x25CF: 1336.0 / 2048,
+                                              0x25C7: 1229.0 / 2048, 0x25C6: 1229.0 / 2048, 0x203B: 1724.0 / 2048,
+                                              0x2190: 1, 0x2192: 1, 0x2191: 0.5, 0x2193: 0.5]
                 face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604,
                                       0x25CB: 0.604].merging(circled(1.0)) { $1 }
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
+                face.otherAdvances = face.otherAdvances?.merging(shapes) { $1 }
+                face.boldOtherAdvances = face.boldOtherAdvances?.merging(shapes) { $1 }
             }
             // (The face's own widths past ASCII: SimSun's, `EastAsianFace.otherAdvances`.)
             if let own = ea.otherAdvances {

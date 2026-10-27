@@ -167,6 +167,22 @@ later-page regression. Static lint passed. No cancellation exception. Full audit
 `t135--opener-latin-exact.json`, phase/source logs
 under the same artifact root. Final Office unit/browser gates pending.
 
+#### Item 5 — PAIRED: YaHei geometric shapes (T227)
+Read the advances from Word 16.113.3's msyh.ttc and msyhbd.ttc; the nine added
+entries match in regular/bold: □●1336, ◇◆1229, ※1724, ←→2048, ↑↓1024
+(out of 2048). Add them to both dictionaries, preserving existing entries and
+SimSun's triangle/star fallback. Pair from accepted `tc22-latin`, same engine.
+Measured evidence and font hashes: `yahei-shapes-word-evidence.json` and
+`word-lab-font-provenance.json`. No broader punctuation rule in this change.
+Both unmodified scripts `tc22-latin → yahei-shapes`, 756 documents per mode:
+**zero missing, zero drops**. Windows unchanged. Mac improvements:
+- zh-e0ca7252 **1056→1058/1669**;
+- zh-20c1d74a **1476→1477/1486**;
+- zh-505b9619 **2779→2783/2805**.
+All other matched counts unchanged. Static lint passed. No cancellation exception.
+Exact results: `tc22-latin--yahei-shapes-exact.json`; final unit/browser checks next.
+The remaining zh-e0ca7252 punctuation/line-fitting misses are still open.
+
 ## How a fix is checked
 
 The steering number is `test/docx-line-match.py WORK`: the share of

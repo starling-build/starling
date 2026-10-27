@@ -8281,3 +8281,12 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   keeps its old rule; mixed NBSP runs do too. Paired Windows/Mac sweeps:
   zh-c2229d4a Mac113→265/265, all other scores unchanged. The earlier
   universal Mac exemption and subset-only candidate were rejected.
+
+
+- **YaHei geometric shapes use their own advances (2026-10-27, T227).**
+  Word's msyh.ttc and msyhbd.ttc agree: □ and ●1336/2048 em,
+  ◇ and ◆1229/2048, ※1724/2048, ←/→1 em, ↑/↓half an em.
+  Set those in both regular and bold tables. In particular □ no
+  longer inherits ■'s narrower advance. Triangle/star fallback stays
+  with SimSun. Paired full sweeps: Mac zh-e0ca7252 gains2 matched lines,
+  zh-20c1d74a gains1 and zh-505b9619 gains4; no drops in either mode.
