@@ -9415,7 +9415,7 @@ public final class RichLayout {
                             // a line "…（下稱「" in Word's print, "中" opening
                             // the next. Not where the language is not one —
                             // zh-c5b5087b's en-US carries "（" over.)
-                            || (kinsokuOff && ch != " " && Self._openingMarks.contains(b) && Self._eastAsianLineRules(run, document, named: named))
+                            || (kinsokuOff && ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch)) && Self._eastAsianLineRules(run, document, named: named))
                             // (In a line too narrow for one character
                             // every character is a line, the marks
                             // too: zh-830ef10d's 6pt cell sets
@@ -11492,7 +11492,7 @@ public final class RichLayout {
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
             // (… and an opening one end it, under `w:kinsoku` 0 in text of
             // an East Asian language — zh-72da925e's "…（下稱「": see `_span`.)
-            if kinsokuOff, !runRulesOff(o - 1), Self._openingMarks.contains(Character(a)) { return true }
+            if kinsokuOff, !runRulesOff(o - 1), Self._openingMarks.contains(Character(a)) || Self._latinOpener(Character(a), Character(b)) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
@@ -11689,6 +11689,7 @@ public final class RichLayout {
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineEms = 0.0       // … and their ems, summed
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
+        var lineLetters = false // … and whether any is a Latin letter (see `gridCapped`)
         let onCharacterGrid = (_grid(i, document).chars ?? 0) != 0
         let gridAdd = p.style.eastAsian["w:snapToGrid"] == "0" ? 0 : _px(_grid(i, document).chars ?? 0)
         // (Not a character whose run is off the grid, as `_span` sets it:
@@ -11740,7 +11741,15 @@ public final class RichLayout {
             // justified.)
             let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !isSpace(units[$0]) }
             let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045)) : _px(0.0001)
-            var fits = x + w - after <= width + hair
+            // (Under `w:kinsoku` 0 a closing mark that closes up with the one
+            // after it, which may start the next line, ends this one at its
+            // whole width: the pair is parted, and the half it gave is the
+            // pair's. zh-72da925e's "…根據應明確說明」；工務局…" sets "」" on
+            // p9's first line in Word's print; ours took it at its half,
+            // 8.5pt, to the margin exactly.)
+            let parted = RichTextTheme.wordWindowsPages && kinsokuOff && last > a && piece.b == last && closesUp(last - 1) && last - 1 < ems.count
+                && last < units.count && Self._closingUnits.contains(units[last])
+            var fits = x + w - after + (parted ? ems[last - 1] / 2 : 0) <= width + hair
             // (What follows a tab to a right stop at the margin that
             // starts inside it runs on past the margin — `runsPast`, T127:
             // zh-ab1ea005's "123.…救济途径？<tab>52" is one line in Word's
@@ -12500,7 +12509,28 @@ public final class RichLayout {
                     // with what its spaces follow — only where the marks can
                     // give all it needs: zh-f47b8a74's "至", 19 spaces and
                     // "，" are 104pt over with 24.5 to give.)
-                    let taken = takenFirst && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    // (On a character grid the line's marks before the piece give
+                    // a cell's 0.82 at most, however many: lab tg (windows-1,
+                    // zh-3c055c9b's package) — one mark gives its 8 of a 17pt
+                    // cell, two or more together 13-14; a closing mark that
+                    // ends the piece lifts the cap. zh-72da925e p13 leaves
+                    // "「基" 23.5 over with "」，：" before it, which ours took.)
+                    let gridCapped: Bool = {
+                        // (An East Asian piece: a Latin word is taken as before —
+                        // zh-72da925e's "…控制站流量5,400cms" with "，「」" giving.)
+                        // (Word for Windows': lab tg was printed there, and Mac
+                        // mode lost zh-3c055c9b's and zh-c15af02e's lines with it.)
+                        // (Nor on a line with Latin words, as tg's had none:
+                        // zh-344a8d08's "…Google Analytics…（pageviews）…所附「網"
+                        // is taken in Word's print.)
+                        guard theme.wordRules, RichTextTheme.wordWindowsPages, onCharacterGrid, !lineLetters, last > a, units[a] >= 0x2E80, !Self._closingUnits.contains(units[last - 1]) else { return false }
+                        let before = all.filter { $0 < a }
+                        guard before.count >= 2 else { return false }
+                        let mid = before.reduce(0.0) { $0 + half($1) }
+                        let ownRoom = all.filter { $0 >= a }.reduce(0.0) { $0 + half($1) }
+                        return need > min(mid, 0.823 * em) + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
+                    }()
+                    let taken = takenFirst && !gridCapped && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
@@ -12633,7 +12663,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineBlank = false; lineRaised = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false }
                     continue
                 }
             }
@@ -12659,6 +12689,7 @@ public final class RichLayout {
                 lineWide = 0
                 lineEms = 0
                 lineLatin = false
+                lineLetters = false
                 lineOther = false
                 lineBlank = false
                 lineSpaced = false
@@ -12732,7 +12763,7 @@ public final class RichLayout {
                     // its marks' halves 8.5 each, as set — which the em
                     // alone took.)
                     if !continues { lineWide += 1; lineEms += ems[k] + (k < runOf.count && runsOffGrid[runOf[k]] ? 0 : gridAdd) }
-                    if latin { lineLatin = true }
+                    if latin { lineLatin = true; if (units[k] | 0x20) >= 0x61 && (units[k] | 0x20) <= 0x7A { lineLetters = true } }
                 }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
@@ -12757,6 +12788,7 @@ public final class RichLayout {
                 lineWide = 0
                 lineEms = 0
                 lineLatin = false
+                lineLetters = false
                 lineOther = false
                 lineBlank = false
                 lineSpaced = false
@@ -12922,6 +12954,17 @@ public final class RichLayout {
     /// off, and Word's print ends a line "…抑制作用" and opens the next
     /// with the Times "," after it; ours kept "用," together, squeezing
     /// the line's "：" and "，", and every page from 90 on ran behind.)
+    /// A Latin opening bracket before an East Asian character: where
+    /// `w:kinsoku` 0 lets an opening mark end a line, it may too, in Word
+    /// for Windows (lab tend was printed there) —
+    /// zh-72da925e's "…治理計畫』(" ends p6's first line in Word's print,
+    /// "草案)…" opening the next (lab tend, windows-1: the piece is the
+    /// "(" alone, 7.98pt), where ours kept "(草" together and squeezed the
+    /// line's marks for both.
+    static func _latinOpener(_ ch: Character, _ after: Character) -> Bool {
+        RichTextTheme.wordWindowsPages && "([{".contains(ch) && (after.unicodeScalars.first?.value ?? 0) >= 0x2E80
+    }
+
     static func _latinCloser(_ before: Character, _ ch: Character) -> Bool {
         ")]},.;:!?".contains(ch) && (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
     }
