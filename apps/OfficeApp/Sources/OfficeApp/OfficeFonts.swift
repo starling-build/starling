@@ -847,6 +847,13 @@ enum OfficeFonts {
     /// like: half an em each in the square faces, proportional in the
     /// rest, given here as the shipped face nearest in shape and the
     /// scale that brings its widths to the original's.
+    /// What Word for Mac widens each character of a face it emboldens by,
+    /// of the character's own advance: lab tkai2 (fresh Mac Word, 楷体_GB2312
+    /// at 12pt) sets bold ideographs 12.234 and spaces 6.117 apart, 1.95%
+    /// of each; FangSong's 16pt bold "第" is 16.32 (lab tflc). (The 1/48
+    /// of the prints before 2026-10-26 was a Word process days old.)
+    static let macBoldWiden = 0.0195
+
     private struct EastAsianFace {
         var height: Double
         var latin: String
@@ -2392,7 +2399,7 @@ enum OfficeFonts {
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)
-            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? 1.0 / 48) : 0,
+            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? macBoldWiden) : 0,
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
@@ -2530,7 +2537,7 @@ enum OfficeFonts {
             return face
         }
         var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
-                                    boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? 1.0 / 48) : 0, classScales: ea.latinClasses, baseline: ea.baseline,
+                                    boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? macBoldWiden) : 0, classScales: ea.latinClasses, baseline: ea.baseline,
                                     isEastAsian: true)
         // (What the Latin stand-in lacks, the face the name stands for
         // draws: Word sets zh-117cf7c6's "※" bullet, 標楷體 with no hint,
