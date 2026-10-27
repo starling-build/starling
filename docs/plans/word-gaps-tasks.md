@@ -6711,6 +6711,14 @@ Ours squeezes a mark to take one more character where Mac Word (mode 14) squeeze
   10.67 -> 8.88 and takes "A"; Mac Word sets every glyph whole (its "（" 10.71, spaces 5.35) and wraps "A".
 - zh-8dc59b5b 79.4: p1 "…是指局本级管理范围内实" — ours squeezes the "，" to 8.3 (7.7 given) and takes "实"; Mac keeps it 15.5
   and sends "实" down (half an em at 15.5pt is 7.75 — a sub-0.1pt edge, or a rule).
+- LEFT AS KNOWN EDGES (macos, 2026-10-27). Lab tsq (Mac Word, w:right steps): ours matches Mac's squeezes to 0.05pt
+  in 10 of 12; both misses are at r+0. zh-8dc59b5b's is the half-em limit with Mac's widths (need 7.79 > 7.75; ours 7.736
+  from the indent's twip rounding, 32.60 vs 32.65 — 0.0195 and 1/50 each fail one tflc variant). zh-7b08d744's cell
+  refuses 5.45 with 16 to give, which our mode-15 share test (need × (lineEms×(n−1)/n/64 + gaps) ≤ room × (width−x+hair))
+  reproduces — tried in Mac mode-14 cells, dropped: Mac n16 -> n17 zh-7b08d744 71.6 -> 99.5 but mean 97.8 -> 97.6,
+  zh-c399c91a 100 -> 17.8, zh-0a56c942 98.3 -> 69.0, zh-27fc8f9d 97.6 -> 76.0, zh-68a0ee2e 100 -> 89.1, zh-d35cbbdb
+  100 -> 93.0, zh-9c162f26 99.8 -> 92.1, zh-7fd860f9 96.5 -> 91.0 (applied to body text it also broke zh-7b08d744's p3).
+  The cell limit is not that one rule; start from these when taking the squeeze family next.
 
 ### T226. Mac: a name Word lacks, no alternate, last table entry roman -> SimSun — DONE (Linux office1, starling-office1-95, 2026-10-27, lab tsim2)
 Lab tsim2 (Mac Word; macOS-doc built, macos printed), zh-4c5da793's fontTable alone edited: Word for Mac reads the LAST entry
