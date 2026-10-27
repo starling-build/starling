@@ -6648,6 +6648,7 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
 - zh-13552a3a: see its own entry — the lever is the 0.4pt the rows above row 24 add up to (macos-ios: not T191's tolerance).
 - zh-37b6536f (95.6): p2's last paragraph 6pt high (606 vs 612) at the page's foot, one line in.
   (lenovo-2, 2026-10-27: it's the second row of photos, anchored in ¶18 (exact 25pt, posV +23.15) after ¶17, which anchors row 1 and whose auto 31.2pt grid line goes under row 1. Word's row 2 tops at 300.9, ours 295.4, the text under it following. Our ¶17 line stands at row 1's foot (248.3) and ¶18 under it at 272.3; Word's ¶18 top works out at 277.75, which fits neither the foot plus 31.2 nor the line+before steps of T205. A lab on ¶17's line under row 1 (an X in it) would say where Word sets it. Not claimed.)
+  DONE b025902ac (lenovo-2): lab tph (windows-1) — ¶17's grid line steps under its own photos by (31.2 + 20.8) / 2 = 26.0 until its text clears the foot; 95.6 -> 99.3, row 2 within 0.7pt of Word's; pairs in both modes, nothing else moved.
 - zh-5a9a85c6 (95.7): p18-19, a floating table (vertAnchor text, horzAnchor page, tblpX 1957, tblpY 881, tblOverlap never) 44pt
   under its title has its top past the 757 foot; Word sets its first row on p18 at 760.8-792.0 (over the footer) and the rest on
   p19; ours takes it all to p19. Sent to lenovo-2 as a witness for T222.
