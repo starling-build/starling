@@ -6604,3 +6604,4 @@ cells). Next step: how the reader sets rowSpan for this vMerge="restart" cell. R
 
 ### T222. zh-0b87285b: 96.8 against word-win, 8 pages to Word's 7 — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-26, from macos's w25 list)
 Its landscape p6 holds a 13-row table placed against the page (tblpY 2536) after "附件", with its title paragraph after it in the file. Word sets the title in the room above the table and all 13 rows on p6, the last ending 524.9pt down: 1.9 past the 523 margin, above the footer at 545.4. Ours sends the last row to p7, and the title after it. `anchoredParts` keeps such a table's head with it, but each row's own fit stopped at the margin. Pairing in both modes.
+DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either (pairs at a18ec01f). Left in Windows: ours still makes 8 pages to Word's 7.
