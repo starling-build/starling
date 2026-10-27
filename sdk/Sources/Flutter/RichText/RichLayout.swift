@@ -2008,6 +2008,10 @@ public final class RichLayout {
         struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
         var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
+        var wholeNeed: [Int: Double] = [:]   // a noWrap column's whole text (Mac Word): see below
+        // (In a table a share of its room wide: zh-8415d258's and zh-d0a207ac's,
+        // of no width or a width in twips, fell 60 and 20 points with it.)
+        let pctTable = document.tableStyles[table]?.widthPercent != nil
         let ins = _cellInsets(table, document)
         for (i, p) in document.paragraphs.enumerated() {
             guard let c = p.cell, c.table == table else { continue }
@@ -2017,6 +2021,11 @@ public final class RichLayout {
             let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
             let w = sides + _minContent(i, p, document)
             let widest = sides + _maxContent(i, p, document)
+            if theme.wordRules, !RichTextTheme.wordWindowsPages, c.span == 1, widest > w + 0.01, pctTable,
+               let kept = c.keptPropertiesXML, kept.containsSubstring("<w:noWrap"),
+               !kept.containsSubstring("<w:noWrap w:val=\"0\"") && !kept.containsSubstring("<w:noWrap w:val=\"false\"") {
+                wholeNeed[c.column] = max(wholeNeed[c.column] ?? 0, widest)
+            }
             let picture = theme.wordRules && p.text.isEmpty && p.image.map { $0.float == nil && !Self._isEquation($0) } == true
             let key = c.row * 4096 + c.column
             if let k = at[key] {
@@ -2099,7 +2108,7 @@ public final class RichLayout {
                 FileHandle.standardError.write(Data("  over: column \(c.column) span \(c.span) needs \((c.min / pt * 10).rounded() / 10) of \((room(c) / pt * 10).rounded() / 10)\n".utf8))
             }
         }
-        guard !over.isEmpty else { return base }
+        guard !over.isEmpty || wholeNeed.contains(where: { $0.key < base.count && $0.value > base[$0.key] + 0.01 }) else { return base }
         // Each column's own narrowest: its one-column cells'. (One with
         // none — every cell over it spans — is not known to give: it
         // keeps its width. drawing.docx's nested tables had a column
@@ -2145,6 +2154,25 @@ public final class RichLayout {
                 let give = max(0, base[k] - floor[k])
                 widths[k] = base[k] - min(give, excess * give / slack)
             }
+        }
+        // (Then, in Mac Word, in a table a share of its room wide, a column
+        // whose cells do not wrap (`w:noWrap`, on) and could part takes its text's whole width, every other column
+        // giving it as it is wide — down past its own narrowest. Lab a6nw
+        // (zh-6aa8bd7c's contact table, 100%, every cell a share): its
+        // home-telephone column, "328004　" noWrap, stands 56.9 where its
+        // share is 50.9, and the mobile column, fitted to "0932-838898"
+        // at 78.4, gives 0.4 and wraps the last digit, the table a page
+        // longer; without the noWrap, or the "　", or with the mobiles a
+        // digit shorter, nothing wraps. The mobile column's own noWrap
+        // claims nothing: its text cannot part anyway.)
+        for (k, need) in wholeNeed.sorted(by: { $0.key < $1.key }) where k < widths.count && need > widths[k] + 0.01 {
+            let rest = widths.indices.filter { $0 != k && wholeNeed[$0] == nil }
+            let pool = rest.reduce(0) { $0 + widths[$1] }
+            let d = need - widths[k]
+            guard pool > d else { continue }
+            for j in rest { widths[j] -= d * widths[j] / pool }
+            widths[k] = need
+            set.insert(k)
         }
         // (A picture, or a table nested in a cell, that would take the
         // table past its column and its side margins shares that room out
