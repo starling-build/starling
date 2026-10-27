@@ -4485,6 +4485,14 @@ extension ChartPainter {
             // (Excel wraps a long label at about a fifth of the chart's width:
             // 45544's "Finance - Investment Banking" is three lines.)
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))
+            // (And a one-line label a little narrower: past 0.1857 of the
+            // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
+            // wide, keeps "補助及協助收入, 2.35%" (99.9pt at 10pt) on one line in
+            // Word's print and wraps "罰款及賠償收入, 0.64%" (100.0) after its
+            // comma. A label that wraps already keeps the fifth's box.)
+            if tp.computeLineMetrics().count == 1, tp.width > max(20 * k, frame.width * 0.1857) {
+                tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.1857))
+            }
             let pad = 3 * k
             let w = tp.width + pad * 2, h = tp.height + pad
             let dx = cos(s.mid), dy = sin(s.mid)
