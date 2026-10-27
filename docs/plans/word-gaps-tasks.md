@@ -6027,7 +6027,7 @@ Owner: Linux lenovo-2 (starling-d6). The screen: p11, a cell's text wraps differ
 - DONE ba3ad333 (labs t190 and t187 2-3): the page closes under the cell's own bottom where stated, else the table's, and
   the row or its part must fit above it — for a part, all that is left of a cell too (it was measured against the half-point
   line). Same-base pair, 756: zh-e1b09977 82.2 -> 98.6, nothing else moved; mean 96.955 -> 96.976. Released.
-### T191. zh-4c5da793: 82.5 against word-win — 85.6 by caf8dc1e (T188's FangSong line), RELEASED (Linux lenovo-2, 2026-10-25)
+### T191. zh-4c5da793: 82.5 against word-win — 85.6 by caf8dc1e (T188's FangSong line), RELEASED (Linux lenovo-2, 2026-10-25); CLAIMED Mac 01Xgpbk5 (2026-10-26, routed by macos): p15's parted row, Word's 1/600in row rounding
 Owner: Linux lenovo-2 (starling-d6). The screen: p9, a cell's text wraps differently.
 - Measured: T188's sibling (the same 定海区综合行政执法局 list format, FangSong 12pt, centred cells, mode 12). At p15's foot Word
   parts the row "对抚恤优待对象冒领抚恤金、优待金…" with two lines on p15, ours with one. Waits on T188's lab (the parted row's foot).
