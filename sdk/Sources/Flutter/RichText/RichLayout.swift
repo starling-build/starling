@@ -4823,6 +4823,61 @@ public final class RichLayout {
                     let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
                     if y + whole > edge + 0.01, whole <= edge - 0.01 { newPage(); raiseAtHead(c) }
                 }
+                // (A run of rows kept with the next — each row's first
+                // paragraph says `w:keepNext` — goes to the next page with
+                // the first row after it that does not keep, where this
+                // page cannot hold them and one page can: zh-147bdae0's
+                // four kept indicator rows and its "聯絡資訊" row open page
+                // 39 in Word's print, its header row alone at page 38's
+                // foot; ours filled 38 with two of them. A run longer than
+                // a page parts as rows do: zh-64044a1d's equipment list
+                // keeps every row with the next, and Word parts it between
+                // "8" and "9".)
+                // (Of the row after the run, its first line in each cell is
+                // all that must follow — all of it where it may not part:
+                // zh-499adba6's kept heading row "在政策決策機制方面" over a
+                // row of long paragraphs stays at page 7's foot with that
+                // row's first lines. Nor a run a kept paragraph before the
+                // table began: that run is the paragraphs' own — bug65649.)
+                let carried = c.row == 0 && i > 0 && _cells[i - 1] == nil && document.paragraphs[i - 1].style.keepNext
+                if theme.wordRules, c.firstInRow, y > 0.01, !carried, document.paragraphs[i].style.keepNext {
+                    var previous: Int? = nil
+                    var b = i - 1
+                    while b >= 0, let d = _cells[b], d.table == c.table, d.row == c.row - 1 { previous = b; b -= 1 }
+                    if !(previous.map { document.paragraphs[$0].style.keepNext } ?? false) {
+                        var k = i, row = c.row
+                        var follower: (top: Double, height: Double)? = nil
+                        while k < count, let d = _cells[k], d.table == c.table {
+                            if d.row != row {
+                                row = d.row
+                                if !document.paragraphs[k].style.keepNext {
+                                    var need = 0.0
+                                    if document.tableStyles[c.table]?.rowsCantSplit.contains(d.row) == true {
+                                        need = d.ownRowHeight
+                                    } else {
+                                        var m = k
+                                        while m < count, let e = _cells[m], e.table == c.table, e.row == d.row {
+                                            if m == k || _cells[m - 1]?.column != e.column {
+                                                let g = geometry(m)
+                                                let first = document.paragraphs[m].image != nil ? _heights[m] : (Self._lineBottoms(g.painter).first ?? _heights[m])
+                                                need = max(need, (g.textTop - g.top) + first + e.pad.top + e.pad.bottom)
+                                            }
+                                            m += 1
+                                        }
+                                        need = need > 0 ? min(need, d.ownRowHeight) : d.ownRowHeight
+                                    }
+                                    follower = (d.rowTop, need)
+                                    break
+                                }
+                            }
+                            k += 1
+                        }
+                        if let follower {
+                            let need = follower.top - c.rowTop + follower.height
+                            if y + need > contentH + 0.01, need <= contentH - 0.01 { newPage() }
+                        }
+                    }
+                }
                 let atTop = y < 0.01
                 if atTop { goOn() }
                 // A row made taller in the flow for a cell merged down
