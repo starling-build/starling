@@ -5709,7 +5709,7 @@ public final class RichLayout {
             // zh-d62da4dd's, under none, keeps it, and the line goes
             // under (lab t3d, Word for Windows).
             var headSkip = 0.0
-            if theme.wordRules, RichTextTheme.wordWindowsPages, y < 0.01, page > 0, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
+            if theme.wordRules, y < 0.01, page > 0, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
                 if leavesLead { headSkip = pageFresh ? lead : 0 }
                 else if i > 0, _cells[i - 1] == nil { headSkip = min(lead, _spacing(i - 1, document).after) }
             }
@@ -5763,7 +5763,7 @@ public final class RichLayout {
                 // The half is the face of its first characters', not the
                 // smallest on the line. Not with a push of its own. Word
                 // for Windows' lines only: see `pushUnder`.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, i < _floatPush.count, _floatPush[i] < 0.01, noRoom(at: y, []) != nil,
+                if theme.wordRules, i < _floatPush.count, _floatPush[i] < 0.01, noRoom(at: y, []) != nil,
                    let line = Self._lineBottoms(geometry(i).painter).first,
                    case let step = lead + line - _firstLineGridHalf(i, document), step > 1 {
                     var t = y + lead - headSkip
@@ -5854,7 +5854,7 @@ public final class RichLayout {
                     // paragraph, whose band stands from its text's top:
                     // zh-f47b8a74's "第  页共  页" box goes over its line.)
                     func meets(_ k: Int) -> Double {
-                        theme.wordRules && RichTextTheme.wordWindowsPages && document.paragraphs[k].image == nil
+                        theme.wordRules && document.paragraphs[k].image == nil
                             ? max(0.02, lineHeight(k) - _spacing(k, document).after) : lineHeight(k)
                     }
                     if let first = anchorRun.firstIndex(where: { k in lineTop(k).map { noRoom(at: $0, height: meets(k), []) != nil } ?? false }),
