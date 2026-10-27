@@ -4666,7 +4666,15 @@ public final class RichLayout {
                         let ts = document.tableStyles[c.table]
                         let line = ts?.edges?.insideH ?? ts?.borders ?? false
                             ? _px(Self._ruleRoom(ts?.edgeStyles["insideH"] ?? ts?.borderStyle, ts?.edgeWidths["insideH"] ?? ts?.borderWidth ?? 0.5)) : 0
-                        return target + c.ownRowHeight + line + under > contentH + 0.01
+                        // (Nor where another table's rows reach past its place:
+                        // they cannot be set under it, and the table goes to the
+                        // next page at its offset. zh-e49d7943's "演習評鑑編組區分表",
+                        // 102pt down its page after a table whose "附記" rows end
+                        // 201pt down page 21, heads page 22 in Word's print; ours
+                        // set it on page 21 under those rows, 105pt low.)
+                        let rowsInTheWay = _pages[page].contains { $0.paragraph < i && _cells[$0.paragraph] != nil && !$0.repeated
+                            && _cells[$0.paragraph]?.table != c.table && $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 }
+                        return rowsInTheWay || target + c.ownRowHeight + line + under > contentH + 0.01
                     }() {
                         newPage()
                         let physical = page / _columns
