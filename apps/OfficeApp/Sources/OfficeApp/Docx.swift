@@ -975,8 +975,10 @@ enum DocxFormat {
                     // and a continuous section, and Word for Windows sets
                     // chapter 1's title picture, the paragraph after, on
                     // the contents page, the body from page 3; ours gave
-                    // the picture a page and ran a page long to the end.)
-                    let sectionsOwn = currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
+                    // the picture a page and ran a page long to the end.
+                    // Only there: Mac Word keeps the break, and its print of
+                    // the same document has a page 3 of the picture alone.)
+                    let sectionsOwn = Self.wordOnWindows && currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
                         && p.paragraph.style.sectionBreaksPage == false
                     if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
