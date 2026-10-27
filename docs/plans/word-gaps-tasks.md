@@ -6590,4 +6590,7 @@ cell's last line "正)" at 503 on p27, the centred cells beside it 8pt lower tha
 "正)" to the head of p28, and every page after follows. The row after them goes to p28 in both. So Word grows the last spanned
 row to hold the merged cell where the table parts after it; ours parts the merged cell instead (cf. 56a0ac99, "a row grows to
 a merged cell's carried lines though the flow did not stretch it"). Engine c34c8aa8eba, tip 57105ed3.
+Traced (office1): the row pre-pass's spanning stretch never sees this cell's ~250pt need — no spanning cell in the table
+asks more than 141pt — so the cell is not counted as spanning there (its rowSpan as read, or the vMerge continuation rows'
+cells). Next step: how the reader sets rowSpan for this vMerge="restart" cell. Released for now.
 
