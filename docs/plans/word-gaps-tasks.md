@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### 2026-10-27 handoff continuation — CLAIMED
+### 2026-10-27 handoff continuation — verified batch; follow-ups OPEN
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).
 Taking the handoff's in-flight list in order, starting with the confirming pair for
 engine `39bb8cb9328`. Claude sessions stopped for the day per the user. Subsequent
@@ -19,7 +19,7 @@ Validation: both engine environment variables pinned; both sweep scripts, same-b
 pairs, full per-document comparison (including <0.3-point drops and missing files).
 The long-word confirmation uses office `6ceb5145` as specified in the handoff;
 subsequent Swift changes use fresh paired runs on this checkout and one engine.
-Results and exact artifact provenance will be appended here before landing.
+Results, rejected candidates and exact artifact provenance are recorded below.
 
 #### Item 1 — DONE: long-word engine confirmation (Codex, 2026-10-27)
 Engine `39bb8cb9328` pushed to `origin/starling` after fetching/rebasing and the
@@ -74,7 +74,7 @@ Artifacts copied to the Mac output root's `linux-smoke/`. This is a smoke check,
 not a second full Linux corpus pair. Windows rebuild awaits its SSH host/user
 (asked asynchronously); no Windows runtime was changed.
 
-#### Item 2 — PAIRED: t135 continued-row height (Codex, 2026-10-27)
+#### Item 2 — DONE: t135 continued-row height (Codex, 2026-10-27)
 Applied the handoff's `~/starling-word-check/lab/t135-continuation.patch` on
 `78415381`, after fresh `office-base` sweeps. Windows continuation rows take the
 cell's own top border plus stated margins, excluding the previous row's bottom
@@ -90,10 +90,10 @@ its bottom border moves from 489.45 to 504.55pt (Word 504.94); its start from
 239.57 to 239.07 (Word 239.21). No cancelling-error exception needed.
 Artifacts: `w/ wp/ n/ np` prefixes with `office-base` and `t135`,
 `office-base--t135-exact.json`, source patch, provenance and logs in the output
-root above. Static lint passed. This Swift fix awaits the final Office unit and
-local browser gates before pushing; each subsequent change gets its own pair.
+root above. Static lint passed. Final Office unit/browser results are recorded below; each subsequent change
+received its own pair.
 
-#### Item 3 — PAIRED: subset spaces with an explicit Latin face
+#### Item 3 — DONE: subset spaces with an explicit Latin face
 Use the completed t135 candidate as the next base (same source and engine).
 Mac ordinary spaces under balanceSingleByteDoubleByteWidth should retain their
 face's advance, as the tc22 Word lab shows. Keep mixed NBSP/plain-space handling
@@ -134,9 +134,9 @@ zero missing and zero drops. Mac zh-c2229d4a **113→265/265 (42.6415→100%)**;
 all other matched-line counts unchanged in both modes, including zh-5450d509.
 No cancellation exception. Static lint passed. Evidence: `opener-latin--tc22-latin-exact.json`,
 `tc22-width-lab/` Word controls, `tc22-subset-lab-positions.json`, provenance and
-source patches under the artifact root. Final Office unit/browser gates pending.
+source patches under the artifact root. Final Office unit/browser results are recorded below.
 
-#### Item 4 — grid candidate REJECTED; Latin-following opening mark PAIRED
+#### Item 4 — grid candidate REJECTED; Latin-following opening mark DONE
 Use the verified t135 base after reverting the rejected tc22 candidate. Remove
 only the Windows gate for the paragraph-final half-grid addition, as the handoff
 requests; compare against current fresh Mac references, then inspect p8's final 「.
@@ -165,9 +165,9 @@ Narrowed pair **`t135 → opener-latin` passed**: both unmodified scripts,
 in both modes. The three p8 misses are recovered, without the broad version's
 later-page regression. Static lint passed. No cancellation exception. Full audit
 `t135--opener-latin-exact.json`, phase/source logs
-under the same artifact root. Final Office unit/browser gates pending.
+under the same artifact root. Final Office unit/browser results are recorded below.
 
-#### Item 5 — PAIRED: YaHei geometric shapes (T227)
+#### Item 5 — DONE: YaHei geometric shapes (T227)
 Read the advances from Word 16.113.3's msyh.ttc and msyhbd.ttc; the nine added
 entries match in regular/bold: □●1336, ◇◆1229, ※1724, ←→2048, ↑↓1024
 (out of 2048). Add them to both dictionaries, preserving existing entries and
@@ -180,7 +180,7 @@ Both unmodified scripts `tc22-latin → yahei-shapes`, 756 documents per mode:
 - zh-20c1d74a **1476→1477/1486**;
 - zh-505b9619 **2779→2783/2805**.
 All other matched counts unchanged. Static lint passed. No cancellation exception.
-Exact results: `tc22-latin--yahei-shapes-exact.json`; final unit/browser checks next.
+Exact results: `tc22-latin--yahei-shapes-exact.json`; final unit/browser results are recorded below.
 The remaining zh-e0ca7252 punctuation/line-fitting misses are still open.
 
 #### Item 6 — measured; squeeze and chart model remain OPEN
@@ -212,6 +212,58 @@ change or cancellation exception for either, and no blanket tolerance/offset.
   A Windows Word lab should vary those properties/font choices independently before
   changing title/plot sizing. Artifacts: `chart-{frame-drawings,title-axis-positions,
   xml-evidence}.json`. The previously rejected global 3pt plot shift stays out.
+
+#### Accepted batch — final verification (Codex, 2026-10-27)
+
+Commits: `70126e36` (continued-row top rule), `24aad564` (Mac opening mark
+following Latin text), `ded14d73` (Mac embedded-subset spaces), `76916cff`
+(YaHei geometric advances). Each has its own full pair above; the rejected
+candidates are absent. The aggregate `office-base → yahei-shapes` exact audit
+also passes: **756 documents in each mode, zero missing, zero drops, all
+physical/scored page counts unchanged**. Windows recovers 48 matched lines
+in two documents; Mac recovers 162 in five. No cancelling-error exception.
+
+| Corpus | Baseline mean | Candidate mean | At least 95%, before→after |
+|---|---:|---:|---:|
+| Windows Chinese (645) | 99.2715% | 99.2795% | 629→630 |
+| Mac Chinese (645) | 98.0554% | 98.1452% | 603→604 |
+| Windows POI (111) | 90.5145% | unchanged | 99→99 |
+| Mac POI (111) | 91.6555% | unchanged | 101→101 |
+
+These are the Swift batch's gains on the confirmed long-word engine; the
+separate engine pair's gains are recorded in item 1, not counted again here.
+Aggregate artifact: `office-base--yahei-shapes-exact.json` and
+`final-batch-exact.log`, under the artifact root recorded above.
+
+Checks on the accepted production sources:
+
+- Release Office suite: **525 tests, 2 platform/font-dependent skips, 0 failures**;
+  bundled-font and ICU startup checks pass. Initial candidate and a fresh rebuild
+  of `78415381` both failed the same pre-existing Wingdings assertion. `b5b568f2`
+  corrects its font name and adds Wingdings 2 checkbox coverage: Microsoft's
+  Wingdings cmap names F06C/F06E circle6/square6, whereas Wingdings 2 names them
+  three/five. No rendering change; font hashes/cmaps in `wingdings-test-evidence.json`.
+  Logs: `baseline-office-tests.log`, `final-office-tests.log`, and
+  `final-office-tests-corrected.log`. The skips concern a Noto joiner absent on
+  this platform and a page-foot test with no qualifying size for these faces.
+- Static lint and local Office wasm build pass. The final paired engine/binary
+  hashes and production source identity were rechecked after the test-only fix
+  (`final-paired-artifact-check.json`).
+- Native/browser check output is **identical to the pre-fix engine candidate**:
+  textedit and both document round trips pass; word-boringcrypto retains 26
+  differing lines, and welcome retains six Cmd/Ctrl-label differences.
+  Logs: `long-candidate-layout.log`, `final-browser-layout.log`.
+- Full repository checks retain the same three failed steps: terminal-daemon
+  child startup, live-PTY child startup, and that browser/native comparison.
+  Sheets browser/native and saved-copy checks pass. `final-repo-tests.log`
+  records the full run. These are not claimed green and no live site was deployed.
+
+Remaining: item 6's squeeze boundary and chart-title/plot model, the remaining
+zh-e0ca7252 punctuation, and the Windows engine rebuild/Word lab once its host
+is available. The proposed Mac paragraph-final grid gate removal was rejected
+against the current references, not accepted as a stale-reference exception.
+Automatic hyphenation remains the user's decision. No live-site deployment or
+Mac shared-engine relink.
 
 ## How a fix is checked
 
@@ -6814,7 +6866,8 @@ tab and a rule's anchor lost its line. With text meaning a visible character, th
 Done: same-base pairs, 756 docs, engine c34c8aa8eba, Mac references a1188040: Windows zh-147bdae0 95.0 -> 97.6, Mac 95.5 ->
 95.9, nothing else moved in either. Left in zh-147bdae0: p19/p27 hyphenation (the user's), p64's one cell, a few singles.
 
-### zh-13552a3a p27 (94.8, word-win): measured (Linux office1, 2026-10-26); CLAIMED Mac 01Xgpbk5 (2026-10-27, routed by macos) — a merged cell's last line at a page's foot
+### zh-13552a3a p27 — DONE 70126e36 (Windows 94.8→100, Codex, 2026-10-27)
+Full paired results are in handoff item 2 above. Earlier investigation follows:
 All 44 misses follow from p27: a 14-cell row (trHeight 2460 at least) whose long cell ("1.《中华人民共和国政府信息公开条例》…六部法律
 的决定》修正)", 16 lines at x269) is merged down over the next two rows. In Word's print the three rows end at 504.9, the merged
 cell's last line "正)" at 503 on p27, the centred cells beside it 8pt lower than ours; ours ends them at 489.4 and carries
@@ -6945,13 +6998,15 @@ modes (zh-d68ac84a 99.9 -> 43.4 Windows, zh-db07d44e 98.6 -> 75.3). Reverted. La
 the YaHei "□" at 0.661 em (its own width, not 0.604) may leave too much over for two halves, or Word may cap the squeeze per line.
 
 
-### zh-c2229d4a (Mac 42.6, Windows 100): first Mac miss measured (Linux lenovo-2, 2026-10-27, from macos's queue) — lab wanted
+### zh-c2229d4a — DONE ded14d73 (Mac 42.6→100; Windows unchanged, Codex, 2026-10-27)
+Full paired results and narrower Word controls are in handoff item 3 above. Earlier measurement:
 p2 "第四条  政府投资资金应当投向市场不能有效配置资源的社" holds "社" in Mac Word's print; ours (and Word for Windows) end at "…资源的". The line is 3 SimHei + 2 Times spaces + 23 FangSong at 16pt in a 447.9pt column, under balanceSingleByteDoubleByteWidth. Windows sets each space about 8.6 (half an em and the stretch); the Mac print sets each 6.1 (16pt at 1.005: about 6.08 natural), so 27 ideographs and 2 spaces fit. Ours, balanced, needs 0.1pt more. Tried and dropped: Mac mode ignoring balanceSingleByteDoubleByteWidth altogether (Mac mean 96.96 -> 91.0, dozens of documents down), so Mac Word does balance elsewhere. Wanted from the Mac: the paragraph alone, with and without the two spaces, the "第四条" run in FangSong instead of SimHei, and with balanceSingleByteDoubleByteWidth removed, reading the spaces' advance. p6 on (22 misses a page) not looked at yet.
 
-### T227. YaHei's geometric shapes at msyh.ttc's widths — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, widths read by macos)
+### T227. YaHei's geometric shapes — DONE 76916cff (Codex, 2026-10-27)
+Full paired results are in handoff item 5 above; no drops in either mode. Original measurements:
 Word for Mac's msyh.ttc (regular = bold but √): □ 1336, ■ 1237, ○ 1237, ● 1336, ◇ ◆ △ 1229, ▲ 2027, ☆ 1686, ★ 1671, ※ 1724,
 √ 1437, ─ 1451, → ← 2048, ↑ ↓ 1024 (of 2048). Our YaHei table lacked □ (its fallback set it ■'s 0.604): zh-e0ca7252's p22
 "□1.依履約…" line now Word's to the hundredth (14.14 steps, no squeeze). Added □ ● ◇ ◆ ※ ← → ↑ ↓; ▲△★☆ left to SimSun (symbols).
 zh-e0ca7252 itself only 63.3 -> 63.4: its next line ("□3.履約標的…__日（") ends on a "（" in Word's print after two "，" at 13.42 —
-not yet understood. Pair running.
+not yet understood. The metrics pair passed; the punctuation follow-up remains open.
 
