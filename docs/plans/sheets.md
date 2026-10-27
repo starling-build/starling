@@ -685,7 +685,15 @@ workbooks came out worse with it (not built). A fitted sheet's rows are
 whole dots at the scale its pages come out at, as a scaled sheet's are
 (lo-tdf58243's 30.75 pt rows step 15.12 at 51%, 126 dots; ours stepped
 15.18): the 18 fitted workbooks 2.764 -> 2.529, 10 better, 3 worse
-(lo-tdf58243 7.81 -> 5.23, StructuredRefs 2.45 -> 1.66; Tables +0.10). Open: their letters' widths in Arial 8 and Microsoft Sans
+(lo-tdf58243 7.81 -> 5.23, StructuredRefs 2.45 -> 1.66; Tables +0.10).
+A head's box is the cell's own font's (a Lucida Sans Typewriter cell at
+its head stands 10.02 under the top in a Verdana book, beside Verdana or
+not); a face's ascent is hhea's where that is the larger (Lucida Sans
+Typewriter, Arial Narrow, Bookman Old Style, Century Gothic; LST over a
+foot 3.54 in Excel, 3.60 so, 3.96 with win's). 757 workbooks: 0.604 ->
+0.601, 15 better, 1 worse (NumberFormatApproxTests 5.88 -> 5.48,
+DateFormatTests 3.39 -> 3.09; lo-totalsRowFunction +0.06). Open: heads
+still stand about 0.17 low in that Verdana book. Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.

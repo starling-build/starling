@@ -214,7 +214,9 @@ struct SheetPrintMetrics {
         return faces["arial"]!
     }
 
-    /// A face's ascent as Windows has it (OS/2 usWinAscent), in ems — the
+    /// A face's ascent as Windows has it (OS/2 usWinAscent, or hhea's where
+    /// that is the larger: Lucida Sans Typewriter 10 stands 3.54 over a foot
+    /// in Excel's print, its hhea ascent's 3.60, not its win ascent's 3.96), in ems — the
     /// line Excel stands a cell's baseline on, where the painter's comes
     /// to whole points (Calibri 11's 10.47 as 10, Calibri 9's 8.57 as 9).
     /// Nil for a face not here.
@@ -224,13 +226,13 @@ struct SheetPrintMetrics {
     }
     private static let ascents: [String: Double] = [
         "calibri": 0.9521, "arial": 0.9053, "verdana": 1.0054, "times new roman": 0.8911, "courier new": 0.8325,
-        "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 0.9712,
+        "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 1.0059,
         "aptos": 1.0098, "aptos narrow": 1.0098, "ms gothic": 0.8594, "ms pgothic": 0.8594, "simsun": 0.8594,
         "simhei": 0.8594, "microsoft yahei": 1.0581, "malgun gothic": 1.0884, "mingliu": 0.8008, "pmingliu": 0.8008,
-        "yu gothic": 0.9849, "lucida sans unicode": 1.0967, "lucida sans typewriter": 0.9277, "lucida console": 0.7891,
-        "garamond": 0.8618, "book antiqua": 0.9604, "palatino linotype": 1.0498, "bookman old style": 0.894,
+        "yu gothic": 0.9849, "lucida sans unicode": 1.0967, "lucida sans typewriter": 0.9639, "lucida console": 0.7891,
+        "garamond": 0.8618, "book antiqua": 0.9604, "palatino linotype": 1.0498, "bookman old style": 0.9419,
         "century": 0.9858, "georgia": 0.917, "trebuchet ms": 0.939, "consolas": 0.9199, "comic sans ms": 1.1021,
-        "arial narrow": 0.9219, "arial black": 1.1006, "franklin gothic medium": 0.9165, "gill sans mt": 0.9292,
+        "arial narrow": 0.9355, "arial black": 1.1006, "franklin gothic medium": 0.9165, "gill sans mt": 0.9292,
         "candara": 0.9521, "corbel": 0.9521, "constantia": 0.9521,
     ]
 

@@ -2854,14 +2854,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             if covered < CellAddress.maxCols { empty = most(empty, box(0)) }
         }
-        // (A head's or middle's box is the row's too: a Lucida Sans
-        // Typewriter cell among Verdana's empty ones stands on Verdana's
-        // baseline in DateFormatTests, where its own put it 1.1 high.)
+        // (A middle's box is the row's too, as a foot's is.)
         let b = most(box(st, tp), empty), k = b.below, up = b.above
         let dots4 = 4 * 72 / 600 * scale / (printTextScale > 0 ? printTextScale : 1)
         let baseline: Double
         switch align {
-        case .top: baseline = top + dots4 + up
+        // (A head's box is the cell's own: a Lucida Sans Typewriter cell set
+        // at its head stands 10.02 under the top in a Verdana book, with or
+        // without Verdana beside it, where Verdana's stand 10.38.)
+        case .top: baseline = top + dots4 + box(st, tp).above
         case .center: baseline = (top + bottom) / 2 + (up - k) / 2 + dots4
         case .bottom: baseline = bottom - k
         }
