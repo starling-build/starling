@@ -6672,10 +6672,11 @@ Follow-ups, landed past with the user's approval:
   the twips say 32.15); with that 0.6 more Mac keeps "，" whole and sends "实" down, ours squeezes it to 8.3 and takes "实". Wants
   a firstLineChars lab (paragraph at 15.5/16/12pt, mark size changed). Open.
 
-### T224. Mac mode: ef49ef5c's float rules hold for Word for Mac too — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, lenovo-2's OK)
+### T224. Mac mode: ef49ef5c's float rules hold for Word for Mac too — DONE (Linux office1, starling-office1-95, 2026-10-27, lenovo-2's OK)
 zh-27a874b7: Mac Word places p3 as Windows Word does (chart 1's "資料來源" at 307.9 in both prints); ours was right in Windows
 mode (307.9) and 22pt low in Mac mode (329.9) — not a 微軟正黑體 metric (both modes set those empty lines alike), but the
 three `wordWindowsPages` gates of ef49ef5c (the page head taking the anchor's before off, the line alone meeting the float,
 the push in pagination), set out of caution; zh-4adfcce2's Mac case was T209's header, not stepping. pushUnder's exact-line
-condition stays. Lifted: zh-27a874b7 Mac 56.5 -> 64.1. Pair running.
+condition stays. Done: same-base pairs, 756 docs, engine c34c8aa8eba, final Mac references: Mac zh-27a874b7 54.3 -> 65.2,
+nothing else moved; Windows nothing moved.
 
