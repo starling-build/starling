@@ -59,6 +59,14 @@ public final class RichTextTheme {
     /// this and the ideograph face's half em together — 0.225 em beside
     /// Times New Roman, 0.275 beside Courier New.
     public var averageCharWidth: ((String?) -> Double)? = nil
+    /// A symbol face's characters as the Unicode glyphs they show, for
+    /// drawing: a run in Wingdings 2 says "£" (`w:sym w:char="00A3"`) for
+    /// a box. Character for character, so offsets hold; the document keeps
+    /// what it said. Nil leaves the text as it is.
+    public var symbolGlyphs: ((String?, String) -> String)? = nil
+    /// … and such a glyph's advance in the symbol face, in ems, where
+    /// the stand-in's differs.
+    public var symbolAdvance: ((String?, Character) -> Double?)? = nil
     /// Families tried, in order, for a character the run's own family
     /// lacks. Process-wide rather than per theme: it answers "which faces did
     /// this app load for coverage", which is one fact, and an app builds a
@@ -8863,7 +8871,14 @@ public final class RichLayout {
             }
             return raise != nil
         }()
-        func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
+        func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+            // (A symbol face's characters drawn as the glyphs they stand
+            // for: zh-d0a207ac's Wingdings 2 checkboxes, "£" in the file,
+            // drew as "£" in the text's face where Word's print has a box.)
+            if !symbolsShown, let glyphs = theme.symbolGlyphs, case let mapped = glyphs(run.fontFamily ?? named?.char.fontFamily, String(text)),
+               mapped != String(text), mapped.utf16.count == text.utf16.count {
+                return styled(Substring(mapped), run, at: base, next: next, symbolsShown: true)
+            }
             let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
             // (The face Word sets the Latin characters past ASCII in, where
@@ -9543,6 +9558,11 @@ public final class RichLayout {
                 // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
                 // its "失".)
                 if kind == -9 { extra += cambriaWidth * em - _glyphWidth(style(kind), ch) }
+                // (A symbol face's glyph drawn by a stand-in takes the face's
+                // own advance: Wingdings 2's box is 0.89 em in Word's print
+                // of zh-d0a207ac, 10.68 at 12pt, where the stand-in's is an
+                // em, and its "☐鲁班杯" line lost its "杯".)
+                if symbolsShown, let w = theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) { extra += w * em - _glyphWidth(style(kind), ch) }
                 if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
@@ -9576,6 +9596,7 @@ public final class RichLayout {
                 // them: PMingLiU sets each an em, and zh-190d730c's
                 // line of it at 6.2pt took a character Word wraps.)
                 if let u = ch.unicodeScalars.first?.value,
+                   !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
                    (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022),
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {

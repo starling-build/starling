@@ -16,6 +16,8 @@ enum OfficeLayoutDump {
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
         theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+        theme.symbolAdvance = Metafile.symbolAdvance
         theme.wordRules = true
         theme.disablesLigatures = true
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)

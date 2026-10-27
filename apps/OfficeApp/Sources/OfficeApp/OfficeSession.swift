@@ -92,6 +92,8 @@ final class OfficeSession {
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
         theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+        theme.symbolAdvance = Metafile.symbolAdvance
         theme.wordRules = true
         // (Letters one by one: Word sets a face's ligatures only where a
         // run asks for them, `w14:ligatures` — "Section" is no "ti" in Headers.)

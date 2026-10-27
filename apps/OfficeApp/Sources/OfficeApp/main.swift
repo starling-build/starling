@@ -424,6 +424,8 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
             theme.faceResolver = OfficeFonts.face
             theme.complexFaceResolver = OfficeFonts.complexFace
             theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+            theme.symbolAdvance = Metafile.symbolAdvance
             theme.wordRules = true
             theme.disablesLigatures = true
             guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
