@@ -6467,6 +6467,13 @@ lower in Windows mode (zh-ab1ea005 99.9 -> 34.5, zh-7b5b3de2 100 -> 40.4, zh-51a
 after a full-width mark in general; tdn's "，102年" stands unspaced for something narrower — its digits' run takes the
 paragraph style's w:hint eastAsia, and its autoSpaceDN is on only by a table style over docDefaults' 0. Reverted. A lab
 that crosses those two (the hint, and autoSpaceDN from the table style vs. the paragraph) would split it.
+Follow-up lab (windows-1): neither the hint nor where autoSpaceDN comes from matters; Times New Roman digits after the
+full-width mark are unspaced, Arial or 標楷體 digits spaced. But the corpus says otherwise in general — Word writes its
+automatic space into the PDF as a space glyph, and counting those, Times digits after a full-width mark before an
+ideograph are spaced after "，" 221 times and unspaced 128, after "〕" 155 / 23, "（" 210 / 77, "、" 136 / 117 (word-win, all
+zh-*). zh-7b5b3de2's "〔2014〕20 号" is spaced in Word's print, and the rule took the document 100 -> 40.4. So "，102年" is
+unspaced for a reason still unseen (the unspaced cases are likely documents whose autoSpaceDN is off, which ours already
+follows; zh-147bdae0's is on only by the table style). Dropped for good unless a lab names the switch.
 
 
 ### Mac-mode batch triage (Mac 7bd18d8e, 2026-10-26, routed by macos; scores from n3, Mac mode, tip before T213)
