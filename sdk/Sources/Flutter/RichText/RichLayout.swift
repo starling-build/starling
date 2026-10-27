@@ -9463,7 +9463,17 @@ public final class RichLayout {
                 // ideograph here, which the automatic space hid — see
                 // the gap below — and a paragraph with that space off
                 // showed: zh-457a8d62 lost a character a line.)
-                if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ", let following, following != " " {
+                // (The paragraph's last character too: zh-72da925e's 12pt
+                // cell "(內湖)" is 39.02 on its grid of 1.0076 — lab tgr,
+                // windows-1: Word sets each character at whole multiples
+                // of the pitch, half-width ones at half — and fits its
+                // 39.05 column in Word for Windows' print; ours gave the
+                // closing ")" the whole addition, 39.53, and wrapped it.)
+                // (Word for Windows': the Mac's print of the same file
+                // gives that last character the whole addition — its
+                // pair fell 86.7 -> 71.1 with this — so there it stays.)
+                if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ",
+                   following.map({ $0 != " " }) ?? (theme.wordRules && RichTextTheme.wordWindowsPages) {
                     extra -= _px(g) / 2
                 }
                 // (In a paragraph off the grid, that half alone — no
