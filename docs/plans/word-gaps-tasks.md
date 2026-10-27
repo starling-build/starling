@@ -183,6 +183,36 @@ All other matched counts unchanged. Static lint passed. No cancellation exceptio
 Exact results: `tc22-latin--yahei-shapes-exact.json`; final unit/browser checks next.
 The remaining zh-e0ca7252 punctuation/line-fitting misses are still open.
 
+#### Item 6 — measured; squeeze and chart model remain OPEN
+Codex examined zh-f39e54b6, then zh-13d11e99 against zh-b8de3ae2; no code
+change or cancellation exception for either, and no blanket tolerance/offset.
+
+- **Squeeze:** current Mac trace for zh-f39e54b6's 第二十四條 needs exactly
+  7pt at 14pt, so our half-em limit admits 縣; Word wraps it and leaves both
+  commas whole. Word starts at 89.8801pt (ours 90), its right edge about 530.8
+  (ours 531). The earlier estimate of a 7.08pt overrun is not precise enough:
+  fresh Word controls fit 縣 with only **one extra twip (0.05pt)** of table/grid
+  width; two twips also fit. Cell shading preserves all 148 normalized reference
+  rows and exposes painted bounds [90,531.12], inner [95.28,525.60], which are
+  raster-rounded and do not identify the logical fitting width. Removing only
+  hangingChars 507, keeping hanging 1420, still wraps 縣, ruling out that proposed
+  character-count rounding explanation. No tolerance change is justified yet. The paragraph carries leftChars=-45/left=1312,
+  rightChars=-45/right=-108, hangingChars=507/hanging=1420; table width 8820,
+  indent 108. This points to width/indent rounding, not a blanket squeeze cap.
+  Artifacts: `squeeze-f39-{base-fit.log,properties.json,positions.json}` and
+  `f39-width-lab/` (shading, +1/+2-twip widths, hanging-in-twips control).
+- **Charts:** the outer frames match, excluding anchor placement as the
+  cause: zh-13d11e99 p2 [79.7,297.7,479.7,597.7]; zh-b8de3ae2 p9 first chart
+  [35.4,57,575.35,341.9] in Word and ours. Inside 13d, Word title baseline 323.11
+  (14.04pt MS Mincho/JhengHei), ours 319.55; axis 0 baseline 553.51 vs 550.95,
+  axis 200 344.50 vs 338.45. The plot height also differs, so one translation
+  cannot explain both. By contrast b8de's 18pt PMingLiU/Calibri title is 81.67
+  in Word vs 83.10 here, the opposite direction. Its first title is explicit,
+  13d's automatic; chart body properties also differ (spcFirstLastPara 1 vs 0).
+  A Windows Word lab should vary those properties/font choices independently before
+  changing title/plot sizing. Artifacts: `chart-{frame-drawings,title-axis-positions,
+  xml-evidence}.json`. The previously rejected global 3pt plot shift stays out.
+
 ## How a fix is checked
 
 The steering number is `test/docx-line-match.py WORK`: the share of

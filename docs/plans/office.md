@@ -8275,18 +8275,28 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   (2026-10-27).** Where the embedded East Asian subset lacks U+0020 and
   the run has a Latin ASCII face, ordinary balanced spaces take 3/8 em.
   Fresh Word tc22 controls give 4.5/6/7.5pt at 12/16/20pt, and still
-  6pt at bold16pt; Times and Arial agree. Removing embedding or using
+  6pt at bold 16pt; Times and Arial agree. Removing embedding or using
   ordinary FangSong, SimSun, KaiTi or YaHei restores half an em. Naming
   the subset for ASCII instead invokes a wider fallback, so that case
   keeps its old rule; mixed NBSP runs do too. Paired Windows/Mac sweeps:
-  zh-c2229d4a Mac113→265/265, all other scores unchanged. The earlier
+  zh-c2229d4a Mac 113→265/265, all other scores unchanged. The earlier
   universal Mac exemption and subset-only candidate were rejected.
 
 
 - **YaHei geometric shapes use their own advances (2026-10-27, T227).**
-  Word's msyh.ttc and msyhbd.ttc agree: □ and ●1336/2048 em,
-  ◇ and ◆1229/2048, ※1724/2048, ←/→1 em, ↑/↓half an em.
+  Word's msyh.ttc and msyhbd.ttc agree: □ and ● 1336/2048 em,
+  ◇ and ◆ 1229/2048, ※ 1724/2048, ←/→ 1 em, ↑/↓ half an em.
   Set those in both regular and bold tables. In particular □ no
   longer inherits ■'s narrower advance. Triangle/star fallback stays
-  with SimSun. Paired full sweeps: Mac zh-e0ca7252 gains2 matched lines,
-  zh-20c1d74a gains1 and zh-505b9619 gains4; no drops in either mode.
+  with SimSun. Paired full sweeps: Mac zh-e0ca7252 gains 2 matched lines,
+  zh-20c1d74a gains 1 and zh-505b9619 gains 4; no drops in either mode.
+
+
+- **A continued Windows table row uses its own top rule (2026-10-27).**
+  After a page break, a stated row height includes that cell's own
+  top border plus its stated margins, excluding the preceding row's
+  bottom border. Store the original top rule before border sharing.
+  The t135 pair recovers all 44 missing lines of zh-13552a3a (854/854)
+  and four lines of zh-0978dee9, with no drops in either mode; Mac
+  output is unchanged. Its page 27 final row ends at 504.55pt (Word 504.94),
+  instead of 489.45pt. See the handoff continuation on the task board.
