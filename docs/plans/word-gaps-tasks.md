@@ -6742,3 +6742,11 @@ the YaHei "□" at 0.661 em (its own width, not 0.604) may leave too much over f
 
 ### zh-c2229d4a (Mac 42.6, Windows 100): first Mac miss measured (Linux lenovo-2, 2026-10-27, from macos's queue) — lab wanted
 p2 "第四条  政府投资资金应当投向市场不能有效配置资源的社" holds "社" in Mac Word's print; ours (and Word for Windows) end at "…资源的". The line is 3 SimHei + 2 Times spaces + 23 FangSong at 16pt in a 447.9pt column, under balanceSingleByteDoubleByteWidth. Windows sets each space about 8.6 (half an em and the stretch); the Mac print sets each 6.1 (16pt at 1.005: about 6.08 natural), so 27 ideographs and 2 spaces fit. Ours, balanced, needs 0.1pt more. Tried and dropped: Mac mode ignoring balanceSingleByteDoubleByteWidth altogether (Mac mean 96.96 -> 91.0, dozens of documents down), so Mac Word does balance elsewhere. Wanted from the Mac: the paragraph alone, with and without the two spaces, the "第四条" run in FangSong instead of SimHei, and with balanceSingleByteDoubleByteWidth removed, reading the spaces' advance. p6 on (22 misses a page) not looked at yet.
+
+### T227. YaHei's geometric shapes at msyh.ttc's widths — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, widths read by macos)
+Word for Mac's msyh.ttc (regular = bold but √): □ 1336, ■ 1237, ○ 1237, ● 1336, ◇ ◆ △ 1229, ▲ 2027, ☆ 1686, ★ 1671, ※ 1724,
+√ 1437, ─ 1451, → ← 2048, ↑ ↓ 1024 (of 2048). Our YaHei table lacked □ (its fallback set it ■'s 0.604): zh-e0ca7252's p22
+"□1.依履約…" line now Word's to the hundredth (14.14 steps, no squeeze). Added □ ● ◇ ◆ ※ ← → ↑ ↓; ▲△★☆ left to SimSun (symbols).
+zh-e0ca7252 itself only 63.3 -> 63.4: its next line ("□3.履約標的…__日（") ends on a "（" in Word's print after two "，" at 13.42 —
+not yet understood. Pair running.
+
