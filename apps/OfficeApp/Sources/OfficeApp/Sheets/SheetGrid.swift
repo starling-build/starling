@@ -251,7 +251,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, colMax: Double, cols: GridAxis, rows: GridAxis)? = nil
     /// The sheet's print scale while it is cut into pages and painted: on
     /// paper each row is a whole number of the printer's dots at that scale
     /// (45544's default rows at 90% are 93 dots, 11.16 pt, where 103 × 0.9
@@ -260,6 +260,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// or a sheet fitted to its pages, whose scale is not known yet —
     /// leaves the rows as they are.
     var printRowScale = 0.0
+    /// The widest a column prints, in points before the page's scale: the
+    /// page's width between its margins. Excel's print cuts a wider column
+    /// down to it, and wraps its text in what is left (a lab of columns of
+    /// 92, 100 and 120 Calibri 11 characters, Excel 16, 2026-10-27: each
+    /// 511.2 pt between margins of 0.7 in on Letter, 468 between 1 in, the
+    /// same lines in all three; FillWithoutColor's User Guide, 96.3
+    /// characters, 543 pt in ours). 0 — on screen, or a sheet fitted to its
+    /// pages — leaves them as they are.
+    var printColumnMax = 0.0
     /// The sheet prints in black and white (`pageSetup@blackAndWhite`): no
     /// fills, its text and rules black.
     var printMono = false
@@ -271,7 +280,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
         if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing,
-           c.rowScale == printRowScale { return (c.cols, c.rows) }
+           c.rowScale == printRowScale, c.colMax == printColumnMax { return (c.cols, c.rows) }
         let cols: GridAxis, rows: GridAxis
         if printing {
             // On paper the sheet has the printer's sizes, not the screen's: a
@@ -373,10 +382,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             let dots = printRowScale * 600 / 72
             func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
+            func most(_ w: Double) -> Double { printColumnMax > 0 ? min(w, printColumnMax) : w }
             // (A column in whole printer dots too, each its own: 49609's
             // 8.33 characters of Microsoft Sans Serif 8.25 are 316.67 dots,
             // and its rules in Excel's print stand 317.04 apart.)
-            cols = GridAxis(def: whole(ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit), overrides: widths.mapValues(whole), hidden: ws.hiddenCols, scale: scale)
+            cols = GridAxis(def: most(whole(ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit)),
+                            overrides: widths.mapValues { most(whole($0)) }, hidden: ws.hiddenCols, scale: scale)
             do {
                 // And as tall as its wrapped text's lines, in the column's width:
                 // so many of its font's fitted lines. (Excel fits a wrapped row
@@ -447,7 +458,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             rows = GridAxis(def: ws.defaultRowHeightPt, overrides: heights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         }
-        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, cols, rows)
+        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, printColumnMax, cols, rows)
         return (cols, rows)
     }
 
@@ -2854,16 +2865,34 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             if covered < CellAddress.maxCols { empty = most(empty, box(0)) }
         }
-        // (A middle's box is the row's too, as a foot's is.)
-        let b = most(box(st, tp), empty), k = b.below, up = b.above
+        let own = box(st, tp), k = most(own, empty).below
         let dots4 = 4 * 72 / 600 * scale / (printTextScale > 0 ? printTextScale : 1)
         let baseline: Double
         switch align {
         // (A head's box is the cell's own: a Lucida Sans Typewriter cell set
         // at its head stands 10.02 under the top in a Verdana book, with or
         // without Verdana beside it, where Verdana's stand 10.38.)
-        case .top: baseline = top + dots4 + box(st, tp).above
-        case .center: baseline = (top + bottom) / 2 + (up - k) / 2 + dots4
+        case .top: baseline = top + dots4 + own.above
+        // A middle is the font's own: its ascent and descent (Windows'),
+        // each up to whole dots, about the middle — whatever the row's
+        // other fonts or the book's. Calibri 11 centred in a row of Calibri
+        // 30, by row style, column style or an empty cell, stands where it
+        // does alone in Excel's print; Calibri 8, 14 and 20, Arial 8,
+        // Verdana 10 and Lucida Sans Typewriter 10, in Calibri 11 and
+        // Verdana 10 books, as the default fonts of four books, stand
+        // within 0.07 of that less 0.06 (labs of 39, 30 and 20 pt rows,
+        // Excel 16 at 100%, 2026-10-27; the corpus's references, at 200%,
+        // put Calibri 11 at 3.78, Arial 10 at 3.48, as so rounded).
+        // FillWithoutColor's centred notice, in a row styled Calibri 30,
+        // stood 6 pt low by the row's box.
+        case .center:
+            let size = book.fontSize(st)
+            if let a = SheetPrintMetrics.ascent(family: book.fontName(st)), let d = SheetPrintMetrics.descent(family: book.fontName(st)) {
+                func dots(_ v: Double) -> Double { (v * size * 600 / 72 - 1e-6).rounded(.up) * 72 / 600 }
+                baseline = (top + bottom) / 2 + (dots(a) - dots(d)) / 2 * scale
+            } else {
+                baseline = (top + bottom) / 2 + (own.above - own.below) / 2 + dots4
+            }
         case .bottom: baseline = bottom - k
         }
         // (The painter draws its baseline its ascent down to the whole

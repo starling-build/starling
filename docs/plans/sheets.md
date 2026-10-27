@@ -700,7 +700,21 @@ taller): the 8 such workbooks 4.423 -> 4.026, 7 better, none worse
 (AverageTaxRates 5.38 -> 4.06, lo-tdf171828 3.81 -> 2.65, Tables 5.02 ->
 4.50). Open: on scaled pages the alignment lab fits a middle's four dots
 scaling with the page and a foot's 0.42 not, but 32 scaled workbooks came
-out worse with both (not built). Open: their letters' widths in Arial 8 and Microsoft Sans
+out worse with both (not built). A column wider than the page's
+width between its margins prints cut to that width, its text wrapped in
+it (lab of 92-, 100- and 120-character Calibri columns: 511.2 pt between
+0.7 in margins, the same lines; FillWithoutColor's User Guide 3.65 ->
+3.35, the 18 workbooks with such columns no worse). Centred text stands
+on its own font alone, its Windows ascent and descent each up to whole
+dots about the middle: no row style, column style, empty cell or book
+default moves it (labs of Calibri 8-30, Arial 8, Verdana 10, LST 10 in
+Calibri and Verdana books). FillWithoutColor's notice in a row styled
+Calibri 30 stood 6 pt low. The 116 aligned, scaled and fitted workbooks
+1.755 -> 1.746, 17 better, 5 worse (lo-tdf131575 -0.25; bug66675 +0.15,
+its drifting header rows). Open: a foot's box counts an empty cell's
+font (Calibri 30 in C beside a Calibri 11 foot: 10.98 over it in Excel,
+4.08 in ours); a merged wrapped text across a cut column wraps about a
+point wider than Excel's. Open: their letters' widths in Arial 8 and Microsoft Sans
 Serif, 1 pt left of Excel's; bug66675's header rows of bold Arial 9 one
 line high print 15.24 where ours are 14.52, its text 4.9 pt over the
 foot, not 3 — no border, merge or wrap explains it yet.
