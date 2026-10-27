@@ -6503,11 +6503,15 @@ Sans" and no Unicode signature (usb 0/0), so `windowsSigFace` does not apply and
 drew it in Ebrima, windows-1's box in Calibri, and zh-b0207333 — the corpus's one other entry like it — prints Calibri. The
 face is the reference machine's own fallback for a missing name, which no file rule reproduces from one document.
 
-### T216. zh-147bdae0 p39: a run of kept table rows goes over with the row after it — CLAIMED (Linux office1, starling-office1-95, 2026-10-26, routed by macos)
+### T216. zh-147bdae0 p39: a run of kept table rows goes over with the row after it — DONE -> 95.0 (Linux office1, starling-office1-95, 2026-10-26, routed by macos)
 Four indicator rows whose paragraphs say keepNext, then the unkept "聯絡資訊" row, open p39 in Word's print, the header row
 alone at p38's foot; ours filled p38 with two of them (the row code weighed a kept row only against the paragraph after
 the table). Rule: such a run goes over where the page cannot hold it and the first row after it, and one page can — a run
-longer than a page parts as rows do (zh-64044a1d's all-kept equipment list, parted between "8" and "9"). Pair running.
+longer than a page parts as rows do (zh-64044a1d's all-kept equipment list, parted between "8" and "9"). The row after the
+run counts by its first line in each cell (all of it where it may not part): taken whole, zh-499adba6's kept heading row went
+over and the document fell 99.9 -> 15.5. A run begun by a kept paragraph before the table is the paragraphs' (bug65649
+100 -> 81 otherwise). Same-base pairs, 756 docs, engine 8bc30c5c89a: Windows zh-147bdae0 94.4 -> 95.0, nothing else moved;
+Mac nothing moved. Left in zh-147bdae0: p72-p73's list numbers (59), p19/p27 hyphenation (the user's decision), p64's digits.
 
 ### Sub-twip line fit on character grids (zh-5be7e156 p2, zh-8d6f702e p38) — MEASURED, released (Windows 01QbbApP, 2026-10-26, routed by macos)
 Witnesses: Word takes zh-5be7e156's p2 "冷" 0.011 over half an em (new engine, x0 110.05 against Word's 109.70) and zh-8d6f702e's p38
