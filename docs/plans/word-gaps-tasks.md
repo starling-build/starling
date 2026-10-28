@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Full native RELEASE validation — CLAIMED (release session, 2026-10-27)
+### Full native RELEASE validation — DONE (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), agreed directly
 with the Word-fidelity session. Build and run all native Office tests in
 release configuration using Swift 6.2.1 (the peer reports a default-toolchain
@@ -17,6 +17,22 @@ validated `host_release_arm64` bridge SHA256 `3841e45e…`. Preserve a 10 GiB di
 floor; monitor space and stop this build before crossing it. No rendering,
 shared engine, Word automation, or deployment changes. Report release results
 and any failures to the fidelity peer; the debug result is a separate check.
+
+**Result:** full release suite at `e8a9abcc` passed with Swift 6.2.1:
+**530 tests, two skips, zero failures** (38.6 seconds; fresh build 600 seconds).
+Exact comparison with the debug run: all 530 test names present in both,
+no additional/missing tests, and identical per-test pass/skip outcomes. The
+same two font-dependent cases are skipped; bundled-font/ICU startup passes.
+Both engine variables remained pinned to the validated shared bridge, whose
+full SHA256 stayed `3841e45ef047247b884aa5e3868f3be917ae68041a61ed7903e18c02cca3bfd6`
+before and after. Release test executable SHA256:
+`63578a71182367fad77e65756c81658ff550b55b2e034bda447ee04f3f694251`.
+Minimum observed free disk: **16.85 GiB**, above the 10 GiB floor. No shared
+engine outputs or live sites changed. This validates the committed Office
+snapshot, not the peer's still-uncommitted clipping candidate.
+Evidence: `/tmp/starling-collab-full-release.log`,
+`/tmp/starling-collab-full-release-provenance.json`, and
+`/tmp/starling-collab-native-config-comparison.json`.
 
 ### Full native Office validation — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`). Coordinated
