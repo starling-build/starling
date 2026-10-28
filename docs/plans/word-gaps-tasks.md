@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Independent frozen clipping-candidate review — CLAIMED (release session, 2026-10-28)
+### Independent frozen clipping-candidate review — DONE; candidate not ready to land (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), requested by
 the Word-fidelity owner. Apply only the frozen three-file production patch
 `geometry-next/box-clip-independent-candidate.patch` (SHA256
@@ -19,6 +19,39 @@ Report failures first. Candidate remains uncommitted/unpushed; do not alter
 rendering in response, the owner's checkout, shared engine outputs, or sites.
 Owner retains Word controls and complete paired sweeps; this check does not
 replace them. Preserve the 10 GiB disk floor.
+
+**Disposition: do not land the candidate as-is.** The fidelity owner reports
+its final paired exact audit drops **six Windows-mode and eleven Mac-mode
+documents**. No cancelling-errors exception is claimed. The independent
+results below do not override those corpus regressions.
+
+- Original `8975ecb5…`: full native Swift 6.2.1 RELEASE suite passes **530 tests,
+  two existing font-dependent skips, zero failures**. Independent inspection
+  found `_paintUprightBox` bypassing the new first-line shift restoration. A
+  private `eaVert` control (`A甲乙`, 10pt, zero insets, 60×20pt frame, 30pt first
+  indent) reproduces a **3.9146pt** unintended movement of its leading `A` in
+  both font modes. No Word automation/reference claim is made for this control.
+- Owner-supplied update **`64eb8a57f17c913ba4363d62a9d888b88e6b05133b065636e0152fc1de19c5e4`**
+  has exactly two deltas: UTF-16 tab detection and exclusion of the separate
+  upright painter. Its full RELEASE suite also passes **530 tests, two skips,
+  zero failures** (36.51s). All test names and outcomes equal the baseline and
+  original candidate. The source diff exactly matches the supplied patch hash;
+  both runs preserve the pinned `3841e45e…` bridge before/after.
+- All **eight upright controls** (Han/mixed text, normal/overflow indent,
+  Mac/Windows font modes) now match baseline exactly in full-page 144-DPI pixels,
+  page count and extracted span text/geometry. All **12 horizontal/ordinary
+  turned controls** match the original candidate exactly on the same measures.
+  No additional confirmed regression found in the scoped code review. Native
+  tests/control comparisons do not substitute for the owner's full Word pairs.
+
+Evidence: `/tmp/starling-clip-independent-review/review-result.json`,
+`comparison-baseline-original-updated.json`, all controls/PDFs/binary hashes
+in that directory; `/tmp/starling-clip-candidate-release.log` and
+`/tmp/starling-clip-upright-release.log` with matching `-provenance.json` files.
+Both candidates remain uncommitted/unpushed. The validation checkout retains
+exactly the updated three-file patch. Only this report is committed through a
+separate clean notes worktree. Results sent directly to the owner; independent
+rendering work stopped pending a newly frozen candidate or specific check.
 
 ### Full native RELEASE validation — DONE (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), agreed directly
