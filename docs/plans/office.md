@@ -8421,13 +8421,13 @@ with no other document changes; tab indentation remains a separate issue.
   in Word (2026-10-28).** Apply the chart-frame constraint before the
   label's manual offset, then keep the existing final frame constraint.
   zh-61aaad09's outside default reaches above its frame; moving it first
-  lost9.7pt of the requested downward move. Fresh original-package Word
-  controls at1%,15.85% and35% apply the same -33.177pt/+14.16pt move from
-  the constrained outside position. Restrict this measured rule to flat
+  lost 9.7 pt of the requested downward move. Fresh original-package Word
+  controls at 1%, 15.85% and 35% apply the same −33.177 pt / +14.16 pt move
+  from the constrained outside position. Restrict this measured rule to flat
   Word pies; 3-D, doughnuts, bar-of-pie and other hosts retain their paths.
-  The label now starts604.879pt down against Word's604.804. Full paired
-  sweeps:756 documents/mode, zero drops or page changes; only61aa changes,
-  gaining two matched lines in each mode. Four self-contained Word controls
-  verify full moves and untouched labels in native and browser, rejecting
-  the old5.817pt partial move. General 3-D fitting/collision and remaining
-  horizontal/legend differences are still unresolved.
+  The label now starts 604.879 pt down against Word's 604.804. Full paired
+  sweeps: 756 documents per mode, zero drops or page changes; only 61aa
+  changes, gaining two matched lines in each mode. Four self-contained Word
+  controls verify full moves and untouched labels in native and browser,
+  rejecting the old 5.817 pt partial move. General 3-D fitting/collision and
+  remaining horizontal/legend differences are still unresolved.

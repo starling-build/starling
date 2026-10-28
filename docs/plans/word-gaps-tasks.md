@@ -122,6 +122,22 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### zh-7b08d744 Mac squeeze boundary — CLAIMED (Codex, 2026-10-28)
+Owner: Mac `starling-word-fidelity-codex`, coordinator item 3 after ee675bab.
+Grepped the board and read the tsq manifest/results and a6d27ff7's rejected
+mode-14 share test. Preserve those counterexamples: do not retry the broad
+modern share calculation in legacy cells or body text.
+Accepted-binary trace of tsq's original centered bold SimSun cell:
+`（      ）年（    ）A` starts A at 107.0474976pt in 107.05pt of room,
+only 0.0025024pt inside. A needs 5.4522476pt; three marks can give 16.0571243pt.
+The legacy cell's literal-space path takes it because x < width, whereas Word
+wraps it. First test one-twip width steps around that strict boundary, with
+fresh Word prints, before changing capacity or adding a tolerance. No new
+production change yet. Same-base pairs in both modes, both engine variables
+pinned to 3841e45e, exact no-drop gate, board results and fetch/rebase before
+push remain required. No shared-engine relinking, live deployment or automatic
+hyphenation decision. Keep at least 10 GiB free; current free space about 47 GiB.
+
 ### T205 follow-up and zh-61aaad09 chart 2 — 61aa move FIXED; residuals RELEASED (Codex, 2026-10-28)
 Owner: Mac `starling-word-fidelity-codex`, following the coordinator's explicit
 2026-10-28 reassignment/order. Earlier T205 Linux ownership below is historical;
