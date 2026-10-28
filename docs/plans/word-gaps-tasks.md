@@ -8,6 +8,16 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Full native Office validation — CLAIMED (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`). Coordinated
+by direct `codex queue` message to the fidelity session. Validate `526dcbb1`
+in one uninterrupted native debug run with both engine variables pinned to
+`starling-engine/engine/src/out/host_release_arm64`; record binary/engine
+hashes and test outcomes. Investigate harness/release failures independently;
+leave production Word layout/fonts/WordArt/clipping to the fidelity owner.
+No shared engine rebuild, Word automation, or live deployment. Awaiting the
+peer's response about any preferred follow-up or engine constraints.
+
 ### Native regression harness crash — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`, isolated worktree
 based on `office`; pushes to `office`). Scope: `SplitCellLayoutTests` crashes
