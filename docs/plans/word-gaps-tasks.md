@@ -8,6 +8,13 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### First-line band-overlap private controls — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Compare preserved
+baseline binary with supplied frozen `box-first-line-OfficeApp` (19707ac6 source)
+using private two-line DOCX controls: normal/tight spacing, raised/large first
+runs, overflowing indent. Check later glyph ink/geometry. No peer builds,
+production/source changes, or Word automation; owner retains Word references.
+
 ### Read-only clipping-drop XML audit — DONE (release session, 2026-10-28)
 Owner: Codex release/web session (private `/tmp` evidence, clean validation
 notes worktree), requested by the fidelity owner. Compare the dropping
