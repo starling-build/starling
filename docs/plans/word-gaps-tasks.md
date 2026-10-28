@@ -122,6 +122,17 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### Gap analysis §4, second half — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
+Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. In order: (1) sub-twip grid /
+width arithmetic — zh-8d6f702e, zh-5be7e156, zh-f39e54b6, measured from the prints, no epsilon; (2) other chart
+geometry — zh-13d11e99, zh-b8de3ae2; (3) text-box overflow beyond the first-line fix (whole-frame and band-clip
+rules stay rejected); (4) zh-015abfaf, POI WordWithAttachments and delins — reconcile history, then the first
+concrete mismatch. Takes over the older claims on these (Linux 01F2SWc8's 13d11e99 and b8de3ae2 charts, Windows
+01QbbApP's 015abfaf; Codex's item-6 notes and rejected candidates stand). Sweeps on Linux with the 10-28
+validation's pinning: `STARLING_ENGINE_OUT` = `FLUTTER_SWIFT_ENGINE_OUT` =
+`starling-engine-validation-20261028/.../host_release` (libflutter_engine 4485edfc…), `STARLING_ICU` = its
+`icudtl.dat`, bundled fonts, Swift 6.2.4; base and candidate on one checkout. No Word access from this box:
+nothing here is "verified against Word" beyond the existing prints and the labs already on this board.
 ### Mac fidelity takeover (gap analysis §4): 3-D pies, e0ca/c5b squeeze, 884c — CLAIMED (Claude mac-fidelity, 2026-10-28)
 Owner: Claude worker, clone `starling-mac-fidelity`, branch `office`, coordinator
 assignment (Codex sessions out of tokens until Nov 1). In order: (1) 3-D pie
@@ -8533,6 +8544,7 @@ docs, engine 8bc30c5c89a: Windows zh-1cfb652b 94.6 -> 98.3, zh-55087b5f 91.8 -> 
 
 ### zh-015abfaf: 62.4 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos)
 First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" (a Latin "”" hung), Word leaves it; mode 14. Lab next.
+[TAKEN OVER 2026-10-28 by Linux Claude (starling-linux-fidelity) at the user's assignment — see the §4 claim at the top.]
 
 ### zh-4e5fe46f: 90.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26)
 wip/parted-floats 63e7a955: a parting paragraph's floats drawn whole with its first piece (p6's 496pt table box showed one row). 218 -> 221/240. Left: the box 3pt high — its anchor paragraph's place (lab sb: offsets from space before are Word's).
@@ -8716,6 +8728,7 @@ Windows: 510 -> 525 of 538 lines. The page-placement witnesses are unchanged: zh
 p19-20's turned text is still left.
 
 ### zh-b8de3ae2 (90.8): its charts — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): the chart with the most misses first.
+[TAKEN OVER 2026-10-28 by Linux Claude (starling-linux-fidelity) at the user's assignment; the notes below stand.]
 - p9 (the most, 9): the bar of pie's labels — DONE (Linux 01F2SWc8): one-line labels wrap past 0.1857 of the chart's width (Word wraps "罰款及賠償收入, 0.64%" at 100.0pt in a 538.5pt chart and keeps 99.9); Windows 89.9 -> 90.4, Mac 79.3 -> 80.0, nothing else moved. Left on p9: "圖1/圖2" titles 4pt off and the bar chart's "千元" axis title. Note: on the tip DocxTests.testARightStopAfterANegativelySpacedStartEndsAtTheStop fails with or without this change on engine 5357bf0b374 (probably the line-spacing-shift sdk commits awaiting the c34c8aa8eba engine).
 - (Linux 01F2SWc8, on lenovo-2's c34c8aa8eba engine: that test passes there; scores unchanged, Windows 90.4, Mac 80.0.) Windows misses now: p9 6, p20 4, p21 5, p23 9, p24 10 (table, scorer), p25 15, p27 14. p27's 3-D pie (chart10, 566.2 x 303.8, labels 12pt bold rich text "人事費"+[值]+", " / "15.29%"): Word wraps "人事費87,167,004," (93.7pt) into "人事費" / "87,167,004,", ours keeps it (our limit there 105). So the wrap width is not a fixed share of the chart's width; 0.255 of the HEIGHT fits both this and chart2 (100 of 392.3) but would wrap zh-61aaad09's "582054," (35pt in a 204.6 x 122.4 chart) that Word keeps. Needs more charts' labels (or a lab sweeping a chart's width and height) before a rule. Not built.
 - p25 (chart 10, all columns below zero) — DONE (Linux 01F2SWc8): a falling column's label stands 0.94 of its size under its foot, as on slides; Windows 90.4 -> 90.9, Mac 80.0 -> 80.4, nothing else moved (engine c34c8aa8eba). Left on p25: see next.
@@ -8781,7 +8794,7 @@ Its landscape p6 holds a 13-row table placed against the page (tblpY 2536) after
 DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either (pairs at a18ec01f). Left in Windows: ours still makes 8 pages to Word's 7.
 
 ### macos's w25 queue, measured (Linux office1, 2026-10-26, engine c34c8aa8eba) — none built
-- zh-13d11e99 (95.9 here) — CLAIMED (Linux 01F2SWc8, 2026-10-27, routed by macos): all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
+- zh-13d11e99 (95.9 here) — CLAIMED (Linux 01F2SWc8, 2026-10-27, routed by macos) [TAKEN OVER 2026-10-28, Linux Claude, starling-linux-fidelity, the user's assignment]: all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
   555; the plot area's top lower in Word). Charts' (macos-ios, T201).
   Tried (office1, routed by macos): a titled 2013-style chart in a Word document, its plot 3pt lower (Chart.swift, beside the
   sheet's 2.57) — zh-13d11e99 95.9 -> 100, but chartex 100 -> 94.7 (87.7 with cx: charts too) and zh-b8de3ae2 90.9 -> 88.8,
