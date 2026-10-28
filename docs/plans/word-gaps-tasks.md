@@ -8,6 +8,16 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Full native RELEASE validation — CLAIMED (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`), agreed directly
+with the Word-fidelity session. Build and run all native Office tests in
+release configuration using Swift 6.2.1 (the peer reports a default-toolchain
+release compiler crash). Pin both engine environment variables to the shared
+validated `host_release_arm64` bridge SHA256 `3841e45e…`. Preserve a 10 GiB disk
+floor; monitor space and stop this build before crossing it. No rendering,
+shared engine, Word automation, or deployment changes. Report release results
+and any failures to the fidelity peer; the debug result is a separate check.
+
 ### Full native Office validation — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`). Coordinated
 by direct `codex queue` message to the fidelity session. Validate `526dcbb1`
