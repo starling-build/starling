@@ -122,6 +122,28 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### Fresh after legacy-cell fitting: missing alternate and grid residuals — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, coordinator item 4 after 878d44bb.
+Fresh accepted mac-cell-letter sweep: Mac zh-d5cc99a6 309/435 (71.03%);
+Windows zh-3c055c9b 537/576 (93.23%). Grepped every board occurrence before
+claiming. Lower Mac a031/d9b/e8 are documented reference artifacts; c5b/015
+remain owned; 884 is the measured boundary covered by the prior user decision;
+27a/d62/e0ca were just measured and released without further predictive rules.
+Lower Windows015/WordWithAttachments/b8de/4e5 remain owned, delins's tie-break
+and 8d6/3-D residuals were just rechecked. T206's 3c055 grid trials are released;
+preserve the tfe digit/mark-order counterexample and do not retry its rejected
+count/cap formulas. Start with reference/package triage of remaining misses.
+
+Mac d5cc's title names 方正小标宋简体 with alternate Arial Unicode MS; the
+stored Word PDF uses ArialUnicodeMS, current app uses YaHei. No existing
+specific d5cc claim found. The October18 session-state warning applies: verify
+in a fresh Word process and with controlled font-table variants before inferring
+a rule. This is a hypothesis, not an accepted font mapping or reference change.
+Same-checkout/engine both-mode pairs, exact no-drop gate, board results and
+fetch/rebase before push remain required. Both engine variables stay pinned to
+3841e45e; no shared engine promotion, live deployment or hyphenation choice.
+At least10GiB free; current ~47GiB. Claim only; no new production changes yet.
+
 ### zh-7b08d744 Mac squeeze boundary — DONE (Codex, 2026-10-28)
 Owner: Mac `starling-word-fidelity-codex`, coordinator item 3 after ee675bab.
 Grepped the board and read the tsq manifest/results and a6d27ff7's rejected
