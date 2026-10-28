@@ -32,7 +32,7 @@ recursion crash below. Evidence: `/tmp/starling-collab-{single-env-before,
 single-env-after,missing-icu-after,rebased-focused,full-after,lint}.log`.
 No rendering changes; paired Word sweeps do not apply to these test helpers.
 
-### Bring main's Darwin recursion guard to office — CLAIMED (release session, 2026-10-27)
+### Bring main's Darwin recursion guard to office — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`).
 The full native debug run on `b9d77ca0` plus the ICU helper fix crashed in
 `SheetsEngineTests.testLambdaThroughDefinedNames` after 407 passing cases.
@@ -42,6 +42,21 @@ that exact single-file fix across, then run the existing named-LAMBDA tests
 and remaining suite. Scope: `Sheets/StackRoom.swift`; no formula semantics,
 Word rendering, shared engine or deployment changes. No overlapping named
 claim found in this board or `sheets.md`.
+
+**Result:** cherry-picked `1fdfc75a` with source attribution (single-file
+Darwin stack guard; existing Windows path unchanged). On the rebased `39a97dd9`
+checkout, the isolated named-LAMBDA control exited 139 before the guard;
+afterwards **32 Sheets engine tests pass**, including `FOREVER(1)` returning
+`#NUM!`. The **106 startup and remaining non-publication tests** also pass.
+The initial segmented run omitted `AAATextSetupTests` and initialized ICU too
+late after Sheets text layout; it reported the now-safe split-cell failure.
+Repeating the segment with the documented startup class first passes. This
+is not a claim of a fresh uninterrupted full-suite pass on latest office;
+publication classes were not repeated in this checkout. Static lint/diff
+checks pass. Evidence: `/tmp/starling-collab-lambda-{before,after}.log`,
+`/tmp/starling-collab-remaining-initialized-after.log`, and
+`/tmp/starling-collab-lint-final.log`. Both release-session claims are complete;
+the fidelity session's remaining drawing/clipping claims are unchanged.
 
 ### Next fresh-sweep pair: flowchart and drawing geometry — CLAIMED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
