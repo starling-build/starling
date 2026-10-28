@@ -7241,7 +7241,7 @@ public final class RichLayout {
             lead = _px(style.firstLineIndent) - _px(theme.listIndent) + marker.width
             marker.dispose()
         }
-        if let wl = wordList, !p.text.isEmpty, let label = listLabel(i, document) {
+        if let wl = wordList, let label = listLabel(i, document) {
             let marker = _marker(i, p, document, label: label, strut: nil)
             // (A number set right — `w:lvlJc` right — ends where the first
             // line starts, as it is drawn; centred, half of it past. Its
@@ -8785,7 +8785,20 @@ public final class RichLayout {
             // paragraph whose mark is 黑体 12pt superscript is 18.00pt tall
             // in Word, plain 18.24; ours, shrunk to 0.65, 11.75.)
             if theme.wordRules { mark.script = .normal }
-            return (TextSpan(text: " ", style: theme.textStyle(for: mark, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), [], [])
+            var markNamed = named
+            // A paragraph mark can turn off its style's hiding. Resolving
+            // body runs also needs their hidden-mark joining semantics.
+            if theme.wordRules, mark.off.contains(.hidden) { markNamed?.char.hidden = false }
+            let look = theme.textStyle(for: mark, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            if theme.wordRules, p.style.list != nil, lead > 0 {
+                // An empty list still has a number and its suffix. Reserve
+                // their width so centered/right numbers move with the line.
+                let box = RichImageSpan(alignment: .baseline, baseline: .alphabetic, style: look)
+                let dimensions = PlaceholderDimensions(size: Size(lead, 0.01), alignment: .baseline,
+                                                       baseline: .alphabetic, baselineOffset: 0.01)
+                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
+            }
+            return (TextSpan(text: " ", style: look), [], [])
         }
         // Ruby wider than its base spreads the base across it, as Word's
         // distributeSpace does: a share between characters and half a
@@ -10863,6 +10876,8 @@ public final class RichLayout {
         guard theme.wordRules, p.cell == nil, p.image == nil, p.inlineImages.isEmpty else { return false }
         let named = _named(p, document)
         let styleHides = named?.char.hidden ?? false
+        if p.text.isEmpty, p.style.mark?.off.contains(.hidden) == true,
+           !p.style.markHidden, p.style.mark?.hidden != true { return false }
         guard p.style.markHidden || (p.style.mark?.hidden ?? styleHides) else { return false }
         if p.text.isEmpty { return styleHides || p.style.markHidden }
         return p.runs.allSatisfy { $0.style.hidden || styleHides }
@@ -11462,7 +11477,8 @@ public final class RichLayout {
     private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
         let markerChar = _markerChar(p, document)
         let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
-        let named = _named(p, document)
+        var named = _named(p, document)
+        if theme.wordRules, p.text.isEmpty, markerChar.off.contains(.hidden) { named?.char.hidden = false }
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
         var markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)

@@ -82,6 +82,7 @@ public struct CharSwitches: OptionSet, Hashable, Sendable {
     public static let strikethrough = CharSwitches(rawValue: 8)
     public static let caps = CharSwitches(rawValue: 16)
     public static let smallCaps = CharSwitches(rawValue: 32)
+    public static let hidden = CharSwitches(rawValue: 64)
 }
 
 /// A shadow cast by a run's letters (PowerPoint's `a:outerShdw` on a

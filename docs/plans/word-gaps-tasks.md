@@ -122,7 +122,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Mac standard appendix/header residuals — CLAIMED (Codex, 2026-10-28)
+### Mac standard cover/appendix labels — DONE; paper crop measured/released (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after021d9aaf; Windows8628 remains
 separately claimed above its evidence. Fresh mac-grid-single exact audit:
 zh-76700e5f245/297 (82.49%),10 physical pages on both sides. Grepped every board
@@ -247,6 +247,50 @@ layout, with original hidden/omitted controls unchanged. No new production
 candidate yet; full same-base pairs/both modes/no drops and browser gate still
 required. Current mac-minimum-baseline/mac-picture-floor PDFs retained;
 settled mac-grid-single pdf folders only removed, all match reports retained.
+
+Private empty-list controls PASS; full pair pending. Broad prototype23e260a4 /
+nativeb3fcc952 passed all80 empty-list checks (18 pages × original/saved ×
+both modes plus eight original-package label checks), but was REJECTED before
+sweeping: separate hidden-body controls show that an inherited hidden paragraph
+mark joins visible text into the next paragraph in Word; broad visibility
+restoration instead moved AFTER to another line. A visible mark over entirely
+hidden body runs also requires a normal-height blank line. Do not infer a
+complete body-visibility rule from the empty-list examples.
+Narrowed95d9f895 / native48b2283f preserves explicit-off vanish on read/write,
+resolves that switch only for empty paragraph marks/numbers, and reserves an
+empty list's number/suffix width for alignment. All80 checks pass; all eight
+nonempty-body mode-pages remain pixel- and geometry-identical to accepted base.
+General hidden body-run rendering/joining remains unresolved, explicitly out
+of this candidate. New18-page office-empty-list.py reproduces every Word input
+package part; its native original/save/reopen checks pass in both modes and
+retain all six explicit-off mark tags. Evidence empty-list-{broad-*,provenance,
+focused-controls,native-test} and tiny-label-controls/{hidden-run-*,result.json}
+under standard-residual-next. Bridge remains3841e45e; about42GiB free.
+
+**Empty-list subtask DONE, accepted:** full mac-picture-floor → mac-empty-list
+same-base pair, both mandated scripts exit0. Exact audit:756 documents/mode,
+no missing files, score drops, scored-page or physical-page changes. Per mode:
+767 gains1 (Windows298→299/299; Mac246→247/297),90e0cea8 gains2
+(Windows320→322/325; Mac321→323/326),9db183d5 gains4 (256→260/265).
+All seven new normalized lines match their Word references exactly. Two other
+documents change horizontal geometry only: cd8987db's empty appendix number
+moves x71→279, matching Word's x279 while retaining its existing4pt vertical
+residual;60c80728's50 table numbers per mode move to within0.5pt of Word x,
+with their y positions and every other span origin unchanged. The normalized
+line reader regroups some neighboring table text after these horizontal moves;
+this is not a body-flow change. No cancelling-errors exception.
+The complete native/browser gate passes with no skips, including all18 new
+Word controls, native original/saved copies in both modes, and all existing
+fixtures. App WASM807263ae, native48b2283f; bridge3841e45e and
+skwasmc14456aa unchanged. Frozen source/test/board patch724a48e2. Receipt
+standard-residual-next/empty-list-acceptance-receipt.json; exact audit at root;
+empty-list-full-geometry-review.json and empty-list-cell-all-span-audit.json
+hold the additional geometry evidence. No reference edits, live deploys,
+engine relinks, hyphenation decision or new Windows/iOS host validation.
+This closes the cover/empty-label claim:767 is100% against Windows; its50
+remaining Mac misses are the reproduced A4 print crop of an A3 landscape
+section, measured/released without changing references or renderer paper size.
+General hidden body-run joins remain a separate known gap, not fixed here.
 
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.

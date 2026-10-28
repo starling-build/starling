@@ -235,6 +235,21 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
             fails=$((fails + 1))
         fi
     done
+    EMPTY_LIST_TEST="$REPO/test/office-empty-list.py"
+    "$BOX_PY" "$EMPTY_LIST_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$EMPTY_LIST_TEST" --fixture "$WORK/empty-list.docx"; then
+        printf '%s\n' "$WORK/empty-list.docx" > "$WORK/empty-list.txt"
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/empty-list.txt" "$WORK/empty-list-pdfs" > "$WORK/empty-list.log" 2>&1 \
+            && "$BOX_PY" "$EMPTY_LIST_TEST" --pdf "$WORK/empty-list-pdfs/empty-list.pdf"; then
+            echo "  ✔ Empty list numbers: native and browser match the Word visibility/alignment controls"
+        else
+            echo "  ✘ Empty list visibility or alignment differs from the Word controls"
+            tail -3 "$WORK/empty-list.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
     # This font-table rule is specific to the native Mac-reference mode.
     # Web runs author-font mode (WASI has no OFFICE_WORD_FONTS environment),
     # so it must not be compared with these Mac Word fallback baselines.
@@ -256,6 +271,6 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
         fails=$((fails + 1))
     fi
 else
-    echo "  SKIPPED frame, opener, Latin-word, cell-word, grid-band, minimum-baseline, picture-text, font-alternate and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED frame, opener, Latin-word, cell-word, grid-band, minimum-baseline, picture-text, empty-list, font-alternate and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

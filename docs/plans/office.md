@@ -8517,3 +8517,21 @@ with no other document changes; tab indentation remains a separate issue.
   remain pixel-identical. Full756-document pairs have no drops or page changes;
   only zh-76700e5f's cover baseline changes, gaining one matched line per mode.
   Its paper-cropped Mac appendix reference and empty-list labels are separate.
+
+
+- **Empty list numbers honor their visible mark and paragraph alignment (2026-10-28).**
+  Preserve an explicit `w:vanish w:val="0"` in the character switches and
+  DOCX output. For an empty paragraph, its visible mark overrides a hidden
+  paragraph style, so both the number and the mark's line remain. Reserve
+  the number and suffix width in the empty line just as for a list with text;
+  centered/right numbers then travel with the line rather than staying at
+  the left indent. Eighteen Word controls cover each alignment, normal/hidden
+  styles, and off/omitted/on marks. Both native modes, saved copies and browser
+  pass; all six explicit-off mark tags survive saving. Full756-document pairs
+  restore seven reference lines per mode with no drops or page changes.
+  Additional table/appendix number x positions move to Word's, leaving every
+  other span position unchanged. This resolves empty marks only: general
+  hidden body runs also need inherited hidden paragraph-mark joining and
+  visible-mark line-height handling. A broader prototype failed those Word
+  controls and was rejected; the accepted version keeps all eight nonempty-
+  body control pages pixel- and geometry-identical to the prior renderer.
