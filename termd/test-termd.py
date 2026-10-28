@@ -803,13 +803,28 @@ def main():
         ev = Client(sock_path)
         ev.hello()
         refused = 0
+        ended = 0
         for _ in range(70):
             ev.send(OPEN, open_payload(command="true" if not WINDOWS
                                        else "cmd.exe /c exit"))
-            kind, _ = ev.recv(timeout=3.0)
+            kind, payload = ev.recv(timeout=BOOT + 3.0)
             if kind != ATTACHED:
                 refused += 1
+                break
+            opened = struct.unpack("<I", payload[:4])[0]
+            # OPEN acknowledges a running child, not a dead eviction candidate.
+            # Under load its EXIT can arrive after DETACH and be mistaken for
+            # the next OPEN's reply. Wait for this child's exit before moving
+            # on: this tests eviction of dead sessions, not scheduler speed or
+            # exhausting the table with seventy still-running children.
+            kind, payload = ev.recv(EXIT, timeout=BOOT + 3.0)
+            if (kind != EXIT or len(payload) != 8
+                    or struct.unpack("<II", payload) != (opened, 0)):
+                break
+            ended += 1
             ev.send(DETACH)
+        check("each eviction fixture exits before the next open",
+              ended == 70, f"{ended} of 70 exited successfully")
         check("a full table evicts the oldest dead session rather than refusing",
               refused == 0, f"{refused} of 70 refused")
         ev.send(LIST)

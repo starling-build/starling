@@ -16,12 +16,22 @@ output directories. Preserve shared checkout outputs and10GB disk floor.
 Run `test/office-layout.sh` at a recorded office tip; report Linux native/
 browser parity with engine/source hashes. Disjoint from fidelity owner.
 
-### Linux loaded termd timing flake — CLAIMED (release session, 2026-10-28)
+### Linux loaded termd timing flake — DONE (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Reproduce
 `test/run.sh` termd failure under Linux load versus isolated test, inspect
 `termd/test-termd.py`, fix bounded timing tolerance while preserving meaningful
 assertions, validate under load and alone. Private checkout; avoid fidelity
 rendering changes and existing shared worktrees.
+
+**Result:** baseline isolated run passes, loaded run fails4/70 opens;
+instrumented repeat fails5/70, all received frames are delayed EXIT(type12),
+not OPEN errors. Eviction fixture detached without consuming child exit and
+mistook it for the next OPEN reply. Fix waits boundedly for the matching
+successful EXIT before next OPEN, and asserts70 completed fixtures; it still
+requires eviction beyond64 slots and preserves all original checks. Four
+loaded runs (12CPU workers on same core) pass, plus isolated socket and stdio
+runs. No daemon/rendering behavior changes. Evidence on Linux:
+`/home/starling/office-validation-20261028/termd-{baseline,fixed,diagnostic}*`.
 
 ### Live web redeploy checklist only — CLAIMED (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Prepare exact
