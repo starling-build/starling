@@ -114,7 +114,7 @@ full-page ink are correct. Chinese web controls show the existing missing-CJK-
 font gap (the manifest has no CJK family; ordinary unwarped text also lacks it).
 This is not claimed fixed.
 
-**WordArt DONE (this commit; engine `bd7be6b10e5`):** final compatibility pair
+**WordArt DONE (`bb06181a`; engine `bd7be6b10e5`):** final compatibility pair
 `drawing-wordart-ink`→`drawing-wordart-final`, same checkout and pinned engine,
 passes both unmodified sweep scripts. Exact audit: **756 documents per mode,
 zero missing, zero drops, zero changed geometry/pages/scores**. Cumulative
@@ -133,10 +133,11 @@ both `*--drawing-wordart-final-exact.json`, source/provenance, and
 `geometry-next/{drawing-wordart-final-browser-layout.log,wordart-final-web,
 wordart-fallback-web}`. Engine source/binary validation is recorded under
 `geometry-next/ink-bounds-engine/precise`. The shared local bridge and skwasm
-will be updated to these validated binaries because the SDK now calls the
-new API; the framework is unchanged. No live site deployment.
-Settled section-parity PDF folders removed; match reports and current
-base/candidate retained. More than 19 GiB free.
+were atomically updated to these validated binaries because the SDK now calls
+the new API; the framework is unchanged. Hashes are recorded in
+`geometry-next/ink-bounds-engine/local-promotion.json`. No live site deployment.
+Settled section-parity and ink-base PDF folders removed; match reports and
+current drawing-wordart-ink/final base/candidate retained. More than 18 GiB free.
 
 
 **Next within this drawing claim: text-box clipping.** Ten isolated controls
@@ -154,6 +155,10 @@ which changes the clipping extent; negative indents also clip rather than move
 back inside. Six direction/inset controls show rotated boxes with unequal
 insets need additional measurement. Do not assume their clip is the horizontal
 rectangle rotated blindly (`box-clip-{controls,directions}*`).
+Next candidate: explicit DrawingML `noAutofit` standalone boxes, horizontal
+or rotated with zero insets. Keep the first glyph at an overflowing first-line
+indent, then clip at the fixed frame. Autofit, groups and rotated unequal-inset
+frames remain separate; do not hide a whole word or clamp its actual position.
 
 ### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
