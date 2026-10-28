@@ -156,6 +156,38 @@ heights while preserving exact heights; picture-line behavior remains separately
 measured, not a reason to generalize the change. Evidence standard-residual-next/
 under the owner evidence root:767-reference-audit.json, fresh print, cover-*.
 Both-mode pairs and Word controls required before any production landing.
+Minimum-height candidate (private, not landed): twelve fresh Arial controls
+confirm that the controlling Latin run is selected before minimum-height
+leading is added. Merely enabling the old maximum-final-baseline loop was
+insufficient for a minimum taller than both fonts; that incomplete compile
+was stopped and its patch preserved, without a binary/corpus claim. Revised
+production diff540b4649 / nativea286737c passes all12 controls in both modes:
+minimum12/36pt, exact12/36pt and auto, on/off a30pt grid. Native exact and
+auto controls keep baseline behavior. Focused203 documents per mode: no score
+drops; only Mac bug59058 and both-mode bug65649 normalized geometry changes.
+All seven changed normalized positions move toward or onto Word's position;
+these improvements remain inside the scorer's3pt matching allowance. Original
+767's inline-picture cover remains unchanged; no-picture controls improve,
+with small font-metric residuals. Do not claim the cover is fixed.
+Evidence standard-residual-next/minimum-{candidate-provenance,focused-results,
+focused-geometry-review,baseline-control-measures}.json and Word control hashes.
+New12-page office-minimum-baseline.py reproduces every XML/package part of
+the fresh Word-printed fixture. Full same-base pairs and browser gate pending.
+**Minimum-baseline subtask DONE, accepted:** full mac-grid-single →
+mac-minimum-baseline pair, both mandated sweep scripts exit0. Exact audit:
+756 documents/mode, zero missing, score drops or scored/physical-page changes;
+only the focused three mode/document geometries change (seven normalized
+positions), all toward/onto Word. No cancelling-errors exception. The12-page
+regression rejects both old native modes and passes both new ones; all12
+exact/auto mode-page rasters remain pixel-identical to baseline. The complete
+Mac native/browser layout gate passes with no skips, including all existing
+controls and the new12-page baseline set. App WASM rebuilt privately against
+unchanged skwasmc14456aa; native bridge remains3841e45e. Receipt:
+standard-residual-next/minimum-acceptance-receipt.json; full provenance and
+exact audit at the evidence root. Current paper-crop reference and cover's
+inline-picture baseline remain unresolved and claimed; no reference changed.
+No live deploy, shared engine change, hyphenation decision or new Windows/iOS
+host validation. About42GiB free before settled-PDF cleanup.
 
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.

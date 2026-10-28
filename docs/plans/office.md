@@ -8484,3 +8484,20 @@ with no other document changes; tab indentation remains a separate issue.
   table. First-run-only and unrestricted-multiline prototypes were rejected.
   General multiline flow around page-wide floats remains a separate gap; the
   safeguards permit its eventual correction without asserting the old positions.
+
+
+- **Minimum line heights use the controlling text run's baseline (2026-10-28).**
+  For a first line of Latin-script text, consider its non-space, non-picture,
+  normal-script runs under an “at least” height as under automatic spacing.
+  Choose the controlling baseline before adding the minimum-height leading:
+  a small initial run can otherwise stand lower than the large run when the
+  minimum exceeds both natural heights. Exact heights keep their existing
+  placement. Twelve fresh Word Arial controls cover letters/spaces before a
+  larger run, minima below/above the natural line, exact/automatic spacing,
+  and a 30pt grid. All pass in native Windows/Mac modes and browser; the old
+  binary fails, and exact/auto controls remain pixel-identical. Full pairs:
+  756 documents per mode, no score or page-count changes. Seven normalized
+  positions in Mac bug59058 and both-mode bug65649 move toward or onto Word,
+  within the scorer's existing allowance. The standard-cover investigation
+  exposed this rule through no-picture controls; its original inline-picture
+  baseline and Mac print-paper crop remain separate, unresolved issues.

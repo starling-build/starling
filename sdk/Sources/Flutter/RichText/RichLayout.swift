@@ -7910,8 +7910,15 @@ public final class RichLayout {
                 // text is Latin: form_footnotes' "D - " box in Symbol
                 // after 11pt spaces sets "Concessão" a point lower than
                 // the 10pt lines beside it in Word's print.)
-                if !lead.1, style.lineHeightPoints == nil {
+                // Under "at least", choose the text's controlling baseline
+                // before adding minimum-height leading. A small leading run
+                // otherwise wins when the minimum exceeds both runs' heights.
+                if !lead.1, style.lineHeightPoints == nil || style.lineHeightIsMinimum {
                     let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+                    var naturalStyle = style
+                    naturalStyle.lineHeightPoints = nil
+                    var naturalBaseline = -Double.infinity
+                    var minimumTarget: Double?
                     var start = 0
                     for run in p.runs where run.length > 0 {
                         defer { start += run.length }
@@ -7922,9 +7929,18 @@ public final class RichLayout {
                         let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
                         if p.text[from ..< to].allSatisfy(Self._setsNoLine) { continue }
                         if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
-                            target = max(target, b)
+                            if style.lineHeightPoints != nil,
+                               let own = theme.baseline(for: run.style, in: naturalStyle, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
+                                if own > naturalBaseline {
+                                    naturalBaseline = own
+                                    minimumTarget = b
+                                }
+                            } else {
+                                target = max(target, b)
+                            }
                         }
                     }
+                    if let minimumTarget { target = minimumTarget }
                 }
                 // (… and where its first line holds a character an
                 // embedded subset lacks, the face Word sets that in: its
