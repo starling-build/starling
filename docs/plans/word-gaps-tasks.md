@@ -122,6 +122,22 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### Next Mac residual: zh-202582e2 — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, after accepted e8594b01. Fresh full
+mac-empty-list sweep/exact audit:116/138 matched Mac lines (84.06%),14 pages
+on both sides; Windows136/139,14 pages. Grepped every202582e2 board mention:
+older fallback/space work is DONE, no competing current claim found. Lower
+cases retain the prior owners, measured boundaries, font exclusions or the
+now-reproduced767 paper-crop explanation. Inspect the22 Mac misses before
+assuming another missing-font rule; the old English FangSong_GB2312/Latin
+FZXiaoBiaoSong findings and root-preserve-space history remain constraints.
+Windows8628 remains separately claimed/read-only. Same checkout/engine pairs
+in both modes, no drops without individually verified cancelling errors,
+board evidence and fetch/rebase before push; no deployment, engine relink or
+hyphenation decision. Current mac-picture-floor/mac-empty-list PDFs retained;
+settled mac-minimum-baseline pdf folders only removed, all match reports kept.
+Claim only; no new implementation. About42GiB free.
+
 ### Mac standard cover/appendix labels — DONE; paper crop measured/released (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after021d9aaf; Windows8628 remains
 separately claimed above its evidence. Fresh mac-grid-single exact audit:
