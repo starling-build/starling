@@ -341,6 +341,10 @@ public struct RichTextBox: Hashable, Sendable {
     /// text says is Latin (`w:hint` "default") is then set as Latin when
     /// the box is fitted, where a VML box's is not.
     public var fitsAsDrawing = false
+    /// DrawingML's explicit `noAutofit`: the saved frame is fixed.
+    /// Used to retain an overflowing first-line indent at its stated
+    /// position and clip that corrected line to the frame.
+    public var hasFixedFrame = false
     /// The tables among `paragraphs` (their cells' `CellRef.table`), with
     /// their looks and grids: a table nested in a cell is read as a box
     /// of its own, laid out as a document is.

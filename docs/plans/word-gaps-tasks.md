@@ -270,8 +270,15 @@ checks pass. Evidence: `/tmp/starling-collab-lambda-{before,after}.log`,
 `/tmp/starling-collab-lint-final.log`. Both release-session claims are complete;
 the fidelity session's remaining drawing/clipping claims are unchanged.
 
-### Next fresh-sweep pair: flowchart and drawing geometry — CLAIMED (Codex, 2026-10-27)
+### Flowchart and drawing geometry — DONE; residuals released (Codex, 2026-10-28)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+**Complete:** section parity, DrawingML WordArt and fixed-frame first-line
+indent correction landed through this entry. Final clipping pair has no drops
+in756 documents per mode; only b24 changes, +9 matched lines in each mode.
+All page counts unchanged. The11-page Word/native/browser regression and
+independent530-test RELEASE suite pass (two existing skips, zero failures).
+General frame overflow, WordArt autofit, leading-space balance and the remaining
+Mac flowchart/split-table geometry are released with the measurements below.
 From full `tab-fallback` sweeps and exact audit: **Mac zh-291fcea7 182/296
 (61.49%)**, **Windows zh-b24b396a 328/362 (90.61%)**. Grepped every occurrence
 before claiming: T133's flowchart work and T210's drawing work are explicitly
@@ -312,7 +319,7 @@ used. Evidence: `tab-fallback--section-parity-exact.json`, sweep logs/provenance
 `95a17d7a…`; the rejected first probe remains explicitly separate. The remaining
 Mac split-table/flowchart geometry is released with its previous measurements.
 
-**Windows drawing work remains claimed:** the two rotated labels are DrawingML
+**Earlier WordArt investigation (completed below):** the two rotated labels are DrawingML
 WordArt (`fromWordArt`, `textSlantDown`, 302°). Four isolated Word prints separate
 rotation from warp; two additional prints test adjustments 50000 and 100000.
 The ordinary text-box path ignores both transforms. The existing Slides painter
@@ -411,6 +418,168 @@ Next candidate: explicit DrawingML `noAutofit` standalone boxes, horizontal
 or rotated with zero insets. Keep the first glyph at an overflowing first-line
 indent, then clip at the fixed frame. Autofit, groups and rotated unequal-inset
 frames remain separate; do not hide a whole word or clamp its actual position.
+
+**Clipping candidate (not landed):** explicit `noAutofit` is retained on the
+text frame. Standalone horizontal and zero-inset turned frames clip at their
+saved geometry. Their plain left/justified text keeps its first glyph on line
+one at the stated indent even when it overflows; following text wraps below.
+Separate ruby/scale/tab paint paths are excluded from the indent correction;
+upright ideographs are excluded from both changes because their separate
+painter does not restore the first-line shift (peer review).
+The first probe accidentally gated the correction on left alignment while the
+controls inherit justified alignment: clipping alone dropped b24 two lines in
+both modes. Rejected, saved under `geometry-next/box-clip-first-probe`.
+The corrected probe is **Windows 330→336/362, Mac 328→334/360**, both 14 pages.
+A whole-point clip approximation was removed: rounding flow coordinates made
+its phase depend on page position. The final candidate clips actual geometry.
+Word's Mac PDF outward quantization and fallback-glyph ink can still differ at
+sub-point boundaries; no glyph-hiding threshold was added.
+
+Fresh Word controls now cover 96 cases (10 indent, 30 boundary, 20 fixed/auto,
+six direction/inset, 12 words, 18 leading-space cases). They establish the
+first-glyph placement and fixed-frame clipping; they are **not** a claim that
+every wrapped line or autofitting frame matches. The leading-space cases expose
+a separate balance rule: after the overflowing glyph Word uses a 6pt leading
+blank at 12pt where ours uses 3pt, and a narrow frame may consume that blank on
+its own line. Rotated unequal-inset clips and autofit remain separate.
+`test/office-fixed-text-box.py` adds eight standalone shared-font controls,
+inherited justification and explicit left alignment, and checks actual PDF
+text/positions. It passes the fresh Word print and the final candidate in both
+modes. The initial test frame was too narrow across the turned Carlito lines:
+both Word and ours correctly clipped its second digit, invalidating that test
+expectation; widening only the cross-line frame to 20pt makes the intended
+visible-second-digit regression valid. The original witness is retained under
+`geometry-next/fixed-box-regression-too-narrow`.
+Full paired sweeps and the expanded native/browser gate are next. The peer
+release session is independently testing the production candidate. Original
+review patch `8975ecb5…` is superseded by `64eb8a57…`: a portable UTF-16 tab
+check fixes a WASM link failure from Foundation's String.contains overload,
+and the upright-text guard preserves that separate painter. Peer notified
+before the changes; no other production differences. Their previous 530-test
+release/debug pass covers the committed WordArt snapshot, not this candidate.
+The eight-page regression also passes Word's own print, and is now included
+in the browser gate as native checks in both modes plus a browser PDF check.
+Production files are frozen for final builds/checks. Engine remains
+`3841e45e…` in both modes, both variables exported.
+
+
+**Final 64eb audit — REJECTED, not landed (2026-10-28).** Both unchanged
+sweep scripts completed, 756 documents per mode, zero missing. Exact paired
+comparison against `drawing-wordart-final` finds **6 Windows and 11 Mac drops**;
+target b24 improves 330→336/362 and 328→334/360 respectively. No cancelling-errors
+exception is claimed. Evidence: `drawing-wordart-final--fixed-text-box-exact.json`,
+`geometry-next/box-clip-drops.json`, full frozen `fixed-text-box` pair and logs.
+Most lost lines are across-line overflow in other fixed frames; the broad
+clipping rule is under investigation. Both modes use the same pinned engine
+and checkout. Candidate remains uncommitted.
+The expanded browser gate passes all earlier documents/roundtrips, 21 font/ink
+controls and the eight fixed-frame controls; those eight have identical native
+and browser full-page raster crops. This does not override the corpus drops.
+Independent peer RELEASE validation: original 8975 and updated 64eb each pass
+530 tests with the same two skips. Updated 64eb restores all eight upright
+controls exactly to baseline geometry/pixels and preserves twelve supported
+path controls exactly against 8975. Bridge and patch identities verified.
+Peer explicitly recommends **DO NOT LAND** because of the corpus regressions.
+Evidence copied to `geometry-next/peer-native-review`; original report under
+`/tmp/starling-clip-independent-review`. Read-only frame metadata audit delegated
+to the peer; owner retains Word automation and rendering changes. ~49 GiB free.
+
+
+**Narrower along-line candidate under test:** 24 fresh Word controls vary
+compatibilityMode 14/15, anchor wrapNone/wrapSquare and explicit/absent
+vertOverflow/horzOverflow attributes. Each family produces the same clipping;
+these flags do not establish a distinguishing rule. Evidence:
+`geometry-next/box-overflow-policy-{14,15}*`. Across-line clipping is deferred;
+the new candidate preserves existing across-line overflow and only clips along
+the line direction while retaining the measured first-glyph indent correction.
+This is deliberately partial scope, not a general fixed-frame overflow fix.
+Target and all rejected-pair drop documents will be checked before full pairs.
+
+
+**Along-line broad probe rejected too.** Target b24 rises to 339/362 Windows
+and 337/360 Mac, but Mac zh-505b9619 drops 2783→2768/2805 and the narrow dynamic
+PAGE frames zh-63a571aa / zh-81aa310b still lose 1 / 3 lines. No full sweep on
+this failed probe and no exception. Native/browser gate and eight controls
+pass, demonstrating why those checks alone are insufficient. Evidence:
+`geometry-next/box-axis-probe`, `box-axis-candidate.patch`, frozen binary.
+Next candidate scopes the new clipping to **only the corrected first line**
+whose overflowing indent previously displaced the first glyph. Its frame
+bounds are stored in local line coordinates; ordinary lines and their clipping
+are unchanged. Source property records `noAutofit` as `hasFixedFrame`, rather
+than treating it as a general clipping command. Native/WASM builds pending.
+Settled `drawing-wordart-ink/pdf` folders removed; match reports retained,
+accepted base and rejected pair retained. About 50 GiB free.
+
+
+**Corrected-first-line candidate 19707ac6 — focused checks pass; not landed.**
+Frozen binary SHA b82e36bc…; same engine3841e45e… in both modes. All34 focused
+comparisons (17 documents ×2 modes, including every previous geometry change)
+have no drops: b24 Windows330→339/362, Mac328→337/360; other scores unchanged.
+Eight native controls pass both modes. Browser gate passes welcome/TextEdit/
+boringcrypto layouts and roundtrips, font/ink probes and eight frame controls.
+Evidence: `geometry-next/box-first-line-probe`, `box-first-line-browser-layout.log`.
+Peer source review confirms consistent local coordinates and cache/array guards;
+no confirmed regression. Before full sweeps, private controls are checking one
+bounded risk: tight line spacing/raised ink can overlap the bands used by
+`_paintShiftedLines`. Existing turned-box resize cache risk is separate.
+No full-corpus verdict or landing approval yet. Source frozen for this check.
+
+
+**19707ac6 rejected by independent overlap control, before full sweeps.**
+With a24pt white first A,12pt black B, exact8pt pitch and30pt indent in a20pt
+frame, the old band painter cuts B's top despite unchanged text origin. Both
+font modes reproduce it; a tight gB case splits B into two PDF spans. Fresh
+Word prints intact B, identical ink extents/counts against explicit-break
+controls. Standard spacing controls are unchanged. Evidence copied under
+`geometry-next/peer-first-line-review`; Word PDF/ink measurements are
+`box-first-line-overlap-word*`. No cancelling-errors exception, no landing.
+Revised frozen patch **ae5c47b1…** uses complementary cached text masks from
+`_clearedPainter`: first-line-only shifted/clipped, rest-only normally painted.
+Masks clear highlights/decorations as well as glyphs for these new calls;
+existing scale-mask defaults remain unchanged. A cache capacity guard prevents
+adding a second mask from disposing its first. Original `_paintShiftedLines`
+is unchanged. Peer source review has no new blocker; binary checks pending.
+Regression now has11 pages, including three white-first paired overlap cases;
+it fails19707ac6 by catching split B spans. New Word/native/browser validation
+and full both-mode corpus pairs are required before landing.
+
+
+**ae5c47b1 mask candidate — focused/independent controls pass; full pair next.**
+Frozen binary2929a883…; engine3841e45e… unchanged. All34 focused comparisons
+pass without drops; b24 remains339/362 Windows and337/360 Mac. All11 shared-
+Carlito regression pages pass native in both modes and Word's fresh print.
+Independent peer rendered only the preserved26 DOCX controls in both modes:
+52 PDFs, no failures. All26 zero-indent/reference comparisons exactly match
+baseline pixels/geometry; all6 white overflow/reference comparisons have
+identical complete B ink/geometry; all20 colored overflow cases have one
+correct B span. Prior split/clipped tops are gone. Evidence copied under
+`geometry-next/peer-first-line-masks-controls`. This clears the bounded paint
+blocker, not the corpus landing gate. Starting unchanged sweep-win.sh and
+sweep.sh against `drawing-wordart-final`, same checkout and pinned engine,
+both engine variables exported. No source edits during the pair.
+
+
+**Final mask pair and independent RELEASE suite PASS (2026-10-28).**
+Both prescribed unmodified scripts exit0 on the same checkout/engine with both
+engine variables exported. Exact `drawing-wordart-final`→`box-first-line-masks`
+audit covers756 documents per mode: **zero missing, zero drops**, all physical
+page counts unchanged. Only zh-b24b396a normalized geometry changes:
+**Windows330→339/362, Mac328→337/360**,14 pages each. No exception used.
+The expanded browser gate passes all earlier layouts/roundtrips,21 font/ink
+probes and11 control pages, including the overlap witnesses. Frozen source
+production patchae5c47b1…, binary2929a883…, bridge3841e45e…, skwasmc14456aa….
+Evidence: `drawing-wordart-final--box-first-line-masks-exact.json`,
+`box-first-line-masks-{run,windows,mac,exact}.log`, source/provenance, and
+`geometry-next/box-first-line-masks-browser-layout.log`. Independent full
+RELEASE suite is running on the identical patch plus latest test/Sheets fixes;
+no candidate changes, shared-engine changes or live deployment.
+Final independent RELEASE result: **530 tests, two existing skips, zero failures**
+in36.517s, all530 identities/outcomes exactly match baseline and64eb. Patch
+and bridge hashes unchanged; minimum48.828GiB free. Test executable660926af…;
+provenance/comparison copied under `geometry-next/peer-mask-full-release`.
+No cancelling-errors exception or user decision was needed. Rules documented
+in `office.md`; no live site deployment or automatic-hyphenation change.
+
 
 ### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).

@@ -1332,6 +1332,26 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **Overflowing first-line indents in fixed text boxes (2026-10-28).**
+  In measured standalone DrawingML `noAutofit` frames, Word keeps the first
+  glyph on line one at its stated positive indent even when it cannot fit.
+  Following text wraps; the overflowing first line clips at the frame along
+  its reading direction. A layout placeholder must not take a line by itself
+  or clamp that glyph back inside. Measure the glyph with the resolved Word
+  face, reserve its first-line room, then restore the indent while painting.
+  Horizontal frames and zero-inset turned frames are covered; upright text,
+  autofit, groups and separate ruby/scale/tab painters remain outside this path.
+  Paint complementary first/rest text masks: horizontal clipping bands corrupt
+  a later line's overlapping ink under tight exact spacing. The 11-page
+  shared-font regression checks indent/rotation plus white-first overlap pairs
+  against explicit breaks; fresh Word, native in both modes and browser pass.
+  General frame clipping remains unresolved: broader candidates dropped
+  headers, dynamic page numbers and other labels and were rejected. Full
+  `drawing-wordart-final`→`box-first-line-masks` pair: Windows zh-b24b396a
+  330→339/362, Mac 328→337/360; 756 documents per mode, no missing documents,
+  no drops, no page-count changes, and all other normalized geometry identical.
+  Engine remains `3841e45e…`; no cancelling-errors exception is needed.
+
 - **DrawingML WordArt (2026-10-27).** A shape's `fromWordArt` text follows
   its rotation and warp, rather than also appearing as an ordinary text-box
   overlay. Keep its resolved paragraph/run styles and its original XML for

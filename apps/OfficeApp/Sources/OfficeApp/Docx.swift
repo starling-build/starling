@@ -3856,6 +3856,7 @@ enum DocxFormat {
                         // box has no insets of its own.)
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
                     } else if let body = node.descendant("wps:bodyPr") {
+                        box.hasFixedFrame = body.first("a:noAutofit") != nil
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
                         box.fitsAsDrawing = box.fitsText

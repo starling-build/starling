@@ -119,4 +119,27 @@ for doc in "${DOCS[@]}"; do
         fi
     fi
 done
+# Fixed text frames need a drawing check too: a body-only layout dump
+# does not see a glyph wrongly moved inside its box or clipped away.
+# OFFICE_PYTHON may select the document-check environment with PyMuPDF.
+BOX_PY="${OFFICE_PYTHON:-python3}"
+BOX_TEST="$REPO/test/office-fixed-text-box.py"
+if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
+    "$BOX_PY" "$BOX_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$BOX_TEST" --fixture "$WORK/fixed-frames.docx"; then
+        printf '%s\n' "$WORK/fixed-frames.docx" > "$WORK/fixed-frames.txt"
+        if node "$DRIVE" wait 6000 pdfs "$WORK/fixed-frames.txt" "$WORK/fixed-frame-pdfs" > "$WORK/fixed-frames.log" 2>&1 \
+            && "$BOX_PY" "$BOX_TEST" --pdf "$WORK/fixed-frame-pdfs/fixed-frames.pdf"; then
+            echo "  ✔ fixed text frames: native and browser keep and clip the intended glyphs"
+        else
+            echo "  ✘ fixed text frames differ from the Word controls"
+            tail -3 "$WORK/fixed-frames.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
+else
+    echo "  SKIPPED fixed-frame PDF check — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+fi
 [ "$fails" -eq 0 ]

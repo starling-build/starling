@@ -1178,6 +1178,9 @@ public final class RichLayout {
     /// A turned text box's layout (`RichTextBox.textDirection` not across):
     /// its lines run along the box's height.
     private var _turnedBox = false
+    // Frame edges in the nested layout's line coordinates, for restoring
+    // an overflowing first-line indent. Other lines keep their own policy.
+    private var _fixedTextFrame: (left: Double, right: Double)?
     /// A nested table whose autofitting parent fitted its column narrower
     /// than the child's saved width: a share of it is a share of that
     /// column, under the saved grid too (lab dr2/h).
@@ -1219,6 +1222,10 @@ public final class RichLayout {
     /// each paragraph's text for its first line's indent or its list
     /// number; 0 for none.
     private var _leadWidth: [Double] = []
+    /// A fixed box still puts the first glyph at its stated indent when
+    /// it overflows. Its painter reserves room for that glyph on line one;
+    /// painting restores the difference before clipping to the frame.
+    private var _boxFirstLineShift: [Double] = []
     /// The tabs of each paragraph that are filled with a leader (a
     /// contents page's dots): the tab's offset, and the character.
     private var _leaders: [[(offset: Int, fill: String)]] = []
@@ -1357,6 +1364,7 @@ public final class RichLayout {
         _lineOverhang = Array(repeating: [], count: n)
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
+        _boxFirstLineShift = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
         _heights = Array(repeating: 0, count: n)
@@ -1431,6 +1439,7 @@ public final class RichLayout {
                 _lineOverhang.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _boxFirstLineShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _heights.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -1469,6 +1478,7 @@ public final class RichLayout {
                 _lineOverhang.removeSubrange(at ..< end)
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
+                _boxFirstLineShift.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
                 _heights.removeSubrange(at ..< end)
@@ -7154,6 +7164,27 @@ public final class RichLayout {
         // after it, or the next tab stop (the text's own left, when the
         // number fits in the hanging indent).
         var lead = _px(firstLineIndent(p, at: i, document))
+        _boxFirstLineShift[i] = 0
+        if theme.wordRules, _fixedTextFrame != nil, p.cell == nil, style.list == nil,
+           !style.rightToLeft, style.alignment == .left || style.alignment == .justify, lead > 0,
+           !p.text.utf16.contains(0x09), _named(p, document)?.char.horizontalScale == nil,
+           !p.runs.contains(where: { $0.style.horizontalScale != nil || $0.style.ruby != nil }),
+           let ch = p.text.first, !ch.isWhitespace, ch != "\u{FFFC}", let run = p.runs.first {
+            // Measure with the same resolved faces and Word advances as
+            // the paragraph. A placeholder alone must not occupy line one:
+            // Word prints its first glyph there even when it overflows.
+            let first = RichParagraph(text: String(ch), charStyle: run.style, style: p.style)
+            let span = _span(for: first, at: nil, document, textWidth: 100_000).0
+            let probe = TextPainter(text: span, textDirection: .ltr)
+            probe.layout(maxWidth: 100_000)
+            let advance = probe.width
+            probe.dispose()
+            if lead + advance > textWidth + 0.01 {
+                let fitted = max(0, textWidth - advance - _px(0.01))
+                _boxFirstLineShift[i] = lead - fitted
+                lead = fitted
+            }
+        }
         // (A first line indented past the margin holds the first character
         // all the same, the rest from the second line. Lab `ind` (Word 16,
         // zh-9e020c95's package): "隆阳区…" at 5472 twips and a 6400-twip
@@ -8748,7 +8779,9 @@ public final class RichLayout {
         // the engine kept the number whole on one line. Turned boxes only:
         // forcing the break across took zh-9e020c95 99.6 -> 19.7, where the
         // line part there anyway.)
-        if theme.wordRules, _turnedBox, let index, _px(firstLineIndent(p, at: index, document)) > textWidth + 0.01,
+        if theme.wordRules, let index,
+           (_turnedBox && _px(firstLineIndent(p, at: index, document)) > textWidth + 0.01)
+            || (index < _boxFirstLineShift.count && _boxFirstLineShift[index] > 0),
            let ch = p.text.first(where: { $0 != "\u{FFFC}" }), let at = p.text.firstIndex(of: ch) {
             let next = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at) + ch.utf16.count
             if next < p.text.utf16.count { wideStarts.insert(next) }
@@ -11062,15 +11095,22 @@ public final class RichLayout {
     /// `painter` again with the text in `ranges` (its own offsets)
     /// clear — laid out as it is, drawn as nothing. nil where a line
     /// would come out other than it did. Kept while the painter is.
-    private func _clearedPainter(_ painter: TextPainter, _ ranges: [Range<Int>], key: Int) -> TextPainter? {
+    private func _clearedPainter(_ painter: TextPainter, _ ranges: [Range<Int>], key: Int,
+                                 clearBackgroundAndDecoration: Bool = false) -> TextPainter? {
         let id = ObjectIdentifier(painter)
         if let hit = _clearedPainters[id]?[key], hit.source === painter { return hit.cleared }
         guard !ranges.isEmpty, let root = painter.text else { return nil }
-        if _clearedPainters.count > 256 {
+        // Adding the second mask for this painter must not dispose the
+        // first mask that the caller is about to draw.
+        if _clearedPainters.count > 256, _clearedPainters[id] == nil {
             for entries in _clearedPainters.values { for entry in entries.values { entry.cleared.dispose() } }
             _clearedPainters = [:]
         }
-        let clear = TextStyle(foreground: { let paint = Paint(); paint.color = Color(0x00000000); return paint }(), shadows: [])
+        let transparent = Paint(); transparent.color = Color(0x00000000)
+        let clear = TextStyle(foreground: transparent,
+                              background: clearBackgroundAndDecoration ? transparent : nil,
+                              shadows: [], decoration: clearBackgroundAndDecoration ? TextDecoration.none : nil,
+                              decorationColor: clearBackgroundAndDecoration ? Color(0x00000000) : nil)
         var at = 0
         func copy(_ span: InlineSpan) -> InlineSpan {
             guard let t = span as? TextSpan else {
@@ -14169,6 +14209,41 @@ public final class RichLayout {
         }
     }
 
+    /// Restore a fixed frame's overflowing indent without moving ink from
+    /// a later line. Tight lines can overlap: separate text passes, rather
+    /// than clipping the whole paragraph into horizontal bands.
+    private func _paintFixedBoxFirstLine(_ i: Int, _ painter: TextPainter, at: Offset,
+                                         _ shifts: [Double], _ canvas: any Canvas) -> Bool {
+        guard i < _boxFirstLineShift.count, _boxFirstLineShift[i] > 0,
+              let frame = _fixedTextFrame else { return false }
+        let length = painter.plainText.utf16.count
+        let end = painter.getLineBoundary(TextPosition(offset: 0)).end
+        guard end > 0, end <= length else { return false }
+        var first = painter
+        var rest: TextPainter?
+        if end < length {
+            // Keys 0/1 belong to scaled runs. These masks use the same
+            // line boundary for the lifetime of this immutable painter.
+            guard let onlyFirst = _clearedPainter(painter, [end..<length], key: 2,
+                                                  clearBackgroundAndDecoration: true),
+                  let onlyRest = _clearedPainter(painter, [0..<end], key: 3,
+                                                 clearBackgroundAndDecoration: true) else { return false }
+            first = onlyFirst
+            rest = onlyRest
+        }
+        canvas.save()
+        canvas.clipRect(Rect.fromLTRB(frame.left, -1_000_000, frame.right, 1_000_000),
+                        clipOp: .intersect, doAntiAlias: false)
+        canvas.translate(_boxFirstLineShift[i], shifts.first ?? 0)
+        first.paint(canvas, at)
+        canvas.restore()
+        if let rest {
+            if shifts.isEmpty { rest.paint(canvas, at) }
+            else { _paintShiftedLines(rest, at: at, shifts, canvas) }
+        }
+        return true
+    }
+
     /// Where paragraph `i`'s painter is drawn from, down the layout: its
     /// ink top moved by its face's baseline share. (Slides set each line
     /// on PowerPoint's whole points from it.)
@@ -14716,7 +14791,9 @@ public final class RichLayout {
         if let lines {
             lines.painter.paint(canvas, textAt)
         } else if !_paintScaled(i, g, canvas, document) {
-            if shifts.isEmpty, i < _leaders.count, _leaders[i].count == 1,
+            if _paintFixedBoxFirstLine(i, g.painter, at: textAt, shifts, canvas) {
+                // The first line and the remaining text were painted separately.
+            } else if shifts.isEmpty, i < _leaders.count, _leaders[i].count == 1,
                let box = g.painter.getBoxesForSelection(
                     TextSelection(baseOffset: _map(i).painter(_leaders[i][0].offset), extentOffset: _map(i).painter(_leaders[i][0].offset) + 1),
                     boxHeightStyle: .max).first, box.right - box.left > 1 {
@@ -14908,8 +14985,16 @@ public final class RichLayout {
         return image
     }
 
-    /// A text box's text, at the canvas's origin: its flow, and any
-    /// boxes of its group laid out beside it.
+    private func _canCorrectFixedBoxIndent(_ text: RichTextBox) -> Bool {
+        // Upright ideographs use a separate painter. Word's rotated
+        // unequal-inset frames also have another clip transform; measured
+        // here are horizontal frames and zero-inset turned ones.
+        theme.wordRules && text.hasFixedFrame && !text.fitsText && !text.fitsHeight && !text.growsToFit && text.parts.isEmpty
+            && !text.uprightIdeographs
+            && (text.textDirection == .horizontal
+                || [text.insetLeft, text.insetTop, text.insetRight, text.insetBottom].allSatisfy { $0 == 0 })
+    }
+
     /// A text box's text in its box `rect`: from its insets, or turned a
     /// quarter about the corner it reads from (`RichTextBox.textDirection`)
     /// — reading up from the bottom-left inset corner, its lines stacking
@@ -14966,6 +15051,8 @@ public final class RichLayout {
         return true
     }
 
+    /// A text box's text, at the canvas's origin: its flow, and any
+    /// boxes of its group laid out beside it.
     private func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas) {
         let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
         inside.layout.paint(canvas, visible: all, document: inside.document, selection: nil, caret: nil)
@@ -15257,6 +15344,12 @@ public final class RichLayout {
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
         layout._turnedBox = box.textDirection != .horizontal
+        if _canCorrectFixedBoxIndent(box) {
+            let inset = box.textDirection == .horizontal ? box.insetLeft
+                : box.textDirection == .up ? box.insetBottom : box.insetTop
+            let extent = box.textDirection == .horizontal ? boxWidth : image.height
+            layout._fixedTextFrame = (-_px(inset), _px(extent - inset))
+        }
         layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))
             : max(1, _px(image.height - box.insetTop - box.insetBottom))
         layout.ensureLaidOut(sub)
