@@ -122,6 +122,20 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### Mac fidelity takeover (gap analysis §4): 3-D pies, e0ca/c5b squeeze, 884c — CLAIMED (Claude mac-fidelity, 2026-10-28)
+Owner: Claude worker, clone `starling-mac-fidelity`, branch `office`, coordinator
+assignment (Codex sessions out of tokens until Nov 1). In order: (1) 3-D pie
+labels zh-27a874b7 / zh-d62da4dd and zh-61aaad09's remaining labels, taking over
+Codex's RELEASED T205 follow-up below — its 14 private controls, the rejected
+2-D vertical-centering and blanket no-manual-moves shortcuts stay rejected;
+(2) Mac squeeze/Latin edges zh-e0ca7252 (Mac 70.6) and zh-c5b5087b (Mac 26.7,
+11 pages to 10) — zh-7b08d744 is already DONE (Codex, 210/210); T218's broad
+"no squeeze" / useAltKinsoku tries stay rejected; (3) Mac residual zh-884c6e3e
+(51.4, p2 foot). zh-d5cc99a6 is 100.0 in Mac mode at 1a29f83e (435/435): no work.
+No Word driving: existing lab PDFs and references only; a rule that needs a new
+Word lab gets its spec written here and I move on. Baseline b0 on abd0eda7,
+shared engine host_release_arm64, both modes, OFFICE_FONT_SOURCE=bundled.
+
 ### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
 mac-simhei-border audit gives141/173 (81.50%) on Mac. Grepped all12 board
