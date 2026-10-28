@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### First-line text-mask candidate review — CLAIMED (release session, 2026-10-28)
+### First-line text-mask candidate review — DONE; bounded controls pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Read-only delta
 review of frozen `box-first-line-masks-candidate.patch` SHA256
 `ae5c47b1aa4af7f70fe5e387743f66a9da8646171c07cab31d29e8dcea06cfef`.
@@ -26,6 +26,20 @@ fall back to ordinary painting, so source review is not binary validation.
 Report: `/tmp/starling-first-line-masks-review/report.txt`. The26 prior private
 controls and rejected-candidate evidence are preserved. Awaiting owner binary
 for the authorized rerun; no peer build or production change.
+
+**Supplied-binary rerun PASS:** verified native binary SHA256
+`2929a8833af3f16d637aa787d2e0f397cd8a50358865578204718c35c68cd90e`;
+rendered only the26 preserved controls in both modes (52 PDFs). All26
+zero-indent comparisons exactly match baseline full-page144DPI/crop288DPI
+pixels and text geometry. All6 white overflow/reference comparisons exactly
+match explicit-break references: intact552-pixel B at top105.75pt, no shifted
+or missing top. All20 colored overflow results contain one blue B at x100.
+No failures; the bounded19707 overlap blocker is cleared. This does not
+replace owner full pairs/browser checks. DYLD logs confirm pinned shared
+bridge3841e45e loaded in both modes; source64eb and prior evidence manifest
+unchanged. Evidence: `/tmp/starling-first-line-masks-controls/report.txt`,
+`result.json`, `comparison.json`, `provenance.json` and52 PDFs/PNGs. No builds,
+production/source edits or new control scope. Results sent to owner.
 
 ### First-line band-overlap private controls — DONE; blocker confirmed (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Compare preserved
