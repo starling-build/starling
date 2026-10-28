@@ -30,12 +30,25 @@ cannot be attributed wholly to the box. No general Word rule inferred.
 Evidence: `/tmp/starling-clip-xml-audit/report.txt`, `frames.tsv`,
 `frame-mapping.json`, `audit.json` and source hashes in `inputs.json`.
 
-### First-line-only candidate source review — CLAIMED (release session, 2026-10-28)
+### First-line-only candidate source review — DONE (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Read-only review
 of frozen `box-first-line-candidate.patch`, SHA256
 `19707ac69dc6bc5c2329f6f441e56fd0501dd214d8f85e3d66c1237bdc55a127`:
 coordinates, cache and alternate-painter interactions. No build or replacement
 of preserved 64eb checkout. Owner retains binaries and focused/full pairs.
+
+**Result:** no confirmed regression from source inspection; no fidelity
+approval or build result claimed. Frame coordinates agree with inset/rotation
+transforms (12 algebra checks, no rendering). Guards cover upright, scaled,
+ruby, tabs and cell painters; current native/skwasm baseline-shift support
+keeps scripts in the main painter. Shift arrays and fixed-frame hash state
+are maintained consistently. Two bounded follow-ups sent to owner: ink that
+crosses the first/second geometric band may not stay wholly in its intended
+shift/clip pass; the existing cache key omits image height despite turned
+layout depending on it (live-resize risk, not a static corpus regression).
+Evidence: `/tmp/starling-first-line-review/report.txt`, `coordinate-checks.json`
+and frozen patch/source copies. Preserved validation diff remains exactly
+`64eb8a57…`; no builds, rendering, production edits or shared-engine changes.
 
 ### Independent frozen clipping-candidate review — DONE; candidate not ready to land (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), requested by
