@@ -122,7 +122,20 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Next Mac residual: zh-202582e2 — CLAIMED (Codex, 2026-10-28)
+### Next fresh Mac residual: zh-4c5da793 — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, after accepted4afd66fc. Fresh full
+mac-kinsoku-neutral pair/exact audit: Mac580/680 (85.29%),18 physical pages;
+Windows679/679,18 pages. Grepped every4c5 board mention before claiming:
+T191's Windows foot rule is DONE, T226's last-font-entry fallback is DONE and
+left this Mac score; no current residual owner found. Lower cases retain
+their owners, reference exclusions, or recently measured/released boundaries
+(3-D labels, e0ca squeeze,767 paper crop). Inspect the100 remaining Mac misses
+against current references before proposing another font/table rule. Preserve
+the100% Windows result and both-mode no-drop gates. Same pinned engine3841e45e,
+both environment variables, board evidence, fetch/rebase before push; no live
+deployment, shared engine changes or hyphenation decision. Claim only.
+
+### Mac residual: zh-202582e2 — font and break rules DONE; mixed baselines measured (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after accepted e8594b01. Fresh full
 mac-empty-list sweep/exact audit:116/138 matched Mac lines (84.06%),14 pages
 on both sides; Windows136/139,14 pages. Grepped every202582e2 board mention:
