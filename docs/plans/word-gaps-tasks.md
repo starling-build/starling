@@ -16,6 +16,11 @@ output directories. Preserve shared checkout outputs and10GB disk floor.
 Run `test/office-layout.sh` at a recorded office tip; report Linux native/
 browser parity with engine/source hashes. Disjoint from fidelity owner.
 
+Subclaim (same owner): separate the layout gate's HTTP port from the browser
+CDP port. Exported `PORT=18137` currently reaches both server and web-drive,
+which prevents DevTools binding. Preserve default behavior and expose an
+independent optional DevTools port; validate in the requested private run.
+
 ### Linux loaded termd timing flake — DONE (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Reproduce
 `test/run.sh` termd failure under Linux load versus isolated test, inspect
