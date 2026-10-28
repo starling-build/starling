@@ -46,7 +46,9 @@ these values are an inventory snapshot, not a rollback substitute.
   engine revision. Verify both native engine variables, actual dynamic library
   resolution, staged skwasm hashes and that no layout test silently skipped.
 - Run `test/office-layout.sh` with PyMuPDF available, including fractional
-  advance/ink and fixed-frame PDF gates. Keep the expanded 11-page reference
+  advance/ink, fixed-frame and opening-mark PDF gates. Include harness fix
+  `6413b39d`: wait for the requested document and quiet deferred fonts before
+  comparing layout; keep timeouts fatal and require the exact native/web diff. Keep the expanded 11-page reference
   gate, native RELEASE results and owner full same-engine corpus pair attached
   to the selected rendering change. Existing ae5 mask evidence is 756 docs
   per mode, zero missing/drops/page changes and 530 native tests with two known
@@ -84,7 +86,7 @@ swift build -c release --package-path apps/OfficeApp --scratch-path .build-relea
 build/web-app.sh OfficeApp --package apps/OfficeApp --check
 export OFFICE_BIN=/absolute/path/to/.build-release/PLATFORM/release/OfficeApp
 export OFFICE_PYTHON=/path/to/pymupdf-venv/bin/python
-PORT=18137 test/office-layout.sh
+PORT=18137 OFFICE_DEVTOOLS_PORT=19337 test/office-layout.sh
 ```
 
 Use the repository's Linux build wrappers/compatibility flags if the Swift
@@ -169,6 +171,23 @@ history), while preserving both old and newly referenced immutable assets.
 ## Current execution record
 
 - Checklist prepared only; no release package, site commit or push executed.
-- Linux private-engine and office-tip parity validation is a separate board
-  claim. Append its final evidence path/hash here when complete.
+- Linux private engine build passed at `bd7be6b10e59`, with all ten patches.
+  `skwasm.wasm` SHA256 is
+  `c14456aa8ed4e35af2fa4d952cb7a80f93d169df4641be4d06b482264cc34667`.
+  Build manifest: `/home/starling/office-validation-20261028/engine-result.json`
+  (SHA256 `70c2ecf2972e02a93ec2ea5697a80932c9782a8e4c1d29865bf0a95a1514949e`).
+- The `bf92ed4b` native/browser gate passes with readiness fix `6413b39d`.
+  Receipt: `font-ready-gate/gate-receipt.json` beneath that evidence root
+  (SHA256 `de06394fb0d61530cbb97106544c10452741a9095811ff3acc18e8085d05bc64`).
+  The fixed 8-second capture initially differed; the 38-second capture and
+  bounded font-ready gate match exactly. Retain this readiness gate in releases.
+- Final pinned `cd963220` Office native RELEASE/WASM builds and full Linux
+  native/browser gate **PASS**, including 11 fixed-frame and 12 opener controls,
+  with no skips. Receipt: `office-tip-cd963220/office-result.json` under the same
+  root (SHA256 `47113137e1552575ba1953d2510d90fb0a916e509467f56767f644e7059c5b1c`).
+  All 17 shared artifact hashes unchanged; minimum recorded free space 72.5 GiB.
+  Newer `d6e61adf` is excluded from this Linux snapshot; its owner's separate
+  corpus/native/browser results do not change the receipt's source revision.
+- Linux validation used unoptimized WASM because `wasm-opt` was unavailable.
+  This is not a ready-to-publish package or a loading/performance sign-off.
 - Redeployment awaits a concrete prepared release and the user's explicit yes.

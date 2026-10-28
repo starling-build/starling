@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Linux private-engine/native-browser validation — CLAIMED (release session, 2026-10-28)
+### Linux private-engine/native-browser validation — DONE; PASS (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. On Linux
 `starling@192.168.68.65`, build native and skwasm from pinned `origin/starling`
 including39bb8cb9328/6461fc4819e and all BUILDING.md1.7 patches, in private
@@ -55,7 +55,23 @@ work independently. Evidence: `font-ready-gate/`, `readiness-timeout/` and
 match; native/browser transformed Word fonts differ in OS/2 WinAscent, but
 this is a separate observation, not the demonstrated cause of the mismatch.
 Original failing binaries/dumps and exact 8s/38s captures are preserved.
-Final accepted-tip `cd963220` app rebuild/gate is now running; engine unchanged.
+**Final pinned snapshot PASS:** native RELEASE and WASM app rebuilt at
+`cd96322005a801bae07a3b321968b7cd0bb5f926`, using exact committed harness
+`6413b39d` and the same private engine. Full gate exits 0 with no skips:
+all three document layouts/roundtrips, fractional advances/ink, 11 fixed-frame
+pages (native Windows/Mac modes and browser), and 12 opening-mark controls
+(native Mac mode and browser). Swift 6.2.4, Chrome 152, Node 22.22.1 on Linux.
+Native Office SHA256 `3c69b5583e8b3b62074493aed94eb70755082ec9be54f4a94006bc618498af12`;
+app WASM `619dc2b8097a577f362fc85d4a4cbe053e3e9fb93348b32783bf93a09c97ff5b`.
+Final receipt: `office-tip-cd963220/office-result.json` under the evidence root,
+SHA256 `47113137e1552575ba1953d2510d90fb0a916e509467f56767f644e7059c5b1c`.
+Minimum recorded free space 72.5 GiB; all 17 shared artifact hashes unchanged.
+No shared output promotion, production rendering edit or deployment. Preserved
+baseline binaries include matching Swift library/resources; local receipt mirror
+`/tmp/starling-linux-validation/receipts`. Newer `d6e61adf` numeric fit/Latin
+fixture is deliberately outside this Linux snapshot, per peer coordination;
+its owner gates are separate evidence. WASM was unoptimized (no wasm-opt),
+so this is parity validation, not a production loading/performance sign-off.
 
 ### Linux loaded termd timing flake — DONE (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Reproduce
