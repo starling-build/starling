@@ -206,6 +206,27 @@ standard-residual-next. Current accepted base is7a433bf6 / nativea286737c.
 Settled mac-arial-alt pdf folders removed; matches and currentmac-grid-single /
 mac-minimum-baseline pair retained, about43GiB free.
 
+**Picture/text subtask DONE, accepted:** full mac-minimum-baseline →
+mac-picture-floor same-base pair, both mandated scripts exit0. Exact audit:
+756 documents per mode, no missing files, score drops, scored-page or physical-
+page changes. Only767's cover3311 changes normalized geometry, from y−146 to
+−159 (Mac Word−158; Windows Word−159). Windows297→298/299 matched lines;
+Mac245→246/297. No cancelling-errors exception. The text baseline moves from
+134.80 to148.12pt (fresh Mac Word147.36); the small horizontal/font-metric
+residual is not claimed fixed. No other document's normalized geometry changes.
+Two12-page Word fixtures at24/48pt text reproduce every original package part.
+All48 native mode-pages pass; non-target larger-picture, picture-only, no-image
+and off-grid pages remain pixel-identical to baseline. The old binary fails
+both sizes in both modes. The complete native/browser gate passes without
+skips, including both new fixtures. Final nativefcfed58f, app WASMe5e401cc;
+bridge3841e45e/skwasmc14456aa unchanged. Source/test patch0ddbc06d; receipt
+standard-residual-next/picture-acceptance-receipt.json, geometry audit
+picture-full-geometry-review.json and full pair reports at the evidence root.
+No reference edits, live deploys, engine relinks, hyphenation decision or new
+Windows/iOS host validation. About41GiB free. The Mac paper-crop residual stays
+outside this renderer correction; appendix empty-list labels remain under the
+existing claim, with new Word visibility controls prepared privately.
+
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
 Fresh mac-arial-alt reports and exact audit: Mac zh-291fcea7 is232/296 (78.38%);

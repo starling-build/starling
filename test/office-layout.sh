@@ -217,6 +217,24 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    PICTURE_TEXT_TEST="$REPO/test/office-picture-text-grid.py"
+    "$BOX_PY" "$PICTURE_TEXT_TEST" --binary "$BIN" || fails=$((fails + 1))
+    for size in 24 48; do
+        name="picture-text-$size"
+        if "$BOX_PY" "$PICTURE_TEXT_TEST" --size "$size" --fixture "$WORK/$name.docx"; then
+            printf '%s\n' "$WORK/$name.docx" > "$WORK/$name.txt"
+            if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/$name.txt" "$WORK/$name-pdfs" > "$WORK/$name.log" 2>&1 \
+                && "$BOX_PY" "$PICTURE_TEXT_TEST" --size "$size" --pdf "$WORK/$name-pdfs/$name.pdf"; then
+                echo "  ✔ Grid pictures with ${size}pt text: native and browser match the Word controls"
+            else
+                echo "  ✘ Grid picture/text positions differ from the Word controls"
+                tail -3 "$WORK/$name.log"
+                fails=$((fails + 1))
+            fi
+        else
+            fails=$((fails + 1))
+        fi
+    done
     # This font-table rule is specific to the native Mac-reference mode.
     # Web runs author-font mode (WASI has no OFFICE_WORD_FONTS environment),
     # so it must not be compared with these Mac Word fallback baselines.
@@ -238,6 +256,6 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
         fails=$((fails + 1))
     fi
 else
-    echo "  SKIPPED frame, opener, Latin-word, cell-word, grid-band, minimum-baseline, font-alternate and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED frame, opener, Latin-word, cell-word, grid-band, minimum-baseline, picture-text, font-alternate and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

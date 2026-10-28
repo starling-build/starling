@@ -8526,7 +8526,42 @@ public final class RichLayout {
             let boxes = combined && p.inlineImages.isEmpty ? (painter.inlinePlaceholderBoxes ?? []) : []
             let boxTop = boxes.map { $0.top }.min() ?? 0, boxFoot = boxes.map { $0.bottom }.max() ?? 0
             let boxPitches = ((boxFoot - boxTop) / px - 0.002).rounded(.up) * px
-            if p.image == nil, !combined, tallest > px + 0.01 {
+            // A picture shorter than the text's own baseline must not
+            // shrink that text to the picture's grid pitches. Keep the
+            // ordinary text line and baseline when it contains the picture.
+            var textFloor: (height: Double, inkShift: Double)?
+            let named = _named(p, document)
+            if p.image == nil, !combined, !Self._risesForNumber(inline),
+               ["auto", "baseline"].contains(style.eastAsian["w:textAlignment"] ?? "auto"),
+               p.inlineImages.values.allSatisfy({ $0.textBox == nil && $0.float == nil && $0.baseline == nil }),
+               p.runs.allSatisfy({ $0.style.script == .normal && ($0.style.raised ?? named?.char.raised ?? 0) == 0 }),
+               !p.text.contains(where: { $0 != "\u{FFFC}" && Self.isEastAsian($0, hinted: true) }),
+               let textStrut = _strut(span, tallest: true, near: spacedOver),
+               let size = textStrut.fontSize, let height = textStrut.height,
+               let line = painter.computeLineMetrics().first {
+                var naturalStyle = style
+                naturalStyle.lineHeightPoints = nil
+                var best = -Double.infinity
+                var baseline: Double?
+                var at = p.text.utf16.startIndex
+                for run in p.runs {
+                    let end = p.text.utf16.index(at, offsetBy: run.length)
+                    defer { at = end }
+                    guard run.style.inlineImage == nil,
+                          (run.style.fontHint ?? named?.char.fontHint) != "eastAsia",
+                          !p.text[at ..< end].allSatisfy(Self._setsNoLine),
+                          let own = theme.baseline(for: run.style, in: naturalStyle, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline),
+                          let placed = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) else { continue }
+                    if own > best { best = own; baseline = placed }
+                }
+                if let baseline, tallest <= _px(baseline) + 0.01 {
+                    textFloor = (size * height, _px(baseline) - line.baseline)
+                }
+            }
+            if let textFloor {
+                bodyHeight = max(textFloor.height, (tallest / px - 0.002).rounded(.up) * px)
+                _inkShift[i] = textFloor.inkShift
+            } else if p.image == nil, !combined, tallest > px + 0.01 {
                 let own = (tallest / px - 0.002).rounded(.up) * px
                 _inkShift[i] += own - bodyHeight
                 bodyHeight = own

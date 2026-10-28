@@ -8501,3 +8501,19 @@ with no other document changes; tab indentation remains a separate issue.
   within the scorer's existing allowance. The standard-cover investigation
   exposed this rule through no-picture controls; its original inline-picture
   baseline and Mac print-paper crop remain separate, unresolved issues.
+
+
+- **Small inline pictures keep a larger text line on the grid (2026-10-28).**
+  A single ordinary non-East-Asian line with an inline picture must retain
+  its text height and baseline when the picture fits above that baseline.
+  Previously its height was replaced by the picture's grid pitches, which
+  could shrink a62.4pt text line to31.2pt and shift its ink up a full pitch.
+  Keep the larger of the natural text line and picture pitches; place the
+  text at its controlling run's baseline. Larger pictures retain the existing
+  picture rule. Exact heights, off-grid lines, combined text, raised/scripted
+  runs and East Asian text stay on their measured paths. Two twelve-page Word
+  fixtures cover24/48pt text, five picture heights, grid on/off and picture-
+  only lines. Native both modes and browser pass; non-target control pages
+  remain pixel-identical. Full756-document pairs have no drops or page changes;
+  only zh-76700e5f's cover baseline changes, gaining one matched line per mode.
+  Its paper-cropped Mac appendix reference and empty-list labels are separate.
