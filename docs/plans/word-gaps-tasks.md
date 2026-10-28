@@ -122,7 +122,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Next accepted-sweep residuals: Mac final table and Windows cell punctuation — CLAIMED (Codex, 2026-10-28)
+### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
 Fresh mac-arial-alt reports and exact audit: Mac zh-291fcea7 is232/296 (78.38%);
 Windows zh-8628cfbe is1498/1605 (93.33%). Grepped all board mentions before
@@ -141,6 +141,79 @@ without individually verified cancelling errors, board results and fetch/rebase
 before push. No live deploy, shared-engine mutation or hyphenation decision.
 Current free space about47GiB; settled flat-pie PDF folders deleted, all reports
 and the current accepted base/candidate PDFs retained.
+Fresh Word original and whole-package X/文 replacements confirm the empty
+anchor stands above the page-anchored table (baseline79.44), while the next
+caption stays on p11 at764.16. Writer pushes the anchor below and the caption
+onto p12, moving the final table down about30pt. With X and the table top at
+82/84pt Word instead puts X below; 87.95pt keeps it above. Testing whether the
+lower half of line-grid leading should be excluded from the first line's
+collision extent, preserving explicit line-height behavior. This is a private
+candidate pending the remaining Word boundaries and both-mode pairs; no result
+claimed. Evidence table-residual-next/anchor-controls* and page11/12 renders.
+First-face prototype: 23 banded documents in both modes plus8 original-package
+controls, no score drops; only Mac291f changes232→281/296. Eight fresh Word
+anchor controls agree in page placement, including84pt below/86pt above.
+A separate mixed12/24pt portable control exposed an incorrect first-run
+assumption: with the small run first, the prototype puts text above the table
+where Word puts it beside/below. Rejected that prototype; use existing per-line
+minimum grid-leading measurements instead. Preserved binary grid-half-OfficeApp,
+patch/provenance and controls. The first portable table was36pt narrower than
+its page, so Word correctly used the side strip; preserved under side-room-controls
+and regenerated full-width cases to isolate vertical clearance. No full-sweep
+or acceptance claim yet.
+The per-line prototype preserves the focused gain/no-drop result and corrects
+mixed-size single lines, but a two-line X/Y control exposes existing missing
+flow-around support: after moving X above the table, Y paints over it. Reject
+that prototype too. Limit the correction to one-line paragraphs, using the
+existing minimum grid overhang across their faces. Multiline text keeps its
+prior placement; a no-overlap regression covers it without locking in the
+known incorrect baseline positions. Full-width12-page Word fixture and both
+prototypes are preserved in table-residual-next; general multiline wrapping
+remains separate. No new tolerance, engine change or hidden font substitution.
+**Narrowed focused PASS:** single-line paragraphs only, minimum allowance across
+all faces on the line; exact heights, off-grid and multiline paths unchanged.
+23 banded corpus documents in both modes plus8 whole-package Mac Word controls:
+no drops, only Mac291f corpus geometry changes232→281/296; pages unchanged.
+The original caption returns to p11 at764.335pt (fresh Word764.160), and the
+p12 title returns to74.432 (Word74.640). Twelve portable full-width Arial pages
+pass in both native modes:10 Word baseline controls and2 later-line no-overlap
+safeguards. They reject baseline at page2, the first-face prototype at page5,
+and the multiline prototype at page11. The final generator's package parts
+are byte-identical to the fresh Word print; Python3.11 syntax also passes.
+Frozen production patch e4859f609c286102088611cef822a729bf560c456a5dd7124a31bb694040598b; binary 3e37b942c2b26c97a359e8c5f876b8273c3e186df22ba0c45d7b66ab4edd7769.
+**Full acceptance PASS:** unchanged sweep-win.sh and sweep.sh both exit0 for
+mac-arial-alt→mac-grid-single, one checkout/engine and frozen source. Exact audit:
+756 documents in each mode, zero drops/missing documents or scored/physical page
+changes. Only Mac291f geometry changes232→281/296 (78.38→94.93%); every other
+normalized row, including all Windows rows, is unchanged. Same8 unscored
+malformed/encrypted Mac refusals as base. No cancelling-errors exception.
+Native RELEASE/WASM builds and full browser layout gate pass with no skips:
+three exact layouts/roundtrips, fractional advances/ink, fixed-frame/opener/Latin/
+cell/pie controls, and the new12-page grid-band check in native both modes and
+browser. The six Mac-font fallback pages remain native-only, as documented.
+Static lint, Python3.11 syntax, shell syntax and diff checks pass. Fixture parts
+remain byte-identical to the Word-printed package. Source/binary/engine hashes
+rechecked; app WASM529dd593, bridge3841e45e and skwasmc14456aa unchanged.
+Acceptance receipt table-residual-next/acceptance-receipt.json, full audit
+mac-arial-alt--mac-grid-single-exact.json, grid-single-* logs, Word PDF and
+regression-rejection-results.json. About45GiB free; no shared engine changes,
+live deployments or hyphenation decision. Mac291f's15 remaining drawing/table
+misses are released; multiline wrapping is explicitly still unsolved.
+
+Windows8628 remains claimed, read-only. Current PDF confirms the old p13 comma
+witness (the layout text dump alone omits its final punctuation): at ¶396,
+width218.1, incoming comma starts215.4, needs9.3, two commas give12, no automatic
+spaces,19 characters/228 em-points. Current share test takes it; Word keeps the
+preceding comma whole and wraps it. Word's last column is about230.21pt versus
+app230.05, so a narrower reference column does not explain it. The second
+repeated paragraph and rows below are about17pt early. Preserve the prior
+rejected blanket kinsoku rule; no new rule or rendering change for8628 yet.
+Evidence 8628-cell-trace.*,8628-{word,base}-p13.* and windows-layout.txt under
+table-residual-next. No current Windows-native or iOS validation inferred.
+
+
+
+
 
 ### Fresh after legacy-cell fitting: Mac alternate DONE; Windows grid measured, released (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item 4 after 878d44bb.

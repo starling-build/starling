@@ -8466,3 +8466,21 @@ with no other document changes; tab indentation remains a separate issue.
   These Mac-only expectations are not a browser-font-mode assertion: WASI
   exposes no OFFICE_WORD_FONTS environment. The separate generic staged-web
   CJK fallback gap is recorded on the board, not hidden by test fonts.
+
+
+- **A single grid line may clear a floating table before its grid cell ends
+  (2026-10-28).** For a one-line paragraph above a page-wide floating band,
+  exclude the lower half of its grid leading from the collision extent. Use
+  the existing minimum allowance across all its faces: a smaller first run
+  must not let a larger following run overlap the table. Keep explicit line
+  heights, off-grid text and multiline paragraphs on their existing paths.
+  Fresh whole-package Word controls of zh-291fcea7 place an empty anchor, X or
+  文 above the table at87.95pt; X goes below at82/84pt and stays above at86pt.
+  The attachment caption consequently fits on page11, and the final table
+  returns to Word's position on page12. Full paired sweeps: 756 documents per
+  mode, no drops or page changes; only Mac291f moves,232→281/296 matched lines.
+  Twelve portable Arial controls pass natively in both modes and in browser:
+  ten Word baselines plus two safeguards against later glyphs overlapping the
+  table. First-run-only and unrestricted-multiline prototypes were rejected.
+  General multiline flow around page-wide floats remains a separate gap; the
+  safeguards permit its eventual correction without asserting the old positions.

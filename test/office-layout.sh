@@ -187,6 +187,21 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    GRID_BAND_TEST="$REPO/test/office-grid-band.py"
+    "$BOX_PY" "$GRID_BAND_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$GRID_BAND_TEST" --fixture "$WORK/grid-band.docx"; then
+        printf '%s\n' "$WORK/grid-band.docx" > "$WORK/grid-band.txt"
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/grid-band.txt" "$WORK/grid-band-pdfs" > "$WORK/grid-band.log" 2>&1 \
+            && "$BOX_PY" "$GRID_BAND_TEST" --pdf "$WORK/grid-band-pdfs/grid-band.pdf"; then
+            echo "  ✔ Grid/table clearance: native and browser match the Word controls and avoid later-line overlap"
+        else
+            echo "  ✘ Grid/table clearance or later-line safety differs"
+            tail -3 "$WORK/grid-band.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
     # This font-table rule is specific to the native Mac-reference mode.
     # Web runs author-font mode (WASI has no OFFICE_WORD_FONTS environment),
     # so it must not be compared with these Mac Word fallback baselines.

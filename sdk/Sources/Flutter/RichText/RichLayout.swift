@@ -5846,7 +5846,22 @@ public final class RichLayout {
                 // line 17, which would reach into the issuing table, goes
                 // under it — and so to page 3 — in Word's print.)
                 if !tableBands.isEmpty {
-                    let line = Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]
+                    // The lower half of grid leading is outside the text's
+                    // collision extent. In 291f's page-anchored table controls,
+                    // the 36pt-grid anchor still stands above an 87.95pt table:
+                    // its glyphs end before the table although the grid does not.
+                    // Explicit line heights retain their stated extent.
+                    // Use every face on this line, as at a page foot. Taking
+                    // only the first run's half lets a later, larger face
+                    // overlap the table; mixed 12/24pt controls rule that out.
+                    // Keep multiline paragraphs on their existing path until
+                    // later lines can be flowed around these page-wide bands.
+                    let style = document.paragraphs[i].style
+                    let lineBottoms = Self._lineBottoms(geometry(i).painter)
+                    let gridHalf = lineBottoms.count == 1 && style.lineHeightPoints == nil
+                        && style.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil
+                        && i < _overhang.count ? _overhang[i] : 0
+                    let line = (lineBottoms.first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
                     while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
                         y = band.bottom; guardSteps += 1
                     }
