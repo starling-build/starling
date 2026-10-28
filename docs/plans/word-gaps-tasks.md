@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Read-only clipping-drop XML audit — CLAIMED (release session, 2026-10-28)
+### Read-only clipping-drop XML audit — DONE (release session, 2026-10-28)
 Owner: Codex release/web session (private `/tmp` evidence, clean validation
 notes worktree), requested by the fidelity owner. Compare the dropping
 DOCX packages in `box-clip-drops.json` against b24: explicit body overflow/
@@ -17,6 +17,25 @@ and shape/anchor extents. Keep absence distinct from explicit values and
 ambiguous lost-line/shape matches explicit. No rendering, Word automation,
 production/source changes, or inferred Word rule. Candidate checkout stays
 untouched; owner continues targeted Word controls and corpus diagnosis.
+
+**Result:** audited all 12 unique dropping documents plus b24. The 198
+fixed frames in dropping packages mix 50 explicit overflow/overflow with
+148 absent pairs; compatibility modes also mix 14/15. Among 18 lost-line
+frame candidates, 17 shape/anchor extents match exactly and one differs by
+only 1 EMU. All 18 matching VML fallbacks (including four `v:rect`) have no
+explicit fit flag in the inspected shape/textbox/type properties. Both PAGE
+witnesses are 5×11.05pt with 0.05pt insets. Six lost tuples remain ambiguous;
+one e51 scored line combines box dashes with a normal body paragraph and
+cannot be attributed wholly to the box. No general Word rule inferred.
+Evidence: `/tmp/starling-clip-xml-audit/report.txt`, `frames.tsv`,
+`frame-mapping.json`, `audit.json` and source hashes in `inputs.json`.
+
+### First-line-only candidate source review — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Read-only review
+of frozen `box-first-line-candidate.patch`, SHA256
+`19707ac69dc6bc5c2329f6f441e56fd0501dd214d8f85e3d66c1237bdc55a127`:
+coordinates, cache and alternate-painter interactions. No build or replacement
+of preserved 64eb checkout. Owner retains binaries and focused/full pairs.
 
 ### Independent frozen clipping-candidate review — DONE; candidate not ready to land (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), requested by
