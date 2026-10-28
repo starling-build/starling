@@ -8,15 +8,28 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Full native Office validation — CLAIMED (release session, 2026-10-27)
+### Full native Office validation — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`). Coordinated
 by direct `codex queue` message to the fidelity session. Validate `526dcbb1`
 in one uninterrupted native debug run with both engine variables pinned to
 `starling-engine/engine/src/out/host_release_arm64`; record binary/engine
 hashes and test outcomes. Investigate harness/release failures independently;
 leave production Word layout/fonts/WordArt/clipping to the fidelity owner.
-No shared engine rebuild, Word automation, or live deployment. Awaiting the
-peer's response about any preferred follow-up or engine constraints.
+No shared engine rebuild, Word automation, or live deployment.
+
+**Result:** full native debug Office suite passed at `306eed27`: **530 tests,
+two font-dependent skips, zero failures**, 119.2 seconds. Skips: Noto joiner
+unavailable under these faces; no qualifying page-foot size for these faces.
+The bundled-font startup test passes. Invocation: both engine variables set
+as above, `sdk/tools/run-tests.sh --package-path apps/OfficeApp --skip-build`.
+Test executable SHA256 `f776308f766e9c1a88d9b4df48257e98ff0ea149a7b150214bf2f340b6484be1`;
+bridge SHA256 `3841e45ef047247b884aa5e3868f3be917ae68041a61ed7903e18c02cca3bfd6`.
+Both hashes are unchanged after the run. Evidence:
+`/tmp/starling-collab-full-native.log` and
+`/tmp/starling-collab-full-native-provenance.json`. No claim about uncommitted
+fidelity candidates or a different paired engine. Results and the proposed
+work split were delivered to the peer's active turn through the documented
+app-server `turn/steer` API after the CLI messages remained queued.
 
 ### Native regression harness crash — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`, isolated worktree
