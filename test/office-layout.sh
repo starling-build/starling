@@ -42,6 +42,9 @@ fi
 BIN="${OFFICE_BIN:-$DEFAULT_BIN}"
 STAGE="$REPO/.stage-web-OfficeApp"
 PORT="${PORT:-8137}"
+# PORT selects this gate's HTTP server. web-drive also calls its DevTools
+# setting PORT, so never forward the HTTP value to Chrome's debugging socket.
+DEVTOOLS_PORT="${OFFICE_DEVTOOLS_PORT:-9333}"
 DRIVE="$REPO/build/tools/web-drive.mjs"
 CHROME="${CHROME:-$DEFAULT_CHROME}"
 
@@ -73,7 +76,7 @@ export URL="http://127.0.0.1:$PORT/" CHROME_PROFILE="$WORK/profile" CHROME
 # A screen-sized font must not become narrower merely because its size
 # falls between FreeType's 1/64-pixel units. Test the low-level web engine
 # too: a native-only corpus sweep does not exercise this font backend.
-if node "$DRIVE" wait 6000 eval "$(cat "$REPO/test/office-font-scale.js")" > "$WORK/font-scale.log" 2>&1; then
+if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 eval "$(cat "$REPO/test/office-font-scale.js")" > "$WORK/font-scale.log" 2>&1; then
     echo "  ✔ fractional font advances and glyph ink scale consistently"
 else
     echo "  ✘ fractional font advances or glyph ink differ by size"
@@ -95,7 +98,7 @@ for doc in "${DOCS[@]}"; do
     fi
     "$BIN" --layout "$doc" > "$native" || { echo "  ✘ $name: native layout failed"; fails=$((fails + 1)); continue; }
     abs="$(cd "$(dirname "$doc")" && pwd)/$(basename "$doc")"
-    node "$DRIVE" wait 6000 chord ctrl o wait 500 setfile "$abs" wait 8000 dump layout "$web" > "$WORK/$name.log" 2>&1 \
+    PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 chord ctrl o wait 500 setfile "$abs" settle "$(basename "$abs")" dump layout "$web" > "$WORK/$name.log" 2>&1 \
         || { echo "  ✘ $name: browser dump failed"; tail -3 "$WORK/$name.log"; fails=$((fails + 1)); continue; }
     pages="$(head -1 "$native")"
     lines="$(grep -c '^p' "$native")"
@@ -128,7 +131,7 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     "$BOX_PY" "$BOX_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$BOX_TEST" --fixture "$WORK/fixed-frames.docx"; then
         printf '%s\n' "$WORK/fixed-frames.docx" > "$WORK/fixed-frames.txt"
-        if node "$DRIVE" wait 6000 pdfs "$WORK/fixed-frames.txt" "$WORK/fixed-frame-pdfs" > "$WORK/fixed-frames.log" 2>&1 \
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/fixed-frames.txt" "$WORK/fixed-frame-pdfs" > "$WORK/fixed-frames.log" 2>&1 \
             && "$BOX_PY" "$BOX_TEST" --pdf "$WORK/fixed-frame-pdfs/fixed-frames.pdf"; then
             echo "  ✔ fixed text frames: native and browser keep and clip the intended glyphs"
         else
@@ -143,7 +146,7 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     "$BOX_PY" "$OPENER_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$OPENER_TEST" --fixture "$WORK/openers.docx"; then
         printf '%s\n' "$WORK/openers.docx" > "$WORK/openers.txt"
-        if node "$DRIVE" wait 6000 pdfs "$WORK/openers.txt" "$WORK/opener-pdfs" > "$WORK/openers.log" 2>&1 \
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/openers.txt" "$WORK/opener-pdfs" > "$WORK/openers.log" 2>&1 \
             && "$BOX_PY" "$OPENER_TEST" --pdf "$WORK/opener-pdfs/openers.pdf"; then
             echo "  ✔ opening marks: native and browser match the Word boundary controls"
         else

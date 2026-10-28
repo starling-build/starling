@@ -42,8 +42,20 @@ but its 38s dump matches native byte-for-byte. Five single-body-paragraph
 controls, retaining original package defaults, all match. Add bounded
 requested-document/font-quiet readiness to the layout path using the existing
 PDF driver's pattern; retain failure on timeout and the final exact diff.
-No rendering or engine correction indicated. The `cd963220` follow-up build
-is held until this harness issue is resolved. Preserve all initial evidence.
+No rendering or engine correction indicated. **Harness fix PASS:** `settle`
+waits boundedly for the requested document name and a `fontsPending()==0`
+quiet interval; the gate keeps its exact dump diff. Missing-document and
+permanently pending-font controls both fail with the expected timeout error.
+Full `bf92ed4b` rerun passes: welcome (1 page), TextEdit (3 pages),
+boringcrypto (24 pages / 1071 dump lines), every save roundtrip, fractional
+font/ink gate and all 11 fixed-frame pages in native Windows/Mac modes plus
+browser. Exported HTTP `PORT=18137` and DevTools `OFFICE_DEVTOOLS_PORT=19337`
+work independently. Evidence: `font-ready-gate/`, `readiness-timeout/` and
+`font-audit/` under the Linux evidence root. All 57 base font file hashes
+match; native/browser transformed Word fonts differ in OS/2 WinAscent, but
+this is a separate observation, not the demonstrated cause of the mismatch.
+Original failing binaries/dumps and exact 8s/38s captures are preserved.
+Final accepted-tip `cd963220` app rebuild/gate is now running; engine unchanged.
 
 ### Linux loaded termd timing flake — DONE (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Reproduce

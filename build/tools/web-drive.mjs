@@ -13,6 +13,7 @@
 //                        id=starling-file>, as if picked (Office's Open)
 //   downloads DIR        let downloads land in DIR (Office's Save)
 //   eval JS              print the expression's value as JSON, `eval: …`
+//   settle NAME          wait for the opened Office document and quiet fonts
 //   dump KIND FILE       write starling.debug(KIND) to FILE (Office:
 //                        'layout' — the same text `OfficeApp --layout`
 //                        prints natively)
@@ -31,6 +32,8 @@
 // http://127.0.0.1:8137/), W and H (the window, default 1400×900 — Chrome
 // lays out nothing narrower than 500), DPR, CHROME (the binary),
 // CHROME_PROFILE (a user-data dir; the default is under the OS temp dir),
+// OPEN_MS (document-open timeout, default 30000), FONT_WAIT_MS (settle
+// timeout, default 60000), SETTLE_MS (font-quiet interval, default 800),
 // PORT (the DevTools port, default 9333 — a crashed run leaves its Chrome
 // on the port, and the next attaches to the stale target and hangs; this
 // script kills what it started, `pkill -f remote-debugging-port=9333` for
@@ -38,7 +41,7 @@
 //
 //   node build/tools/web-drive.mjs wait 6000 chord ctrl o wait 500 \
 //       setfile "$PWD/apps/OfficeApp/Tests/OfficeAppTests/Fixtures/word-boringcrypto.docx" \
-//       wait 8000 dump layout /tmp/web.txt shot /tmp/web.png
+//       settle word-boringcrypto.docx dump layout /tmp/web.txt shot /tmp/web.png
 //
 // Node 22+ (the global WebSocket); no dependencies.
 import { spawn } from 'node:child_process';
@@ -97,6 +100,14 @@ const evaluate = async (expression) => {
   if (exceptionDetails) throw new Error(exceptionDetails.exception?.description || exceptionDetails.text);
   return result.value;
 };
+// Shared bounded polling; callers must check a timeout instead of continuing.
+const until = async (ms, test) => {
+  for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) {
+    const value = await test();
+    if (value) return value;
+  }
+  return null;
+};
 let failed = false;
 try {
   while (args.length) {
@@ -131,6 +142,22 @@ try {
       await sleep(200);
     } else if (op === 'eval') {
       console.log('eval:', JSON.stringify(await evaluate(args.shift())));
+    } else if (op === 'settle') {
+      const name = args.shift();
+      if (!await until(+(process.env.OPEN_MS || 30000), async () =>
+        await evaluate('window.starling?.debug?.("name")') === name)) {
+        throw new Error(`document did not open before timeout: ${name}`);
+      }
+      // Loading a large document can request more font families as it lays out.
+      // Require a quiet interval after the final registration/relayout, just as
+      // PDF export does, rather than capturing a provisional fallback layout.
+      let quiet = null;
+      if (!await until(+(process.env.FONT_WAIT_MS || 60000), async () => {
+        const pending = await evaluate('window.starling?.fontsPending?.()');
+        if (pending !== 0) { quiet = null; return false; }
+        quiet ??= Date.now();
+        return Date.now() - quiet >= +(process.env.SETTLE_MS || 800);
+      })) throw new Error(`fonts did not settle before timeout: ${name}`);
     } else if (op === 'dump') {
       const kind = args.shift(); const file = args.shift();
       const text = await evaluate(`window.starling.debug(${JSON.stringify(kind)})`);
@@ -148,10 +175,6 @@ try {
       mkdirSync(out, { recursive: true });
       await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: out, eventsEnabled: true });
       const debug = (kind) => evaluate(`window.starling && window.starling.debug ? window.starling.debug(${JSON.stringify(kind)}) : null`).catch(() => null);
-      const until = async (ms, test) => {
-        for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) { const v = await test(); if (v) return v; }
-        return null;
-      };
       const reload = async () => {
         await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
         await until(60000, async () => (await debug('name')) != null);
