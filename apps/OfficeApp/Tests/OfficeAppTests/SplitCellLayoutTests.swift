@@ -45,7 +45,10 @@ final class SplitCellLayoutTests: XCTestCase {
             layout.ensureLaidOut(document)
             func baseline(_ paragraph: Int, _ line: Int = 0) throws -> (page: Int, y: Double) {
                 let geometry = layout.geometry(paragraph)
-                let flowY = geometry.textTop + geometry.painter.computeLineMetrics()[line].baseline
+                let metrics = geometry.painter.computeLineMetrics()
+                let metric = try XCTUnwrap(metrics.indices.contains(line) ? metrics[line] : nil,
+                    "\(alignment): paragraph \(paragraph) needs line \(line), but has \(metrics.count) line metrics; ICU loaded: \(TestText.icuLoaded)")
+                let flowY = geometry.textTop + metric.baseline
                 let piece = try XCTUnwrap(layout.pieces.flatMap { $0 }.first {
                     $0.paragraph == paragraph && $0.part != .rules && flowY >= $0.flowTop && flowY < $0.flowBottom
                 })
