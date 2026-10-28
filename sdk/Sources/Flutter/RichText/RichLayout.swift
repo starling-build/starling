@@ -6288,7 +6288,8 @@ public final class RichLayout {
     /// <height> |<text>|`, after a first line with the page count. Two
     /// layouts that agree — native and browser, before and after a save —
     /// produce identical text, and where they differ, `diff` says which
-    /// line broke elsewhere. Heights are logical pixels to a tenth.
+    /// line broke elsewhere. Heights are line advances (the room pagination
+    /// consumes), in logical pixels to a tenth, not a fallback font's ink metrics.
     public func lineDump(_ document: RichDocument) -> String {
         ensureLaidOut(document)
         var out = "pages \(pageCount)\n"
@@ -6321,8 +6322,14 @@ public final class RichLayout {
                 let a = utf16.index(utf16.startIndex, offsetBy: start)
                 let b = utf16.index(utf16.startIndex, offsetBy: end)
                 let text = (String(utf16[a ..< b]) ?? "").trimmingWhitespace()
-                out += "p\(page(atFlow: y)) ¶\(i) \(_tenth(line.height)) |\(text)|\n"
-                y = first + (k < bottoms.count ? bottoms[k] : 0)
+                // A forced strut keeps the line's advance even when a
+                // fallback font has a taller ascent/descent. Those raw
+                // metrics differ across CoreText and FreeType (Carlito's
+                // missing U+2010 in word-boringcrypto), but set no extra
+                // room. Report the same advance used to page the line.
+                let bottom = k < bottoms.count ? bottoms[k] : y - first + line.height
+                out += "p\(page(atFlow: y)) ¶\(i) \(_tenth(first + bottom - y)) |\(text)|\n"
+                y = first + bottom
                 k += 1
                 start = end
                 if start >= para.length { break }

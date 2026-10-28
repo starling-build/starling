@@ -70,20 +70,33 @@ fi
 
 fails=0
 export URL="http://127.0.0.1:$PORT/" CHROME_PROFILE="$WORK/profile" CHROME
+# A screen-sized font must not become narrower merely because its size
+# falls between FreeType's 1/64-pixel units. Test the low-level web engine
+# too: a native-only corpus sweep does not exercise this font backend.
+if node "$DRIVE" wait 6000 eval "$(cat "$REPO/test/office-font-scale.js")" > "$WORK/font-scale.log" 2>&1; then
+    echo "  ✔ fractional font advances scale consistently"
+else
+    echo "  ✘ fractional font advances differ by size"
+    tail -3 "$WORK/font-scale.log"
+    fails=$((fails + 1))
+fi
 for doc in "${DOCS[@]}"; do
     name="$(basename "$doc")"
     native="$WORK/$name.native.txt"
     web="$WORK/$name.web.txt"
+    # The built-in welcome uses Cmd labels on macOS and Ctrl on the web.
+    # Save it once, then open identical bytes on both sides, just as for
+    # the fixtures. Comparing two platform-specific documents is not a
+    # layout comparison. This also exercises its .docx round trip.
     if [ "$doc" = welcome ]; then
-        "$BIN" --layout welcome > "$native" || { echo "  ✘ $name: native layout failed"; fails=$((fails + 1)); continue; }
-        node "$DRIVE" wait 6000 dump layout "$web" > "$WORK/$name.log" 2>&1 \
-            || { echo "  ✘ $name: browser dump failed"; tail -3 "$WORK/$name.log"; fails=$((fails + 1)); continue; }
-    else
-        "$BIN" --layout "$doc" > "$native" || { echo "  ✘ $name: native layout failed"; fails=$((fails + 1)); continue; }
-        abs="$(cd "$(dirname "$doc")" && pwd)/$(basename "$doc")"
-        node "$DRIVE" wait 6000 chord ctrl o wait 500 setfile "$abs" wait 8000 dump layout "$web" > "$WORK/$name.log" 2>&1 \
-            || { echo "  ✘ $name: browser dump failed"; tail -3 "$WORK/$name.log"; fails=$((fails + 1)); continue; }
+        doc="$WORK/welcome.docx"
+        "$BIN" --convert welcome "$doc" >/dev/null \
+            || { echo "  ✘ $name: could not write welcome fixture"; fails=$((fails + 1)); continue; }
     fi
+    "$BIN" --layout "$doc" > "$native" || { echo "  ✘ $name: native layout failed"; fails=$((fails + 1)); continue; }
+    abs="$(cd "$(dirname "$doc")" && pwd)/$(basename "$doc")"
+    node "$DRIVE" wait 6000 chord ctrl o wait 500 setfile "$abs" wait 8000 dump layout "$web" > "$WORK/$name.log" 2>&1 \
+        || { echo "  ✘ $name: browser dump failed"; tail -3 "$WORK/$name.log"; fails=$((fails + 1)); continue; }
     pages="$(head -1 "$native")"
     lines="$(grep -c '^p' "$native")"
     if diff -q "$native" "$web" >/dev/null; then

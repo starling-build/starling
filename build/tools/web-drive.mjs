@@ -93,7 +93,7 @@ await sleep(3000);
 const mouse = async (type, x, y, button = 'left') =>
   send('Input.dispatchMouseEvent', { type, x, y, button, clickCount: 1, buttons: type === 'mouseReleased' ? 0 : 1 });
 const evaluate = async (expression) => {
-  const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, returnByValue: true });
+  const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
   if (exceptionDetails) throw new Error(exceptionDetails.exception?.description || exceptionDetails.text);
   return result.value;
 };

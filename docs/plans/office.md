@@ -1332,6 +1332,17 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **Screen and native parity (2026-10-27).** FreeType's 26.6 requested size
+  must not quantize linear advances: 11pt at screen scale is 14⅔px, whereas
+  PDF scale uses 220px. `skia-freetype-linear-size.patch` restores the requested
+  scale for linear advances without changing hinted outlines; the browser's
+  word-boringcrypto wrapping then matches Mac CoreText. `test/office-layout.sh`
+  also checks fractional-size scaling directly. Its line dump reports the
+  advance pagination consumes, not raw fallback ascent + descent: an exact
+  13.2667px strut stays that height even if a missing U+2010 glyph uses a
+  taller fallback face. Compare identical document bytes, including welcome's
+  platform-specific shortcut labels, before diagnosing a layout difference.
+
 - **Lines.** An East Asian face's line is 1.3 times its ascent and
   descent; on a line grid a line is whole pitches; an exact height
   ignores the grid; the baseline sits 13/16 down an exact line and is

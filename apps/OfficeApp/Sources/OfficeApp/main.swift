@@ -417,7 +417,9 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
     let dst = CommandLine.arguments[i + 2]
     initializeHeadlessText()
     do {
-        let opened = try OfficeFormats.read(src)
+        let opened = try src == "welcome"
+            ? OpenedDocument(document: WelcomeDocument.make(), pageSetup: .letter)
+            : OfficeFormats.read(src)
         if dst.pathExtension.lowercased() == "pdf" {
             let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
             theme.fontFamilyResolver = OfficeFonts.drawn
