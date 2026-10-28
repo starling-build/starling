@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Frozen text-mask full RELEASE suite — CLAIMED (release session, 2026-10-28)
+### Frozen text-mask full RELEASE suite — DONE; pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Preserve64eb,
 then apply exact ae5c47b1 production patch only in private validation checkout.
 Run full Swift6.2.1 RELEASE suite with both engine variables pinned to3841e45e;
@@ -16,6 +16,18 @@ compare all530 test identities/outcomes with prior baseline. Preserve10GiB
 free; stop on source mismatch/failure. No candidate commit, rendering edits,
 shared-engine changes, Word automation or site changes. Owner full corpus
 pair remains a separate mandatory gate; this suite cannot authorize landing.
+
+**Result:** exact ae5c47b1 passed full Swift6.2.1 RELEASE:530 tests,two existing
+skips,zero failures (36.517s tests;550.09s total). All530 identities/outcomes
+match committed baseline and64eb run; no missing/extra/changed tests. Both
+engine variables stayed pinned3841e45e; bridge/source hashes unchanged before/
+after. Minimum free48.83GiB. Test executable SHA256:
+`660926af8dc48b6be38f76d87f2006a2c2b2d1178e262889aee41eca8f22e600`.
+Evidence: `/tmp/starling-mask-full-release/report.txt`, `release.log`,
+`provenance.json`, `test-comparison.json`. Prior64eb patch/source preserved
+there; ae5c candidate remains uncommitted in private checkout. No production
+fixes, shared-engine changes, Word automation or deployment. Report sent to
+owner; their full corpus gate is still independently required.
 
 ### First-line text-mask candidate review — DONE; bounded controls pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Read-only delta
