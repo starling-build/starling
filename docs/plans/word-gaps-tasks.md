@@ -122,7 +122,27 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Fresh after legacy-cell fitting: Mac alternate DONE; Windows grid CLAIMED (Codex, 2026-10-28)
+### Next accepted-sweep residuals: Mac final table and Windows cell punctuation — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
+Fresh mac-arial-alt reports and exact audit: Mac zh-291fcea7 is232/296 (78.38%);
+Windows zh-8628cfbe is1498/1605 (93.33%). Grepped all board mentions before
+claiming. T133/flowchart residuals are released; the Windows8628 p13 note is
+explicitly measured/not claimed. Lower documents retain the exclusions/owners
+recorded in the preceding fresh-sweep claim;3c055's boundary-gap trial is now
+rejected and released with preserved Word counterexamples.
+Mac291f has64 misses: p4 two, p5 five, p9 three, p11 one, p12 fifty-three.
+Start with the final-page table displacement after accepted section parity;
+keep existing WordArt/first-line mask behavior. Windows8628 has107 misses,
+mostly p13–15 after a cell wraps differently. Preserve T181's rejected
+kinsoku-zero blanket rule, which dropped12 documents; inspect its own cell
+before another fitting change. No implementation change for either task yet.
+Both-mode same-base pairs, both engine variables pinned3841e45e, no drops
+without individually verified cancelling errors, board results and fetch/rebase
+before push. No live deploy, shared-engine mutation or hyphenation decision.
+Current free space about47GiB; settled flat-pie PDF folders deleted, all reports
+and the current accepted base/candidate PDFs retained.
+
+### Fresh after legacy-cell fitting: Mac alternate DONE; Windows grid measured, released (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item 4 after 878d44bb.
 Fresh accepted mac-cell-letter sweep: Mac zh-d5cc99a6 309/435 (71.03%);
 Windows zh-3c055c9b 537/576 (93.23%). Grepped every board occurrence before
@@ -203,13 +223,33 @@ font-alt-default-layout.txt,font-browser-final.log}, and
 mac-cell-letter--mac-arial-alt-exact.json. Keep base/candidate PDFs and all
 match reports. No live deployment, shared-engine change or hyphenation decision.
 
-**Windows grid remains claimed, read-only:** 3c055's39 misses cluster at
+**Windows grid investigation (now released):** 3c055's39 misses cluster at
 p2, p9–14; p9 refuses 號、 after4829,17.83165pt over with17.00757pt of mark
 capacity and six4.25189pt automatic gaps. Investigating whether the disappearing
 boundary gap belongs in the alternative line's stretch calculation; no rule or
 code change yet. Recovered old ab3a/b/c DOCX/Word PDFs under
 ~/starling-word-check/lab/tools/ (the earlier search pattern missed underscores).
 Preserve their0.44 calibration, T206's rejected caps and tfe mark-order witness.
+Private experimental candidate now credits only the automatic gap immediately
+before an incoming ideograph on a modern character grid, and excludes that
+same gap from the alternative line's0.44 stretch sum. No cap/tolerance change;
+not an accepted Word rule. **REJECTED after focused pairs:** all43 character-grid
+corpus documents in both modes plus12 recovered Mac Word controls (98 candidate
+PDFs,12 additional control baselines). Only3c055 corpus geometry changes:
+Windows537→558/576 and Mac557→575/588, no corpus score drops. But exact first-line
+text exposes four new control failures hidden by the approximate start matcher:
+ab3b−776/−774 and ab3c695/697 now keep 頁】， where Word and baseline wrap it.
+Four opposite-boundary controls improve; the digit-free ab3a controls stay as
+before, including its preexisting227-twip miss. Do not accept the corpus gains
+as a rule. No full sweep or browser build for this rejected candidate, no
+cancelling-errors exception. Production source restored byte-for-byte to59f0eecc.
+Evidence: alternate-grid-next/{grid-gap.patch,grid-gap-provenance.json,
+grid-gap-results.json,grid-gap-boundaries.json,grid-gap/}; frozen
+~/starling-doc-check-starling-word-fidelity-codex/grid-gap-OfficeApp retained.
+The boundary gap cannot simply be credited under the existing0.44 calibration;
+no new weight or document-specific guard guessed. Grid residuals released.
+
+
 
 
 
