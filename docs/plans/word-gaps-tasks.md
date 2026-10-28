@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Native regression harness crash — CLAIMED (release session, 2026-10-27)
+### Native regression harness crash — DONE (release session, 2026-10-27)
 Owner: Codex release/web session (`starling-office-test-collab`, isolated worktree
 based on `office`; pushes to `office`). Scope: `SplitCellLayoutTests` crashes
 with an unchecked line-metric index during native release validation, preventing
@@ -17,6 +17,31 @@ missing metrics report an XCTest failure instead of terminating the process,
 and record current-suite results. No production layout/font/WordArt changes,
 no shared engine rebuild, no Word automation, and no live deployment. This is
 separate from the fidelity session's drawing and remaining document claims.
+
+**Result:** the release check set only `STARLING_ENGINE_OUT`; test ICU startup
+recognized only `STARLING_ICU` / `FLUTTER_SWIFT_ENGINE_OUT`. With both engine
+variables set, the unchanged split-cell test passes. The helper now accepts
+the app engine path as its final fallback and returns the real initialization
+result. Missing line metrics throw an XCTest failure rather than trapping.
+On `b9d77ca0`, the single-variable control exited 133; with the fix, all three
+startup/split-cell tests pass. Deliberately missing ICU now exits 1 with an
+explicit missing-line diagnostic (no crash). After rebasing onto `39a97dd9`,
+the same three tests pass with both engine variables. Lint/diff check pass.
+Full single-variable debug suite passed 407 cases before a separate Sheets
+recursion crash below. Evidence: `/tmp/starling-collab-{single-env-before,
+single-env-after,missing-icu-after,rebased-focused,full-after,lint}.log`.
+No rendering changes; paired Word sweeps do not apply to these test helpers.
+
+### Bring main's Darwin recursion guard to office — CLAIMED (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`).
+The full native debug run on `b9d77ca0` plus the ICU helper fix crashed in
+`SheetsEngineTests.testLambdaThroughDefinedNames` after 407 passing cases.
+macOS crash report confirms stack exhaustion in recursive formula evaluation.
+`main` already has the fix, `1fdfc75a`; `office` has never included it. Bring
+that exact single-file fix across, then run the existing named-LAMBDA tests
+and remaining suite. Scope: `Sheets/StackRoom.swift`; no formula semantics,
+Word rendering, shared engine or deployment changes. No overlapping named
+claim found in this board or `sheets.md`.
 
 ### Next fresh-sweep pair: flowchart and drawing geometry — CLAIMED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
