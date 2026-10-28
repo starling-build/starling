@@ -122,6 +122,20 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
+mac-simhei-border audit gives141/173 (81.50%) on Mac. Grepped all12 board
+mentions: T193's floating-table rule is DONE and explicitly Windows-only;
+older NUL/extraction observations are released. No active Mac residual owner
+found. Lower cases remain owned, documented reference exclusions, or just-
+measured/released squeeze/3-D boundaries. Start with current missing lines
+and fresh Word package validation, not a blind extension of the Windows rule.
+Windows8628 stays separately claimed/read-only; its earlier blanket-kinsoku
+candidate remains rejected. Same-base both-mode sweeps, pinned3841e45e and
+both engine variables, no-drop gate, board evidence and fetch/rebase before
+push remain required. No live deployment, shared engine relinking or
+hyphenation choice. Claim only; production checkout is clean.
+
 ### Mac SimHei and legacy closing-border clearance: zh-4c5da793 — DONE (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after accepted4afd66fc. Fresh full
 mac-kinsoku-neutral pair/exact audit: Mac580/680 (85.29%),18 physical pages;
