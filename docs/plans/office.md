@@ -8311,3 +8311,12 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   and four lines of zh-0978dee9, with no drops in either mode; Mac
   output is unchanged. Its page 27 final row ends at 504.55pt (Word 504.94),
   instead of 489.45pt. See the handoff continuation on the task board.
+
+Mac Word gives explicitly named MS Gothic and Segoe UI their own line metrics,
+including in a paragraph that mixes them with JhengHei. Fresh five-line 12pt
+controls give MS Gothic 15.6pt steps (1.3 em, baseline 0.859375 + 0.15) and
+Segoe UI about 15.96pt (2210 above + 514 below, per 2048). Do not map those
+heights to YaHei or Arial merely because those faces draw the stand-in glyphs.
+The zh-8d72961c mixed-line drift was those mappings, not a need to force one
+height on every line: both-mode pair `parity-final` → `mixed-faces` fixes all
+14 vertical misses with nothing else moving.

@@ -41,6 +41,41 @@ long-word change. Grepped all board occurrences: the old Thai claim explicitly
 says DONE as far as it goes, RELEASED; the engine confirmation above is done.
 Both modes will be paired before any rendering change lands.
 
+**Mixed fonts DONE, full pair:** `parity-final` → `mixed-faces`, both prescribed
+scripts exit 0, 756 documents per mode on one checkout and pinned bridge
+`e0c8478f…`, bundled fonts, Swift 6.2.1, PyMuPDF. Windows: no changes. Mac:
+zh-8d72961c **28 → 42/47 (59.57 → 89.36%)**, all 14 vertical misses fixed;
+no other normalized rows or page counts change, no missing documents or drops.
+The remaining five misses are p2's Arabic in its EMF, not line heights.
+Candidate executable `4fd05de1…`; `parity-final--mixed-faces-exact.json` and
+`mixed-faces-*` logs/provenance under the per-checkout artifact root.
+
+Correction to the earlier model-change diagnosis: Mac mode mapped explicit
+MS Gothic to YaHei's 1.715-em height and Segoe UI to Arial's 1.15. Fresh Word
+controls (`lowest-next/mixed-face-lines-word.pdf`) give five 12pt MS Gothic
+lines exactly 15.6pt apart and Segoe UI about 15.96pt. Applying their own
+1.3-em and 2724/2048-em metrics fixes the mixed paragraph without changing
+per-line layout. The original paragraph and three font substitutions were
+also printed in a fresh Word process (`mixed-controls-word.pdf`). Windows
+mapping remains unchanged.
+
+**Thai still in flight:** Q5 on p23 has an extra blank line after the heading.
+The span diagnostic shows a synthetic hard break **before its tab**, followed
+by the tab's NBSP and a soft break. `_wideWordStarts` includes the tab in the
+long Thai word after the full-width colon. A fresh Word control of the
+original paragraph, tab replaced by space, and tab removed has three lines
+in all cases; ours has four only with the tab. Fix the tab boundary in that
+scan next. A broader private engine experiment treating NBSP as a blank
+prefix was rejected: a literal NBSP + ZWSP control in Word really does leave
+a blank line. Its private bridge was never installed or landed; the existing
+long-word engine patch is unchanged. Evidence: `lowest-next/thai-tab-controls-*`,
+`blank-prefix-word*`, `blank-prefix-engine/REJECTED.txt`.
+
+Disk housekeeping (user/coordinator request): settled sweep `pdf/` folders
+removed, keeping match reports, exact audits and provenance. Current pairs
+retained; 21.47 GiB free after cleanup. Local runner checks 11.5 GiB before a
+new sweep and 10.1 GiB before each conversion to preserve the 10 GiB floor.
+
 ### Mac browser/native parity and remaining fidelity — CLAIMED (2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 User-directed order: (1) reproduce and fix the Mac-only word-boringcrypto

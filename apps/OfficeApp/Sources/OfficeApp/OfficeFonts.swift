@@ -1548,7 +1548,11 @@ enum OfficeFonts {
         // characters from (`windowsSubsetFallback`), each on its own line,
         // its win ascent and descent at Word's 1.3, the extra split evenly
         // about them: MS Gothic's .859 + .141, Yu Gothic's .985 + .302.)
-        if wordOnWindows, has("ms gothic", "ｍｓ ゴシック") {
+        // Mac Word uses MS Gothic's own line too: five 12pt lines of
+        // 田 in a fresh print step exactly 15.6pt, not YaHei's 20.58.
+        // Treating the explicit name as a missing face made the first
+        // two mixed-font lines of zh-8d72961c too tall.
+        if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック") {
             return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
         if wordOnWindows, has("yu gothic", "游ゴシック") {
@@ -2234,6 +2238,15 @@ enum OfficeFonts {
             if family.trimmingWhitespace().lowercased() == "aptos" {
                 face.naturalHeight = 1.22
                 face.baseline = 0.94
+            }
+            // Segoe UI's Latin line in Mac Word is its own 2210/514
+            // ascent/descent in 2048 units. A fresh five-line 12pt probe
+            // steps 15.96pt, where the Arial stand-in gave 13.8. Keep
+            // these metrics when it shares a line with MS Gothic or
+            // JhengHei (zh-8d72961c), without imposing one paragraph strut.
+            if wordOnMac, family.trimmingWhitespace().lowercased() == "segoe ui" {
+                face.naturalHeight = 2724.0 / 2048
+                face.baseline = 2210.0 / 2048
             }
             // (Ebrima, drawn as the sans clone at its own widths, on its
             // own line: 2210 over and 514 under of 2048, its OS/2 win
