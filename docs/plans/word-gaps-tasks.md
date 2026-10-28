@@ -8,6 +8,21 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Next fresh-sweep pair: flowchart and drawing geometry — CLAIMED (Codex, 2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+From full `tab-fallback` sweeps and exact audit: **Mac zh-291fcea7 182/296
+(61.49%)**, **Windows zh-b24b396a 328/362 (90.61%)**. Grepped every occurrence
+before claiming: T133's flowchart work and T210's drawing work are explicitly
+released. Start from current misses, not the obsolete early scores.
+Mac's lower a031/d9b/e8 references have documented missing/broken glyphs;
+c5b remains claimed; 884 remains the measured sub-point page boundary with
+no new evidence. Windows' lower 015/27a/d62/WordWithAttachments have owners,
+and delins's unmeasured balloon ordering was just rechecked and released.
+The Thai blank-line fix now leaves it above this drawing case in both modes.
+All rendering changes require full pairs in both modes, pinned engine paths,
+no drops except the user's verified cancelling-errors exception, and a
+fetch/rebase before push. No live deploy or hyphenation decision.
+
 ### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 After the browser fix and item 6 investigation, next are **Mac zh-e8d4c046**
@@ -31,7 +46,7 @@ balloon order at the same anchors, with positions within 1pt. The previous
 isolated Word labs still supply no predictive tie-break rule; no document-specific
 ordering is introduced. Released with no source change or score claim.
 
-### Next actionable fresh-sweep documents — CLAIMED (Codex, 2026-10-27)
+### Mixed fonts and Thai blank line — DONE; remaining issues RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 **Mac zh-8d72961c (28/47, 59.57%)**: mixed-font line heights, explicitly not
 claimed in the board's T207 follow-up. Lower unclaimed 884c6e3e remains the
