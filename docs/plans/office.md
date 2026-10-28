@@ -8349,6 +8349,21 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   installed CJK fonts; baseline fails and candidate, browser and Word pass.
 
 
+- **A wrapping Mac body Latin word takes its preceding automatic gap
+  with it (2026-10-28).** In the modern off-grid compression-versus-stretch
+  comparison, that gap is neither occupied width nor a stretch opportunity
+  on the alternative line. Internal automatic gaps still count. Fresh Word
+  controls take e0ca7252's `第92` with 4.45pt left before the number, but wrap
+  its date paragraph's `109`, whose preceding line has four internal gaps.
+  Keep the existing half-prior-character path and Windows, cell, grid and
+  marked-word rules. Full same-base pairs: 756 documents per mode, zero drops,
+  no page changes; Windows geometry unchanged, Mac e0ca gains 118 matched
+  lines. Unscored boundary improvements in bdae17c0 and dc9cfa34 also match
+  Word. Five Word-printed embedded-font controls in `office-latin-fit.py`
+  pass native/browser and reject the old binary. Fine size-dependent edges
+  remain measured residuals; this is not a general tolerance relaxation.
+
+
 - **Mac balanced spaces in an embedded subset with a Latin ASCII face
   (2026-10-27).** Where the embedded East Asian subset lacks U+0020 and
   the run has a Latin ASCII face, ordinary balanced spaces take 3/8 em.

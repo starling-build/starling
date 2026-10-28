@@ -157,7 +157,22 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    LATIN_TEST="$REPO/test/office-latin-fit.py"
+    "$BOX_PY" "$LATIN_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$LATIN_TEST" --fixture "$WORK/latin-fit.docx"; then
+        printf '%s\n' "$WORK/latin-fit.docx" > "$WORK/latin-fit.txt"
+        if node "$DRIVE" wait 6000 pdfs "$WORK/latin-fit.txt" "$WORK/latin-fit-pdfs" > "$WORK/latin-fit.log" 2>&1 \
+            && "$BOX_PY" "$LATIN_TEST" --pdf "$WORK/latin-fit-pdfs/latin-fit.pdf"; then
+            echo "  ✔ Latin words: native and browser match the Word compression/stretch controls"
+        else
+            echo "  ✘ Latin-word fitting differs from the Word controls"
+            tail -3 "$WORK/latin-fit.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
 else
-    echo "  SKIPPED fixed-frame and opener PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED fixed-frame, opener and Latin-word PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

@@ -88,7 +88,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Fresh after fixed-frame masks: grid and punctuation residuals — CLAIMED (Codex, 2026-10-28)
+### Fresh after fixed-frame masks: grid and punctuation residuals — DONE; residual edges released (Codex, 2026-10-28)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 Fresh full `box-first-line-masks` sweeps/exact audit: **Windows zh-8d6f702e
 816/899 (90.77%)**, **Mac zh-e0ca7252 1058/1669 (63.39%)**. Board grepped
@@ -151,6 +151,66 @@ Evidence: `box-first-line-masks--mac-opener-paired-exact.json`, full run/mode lo
 About 47 GiB free; no shared-engine changes, live deployment or hyphenation choice.
 Opener subtask complete; grid/punctuation claim remains active for e0ca's later
 number fit and Windows 8d's residuals before the coordinator's pie-label tasks.
+
+**Number-fit follow-up, active after cd963220:** e0ca's next unresolved line
+ends `第92` in a fresh Word print. Native starts the number4.45pt inside but
+wraps it (need11.97pt, room22.75pt). Fresh42 size/width controls, repeated with
+kinsoku on, show modern Word taking numbers much nearer the edge than the
+old half-prior-character gate. The existing date-paragraph109 counterexample
+was freshly printed and still wraps; baseline matches its13 lines exactly.
+Testing the share calculation with the automatic gap before the incoming
+Latin word removed from the alternative line's occupied width AND stretch
+opportunities. Four internal gaps in the date counter still count. Windows,
+cells, character grids and words carrying marks keep their existing rules.
+No new corpus claim yet; base is accepted `mac-opener-paired`, same engine.
+Private controls: `number-start*`, `number-date-counter*` in
+`grid-punctuation-next/`. The small20pt threshold remains a measured edge;
+no blanket tolerance adjustment. Windows8d's0.0072pt grid edge remains
+unresolved; fresh Mac range controls do not separate the three compatibility
+flags from ordinary em-dash behavior, so no Windows range change yet.
+Focused `number-gap` pair: 13 documents in both modes, no drops; only Mac
+e0ca changes, **1061 → 1179/1669 (+118)**. All18 original opener paragraph
+controls now match Word's complete line breaks. The fresh date paragraph stays
+exactly13 lines, unchanged. Minimal number/Latin-word controls improve without
+any previously matching page regressing; earlier-layout controls are unchanged.
+Known old misses remain near the20pt number boundary and two Latin-word edges;
+no tolerance change or claim to have solved those. Starting full
+`mac-opener-paired → mac-number-gap` pair with both mandated scripts and
+engine3841e45e; source and board frozen for that run.
+
+**Full numeric pair PASS (2026-10-28):** both unchanged sweep scripts exit 0;
+756 documents per mode, no missing outputs, zero drops and no physical-page
+changes. Windows geometry is identical. Mac zh-e0ca7252 improves
+**1061 → 1179/1669**, still 52 pages. Two other Mac documents change geometry
+without changing their scores: zh-bdae17c0 (1822/1848) now matches Word's
+`30 | %,並` and `7 | 種常用` boundaries on pages 7/31; zh-dc9cfa34 (257/259)
+now matches `85 | 分以上` on page 4. These were hidden by the scorer's shared
+line-start matching; they are improvements against the reference, not drops
+or exceptions. All other geometry is unchanged. No cancelling-error exception.
+Production patch SHA256
+`92ae3f51351681878ea7395b090a9f79d0e8ab912c783b3e0f13de702a9d0a57`;
+native binary `f4310e1559b0f888795247d6bed37ab1487cf978281550f47ecaf8412073295a`.
+Full browser/native gate passes (welcome/TextEdit/boringcrypto, roundtrips,
+font/ink probes, fixed frames and opener controls). New `office-latin-fit.py`
+adds five embedded-font Word controls: number and letter words taken, a word
+too far over, a date with internal stretch opportunities, and the existing
+half-prior-character path. Generated DOCX parts exactly match the privately
+Word-printed package. Word, native and browser pass; accepted opener-only
+baseline fails page 1 as expected. The five-page browser/native dump and saved
+copy also match exactly. Static lint, shell syntax and diff checks pass.
+Evidence: `mac-opener-paired--mac-number-gap-exact.json`, `mac-number-gap-*`
+logs/provenance, `grid-punctuation-next/number-gap-browser-layout.log`,
+`number-gap-browser-regression.log`, `number-gap-regression-word.pdf`,
+`number-gap-regression-base-rejection.log`, `number-gap-final-lint.log`.
+About 47 GiB free. No shared engine changes, live deployment or hyphenation choice.
+
+**Grid/punctuation scope complete for this pass; remaining edges RELEASED.**
+The accepted opener and numeric rules improve e0ca without forcing its remaining
+boundaries. The measured 20pt/Latin edges and Windows8d 0.0072pt grid edge have
+no safe general rule yet. Broad grid tolerance and range splitting are not
+landed; their counterexamples remain authoritative. Proceed to coordinator's
+T205 / zh-61aaad09 pie-label work, then zh-7b08d744, in the requested order.
+
 
 ### Frozen text-mask full RELEASE suite — DONE; pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Preserve64eb,

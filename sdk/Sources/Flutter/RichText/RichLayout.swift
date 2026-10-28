@@ -12594,7 +12594,19 @@ public final class RichLayout {
                     // Counting the shared half as spare room took the 『
                     // on zh-72da925e p56 and reflowed its remaining pages.)
                     let partedOpener = macBodyOpener && a > 0 && closesUp(a - 1)
-                    let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0)
+                    // (The automatic space before a Latin word disappears
+                    // when that word wraps: it is neither occupied width nor
+                    // a stretch opportunity on the alternative line. Fresh
+                    // Mac Word controls keep e0ca7252's 第92 with 4.45pt left
+                    // before the word, while its date paragraph's 109 still
+                    // wraps: the latter has four internal spaces to stretch.
+                    // Keep the existing Windows, cell, grid and marked-word
+                    // rules; these controls measure plain Mac body words.)
+                    let macWordGap = modern && !RichTextTheme.wordWindowsPages
+                        && !wide && !inCell && !onCharacterGrid && !lineOther
+                        && lineWide > 1 && own.isEmpty && a > 0 && Self._isLatinWordUnit(units[a])
+                        ? gaps[a - 1] ?? 0 : 0
+                    let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0) + macWordGap
                     let takenFirst = squeezedFirst && !wordSpaced
                         ? lineWide > 1 && need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
                             <= room * (stretchRoom + hair)
@@ -12627,7 +12639,7 @@ public final class RichLayout {
                             ? (onCharacterGrid
                                 ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
                                     <= markRoom * (stretchRoom + hair)
-                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } + spacedStretch)
+                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
                                     <= room * (stretchRoom + hair) || cellRest)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
