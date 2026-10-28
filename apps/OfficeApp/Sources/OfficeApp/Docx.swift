@@ -3675,9 +3675,42 @@ enum DocxFormat {
                 }
                 if outline.color != nil || outline.fill != nil { att.outline = outline }
             }
+            // Warped text belongs to the shape painter, with its rotation
+            // and fitted envelope. Read its styles through the same Word
+            // reader, but leave the body's notes and field state alone.
+            var drawingWordArt: [ObjectIdentifier: WriterGroups.DrawingWordArt] = [:]
+            if !notes.inTextBox, node.descendant("wpg:wgp") != nil || att.outline == nil {
+                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                             notes.seenComments, notes.fieldShown)
+                notes.inTextBox = true
+                defer {
+                    notes.inTextBox = false
+                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                     notes.seenComments, notes.fieldShown) = saved
+                }
+                for shape in node.descendants("wps:wsp") {
+                    guard let warp = WriterGroups.textWarp(shape), let content = shape.first("wps:txbx")?.first("w:txbxContent") else { continue }
+                    notes.fields = []
+                    let paragraphs = content.all("w:p").flatMap {
+                        _paragraphs($0, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil).map(\.paragraph)
+                    }
+                    if paragraphs.contains(where: { !$0.text.isEmpty }) {
+                        let body = shape.first("wps:bodyPr")
+                        func inset(_ name: String, _ fallback: Double) -> Double { Double(body?[name] ?? "").map { $0 / 12700 } ?? fallback }
+                        let insets = EdgeInsets.fromLTRB(inset("lIns", 7.2), inset("tIns", 3.6), inset("rIns", 7.2), inset("bIns", 3.6))
+                        drawingWordArt[ObjectIdentifier(shape)] = WriterGroups.DrawingWordArt(warp: warp, paragraphs: paragraphs, styles: sheet, insets: insets)
+                    }
+                }
+            }
+            func textBoxContent(_ n: XNode) -> XNode? {
+                if drawingWordArt[ObjectIdentifier(n)] != nil { return nil }
+                if n.name == "w:txbxContent" { return n }
+                for child in n.children { if let content = textBoxContent(child) { return content } }
+                return nil
+            }
             // A text box's text, for the layout to set in it: the
             // drawing's (`wps:txbx`), or its VML twin's.
-            if !notes.inTextBox, let content = node.descendant("w:txbxContent") {
+            if !notes.inTextBox, let content = textBoxContent(node) {
                 notes.inTextBox = true
                 // (The box's markup is kept whole and written back as it
                 // was: reading its text again must leave no mark on what
@@ -3721,7 +3754,7 @@ enum DocxFormat {
                     // in the group: zh-ae2dd08d p21's flowchart nests its
                     // boxes two groups deep, and ours read only the first
                     // box's text, set across the whole group.)
-                    let placed = Self._groupTextBoxes(group)
+                    let placed = Self._groupTextBoxes(group).filter { drawingWordArt[ObjectIdentifier($0.box)] == nil }
                     let boxes = placed.map(\.box)
                     let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
                     let ext = Double(gx?.first("a:ext")?["cy"] ?? "") ?? 0, chExt = Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0
@@ -3746,7 +3779,7 @@ enum DocxFormat {
                                                           height: place.height * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
-                    } else if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content {
+                    } else if !boxes.isEmpty, boxes.count > 1 || !drawingWordArt.isEmpty, boxes[0].descendant("w:txbxContent") === content {
                         // (Boxes of other widths or places: each box's text
                         // in its own column of the group, from its own top —
                         // its shape's place, the preset's text rectangle and
@@ -3945,7 +3978,7 @@ enum DocxFormat {
             if arrowed, att.outline?.kind == .line { att.outline = nil }
             if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
-                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), wordArt: drawingWordArt)
             } else if node.descendant("wpg:wgp") == nil, let group = _vmlTop(node), group.name == "v:group" {
                 // (A VML group's lines and boxes likewise: zh-6e6b9821's
                 // flowchart printed its text alone, no arrows or edges.)

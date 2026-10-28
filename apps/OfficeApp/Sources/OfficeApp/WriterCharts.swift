@@ -226,6 +226,7 @@ enum WriterGroups {
         var picture: (key: String, data: Data)? = nil
         /// WordArt (a VML textpath): its text fitted to the box.
         var wordArt: WordArtText? = nil
+        var drawingWordArt: DrawingWordArt? = nil
     }
     /// A VML textpath — Word's WordArt — drawn as Slides draws WordArt
     /// (`WordArt`): each line stretched to the shape's box by its warp, in
@@ -296,12 +297,42 @@ enum WriterGroups {
         return nil
     }
 
+    /// DrawingML WordArt retains Word's resolved paragraph/run styles;
+    /// the ordinary text-box overlay must not draw these runs a second time.
+    struct DrawingWordArt {
+        var warp: TextWarp
+        var paragraphs: [RichParagraph]
+        var styles: RichStyleSheet
+        var insets: EdgeInsets
+    }
+
+    /// Fitted text between two envelope curves. Path-based/unsupported
+    /// warps, vertical text and boxes containing objects keep the text-box path.
+    static func textWarp(_ shape: XNode) -> TextWarp? {
+        guard let body = shape.first("wps:bodyPr"),
+              ["1", "true"].contains(body["fromWordArt"] ?? ""),
+              body["vert"] == nil || body["vert"] == "horz",
+              let w = body.first("a:prstTxWarp"), let preset = w["prst"],
+              let content = shape.first("wps:txbx")?.first("w:txbxContent"),
+              !content.all("w:p").isEmpty,
+              !["w:tbl", "w:drawing", "w:pict", "w:object"].contains(where: { content.descendant($0) != nil }),
+              let xfrm = shape.first("wps:spPr")?.first("a:xfrm"),
+              (Double(xfrm.first("a:ext")?["cx"] ?? "") ?? 0) > 0,
+              (Double(xfrm.first("a:ext")?["cy"] ?? "") ?? 0) > 0 else { return nil }
+        let adjustments = (w.first("a:avLst")?.all("a:gd") ?? []).compactMap { gd -> Double? in
+            guard let formula = gd["fmla"], formula.hasPrefix("val ") else { return nil }
+            return Double(formula.dropFirst(4))
+        }
+        let warp = TextWarp(preset: preset, adjust: adjustments, xml: PptxXML.serialize(w))
+        return WordArt.envelope(warp) != nil ? warp : nil
+    }
+
     /// Reads the shapes of `group` (a `wpg:wgp`) — straight lines, and
     /// every preset `PresetGeometry` defines — in points from its top
     /// left, for the object attachment `id`; false where it has none to
     /// draw.
     @discardableResult
-    static func register(_ group: XNode, for id: String, themePart: Data?) -> Bool {
+    static func register(_ group: XNode, for id: String, themePart: Data?, wordArt: [ObjectIdentifier: DrawingWordArt] = [:]) -> Bool {
         let theme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: theme)
         // (Or one shape alone, a `wps:wsp`: a group of itself.)
@@ -337,8 +368,9 @@ enum WriterGroups {
                     // (A freeform too, `a:custGeom`: zh-ae2dd08d's flowcharts
                     // draw their boxes and diamonds so, Word's print each with
                     // its edges, ours with none.)
+                    let art = wordArt[ObjectIdentifier(child)]
                     let custom = child.first("wps:spPr")?.first("a:custGeom")
-                    guard let sp = child.first("wps:spPr"), let prst = sp.first("a:prstGeom")?["prst"] ?? (custom != nil ? "" : nil),
+                    guard let sp = child.first("wps:spPr"), let prst = sp.first("a:prstGeom")?["prst"] ?? (custom != nil ? "" : art != nil ? "rect" : nil),
                           let xfrm = sp.first("a:xfrm") else { continue }
                     let at = place(Rect.fromLTWH(number(xfrm.first("a:off"), "x"), number(xfrm.first("a:off"), "y"),
                                                  number(xfrm.first("a:ext"), "cx"), number(xfrm.first("a:ext"), "cy")))
@@ -355,7 +387,7 @@ enum WriterGroups {
                         geometry = PresetGeometry.geometry(prst, width: max(1, at.width), height: max(1, at.height),
                                                            adjustments: sp.first("a:prstGeom").map { PresetGeometry.adjustments($0) } ?? [:])
                     }
-                    guard isLine || geometry != nil else { continue }
+                    guard isLine || geometry != nil || art != nil else { continue }
                     var fill: Color? = nil
                     if !isLine {
                         if sp.first("a:noFill") != nil { fill = nil }
@@ -380,7 +412,7 @@ enum WriterGroups {
                         line = c
                         if lineWidth == nil, idx > 0, idx <= theme.lineWidths.count { lineWidth = theme.lineWidths[idx - 1] }
                     }
-                    guard fill != nil || line != nil else { continue }
+                    guard fill != nil || line != nil || art != nil else { continue }
                     let flipH = xfrm["flipH"] == "1", flipV = xfrm["flipV"] == "1"
                     // (A line runs from its box's top left, each flip taking
                     // that corner across; the painter runs a rising line from
@@ -396,7 +428,7 @@ enum WriterGroups {
                                         geometry: geometry, rotation: (Double(xfrm["rot"] ?? "") ?? 0) / 60000,
                                         flipH: flipH, flipV: flipV,
                                         headEnd: fromStart ? head : tail, tailEnd: fromStart ? tail : head,
-                                        dash: PptxReader.dash(ln)))
+                                        dash: PptxReader.dash(ln), drawingWordArt: art))
                 default: continue
                 }
             }
@@ -902,6 +934,37 @@ enum WriterGroups {
                         }
                     }
                 }
+            }
+            if let art = s.drawingWordArt {
+                let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+                theme.pixelsPerPoint = (sx + sy) / 2
+                theme.fontFamilyResolver = OfficeFonts.drawn
+                theme.faceResolver = OfficeFonts.face
+                let normal = art.styles[RichNamedStyle.normalId]?.char
+                let lines = art.paragraphs.map { paragraph -> [(text: String, style: Flutter.TextStyle, look: RunLook?)] in
+                    let units = Array(paragraph.text.utf16)
+                    let named = art.styles.resolve(paragraph.style)
+                    var offset = 0
+                    var runs: [(text: String, style: Flutter.TextStyle, look: RunLook?)] = []
+                    for run in paragraph.runs {
+                        let end = min(units.count, offset + run.length)
+                        let text = String(decoding: units[offset ..< end], as: UTF16.self)
+                        offset = end
+                        for ch in text {
+                            let eastAsian = ch.unicodeScalars.contains {
+                                (0x2E80 ... 0x9FFF).contains($0.value) || (0xF900 ... 0xFAFF).contains($0.value) || (0xFF00 ... 0xFFEF).contains($0.value)
+                            }
+                            let style = theme.textStyle(for: run.style, in: paragraph.style, named: named, normal: normal,
+                                                        scale: 1, eastAsian: eastAsian)
+                            runs.append((String(ch), style, nil))
+                        }
+                    }
+                    return runs
+                }
+                let area = Rect.fromLTRB(r.left + art.insets.left * sx, r.top + art.insets.top * sy,
+                                         r.right - art.insets.right * sx, r.bottom - art.insets.bottom * sy)
+                WordArt.paint(lines: lines, alignment: art.paragraphs.first?.style.alignment ?? .left,
+                              warp: art.warp, area: area, canvas: canvas, pxPerPt: (sx + sy) / 2, fitsInk: true)
             }
             canvas.restore()
         }

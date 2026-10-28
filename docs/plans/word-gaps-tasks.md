@@ -33,7 +33,7 @@ All rendering changes require full pairs in both modes, pinned engine paths,
 no drops except the user's verified cancelling-errors exception, and a
 fetch/rebase before push. No live deploy or hyphenation decision.
 
-**Section parity DONE (this commit):** zh-291fcea7's last section says
+**Section parity DONE (a279a3b7):** zh-291fcea7's last section says
 `oddPage`; Mac Word leaves physical p8 entirely blank and starts its form on
 p9. The reader ignored this, putting the form on p8. Fourteen isolated fresh
 Word controls establish that continued *logical* page numbers decide parity;
@@ -71,6 +71,89 @@ Preparing a shared painter correction and styled DrawingML WordArt registration;
 no drawing implementation or score claim landed yet. Evidence: `geometry-next/wordart-*`
 and `ecma-presetTextWarpDefinitions.xml`. Corpus audit finds these two DrawingML
 WordArt shapes in this document only; no Slides corpus `textSlantDown` shapes.
+
+**Drawing progress (not landed):** the first styled/rotated prototype passes
+209 DOCX/WordArt tests (two skipped) and spots Windows 328→329/362, but visual
+controls show letters too tall/heavy: an unrotated rectangular warp is 41.75pt
+tall vs Word's 27.75pt. Rejected at visual validation; no full-sweep claim.
+Saved under `geometry-next/wordart-initial` and `drawing-wordart-prototype.patch`.
+The existing painter fits advance boxes and guessed vertical metrics, not ink.
+Fresh no-autofit controls confirm Word fits visible glyphs into the text margins;
+spAutoFit adds a separate size interaction, still under measurement.
+Private native and skwasm builds now expose a read-only glyph-ink query from
+Skia's glyph visitor (engine checkout `starling-engine-word-fidelity-codex`).
+SDK/Writer candidate consumes it without changing normal layout or hit testing.
+The initial raster-bounds query included size-dependent pixel padding and was
+replaced by tight outline bounds (bitmap glyphs retain a raster fallback).
+Native SHA `3841e45e…`, skwasm `c14456aa…`, under
+`geometry-next/ink-bounds-engine/precise`; **shared engine/framework untouched**.
+All 15 native/browser API probes agree exactly, including spaces and three sizes.
+210 DOCX/WordArt tests pass (two skipped). No-autofit Word controls match the
+visible text rectangle with default/zero margins; rotation and slant now follow
+the box. Autofit sizing and font appearance remain separate measured residuals,
+not claimed exact. Focused score: Windows 330/362, Mac 328/360, both 14 pages.
+
+**First complete pair and browser gate passed:** fresh `ink-base` on a279a3b7,
+then `drawing-wordart-ink`, same checkout and private native engine `3841e45e…`,
+both engine variables exported. Both unchanged sweep scripts exit 0 for both
+base and candidate. Exact audit: **756 documents per mode, zero missing,
+zero drops**, Windows zh-b24b396a **328→330/362**, Mac **328/360 unchanged**;
+only this document's normalized drawing text changes and every physical page
+count is unchanged. Installing the unused query alone (`section-parity`→
+`ink-base`) changes no geometry, scores or pages. Frozen base/candidate SHA
+`0e1b737f…` / `97a50123…`; logs, provenance and exact JSON under the artifact
+root. No exception used. The expanded browser font-scale test passes all 21
+cases on the precise engine and fails the rejected raster query on ink width
+(14px MMMMMMMM, 93.7881 vs 93.5881). Native suite: **211 tests, two skipped, zero failures**, including the
+scale regression. Updated WASM app `a9449fee…` passes the complete layout gate:
+welcome 1p/34 lines, TextEdit 3p/88, boringcrypto 24p/1071 and all round trips.
+Shared-Carlito WordArt controls match native **pixel-for-pixel** in the label
+region when sampled from full-page renders. MuPDF clipped previews falsely
+omitted the transformed web glyphs; their PDF text/geometry/font bytes and
+full-page ink are correct. Chinese web controls show the existing missing-CJK-
+font gap (the manifest has no CJK family; ordinary unwarped text also lacks it).
+This is not claimed fixed.
+
+**WordArt DONE (this commit; engine `bd7be6b10e5`):** final compatibility pair
+`drawing-wordart-ink`→`drawing-wordart-final`, same checkout and pinned engine,
+passes both unmodified sweep scripts. Exact audit: **756 documents per mode,
+zero missing, zero drops, zero changed geometry/pages/scores**. Cumulative
+`ink-base`→`drawing-wordart-final` confirms **Windows 328→330/362**, Mac
+**328/360 unchanged**, only b24's drawing text changes, all page counts unchanged.
+No exception used. Final native SHA `af839926…`, WASM app `7afa0689…`.
+The final browser gate passes the same three documents and round trips, plus
+21 font-scale/ink cases. Both shared-Carlito labels remain pixel-identical
+between native/browser full-page renders. A browser host deliberately missing
+the new export invokes the optional fallback 45 times, starts successfully,
+and visibly draws the label with the existing advance-box fit. The 211-test
+native suite preceded that fallback; the final pair and browser controls cover
+the follow-up. Lint, diff check and matching SDK/engine header check pass.
+Evidence: `drawing-wordart-final-{run,windows,mac,exact,cumulative-exact}.log`,
+both `*--drawing-wordart-final-exact.json`, source/provenance, and
+`geometry-next/{drawing-wordart-final-browser-layout.log,wordart-final-web,
+wordart-fallback-web}`. Engine source/binary validation is recorded under
+`geometry-next/ink-bounds-engine/precise`. The shared local bridge and skwasm
+will be updated to these validated binaries because the SDK now calls the
+new API; the framework is unchanged. No live site deployment.
+Settled section-parity PDF folders removed; match reports and current
+base/candidate retained. More than 19 GiB free.
+
+
+**Next within this drawing claim: text-box clipping.** Ten isolated controls
+and a 30-case boundary sweep show that Word clips overflow rather than
+semantically omitting the first character. A partly overflowing italic A is
+a sliver of ink, then vanishes; a turned "30" retains its second line while
+the first digit runs outside the box. The Mac PDF has outward-rounded clipping
+rectangles (e.g. 23.5pt width→24pt); both original Mac and Windows p13 PDFs
+also contain the text-box clips. No text-box implementation change yet.
+Evidence: `geometry-next/box-indent-{controls,boundary}*`, the A crops and
+`b24-p13-reference-clips.json`. The first probe, whose inherited character
+indent masked the changed twip indent, is retained separately and rejected.
+Twenty further fresh Word controls separate fixed `noAutofit` from `spAutoFit`,
+which changes the clipping extent; negative indents also clip rather than move
+back inside. Six direction/inset controls show rotated boxes with unequal
+insets need additional measurement. Do not assume their clip is the horizontal
+rectangle rotated blindly (`box-clip-{controls,directions}*`).
 
 ### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).

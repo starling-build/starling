@@ -1332,6 +1332,25 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **DrawingML WordArt (2026-10-27).** A shape's `fromWordArt` text follows
+  its rotation and warp, rather than also appearing as an ordinary text-box
+  overlay. Keep its resolved paragraph/run styles and its original XML for
+  saving. `textSlantDown`'s adjustment sets the band's thickness (28569–100000),
+  not its displacement: 100000 is rectangular. Isolated Word controls and
+  ECMA's preset geometry agree. Fit visible glyph outlines into the text
+  rectangle: advance bearings and line leading are not ink. Native and skwasm
+  now expose the same read-only ink query; tight outline bounds avoid raster
+  padding changing the fitted shape between screen and PDF sizes. Bitmap-only
+  glyphs retain a raster-bounds fallback. Fifteen cross-engine probes agree,
+  and the permanent font-scale gate rejects the earlier raster-bounds attempt.
+  Word's no-autofit controls match with default and zero margins. Autofit sizing
+  and font appearance remain measured residuals, not claimed exact. The full
+  `ink-base`→`drawing-wordart-final` pair improves Windows zh-b24b396a 328→330/362,
+  with no drops in either mode; only this document's drawing text changes.
+  Requires engine `bd7be6b10e5`; older web hosts use the existing advance-box
+  fit when the optional ink query is unavailable. The final browser/native
+  layout gate and shared-font WordArt pixels agree. No live deployment.
+
 - **Odd/even section starts (2026-10-27).** Explicit `oddPage`/`evenPage`
   starts use the continued logical page number, including an inserted blank
   with no header/footer. A stated numbering restart is rounded upward to the

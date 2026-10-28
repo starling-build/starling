@@ -74,9 +74,9 @@ export URL="http://127.0.0.1:$PORT/" CHROME_PROFILE="$WORK/profile" CHROME
 # falls between FreeType's 1/64-pixel units. Test the low-level web engine
 # too: a native-only corpus sweep does not exercise this font backend.
 if node "$DRIVE" wait 6000 eval "$(cat "$REPO/test/office-font-scale.js")" > "$WORK/font-scale.log" 2>&1; then
-    echo "  ✔ fractional font advances scale consistently"
+    echo "  ✔ fractional font advances and glyph ink scale consistently"
 else
-    echo "  ✘ fractional font advances differ by size"
+    echo "  ✘ fractional font advances or glyph ink differ by size"
     tail -3 "$WORK/font-scale.log"
     fails=$((fails + 1))
 fi

@@ -3230,6 +3230,10 @@ public protocol Paragraph: AnyObject {
   /// **Original:** `int get numberOfLines;`
   var numberOfLines: Int { get }
 
+  /// Visible glyph bounds after layout, excluding whitespace and line
+  /// leading. Decorations and paint effects are not included. Nil for no ink.
+  func getGlyphInkBounds() -> Rect?
+
   /// Whether this reference to the underlying picture is `dispose`d.
   ///
   /// This only returns a valid value if asserts are enabled, and must not be
@@ -3404,6 +3408,7 @@ public protocol Paragraph: AnyObject {
 extension Paragraph {
   /// (Where a paragraph knows no advances of its own: its lines' heights.)
   public func computeLineAdvances() -> [Double] { computeLineMetrics().map { $0.height } }
+  public func getGlyphInkBounds() -> Rect? { nil }
 }
 
 // MARK: - Paragraph Protocol Extension (Default Implementations)
@@ -3506,6 +3511,12 @@ public class NativeParagraph: Paragraph {
   /// **Original:** `@Native<Double Function(Pointer<Void>)>(symbol: 'Paragraph::height')`
   public var height: Double {
     bridge.GetHeight()
+  }
+
+  public func getGlyphInkBounds() -> Rect? {
+    var left = 0.0, top = 0.0, right = 0.0, bottom = 0.0
+    guard bridge.GetGlyphInkBounds(&left, &top, &right, &bottom) else { return nil }
+    return Rect.fromLTRB(left, top, right, bottom)
   }
 
   /// The distance from the left edge of the leftmost glyph to the right edge of

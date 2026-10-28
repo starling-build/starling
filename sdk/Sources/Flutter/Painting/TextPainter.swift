@@ -1413,6 +1413,13 @@ public final class TextPainter {
 
     // MARK: - Selection and Position
 
+    /// Visible glyph bounds in the painter's coordinates, without the
+    /// advance-side bearings or the line's leading. Call layout first.
+    public func getGlyphInkBounds() -> Rect? {
+        guard let cachedLayout = _layoutCache else { return nil }
+        return cachedLayout.paragraph.getGlyphInkBounds()?.shift(cachedLayout.paintOffset)
+    }
+
     /// Returns a list of rects that bound the given selection.
     ///
     /// **Dart Source:** `text_painter.dart:1658-1680`

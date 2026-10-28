@@ -25,6 +25,7 @@
   sk.fontCollection_registerTypeface(fc, face, family);
   const familyData = sk.skData_create(4), familyArray = sk.skData_getPointer(familyData);
   u32()[familyArray / 4] = family;
+  const rectData = sk.skData_create(16), rect = sk.skData_getPointer(rectData);
   const samples = [
     'MMMMMMMM', 'iiiiiiii',
     'Modules specifies requirements for cryptographic modules to be deployed in a Sensitive but Unclassified',
@@ -60,7 +61,9 @@
       sk.paragraph_layout(paragraph, 100000);
       const width = sk.paragraph_getLongestLine(paragraph);
       if (!Number.isFinite(width) || width <= 0) throw new Error(`Invalid advance: ${width}`);
-      rows.push({ size, width, text });
+      if (!sk.paragraph_getGlyphInkBounds(paragraph, rect)) throw new Error(`No glyph ink: ${text}`);
+      const ink = new Float32Array(mod.wasmMemory.buffer, rect, 4);
+      rows.push({ size, width, inkWidth: ink[2] - ink[0], inkHeight: ink[3] - ink[1], text });
       sk.paragraph_dispose(paragraph);
       sk.paragraphBuilder_dispose(builder);
       sk.skString16_free(string);
@@ -77,6 +80,14 @@
     if (Math.abs(row.width - expected) > tolerance) {
       throw new Error(`linear advance at ${row.size}px: ${row.width}, expected ${expected}: ${row.text}`);
     }
+    // Raster strike bounds include whole-pixel padding. WordArt needs the
+    // outline's bounds so fitting it at screen/PDF sizes has the same shape.
+    for (const dimension of ['inkWidth', 'inkHeight']) {
+      const inkExpected = reference.find(r => r.text === row.text)[dimension] * row.size / 220;
+      if (!Number.isFinite(row[dimension]) || Math.abs(row[dimension] - inkExpected) > tolerance) {
+        throw new Error(`${dimension} at ${row.size}px: ${row[dimension]}, expected ${inkExpected}: ${row.text}`);
+      }
+    }
   }
-  return { measurements: rows.length, fractionalFontAdvances: 'pass' };
+  return { measurements: rows.length, fractionalFontAdvances: 'pass', glyphInkBounds: 'pass' };
 })()

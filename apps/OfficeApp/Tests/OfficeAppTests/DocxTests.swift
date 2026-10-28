@@ -4389,6 +4389,31 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(box.paragraphs[1].style.indentRight, (4333875 - 1447800 - 1209675) / 12700 + 7.2, accuracy: 0.01)
         XCTAssertEqual(box.parts[1].top, (3952875 - 3209925) / 12700 + 3.6, accuracy: 0.01)
         XCTAssertEqual(box.insetLeft, 0)
+
+        // A warped first shape is drawn with the group, not again as a
+        // plain overlay. The remaining box still keeps its own place;
+        // an unsupported warp must leave both ordinary boxes intact.
+        for preset in ["textSlantDown", "textNoShape"] {
+            var changed = xml
+            let body = try XCTUnwrap(changed.range(of: "<wps:bodyPr anchor=\"t\"/>"))
+            changed.replaceSubrange(body, with: "<wps:bodyPr fromWordArt=\"1\"><a:prstTxWarp prst=\"\(preset)\"><a:avLst><a:gd name=\"adj\" fmla=\"val 28569\"/></a:avLst></a:prstTxWarp></wps:bodyPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(changed.utf8))
+            let loaded = try DocxFormat.read(Zip.write(entries))
+            let image = try XCTUnwrap(loaded.document.paragraphs.lazy.compactMap { $0.image ?? $0.inlineImages.values.first }.first)
+            let remaining = try XCTUnwrap(image.textBox)
+            if preset == "textSlantDown" {
+                XCTAssertEqual(remaining.paragraphs.map(\.text), ["Where some contain text"])
+                XCTAssertEqual(remaining.parts.count, 1)
+                XCTAssertEqual(remaining.paragraphs[0].style.indentLeft, 1447800 / 12700 + 7.2, accuracy: 0.01)
+                XCTAssertEqual(remaining.parts[0].top, (3952875 - 3209925) / 12700 + 3.6, accuracy: 0.01)
+            } else {
+                XCTAssertEqual(remaining.paragraphs.map(\.text), box.paragraphs.map(\.text))
+            }
+            let saved = try Zip.read(DocxFormat.write(loaded.document, pageSetup: .letter))
+            let markup = String(decoding: try XCTUnwrap(saved.first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+            XCTAssertTrue(markup.contains("prst=\"\(preset)\""))
+            XCTAssertTrue(markup.contains("A group of shapes"), "warped text remains editable in the saved file")
+        }
     }
 
     func testALineOfALonePictureIsAsTallAsItsText() throws {
