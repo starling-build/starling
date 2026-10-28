@@ -8,12 +8,27 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### First-line band-overlap private controls — CLAIMED (release session, 2026-10-28)
+### First-line band-overlap private controls — DONE; blocker confirmed (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Compare preserved
 baseline binary with supplied frozen `box-first-line-OfficeApp` (19707ac6 source)
 using private two-line DOCX controls: normal/tight spacing, raised/large first
 runs, overflowing indent. Check later glyph ink/geometry. No peer builds,
 production/source changes, or Word automation; owner retains Word references.
+
+**Result: 19707ac6 is blocked; owner accepted, no full sweep or landing.**
+Rendered 26 private DOCX controls with baseline/owner binaries in both font
+modes (104 PDFs). White first A24pt + black B12pt, exact8pt spacing and30pt
+indent in a20pt fixed frame reproduces second-line ink loss: B text origin
+unchanged, but raster top105.75→108.5pt and552→381 black pixels at288DPI.
+White g12pt + B12pt additionally shifts/clips B's top fragment sideways;
+explicit-break reference isolates the ordinary B. Normal18pt reference is
+pixel-identical. All20 zero-indent colored mode/control comparisons are also
+pixel-identical. Evidence preserved under `/tmp/starling-first-line-controls/`:
+`report.txt`, `provenance.json`, `white-comparison.json`, PDFs/PNGs,26 DOCX
+files, `combined-white-controls.docx` for owner's Word print, and checksums.
+Both loaded bridge paths hash3841e45e;64eb source remains unchanged. No builds
+or rendering edits. Owner will supply corrected text-isolating patch/binary;
+no further independent work requested until then.
 
 ### Read-only clipping-drop XML audit — DONE (release session, 2026-10-28)
 Owner: Codex release/web session (private `/tmp` evidence, clean validation
