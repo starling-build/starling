@@ -227,6 +227,27 @@ Windows/iOS host validation. About41GiB free. The Mac paper-crop residual stays
 outside this renderer correction; appendix empty-list labels remain under the
 existing claim, with new Word visibility controls prepared privately.
 
+**Appendix empty-number follow-up CLAIMED (same owner, after2c7b21f1):**
+Fresh pair leaves767 Mac246/297, Windows298/299; grepped empty-list/hidden-
+override board entries and found no competing current claim. Its two p9
+1pt A labels come from empty numbered paragraphs, styles199/200 hiding text,
+but direct paragraph marks explicitly have vanish=0. Original and visible-
+style controls show both labels in fresh Word; omit-mark/hidden-mark controls
+hide them. Writer omits the explicit-off labels; removing style hiding restores
+ink but exposes an independent empty-centered-list x-position error (~92pt
+rather than~298/308pt). Do not call a line-score gain alone an alignment fix.
+An18-page portable Arial lab confirms both issues at ordinary sizes, across
+left/center/right and inherited-hidden/normal styles with off/omitted/on marks.
+Explicit-off hidden-style paragraphs must display their numbers and reserve a
+line; centered/right empty labels must travel with that line. All18 Word pages
+and accepted native comparison retained under standard-residual-next/
+tiny-label-controls/{empty-list-visibility*,empty-list-comparison.json,result.json}.
+Investigate preserving the explicit-off switch through import/export and list
+layout, with original hidden/omitted controls unchanged. No new production
+candidate yet; full same-base pairs/both modes/no drops and browser gate still
+required. Current mac-minimum-baseline/mac-picture-floor PDFs retained;
+settled mac-grid-single pdf folders only removed, all match reports retained.
+
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
 Fresh mac-arial-alt reports and exact audit: Mac zh-291fcea7 is232/296 (78.38%);
