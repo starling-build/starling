@@ -8,6 +8,26 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Fresh after fixed-frame masks: grid and punctuation residuals — CLAIMED (Codex, 2026-10-28)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+Fresh full `box-first-line-masks` sweeps/exact audit: **Windows zh-8d6f702e
+816/899 (90.77%)**, **Mac zh-e0ca7252 1058/1669 (63.39%)**. Board grepped
+before claiming. T208/T115 are done and explicitly leave 8d6's residuals as
+witnesses; the sub-twip grid experiment is measured/released, not a rule to
+repeat blindly. T227 fixed e0ca's square-symbol metrics; its following-line
+punctuation/line-fitting issue is explicitly open. Start from current first
+misses and preserve the earlier rejected controls as counterexamples.
+Lower Windows015/27a/d62/WordWithAttachments remain owned; delins's balloon
+ordering was freshly rechecked without a predictive rule. Lower Mac a031/d9b/e8
+are documented broken references, c5b/015 are owned, and884 is the previously
+measured sub-point boundary case without new evidence. No reference edits.
+Claim is board-only before implementation. Every rendering candidate requires
+both unchanged sweep scripts, same checkout and pinned engine3841e45e, both
+engine variables exported, no drops except a verified logged cancelling-error
+exception, and fetch/rebase before push. No live deployment or hyphenation
+choice. Settled rejected `fixed-text-box/pdf` folders removed; reports and
+current accepted base/candidate retained. About49.5GiB free.
+
 ### Frozen text-mask full RELEASE suite — DONE; pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Preserve64eb,
 then apply exact ae5c47b1 production patch only in private validation checkout.
