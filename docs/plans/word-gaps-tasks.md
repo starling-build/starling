@@ -21,6 +21,30 @@ CDP port. Exported `PORT=18137` currently reaches both server and web-drive,
 which prevents DevTools binding. Preserve default behavior and expose an
 independent optional DevTools port; validate in the requested private run.
 
+**Engine build PASS:** private Linux engine at
+`bd7be6b10e590dbf4154169f72e9c8e3c157c4b1` contains both required ancestors.
+All ten BUILDING section 1.7 patches applied, zero skipped/failed; native and
+skwasm release builds passed. Native `libflutter_engine.so` SHA256
+`4485edfc3d68110c672c1a062ff2844d44933a58af77a36442cae7be4a60ebe2`;
+skwasm SHA256
+`c14456aa8ed4e35af2fa4d952cb7a80f93d169df4641be4d06b482264cc34667`
+matches the previously accepted renderer. Native GN's known include-check
+failure was handled by documented direct GN generation; no engine source fix.
+`ldd` resolves Office to the private engine, and all 17 recorded shared output
+hashes remain unchanged. Engine-build minimum free space was 73.2 GiB.
+Evidence: `/home/starling/office-validation-20261028/engine-result.json`,
+`patches.log`, native/wasm build logs and `shared-output-hashes.json`.
+**Readiness subclaim (same owner, disjoint test infrastructure):** the
+`bf92ed4b` gate initially fails boringcrypto with 84 differing dump lines at
+its fixed 8-second post-open wait (24 pages both sides, heights about 0.2
+units different). A fresh original-package capture reproduces this at 8s,
+but its 38s dump matches native byte-for-byte. Five single-body-paragraph
+controls, retaining original package defaults, all match. Add bounded
+requested-document/font-quiet readiness to the layout path using the existing
+PDF driver's pattern; retain failure on timeout and the final exact diff.
+No rendering or engine correction indicated. The `cd963220` follow-up build
+is held until this harness issue is resolved. Preserve all initial evidence.
+
 ### Linux loaded termd timing flake — DONE (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Reproduce
 `test/run.sh` termd failure under Linux load versus isolated test, inspect
