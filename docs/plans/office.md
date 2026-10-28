@@ -8559,3 +8559,18 @@ with no other document changes; tab indentation remains a separate issue.
   Word. Native and embedded-font browser controls pass. Unembedded Chinese
   font coverage in the local browser build, mixed-size absolute baselines,
   and the old FE-path marker-height behavior remain separate measured gaps.
+
+- **Mac SimHei line height and legacy row-border clearance (2026-10-28).**
+  Fresh Word prints at10,10.5,12,14 and18pt bound SimHei's automatic advance
+  to1.29684110–1.29697071em; use332/256em, preserving its Latin advances and
+  Windows metrics. Separate paragraphs, styled breaks and both font aliases
+  agree. Word for Mac also requires the full closing border when a mode12
+  table row meets a page foot; the legacy half-border allowance belongs to
+  Windows mode. Ordinary/merged rows, minimum/exact/automatic heights and
+  asymmetric top borders confirm this independently. The border correction
+  prevents the shorter font's header from wrongly admitting an extra row
+  in zh-90e0cea8. Full756-document pairs have no drops or page changes:
+  zh-4c5da793 rises580→680/680, b00 gains one line,90e0 retains323/326;
+  Windows geometry is unchanged. Native controls and full browser gates pass.
+  Unformatted-break defaults, SimSun precision and unembedded CJK browser
+  fonts remain separate measured gaps.

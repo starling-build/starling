@@ -1844,6 +1844,19 @@ enum OfficeFonts {
             face.baseline = 0.867 + 1.164 * 0.15
             return face
         }
+        // (SimHei has the same shorter line in Word for Mac: fresh controls
+        // at 10, 10.5, 12, 14 and 18pt, both separate paragraphs and forced
+        // breaks, bound its advance to 1.29684..1.29697 em: 332/256,
+        // within the print's 0.24pt raster at every size. In
+        // zh-4c5da793 its single-line section rows accumulated enough of
+        // the old 1.3-em excess to part page 15's last row a line early.
+        // Keep its own Latin advances and the Windows metrics.)
+        if wordOnMac, has("simhei", "黑体") {
+            var face = square
+            face.height = 332.0 / 256
+            face.baseline = 1.005 - (1.3 - face.height) / 2
+            return face
+        }
         // (SimSun's line is 1.2972 em, not 1.3: lab `f` (macOS-doc, Word
         // for Mac, zh-7b125a21's package) sets its 10.5pt lines 13.614
         // apart on the mean (1.2958-1.2973 em by the 0.24pt raster its

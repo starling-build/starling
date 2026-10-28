@@ -122,7 +122,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Next fresh Mac residual: zh-4c5da793 — CLAIMED (Codex, 2026-10-28)
+### Mac SimHei and legacy closing-border clearance: zh-4c5da793 — DONE (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after accepted4afd66fc. Fresh full
 mac-kinsoku-neutral pair/exact audit: Mac580/680 (85.29%),18 physical pages;
 Windows679/679,18 pages. Grepped every4c5 board mention before claiming:
@@ -198,6 +198,51 @@ Separate read-only measurement: identical20-page SimSun controls reproduce
 all480 SimHei Word positions (simsun-read-only-comparison.json). No SimSun
 implementation change yet; ordinary margin1441/1443 controls remain measured
 residuals, and the unformatted-break gap remains open.
+
+**Guard rule measured; replacement candidate pending:**90e0 header-distance
+controls keep row29 over at1414/1416/1417twips but admit it at1412. Fresh
+mode12 Word micro-controls require the FULL closing border for both ordinary
+and vertically merged rows: half/full-clearance tests with0.5/1.5pt rules,
+plus no top border and a heavier1.5pt top over a0.5pt closing border. Thus
+this is not missing room at the table top or merge-specific. The old code
+shared Windows' legacy half-border allowance with Mac. Candidate now keeps
+that half allowance only in Windows mode; Mac reserves the full closing
+line. No changed split-row tolerance, body-inset formula, font advances,
+Windows metric or hyphenation rule. Public40-page page-break fixture is
+being checked against a fresh Word print. Rebuild/focused and full same-base
+pairs/browser gates must pass before landing; the earlier font-only pair
+remains rejected, with no exception.
+
+**Replacement accepted after full pair:** `mac-kinsoku-neutral` →
+`mac-simhei-border`, both unchanged mandated scripts exit 0. Exact audit of
+756 documents per mode: zero missing outputs, zero drops and zero physical-
+page changes. Windows normalized geometry is identical for every document.
+Mac zh-4c5da793 **580→680/680**, zh-b00fef0d **726→727/740**;
+zh-90e0cea8 retains **323/326**. No cancelling-errors exception. The 100
+4c5 gains are the same reviewed lines (96 full texts exact; four adjacent-cell
+normalization groupings with exact component text); b00's gained full line is
+exact. Thirty Mac documents have normalized geometry changes, with no other
+score changes. The earlier font-only candidate remains explicitly rejected.
+
+Fresh Word controls pass for minimum, exact and automatic row heights:
+20 minimum-height cases/40 pages plus 12 exact and 12 automatic cases/48
+pages. Asymmetric top-border cases rule out a top-clearance explanation.
+All four original90e0 header-distance variants now match Word's break choice;
+merged-label baseline differences are at most0.138pt. Native font/border
+regressions pass120 pages in both modes; full local native/browser layout,
+roundtrip, ink and existing control gates pass with no skips. Browser also
+passes the40-page border fixture. The SimHei glyph fixture is native-only;
+this does not certify unembedded CJK browser coverage or Windows/iOS hosts.
+
+Frozen diff7ec9c3bd, native2cd7cfde, WASM16cd1c70, bridge3841e45e unchanged.
+Evidence under `mac-4c5-next/`: border-acceptance-receipt.json,
+border-focused-result.json, border-browser.log, border-header-controls-result.json,
+row-height-types-result.json, row-border-word-provenance.json and
+border-gained-lines-review.json; full sweep/provenance/exact reports in the
+parent root. Same checkout and both engine variables throughout. About40GiB
+free. No live deployment, shared engine relinking or hyphenation choice.
+Remaining unformatted-break and SimSun-margin precision controls stay measured
+and open; this closes the original4c5 reference residual and90e0 guard.
 
 ### Mac residual: zh-202582e2 — font and break rules DONE; mixed baselines measured (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after accepted e8594b01. Fresh full

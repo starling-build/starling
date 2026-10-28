@@ -256,6 +256,22 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     FONT_ALT_TEST="$REPO/test/office-font-alternates.py"
     "$BOX_PY" "$FONT_ALT_TEST" --binary "$BIN" || fails=$((fails + 1))
     "$BOX_PY" "$REPO/test/office-missing-gb-fonts.py" --binary "$BIN" || fails=$((fails + 1))
+    "$BOX_PY" "$REPO/test/office-simhei-lines.py" --binary "$BIN" || fails=$((fails + 1))
+    ROW_BORDER_TEST="$REPO/test/office-row-closing-border.py"
+    "$BOX_PY" "$ROW_BORDER_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$ROW_BORDER_TEST" --generate "$WORK/row-border.docx"; then
+        printf '%s\n' "$WORK/row-border.docx" > "$WORK/row-border.txt"
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/row-border.txt" "$WORK/row-border-pdfs" > "$WORK/row-border.log" 2>&1 \
+            && "$BOX_PY" "$ROW_BORDER_TEST" --pdf "$WORK/row-border-pdfs/row-border.pdf"; then
+            echo "  ✔ Table closing borders: native and browser match the Word page-break controls"
+        else
+            echo "  ✘ Table closing borders differ from the Word page-break controls"
+            tail -3 "$WORK/row-border.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
     KINSOKU_TEST="$REPO/test/office-kinsoku-switch.py"
     "$BOX_PY" "$KINSOKU_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$KINSOKU_TEST" --fixture "$WORK/kinsoku-no-fe.docx" --portable \

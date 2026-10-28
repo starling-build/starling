@@ -3665,7 +3665,7 @@ public final class RichLayout {
             // asking its own top line's width, as before — zh-e061a08e's
             // page 4 parts a row under a thicker line at Word's line.)
             if c.ruleBelow > 0 && !parted && !spansOn { return 0 }
-            // (In Word 2007's mode, the half of the line that hangs
+            // (In Word for Windows' 2007 mode, the half of the line that hangs
             // under the row's edge: zh-1a3c7aa0, mode 12, sets page 13's
             // "5 O,O-二甲基…" row under a 0.5pt line with 0.22pt left,
             // where bug65649's 0.75 line with 0.6 left, mode 15, did not,
@@ -3690,7 +3690,15 @@ public final class RichLayout {
             // over under the double; zh-e1b09977's p13, no cell lines of its
             // own, closes under its table's 2.16 bottom.)
             if RichTextTheme.wordWindowsPages, c.edges?.bottom != nil || c.borders.bottom != nil { bottom = 0 }
-            return max(0, spansOn ? lineUnderRow(c) : c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
+            // (Word for Mac asks the whole closing line even in mode 12:
+            // ordinary and merged two-row controls, with 0.5/1.5pt rules,
+            // keep the first row only with the full rule's room. Removing
+            // the table's top line or making it heavier leaves that test
+            // unchanged. The old half-line allowance admitted zh-90e0cea8's
+            // p8 row 29 when its header got 0.033pt shorter, moving the
+            // merged label 8pt away from Word.)
+            let half = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 14
+            return max(0, spansOn ? lineUnderRow(c) : c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / (half ? 2 : 1)
         }
         // What a row's part at a page's foot is closed with there: its
         // top line's width, as `ruleUnder(parted:)` has it — and in the
