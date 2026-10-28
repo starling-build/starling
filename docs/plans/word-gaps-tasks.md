@@ -16,6 +16,17 @@ Review text isolation, transparent decoration/background masks and cache
 lifetime. Repeat the same preserved private controls only when owner binary
 is supplied. No peer builds, production edits or Word automation.
 
+**Read-only delta review complete:** no new source-level blocker identified.
+Complementary text masks isolate first/rest ink; clipping precedes first-line
+translation and rest is unshifted. Explicit transparent background/decoration
+styles override inherited paint; old scale-mask defaults are unchanged.
+Same-painter second-mask insertion no longer evicts/disposes the first mask
+at capacity. Keys2/3 are disjoint from scale0/1. Existing metric guards can
+fall back to ordinary painting, so source review is not binary validation.
+Report: `/tmp/starling-first-line-masks-review/report.txt`. The26 prior private
+controls and rejected-candidate evidence are preserved. Awaiting owner binary
+for the authorized rerun; no peer build or production change.
+
 ### First-line band-overlap private controls — DONE; blocker confirmed (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Compare preserved
 baseline binary with supplied frozen `box-first-line-OfficeApp` (19707ac6 source)
