@@ -187,6 +187,11 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    # This font-table rule is specific to the native Mac-reference mode.
+    # Web runs author-font mode (WASI has no OFFICE_WORD_FONTS environment),
+    # so it must not be compared with these Mac Word fallback baselines.
+    FONT_ALT_TEST="$REPO/test/office-font-alternates.py"
+    "$BOX_PY" "$FONT_ALT_TEST" --binary "$BIN" || fails=$((fails + 1))
     PIE_MOVE_TEST="$REPO/test/office-pie-label-move.py"
     "$BOX_PY" "$PIE_MOVE_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$PIE_MOVE_TEST" --fixture "$WORK/pie-move.docx"; then
@@ -203,6 +208,6 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
         fails=$((fails + 1))
     fi
 else
-    echo "  SKIPPED frame, opener, Latin-word, cell-word and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED frame, opener, Latin-word, cell-word, font-alternate and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

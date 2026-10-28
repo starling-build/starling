@@ -8450,3 +8450,19 @@ with no other document changes; tab indentation remains a separate issue.
   PDF test asserts the embedded font was loaded, so native fallbacks cannot hide
   an invalid fixture. The sub-twip −2 boundary remains a known private metric
   miss; it is not patched with an epsilon.
+
+
+- **A missing Mac title face may name Arial Unicode MS as its alternate
+  (2026-10-28).** Extend the existing known-missing 方正/small-title-name path
+  to this alternate, as the GB2312 path already does. Each first document of a
+  fresh Word process chooses ArialUnicodeMS for zh-d5cc99a6's original title,
+  YaHei when only the alternate is removed, and SimHei when it is changed to
+  黑体. Keep installed/embedded faces, other missing-name families, author-font
+  mode and Windows rules unchanged. Full same-base pairs: 756 documents per
+  mode, no score drops or page changes. Mac d5cc309→435, c25d673→738,
+  08e952183→2251 and a78d423→424 matched lines; Windows geometry unchanged.
+  Six portable controls pair explicit faces with missing names and their
+  alternates; the native Mac-reference-mode test rejects the old binary.
+  These Mac-only expectations are not a browser-font-mode assertion: WASI
+  exposes no OFFICE_WORD_FONTS environment. The separate generic staged-web
+  CJK fallback gap is recorded on the board, not hidden by test fonts.

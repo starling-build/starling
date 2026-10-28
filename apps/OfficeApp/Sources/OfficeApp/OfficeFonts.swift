@@ -1713,8 +1713,12 @@ enum OfficeFonts {
             // Calibri, and Word's print sets "．应急保障" in SimSun on lines
             // 3.7pt shorter than YaHei's.)
             if ["calibri", "arial", "times new roman", "cambria"].contains(a) { return eastAsianFace("SimSun") }
+            // Missing 方正 names can use Arial Unicode MS too: d5cc's
+            // fresh-process title takes it, no alternate takes YaHei,
+            // and alternate 黑体 takes SimHei, with the same package.
             let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體", "jhenghei"]
-                + (gb2312 ? ["仿宋", "fangsong", "arial unicode"] : [])
+                + (gb2312 ? ["仿宋", "fangsong"] : [])
+                + (gb2312 || fangZheng ? ["arial unicode"] : [])
             if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
                 return eastAsianFace(alt)
             }

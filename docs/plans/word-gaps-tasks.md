@@ -122,7 +122,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### Fresh after legacy-cell fitting: missing alternate and grid residuals — CLAIMED (Codex, 2026-10-28)
+### Fresh after legacy-cell fitting: Mac alternate DONE; Windows grid CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item 4 after 878d44bb.
 Fresh accepted mac-cell-letter sweep: Mac zh-d5cc99a6 309/435 (71.03%);
 Windows zh-3c055c9b 537/576 (93.23%). Grepped every board occurrence before
@@ -143,6 +143,76 @@ Same-checkout/engine both-mode pairs, exact no-drop gate, board results and
 fetch/rebase before push remain required. Both engine variables stay pinned to
 3841e45e; no shared engine promotion, live deployment or hyphenation choice.
 At least10GiB free; current ~47GiB. Claim only; no new production changes yet.
+
+**Fresh-process font controls:** d5cc original reproduces ArialUnicodeMS,
+title baseline133.920; removing only its alternate yields YaHei126.000;
+changing alternate to 黑体 yields SimHei125.280. A private generic missing
+name with the same Arial alternate also takes ArialUnicodeMS133.920. Each is
+the first document after restarting an empty Word process. No reference edits.
+Testing the existing known-missing 方正/small-title-name path accepting
+Arial Unicode MS as an available alternate, as _GB2312 already does. Do not
+broaden all other font families: the known-font list is incomplete and their
+installed-face handling is outside this claim. Fifty documents reference an
+Arial Unicode alternate somewhere; use that superset for the focused pair.
+Evidence: alternate-grid-next/font-choice-results.json, font-controls-provenance.json,
+used-arial-alternates.json and fresh Word PDFs. No candidate result yet.
+Focused PASS: 50 corpus documents in both modes plus four private controls,
+104 PDFs, no drops. Windows geometry unchanged. Mac gains d5cc309→435/435,
+c25d673→738/738, 08e952183→2251/2301, a78d423→424/440. Generic missing-name
+control remains unchanged; only the claimed known-missing title-family path
+is extended. No-alternate and SimHei-alternate whole-package controls unchanged.
+Six-page portable Word fixture pairs explicit Arial Unicode MS / SimHei / YaHei
+with missing title-family names and their alternates (or no alternate).
+Word and candidate pass all six baseline/text controls; baseline fails page2.
+The final generator produces byte-identical parts to the Word-printed package.
+Production diff dfbaf302ad982cbc90ff334cc442408f7b1e72d9ecf8f566ad147736343b30dc;
+frozen binary3dbcd46213be8c7a6e0e0631f486a3fcbfd640240a3e1737f9dc6a59813f1e56.
+**Full pair PASS:** mac-cell-letter→mac-arial-alt, unchanged sweep-win.sh and
+sweep.sh both exit0, one checkout and pinned3841e45e engine. Exact audit:
+756 documents per mode, zero drops/missing documents, zero scored/physical
+page changes. Windows all normalized geometry unchanged. Mac gains the four
+focused witnesses above; eleven further documents have geometry-only changes.
+Most are title alignment/baseline improvements; not every moved line improves:
+e74's correctly restored Arial Unicode title pushes its already-late bottom
+lines another4.5pt, and some other baseline differences remain under the scorer's
+threshold. These are recorded in geometry-only-audit.json; no score-drop
+exception used. The same eight unscored malformed/encrypted Mac conversions
+fail as in the base. Production diff and engine remained frozen throughout.
+
+The six-page font regression is **native Mac-reference-mode only**, and the
+old binary fails it. A first attempt to assert these same baselines in the
+browser was invalid: WASI exposes an empty environment, so the browser uses
+its author-font mode, not OFFICE_WORD_FONTS=mac. Default-mode native baseline
+and candidate layouts are byte-identical. Preserve the browser experiment:
+all six CJK pages draw missing-glyph boxes in the generic staged build, whose
+font manifest has no general CJK fallback. This is a separate web font-packaging
+limitation, not evidence of Mac-reference parity or a candidate regression;
+no fonts were silently added to make the test pass. The harness now runs this
+particular regression natively only, retaining all existing browser gates.
+Native/WASM builds and the final corrected full layout harness PASS (no skips):
+welcome/TextEdit/24-page boringcrypto exact layout and save roundtrips,
+fractional font advances/ink,11 fixed-frame pages in native both modes/browser,
+12 opener,5 Latin-word,8 cell-word and4 flat-pie pages in native/browser;
+6 font-alternate pages in native Mac-reference mode only. Static lint,
+bash syntax and git diff checks pass. Acceptance receipt:
+alternate-grid-next/acceptance-receipt.json; native3dbcd462, bridge3841e45e,
+skwasmc14456aa unchanged. About46GiB free.
+Evidence: alternate-grid-next/{full-exact.log,geometry-only-audit.json,
+font-browser-debug/,font-browser-debug.png,letter-lead-default-layout.txt,
+font-alt-default-layout.txt,font-browser-final.log}, and
+mac-cell-letter--mac-arial-alt-exact.json. Keep base/candidate PDFs and all
+match reports. No live deployment, shared-engine change or hyphenation decision.
+
+**Windows grid remains claimed, read-only:** 3c055's39 misses cluster at
+p2, p9–14; p9 refuses 號、 after4829,17.83165pt over with17.00757pt of mark
+capacity and six4.25189pt automatic gaps. Investigating whether the disappearing
+boundary gap belongs in the alternative line's stretch calculation; no rule or
+code change yet. Recovered old ab3a/b/c DOCX/Word PDFs under
+~/starling-word-check/lab/tools/ (the earlier search pattern missed underscores).
+Preserve their0.44 calibration, T206's rejected caps and tfe mark-order witness.
+
+
+
 
 ### zh-7b08d744 Mac squeeze boundary — DONE (Codex, 2026-10-28)
 Owner: Mac `starling-word-fidelity-codex`, coordinator item 3 after ee675bab.
