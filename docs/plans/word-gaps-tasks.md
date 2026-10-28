@@ -155,6 +155,50 @@ fresh-reference-check.json, margin-results.json, original/isolated controls,
 repeated-78/79/88 Word/native PDFs, trace-only.patch and trace-provenance.json.
 This is measured evidence and a claim, not an accepted fix.
 
+**SimHei candidate, not accepted:** fresh five-size controls bound the common
+Mac line advance to1.29684110..1.29697071em after accounting for the0.24pt
+print raster.332/256 fits all five; the earlier1.2972 approximation does not
+fit the12/14/18pt bounds and was rejected before a full sweep, even though
+it recovered680/680 for4c5. Current candidate uses332/256 for Mac SimHei
+only, retaining its Latin advances and every table-cut/Windows rule.
+
+New20-page regression covers10,10.5,12,14,18pt, 黑体/SimHei, separate
+paragraphs/explicitly styled forced breaks. Both names give identical Word
+positions. Accepted baseline fails the10pt paragraph case by0.68pt.
+The initial fixture also exposed a PREEXISTING unformatted-break/default-style
+gap at10/10.5pt: baseline pitches14.042/14.744 versus Word12.970/13.617;
+first candidate14.012/14.712. This was not caused or fixed by the metric.
+Original fixture/PDFs preserved as simhei-default-breaks*; explicitly styling
+the breaks leaves all480 fresh Word positions unchanged. Oracle/provenance,
+approximate-candidate rejection and exact controls are in mac-4c5-next.
+**Precise candidate HELD after completed gates:** both mandated scripts exit0,
+756 scored documents per mode, missing0 and physical-page changes0. Exact
+mac-kinsoku-neutral→mac-simhei-precise audit: Windows geometry unchanged;
+Mac4c5 580→680/680, b00 726→727/740, but90e0cea8 323→288/326. DO NOT LAND:
+no cancelling-errors exception. Fresh90e0 Word print exactly reproduces all326
+saved lines. Its merged-cell label moves about8.02pt: the shorter10.5pt
+SimHei header gives the body0.0328125pt more room (682.97520065→683.00801315),
+admitting row29 whole at p8's foot and changing the merged-cell extent.
+This is a real regression, not just the scorer's adjacent-column grouping.
+
+Native40-page font controls and complete local native/browser gate pass with
+no skips; these do not override the corpus drop. Binarya7d6a0ce, WASMc23ce2d5,
+bridge3841e45e, engine unchanged. All1004c5 gains reviewed:96 full normalized
+lines exact; the other4 consist of exact cell texts with baseline differences
+at most0.129pt. Evidence simhei-held-receipt.json, simhei-focused-result.json,
+simhei-gained-lines-review.json,90e0-losses.json,90e0-row8-{base,candidate}.log,
+90e0-fresh-reference-check.json, and full pair/exact reports retained.
+
+**Regression follow-up CLAIMED here:** diagnose90e0's header extent/body
+boundary before accepting the SimHei correction. Old90e0 entries are DONE/
+released, no current owner found. Do not restore a font error to hide the
+boundary or infer an exception. Current precise candidate remains private,
+uncommitted. About40GiB free; no shared engine, Word reference or site writes.
+Separate read-only measurement: identical20-page SimSun controls reproduce
+all480 SimHei Word positions (simsun-read-only-comparison.json). No SimSun
+implementation change yet; ordinary margin1441/1443 controls remain measured
+residuals, and the unformatted-break gap remains open.
+
 ### Mac residual: zh-202582e2 — font and break rules DONE; mixed baselines measured (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after accepted e8594b01. Fresh full
 mac-empty-list sweep/exact audit:116/138 matched Mac lines (84.06%),14 pages
