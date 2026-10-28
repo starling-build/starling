@@ -8,6 +8,15 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Frozen text-mask full RELEASE suite — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Preserve64eb,
+then apply exact ae5c47b1 production patch only in private validation checkout.
+Run full Swift6.2.1 RELEASE suite with both engine variables pinned to3841e45e;
+compare all530 test identities/outcomes with prior baseline. Preserve10GiB
+free; stop on source mismatch/failure. No candidate commit, rendering edits,
+shared-engine changes, Word automation or site changes. Owner full corpus
+pair remains a separate mandatory gate; this suite cannot authorize landing.
+
 ### First-line text-mask candidate review — DONE; bounded controls pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Read-only delta
 review of frozen `box-first-line-masks-candidate.patch` SHA256
