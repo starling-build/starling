@@ -122,6 +122,23 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### Mac standard appendix/header residuals — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, after021d9aaf; Windows8628 remains
+separately claimed above its evidence. Fresh mac-grid-single exact audit:
+zh-76700e5f245/297 (82.49%),10 physical pages on both sides. Grepped every board
+mention before claiming: prior cover/grid-picture work is DONE and p8–10 runs
+explicitly released; no current owner found. Lower57f/7eba are in the user's
+embedded-font reference exclusion, and the other lower cases retain their
+recorded owners/measurement boundaries. Do not fit a known Type3-em-dash
+FontBBox/text-extraction artifact or repeat the old cover-frame false diagnosis;
+compare actual glyph origins/ink with Word before touching layout.
+Both-mode same-base pairs and both engine variables stay pinned3841e45e;
+no drops without individually Word-verified cancelling errors, board evidence,
+fetch/rebase before push, no live deploy, no engine relink or hyphenation choice.
+Claim only; no new implementation. About45GiB free; keep current
+mac-arial-alt/mac-grid-single PDFs and all reports, settled mac-cell-letter
+PDF folders removed after acceptance.
+
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
 Fresh mac-arial-alt reports and exact audit: Mac zh-291fcea7 is232/296 (78.38%);
@@ -208,7 +225,7 @@ preceding comma whole and wraps it. Word's last column is about230.21pt versus
 app230.05, so a narrower reference column does not explain it. The second
 repeated paragraph and rows below are about17pt early. Preserve the prior
 rejected blanket kinsoku rule; no new rule or rendering change for8628 yet.
-Evidence 8628-cell-trace.*,8628-{word,base}-p13.* and windows-layout.txt under
+Evidence 8628-cell-trace.*,8628-{word,base}-p13.* and8628-windows-layout.txt under
 table-residual-next. No current Windows-native or iOS validation inferred.
 
 
