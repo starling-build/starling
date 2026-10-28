@@ -8,6 +8,16 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Native regression harness crash — CLAIMED (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`, isolated worktree
+based on `office`; pushes to `office`). Scope: `SplitCellLayoutTests` crashes
+with an unchecked line-metric index during native release validation, preventing
+later tests from running. Reproduce with both engine variables pinned, make
+missing metrics report an XCTest failure instead of terminating the process,
+and record current-suite results. No production layout/font/WordArt changes,
+no shared engine rebuild, no Word automation, and no live deployment. This is
+separate from the fidelity session's drawing and remaining document claims.
+
 ### Next fresh-sweep pair: flowchart and drawing geometry — CLAIMED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 From full `tab-fallback` sweeps and exact audit: **Mac zh-291fcea7 182/296
