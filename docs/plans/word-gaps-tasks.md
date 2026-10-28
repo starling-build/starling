@@ -33,11 +33,19 @@ loaded runs (12CPU workers on same core) pass, plus isolated socket and stdio
 runs. No daemon/rendering behavior changes. Evidence on Linux:
 `/home/starling/office-validation-20261028/termd-{baseline,fixed,diagnostic}*`.
 
-### Live web redeploy checklist only — CLAIMED (release session, 2026-10-28)
+### Live web redeploy checklist only — DONE; not executed (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. Prepare exact
 sites/artifacts/commands and gates for deploying new skwasm, and record on this
 board. DO NOT deploy. Live redeployment requires user's explicit yes after
 reviewing concrete checklist; engine and validation work is authorized now.
+
+Prepared [the redeploy checklist](office-web-redeploy-checklist.md): inventory
+four runtime sites and two static landing hosts; preserve versioned assets,
+shipping loading/font optimizations and rollback revisions. Includes source
+selection, build/package commands, native/browser/corpus/performance gates,
+explicit approval boundary and future publish commands. Office branch lacks
+main's optimized product packager/host: a reviewed merged release checkout must
+be built and retested before publishing. No live-site writes/deployments run.
 
 ### Fresh after fixed-frame masks: grid and punctuation residuals — CLAIMED (Codex, 2026-10-28)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
