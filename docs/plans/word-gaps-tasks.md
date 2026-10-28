@@ -138,6 +138,58 @@ hyphenation decision. Current mac-picture-floor/mac-empty-list PDFs retained;
 settled mac-minimum-baseline pdf folders only removed, all match reports kept.
 Claim only; no new implementation. About42GiB free.
 
+**Missing English name isolated (candidate, not accepted):** fresh Word print
+reproduces all138 saved reference lines. Replacing FangSong_GB2312 with the
+unrelated undeclared StarlingMissingProbe leaves Word's138 lines identical,
+while the accepted app recovers13 matches (116→129/138) on that edited input.
+Fresh six-page Word controls set English FangSong_GB2312 and KaiTi_GB2312
+exactly like the opaque name: Cambria Latin/quotes, SimSun ideographs. Known
+FangSong/KaiTi retain square advances. Candidate limits this classification
+to Mac reference mode, those two exact names, no font-table entry and no
+embedded face; fixes the selected CJK fallback as well as Latin metrics.
+Only202582e2 meets the undeclared-name condition in the current corpus.
+Evidence mac-2025-next/{fresh-reference-check,opaque-word-comparison,
+eligible-inputs}.json and missing-names-word.pdf. Chinese GB names are outside
+this candidate: the private control raises another fallback question and is
+not used to generalize the English rule. Five-page repeatable regression
+fixture excludes that unresolved case. Full same-base pair and gates pending.
+
+Focused candidate:129/138 Mac,136/139 Windows, same14 pages. The five-page
+fixture passes its fresh Word print and candidate; the accepted baseline
+fails the missing-name quote/advance checks. Both-mode guards for table
+entries (empty or alternate), known names, unrelated missing name and the
+Chinese GB name keep all38 non-target pages pixel-identical at144DPI; span
+coordinates agree within0.001pt (section-offset floating-point rounding).
+This is focused evidence only; nine Mac misses remain, including p5 line
+height and p8 wrapping. Candidate frozen for full paired sweeps next.
+
+**Missing-name subtask DONE:** mac-empty-list → mac-missing-gb, both mandated
+scripts exit0; exact audit756 documents per mode, zero drops/missing/scored
+or physical page changes. Windows normalized geometry is identical throughout;
+only202582e2 changes in Mac mode,116→129/138. Twelve gained matches have exactly
+Word's full normalized line text; the thirteenth shares its start but still
+wraps a final 合 on p8 (do not call all13 exact breaks). All38 guard pages and
+the new regression pass. Native/browser full office-layout gate exit0, no
+skips, including24-page/1071-line boringcrypto exact parity and roundtrips.
+Native7b4f4e35, appWASM39975fe0, bridge3841e45e/skwasmc14456aa unchanged.
+Receipt mac-2025-next/missing-gb-acceptance-receipt.json; gained-lines-review.json
+records the partial line. No cancelling-errors exception, engine relink or
+live deployment. Settled mac-picture-floor pdf folders removed; match reports
+and current mac-empty-list/mac-missing-gb PDFs kept, about41GiB free.
+
+**Remaining paragraph rules CLAIMED, same owner:** private five-page p53 controls
+reproduce the mixed15/15.5pt auto-line baseline defect (~6.3pt low) while uniform
+sizes and exact spacing match. Twelve size/spacing controls show each line
+needs its own correction; a paragraph-wide shift is insufficient. No baseline
+candidate yet. P8: enabling useFELayout on a private input recovers the seven
+remaining scored wraps (136/138), pointing at the explicit kinsoku0 gating.
+Fresh eight-page Word prints with/without useFELayout have identical breaks:
+kinsoku0 permits closing marks at line starts and an opening mark at line end;
+kinsoku1 retains them. Current app ignores kinsoku0 without useFELayout.
+Private input/control evidence p53-height-*, mixed-size-*, kinsoku-* under
+mac-2025-next; next implementation must preserve the existing FE-layout path,
+pair both modes and inspect all changes. No claim of Windows-host validation.
+
 ### Mac standard cover/appendix labels — DONE; paper crop measured/released (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after021d9aaf; Windows8628 remains
 separately claimed above its evidence. Fresh mac-grid-single exact audit:

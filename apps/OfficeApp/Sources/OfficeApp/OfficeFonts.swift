@@ -828,11 +828,23 @@ enum OfficeFonts {
         return !declaredLatin.isEmpty && declaredLatin.contains(family)
     }
 
+    // These English GB2312 names are absent on Word for Mac. With no
+    // font-table entry or embedded face, fresh Word prints resolve them
+    // exactly like an unknown Latin name: Cambria letters/quotes and
+    // SimSun ideographs (zh-202582e2 and the missing-name controls).
+    // A table-described name has its own substitution rules below.
+    private static func isUndeclaredMacGBName(_ family: String) -> Bool {
+        guard wordOnMac else { return false }
+        let n = family.trimmingWhitespace().lowercased()
+        return (n == "fangsong_gb2312" || n == "kaiti_gb2312")
+            && fontEntry(family) == nil && !isEmbedded(family)
+    }
+
     /// Whether a family name is an East Asian face: written in its own
     /// script (宋体, 標楷體, ＭＳ 明朝), or one of the Latin names those
     /// faces also go by.
     static func isEastAsianFace(_ family: String) -> Bool {
-        if isDeclaredLatin(family) { return false }
+        if isDeclaredLatin(family) || isUndeclaredMacGBName(family) { return false }
         if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return true }
         let n = family.trimmingWhitespace().lowercased()
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
@@ -2743,6 +2755,7 @@ enum OfficeFonts {
     /// nil for YaHei's stand-ins, which the glyph fallback draws.
     private static func wordMacIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
         guard _wordMacFacesLoaded, ea.height != yaHei.height else { return nil }
+        if isUndeclaredMacGBName(family) { return "SimSun" }
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
         if has("明體", "mingliu") { return "PMingLiU" }

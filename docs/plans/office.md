@@ -8535,3 +8535,15 @@ with no other document changes; tab indentation remains a separate issue.
   visible-mark line-height handling. A broader prototype failed those Word
   controls and was rejected; the accepted version keeps all eight nonempty-
   body control pages pixel- and geometry-identical to the prior renderer.
+
+- **Missing English GB2312 names in Mac reference mode (2026-10-28).**
+  An undeclared, unembedded FangSong_GB2312 or KaiTi_GB2312 is an absent
+  Latin font name in fresh Word for Mac: Cambria letters and quotes with
+  SimSun ideographs. Keep font-table and installed-face rules separate.
+  Five Word controls reproduce the distinction;38 non-target pages retain
+  baseline pixels. Full same-base756-document pairs have no drops or page
+  changes, Windows geometry unchanged, and zh-202582e2 rises116→129/138 in
+  Mac mode. Twelve newly matched lines have Word's entire normalized text;
+  one still differs at its end. Browser parity and all layout gates pass.
+  The remaining mixed-size baseline and explicit kinsoku0 rules are separate
+  measured gaps, not covered by this font correction.
