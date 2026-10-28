@@ -8398,6 +8398,11 @@ PIN YOUR PRIVATE SWEEP SCRIPTS: export OFFICE_FONT_SOURCE=bundled, or a machine 
 Next: windows checks local mode (showcase F01's line breaks, a couple of corpus docs); the Windows list is the face table,
 not the registry, so a face outside it still falls back to the stand-in — a follow-up if F01 shows it.
 
+### T203-iOS. Installed fonts on iOS — CLAIMED (Mac Claude worker, starling-mac-ios-fonts, 2026-10-28)
+Owner: Mac Claude worker (gap analysis 2026-10-28: `installedFamilies` has no iOS branch). Widen the CoreText import and
+the enumeration to os(macOS) || os(iOS) (Word-for-Mac reference-mode gates untouched), unit test, build with
+build/ios-app.sh OfficeApp on the existing iOS simulator engine (no engine rebuild), both-mode no-op sweeps.
+
 ### T205. The 3-D pies: zh-27a874b7 (55.4) and zh-d62da4dd (56.6) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, moved from macos-ios by macos)
 Owner: Linux lenovo-2. History above: the pies' geometry matches Word to 3pt (Mac lab piefit); left were three label rules (inside placement, the fit test, outside stacking) and zh-27a874b7's caption 20pt low. Scores from here on the new engine (~/tmp/lenovo2-engine, 8bc30c5c89a).
 (Renumbered from T204, which is windows' mode-14 task, in c33a1e39.)
