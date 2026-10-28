@@ -135,6 +135,26 @@ the100% Windows result and both-mode no-drop gates. Same pinned engine3841e45e,
 both environment variables, board evidence, fetch/rebase before push; no live
 deployment, shared engine changes or hyphenation decision. Claim only.
 
+**Boundary audit / narrowed claim (2026-10-28):** fresh Word reproduces all680
+saved reference lines. All100 Mac misses begin with row89 at p15's foot;
+Windows679/679. Original-package bottom-margin controls keep the second line
+through1443twips and move it at1445. An isolated copy of the same row agrees
+with current Mac at spacer13316twips, while the existing Windows tolerance
+would admit an extra line: do NOT simply extend T191 or add a flat tolerance.
+Temporary cut tracing preserved privately and removed from source.
+
+Repeated original-row controls isolate a smaller metric: row78's SimHei
+heading is26.1pt in ours, versus about26.063pt in Word (24 repeats; its
+first-to-last text baselines step26.0661pt on average). Three-line SimSun
+rows remain consistent with their current height within the PDF raster's
+bounds. Narrow next claim: measure Mac SimHei automatic-line heights at
+10,10.5,12,14,18pt before proposing a metric correction; preserve Windows
+metrics and all table-cut rules. No other active SimHei-height owner found
+in the board search. Evidence `mac-4c5-next/` under the owner sweep root:
+fresh-reference-check.json, margin-results.json, original/isolated controls,
+repeated-78/79/88 Word/native PDFs, trace-only.patch and trace-provenance.json.
+This is measured evidence and a claim, not an accepted fix.
+
 ### Mac residual: zh-202582e2 — font and break rules DONE; mixed baselines measured (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after accepted e8594b01. Fresh full
 mac-empty-list sweep/exact audit:116/138 matched Mac lines (84.06%),14 pages
