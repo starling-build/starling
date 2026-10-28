@@ -4556,7 +4556,20 @@ extension ChartPainter {
                 at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
             }
             let moved = l.moves[s.index]
-            if let m = moved { at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height) }
+            if let m = moved {
+                // Word moves a flat pie's label from its default position
+                // already fitted into the chart frame. In zh-61aaad09 the
+                // outside default reaches above the frame: moving it before
+                // clamping loses 9.7pt of the stated downward move. Fresh
+                // Word controls at 1%, 15.85% and 35% keep the same 14.16pt
+                // move from that fitted default. Other chart hosts and 3-D
+                // placement retain their separately measured paths.
+                if l.fitted, point == nil, c.type == .pie, c.ofPie == nil, !c.onSlide, !c.onSheet {
+                    at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
+                                min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                }
+                at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height)
+            }
             // (Kept inside the frame: Word's labels over a 3-D pie's top
             // stand under the frame's edge in lab p3d, where ours were cut.)
             if l.fitted {

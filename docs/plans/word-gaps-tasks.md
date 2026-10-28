@@ -122,7 +122,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### T205 follow-up and zh-61aaad09 chart 2 — CLAIMED (Codex, 2026-10-28)
+### T205 follow-up and zh-61aaad09 chart 2 — 61aa move FIXED; residuals RELEASED (Codex, 2026-10-28)
 Owner: Mac `starling-word-fidelity-codex`, following the coordinator's explicit
 2026-10-28 reassignment/order. Earlier T205 Linux ownership below is historical;
 retain its findings and counterexamples. Scope: zh-27a874b7 / zh-d62da4dd 3-D
@@ -134,6 +134,73 @@ same-base same-engine pairs, exact no-drop audit (only a verified/logged Word
 cancelling-errors exception allowed), browser checks, fetch/rebase before push.
 Keep 10 GiB free; no shared engine changes, deployment or hyphenation decision.
 Grid/punctuation accepted through d6e61adf; unresolved measured edges released.
+
+**2026-10-28 measurements / 2-D candidate:** fresh bundled-font baseline:
+Windows 27a61/92, d6268/99, 61aa64/68; Mac 27a62/92, d6267/99, 61aa69/76.
+Fourteen new 3-D controls distinguish best-fit / center / inside-end / outside,
+label height and tilt. Explicit center keeps its anchor across label heights;
+best-fit does not. Visible-background controls confirm actual label boxes,
+but adding their border also moves best-fit positions. No general 3-D fitting
+or collision rule yet predicts all controls; no 3-D source change or offset
+patch. The blanket no-manual-moves → all-inside shortcut remains a confirmed
+limitation against piefit; removing it alone is not a measured placement rule.
+
+For 61aa chart2, full original-package controls isolate a narrower rule:
+Word applies a label's manual move from its outside default AFTER that default
+is constrained to the chart frame. Original first label: outEnd y590.64,
+moved y604.80 (14.16pt); its stated fraction gives14.25pt. The same -33.177pt
+x / +14.16pt y move holds with the first slice changed from15.85% to1% and35%.
+Native moves the unconstrained default first, losing9.7pt of the downward move.
+Angle controls rejected an initial vertical-centering hypothesis: away from
+the frame edge, the existing outside offset is right. Testing only pre-move
+frame constraint for best-fit, manually moved flat Word pies; 3-D, other chart
+hosts, doughnuts and bar-of-pie keep their existing paths. No corpus result yet.
+A stripped-body control was rejected by Word and is NOT evidence; authoritative
+flat controls preserve every original package part except chart2.xml.
+Evidence: `~/starling-doc-check-starling-word-fidelity-codex/pie-label-next/`
+(`baseline.json`, `baseline-provenance.json`, `pie-controls*`, `pie-label-boxes*`,
+`flat-whole-*`, `flat-angle-*`, `flat-moved-angle-*`, `flat-angle-measurements.json`).
+Settled box-first-line-masks pdf/ folders removed, match reports and current
+opener/numeric pair retained. About48GiB free; no shared engine/site changes.
+
+Focused flat-move candidate passes: 61aa Windows64→66/68 and Mac69→71/76;
+27a/d62/b8 unchanged in both modes. Nine private control packages rendered in
+both modes have no drops; fresh Word controls are Mac prints, not Windows-host
+receipts. The moved1% control improves; the moved35% and unmoved/outEnd angle
+controls are unchanged. Self-contained `office-pie-label-move.py` checks four
+pages: both intended14.25pt moves and both untouched labels. Fresh Word prints
+14.40/14.16pt, native candidate passes in both modes; old binary fails with
+only5.817pt movement at the frame edge. Generated fixture XML matches the Word
+package after whitespace normalization. Production patch42a19976ae6cb168d184511935a05b9f134d8fe33125fabd704380e118508843,
+native d96328c9c89e9085c277eccab97330a669e1ec5f4137204c6fe266183aa48647,
+bridge3841e45e. Starting full `mac-number-gap → flat-pie-move` pair; source/board
+frozen until completion, both unchanged scripts and both exported engine vars.
+
+**Full flat-pie-move pair PASS:** unchanged `sweep-win.sh` and `sweep.sh`
+exit0; exact audit756 documents/mode, zero drops, zero missing outputs, no
+physical-page changes. Only61aa changes geometry: Windows64→66/68 and
+Mac69→71/76. Every other document is geometrically unchanged. No cancelling-
+errors exception. The corrected label's top is604.879pt versus fresh Word
+604.804pt; its existing horizontal difference remains separate. The same eight
+unscored malformed/password-protected conversion failures match baseline.
+Full private browser gate passes all3 native/browser layouts and roundtrips,
+font/ink probes,11 fixed-frame controls (both native modes/browser),12 opener
+controls,5 Latin-word controls and4 new pie-move controls (both modes/browser).
+HTTP18142 and DevTools19342 are independent. Applied the peer's explicit
+DevTools-port prefix to the newer Latin/pie PDF calls too; the final tracked
+harness exactly matches the tested copy (copied after the sweep's source-diff
+freeze ended). Static lint, shell syntax and diff checks pass.
+Evidence: `mac-number-gap--flat-pie-move-exact.json`, `flat-pie-move-*` full
+run/mode/provenance logs; `pie-label-next/flat-move-browser-layout.log`,
+`candidate-provenance.json`, `moved-label-geometry.json`,
+`pie-move-regression-word.pdf`, `pie-move-baseline-rejection.log`,
+`pie-move-candidate-regression.log`, `browser-harness-tested.sh`.
+About47GiB free, no engine relinking, live deployment or hyphenation choice.
+**61aa manual-move subtask complete; 3-D and other label residuals RELEASED.**
+No complete 3-D best-fit/collision rule was established; preserve all piefit,
+tpie and the new height/position controls as counterexamples. 61aa's remaining
+horizontal placement, legend and first-chart differences are not claimed fixed.
+Proceed to coordinator's zh-7b08d744 squeeze-capacity edge next.
 
 ### Fresh after fixed-frame masks: grid and punctuation residuals — DONE; residual edges released (Codex, 2026-10-28)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).

@@ -161,7 +161,7 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     "$BOX_PY" "$LATIN_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$LATIN_TEST" --fixture "$WORK/latin-fit.docx"; then
         printf '%s\n' "$WORK/latin-fit.docx" > "$WORK/latin-fit.txt"
-        if node "$DRIVE" wait 6000 pdfs "$WORK/latin-fit.txt" "$WORK/latin-fit-pdfs" > "$WORK/latin-fit.log" 2>&1 \
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/latin-fit.txt" "$WORK/latin-fit-pdfs" > "$WORK/latin-fit.log" 2>&1 \
             && "$BOX_PY" "$LATIN_TEST" --pdf "$WORK/latin-fit-pdfs/latin-fit.pdf"; then
             echo "  ✔ Latin words: native and browser match the Word compression/stretch controls"
         else
@@ -172,7 +172,22 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    PIE_MOVE_TEST="$REPO/test/office-pie-label-move.py"
+    "$BOX_PY" "$PIE_MOVE_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$PIE_MOVE_TEST" --fixture "$WORK/pie-move.docx"; then
+        printf '%s\n' "$WORK/pie-move.docx" > "$WORK/pie-move.txt"
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/pie-move.txt" "$WORK/pie-move-pdfs" > "$WORK/pie-move.log" 2>&1 \
+            && "$BOX_PY" "$PIE_MOVE_TEST" --pdf "$WORK/pie-move-pdfs/pie-move.pdf"; then
+            echo "  ✔ flat-pie label moves: native and browser match the Word frame-boundary controls"
+        else
+            echo "  ✘ flat-pie label moves differ from the Word controls"
+            tail -3 "$WORK/pie-move.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
 else
-    echo "  SKIPPED fixed-frame, opener and Latin-word PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED frame, opener, Latin-word and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

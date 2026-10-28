@@ -8415,3 +8415,19 @@ existing long-word handling place the text. Do not generalize this into
 ignoring literal NBSP prefixes: the fresh Word NBSP + ZWSP control really
 does leave a blank line. Full paired sweeps gain 51 Windows / 53 Mac lines,
 with no other document changes; tab indentation remains a separate issue.
+
+
+- **A moved flat-pie label starts from its frame-constrained default
+  in Word (2026-10-28).** Apply the chart-frame constraint before the
+  label's manual offset, then keep the existing final frame constraint.
+  zh-61aaad09's outside default reaches above its frame; moving it first
+  lost9.7pt of the requested downward move. Fresh original-package Word
+  controls at1%,15.85% and35% apply the same -33.177pt/+14.16pt move from
+  the constrained outside position. Restrict this measured rule to flat
+  Word pies; 3-D, doughnuts, bar-of-pie and other hosts retain their paths.
+  The label now starts604.879pt down against Word's604.804. Full paired
+  sweeps:756 documents/mode, zero drops or page changes; only61aa changes,
+  gaining two matched lines in each mode. Four self-contained Word controls
+  verify full moves and untouched labels in native and browser, rejecting
+  the old5.817pt partial move. General 3-D fitting/collision and remaining
+  horizontal/legend differences are still unresolved.
