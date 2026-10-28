@@ -188,6 +188,23 @@ exact audit at the evidence root. Current paper-crop reference and cover's
 inline-picture baseline remain unresolved and claimed; no reference changed.
 No live deploy, shared engine change, hyphenation decision or new Windows/iOS
 host validation. About42GiB free before settled-PDF cleanup.
+Cover follow-up remains CLAIMED: no-scale and auto-spacing variants keep
+Writer's wrong134.80pt baseline; Word147.36 (148.32 with scaling removed).
+Private app-only diagnostic build, default rendering unchanged, shows the
+31.5pt inline placeholder (picture plus effect extent) reducing a62.4pt text
+line to46.8pt and applying−15.6pt ink shift. A15.75pt placeholder reduces it
+to31.2 and applies−31.2. The50.75pt placeholder already needs the full62.4pt
+line. Diagnostic source was restored; binary/patch and both-mode logs retained.
+Twelve further Word picture/text controls confirm off-grid baselines are close,
+while small pictures on a grid must preserve the larger text's line/baseline.
+Picture-only controls preserve the earlier picture-grid rule. Test a bounded
+single-line, ordinary non-East-Asian text floor only where the picture fits
+above that text's own baseline; keep larger-picture, exact-height, combined,
+shifted-script and off-grid paths intact. This is a candidate hypothesis, not
+a landed rule. Evidence picture-text-*, diagnostic-*, cover-diagnostic-* in
+standard-residual-next. Current accepted base is7a433bf6 / nativea286737c.
+Settled mac-arial-alt pdf folders removed; matches and currentmac-grid-single /
+mac-minimum-baseline pair retained, about43GiB free.
 
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.

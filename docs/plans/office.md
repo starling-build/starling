@@ -8487,7 +8487,7 @@ with no other document changes; tab indentation remains a separate issue.
 
 
 - **Minimum line heights use the controlling text run's baseline (2026-10-28).**
-  For a first line of Latin-script text, consider its non-space, non-picture,
+  For a first line of non-East-Asian text, consider its non-space, non-picture,
   normal-script runs under an “at least” height as under automatic spacing.
   Choose the controlling baseline before adding the minimum-height leading:
   a small initial run can otherwise stand lower than the large run when the
