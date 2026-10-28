@@ -96,7 +96,7 @@ removed, keeping match reports, exact audits and provenance. Current pairs
 retained; 21.47 GiB free after cleanup. Local runner checks 11.5 GiB before a
 new sweep and 10.1 GiB before each conversion to preserve the 10 GiB floor.
 
-### Mac browser/native parity and remaining fidelity — CLAIMED (2026-10-27)
+### Mac browser/native parity — DONE; item 6 measured, no rule (2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 User-directed order: (1) reproduce and fix the Mac-only word-boringcrypto
 browser/native mismatch (26 differing lines; web redeploy blocker), rebuilding
@@ -143,7 +143,7 @@ Artifacts: `~/starling-doc-check-starling-word-fidelity-codex/`,
 `browser-parity/final-fixed-layout.log`, `font-regression-final.log`, raw width
 and strut probes, compile/link commands and private skwasm artifacts.
 Native bridge remains `e0c8478f…`; exact executable `05e1db6c…`; candidate
-skwasm.wasm `0f8c72a7…` (original `442e9f4a…`). Shared Mac engine is untouched.
+skwasm.wasm `0f8c72a7…` (original `442e9f4a…`). The shared Mac engine was untouched during the pair; see the verified local SDK promotion below.
 
 The first candidate phase (`parity-candidate`) is **invalidated**, not landing
 evidence: an overlapping test build changed Swift's build configuration and
@@ -204,6 +204,23 @@ fitting tolerance or hyphenation rule is changed. Grid precision stays open.
 Evidence: `browser-parity/linux-drops/acceptance.md`, fresh Word control and
 measured results, base/candidate diagnostic logs/PDFs, and
 `browser-parity/fticu-base--fticu-candidate-exact.json`.
+
+**Final local SDK gate passed:** engine `6461fc4819e` fetched/rebased/pushed.
+The shared engine checkout fast-forwarded and only the verified FreeType
+source patch was applied. The exact privately tested skwasm pair was
+atomically installed into its default local web SDK; **no native bridge was
+relinked** (still `e0c8478f…`). Clean reason: restore requested fractional
+advances and remove the confirmed browser/native wrap differences. Office
+was rebuilt from `40a6fc09`; app.wasm `c1976041…`, skwasm `0f8c72a7…`.
+Fresh gzip/Brotli variants decompress to those exact bytes. Against frozen
+native `bb435224…`, the final gate passes all 21 font measurements, welcome
+1p/34 lines, TextEdit 3p/88 lines and boringcrypto **24p/1,071 lines**, plus
+all three save/reopen checks. Static lint passes. No live site deployed.
+Artifacts: `browser-parity/final-promoted-sdk-layout.log`, `final-web-build.log`,
+`final-stage-hashes.json`, `default-sdk-promotion.json`, `final-lint.log`.
+Settled parity sweep PDFs removed after preserving their reports and exact
+proof; the affected CoreText PDFs remain beside the Linux drop evidence.
+Current `mixed-faces`/`tab-fallback` PDFs retained; **21.9 GiB free**.
 
 ### 2026-10-27 handoff continuation — verified batch; follow-ups OPEN
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).
