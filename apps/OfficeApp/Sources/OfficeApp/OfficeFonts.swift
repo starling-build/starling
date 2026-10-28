@@ -2458,6 +2458,14 @@ enum OfficeFonts {
                 face.covers = covered
                 face.uncoveredFamily = "Microsoft JhengHei"
             }
+            // Mac Word uses MS Gothic's short line only for characters
+            // the face holds. Its missing ideographs use YaHei: the
+            // all-Gothic control of zh-8d72961c agrees for all 167 CJK
+            // characters, including the taller lines with missing glyphs.
+            if wordOnMac, !isEmbedded(family), ["ms gothic", "ｍｓ ゴシック"].contains(family.trimmingWhitespace().lowercased()) {
+                face.covers = WindowsFallbackCovers.msGothic
+                face.uncoveredFamily = "Microsoft YaHei"
+            }
             if own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered),
                eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
                 face.covers = covered

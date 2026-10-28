@@ -8320,3 +8320,16 @@ heights to YaHei or Arial merely because those faces draw the stand-in glyphs.
 The zh-8d72961c mixed-line drift was those mappings, not a need to force one
 height on every line: both-mode pair `parity-final` → `mixed-faces` fixes all
 14 vertical misses with nothing else moving.
+
+MS Gothic's own metrics apply only where its cmap contains the character.
+In Mac Word, missing ideographs use Microsoft YaHei, contributing that face's
+height. The all-Gothic variant of zh-8d72961c agrees for 167/167 Chinese
+characters; embedded faces retain their existing coverage handling.
+
+A tab separates words in `_wideWordStarts`. Treating it as part of a long
+word after a full-width colon inserted a hard break before the tab, stranding
+its held space on a blank line (zh-6a4fc013 Q5). Let the tab and the engine's
+existing long-word handling place the text. Do not generalize this into
+ignoring literal NBSP prefixes: the fresh Word NBSP + ZWSP control really
+does leave a blank line. Full paired sweeps gain 51 Windows / 53 Mac lines,
+with no other document changes; tab indentation remains a separate issue.

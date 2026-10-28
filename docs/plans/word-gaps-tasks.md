@@ -71,6 +71,26 @@ a blank line. Its private bridge was never installed or landed; the existing
 long-word engine patch is unchanged. Evidence: `lowest-next/thai-tab-controls-*`,
 `blank-prefix-word*`, `blank-prefix-engine/REJECTED.txt`.
 
+**Tab boundary and missing-glyph fallback DONE, full pair:** `mixed-faces` →
+`tab-fallback`, both prescribed scripts exit 0, exact 756 documents per mode,
+no missing files or drops. Windows zh-6a4fc013 **525 → 576/616**; Mac
+**529 → 582/614**. Its page count drops from 27 to Word's 26. Every other
+normalized document row and physical page count is unchanged. Candidate
+`bb435224…`, pinned bridge `e0c8478f…`; `mixed-faces--tab-fallback-exact.json`
+and `tab-fallback-*` reports/provenance. The targeted tab-boundary regression
+passes. The original-tab Word control now has three lines in ours too.
+Remaining Thai differences include the tab's indentation on the following
+line and heading spacing; this fixes the extra line, not all Thai layout.
+
+The all-MS-Gothic counter-control exposed a necessary missing-glyph rule:
+Mac Word uses YaHei for Chinese characters outside Gothic's cmap. Auditing
+167 CJK characters in its fresh PDF gives 167/167 agreement. Use Gothic's
+coverage for that explicit, unembedded face in Mac mode; the existing
+per-character fallback then contributes YaHei's line metrics. The control's
+later baselines return to within 1.6pt of Word, instead of drifting 26pt.
+The corpus's mixed original retains all 14 gains. Artifacts:
+`lowest-next/gothic-fallback-audit.json`, `mixed-controls-tab-fallback.pdf`.
+
 Disk housekeeping (user/coordinator request): settled sweep `pdf/` folders
 removed, keeping match reports, exact audits and provenance. Current pairs
 retained; 21.47 GiB free after cleanup. Local runner checks 11.5 GiB before a
@@ -88,7 +108,7 @@ drops except a Word-verified cancelling-error correction logged here.
 Fetch/rebase before pushing; no live deploy or automatic-hyphenation decision.
 Results and artifact provenance follow here as the work proceeds.
 
-**Mac parity verified; Linux engine pair running.** FreeType truncates the
+**Mac parity verified; Linux pair complete (exception below).** FreeType truncates the
 14⅔px screen font to 14.65625px before computing linear advances. A private
 skwasm build restores the requested-size ratio for linear advances only;
 hinted outlines and bitmap strikes retain their existing behavior. All 24
@@ -155,6 +175,35 @@ The unchanged chart evidence below still shows opposite title offsets in
 zh-b8de3ae2 and a different plot height, not one translation. No new measured
 chart rule justifies a change; the rejected global shift stays out. Continue
 to fresh unclaimed documents after the engine confirmation.
+
+**Linux fractional-font pair complete; cancelling-errors exception recorded.**
+The ICU-pinned `fticu-base` → `fticu-candidate` pair ran both prescribed
+scripts successfully on the same checkout (`4b6a70db`), executable
+`606cad71…`, bundled fonts and engine directory; both engine variables and
+`STARLING_ICU` were explicit. Exact audit: 756 documents/mode, no missing
+files or physical page-count changes. Windows zh-5be7e156 **770 → 769/786**;
+Mac zh-5be7e156 **769 → 766/785**, zh-b76a6636 **470 → 472/472**; all other
+matched counts unchanged. This is not a no-drop pair.
+
+The engine fix is independently verified against a fresh Word print:
+11pt Calibri, eight M then X, un-justified, measures **75.239822pt** to X.
+Old FreeType at screen scale gives 75.184845pt (0.054977pt short);
+corrected FreeType/CoreText gives 75.238312pt (0.001511pt short).
+The drop removes a cancellation at an existing character-grid tie: 16pt,
+grid -842/4096, spacing -6 twips doubled by balanceSingleByteDoubleByteWidth
+gives a full-width advance of **15.19443359375pt**, which corrected FreeType
+reports. Old FreeType gives e.g. 15.19440307617pt. At the half-cell limit,
+floating glyph positions accumulate about 0.00015pt beyond the exact tie;
+the current fitter permits only 0.0001pt. Old truncation accidentally
+cancelled this in Linux. Windows p6 before 科 needs 7.597277832 → 7.597363281pt;
+Mac p14 before 品 needs 7.597155762 → 7.597363281pt. Word takes both ties;
+corrected Linux now refuses just as CoreText already did. The respective
+one and three subsequent start-text misses are acknowledged under the
+user's explicit **Word-verified cancelling-errors exception**. No blanket
+fitting tolerance or hyphenation rule is changed. Grid precision stays open.
+Evidence: `browser-parity/linux-drops/acceptance.md`, fresh Word control and
+measured results, base/candidate diagnostic logs/PDFs, and
+`browser-parity/fticu-base--fticu-candidate-exact.json`.
 
 ### 2026-10-27 handoff continuation — verified batch; follow-ups OPEN
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).

@@ -13304,8 +13304,12 @@ public final class RichLayout {
         let units = Array(p.text.utf16)
         var out: Set<Int> = []
         var k = 0
-        // (Ideographs and full-width marks part words.)
-        func parts(_ u: UInt16) -> Bool { u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
+        // A tab separates words too. Including it in the word after a
+        // full-width colon inserted a hard break BEFORE the tab; its
+        // held space then occupied an extra blank line before the long
+        // Thai word (zh-6a4fc013 Q5). Let the tab and the engine's long-word
+        // rule place the following word, without stranding the tab.
+        func parts(_ u: UInt16) -> Bool { u == 0x09 || u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
         while k < units.count {
             guard !parts(units[k]) else { k += 1; continue }
             var end = k

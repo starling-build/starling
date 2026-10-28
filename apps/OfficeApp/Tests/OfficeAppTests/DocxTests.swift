@@ -4262,6 +4262,25 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [], "under East Asian layout, parted where it stands")
     }
 
+    func testATabSeparatesAnOverlongWordAfterAFullWidthMark() throws {
+        // The tab in zh-6a4fc013 Q5 belongs with its heading. Inserting a
+        // hard break before it stranded its held space on a blank line.
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        let label = "标题："
+        let word = String(repeating: "_", count: 80)
+        let tabbed = RichParagraph(text: label + "\t" + word)
+        var doc = RichDocument(paragraphs: [tabbed])
+        doc.usesEastAsianLayout = true
+        XCTAssertEqual(layout.wideWordStarts(tabbed, doc, textWidth: 300), [],
+                       "the tab is a boundary, not the start of the overlong word")
+        let joined = RichParagraph(text: label + word)
+        doc.paragraphs = [joined]
+        XCTAssertEqual(layout.wideWordStarts(joined, doc, textWidth: 300), [label.utf16.count],
+                       "without a tab the word still starts after the full-width mark")
+    }
+
     func testACellWordWiderThanTheLineOpensALineAfterASpace() throws {
         // zh-15f60bac's 282pt cell "…研究院(網址: http://www.tri.org.tw/page/
         // consumer.php)及…" ends its first line at "(網址: " in Word's print,
