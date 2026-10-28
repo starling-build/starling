@@ -122,7 +122,7 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
-### zh-7b08d744 Mac squeeze boundary — CLAIMED (Codex, 2026-10-28)
+### zh-7b08d744 Mac squeeze boundary — DONE (Codex, 2026-10-28)
 Owner: Mac `starling-word-fidelity-codex`, coordinator item 3 after ee675bab.
 Grepped the board and read the tsq manifest/results and a6d27ff7's rejected
 mode-14 share test. Preserve those counterexamples: do not retry the broad
@@ -137,6 +137,117 @@ production change yet. Same-base pairs in both modes, both engine variables
 pinned to 3841e45e, exact no-drop gate, board results and fetch/rebase before
 push remain required. No shared-engine relinking, live deployment or automatic
 hyphenation decision. Keep at least 10 GiB free; current free space about 47 GiB.
+
+**Fresh controls, 2026-10-28:** latest accepted sweep is Mac 149/210, Windows
+207/207. One-twip width steps reject a simple boundary-rounding correction:
+Word wraps at right 0, −1 and −2 twips, but takes A at −5/−10/−15. Replacing A
+with AA or 12 still wraps, so this is not a single-letter special case.
+Moving one ordinary space out of a parenthesis but elsewhere on the line
+still wraps A and AA; moving it immediately before A/AA keeps both, at the same
+natural width (all four controls use right −2 twips). Testing the legacy Mac
+cell exception only when the incoming word directly follows U+0020. Existing
+half-em checks, Windows, modern layout and body text remain unchanged. No new
+capacity test or tolerance. The −2-twip A edge may remain a small metric-boundary
+miss; do not hide it with an unrelated epsilon. No candidate result yet.
+Private authoritative whole-package Word/native controls and logs are under
+`~/starling-doc-check-starling-word-fidelity-codex/squeeze-edge-next/`:
+`right*`, `AA`, `12`, `r-5/r-10/r-15`, `outside-first-*`, `outside-last-*`.
+The initial rounding and single-letter hypotheses are rejected, not rules.
+
+The first candidate (only requiring a directly preceding space in the cell
+exception) changed no corpus geometry in a focused 14-document, both-mode
+pair and had no drops. It fixed the private AA controls but not original A:
+a second shortcut lets any single Latin character starting inside a legacy
+cell take the marks' capacity. Its documented oracle is Word for Windows.
+Fresh Mac controls replacing the ten spaces with five equal-width Han still
+wrap attached A and AA. Testing the two guards together: preserve that single-
+character shortcut in Windows cells and body text, but let attached letters in
+legacy Mac cells use the existing half-character/start rules. Ordinary-space
+paths still keep A/AA. No body/modern/Windows changes or new tolerance.
+The first candidate's patch/binary/results are preserved under `part1-*`.
+A self-contained six-page private fixture with an embedded five-glyph Noto
+subset reproduces both rules in fresh Word: attached A/AA wrap; a space directly
+before them keeps them. Baseline fails the three attached-word pages. Combined candidate focused pair PASS: Mac zh-7b08d744 149→210/210;
+Windows remains 207/207. All 13 other focused documents have identical
+geometry in both modes, including the old share-test regression witnesses.
+All six embedded-font Word controls pass; the baseline fails pages 1, 2 and 5.
+Production diff SHA256 3d0c44898b93b4451889affa7ad26f88e248c9b92c296669a9c547795b627a35;
+frozen native binary f4db1aad043f9bc9f7c1cd005f7b6d3f116ea6ff8c9d5b7ddb75130222530da4.
+Evidence: candidate-provenance.json, focused-results.json and candidate/ in
+squeeze-edge-next. Added test/office-cell-word-fit.py with OFL font/generator
+and browser gate. Starting full flat-pie-move→mac-cell-latin pairs and browser
+validation. Full pair completed, but **DO NOT LAND** this candidate:
+756 documents/mode, no missing, Windows geometry unchanged; Mac zh-23ee8575
+296→295/296 (one lost line), zh-540dc149 geometry changes at unchanged 282/282,
+and target 149→210/210. No page-count changes. Both changed counterexamples
+involve a digit with its own pause mark, after pause marks already on the line;
+the removed single-Latin shortcut admits them in the baseline. The first
+(space-only) candidate preserves the drop witness exactly. The broad second
+guard needs a narrower Word-measured rule; no cancelling-errors exception.
+New fresh Word controls already show that simply restoring words with any
+own punctuation is too broad: 7b08's attached A、/2、 still wrap in Word.
+Evidence: flat-pie-move--mac-cell-latin-exact.json, mac-cell-latin-* logs,
+drop-{base,part1,combined}.*, punct-controls.*, rejected-combined-*.
+WASM build completed; no browser acceptance or landing claimed for this version.
+
+**Bounded refinement:** replacing an earlier bracket or the character before
+A/AA with a comma still wraps; donor-punctuation or preceding-comma exceptions
+are rejected. Fresh A、 controls wrap at right 0 and −2 twips, but fit at −5,
+the same boundary as bare A. The single Latin character's own advance, without
+its attached pause mark, keeps the existing previous-character half-width test;
+the whole word still needs sufficient mark capacity. This predicts 23ee's 2、
+(its digit only 1.7pt past the edge, the preceding character half 6pt) without
+admitting 7b08's A、 at right 0. Testing that narrower guard, unchanged Windows,
+body, modern and direct-space paths. No new tolerance or blanket punctuation
+exception. Evidence: prior-pause-controls.*, punct-edge-controls.*.
+Refined focused pair PASS: 16 corpus documents in both modes plus 32 private
+Mac controls (64 PDFs), zero drops. Only target Mac geometry changes,
+149→210/210; the two full-sweep counterexamples now exactly restore baseline
+geometry in both modes. Fresh Word reprints confirm their original line breaks.
+Expanded portable fixture to eight pages: all pass in fresh Word and refined
+native; rejected combined binary fails page 8, proving regression sensitivity.
+The −2-twip boundary retains its existing metric miss; not hidden with epsilon.
+Production diff 9fd23297760c7ba5d36d4371d5b48ef9bd1af59664c7b3fb23c1b5e0b53dc0ca;
+frozen binary d40ce194eaf4486a26289b0c0f295b62c3056b2b7dfcc7957118adcc12ce914e.
+Evidence: letter-lead-candidate-provenance.json, letter-lead-focused-results.json,
+fresh-drop-witnesses.json, cell-word-eight-word.pdf, eight-rejected-combined.log.
+Starting full flat-pie-move→mac-cell-letter pair, unchanged engine3841e45e;
+full native/browser gate is running. No full acceptance yet.
+
+**Final acceptance:** both unchanged scripts exit 0 for flat-pie-move→mac-cell-letter;
+exact audit has 756 documents per mode, zero missing, zero drops, zero physical
+or scored page-count changes. Windows normalized line geometry is identical.
+Only Mac zh-7b08d744 changes: 149→210/210 (71.0→100.0). All other geometry,
+including 23ee and 540, is identical. The same eight encrypted/malformed Mac
+conversion refusals have no scored references; no new failure. No exception used.
+Full Mac native/browser gate exits 0: welcome/TextEdit/24-page boringcrypto exact
+layout plus roundtrips, fractional advances/ink, 11 frame pages in both native
+modes/browser, 12 opener pages, five Latin pages, eight cell-word pages and four
+pie-move pages. These are Mac-host receipts, not native Windows/iOS validation.
+
+Fixture correction during browser validation: the initial subset's English name
+was not recognized as CJK, so native fallback faces hid a missing embedded-font
+load and browser output was NUL text. No font-key collision (registration hashes
+font bytes). The final fixture names its font Starling Cell Space CJK Test,
+uses Arial for ASCII spaces/letters, and asserts the CJK font is present in every
+PDF page. Fresh Word, native and browser all pass the final eight-page fixture;
+baseline fails page 1 and rejected combined candidate fails page 8. All original
+whole-package Word controls and focused corpus results are retained independently.
+The temporary browser harness differed only in the helper's private path; copied
+the exact tested helper/font/generator after the sweep's source freeze ended.
+Production patch remains exactly 9fd23297…; no rendering changes during either gate.
+
+Evidence: flat-pie-move--mac-cell-letter-exact.json; mac-cell-letter-* provenance,
+mode/build/conversion logs; squeeze-edge-next/letter-lead-browser-final.log,
+browser-tested-harness.sh, cell-portable-final-word.pdf, portable-final-*.log,
+acceptance-receipt.json. Static lint, shell syntax and diff checks pass.
+Removed settled mac-cell-latin and mac-number-gap pdf/ folders, retaining all
+match.txt reports, exact audits, frozen binaries and current flat-pie-move /
+mac-cell-letter PDFs. About 47 GiB free; shared engine and live sites untouched.
+Coordinator item 3 complete; proceed to fresh lowest unclaimed documents.
+
+
+
 
 ### T205 follow-up and zh-61aaad09 chart 2 — 61aa move FIXED; residuals RELEASED (Codex, 2026-10-28)
 Owner: Mac `starling-word-fidelity-codex`, following the coordinator's explicit

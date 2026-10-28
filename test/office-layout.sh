@@ -172,6 +172,21 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    CELL_WORD_TEST="$REPO/test/office-cell-word-fit.py"
+    "$BOX_PY" "$CELL_WORD_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$CELL_WORD_TEST" --fixture "$WORK/cell-word-fit.docx"; then
+        printf '%s\n' "$WORK/cell-word-fit.docx" > "$WORK/cell-word-fit.txt"
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/cell-word-fit.txt" "$WORK/cell-word-fit-pdfs" > "$WORK/cell-word-fit.log" 2>&1 \
+            && "$BOX_PY" "$CELL_WORD_TEST" --pdf "$WORK/cell-word-fit-pdfs/cell-word-fit.pdf"; then
+            echo "  ✔ Legacy cell words: native and browser match the Word separating-space controls"
+        else
+            echo "  ✘ Legacy cell-word fitting differs from the Word controls"
+            tail -3 "$WORK/cell-word-fit.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
     PIE_MOVE_TEST="$REPO/test/office-pie-label-move.py"
     "$BOX_PY" "$PIE_MOVE_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$PIE_MOVE_TEST" --fixture "$WORK/pie-move.docx"; then
@@ -188,6 +203,6 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
         fails=$((fails + 1))
     fi
 else
-    echo "  SKIPPED frame, opener, Latin-word and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED frame, opener, Latin-word, cell-word and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

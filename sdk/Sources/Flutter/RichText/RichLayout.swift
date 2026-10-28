@@ -12676,7 +12676,15 @@ public final class RichLayout {
                         // line "1分；…", where ours took the "1" 9.2pt over,
                         // starting 1.4 past, five marks and three spaces able
                         // to give.)
-                        : (!wide && inCell && ((lineBlank && x < width) || need < set / 2 - _px(0.25)
+                        // (In Mac Word the ordinary space must separate the
+                        // incoming word. Moving one space from inside either
+                        // parenthesis of 7b08's form to elsewhere on the line
+                        // still leaves A/AA below; placing it immediately
+                        // before A/AA keeps them, at the same natural width.
+                        // Spaces elsewhere do not bypass the half-em rule.
+                        // The Windows cell path retains its measured rule.)
+                        : (!wide && inCell && ((lineBlank && x < width
+                            && (RichTextTheme.wordWindowsPages || a > 0 && units[a - 1] == 0x20)) || need < set / 2 - _px(0.25)
                             // (… up to half an em and what its own marks give:
                             // zh-d35cbbdb's cell takes no "1333、" 35pt over,
                             // its six marks able to give 44, where Word's
@@ -12752,8 +12760,19 @@ public final class RichLayout {
                             // able to give 26.5; zh-06c46ba9's "（詳參附錄1）" takes
                             // "1）" starting 10.7 in, and zh-0513f641's "附件4）"
                             // hangs its bracket and is taken.)
+                            // (In a legacy Mac cell the letter itself keeps
+                            // the half-character limit, excluding its attached
+                            // pause mark: 7b08's A and A、 both wrap at right 0
+                            // and -2 twips, and both fit at -5. Replacing an
+                            // earlier bracket or the preceding one with a comma
+                            // changes neither result. Counting all of A、 as
+                            // the lead wrongly rejects 23ee's 2、: its digit
+                            // is only 1.7pt over, its comma carried with it.
+                            // The whole word must still fit the marks' capacity.)
                             || (!wide && x < width && (!inCell || need <= room + hair)
-                                && (oneLatin && (hang > 0 || !own.contains { Self._closingUnits.contains(units[$0]) && !Self._pauseMarks.contains(units[$0]) }) && need <= room + hair || x + before / 2 <= width + edge
+                                && (oneLatin && (RichTextTheme.wordWindowsPages || !inCell
+                                    || x + boxes(a, a + 1) - (gaps[a] ?? 0) - width <= before / 2 + edge)
+                                    && (hang > 0 || !own.contains { Self._closingUnits.contains(units[$0]) && !Self._pauseMarks.contains(units[$0]) }) && need <= room + hair || x + before / 2 <= width + edge
                                     || !onCharacterGrid && !inCell && latinBefore && all.contains { Self._pauseMarks.contains(units[$0]) }))
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can

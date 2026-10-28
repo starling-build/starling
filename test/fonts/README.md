@@ -20,3 +20,17 @@ Original source SHA256: `2e68d43ae2c504f4e302a9cf522ecc3f06ef66d724cade58bbe13a3
 Created with FontTools 4.67.0; regenerated container metadata
 may differ with the tool version. The test verifies line breaks and complete
 text against Word-printed controls, not the font file's binary identity.
+
+# Cell word boundary test font
+
+`StarlingCellSpaceTest.ttf` is another static weight-400 subset of the same
+Noto Sans SC source, renamed **Starling Cell Space CJK Test**. It contains
+`甲（）、 A` (six glyphs, including space). The matching
+`StarlingCellSpaceTest-LICENSE.txt` preserves the SIL Open Font License 1.1.
+`test/office-cell-word-fit.py` embeds it to test legacy cell word fitting
+without installed CJK fonts; Arial supplies its ordinary spaces and letters.
+The PDF check also asserts that the embedded CJK font was used. Regenerate with:
+
+```sh
+python3 test/fonts/make-cell-space-font.py /path/to/NotoSansSC-VariableFont_wght.ttf
+```

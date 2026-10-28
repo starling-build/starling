@@ -8431,3 +8431,22 @@ with no other document changes; tab indentation remains a separate issue.
   controls verify full moves and untouched labels in native and browser,
   rejecting the old 5.817 pt partial move. General 3-D fitting/collision and
   remaining horizontal/legend differences are still unresolved.
+
+
+- **Legacy Mac cell words distinguish separating spaces from spaces elsewhere
+  (2026-10-28).** Ordinary spaces inside parentheses do not exempt an attached
+  Latin word from the existing half-character fitting limit. Moving one space
+  immediately before the word does, at the same natural width. A single Latin
+  character keeps that limit too; measure the character itself, excluding an
+  attached pause mark, while requiring capacity for the entire word. Fresh Word
+  controls of zh-7b08d744's form wrap A and A、 at right 0/−2 twips and keep both
+  at −5. Treating the entire A、 as the leading character incorrectly rejects
+  zh-23ee8575's 2、 and zh-540dc149's 3、; those counterexamples are preserved.
+  Windows, body and modern-layout paths retain their existing rules. No new
+  tolerance or modern share test is applied to legacy cells. Full paired sweeps:
+  756 documents per mode, no drops or page changes; only Mac zh-7b08d744 changes,
+  149→210/210 matched lines. Eight portable Word controls with an embedded OFL
+  CJK subset and explicit Arial spaces/letters pass in native and browser. The
+  PDF test asserts the embedded font was loaded, so native fallbacks cannot hide
+  an invalid fixture. The sub-twip −2 boundary remains a known private metric
+  miss; it is not patched with an epsilon.
