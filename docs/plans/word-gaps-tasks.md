@@ -8,6 +8,18 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Independent frozen clipping-candidate review — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session (`starling-office-test-collab`), requested by
+the Word-fidelity owner. Apply only the frozen three-file production patch
+`geometry-next/box-clip-independent-candidate.patch` (SHA256
+`8975ecb5e95a7dbb4ffd41d50b8b05ed16a29f7de09b30e9c9b1a4693864a0c4`)
+in this private validation checkout, run the full correctly initialized
+Swift 6.2.1 RELEASE suite against bridge `3841e45e…`, and review regressions.
+Report failures first. Candidate remains uncommitted/unpushed; do not alter
+rendering in response, the owner's checkout, shared engine outputs, or sites.
+Owner retains Word controls and complete paired sweeps; this check does not
+replace them. Preserve the 10 GiB disk floor.
+
 ### Full native RELEASE validation — DONE (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), agreed directly
 with the Word-fidelity session. Build and run all native Office tests in
