@@ -138,6 +138,24 @@ fetch/rebase before push, no live deploy, no engine relink or hyphenation choice
 Claim only; no new implementation. About45GiB free; keep current
 mac-arial-alt/mac-grid-single PDFs and all reports, settled mac-cell-letter
 PDF folders removed after acceptance.
+Read-only triage: 50 of52 misses are on p10. Its DOCX section requests
+23811x16838twips (A3 landscape); Windows Word and Writer use that size.
+The Mac print is842x595pt (A4 landscape), crops the right third, and moves
+content up about123.5pt. A fresh original-package Mac print has exactly the
+same297 normalized lines and page sizes as the saved reference. Do not tune
+layout to that print crop; no reference changed. p9's other miss is two1pt A
+labels; p1's large3311 is a genuine baseline difference, unrelated to the
+previous Type3-em-dash bbox artifact.
+Bounded follow-up under this claim: the cover begins inside a floating table,
+with a10.5pt space before48pt Latin text and an atLeast12pt line. Whole-package
+controls removing the picture and inherited/direct paragraph frames keep
+Word's3311 baseline147.36; Writer111.294. Removing the grid gives Word142.56,
+Writer109.532. The Latin tallest-run baseline guard currently accepts only
+unspecified line heights, excluding minimum heights. Test admitting minimum
+heights while preserving exact heights; picture-line behavior remains separately
+measured, not a reason to generalize the change. Evidence standard-residual-next/
+under the owner evidence root:767-reference-audit.json, fresh print, cover-*.
+Both-mode pairs and Word controls required before any production landing.
 
 ### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
