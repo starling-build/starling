@@ -88,6 +88,19 @@ explicit approval boundary and future publish commands. Office branch lacks
 main's optimized product packager/host: a reviewed merged release checkout must
 be built and retested before publishing. No live-site writes/deployments run.
 
+### T205 follow-up and zh-61aaad09 chart 2 — CLAIMED (Codex, 2026-10-28)
+Owner: Mac `starling-word-fidelity-codex`, following the coordinator's explicit
+2026-10-28 reassignment/order. Earlier T205 Linux ownership below is historical;
+retain its findings and counterexamples. Scope: zh-27a874b7 / zh-d62da4dd 3-D
+pie label placement, fit and collision rules, plus zh-61aaad09 chart 2 labels.
+Read T205, piefit and windows-1 tpie results before this board-only claim.
+Start with fresh baseline renders on d6e61adf and pinned engine3841e45e.
+No production change yet. Any candidate must pass unchanged both-mode scripts,
+same-base same-engine pairs, exact no-drop audit (only a verified/logged Word
+cancelling-errors exception allowed), browser checks, fetch/rebase before push.
+Keep 10 GiB free; no shared engine changes, deployment or hyphenation decision.
+Grid/punctuation accepted through d6e61adf; unresolved measured edges released.
+
 ### Fresh after fixed-frame masks: grid and punctuation residuals — DONE; residual edges released (Codex, 2026-10-28)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 Fresh full `box-first-line-masks` sweeps/exact audit: **Windows zh-8d6f702e
