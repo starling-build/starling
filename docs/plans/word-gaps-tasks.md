@@ -8,6 +8,27 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Linux private-engine/native-browser validation — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, coordinator/user-approved. On Linux
+`starling@192.168.68.65`, build native and skwasm from pinned `origin/starling`
+including39bb8cb9328/6461fc4819e and all BUILDING.md1.7 patches, in private
+output directories. Preserve shared checkout outputs and10GB disk floor.
+Run `test/office-layout.sh` at a recorded office tip; report Linux native/
+browser parity with engine/source hashes. Disjoint from fidelity owner.
+
+### Linux loaded termd timing flake — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, coordinator/user-approved. Reproduce
+`test/run.sh` termd failure under Linux load versus isolated test, inspect
+`termd/test-termd.py`, fix bounded timing tolerance while preserving meaningful
+assertions, validate under load and alone. Private checkout; avoid fidelity
+rendering changes and existing shared worktrees.
+
+### Live web redeploy checklist only — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, coordinator/user-approved. Prepare exact
+sites/artifacts/commands and gates for deploying new skwasm, and record on this
+board. DO NOT deploy. Live redeployment requires user's explicit yes after
+reviewing concrete checklist; engine and validation work is authorized now.
+
 ### Fresh after fixed-frame masks: grid and punctuation residuals — CLAIMED (Codex, 2026-10-28)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 Fresh full `box-first-line-masks` sweeps/exact audit: **Windows zh-8d6f702e
