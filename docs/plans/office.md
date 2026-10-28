@@ -8332,6 +8332,23 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   Windows/Mac sweeps have no other score or page-count changes.
 
 
+- **A paired mark's restored blank limits Mac opening-mark compression
+  (2026-10-28).** With kinsoku off, Mac body lines can compress punctuation
+  to keep an opening mark after Han too: e0ca7252's first line ends `日（`.
+  When the preceding mark closes up to it (`「（` or `）（`), splitting the
+  pair restores the preceding mark's blank half. Deduct that half from the
+  alternative line's stretch room when comparing stretching with compression.
+  At 14pt with two commas, fresh Word controls take `甲（` 10pt over but not 12;
+  paired marks take 4 but not 6, with and without a character grid. This explains
+  the earlier broad candidate's 72da p56 regression: it counted the shared half
+  as room to stretch. Windows and cell behavior remain unchanged.
+  Full same-base pairs on engine 3841e45e: 756 documents/mode, zero drops,
+  no page changes. Mac zh-72da925e 1138 → 1144/1309, zh-e0ca7252 1058 → 1061/1669; all other
+  geometry unchanged. `test/office-opener-fit.py` embeds a small OFL Noto
+  subset so its 12 Word boundary controls also run in the browser without
+  installed CJK fonts; baseline fails and candidate, browser and Word pass.
+
+
 - **Mac balanced spaces in an embedded subset with a Latin ASCII face
   (2026-10-27).** Where the embedded East Asian subset lacks U+0020 and
   the run has a Latin ASCII face, ordinary balanced spaces take 3/8 em.

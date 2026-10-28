@@ -67,6 +67,50 @@ exception, and fetch/rebase before push. No live deployment or hyphenation
 choice. Settled rejected `fixed-text-box/pdf` folders removed; reports and
 current accepted base/candidate retained. About49.5GiB free.
 
+**2026-10-28 measured controls / candidate in progress:** 18 e0ca controls
+(six opening-mark kinds, three widths) all reproduce Word keeping the opener
+after 日 while baseline wraps it. A 66-page width scan and 32 minimal controls
+rule out a character-grid-only restriction. At 14pt with two commas, Word takes
+甲（ 10pt over but not 12; for adjacent 「（ it takes 4 but not 6, on and off a
+grid. The alternative line ending restores the first opener's shared blank
+half. Testing Mac body opener compression with that half deducted from the
+alternative line's stretch room. This specifically retains 72da p56's earlier
+counterexample; no claimed corpus result yet. Private Word controls and native
+baseline PDFs: `grid-punctuation-next/` (`mac-openers`, `nested-openers-notes`,
+`opener-limit`, `simple-opener-grid`). No corpus reference changes.
+First focused candidate: seven documents in both modes, Windows exact unchanged;
+Mac 72da1138→1144 and e0ca1058→1061, others unchanged. All32 minimal opening
+controls match Word's line-end decisions. The replacement `）『` control exposes
+the same shared-blank restoration for a closing mark followed by an opener;
+extending the correction to that measured pair before any full sweep. One early
+probe executable lacked its sibling font bundle and is explicitly INVALID;
+all stated focused counts are from the repeated bundled-font invocation.
+Refined `opener-paired` candidate: all48 minimal Word boundary controls match,
+including closing/opening pairs, on and off the grid; original nested control
+returns47/47 scored lines. Seven-document pair: Windows unchanged, Mac gains
+remain72da+6/e0ca+3 with no focused drops. Starting full `box-first-line-masks`
+→ `mac-opener-paired` pair on engine3841e45e; source/board frozen during sweep.
+**Full pair PASS:** both unmodified `sweep-win.sh` and `sweep.sh` exit 0;
+exact audit 756 documents per mode, no missing outputs, **zero drops**, no
+physical-page changes. Windows geometry is identical throughout. Only two Mac
+documents change: **zh-72da925e 1138 → 1144/1309**, **zh-e0ca7252 1058 → 1061/1669**. No cancelling-error
+exception. Production diff SHA256 `2d2f2d0d97a865c08bfdf326bdb033b55b5ce6ef1c8843f1456690f51e3f6048`,
+native binary `e52fef9c527c3b67112d1fc0f76cbfdf755312a187c518f8ea1f9b7c1d6930da`.
+The full browser/native gate passes welcome, TextEdit, boringcrypto, roundtrips,
+font/ink probes and the 11 fixed-frame controls. New `office-opener-fit.py`
+12-page fixture passes a fresh Word print, native Mac mode and browser; it rejects
+the old binary at page 1. Its 4 KB embedded Noto Sans SC subset (OFL 1.1, renamed,
+license and regeneration script included) avoids installed-CJK-font dependence.
+The initial unembedded browser fixture exposed missing glyphs and was replaced;
+it is not counted as a pass. Embedded fixture browser/native layouts and saved
+copy are identical. Static lint and shell/diff checks pass.
+Evidence: `box-first-line-masks--mac-opener-paired-exact.json`, full run/mode logs,
+`grid-punctuation-next/opener-paired/`, `opener-paired-browser-layout.log`,
+`opener-paired-browser-embedded.log`, and `opener-regression-embedded-word.pdf`.
+About 47 GiB free; no shared-engine changes, live deployment or hyphenation choice.
+Opener subtask complete; grid/punctuation claim remains active for e0ca's later
+number fit and Windows 8d's residuals before the coordinator's pie-label tasks.
+
 ### Frozen text-mask full RELEASE suite — DONE; pass (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Preserve64eb,
 then apply exact ae5c47b1 production patch only in private validation checkout.

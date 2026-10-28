@@ -12021,12 +12021,11 @@ public final class RichLayout {
             // where ours hung the "？" and kept the line.)
             let joinedWord = last > a + 1 && hanJoins.contains(a + 1)
             // (Mac Word can compress a body line to keep an opening mark
-            // after a Latin character under kinsoku off: zh-72da925e p8
-            // ends in -「, sharing 7.43pt with its comma. A fresh Word lab
-            // also keeps 5「. Extending this to a mark after an ideograph
-            // wrongly compresses later lines of that same document.)
+            // under kinsoku off: zh-72da925e p8 ends in -「, and e0ca7252
+            // p22 in 日（. When the previous mark closes up to this one,
+            // the alternative line ending restores its blank half; the
+            // compression-versus-stretch comparison below counts it.)
             let macBodyOpener = openingAlone && !RichTextTheme.wordWindowsPages && !inCell
-                && a > 0 && units[a - 1] > 0x20 && units[a - 1] < 0x7F
             if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
                 let over = x + w - width
                 let tail = last - 1
@@ -12586,9 +12585,19 @@ public final class RichLayout {
                     // over in Word's print, every mark squeezed and the last
                     // inside the margin; zh-33aa9899's "…不得擅自刪減。" leaves
                     // "減" that stands wholly past it.)
+                    // (If a mark and an opening mark part here, the first regains
+                    // the blank half it shared with the second. Word's
+                    // alternative to compression therefore has that much
+                    // less room to stretch: fresh 14pt controls take 甲（
+                    // 10pt over, but 「（ only 4pt, not 6, with two commas
+                    // on the line, with and without a character grid.
+                    // Counting the shared half as spare room took the 『
+                    // on zh-72da925e p56 and reflowed its remaining pages.)
+                    let partedOpener = macBodyOpener && a > 0 && closesUp(a - 1)
+                    let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0)
                     let takenFirst = squeezedFirst && !wordSpaced
                         ? lineWide > 1 && need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
-                            <= room * (width - x + hair)
+                            <= room * (stretchRoom + hair)
                         : modern
                         ? latinWord || ((!lineOther || wordSpaced) && lineWide > 1 && room > 0 && hang == 0
                             // (A sixty-fourth of each gap's em: of the line's
@@ -12617,9 +12626,9 @@ public final class RichLayout {
                             // p8's "餐，" (two marks, seven spaces) is not.)
                             ? (onCharacterGrid
                                 ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
-                                    <= markRoom * (width - x + hair)
+                                    <= markRoom * (stretchRoom + hair)
                                 : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } + spacedStretch)
-                                    <= room * (width - x + hair) || cellRest)
+                                    <= room * (stretchRoom + hair) || cellRest)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
@@ -12637,7 +12646,7 @@ public final class RichLayout {
                             // with 6.1 of stretch before it.)
                             : { let giving = modern && lineOther && wide ? all.filter { !Self._cornerUnits.contains(units[$0]) } : all
                                 return (!giving.isEmpty || giving.count == all.count) && !(hang > 0 && all.isEmpty) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
-                                    && need / Double(max(1, giving.count)) <= width - x + (giving.count > 1 ? -_px(0.02) : hair) }())
+                                    && need / Double(max(1, giving.count)) <= stretchRoom + (giving.count > 1 ? -_px(0.02) : hair) }())
                         // (… on a line with spaces in it — `ovc`'s had 41. On
                         // one without, a Latin word no more than half an em
                         // over, the automatic space after it aside: lab `sqc`

@@ -139,7 +139,22 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     else
         fails=$((fails + 1))
     fi
+    OPENER_TEST="$REPO/test/office-opener-fit.py"
+    "$BOX_PY" "$OPENER_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$OPENER_TEST" --fixture "$WORK/openers.docx"; then
+        printf '%s\n' "$WORK/openers.docx" > "$WORK/openers.txt"
+        if node "$DRIVE" wait 6000 pdfs "$WORK/openers.txt" "$WORK/opener-pdfs" > "$WORK/openers.log" 2>&1 \
+            && "$BOX_PY" "$OPENER_TEST" --pdf "$WORK/opener-pdfs/openers.pdf"; then
+            echo "  ✔ opening marks: native and browser match the Word boundary controls"
+        else
+            echo "  ✘ opening-mark compression differs from the Word controls"
+            tail -3 "$WORK/openers.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
 else
-    echo "  SKIPPED fixed-frame PDF check — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED fixed-frame and opener PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]
