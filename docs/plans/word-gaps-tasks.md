@@ -8,13 +8,23 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Cross-platform DOCX status and gap analysis — CLAIMED (release session, 2026-10-28)
+### Cross-platform DOCX status and gap analysis — DONE (release session, 2026-10-28)
 Owner: Codex release/validation session, coordinator/user-requested. Write
 `word-status-gap-analysis-2026-10-28.md` on office: freshest Windows/Mac-mode
 zh/POI scores versus the October 27 snapshot; macOS/Linux/Windows/iOS/web build,
 engine currency, parity and installed-font coverage; fidelity/product gaps;
 release and redeploy gates. Read-only evidence gathering and documentation only.
 Do not claim a platform passes from another platform's run or modify production.
+
+Completed [the October 28 report](word-status-gap-analysis-2026-10-28.md).
+Recomputed all four corpus means/counts from accepted d6e61adf's exact audit;
+kept Mac-hosted reference modes separate from host validation. Covered current
+Mac evidence, Linux cd963220 +6413b39d, unverified current Windows/iOS,
+T203, fidelity/editor gaps and release/redeploy gates. Includes artifact hashes,
+zero-line POI caveats, scored versus physical pages and suggested next owners.
+Read-only checks confirmed remote engine bd7be6b10e59, the older shared Linux
+39bb8cb9328 checkout, and the September30 iOS checkout. No new rendering build,
+Word automation, production edit or deployment. Chart work remains private.
 
 ### Linux private-engine/native-browser validation — DONE; PASS (release session, 2026-10-28)
 Owner: Codex release/web session, coordinator/user-approved. On Linux
