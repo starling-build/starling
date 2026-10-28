@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Fresh lowest unclaimed documents — CLAIMED (Codex, 2026-10-27)
+### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 After the browser fix and item 6 investigation, next are **Mac zh-e8d4c046**
 (13/38, 34.21%) and **Windows delins** (44/59, 74.58%) from `parity-final`.
@@ -19,6 +19,27 @@ reference issue was resolved; its Mac misses need fresh triage. delins is
 parked with a measured balloon tie-break that minimal labs did not reproduce;
 re-check the current misses before attempting any rule. No content-specific
 ordering adjustment. Both-mode pairs and the standing no-drop rule apply.
+
+**Results:** a fresh, isolated Mac Word print of e8 exactly repeats the broken
+reference text and missing glyphs. The rendered table omits characters that
+our embedded font draws correctly; title, table and footnotes align. This is
+another witness for the existing user decision not to reproduce Word's broken
+embedded faces. Reference unchanged. Artifacts: `lowest-next/e8-fresh-word.pdf`,
+`e8-text-audit.json` and page images under the per-checkout artifact root.
+For delins, all 15 current Windows misses are Field Code Changed / Formatted
+balloon order at the same anchors, with positions within 1pt. The previous
+isolated Word labs still supply no predictive tie-break rule; no document-specific
+ordering is introduced. Released with no source change or score claim.
+
+### Next actionable fresh-sweep documents — CLAIMED (Codex, 2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+**Mac zh-8d72961c (28/47, 59.57%)**: mixed-font line heights, explicitly not
+claimed in the board's T207 follow-up. Lower unclaimed 884c6e3e remains the
+measured sub-point page-boundary case with no rule (T218); c5b remains owned.
+**Windows zh-6a4fc013 (525/616, 85.23%)**: Thai residuals after the accepted
+long-word change. Grepped all board occurrences: the old Thai claim explicitly
+says DONE as far as it goes, RELEASED; the engine confirmation above is done.
+Both modes will be paired before any rendering change lands.
 
 ### Mac browser/native parity and remaining fidelity — CLAIMED (2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
