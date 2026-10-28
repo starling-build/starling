@@ -256,6 +256,23 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
     FONT_ALT_TEST="$REPO/test/office-font-alternates.py"
     "$BOX_PY" "$FONT_ALT_TEST" --binary "$BIN" || fails=$((fails + 1))
     "$BOX_PY" "$REPO/test/office-missing-gb-fonts.py" --binary "$BIN" || fails=$((fails + 1))
+    KINSOKU_TEST="$REPO/test/office-kinsoku-switch.py"
+    "$BOX_PY" "$KINSOKU_TEST" --binary "$BIN" || fails=$((fails + 1))
+    if "$BOX_PY" "$KINSOKU_TEST" --fixture "$WORK/kinsoku-no-fe.docx" --portable \
+        && "$BOX_PY" "$KINSOKU_TEST" --fixture "$WORK/kinsoku-with-fe.docx" --fe-layout --portable; then
+        printf '%s\n' "$WORK/kinsoku-no-fe.docx" "$WORK/kinsoku-with-fe.docx" > "$WORK/kinsoku.txt"
+        if PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 pdfs "$WORK/kinsoku.txt" "$WORK/kinsoku-pdfs" > "$WORK/kinsoku.log" 2>&1 \
+            && "$BOX_PY" "$KINSOKU_TEST" --pdf "$WORK/kinsoku-pdfs/kinsoku-no-fe.pdf" --portable \
+            && "$BOX_PY" "$KINSOKU_TEST" --pdf "$WORK/kinsoku-pdfs/kinsoku-with-fe.pdf" --fe-layout --portable; then
+            echo "  ✔ kinsoku: native and browser match Word with and without FE layout"
+        else
+            echo "  ✘ kinsoku line breaks differ from the Word controls"
+            tail -3 "$WORK/kinsoku.log"
+            fails=$((fails + 1))
+        fi
+    else
+        fails=$((fails + 1))
+    fi
     PIE_MOVE_TEST="$REPO/test/office-pie-label-move.py"
     "$BOX_PY" "$PIE_MOVE_TEST" --binary "$BIN" || fails=$((fails + 1))
     if "$BOX_PY" "$PIE_MOVE_TEST" --fixture "$WORK/pie-move.docx"; then
@@ -272,6 +289,6 @@ if "$BOX_PY" -c 'import pymupdf' >/dev/null 2>&1; then
         fails=$((fails + 1))
     fi
 else
-    echo "  SKIPPED frame, opener, Latin-word, cell-word, grid-band, minimum-baseline, picture-text, empty-list, font-alternate, missing-GB-font and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
+    echo "  SKIPPED frame, opener, Latin-word, cell-word, grid-band, minimum-baseline, picture-text, empty-list, font-alternate, missing-GB-font, kinsoku and pie-label PDF checks — PyMuPDF unavailable (OFFICE_PYTHON=…)"
 fi
 [ "$fails" -eq 0 ]

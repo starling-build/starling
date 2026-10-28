@@ -9655,6 +9655,20 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if kinsokuOff && !breaksAtQuotes, let b = before,
+                          Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
+                            || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))
+                                && Self._eastAsianLineRules(run, document, named: named)) {
+                    // The paragraph's explicit kinsoku=0 works without
+                    // useFELayout too: fresh Word's comma/parenthesis controls
+                    // have identical breaks with that switch on and off.
+                    // Keep the other FE-layout break opportunities separate.
+                    // This synthetic break has no line metrics: its Latin
+                    // stand-in otherwise enlarges a mixed-size FangSong line
+                    // (zh-202582e2 p5) despite having no glyph to draw.
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (And end one with an opening mark, where it is

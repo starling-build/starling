@@ -190,6 +190,60 @@ Private input/control evidence p53-height-*, mixed-size-*, kinsoku-* under
 mac-2025-next; next implementation must preserve the existing FE-layout path,
 pair both modes and inspect all changes. No claim of Windows-host validation.
 
+**Explicit-kinsoku prototype rejected in focus:** native3fbba87b recovers Mac
+136/138 but Windows136→130/139. This is NOT evidence of a platform break-rule
+difference: Windows line text stays unchanged; a synthetic zero-width break
+increases p53's second line height, shifting all later p5 paragraphs1.73pt.
+Patch/binary/results preserved as kinsoku-tall-break-*; no exception claimed.
+Two new mixed-size Word controls (known FangSong15/15.5, off/on) have identical
+line positions. Prototype breaks that equality by2.10pt Mac/1.73pt Windows at
+AFTER; regression catches it. Revised candidate gives only the new invisible
+break height0.01, consistent with existing non-line-setting spans; it leaves
+the old FE-layout path untouched. Native/WASM rebuilding; paired gate pending.
+Repeatable fixtures cover eight punctuation boundaries with/without FE layout
+and the mixed-size height pair without FE layout. Fresh Word prints pass all
+checks. The extra FE mixed-size pair also exposed the same preexisting height
+gap in the old path: baseline and candidate both fail it; evidence preserved,
+but no new assertion of correctness or change to that path is made here.
+
+Revised focus PASS, native2a86322a: Mac136/138, Windows136/139 restored; no
+Windows loss. All36 native fixture pages pass (10+8 in both modes). All24
+non-target private control pages remain pixel-identical, geometry within
+0.001pt. The two final generator outputs match their fresh Word inputs byte
+for byte by package part. Full mac-missing-gb → mac-kinsoku-neutral pair and
+browser gate now run on the frozen source; results pending.
+
+**Explicit-kinsoku subtask DONE:** mac-missing-gb → mac-kinsoku-neutral, both
+mandated scripts exit0; exact756-document audit in each mode has zero drops,
+missing documents or page changes. Windows normalized geometry is unchanged;
+all14 target pages are pixel-identical, character origins within0.0001pt.
+Only202582e2 changes in Mac mode,129→136/138; all seven gained lines have
+exactly Word's normalized full text. The only scored misses left are the two
+p5 mixed-size baselines, measured above; no paragraph-wide fix is proposed.
+Native2a86322a, appWASM3c0ba341, pinned bridge3841e45e/skwasmc14456aa unchanged.
+Full office-layout gate exit0, no skips: three exact native/browser layouts
+and roundtrips, all prior controls,68 native new-control pages and16 portable
+browser pages. Fresh Word prints and both fixture generators agree by package
+part. The rejected marker fails the added no-FE mixed-size guard in both modes.
+Receipt mac-2025-next/kinsoku-acceptance-receipt.json, kinsoku-exact-audit.log,
+kinsoku-gained-lines-review.json, kinsoku-windows-span-audit.json and
+kinsoku-browser-final.log. Production patch stayed identical after the sweep;
+only the browser fixture/harness changed to the embedded-font version.
+No cancelling-errors exception or live deployment. Settled mac-empty-list
+pdf folders removed; all match reports and current mac-missing-gb /
+mac-kinsoku-neutral PDFs retained, about42GiB free.
+
+**Separate browser coverage finding, not fixed here:** the initial unembedded
+SimSun fixture, and a FangSong-name control, produce missing-glyph boxes in
+this local office WASM build (LiberationSans NUL glyphs), despite native host
+font availability. Evidence browser-probe*/ under mac-2025-next, including a
+pixel crop; this is not merely Unicode extraction. The final portable variant
+uses the existing licensed StarlingOpenerCJKTest embedded face, repeats the
+Word boundary experiment, and passes native/browser. Do not infer generic
+unembedded Chinese-font coverage or any live-site status from that gate.
+Mixed-size absolute baselines and the older FE-path height gap remain measured
+residuals; scope is retained for a future per-line solution, not asserted done.
+
 ### Mac standard cover/appendix labels — DONE; paper crop measured/released (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex, after021d9aaf; Windows8628 remains
 separately claimed above its evidence. Fresh mac-grid-single exact audit:

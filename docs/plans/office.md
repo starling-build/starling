@@ -8547,3 +8547,15 @@ with no other document changes; tab indentation remains a separate issue.
   one still differs at its end. Browser parity and all layout gates pass.
   The remaining mixed-size baseline and explicit kinsoku0 rules are separate
   measured gaps, not covered by this font correction.
+
+- **Explicit punctuation restrictions without FE layout (2026-10-28).**
+  Honor paragraph `kinsoku=0` even when `useFELayout` is absent: closing
+  punctuation may start a line, and an opening mark may end one under the
+  existing East Asian language rule. Added invisible breaks contribute no
+  line height; a mixed-size Word pair catches the rejected marker that
+  shifted following text. Preserve the existing FE-layout path. Full756-
+  document pairs have no drops or page changes, Windows geometry unchanged;
+  zh-202582e2 rises129→136/138 in Mac mode, all seven new full lines matching
+  Word. Native and embedded-font browser controls pass. Unembedded Chinese
+  font coverage in the local browser build, mixed-size absolute baselines,
+  and the old FE-path marker-height behavior remain separate measured gaps.
