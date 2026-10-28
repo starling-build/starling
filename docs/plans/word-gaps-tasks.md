@@ -8,6 +8,18 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Fresh lowest unclaimed documents — CLAIMED (Codex, 2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+After the browser fix and item 6 investigation, next are **Mac zh-e8d4c046**
+(13/38, 34.21%) and **Windows delins** (44/59, 74.58%) from `parity-final`.
+Board grepped before claiming: lower Mac a031/d9b are documented broken
+reference text; c5b's T218 remains claimed. Lower Windows 015abfaf, 27a874b7,
+d62da4dd and WordWithAttachments have outstanding claims. e8's old Windows
+reference issue was resolved; its Mac misses need fresh triage. delins is
+parked with a measured balloon tie-break that minimal labs did not reproduce;
+re-check the current misses before attempting any rule. No content-specific
+ordering adjustment. Both-mode pairs and the standing no-drop rule apply.
+
 ### Mac browser/native parity and remaining fidelity — CLAIMED (2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 User-directed order: (1) reproduce and fix the Mac-only word-boringcrypto
@@ -19,6 +31,74 @@ Same-base pairs in both modes, both engine variables exported, no document
 drops except a Word-verified cancelling-error correction logged here.
 Fetch/rebase before pushing; no live deploy or automatic-hyphenation decision.
 Results and artifact provenance follow here as the work proceeds.
+
+**Mac parity verified; Linux engine pair running.** FreeType truncates the
+14⅔px screen font to 14.65625px before computing linear advances. A private
+skwasm build restores the requested-size ratio for linear advances only;
+hinted outlines and bitmap strikes retain their existing behavior. All 24
+wrap-diff lines disappear. `test/office-font-scale.js` fails on the original
+skwasm and passes all 21 measurements on the candidate; its A/B controls use
+fresh browser profiles and remove stale precompressed variants.
+
+The remaining two diff lines were raw fallback ascent/descent, not extra flow
+room: native and web both advance the U+2010 line by **13.266666412px**, with
+baseline **11.646354675px**. The dump now reports the actual line advance used
+by pagination. The welcome gate writes one .docx and opens identical bytes on
+both platforms, avoiding Cmd/Ctrl content differences; all round trips remain.
+`web-drive` awaits asynchronous evaluations so a rejected probe fails the gate.
+
+Fresh **`parity-base` → `parity-final`**, both prescribed scripts, one checkout
+at `4b6a70db` plus the recorded source patch, Swift 6.2.1, bundled fonts,
+PyMuPDF, both engine variables pointing at `engine-pair`:
+
+| Mode on Mac host | Documents | Missing / drops | Geometry / page / matched-count changes |
+|---|---:|---:|---:|
+| Windows | 645 Chinese + 111 POI | 0 / 0 | 0 |
+| Mac | 645 Chinese + 111 POI | 0 / 0 | 0 |
+
+The exact candidate executable also passes the browser gate: **24 pages /
+1,071 lines** for word-boringcrypto; welcome and TextEdit match too; all three
+save/reopen checks pass. Static lint and local Office wasm build pass.
+`test/run.sh` now fails only the same two terminal child-startup steps recorded
+in the previous batch; its browser gate passes. No live deployment.
+
+Artifacts: `~/starling-doc-check-starling-word-fidelity-codex/`,
+`parity-base--parity-final-exact.json`, phase provenance/source patches,
+`browser-parity/final-fixed-layout.log`, `font-regression-final.log`, raw width
+and strut probes, compile/link commands and private skwasm artifacts.
+Native bridge remains `e0c8478f…`; exact executable `05e1db6c…`; candidate
+skwasm.wasm `0f8c72a7…` (original `442e9f4a…`). Shared Mac engine is untouched.
+
+The first candidate phase (`parity-candidate`) is **invalidated**, not landing
+evidence: an overlapping test build changed Swift's build configuration and
+the lab wrapper rebuilt the executable. The replacement `parity-final`
+freshly converted every PDF and retained the same executable through both
+scripts; only that pair is used. Linux has its own checkout at `4b6a70db` and
+private base/candidate engine libraries. Its first full pair (`ft-base` →
+`ft-candidate`) had no drops but is **not landing evidence**: the new checkout
+lacked ICU data and silently broke between characters. Pinning `STARLING_ICU`
+to the same private engine restores the zh-6a4fc013 control from 236 to
+557/616, matching the existing Linux executable. A fresh `fticu-base` →
+`fticu-candidate` pair is running in both modes before landing the patch.
+No cancelling-error exception used.
+
+**Item 6, further controls — no speculative fix.** Sixteen fresh Mac Word
+prints in `f39-rounding-lab/`; the unchanged control has exactly the same 148
+normalized rows as the reference. Fixed table layout, removing character
+indents, combining the three runs, equalizing font hints and ±1-twip table
+origin shifts all still wrap 縣. One extra twip of width fits it. With compensating
+paragraph indents, explicit 5.4pt padding still refuses it, while 0, 5, 5.25,
+5.5, 5.6 and 6pt fit; a minimal fixed-width table reproduces this distinction.
+A separate nine-case lab at 12/14/16pt admits an exact half-em overrun and
+refuses a twip more, as ours does. This rules out a stricter general half-em
+cap, a cap based on the PDF's rounded font size, and a general fractional-padding
+rule. The remaining issue is narrower width arithmetic; no threshold fudge lands.
+
+For zh-13d11e99, the fresh sweep is **194/194 on Mac**, **185/194 on Windows**.
+The unchanged chart evidence below still shows opposite title offsets in
+zh-b8de3ae2 and a different plot height, not one translation. No new measured
+chart rule justifies a change; the rejected global shift stays out. Continue
+to fresh unclaimed documents after the engine confirmation.
 
 ### 2026-10-27 handoff continuation — verified batch; follow-ups OPEN
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).
