@@ -8,6 +8,14 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### First-line text-mask candidate review — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Read-only delta
+review of frozen `box-first-line-masks-candidate.patch` SHA256
+`ae5c47b1aa4af7f70fe5e387743f66a9da8646171c07cab31d29e8dcea06cfef`.
+Review text isolation, transparent decoration/background masks and cache
+lifetime. Repeat the same preserved private controls only when owner binary
+is supplied. No peer builds, production edits or Word automation.
+
 ### First-line band-overlap private controls — DONE; blocker confirmed (release session, 2026-10-28)
 Owner: Codex release/web session, requested by fidelity owner. Compare preserved
 baseline binary with supplied frozen `box-first-line-OfficeApp` (19707ac6 source)
