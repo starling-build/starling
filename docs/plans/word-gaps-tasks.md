@@ -8,6 +8,16 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Read-only clipping-drop XML audit — CLAIMED (release session, 2026-10-28)
+Owner: Codex release/web session (private `/tmp` evidence, clean validation
+notes worktree), requested by the fidelity owner. Compare the dropping
+DOCX packages in `box-clip-drops.json` against b24: explicit body overflow/
+autofit attributes, compatibility mode, matching VML fallback fit flags,
+and shape/anchor extents. Keep absence distinct from explicit values and
+ambiguous lost-line/shape matches explicit. No rendering, Word automation,
+production/source changes, or inferred Word rule. Candidate checkout stays
+untouched; owner continues targeted Word controls and corpus diagnosis.
+
 ### Independent frozen clipping-candidate review — DONE; candidate not ready to land (release session, 2026-10-28)
 Owner: Codex release/web session (`starling-office-test-collab`), requested by
 the Word-fidelity owner. Apply only the frozen three-file production patch
