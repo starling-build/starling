@@ -912,6 +912,10 @@ public struct PageSetup: Hashable, Sendable {
     /// section's are `RichDocument.pageNumberStart`/`pageNumberFormat`.
     public var pageNumberStart: Int? = nil
     public var pageNumberFormat: String? = nil
+    /// An explicit odd/even section start (`w:type`). Its page numbers,
+    /// rather than physical sheet indices, determine the requested side.
+    public enum PageParity: Int, Hashable, Sendable { case even = 0, odd = 1 }
+    public var sectionStartParity: PageParity? = nil
 
     public init(width: Double, height: Double, marginTop: Double = 72,
                 marginBottom: Double = 72, marginLeft: Double = 72,
@@ -2980,6 +2984,9 @@ public final class RichLayout {
     /// Pages left blank so that a section opens on its number's side
     /// (`_paginate`): they have no number, header or footer.
     private var _blankPages: Set<Int> = []
+    /// Explicit odd/even section breaks count their blank page when
+    /// numbering continues. Restart-alignment blanks do not.
+    private var _numberedBlankPages: Set<Int> = []
     private var _pageTops: [Double] = []
     /// Where each page's text starts below its top (pixels): the top
     /// margin, or under a taller header.
@@ -3441,6 +3448,7 @@ public final class RichLayout {
         }
         loadPins()
         _blankPages = _blankPages.filter { $0 < page / _columns }
+        _numberedBlankPages = _numberedBlankPages.filter { $0 < page / _columns }
         if restarted {
             // (The page restarted on keeps its section.)
             let insets = _bodyInsets(page: page / _columns, document)
@@ -4444,6 +4452,30 @@ public final class RichLayout {
             deferredUnder = []
         }
         while i < count {
+            var sectionBreakHandled = false
+            // An odd/even section may begin with a table, so enforce its
+            // side before either the table-row or paragraph path. Word's
+            // zh-291fcea7 leaves page 8 completely blank before its form.
+            // A stated numbering restart instead rounds that first number
+            // up to the requested side; it does not itself add a page.
+            if theme.wordRules, resumeCursor == nil, i > 0, i < _sectionOf.count,
+               _sectionOf[i] != _sectionOf[i - 1],
+               let parity = _setup(ofParagraph: i).sectionStartParity {
+                if y > 0.01 || !_pages[page].isEmpty || markOnPage { newPage() }
+                while page % _columns != 0 { newPage() }
+                if document.paragraphs[i].style.pageBreakTwice { newPage() }
+                let physical = page / _columns
+                if physical > 0, _sectionNumberStart(_sectionOf[i], document) == nil,
+                   (_pageNumberOf(physical - 1, document) + 1) % 2 != parity.rawValue {
+                    _blankPages.insert(physical)
+                    _numberedBlankPages.insert(physical)
+                    repeat { newPage() } while page % _columns != 0
+                }
+                // A page-anchored table can move y down before the row's
+                // break check. That offset is not content before this
+                // section: its already-handled break must not fire again.
+                sectionBreakHandled = true
+            }
             // (Under the table they were moved below, once it has ended.)
             if !deferredUnder.isEmpty, _cells[i]?.table != deferredTable { placeDeferred() }
             // (After a table placed further down the page, the text goes on
@@ -4709,7 +4741,7 @@ public final class RichLayout {
                 // the page that break opens. zh-2b21a9d4's form, 48.8pt down
                 // its page after a page-break paragraph, took page 2's last
                 // four lines under it onto page 3 and left page 2 blank.)
-                let rowBreaksPage = c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
+                let rowBreaksPage = !sectionBreakHandled && c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
                     && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
                     && (y > 0.01 || !_pages[page].isEmpty)
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
@@ -4799,7 +4831,7 @@ public final class RichLayout {
                 // w:pageBreakBefore in the cell. A break character inside
                 // a cell Word ignores. (Lab `sectbl` from bug65649's
                 // package: the test record's table on its own page.)
-                if c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
+                if !sectionBreakHandled, c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
                    y > 0.01 || !_pages[page].isEmpty {
                     newPage()
@@ -5506,7 +5538,7 @@ public final class RichLayout {
                     }
                 }
             }
-            if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
+            if _pageBreak[i] && !sectionBreakHandled && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 // (A page the line before hung past the foot of has no
                 // room for the break's own line: that line takes a page
                 // of its own, and the break ends that one too — a blank
@@ -15701,8 +15733,7 @@ public final class RichLayout {
     /// after a cover and two pages of contents, which were 8).
     private func _pageNumberOf(_ p: Int, _ document: RichDocument) -> Int {
         func start(_ section: (index: Int, last: Bool)) -> Int? {
-            section.last ? document.pageNumberStart
-                : (section.index < _sectionSetups.count ? _sectionSetups[section.index].pageNumberStart : nil)
+            _sectionNumberStart(section.index, document)
         }
         guard _sectionSetups.count > 1 else { return p + (document.pageNumberStart ?? 1) }
         // (A section that begins down a page counts that page its first,
@@ -15728,7 +15759,11 @@ public final class RichLayout {
         }
         var number = 0
         var previous = -1
-        for q in 0 ... max(0, p) where !_blankPages.contains(q) || q == 0 {
+        for q in 0 ... max(0, p) {
+            if q > 0, _blankPages.contains(q) {
+                if _numberedBlankPages.contains(q) { number += 1 }
+                continue
+            }
             let section = _headerFooterSection(q)
             if q == 0 || section.index != previous {
                 if let first = start(section), let at = begins(section.index), at < q, at >= 0, q > 0,
@@ -15747,8 +15782,11 @@ public final class RichLayout {
 
     /// Where section `index` numbers its pages from, if it says.
     private func _sectionNumberStart(_ index: Int, _ document: RichDocument) -> Int? {
-        index >= _sectionSetups.count - 1 ? document.pageNumberStart
+        let number = index >= _sectionSetups.count - 1 ? document.pageNumberStart
             : (index < _sectionSetups.count ? _sectionSetups[index].pageNumberStart : nil)
+        guard let number, index > 0, index < _sectionSetups.count,
+              let parity = _sectionSetups[index].sectionStartParity else { return number }
+        return number % 2 == parity.rawValue ? number : number + 1
     }
 
     /// How page `p`'s section writes its numbers.

@@ -1528,6 +1528,59 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(read.isLandscape)
     }
 
+    /// Fresh Word controls: odd/even starts use the continued page number,
+    /// count an inserted blank, and round a stated restart to the right side.
+    /// The section can begin with a table (zh-291fcea7), not just a paragraph.
+    func testOddAndEvenSectionStarts() throws {
+        let geometry = "<w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\"/>"
+        func check(_ kind: String, previousPages: Int = 1, previousStart: Int = 1,
+                   restart: Int? = nil, evenHeaders: Bool = false, table: Bool = false, pages: Int) throws {
+            var entries = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+            let index = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var body = "<w:p><w:r><w:t>FIRST</w:t></w:r></w:p>"
+            if previousPages == 2 { body += "<w:p><w:pPr><w:pageBreakBefore/></w:pPr><w:r><w:t>CONTINUED</w:t></w:r></w:p>" }
+            body += "<w:p><w:pPr><w:sectPr>\(geometry)<w:pgNumType w:start=\"\(previousStart)\"/></w:sectPr></w:pPr></w:p>"
+            let second = "<w:p><w:r><w:t>SECOND</w:t></w:r></w:p>"
+            body += table ? "<w:tbl><w:tblPr><w:tblpPr w:vertAnchor=\"page\" w:horzAnchor=\"margin\" w:tblpY=\"2000\" w:tblpX=\"0\"/><w:tblW w:type=\"dxa\" w:w=\"4000\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid><w:tr><w:tc>\(second)</w:tc></w:tr></w:tbl><w:p/>" : second
+            body += "<w:sectPr><w:type w:val=\"\(kind)\"/>\(geometry)"
+            if let restart { body += "<w:pgNumType w:start=\"\(restart)\"/>" }
+            body += "</w:sectPr>"
+            entries[index] = ZipEntry(name: "word/document.xml", data: Data("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(body)</w:body></w:document>".utf8))
+            let loaded = try DocxFormat.read(Zip.write(entries))
+            var doc = loaded.document
+            doc.evenAndOddHeaders = evenHeaders
+            let setup = try XCTUnwrap(loaded.pageSetup)
+            XCTAssertEqual(setup.sectionStartParity, kind == "oddPage" ? .odd : .even)
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = setup
+            layout.width = setup.width * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            XCTAssertEqual(layout.pageCount, pages, "\(kind), previous \(previousPages) from \(previousStart), restart \(String(describing: restart)), table \(table)")
+            guard layout.pageCount == pages else { return }
+            let secondIndex = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "SECOND" })
+            XCTAssertTrue(layout.pieces[pages - 1].contains { $0.paragraph == secondIndex })
+            if pages > previousPages + 1 { XCTAssertTrue(layout.pieces[previousPages].isEmpty) }
+            let back = try DocxFormat.read(DocxFormat.write(doc, pageSetup: setup))
+            XCTAssertEqual(back.pageSetup?.sectionStartParity, setup.sectionStartParity)
+        }
+        for table in [false, true] {
+            try check("oddPage", table: table, pages: 3)
+            try check("evenPage", table: table, pages: 2)
+            try check("oddPage", previousPages: 2, table: table, pages: 3)
+            try check("evenPage", previousPages: 2, table: table, pages: 4)
+            try check("oddPage", previousStart: 2, table: table, pages: 2)
+            try check("evenPage", previousStart: 2, table: table, pages: 3)
+            for restart in [1, 2] {
+                try check("oddPage", restart: restart, table: table, pages: 2)
+                try check("evenPage", restart: restart, table: table, pages: 2)
+            }
+        }
+        try check("oddPage", restart: 1, evenHeaders: true, pages: 3)
+        try check("evenPage", restart: 2, evenHeaders: true, pages: 2)
+    }
+
     func testNoPageBreakBeforeAfterAPageStartingSection() throws {
         // bug65649: a kept next-page section break followed by a table whose
         // first paragraph also said pageBreakBefore gave Word an empty page.

@@ -2932,6 +2932,11 @@ enum DocxFormat {
             return nil
         }
         var setup = PageSetup(width: w / 20, height: h / 20)
+        switch sect.first("w:type")?["w:val"] {
+        case "oddPage": setup.sectionStartParity = .odd
+        case "evenPage": setup.sectionStartParity = .even
+        default: break
+        }
         setup.orientStated = sz["w:orient"] != nil
         if let t = sect.first("w:titlePg"), !_isOff(t) { setup.titlePage = true }
         if let num = sect.first("w:pgNumType") {

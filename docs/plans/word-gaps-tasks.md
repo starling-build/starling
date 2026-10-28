@@ -23,6 +23,45 @@ All rendering changes require full pairs in both modes, pinned engine paths,
 no drops except the user's verified cancelling-errors exception, and a
 fetch/rebase before push. No live deploy or hyphenation decision.
 
+**Section parity DONE (this commit):** zh-291fcea7's last section says
+`oddPage`; Mac Word leaves physical p8 entirely blank and starts its form on
+p9. The reader ignored this, putting the form on p8. Fourteen isolated fresh
+Word controls establish that continued *logical* page numbers decide parity;
+the inserted blank counts in numbering but has no header/footer. A stated
+restart rounds its number up to the requested parity without itself inserting
+a blank (the existing even/odd-header restart alignment still applies).
+Both renderer modes match all 14 controls' page/text/number sequences. The
+22-case regression includes paragraphs and page-anchored floating tables:
+an initial candidate broke twice after positioning the table, was rejected
+at spot validation, and was corrected before any sweep/landing. Corrected
+spot: Mac **182→232/296, 11→12 pages** (Word 12); Windows **280/291, 9 pages
+unchanged**. Remaining p4/p5 flowchart and split-table geometry is separate.
+Full same-checkout pair **tab-fallback→section-parity**: both unmodified
+`sweep-win.sh` and `sweep.sh` exited 0, both engine variables pinned to
+`engine-pair` (bridge SHA `e0c8478f…`). Exact audit: **756 documents per mode,
+zero missing, zero drops**, only Mac zh-291fcea7 changes; all other normalized
+line geometry and physical page counts stay identical. Candidate p8 has zero
+text, drawings and images, like Word. All **18 fresh Word controls** (14 plain,
+four floating-table) match page/text/number sequences in both modes. DOCX suite:
+201 tests, two skipped, zero failures; lint and diff check passed. No exception
+used. Evidence: `tab-fallback--section-parity-exact.json`, sweep logs/provenance,
+`geometry-next/section-parity-*`, `section-floating-comparison.json`, and
+`291f-{mac,windows}-fixed.pdf`. Frozen release `section-parity-OfficeApp` SHA
+`95a17d7a…`; the rejected first probe remains explicitly separate. The remaining
+Mac split-table/flowchart geometry is released with its previous measurements.
+
+**Windows drawing work remains claimed:** the two rotated labels are DrawingML
+WordArt (`fromWordArt`, `textSlantDown`, 302°). Four isolated Word prints separate
+rotation from warp; two additional prints test adjustments 50000 and 100000.
+The ordinary text-box path ignores both transforms. The existing Slides painter
+also inverts the downward-slant adjustment: the value sets the band thickness,
+not its downward displacement, as confirmed by the [ECMA-376 Part 1 geometry
+definitions](https://ecma-international.org/wp-content/uploads/ECMA-376-1_5th_edition_december_2016.zip).
+Preparing a shared painter correction and styled DrawingML WordArt registration;
+no drawing implementation or score claim landed yet. Evidence: `geometry-next/wordart-*`
+and `ecma-presetTextWarpDefinitions.xml`. Corpus audit finds these two DrawingML
+WordArt shapes in this document only; no Slides corpus `textSlantDown` shapes.
+
 ### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
 Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
 After the browser fix and item 6 investigation, next are **Mac zh-e8d4c046**

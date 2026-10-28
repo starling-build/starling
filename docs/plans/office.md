@@ -1332,6 +1332,17 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **Odd/even section starts (2026-10-27).** Explicit `oddPage`/`evenPage`
+  starts use the continued logical page number, including an inserted blank
+  with no header/footer. A stated numbering restart is rounded upward to the
+  requested parity without itself adding a blank; the separate alignment rule
+  for restarted numbering with even/odd headers still applies. Eighteen fresh
+  Word controls cover prior page counts/numbers, restarts, header modes and
+  floating tables. Process the section break once before positioning a
+  page-anchored table: its vertical offset must not trigger a second break.
+  zh-291fcea7's Mac form now follows the blank eighth page, matching Word's
+  12 pages; 182→232/296 lines, both-mode full pairs with no other changes.
+
 - **Screen and native parity (2026-10-27).** FreeType's 26.6 requested size
   must not quantize linear advances: 11pt at screen scale is 14⅔px, whereas
   PDF scale uses 220px. `skia-freetype-linear-size.patch` restores the requested
