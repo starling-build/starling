@@ -58,13 +58,21 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   hangs its "；". Lab e5q (`windows`, fresh Word each, `lab/e5q`): no quote is ever squeezed below its em; without
   the run's +0.4 spacing "府”，" is taken; with the "”" deleted the "，" alone hangs ("府，"); with 2pt (−40) or 5.5pt
   (−110) more room it is still refused; "，"→"；" and the opener after it change nothing. (p5's "”；" fits whole —
-  not a witness.) Follow-up e5r (room sweeps with and without spacing) asked.
+  not a witness.) Lab e5r (`lab/e5q` h–k): it is width. Spaced +0.4, "府”，" is refused at w:right −140 and taken from
+  −160 (room 460.6 / 461.6 against 458.8 for all 37 at 12.4 with the comma whole) — so the comma gets no hang when Word
+  decides, and ~2pt more is wanted; once taken it hangs whole (12 past at −160). Unspaced it is taken whenever "…府”" fits,
+  the comma hung whole, to w:right +400. Ideographs for the earlier quotes change nothing. Quotes never squeeze. e5s
+  (1-twip thresholds at spacing 0.2/0.4/0.8, comma or quote → ideograph) asked.
 - zh-22ecbdc8 96.8 — CLAIMED. p3 "…组织人次达1000（含）—5000人/年" (mode 14, compressPunctuation, 仿宋_GB2312 16pt, hint
   eastAsia): Word ends line 3 at "（含）" with its marks whole and starts line 4 "—5000"; ours squeezes four marks
   1.44 each and ends at "—". Corpus prints: Word ends a body line with an East Asian "—" before a digit once
   (zh-e68a2f57 "表4" | "—" | "1…", three runs), starts one with "—"+digit ten times; zh-eb54d3b0 p8 squeezes to take
   "）—5000" whole. Lab dsh (is "—5000" one piece?) asked. Agreed with windows-2: its Latin-face restriction of the digit–dash
   joiner lands first (it cannot move this line: "）" before the dash); the East Asian "—|digit" joiner goes beside it after.
+  Lab dsh (`lab/dsh`, w:right 0…−160): Word never breaks between the "—" and "5000" — line 4 starts "—5000" to −100, and
+  from −120 the marks give to take "—5000" whole. Three runs, no hint, doNotUseEastAsianBreakRules and useAltKinsoku print
+  identically. With "五千" for "5000" it ends a line at "—" (marks squeezed to take it). zh-e68a2f57's "4" | "—" | "1"
+  (a digit before the dash) is the other case — windows-2's rule.
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
