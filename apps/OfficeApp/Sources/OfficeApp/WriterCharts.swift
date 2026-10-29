@@ -58,6 +58,11 @@ enum WriterCharts {
             }
             chart.windowsMinchoTitle = !(space.descendant("c:title").map(traditional) ?? false)
         }
+        // (Word for Mac sets it in SimSun: `Chart.macSimSunText`.)
+        if OfficeFonts.wordForMacFaces,
+           let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
+            chart.macSimSunText = true
+        }
         var theme = DeckTheme()
         theme.headingFont = pptxTheme.major
         theme.bodyFont = pptxTheme.minor

@@ -2013,6 +2013,9 @@ enum OfficeFonts {
                                                     [0.2778, 0.5537, 0.8296, 0.7588, 0.5000, 0.7778, 1.0537, 1.3296, 0.7734, 0.5000, 0.7705, 1.0464])
 
     private static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
+    /// `OFFICE_WORD_FONTS=mac`, for what sets text as Word for Mac does
+    /// beyond the faces (`Chart.macSimSunText`).
+    static var wordForMacFaces: Bool { wordOnMac }
     /// `OFFICE_WORD_FONTS=windows`: the faces Word for Windows sets on a
     /// stock machine — a missing name's font-table alternate where that
     /// is a face it has (仿宋 for 仿宋_GB2312 is its cloud FangSong), else
