@@ -461,10 +461,39 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
-### 3-D pie OUTSIDE labels, round 2 — CLAIMED (Mac 01Xgpbk5, 2026-10-29, routed by macos; this Mac's Word driver)
+### 3-D pie OUTSIDE labels, round 2 — (c), (d) and chart SimSun DONE; (a), (b) RELEASED (Mac 01Xgpbk5, 2026-10-29, routed by macos)
 zh-27a874b7, zh-d62da4dd, zh-61aaad09, Mac mode first. From p3dout's open findings: (a) tall labels the frame clamps slide
 along the rim, (b) crowded labels stack as a column, (c) side slices between the middle ray and the screen ray, (d) the
-3/9 o'clock side-wall vs top-rim choice. Each measured in fresh Mac Word, then built, paired in both modes, landed.
+3/9 o'clock side-wall vs top-rim choice. Lab ~/starling-word-check/lab/p3dside (build.py, build2.py, build3.py; fresh Mac
+Word per print): a 3-line probe 香港 at shares 6-16%, turned 60-165° and mirrored 195-300°.
+- (c) DONE. Word's inside/outside choice is mirror-symmetric. Lab 1 (90-165°): none inside at 90° up to 12%; inside at 12%
+  for 105° and 120°, 10% at 135°, 8% at 150°, 6% at 165°. Lab 2 (60-100°, a 20pt box): 16% at 60-75°, 14% at 80-90°,
+  12% at 95-100°. Rule: a front slice (sin(mid) > sin 10°) also takes its label inside when the box's four edge
+  midpoints, centred at 0.76 of the radius, fall in the wedge. That is 0 errors over the 83 decisions; the old corner
+  rule already matched lab 2. Word's inside labels sit at f 0.74-0.76, turned 2-5° toward the bisector; an angle blend
+  moved the mean only 7.3 -> 5.1pt, so it was not built.
+- (d) DONE. Lab 3 (95.5-97°, 8-10%): an unmoved outside label stands by the TOP's edge through 97.4° and by the foot
+  (the side wall's bottom) at 99.7°; a manually moved label (zh-27a874b7's 經濟, 95.9°) is moved from the foot whenever
+  it is past 90°. 經濟 dy -25.5 -> 3.8.
+- Chart East Asian text in SimSun (Mac mode): Word for Mac sets a chart whose theme `a:minorFont/a:ea` is "" in SimSun
+  (10.08pt, line 11.6 at 10pt), and Word for Windows in MS Mincho; ours took YaHei (13.2). The 3-line label was 1.5pt
+  taller, which pushed 香港 over the fit. `Chart.macSimSunText`.
+- Pair w59/w60 + n230/n231 (base 0a9b750d, both modes, bundled): Windows zh-27a874b7 71.7 -> 73.9, zh-d62da4dd
+  73.7 -> 75.8, nothing else moved. Mac zh-d62da4dd 76.3 -> 74.2, zh-b8de3ae2 83.2 -> 81.2, zh-61aaad09 95.9 -> 94.6,
+  zh-13d11e99 100 -> 99.5. All four are CANCELLING ERRORS: their CJK chart spans now match Word's print to 0.1pt
+  (zh-61aaad09's 同比 396.5-407.5 to Word's 396.6-407.6; zh-b8de3ae2's 18pt title box 18.0 to Word's 18.0, YaHei's 23.8),
+  and the misses are lines that were already 4pt off moving to 5. Uncovered, LOGGED:
+  (1) zh-b8de3ae2 p9/p12: the plot area is 4pt higher than Word's (axis "120000" 115.7 to Word's 119.5); YaHei's taller
+  title had hidden 1.5pt of it.
+  (2) charts ignore a run's explicit East Asian face: zh-b8de3ae2's titles are PMingLiU in Word's print and its pie
+  labels DengXian-Bold / PMingLiU; ours are SimSun.
+  (3) zh-61aaad09: the data table's header "投诉举报总量" wraps 总|量 in Word's print; ours keeps it on one line (this
+  was already so).
+  (4) zh-d62da4dd p4's outside labels: the systematic ~3-4pt vertical offset.
+- (b) RELEASED, not built: Word moves crowded outside labels sideways, about 15pt, away from their neighbours
+  (zh-27a874b7 德國 dx 15.4); our labels sit on their rays.
+- (a) RELEASED: not reproduced as described. 經濟's error was the foot/rim anchor of (d), not the frame sliding it. Left
+  in zh-27a874b7 p3: 馬來西亞 dy 13.8 (moved), 科技 dx -13.
 
 ### 3-D pie OUTSIDE labels, then lowest unclaimed Mac zh — lab DONE; inside screen-ray rule DONE (next commit); outside placement/stacking and (2) RELEASED (Claude, starling-mac-labs, 2026-10-28, user-assigned)
 Owner: Claude worker, clone `starling-mac-labs`, this machine's only Word driver. (1) Mac Word lab
