@@ -9413,12 +9413,24 @@ the middle of the row's top rule: (a) tblBorders sz 8 11.40; (b) the same as tcB
 centres in [row top + top rule's width, row bottom]: half the rule over the cell, nothing for the rule under it, since
 that rule is the next row's top and the table's last bottom rule is drawn below the last row.
 
-### T229. `w:topLinePunct` on every line, not just the first — CLAIMED (Linux lenovo-2 01BR2wHn, 2026-10-29, macos's Mac-mode round)
+### T229. `w:topLinePunct` on every line, not just the first — DONE (Linux lenovo-2 01BR2wHn, 2026-10-29, macos's Mac-mode round)
 zh-1cfb652b (Mac 90.9): its body paragraphs carry `w:topLinePunct` under `characterSpacingControl doNotCompress`. Both
 Word prints start a line that opens with "《" or "（" 8pt left of the margin (仿宋_GB2312 16pt: the mark's blank half) and
 take one more character: Mac p2/p12/p14/p15, Windows p14/p15 ("《云南省城市市容…第二十三条进", "（构）筑物…周边环").
 Ours squeezes only a paragraph's first line, and only under compressPunctuation (`_topLineSqueeze`, zh-2b955411).
-Next: squeeze an opener at any line's start under `w:topLinePunct`, whatever characterSpacingControl says; pair both modes.
+Was next: squeeze an opener at any line's start under `w:topLinePunct`, whatever characterSpacingControl says; pair both modes.
+DONE: under `w:topLinePunct` a line's opening mark gives its blank half when the line needs it (first line too where
+the settings do not compress — Word's p6 "（一）包秩序…乱刻画、" starts 8.5pt left and takes "画、", the short "（一） 高空抛物；"
+keeps its indent), and only it gives where nothing else is compressed. Word takes the half from the mark's left, the line
+starting left of the margin; the engine can set nothing before a line's first glyph (a space there is given back by
+the justifier, a joiner is folded into the mark, which then overlaps the next character), so ours spreads the half over
+the line's characters: the same characters per line, lines ending where Word's do, the line's start at the margin.
+Same-base pair, validation engine (ICU + both engine vars pinned, bundled fonts), 756 docs: Windows zh-1cfb652b
+98.3 -> 99.4, zh-55087b5f 95.6 -> 100, zh-053f8706 99.2 -> 99.5, mean 97.927 -> 97.935; Mac zh-1cfb652b 90.9 -> 91.7,
+zh-55087b5f 97.5 -> 100, zh-053f8706 99.2 -> 99.5, mean 97.557 -> 97.562; nothing lower in either. office-layout gate
+(native/browser on the validation skwasm, all Word controls incl. the 12 opener controls) passes.
+Left in zh-1cfb652b (Mac): the footer page number box ~6pt low on every page — Mac Word's print puts it where Word for
+Windows does (788.4 vs 788.1), so fc321def's Windows-only East Asian charset line holds for the Mac too. Next, here.
 
 ### T230. zh-57f1de0d: 93.6 against word-win (p28-p33) — DONE (Linux office1, 2026-10-29, macos's Windows-mode round)
 First mismatch p27/p28: an embedded subset's own letters and digits are not the stand-in's half em — 方正仿宋_GBK sets

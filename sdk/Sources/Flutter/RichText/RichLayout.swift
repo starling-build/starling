@@ -11832,9 +11832,13 @@ public final class RichLayout {
         // lines take a word ours left for the next.)
         let squeezesSpaces = !legacy && p.style.alignment == .justify
         let units = Array(p.text.utf16)
+        // (Where nothing else is compressed, `w:topLinePunct` still lets a
+        // line's opening mark give: see `leadOpeners` below.)
+        let topLinePunct = fitted && !turned && p.style.eastAsian["w:topLinePunct"] == "1"
+        let topOnly = topLinePunct && !squeezes && units.contains(where: { Self._openingUnits.contains($0) })
         // (Marks to hang or squeeze, or a letter or digit an automatic
         // space may stand beside.)
-        let marked = (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
+        let marked = topOnly || (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
             || squeezes && units.contains(0xB7)   // (a middle dot set an em gives too: `wideDot`)
         guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
@@ -12086,6 +12090,17 @@ public final class RichLayout {
             }
         }
         var x = leadWidth
+        // (Under `w:topLinePunct` the opening mark a line starts with gives
+        // its blank half as any mark does, whatever characterSpacingControl
+        // says, and gives it from its left: zh-1cfb652b's "《城市建筑垃圾管理
+        // 规定》…在运送过程" (doNotCompress, 仿宋_GB2312 16pt, justified)
+        // starts 8.5pt left of the margin in both of Word's prints and takes
+        // "程"; its "（一）包秩序…乱刻画、" first line the same, where the
+        // short "（一） 高空抛物；" keeps its indent. Where the settings
+        // compress, the first line's is given before the fit,
+        // `_topLineSqueeze`.)
+        let firstGiven = _topLineSqueeze(p, document) > 0
+        var leadOpeners: [Int: Int] = [:]   // a line's giving opener, and where its line ends
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
@@ -12471,7 +12486,7 @@ public final class RichLayout {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= over + 0.02
                     fits = true
-                } else if squeezes {
+                } else if squeezes || topOnly {
                     // (Its own marks give too: the same form's "       ），"
                     // after a 344pt first-line indent, 4.25pt over, is
                     // one line in Word's print, the "）" set 4.3pt close.)
@@ -12564,7 +12579,7 @@ public final class RichLayout {
                         runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
                     }
-                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) }
+                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) && (!topOnly || leadOpeners[$0] != nil) }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
@@ -12585,7 +12600,7 @@ public final class RichLayout {
                     // side of "80" set at 2.2 of their 3.0 and "，" at its half.)
                     var wordStart = a
                     while wordStart > 0, units[wordStart - 1] < 0x2E80, !isSpace(units[wordStart - 1]) { wordStart -= 1 }
-                    var given = legacy || !inCell ? spaces + ownSpaces
+                    var given = topOnly ? [] : legacy || !inCell ? spaces + ownSpaces
                         : spaces.filter { $0 == a - 1 || (wordStart < a && $0 == wordStart - 1) }
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
@@ -12659,7 +12674,7 @@ public final class RichLayout {
                     // at its half, 7, and all four spaces 2.8 of 3.5 — 2.68 of
                     // their 7, a share the 9pt stretch over 15.75 allows.)
                     let cellRest: Bool = {
-                        guard inCell, !legacy, spaces.contains(a - 1), need > markRoom else { return false }
+                        guard inCell, !legacy, !topOnly, spaces.contains(a - 1), need > markRoom else { return false }
                         let spaced = (spaces + ownSpaces).reduce(0.0) { $0 + (gaps[$1] ?? 0) }
                         return (need - markRoom) * (lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64 + spaced)
                             <= spaced / 2 * (width - x + hair)
@@ -13056,6 +13071,7 @@ public final class RichLayout {
                         let spaceShare = given.isEmpty || markRoom <= 0 ? share
                             : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
                         for mark in all { adjust[mark, default: 0] -= half(mark) * markShare }
+                        for mark in all where leadOpeners[mark] != nil { leadOpeners[mark] = last }
                         for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * spaceShare }
                         // (What the marks cannot give of that fiftieth —
                         // where they give all they have — the last
@@ -13287,6 +13303,11 @@ public final class RichLayout {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
+            if topLinePunct, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._openingUnits.contains(units[k]),
+               !(onFirstLine && firstGiven) {
+                leadOpeners[k] = units.count
+                marks.append(k)
+            }
             marks.append(contentsOf: own.filter { k in
                 k > (lastTab ?? -1) && (k != lineOpener || !(Self._openingUnits.contains(units[k]) || (wideQuote(k) && (units[k] == 0x201C || units[k] == 0x2018))))
             })
@@ -13320,6 +13341,21 @@ public final class RichLayout {
         for b in breaks {
             let given = b.opener.reduce(0.0) { $0 - min(0, adjust[$1] ?? 0) }
             if given > b.over - _px(0.25) { adjust[b.end, default: 0] += given - b.over + _px(0.25) }
+        }
+        // (What a line's opener gives comes off the line's characters
+        // alike rather than off the mark: Word takes it from the mark's
+        // left, the line starting that much left of the margin, and the
+        // engine can set nothing before a line's first character — a
+        // space there is given back, and an invisible joiner is folded
+        // into the mark, which would then give from its right, over the
+        // character after it. Spread, the line holds what Word's does,
+        // and justified, it is set as evenly.)
+        for (k, end) in leadOpeners {
+            guard let given = adjust[k], given < 0 else { continue }
+            let alike = (k ..< min(end, units.count)).filter { !isSpace(units[$0]) && units[$0] != 0xFFFC && !(0xDC00 ... 0xDFFF).contains(units[$0]) }
+            guard !alike.isEmpty else { continue }
+            adjust[k] = nil
+            for c in alike { adjust[c, default: 0] += given / Double(alike.count) }
         }
         // (With the tabs' widths, which the paragraph is laid out by.)
         guard !adjust.isEmpty else { return [:] }
