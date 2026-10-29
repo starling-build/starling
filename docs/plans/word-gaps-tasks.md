@@ -16,6 +16,35 @@ and WordWithAttachments per the Linux worker's reconciliation; (3) any other Wor
 board. Each variant printed alone in a fresh Word (docx-word-win-worker.ps1, warm-up, one key per batch); lab
 files under `~/starling-doc-check/lab/` on this box; results tabled here before any code. No Mac-mode labs.
 
+**Lab f39 (Word for Windows, 2026-10-28, `~/starling-doc-check/lab/f39`: `mk.py`, `run.sh`, `rd.py`, models).**
+zh-f39e54b6's whole package, ONE change per variant, each printed alone in a fresh Word (worker, warm-up, quit).
+The two paragraphs are NOT the same: p14 says `leftChars -45 left 1026 rightChars -45 right -108 hangingChars
+405 hanging 1134`, p15 `left 1023 hangingChars 404 hanging 1131` — same net first line (−108), different parts.
+First line of p14 / p15 (control reproduces the reference: p14 ends "，按", p15 "經查"):
+
+| variant (one change) | p14 takes 日? | p15 takes 查? |
+|---|---|---|
+| o control | no | yes |
+| a p14 gets p15's whole `w:ind` | **yes** | yes |
+| b p15 gets p14's whole `w:ind` | yes | **no** |
+| c p14 twips → 1023/1131, hangingChars 405 kept | no | yes |
+| d p14 hangingChars 405 → 404 alone | **yes** | yes |
+| e p14 without the *Chars attributes (1026/1134) | no | yes |
+| f p15 without the *Chars attributes (1023/1131) | no | yes |
+| g p14's 日 → 查 / h p14's 按 → 經 | no / no | yes |
+
+So the switch is the indent pair, not characters, fonts or position (a 1–5-twip table shift changes nothing).
+Hanging in characters is Word's whole twips (405 → 1134, 404 → 1131), as ours already rounds. Sweeps, p14
+without *Chars: left L, hanging L+108, right −108, L = 1000…1023: takes iff L mod 5 ∈ {3,4} (period exactly 5
+twips). Right swept a twip at a time: L≡0,1,2 take from right −109, L≡3,4 take at −108 and refuse at −107.
+Hanging−left D = 105/106/107/109 with right −(216−D) (the same exact room): D105 all take, D106 refuse L≡2 only,
+D107 refuse L≡1,2, D109 all take. **Rule (fits all 62 p14 prints, `model5.py`):** the line needs exactly
+441.0pt (31 ideographs, 4 spaces of 3.5, two commas squeezed to half — a tie); Word sums the room in doubles,
+each measure twips ÷ 20 on its own, column − left + hanging − right, and takes the character iff that sum ≥
+441.0 — 440.99999999999994 refuses. Rounding the measures to any unit (1/16pt and finer, half-up/floor/ceil)
+fits no more than the first sweep; the float sum fits every print. zh-8d6f702e / zh-5be7e156 (one-twip grid
+question): not answered by this lab — a character grid's cells are not this tie; left for a grid lab.
+
 ### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — DONE; one Windows-only bug fixed (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
 Owner: Claude worker on the Windows box, coordinator-assigned. Gap-analysis §3's
 missing Windows receipt: back up the box's host_release DLLs (bak-c34c8aa8eba),
