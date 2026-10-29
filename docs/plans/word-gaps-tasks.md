@@ -8,6 +8,15 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+**STRATEGY (the user, 2026-10-29): Windows mode is the focus.** Word for Windows is the reference, and its
+prints (test/corpus/docx/word-win) are the only target. From now on:
+- Pick work from the Windows-mode scores only (sweep-win.sh / w-series). Do not chase Mac-only gaps, and do not
+  ask for new Mac Word labs; Mac-mode items already on the board are parked unless they also miss in Windows mode.
+- Still run the pair in BOTH modes on one base. Windows mode must not drop (the cancelling-errors exception still
+  applies, with the uncovered error logged). Mac mode is a guard only: a drop of 1 point or less in a document is
+  accepted and noted; more than 1 point blocks the landing until it is explained.
+- Word for Windows labs go to `windows` (the box's only Word driver). Other sessions build and pair.
+
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
 (stroke 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, joins nothing, text matters, either shadow +2.28). (2) POI `rtl`
