@@ -8,6 +8,14 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Windows-mode Word labs: zh-f39e54b6 (then 8d6f702e/5be7e156 grid), zh-015abfaf, WordWithAttachments — CLAIMED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28, the user's assignment)
+Owner: Claude worker on the Windows box, this machine's only Word for Windows driver. Runs the Word for Windows
+labs these Windows-mode gaps are blocked on, in order: (1) zh-f39e54b6 第十四條/第十五條 (one-change variants
+from the document's own package; then the one-twip grid question if the same lab answers it); (2) zh-015abfaf
+and WordWithAttachments per the Linux worker's reconciliation; (3) any other Word-for-Windows lab spec on this
+board. Each variant printed alone in a fresh Word (docx-word-win-worker.ps1, warm-up, one key per batch); lab
+files under `~/starling-doc-check/lab/` on this box; results tabled here before any code. No Mac-mode labs.
+
 ### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — DONE; one Windows-only bug fixed (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
 Owner: Claude worker on the Windows box, coordinator-assigned. Gap-analysis §3's
 missing Windows receipt: back up the box's host_release DLLs (bak-c34c8aa8eba),
