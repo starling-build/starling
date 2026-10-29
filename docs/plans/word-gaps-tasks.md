@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — CLAIMED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
+### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — DONE; one Windows-only bug fixed (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
 Owner: Claude worker on the Windows box, coordinator-assigned. Gap-analysis §3's
 missing Windows receipt: back up the box's host_release DLLs (bak-c34c8aa8eba),
 fast-forward the engine to origin/starling, apply BUILDING.md 1.7 patches,
@@ -16,6 +16,28 @@ rebuild host_release incrementally; build OfficeApp release in the private
 clone `dev/starling-win-native`; compare Windows-native layout with Mac-native
 on welcome/TextEdit/boringcrypto and score a corpus sample in Windows mode
 (bundled fonts). No fidelity rule change unless a Windows-only bug is paired.
+
+**Receipt:** engine `c34c8aa8eba` → `bd7be6b10e59` by fast-forward, all ten patches
+applied, host_release 7-step incremental rebuild; old DLLs/import libs in
+`out/host_release/bak-c34c8aa8eba`. New `flutter_engine.dll`
+`5e45502fa77b1a77b51087c9b31f1228c369b3b8771c32e15cec6d36a1bbdd26` exports
+`GetGlyphInkBounds`; 6461fc4819e's FreeType patch has no Windows object
+(DirectWrite). Gate documents equal the Mac receipt's counts (welcome 1/34,
+TextEdit 3/88, boringcrypto 24/1071, round trips 0); all 14 native Word-control
+scripts pass both modes. Full sweeps (756 each, bundled, same checkout/engine):
+Windows mode zh 99.0107% → **99.2084%** with the fix, POI 89.8721%; Mac mode zh
+98.3481%, POI 91.0126%, unchanged.
+**Fix `fd127eb8`:** Foundation on Windows encodes nothing as `.shiftJIS`, so
+`windowsMinchoCovers` was nil on Windows hosts (also feeds e101ebe1's chart
+titles). Now WideCharToMultiByte(932). Pairs: Windows mode zh-d97c5474 50.0→97.8,
+zh-10e3a42b 78.6→100, zh-202582e2 77.7→97.8 (= Mac-hosted 136/139), zh-f6686f89
+79.9→100, zh-2a241df1 81.9→100, nothing down; Mac mode no movers.
+**Open, released:** POI's −0.64 vs Mac-hosted in both modes is `rtl` alone
+(28.6%): Windows Times New Roman's Arabic reads back as U+06CC/U+06BE and
+presentation forms, and lines step ~2pt taller than Word's. ~0.09 zh point vs
+the Mac-hosted 99.2971% not localised (no Mac per-document list here). No
+Windows browser run, exact Mac dump diff or UI pass. Evidence:
+`~/starling-doc-check/wn-*` on the Windows box.
 
 ### Cross-platform DOCX status and gap analysis — DONE (release session, 2026-10-28)
 Owner: Codex release/validation session, coordinator/user-requested. Write
