@@ -647,6 +647,17 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
   (p1 "…為授權代表人為代表" — Word takes "負"/"責" there with such spaces giving). Not a rule; needs a lab on
   balanced spaces between ideographs (space count, over, Mac vs Windows). Pair d1 -> d2, reverted.
 - **zh-7773163d Windows — DONE (Linux fidelity worker, 2026-10-29): 83.3 -> 95.6 on Linux; Mac mode 93.6 -> 94.2.** Its remaining gap: [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]. A paragraph whose list number rises over its text now keeps its strut on every line; the first line is set as low as the strut-less layout puts it (an extra, not added to the baseline the text already gets), and a one-line paragraph keeps the old strut-less layout (zh-76700e5f's "5.3" headings dropped 99.7->65.6 without that). Pair e0/e3 on this checkout, engine-validation-20261028 host_release, bundled fonts: Windows no other document moved; Mac no drops. History below: Every
+  - **Joiners — DONE (9d468cae, Linux 01F2SWc8 lenovo-3, 2026-10-29): Windows 95.6 -> 97.2, Mac 94.2 -> 96.0.** p38 (Mac p34)
+    is a 17pt "一、" head over 16pt w95 text, no strut. The U+2060 joiners the layout puts between its letter-spaced space runs
+    were set at full height in the Latin stand-in (Liberation Mono), so the lines took its deeper descent: 24.57pt steps
+    where Word's print has 23.04. They now set no height: 23.05. Pair jn/jn2, both modes, 756 docs, bundled fonts:
+    zh-a7a889eb Mac 99.2 -> 99.6, no drops. Left: Windows p49 (12 lines), Mac p37/p45.
+  - **DEBT (math line height): joiners in a math face's run still take height, standing in for Cambria Math's line.**
+    Our math letters are held to 0.6 of the run's line (so the platform math face's split stays out), and Word gives
+    bug59058's formula lines Cambria Math's 1.17 em, 15.24pt steps. Without the joiners' height ours were 15.0 and
+    bug59058 fell 100 -> 99.3 in both modes. Whoever gives math runs their own line height removes the special case in
+    `zeroWidth` (RichLayout.swift).
+  - zh-13d11e99: 100 in both modes on the 20261028 engine (Linux sweep, bundled fonts); nothing left there.
   "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
   apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
   the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
