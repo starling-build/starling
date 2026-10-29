@@ -44,6 +44,18 @@ Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows
 ideographs on its grid are exact, so the one-twip misses are looked for in the marks and Latin on those lines. Word labs via
 `windows`. Pair in both modes, 756 docs, same base and host, before landing.
 
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
+- zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
+  difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
+  `w:hint="eastAsia"`; Word for Windows sets that character in the East Asian slot (新細明體 lacks it: a 1-em .notdef
+  dot, the text layer keeps U+F0A3), Word for Mac draws the Wingdings 2 box; ours maps it to "☐", and the matcher's
+  four-character edges then differ. The only such run in the corpus. Released.
+- zh-e5eb092a 96.9 — CLAIMED. p4's "将第十四条…" (mode 14, compressPunctuation, jc both, SimSun 12pt, run spaced +0.4):
+  Word ends line 1 at "…区人民政", leaving "府”，" (with the "，" 5.2 over, the quotes unsqueezed); ours takes
+  "府”，", squeezing the quotes and hanging the "，". p5's "…“行政行为”；" has the same geometry (5.2 over) and Word
+  hangs its "；". Lab spec sent to `windows`.
+
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
 (stroke 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, joins nothing, text matters, either shadow +2.28). (2) POI `rtl`
