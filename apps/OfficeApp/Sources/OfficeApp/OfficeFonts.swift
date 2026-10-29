@@ -2020,7 +2020,7 @@ enum OfficeFonts {
 
     private static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
     /// `OFFICE_WORD_FONTS=mac`, for what sets text as Word for Mac does
-    /// beyond the faces (`Chart.macSimSunText`).
+    /// beyond the faces (`Chart.macSimplifiedFace`).
     static var wordForMacFaces: Bool { wordOnMac }
     /// `OFFICE_WORD_FONTS=windows`: the faces Word for Windows sets on a
     /// stock machine — a missing name's font-table alternate where that
@@ -2872,6 +2872,21 @@ enum OfficeFonts {
         out += body
         return Data(out)
     }
+    /// Word's line for `family` set East Asian, and its baseline under the
+    /// line's top, in ems (`EastAsianFace`); nil where the face says no
+    /// baseline of its own. A chart title's line too: lab `ctitle` (Word
+    /// for Mac, zh-13d11e99's chart, its title at 10 to 24pt) sets SimSun
+    /// 1.293 em, its baseline 1.017 down; YaHei 1.72 and 1.27; PMingLiU's
+    /// baseline 0.95 — each `EastAsianFace`'s to a tenth of a point.
+    static func eastAsianLine(_ family: String, bold: Bool = false) -> (height: Double, baseline: Double)? {
+        let ea = eastAsianFace(family)
+        guard let baseline = bold ? ea.boldBaseline ?? ea.baseline : ea.baseline else { return nil }
+        return (bold ? ea.boldHeight ?? ea.height : ea.height, baseline)
+    }
+    /// The Word for Mac face that draws `family`'s ideographs, as a
+    /// chart's theme face (`Chart.macSimplifiedFace`); nil where none is
+    /// loaded or the name is YaHei's.
+    static func wordMacIdeographFace(_ family: String) -> String? { wordMacIdeographs(family, eastAsianFace(family)) }
     /// The Word face that draws a name's ideographs (`registerWordMacFaces`);
     /// nil for YaHei's stand-ins, which the glyph fallback draws.
     private static func wordMacIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {

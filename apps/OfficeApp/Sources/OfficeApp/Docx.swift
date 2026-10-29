@@ -4001,7 +4001,14 @@ enum DocxFormat {
             if let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
                let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
-                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+                // (With the chart part's own theme override, for its faces.)
+                var comps = _resolvePath("word", rel.target).split(separator: "/").map(String.init)
+                let file = comps.popLast() ?? ""
+                let dir = comps.joined(separator: "/")
+                let over = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                    .first(where: { ($0["Type"] ?? "").hasSuffix("/themeOverride") && $0["TargetMode"] != "External" })?["Target"]
+                    .flatMap { notes.part(_resolvePath(dir, $0)) }
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over)
             }
             // A box-and-whisker chart (Office 2016's chartex part), drawn
             // on a column chart's axes, or a sunburst: named by `cx:chart`

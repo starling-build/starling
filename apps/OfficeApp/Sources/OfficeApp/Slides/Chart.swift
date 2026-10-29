@@ -418,12 +418,22 @@ struct Chart: Equatable {
     /// eleven titles, `lang="zh-TW"`, in its print).
     var windowsMinchoTitle = false
     /// Its East Asian text is set as Word for Mac sets a theme with no
-    /// East Asian face: in SimSun, where the platform's fallback would
-    /// take YaHei — a line 1.32 em tall to SimSun's 1.15. Word for Mac's
-    /// prints of zh-27a874b7's, zh-d62da4dd's and zh-61aaad09's charts,
-    /// their themes' `a:ea` "": every label's names in SimSun, a 3-line
-    /// 10pt label 36.1pt tall where ours, in YaHei, stood 37.6.
-    var macSimSunText = false
+    /// East Asian face: in the theme's Simplified Chinese face (`a:font
+    /// script="Hans"`, 宋体 where it names none), where the platform's
+    /// fallback would take YaHei — a line 1.32 em tall to SimSun's 1.15.
+    /// Word for Mac's prints of zh-27a874b7's, zh-d62da4dd's and
+    /// zh-61aaad09's charts, their themes' `a:ea` "" and Hans 宋体: every
+    /// label's names in SimSun, a 3-line 10pt label 36.1pt tall where
+    /// ours, in YaHei, stood 37.6; zh-b8de3ae2's pie under a theme
+    /// override whose Hans face is 等线: its labels in DengXian.
+    var macSimplifiedFace: String? = nil
+    /// … and text whose runs say Traditional Chinese (`lang="zh-TW"`) in
+    /// its Hant face: zh-b8de3ae2's titles and its labels' zh-TW fields
+    /// in PMingLiU (新細明體) in Word for Mac's print, beside the same
+    /// chart's untagged axes in SimSun.
+    var macTraditionalFace: String? = nil
+    /// Its title's runs say Traditional Chinese (`macTraditionalFace`).
+    var titleTraditional = false
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -488,6 +498,9 @@ struct Chart: Equatable {
         /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
         /// shown as it stands: zh-61aaad09's pie says "109646, 15.85%".
         var texts: [Int: String] = [:]
+        /// The points whose own rich text says Traditional Chinese
+        /// (`Chart.macTraditionalFace`).
+        var traditional: Set<Int> = []
         var fill: Color? = nil
         var line: Color? = nil
         var lineWidth = 0.75
@@ -1498,6 +1511,7 @@ enum ChartXML {
                         }.joined()
                     }.joined(separator: "\n")
                     if !text.isEmpty { l.texts[i] = text }
+                    if Self._traditional(rich) { l.traditional.insert(i) }
                 }
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
@@ -1775,6 +1789,13 @@ enum ChartXML {
 
     /// A data label's fields (`a:fld type`), as the marks `_pieLabels`
     /// fills in.
+    /// Whether `n`'s runs say Traditional Chinese (`lang="zh-TW"`, zh-HK,
+    /// zh-MO): a run's own, not the paragraph's end mark — zh-b8de3ae2's
+    /// axes, `endParaRPr lang="zh-TW"`, are in Word for Mac's Hans face.
+    static func _traditional(_ n: XNode) -> Bool {
+        if n.name == "a:rPr" || n.name == "a:defRPr", let l = n["lang"]?.lowercased(), ["zh-tw", "zh-hk", "zh-mo"].contains(l) { return true }
+        return n.children.contains { _traditional($0) }
+    }
     static let _fieldMarks = ["CATEGORYNAME": "\u{E000}c", "VALUE": "\u{E000}v", "SERIESNAME": "\u{E000}s", "PERCENTAGE": "\u{E000}p"]
 
     private static func _texts(_ node: XNode, _ name: String) -> [String] {
@@ -2006,9 +2027,11 @@ enum ChartPainter {
     /// face lacks, as body text's: on Linux the engine has none without
     /// them, and zh-37b6536f's Chinese legend printed as boxes.
     static var glyphFallback: [String]? { RichTextTheme.glyphFallback.isEmpty ? nil : RichTextTheme.glyphFallback }
-    /// The fallback for `c`'s own text (`Chart.macSimSunText`).
-    static func glyphFallback(_ c: Chart) -> [String]? {
-        c.macSimSunText ? ["SimSun"] + RichTextTheme.glyphFallback : glyphFallback
+    /// The fallback for `c`'s own text (`Chart.macSimplifiedFace`), its
+    /// Traditional Chinese text's where `traditional`.
+    static func glyphFallback(_ c: Chart, traditional: Bool = false) -> [String]? {
+        guard let face = (traditional ? c.macTraditionalFace : nil) ?? c.macSimplifiedFace else { return glyphFallback }
+        return [face] + RichTextTheme.glyphFallback
     }
 
     static func paint(_ c: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
@@ -2062,7 +2085,7 @@ enum ChartPainter {
             let titleStyle = Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
-                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))
+                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
             let span: TextSpan
             if c.titleLineSizes.isEmpty {
@@ -2104,6 +2127,23 @@ enum ChartPainter {
                     start = end
                 } while start < units.count
             }
+            // (Where Word for Mac sets it in the theme's East Asian face, a
+            // title holding Chinese is on that face's East Asian line, its
+            // text at the line's baseline: lab `ctitle`, zh-13d11e99's 14pt
+            // "主动公开信数量" in SimSun, 1.293 em, its baseline 1.017 em
+            // under the line's top — where SimSun's own line, an em, set
+            // ours and its plot 3.3 high, 4.8 at 24pt.)
+            var drop: Double? = nil
+            if c.titleFont == nil, c.titleAt == nil,
+               let face = (c.titleTraditional ? c.macTraditionalFace : nil) ?? c.macSimplifiedFace,
+               title.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) }),
+               let line = OfficeFonts.eastAsianLine(face, bold: c.titleBold) {
+                let size = c.titleLineSizes.isEmpty ? titleStyle.fontSize ?? 0 : c.titleLineSizes.values.max()! * k
+                for (i, m) in tp.computeLineMetrics().enumerated() {
+                    grown += line.height * size - m.height
+                    if i == 0 { drop = line.baseline * size - m.ascent }
+                }
+            }
             // (Two points higher than the area's edge: where PowerPoint's
             // sits. Or where the file places its box, 3 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
@@ -2123,7 +2163,7 @@ enum ChartPainter {
                 // 18.76 under the frame's top in chart-sunburst's. Not 2.4
                 // lower, as the glyphs' tops measured against our box's
                 // once had it: 2.83 under Excel's, all twelve.)
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + grown / 2 + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (drop ?? grown / 2) + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -4537,7 +4577,8 @@ extension ChartPainter {
             let colour = c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
             let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(
                 color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
-                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
+                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
+                fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))), textAlign: .center, textDirection: .ltr)
             // (Excel wraps a long label at about a fifth of the chart's width:
             // 45544's "Finance - Investment Banking" is three lines.)
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))

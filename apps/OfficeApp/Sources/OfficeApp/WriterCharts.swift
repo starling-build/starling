@@ -38,7 +38,7 @@ enum WriterCharts {
     /// colours from `themePart` (the document's `a:theme`), for the
     /// object attachment `id`; false where it is no chart this can draw.
     @discardableResult
-    static func register(_ space: XNode, for id: String, themePart: Data?) -> Bool {
+    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil) -> Bool {
         let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: pptxTheme)
@@ -51,17 +51,29 @@ enum WriterCharts {
         if RichTextTheme.wordWindowsPages,
            let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
             chart.windowsMinchoText = true
-            let hant = ["zh-tw", "zh-hk", "zh-mo"]
-            func traditional(_ n: XNode) -> Bool {
-                if n.name == "a:rPr" || n.name == "a:defRPr", let l = n["lang"]?.lowercased(), hant.contains(l) { return true }
-                return n.children.contains { traditional($0) }
-            }
-            chart.windowsMinchoTitle = !(space.descendant("c:title").map(traditional) ?? false)
+            chart.windowsMinchoTitle = !(space.descendant("c:title").map(ChartXML._traditional) ?? false)
         }
-        // (Word for Mac sets it in SimSun: `Chart.macSimSunText`.)
+        // (Word for Mac sets it in the theme's Hans and Hant faces — the
+        // chart's own theme override's where it has one, zh-b8de3ae2's
+        // pies' 等线: `Chart.macSimplifiedFace`.)
         if OfficeFonts.wordForMacFaces,
-           let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
-            chart.macSimSunText = true
+           let minor = (themeOverride ?? themePart).flatMap({ XNode.parse($0) })?.descendant("a:minorFont"),
+           (minor.first("a:ea")?["typeface"] ?? "").isEmpty {
+            func script(_ name: String) -> String? {
+                minor.all("a:font").first(where: { $0["script"] == name })?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
+            }
+            chart.macSimplifiedFace = OfficeFonts.wordMacIdeographFace(script("Hans") ?? "宋体") ?? "SimSun"
+            chart.macTraditionalFace = script("Hant").flatMap(OfficeFonts.wordMacIdeographFace)
+            chart.titleTraditional = space.descendant("c:title").map(ChartXML._traditional) ?? false
+        }
+        // (An axis title in its own size: zh-b8de3ae2's "千元", `sz="1000"`,
+        // is 10.08pt in Word for Mac's print, where ours took the 13.3 of
+        // PowerPoint's default and stood 15pt wider at the plot's left.)
+        if chart.axisTitleSize == nil, !chartex,
+           let plot = space.first("c:chart")?.first("c:plotArea"),
+           let t = plot.children.first(where: { ["c:valAx", "c:catAx", "c:dateAx"].contains($0.name) && $0.first("c:title") != nil })?.first("c:title"),
+           let sz = (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init), sz > 0 {
+            chart.axisTitleSize = sz / 100
         }
         var theme = DeckTheme()
         theme.headingFont = pptxTheme.major
