@@ -9441,7 +9441,9 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - Same 158 for 12–17 spaces after the tab, and for a wider or narrower tab (± "17.", ± one ideograph before it).
   - Word squeezes that "（" without the tab (17 and 18 spaces: we match), and after ideographs with the tab (8 ideographs,
     1 space + 8, 8 spaces + 4 before "（": we match).
-  Candidate next (macos): on a line with a tab, an opening bracket directly after a space does not compress; to pair.
+  CANDIDATE wip/tab-opener 45d8c6d5 (on wip/grid-hang): on Word for Windows pages an opening mark directly after a space
+  gives nothing on a line a tab stands on. Every p10 variant now breaks as Word's print; zh-015abfaf 170 -> 271/271 lines,
+  16 pages, with both wips; the other four documents with such a line unchanged. For lenovo to pair after grid-hang.
 (7) Lab lh (mixed-line heights, for lenovo-3's zh-7773163d / zh-0978dee9; Windows 01QbbApP; ~/starling-doc-check/lab/lh).
   zh-0978dee9's package (mode 12, no grid): five lines per paragraph split by <w:br/> (E / E+L / L / L+E / E), plus each face
   alone. Single spacing: a line is max(ascent) + max(descent) over its faces, per line, by Word's own split:
