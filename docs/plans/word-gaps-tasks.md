@@ -9429,6 +9429,9 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
     it is half the em. wip/grid-hang 625b141c: q18's labs a, d, e, f, h and i now agree at every step (j, cs > 0, is the
     column's rounding to whole cells, apart); zh-015abfaf 169 -> 170/271 lines, its first miss now p10's "…开发|区)", which
     Word refuses at ~6.8 against the new 7.874. That one is still not explained. Wants pairing in both modes.
+    PAIRED AND LANDED (Linux office1, 2026-10-29, on office f6c375ea2; validation engine, bundled fonts, 756 docs, same
+    checkout): no document moved in either mode (Windows mean 97.955, Mac 97.587, both sides). zh-015abfaf is 170/271 with
+    and without it on this head — the line it took is already taken here. Landed as is.
 (2) zh-015abfaf p10 "）": Word's hang limit [6.76, 6.86) against our half an em. Needs a second witness, another mark or size, before a rule (lab q17 follow-up).
 (3) Triage of the board's older Windows-mode "needs a lab" notes; stale ones closed.
 (4) Lab p13 (zh-505b9619 p13 "…為3日）。", macOS-doc's spec 608f742b) — MEASURED (Windows 01QbbApP). ~/starling-doc-check/lab/p13:
