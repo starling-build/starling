@@ -13271,7 +13271,19 @@ public final class RichLayout {
             pastFrom = (last ..< piece.b).last(where: { units[$0] == 0x09 }).flatMap { runsPast.contains($0) ? (x + w, $0) : nil }
             x += w + piece.trail
             opening = false
-            if squeezesSpaces, piece.trail > 0, last < piece.b {
+            // (Nor, under the balance, spaces with East Asian text on both
+            // sides, wherever on the line: lab tbsp (Mac Word, and Word for
+            // Windows' print alike) — zh-799c91cd's "…同意由        （公司名稱）
+            // 為授權代表，…負責" takes "負責" with every space a whole 6.00 at
+            // 12pt and its "（", "）" and "，" giving 4.7; zh-167ee06c's bold
+            // cell "民國   年  月   日止" leaves "止" 1.16 over with eight
+            // spaces untouched. Ours gave the spaces and kept the marks.)
+            // (Word for Mac: Word for Windows' print agrees on zh-799c91cd
+            // but takes nothing it would have on zh-505b9619's "…為3日）。"
+            // with them gone — Windows mode keeps the old weighing.)
+            let flanked = theme.wordRules && !RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && last > a && piece.b < units.count
+                && units[last - 1] >= 0x2E80 && units[piece.b] >= 0x2E80
+            if squeezesSpaces, piece.trail > 0, last < piece.b, !flanked {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
