@@ -9371,3 +9371,12 @@ matcher artifacts: positions agree within ~0.5pt, only the digit glyph boxes (st
 p7's "3、“重要程度”…★★★…" (方正楷体简体 bold, eastAsia hint → YaHei Bold): Word steps "★" 9.83 at 12pt and sets
 "“"/"”" a full em with no autospace; ours steps "★" 12.05 and sets the quotes half-width in the Latin face plus
 ~5.4 autospace each side. Re-measuring from the earlier released note (zh-f6886fbb, office1).
+
+### zh-e329b438 border lab te32 — BUILT, for macos-ios to print when free (Mac 7bd18d8e, 2026-10-29)
+~/starling-word-check/lab/te32/ (MANIFEST.txt): the label cell "接聽速度30分" with only its own left line changed — sz 4 (0.5pt,
+control), 8, 12 (original), 24, and none. Read whether "30" breaks, the "3"'s x and centre, and the column's rules.
+
+### Lowest Mac-mode zh, round of 2026-10-29 — CLAIMED (Mac 7bd18d8e, routed by starling-bd)
+zh-d9b085b1 15.9 (Windows 100), zh-5c7787f5 79.5 (was 100 on n3: a regression?), zh-7eba7349 80.8, zh-b0401810 85.7.
+Skipped: zh-e8d4c046 33.3 — its fresh Mac reference's text layer differs from the document (49% CJK against 91%, text
+similarity 0.57): a reference artefact.
