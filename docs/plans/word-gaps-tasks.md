@@ -263,6 +263,12 @@ fit) in freshly launched Mac Word, lab files under ~/starling-word-check/lab/
 support for zh-c5b5087b and zh-27a874b7 / zh-d62da4dd / zh-61aaad09 labels,
 paired in both modes.
 
+### Lowest zh/POI residuals, one at a time — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
+Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
+documents per mode at base d0 (ccd66af2, Windows zh 99.3 / POI 89.8, Mac zh 98.5 / POI 90.9), skipping claimed
+items, reference defects, lab-pending items and iOS. Working now: **zh-57f1de0d Mac (78.9)** — the
+uncompressed-embedded-face rule is Windows-gated, but Mac Word's print breaks the same lines. Same pinning as §4.
+
 ### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
 mac-simhei-border audit gives141/173 (81.50%) on Mac. Grepped all12 board
