@@ -820,6 +820,9 @@ public struct RichResolvedFace: Sendable {
     /// whose line they then give theirs (see `_span`).
     public var covers: Set<UInt32>? = nil
     public var uncoveredFamily: String? = nil
+    /// Word for Mac draws this face from the subset the document embeds,
+    /// having none of its own by the name (see `covers`).
+    public var drawnFromSubset = false
     /// Where Word takes what the subset lacks from more than one face: in
     /// order, each face and what it holds (nil: anything). A character
     /// goes to the face the one before it went to while that face has
@@ -9928,15 +9931,20 @@ public final class RichLayout {
                     // (The stand-in's spread is in the style's spacing,
                     // which the engine applies and the line above adds
                     // once more: off twice.)
-                    // (An embedded subset with no space glyph is different
-                    // on Mac with an explicit Latin face: tc22's embedded
-                    // FangSong_GB2312 over Times or Arial sets plain balanced
-                    // spaces at 3/8 em, left-aligned or justified. Removing
-                    // the embedding restores 1/2 em, as do ordinary named
-                    // FangSong, SimSun, KaiTi and YaHei. Mixed NBSP runs keep
-                    // their existing half-em rule.)
+                    // (An embedded subset is different on Mac with an explicit
+                    // Latin face: tc22's embedded FangSong_GB2312 over Times or
+                    // Arial sets plain balanced spaces at 3/8 em, left-aligned
+                    // or justified. Removing the embedding restores 1/2 em, as
+                    // do ordinary named FangSong, SimSun, KaiTi and YaHei.
+                    // Mixed NBSP runs keep their existing half-em rule.)
+                    // (Whether or not the subset holds a space: lab esp, from
+                    // zh-d9b085b1, whose FangSong_GB2312 has one — 3/8 em over
+                    // Times, Arial or Courier New alike, in mode 12 and 15;
+                    // 1/2 em with the embedding stripped, under 宋体, or under
+                    // an embedded 黑体, which Word for Mac draws in its own
+                    // SimHei. Word for Windows: 1/2 em.)
                     let missingSpace = !RichTextTheme.wordWindowsPages && ordinaryBalancedSpaces.contains(offset)
-                        && latinFace?.isEastAsian == false && eaFace?.covers.map { !$0.contains(0x20) } == true
+                        && latinFace?.isEastAsian == false && eaFace?.drawnFromSubset == true
                     // (The subset's spaces keep 3/8 em in bold too,
                     // while its ideographs widen: the 12/16/20pt lab.)
                     let fraction = missingSpace ? 0.375 : 0.5

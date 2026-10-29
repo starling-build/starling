@@ -2589,6 +2589,7 @@ enum OfficeFonts {
                eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
                 face.covers = covered
                 face.uncoveredFamily = "Microsoft YaHei"
+                face.drawnFromSubset = true
                 // (Word for Windows takes an embedded 仿宋_GB2312's missing
                 // characters from MS Gothic, else Yu Gothic, else Microsoft
                 // JhengHei, a stretch of them keeping the face it is in

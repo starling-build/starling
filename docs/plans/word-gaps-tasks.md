@@ -9116,6 +9116,12 @@ First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" 
 
 ### zh-4e5fe46f: 90.8 against word-win — RELEASED (Windows 01QbbApP, 2026-10-29; 92.1 now; the box's 3pt is left, not taken up again)
 wip/parted-floats 63e7a955: a parting paragraph's floats drawn whole with its first piece (p6's 496pt table box showed one row). 218 -> 221/240. Left: the box 3pt high — its anchor paragraph's place (lab sb: offsets from space before are Word's).
+CLAIMED Mac 7bd18d8e (Windows-focus round, routed by macos), w96 92.1. Besides the box's 3pt (p6) and the "类别" header cell
+7pt higher than Word's (p6/p8/p9/p11, reader grouping follows), p9's 5970-twip cell (mode 14, jc left, sz 21 w 95, spacing
+-7/-5, compressPunctuation, balance): Word takes "的" on "一般应有…材料。呈报审批文书，应有 基本的" — "。" and "，" between
+ideographs at 7.20 of 9.28, the space 4.34 of 4.55, the run's ideographs 9.24 of 9.275 — about 5.4 given. Ours: 5.85 over,
+legacy cell test (half an em, 4.74) refuses it, and every later line of the cell starts a character early. A Windows witness
+for the marks allowance (lab p13: ~2-2.5 a mark between ideographs).
 
 ### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
 zh-9bcea239 (92.7) p11: the score cells (tcW 389 = 19.45pt, firstLine 632 = 31.6pt, jc center, vAlign center, HTML autospacing)
@@ -9509,6 +9515,22 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
   embedding doc does); Word for Windows prints 0.5. Lab esp (~/starling-word-check/lab/esp, 9 variants: embedding,
   Latin face, East Asian face, balance, mode) out to macos-ios, each printed alone in a fresh Word, with a fresh
   reprint of zh-d9b085b1 as control.
+  DONE (next commit, Mac only): lab esp — Mac Word sets a balanced space at 3/8 em (0.373) exactly when the run's East
+  Asian face is DRAWN from an embedded subset (A0 embedded 仿宋_GB2312, over Times, Arial or Courier New alike, mode 12 and
+  15); 1/2 em with the embedding stripped (A1, A8), under 宋体 (A4) or an embedded 黑体 (A5, drawn in the installed
+  SimHei); 1/4 em with balance off (A6). The fresh zh-d9b085b1 reprint matches its ref to 0.001pt. ded14d73's 3/8-em rule
+  required the subset to LACK U+0020; zh-d9b085b1's has one. Now RichResolvedFace.drawnFromSubset (set where an embedded
+  subset's covers are) decides. Pairs n23 -> n24 / w96 -> w97: Mac zh-d9b085b1 15.9 -> 100, zh-e68a2f57 95.6 -> 99.1,
+  nothing else moved; Windows nothing moved.
+- Lab cimac (Mac Word, plain unmerged row, lines 0.5-3pt, tbl/tc borders, tblInd -114): Word for Mac follows windows' ci
+  rule — the left line inside the table (outer edge at the indent), the grid from its middle, text the margin from each
+  line's middle on both sides, centred between the middles; all prints +0.12. te32's "between inner edges" is particular
+  to zh-e329b438's cell. So `cellin` can serve both modes.
+- PARKED as Mac-only (Windows-focus round, c007de10): zh-7eba7349 (Windows 100; the fresh solo Mac reprint matches the
+  ref, so page 2's line is ours), zh-e329b438 (Windows 99.4), zh-5c7787f5 (no layout gap: PDFKit groups Word's "3 " with
+  the next cell; 100/100 under PyMuPDF). zh-b0401810 released.
+- Windows-mode marks allowance: PARKED for want of a witness — zh-167ee06c and zh-799c91cd are 100 in Windows mode.
+  Lab p13's numbers above stand for when one turns up. (Since found, see zh-4e5fe46f below.)
 - zh-7eba7349 (Mac 80.8, Windows 100): page 2 stands a line low — the empty paragraph after p1's floating table
   (tblpPr, vertAnchor text, tblpY 114) goes to page 2 in Mac mode only. Embeds six faces; re-check on a base past
   e005aa8f before working it.
