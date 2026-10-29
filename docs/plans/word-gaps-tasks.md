@@ -44,13 +44,14 @@ Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows
 ideographs on its grid are exact, so the one-twip misses are looked for in the marks and Latin on those lines. Word labs via
 `windows`. Pair in both modes, 756 docs, same base and host, before landing.
 
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, T169 zh-74b34f3b (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
   `w:hint="eastAsia"`; Word for Windows sets that character in the East Asian slot (新細明體 lacks it: a 1-em .notdef
   dot, the text layer keeps U+F0A3), Word for Mac draws the Wingdings 2 box; ours maps it to "☐", and the matcher's
-  four-character edges then differ. The only such run in the corpus. Released.
+  four-character edges then differ. The only such run in the corpus. PARKED as a text-layer-only artefact (starling-bd:
+  no scorer change, no .notdef drawing for one run).
 - zh-e5eb092a 96.9 — CLAIMED. p4's "将第十四条…" (mode 14, compressPunctuation, jc both, SimSun 12pt, run spaced +0.4):
   Word ends line 1 at "…区人民政", leaving "府”，" (with the "，" 5.2 over, the quotes unsqueezed); ours takes
   "府”，", squeezing the quotes and hanging the "，". p5's "…“行政行为”；" has the same geometry (5.2 over) and Word
@@ -62,7 +63,8 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   eastAsia): Word ends line 3 at "（含）" with its marks whole and starts line 4 "—5000"; ours squeezes four marks
   1.44 each and ends at "—". Corpus prints: Word ends a body line with an East Asian "—" before a digit once
   (zh-e68a2f57 "表4" | "—" | "1…", three runs), starts one with "—"+digit ten times; zh-eb54d3b0 p8 squeezes to take
-  "）—5000" whole. Lab dsh (is "—5000" one piece?) asked.
+  "）—5000" whole. Lab dsh (is "—5000" one piece?) asked. Agreed with windows-2: its Latin-face restriction of the digit–dash
+  joiner lands first (it cannot move this line: "）" before the dash); the East Asian "—|digit" joiner goes beside it after.
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
@@ -7966,7 +7968,11 @@ So the +0.45-0.5 is not the picture line's grid rule (c77fd89d tracks Word withi
 - ◇, ◆: Word sets them in Cambria Math, 10.39 (no lift); ours sets them in DejaVu Sans, 10.88.
 - ★, ☆: Word sets them in Segoe UI Symbol, 10.99 (a lift of 0.60, its lines 12.96 apart, and the note's third line goes to p2); ours sets them in DejaVu Sans, 10.88 / 12.87.
 So for Windows mode: ◇◆ (with ①△◎) take Cambria Math and do not lift a 9pt 黑体/楷体 line; ★☆ take Segoe UI Symbol and lift it about 0.6 (0.067 em), its pitch +0.12; ×▲●□ take Times New Roman (above).]
-### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
+### T169. zh-74b34f3b: 96.9 against word-win — CLAIMED windows-3 (reassigned 2026-10-29 by starling-bd; the 10-24 windows claim was stale; was Linux b2 01JsizVV)
+windows-3, 2026-10-29: its misses are p5's tbRlV columns ("東引鄉活動中心2樓", "會議、研習、喜宴", 標楷體 16pt, centred down a
+three-row merge), 1.8pt below Word's, so they group with the wrong lines. Word stands each upright ideograph with the middle of
+DFKai-SB's own line (0.30 em over the baseline) at its place's middle — baselines' middle 0.315 em under the cell's middle here,
+0.295 in zh-cec9d337 — where ours uses the em square's 0.38. Candidate: `_uprightMiddle` from the face's line; pair to come.
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
 
 ### Windows missing-face rule from the map — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24)
