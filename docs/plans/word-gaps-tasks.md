@@ -9333,6 +9333,17 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
 - zh-167ee06c (Mac 90.2): ours squeezes eight spaces between ideographs in a cell to take a character, Word does not;
   zh-799c91cd squeezes such spaces (a blanket rule took it 100 -> 98.8). Lab spec to separate them, printed by macos-ios.
 - Then the lowest unclaimed Mac-mode zh documents.
+- zh-167ee06c DONE (next commit, Mac 98.8): lab tbsp (macos-ios printed) — in Word for Mac balanced spaces between East
+  Asian text never give for a taken character; marks do (zh-799c91cd's "（" 1.58, "）" 1.58, "，" ~0.8 a side). Mac only:
+  OPEN for Windows — with the spaces giving nothing, ours takes zh-505b9619's p13 "…為3日）。" (13.15 over, four marks
+  room 35) that Word for Windows leaves (96.6 -> 55.4). Lab spec (Word for Windows, `windows`): zh-505b9619's p13
+  paragraph alone at w:right 0/+20/+40/-20 twips, with and without its three spaces after "，", and with "（未載明者
+  為8小時）" -> ideographs; read where the line ends and the marks' and spaces' advances.
+- zh-e329b438 (Mac 89.1, Windows 99.4) MEASURED, RELEASED: Mac Word breaks "30" in the label cell "接聽速度30分" (tcW
+  499, left line sz 12 = 1.5pt, column 28.08): its text centres between the left line's inner edge (58.08) and 84.72,
+  15.84 of room, where ours takes 17.28 and holds "30" (16.42). Taking every cell's own left line out of its text
+  (both modes) took the corpus 98.6 -> 92.2 (Mac) and 99.3 -> 93.0 (Windows) — 0.5pt lines don't do it. Wants a lab of
+  that cell with its left line at sz 4/8/12/24.
 
 ### Windows-mode Word labs, round of 2026-10-29 — CLAIMED (Windows 01QbbApP, routed by macos)
 (1) Grid lab for zh-8d6f702e p38 and zh-5be7e156 p2, the one-twip question: how Word sums a gridded line's widths (labs twip/twip2 left it open).
