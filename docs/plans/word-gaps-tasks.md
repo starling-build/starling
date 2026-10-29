@@ -8531,10 +8531,32 @@ PIN YOUR PRIVATE SWEEP SCRIPTS: export OFFICE_FONT_SOURCE=bundled, or a machine 
 Next: windows checks local mode (showcase F01's line breaks, a couple of corpus docs); the Windows list is the face table,
 not the registry, so a face outside it still falls back to the stand-in — a follow-up if F01 shows it.
 
-### T203-iOS. Installed fonts on iOS — CLAIMED (Mac Claude worker, starling-mac-ios-fonts, 2026-10-28)
+### T203-iOS. Installed fonts on iOS — DONE in code; app link BLOCKED on a current iOS engine (Mac Claude worker, starling-mac-ios-fonts, 2026-10-28)
 Owner: Mac Claude worker (gap analysis 2026-10-28: `installedFamilies` has no iOS branch). Widen the CoreText import and
 the enumeration to os(macOS) || os(iOS) (Word-for-Mac reference-mode gates untouched), unit test, build with
 build/ios-app.sh OfficeApp on the existing iOS simulator engine (no engine rebuild), both-mode no-op sweeps.
+Done (this commit). `OfficeFonts.installedFamilies` (now internal, for its test) lists Core Text's families on iOS as
+on macOS: the CoreText import and that one branch widened to os(macOS) || os(iOS); every Word-for-Mac reference-mode
+gate (wordMacIdeographs, the Cordia/Thonburi path, the rest) still says os(macOS) only. New InstalledFontsTests: keys are
+the lowercased names, and on Apple systems Helvetica and Courier New are listed (iOS has no plain Courier) — passes on
+macOS. On an iOS 18.4 simulator of its own (iPad Pro 11, deleted afterwards) a probe of the same call lists 87 families,
+Helvetica, PingFang SC, Courier New, Arial and Times New Roman among them.
+Pair, same checkout and engine (host_release_arm64), bundled pinned: Mac mode n1/np1 -> n2/np2 98.3 / 91.6 both sides,
+nothing moved; Windows mode w1/wp1 -> w2/wp2 99.3 / 90.5, nothing moved but one flake: zh-e68a2f57 99.6 -> 87.2 in w2,
+whose PDF came out corrupt (MuPDF: bad xref, "zlib invalid distance", stray content tokens; 13 bytes longer) — the same
+candidate binary reconverting it gives 99.6. Unrelated to this change (the macOS binary's code is unchanged), but it
+means --convert can write a broken PDF now and then (that run shared the CPU with a swift test build). Unclaimed.
+BLOCKED: build/ios-app.sh OfficeApp against the existing simulator engine (starling-engine-ios 1848a377952, Sept 30)
+compiles every Swift file for iOS — the enumeration among them (the iOS objects reference
+CTFontManagerCopyAvailableFontFamilyNames, whose only caller is this branch) — and fails at the link: the old
+swift_bridge lacks ParagraphBuilderBridge::SetBaselineShift, ::SetForegroundPaint, ParagraphBridge::GetGlyphInkBounds
+and ::ComputeLineAdvances. Not rebuilt (no engine rebuilds). Next, for the iOS host owner: rebuild ios_debug_sim_arm64
+at a current `starling`, then build/ios-app.sh OfficeApp --run and check the Options page's installed mode draws a
+document in a system face (e.g. PingFang SC for a 苹方 run, Helvetica).
+Follow-up (limit): on iOS the list is the system's faces plus any the app registers. Fonts a font-provider app installs
+(Settings > General > Fonts) are not listed: an app reaches those only with the
+com.apple.developer.user-fonts entitlement ("app-usage") and CTFontManagerRequestFonts. A document named in such a
+face falls back to Starling's stand-in. Unclaimed.
 
 ### T205. The 3-D pies: zh-27a874b7 (55.4) and zh-d62da4dd (56.6) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, moved from macos-ios by macos)
 Owner: Linux lenovo-2. History above: the pies' geometry matches Word to 3pt (Mac lab piefit); left were three label rules (inside placement, the fit test, outside stacking) and zh-27a874b7's caption 20pt low. Scores from here on the new engine (~/tmp/lenovo2-engine, 8bc30c5c89a).

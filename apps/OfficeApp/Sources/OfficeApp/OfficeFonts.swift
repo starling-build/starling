@@ -5,7 +5,7 @@ import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
-#if os(macOS)
+#if os(macOS) || os(iOS)
 import CoreText
 #endif
 
@@ -2176,15 +2176,18 @@ enum OfficeFonts {
     }
 
     /// The machine's faces by name, lowercased: fontconfig's families on
-    /// Linux, Core Text's on macOS, and on Windows every family its font
-    /// files name (`systemFamilies`), with the faces `windowsFaces` finds
-    /// the files of — Office's cloud faces among them — over those.
-    private static let installedFamilies: [String: String] = {
+    /// Linux, Core Text's on macOS and iOS, and on Windows every family its
+    /// font files name (`systemFamilies`), with the faces `windowsFaces`
+    /// finds the files of — Office's cloud faces among them — over those.
+    /// (On iOS that is the system's faces and any the app registered;
+    /// fonts a font-provider app installs are another app's, and Core Text
+    /// lists them only to apps that ask for them by entitlement.)
+    static let installedFamilies: [String: String] = {
         var m: [String: String] = [:]
         #if os(Windows)
         m = systemFamilies
         for (name, face) in windowsFaces { m[name] = face }
-        #elseif os(macOS)
+        #elseif os(macOS) || os(iOS)
         for name in (CTFontManagerCopyAvailableFontFamilyNames() as? [String]) ?? [] { m[name.lowercased()] = name }
         #elseif os(Linux)
         let tool = ["/usr/bin/fc-list", "/bin/fc-list"].first { FileManager.default.isExecutableFile(atPath: $0) }
