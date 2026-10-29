@@ -9179,7 +9179,8 @@ Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, �
   stand against the digit groups and the piece — not a count or a cap, and five points pin no rule that also holds tg.
   (A "+2pt takes unsqueezed" reading was the line before taking "廳", windows-1 confirmed.) Ours takes it; left as is.
 
-### zh-8628cfbe p13 (93.3, word-win): measured, CLAIMED (Windows 01QbbApP, 2026-10-29, routed by macos: lab then fix) (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
+### zh-8628cfbe p13 (93.3, word-win): measured, CLAIMED (Windows 01QbbApP, 2026-10-29, routed by macos: lab then fix)
+[Labs kp and ci: the squeeze is right; the cell's width was 0.37 wide. Fix cellin2 (both modes), see the Windows round's (8)-(9).] (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
 Cell paragraph "2.與去年實際數比較，相同者得基準分75分，每增(減)…" (kinsoku 0, overflowPunct 0, compressPunctuation, mode 15,
 zh-TW): Word's line ends "…75分", every character 12.12 apart (the line justified) and "，" after "較" whole; ours squeezes that
 "，" to 7.4 and takes the next "，" at the end. Tried: under kinsoku 0 a closing mark that is a piece alone does not take
@@ -9588,6 +9589,31 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   At 1.5 lines (auto 360) a line is 1.5 x that, and the extra half goes wholly BELOW the baseline (descent = maxD + H/2):
   A 19.44/17.88/18.72/19.56 against the model's 19.44/17.87/18.75/19.62; B and C within 0.1. The grid variant says nothing:
   this package's Normal has snapToGrid 0.
+(8) Lab kp (zh-8628cfbe p13, Windows 01QbbApP; ~/starling-doc-check/lab/kp). What keeps p13's "，" whole is the room. Word takes
+  the final "，" while the line needs ≤ ~9.3 of squeeze (room 227.75) and sends it down from 227.55; the cell has 227.33.
+  Cell or body, overflowPunct, zh-TW/zh-CN, a digit after the first mark: all the same.
+  - Under kinsoku 0: the trailing "，" gives 6 (3 squeezed, 3 hung), and the marks before give 3.35/4.15/4.55/4.75/4.95 in
+    all for 1-5 marks. Under kinsoku 1 every mark gives its whole half.
+  - Ours (bin-opener2) breaks at Word's threshold in all nine variants run. p13 is the CELL's width: ours is 0.37 wider. -> (9)
+(9) Lab ci (zh-8628cfbe's table, mode 15; ~/starling-doc-check/lab/ci). Text keeps max(margin, half the line) from each line's
+  MIDDLE on both sides:
+  - 0.5 and 1.5pt lines alike, the table's insideV or the cells' own tcBorders; 3pt lines 1.50 at 1.4 margins.
+  - jc center centres between the line middles.
+  - The table's left edge line lies inside the table, its outer edge at the indent, so the grid starts half a line right of it
+    (0.72 for 1.5pt). Holds with tblInd -114 or 0 and with pct or dxa widths; a first column's own wider left line decides it
+    (zh-e329b438, lab k).
+  - Mac Word's lab cimac (macOS-doc) agrees. Ours set the grid on the indent and inset margin + half the left line / margin
+    - half the right one.
+  BUILT (cellin2, both modes): guard over 146 mode-15 table documents (Windows) 67673 -> 67765 matched lines,
+  zh-8628cfbe 1498 -> 1594/1605. To push as wip/cellin on tab-opener, for lenovo's 756 pair in both modes.
+(10) Labs for others (Windows 01QbbApP):
+  - dash (windows-2, zh-8d6f702e): an East Asian-hinted "—" after digits starts the next line ("…100" | "—150"). A Times
+    (hint default) "—" joins "100—150" whole. doNotUseEastAsianBreakRules changes nothing.
+  - dsh (windows-3, zh-22ecbdc8): "—5000" is one piece. It never breaks after the dash before digits, whatever the run split,
+    hint, doNotUseEastAsianBreakRules or useAltKinsoku. Before an ideograph ("—五千") it breaks after the dash.
+  - e5q/e5r/e5s (windows-3, zh-e5eb092a): Word decides a line with each character's w:spacing counted TWICE, 37 x (12 + 2s),
+    and lets a final "，" hang its whole advance. Thresholds: +0.2 446.4, +0.4 460.8, +0.8 ~490.1; "，" -> "甲" (no hang)
+    473.6 = 37 x 12.8 exactly.
 (3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
 Windows-mode "needs a lab" notes against the tip:
   - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
