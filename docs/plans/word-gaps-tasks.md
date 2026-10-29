@@ -17,6 +17,28 @@ prints (test/corpus/docx/word-win) are the only target. From now on:
   accepted and noted; more than 1 point blocks the landing until it is explained.
 - Word for Windows labs go to `windows` (the box's only Word driver). Other sessions build and pair.
 
+### Recipe: the 756-document pair on the Windows box (DESKTOP-URK35LH) — reference (Claude windows-1, 2026-10-29)
+Scripts are in `~/starling-doc-check/` (same user home for every session on the box). Copy them under your own
+names before editing; don't edit mine, and don't build in `starling-win-native` (mine).
+- **Build (release only).** The debug build fails on this host (MSVC `construct_at`/`error_code` C++ interop after
+  the engine moved to bd7be6b10e59); release works. `f39-build.sh TAG`: sets `STARLING_ENGINE_OUT` and
+  `FLUTTER_SWIFT_ENGINE_OUT` to `C:\Users\starling\dev\starling-engine\engine\src\out\host_release` (shared engine, not
+  rebuilt), runs `powershell -File sdk/tools/build-windows.ps1 -PackagePath apps/OfficeApp -Product OfficeApp
+  -Configuration release` in the checkout, then copies `OfficeApp.exe` + `*.resources` from
+  `apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/` to `bin-TAG/`. Change its `cd` to your own checkout.
+  ~9 min incremental, ~17 min cold. Check for running compilers first (`tasklist | grep -iE "swift-build|swift-frontend|swiftc"`).
+- **ICU.** If your checkout has no `engine` link, also copy `host_release/icudtl.dat` to `bin-TAG/data/icudtl.dat`;
+  without it every document fails "convert failed: unreadable".
+- **Sweep.** `wo-sweep.sh TAG WORK KEYFILE [windows|mac]`: PATH += host_release; `STARLING_ICU=<host_release>/icudtl.dat`;
+  `OFFICE_FONT_SOURCE=bundled`, `OFFICE_WORD_FONTS=$MODE`, `OFFICE_APP=bin-TAG/OfficeApp.exe`; refs
+  `test/corpus/docx/word-win` (windows) or `test/corpus/docx/word` (mac). Runs `test/docx-app-render.sh <R>/test/corpus/docx/docs
+  <R>/<refs> WORK keys…`, then `DOCX_WORD_REFS=<refs> python -I test/docx-line-match.py WORK > WORK.match`. Set `R=` to your
+  checkout and use ABSOLUTE paths (relative ones fail as "unreadable"). Key file: `all756.txt`, names WITH `.docx`.
+- **Pair.** Base and candidate from the same commit, both modes; base and candidate sweep in parallel (~55 min per
+  mode). See `pair1.sh`. Outputs: `WORK/` (renders), `WORK.log`, `WORK.match`.
+- **Compare.** `python -I wn-mean.py NEW.match OLD.match`: zh/poi means, ≥95 and page-equal counts, movers ≥0.05.
+- Windows-host scores differ from Mac-hosted Windows mode (e.g. zh-6a4fc013, Thai); pair on one host only.
+
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
 (stroke 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, joins nothing, text matters, either shadow +2.28). (2) POI `rtl`
