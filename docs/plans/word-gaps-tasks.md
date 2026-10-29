@@ -54,7 +54,15 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
 - zh-e5eb092a 96.9 — CLAIMED. p4's "将第十四条…" (mode 14, compressPunctuation, jc both, SimSun 12pt, run spaced +0.4):
   Word ends line 1 at "…区人民政", leaving "府”，" (with the "，" 5.2 over, the quotes unsqueezed); ours takes
   "府”，", squeezing the quotes and hanging the "，". p5's "…“行政行为”；" has the same geometry (5.2 over) and Word
-  hangs its "；". Lab spec sent to `windows`.
+  hangs its "；". Lab e5q (`windows`, fresh Word each, `lab/e5q`): no quote is ever squeezed below its em; without
+  the run's +0.4 spacing "府”，" is taken; with the "”" deleted the "，" alone hangs ("府，"); with 2pt (−40) or 5.5pt
+  (−110) more room it is still refused; "，"→"；" and the opener after it change nothing. (p5's "”；" fits whole —
+  not a witness.) Follow-up e5r (room sweeps with and without spacing) asked.
+- zh-22ecbdc8 96.8 — CLAIMED. p3 "…组织人次达1000（含）—5000人/年" (mode 14, compressPunctuation, 仿宋_GB2312 16pt, hint
+  eastAsia): Word ends line 3 at "（含）" with its marks whole and starts line 4 "—5000"; ours squeezes four marks
+  1.44 each and ends at "—". Corpus prints: Word ends a body line with an East Asian "—" before a digit once
+  (zh-e68a2f57 "表4" | "—" | "1…", three runs), starts one with "—"+digit ten times; zh-eb54d3b0 p8 squeezes to take
+  "）—5000" whole. Lab dsh (is "—5000" one piece?) asked.
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
