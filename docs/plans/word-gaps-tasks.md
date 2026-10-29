@@ -8,7 +8,7 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
-### Windows-mode Word labs: zh-f39e54b6 (then 8d6f702e/5be7e156 grid), zh-015abfaf, WordWithAttachments — CLAIMED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28, the user's assignment)
+### Windows-mode Word labs: zh-f39e54b6 DONE 4a0a7059; zh-015abfaf and WordWithAttachments labs run (q015, q17, wa4), not built; grid question open — RELEASED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28/29, the user's assignment)
 Owner: Claude worker on the Windows box, this machine's only Word for Windows driver. Runs the Word for Windows
 labs these Windows-mode gaps are blocked on, in order: (1) zh-f39e54b6 第十四條/第十五條 (one-change variants
 from the document's own package; then the one-twip grid question if the same lab answers it); (2) zh-015abfaf
