@@ -345,7 +345,7 @@ shared engine host_release_arm64, both modes, OFFICE_FONT_SOURCE=bundled.
   Word's 0.96pt offset between the id column ("158") and the number column
   ("100000151"); c1 sets the row like the others (id 0.22 from Word's, was
   0.28). **Uncovered error, OPEN:** in every row of that table ours sets the
-  number column 0.5 below the id column where Word sets 0.96.
+  number column 0.5 below the id column where Word sets 0.96. [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]
   Remaining e0ca misses: the "○1" EQ text-layer artefacts (p6, p20) and a
   few later lines. Lab specs below stand for c5b and the 3-D pies.
 - zh-c5b5087b (Mac 26.7): line 1 of "第一条" ends "…县人民政府对" with "粮" 5.75
@@ -512,7 +512,7 @@ Series s: every label, the file's values, rotY 0/90/180/270, 1 or 3 lines. Findi
   stands every line 0.09pt right of ours (79.44 vs the 79.35 margin) and its grid pitch rounds to 15.749
   on some lines — the p10 "区）" hairline, as 7bd18d8e found; no rule. zh-b0401810 p1: Word sets the
   序号/类别 cells (exact 12pt lines, vAlign center) 9pt above the name cell (auto line, textAlignment
-  center) in each 15.6pt exact row; ours row 2 0.5 above, row 3 as Word — open.
+  center) in each 15.6pt exact row; ours row 2 0.5 above, row 3 as Word — open. [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]
 
 ### Lowest zh/POI residuals, one at a time — RELEASED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
@@ -530,7 +530,7 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
   stand between ideographs give nothing": 167ee06c 90.2 -> 99.2, but zh-799c91cd 100 -> 98.8 in both modes
   (p1 "…為授權代表人為代表" — Word takes "負"/"責" there with such spaces giving). Not a rule; needs a lab on
   balanced spaces between ideographs (space count, over, Mac vs Windows). Pair d1 -> d2, reverted.
-- **zh-7773163d Windows — DONE (Linux fidelity worker, 2026-10-29): 83.3 -> 95.6 on Linux; Mac mode 93.6 -> 94.2.** A paragraph whose list number rises over its text now keeps its strut on every line; the first line is set as low as the strut-less layout puts it (an extra, not added to the baseline the text already gets), and a one-line paragraph keeps the old strut-less layout (zh-76700e5f's "5.3" headings dropped 99.7->65.6 without that). Pair e0/e3 on this checkout, engine-validation-20261028 host_release, bundled fonts: Windows no other document moved; Mac no drops. History below: Every
+- **zh-7773163d Windows — DONE (Linux fidelity worker, 2026-10-29): 83.3 -> 95.6 on Linux; Mac mode 93.6 -> 94.2.** Its remaining gap: [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]. A paragraph whose list number rises over its text now keeps its strut on every line; the first line is set as low as the strut-less layout puts it (an extra, not added to the baseline the text already gets), and a one-line paragraph keeps the old strut-less layout (zh-76700e5f's "5.3" headings dropped 99.7->65.6 without that). Pair e0/e3 on this checkout, engine-validation-20261028 host_release, bundled fonts: Windows no other document moved; Mac no drops. History below: Every
   "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
   apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
   the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
@@ -9209,7 +9209,7 @@ Its landscape p6 holds a 13-row table placed against the page (tblpY 2536) after
 DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either (pairs at a18ec01f). Left in Windows: ours still makes 8 pages to Word's 7.
 
 ### macos's w25 queue, measured (Linux office1, 2026-10-26, engine c34c8aa8eba) — none built
-- zh-13d11e99 (95.9 here) — CLAIMED (Linux 01F2SWc8, 2026-10-27, routed by macos) [TAKEN OVER 2026-10-28, Linux Claude, starling-linux-fidelity, the user's assignment]: all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
+- zh-13d11e99 (95.9 here) — CLAIMED (Linux 01F2SWc8, 2026-10-27, routed by macos) [TAKEN OVER 2026-10-28, Linux Claude, starling-linux-fidelity, the user's assignment] [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos: the plot's foot ~3pt high in both modes, the gap over the legend too big; only for a cause general over the charted documents]: all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
   555; the plot area's top lower in Word). Charts' (macos-ios, T201).
   Tried (office1, routed by macos): a titled 2013-style chart in a Word document, its plot 3pt lower (Chart.swift, beside the
   sheet's 2.57) — zh-13d11e99 95.9 -> 100, but chartex 100 -> 94.7 (87.7 with cx: charts too) and zh-b8de3ae2 90.9 -> 88.8,
