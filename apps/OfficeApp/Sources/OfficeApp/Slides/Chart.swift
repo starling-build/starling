@@ -408,6 +408,10 @@ struct Chart: Equatable {
     /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
     /// table's rows stand on those faces' lines (`_tableRows`).
     var windowsMinchoText = false
+    /// … and its title too: not where the title's runs say Traditional
+    /// Chinese, which Word for Windows sets in PMingLiU (zh-b8de3ae2's
+    /// eleven titles, `lang="zh-TW"`, in its print).
+    var windowsMinchoTitle = false
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -2062,6 +2066,27 @@ enum ChartPainter {
             // title breaks before "at" in PowerPoint's print, its first
             // line 535 pt of a 696 pt chart, "at" taking it past 557.
             tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide ? min(area.width, 0.8 * r.width) : area.width))
+            // (Where Word for Windows sets the theme's text in Mincho, a
+            // title line holding a character Mincho lacks is JhengHei's,
+            // 1.729 em to Mincho's 1.3 (`_tableRows`): it grows by the
+            // difference, its text half of it lower. Word for Windows'
+            // print of zh-13d11e99's theme-faced "主动公开信数量" at 14pt,
+            // "动" in JhengHei: its baseline 3.67 and the plot's top 6.34
+            // under Word for Mac's, which sets it all in SimSun.)
+            var grown = 0.0
+            if c.windowsMinchoTitle, c.titleFont == nil, c.titleAt == nil, let covers = OfficeFonts.windowsMinchoCovers {
+                let units = Array(title.utf16)
+                var start = 0
+                repeat {
+                    let range = tp.getLineBoundary(TextPosition(offset: start))
+                    let end = max(start + 1, min(units.count, range.end))
+                    let line = String(decoding: units[start ..< end], as: UTF16.self)
+                    if line.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) && !covers.contains($0.value) }) {
+                        grown += (1.3301 * 1.3 - 1.3) * (c.titleLineSizes.isEmpty ? titleStyle.fontSize ?? 0 : c.titleLineSizes.values.max()! * k)
+                    }
+                    start = end
+                } while start < units.count
+            }
             // (Two points higher than the area's edge: where PowerPoint's
             // sits. Or where the file places its box, 3 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
@@ -2081,7 +2106,7 @@ enum ChartPainter {
                 // 18.76 under the frame's top in chart-sunburst's. Not 2.4
                 // lower, as the glyphs' tops measured against our box's
                 // once had it: 2.83 under Excel's, all twelve.)
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + grown / 2 + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -2094,7 +2119,7 @@ enum ChartPainter {
             // (A pie on a slide stands 7 under it: pie-chart's, its top
             // 2.75 pt lower in PowerPoint's print and the pie 3.25 smaller.)
             let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
-            area = Rect.fromLTRB(area.left, area.top + tp.height + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
+            area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
             if placed == nil { tp.dispose() }
         }
 

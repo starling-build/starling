@@ -51,6 +51,12 @@ enum WriterCharts {
         if RichTextTheme.wordWindowsPages,
            let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
             chart.windowsMinchoText = true
+            let hant = ["zh-tw", "zh-hk", "zh-mo"]
+            func traditional(_ n: XNode) -> Bool {
+                if n.name == "a:rPr" || n.name == "a:defRPr", let l = n["lang"]?.lowercased(), hant.contains(l) { return true }
+                return n.children.contains { traditional($0) }
+            }
+            chart.windowsMinchoTitle = !(space.descendant("c:title").map(traditional) ?? false)
         }
         var theme = DeckTheme()
         theme.headingFont = pptxTheme.major
