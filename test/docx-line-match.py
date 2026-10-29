@@ -33,6 +33,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WORD = os.environ.get("DOCX_WORD_REFS") or os.path.join(HERE, "corpus", "docx", "word")
 
 
+def ignored():
+    """The documents whose prints in WORD cannot be scored, from its
+    IGNORE.txt ("<doc> <reason>" a line, # for a comment): word/ holds
+    Mac Word's, so a print it reads wrongly leaves the Mac scores only and
+    stays scored against word-win/. A document named on the command line
+    is scored all the same."""
+    try:
+        with open(os.path.join(WORD, "IGNORE.txt"), encoding="utf-8") as f:
+            return {l.split()[0] for l in f if l.strip() and not l.startswith("#")}
+    except FileNotFoundError:
+        return set()
+
+
 def mupdf_text(pdf):
     """pdf-text.swift's rows from PyMuPDF: "p<page> <y> <x> <text>", y up
     from the page's top to the line's bottom (so negative), spaces dropped:
@@ -172,8 +185,9 @@ def main():
     if tool and not os.access(tool, os.X_OK):
         subprocess.run(["swiftc", "-O", "-o", tool, os.path.join(HERE, "pdf-text.swift")], check=True)
     results = []
+    skip = set() if key else ignored()
     for f in sorted(os.listdir(os.path.join(work, "pdf"))):
-        if not f.endswith(".pdf") or (key and key not in f):
+        if not f.endswith(".pdf") or (key and key not in f) or any(f.startswith(k) for k in skip):
             continue
         ref = os.path.join(WORD, f[:-4] + "-orig.pdf")
         if not os.path.exists(ref):

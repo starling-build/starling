@@ -9382,6 +9382,22 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
   15.84 of room, where ours takes 17.28 and holds "30" (16.42). Taking every cell's own left line out of its text
   (both modes) took the corpus 98.6 -> 92.2 (Mac) and 99.3 -> 93.0 (Windows) — 0.5pt lines don't do it. Wants a lab of
   that cell with its left line at sz 4/8/12/24.
+- zh-e329b438 lab te32 (macos-ios printed, sz 0/4/8/12/24): a cell's left line grows outward from the gridline and never
+  moves the text; Mac Word's column is 26.64 (58.08-84.72) where our autofit makes it 28.1, widened to hold the unbreakable
+  "30". Wants autofit not to widen a column for a digit run Word breaks. Low value; released.
+- zh-e8d4c046 IGNORED in Mac mode (test/corpus/docx/word/IGNORE.txt, read by docx-line-match.py; word-win/ still scores
+  it): Mac Word writes a wrong ToUnicode for the embedded 仿宋_GB2312 subset, the drawing right; a fresh reprint is the
+  same (lab e8d4). Mac means are over 644 documents from here (n21 98.6 -> 98.8 with it out).
+- zh-d9b085b1 (Mac 15.9) mode-12 legacy-space pair FAILED, not landed: n21 -> n22 98.6 -> 96.5 (zh-d9b085b1 96.9, 100+
+  down), w94 -> w95 unchanged. The premise was wrong: Mac Word's "第N条" + two TNR spaces are 0.373 em each (6.00 at
+  16pt) on loose lines too — a narrower natural width, not a squeeze. Only where the run's eastAsia is an EMBEDDED
+  _GB2312 face (the same doc's 黑体 "第二章  " is 0.5; zh-7b5b3de2 and zh-32f4ad9f, both embedding, show 0.373; no
+  embedding doc does); Word for Windows prints 0.5. Lab esp (~/starling-word-check/lab/esp, 9 variants: embedding,
+  Latin face, East Asian face, balance, mode) out to macos-ios, each printed alone in a fresh Word, with a fresh
+  reprint of zh-d9b085b1 as control.
+- zh-7eba7349 (Mac 80.8, Windows 100): page 2 stands a line low — the empty paragraph after p1's floating table
+  (tblpPr, vertAnchor text, tblpY 114) goes to page 2 in Mac mode only. Embeds six faces; re-check on a base past
+  e005aa8f before working it.
 
 ### Windows-mode Word labs, round of 2026-10-29 — CLAIMED (Windows 01QbbApP, routed by macos)
 (1) Grid lab for zh-8d6f702e p38 and zh-5be7e156 p2, the one-twip question: how Word sums a gridded line's widths (labs twip/twip2 left it open).

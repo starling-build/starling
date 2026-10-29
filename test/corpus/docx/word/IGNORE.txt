@@ -1,0 +1,3 @@
+# Documents whose Mac Word print docx-line-match.py cannot read: left out of
+# the Mac-mode scores only (word-win/ still scores them). "<doc> <reason>".
+zh-e8d4c046b973cc68287c501e39e3cb2eeb4d84bcdf22302a035cb5e9d7bebd18 Mac Word writes a wrong ToUnicode for the embedded 仿宋_GB2312 subset — the drawing is right, the text layer garbled; a fresh reprint is the same (lab e8d4, 2026-10-29); the Windows print is clean
