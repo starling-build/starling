@@ -4551,7 +4551,7 @@ extension ChartPainter {
             // lab p3d, its move taken out, and its move of -24% of the
             // frame lands it where Word's print has it only from outside;
             // "文化"'s from beside its slice in both.)
-            let insideAt: Double? = {
+            let insideAt: Offset? = {
                 guard l.fitted, l.outside, inner == 0, l.moves[s.index] == nil else { return nil }
                 // (On a 3-D pie its text's own box, no margin, within its
                 // slice's wedge of the top face as the eye sees it, as far
@@ -4562,6 +4562,15 @@ extension ChartPainter {
                 // from 12% at twelve, 0.52 out; all 32 of its decisions
                 // this test's. A one-line label stands 0.84-0.89 out.
                 // Before, every label of an unmoved 3-D pie stood inside.)
+                // (Where it fits on the middle only nearer in than 0.7, it
+                // stands on the straight line from the centre at the
+                // middle's angle as the page sees it, as far out as it
+                // fits: lab p3dout (Word for Mac, zh-27a874b7's chart 2, no
+                // moves, turned by rotY 0/90/180/270), three-line labels on
+                // back slices — 美國 25.8% at 46° and 316°, 其他 14% at 335°
+                // — within 4pt of that, 17-25pt from the middle at 0.56-0.64;
+                // labels that fit from 0.76 out (one-line ones, 丹麥's,
+                // 香港's, the solo probes of p3dfit) stand on the middle.)
                 if let point {
                     let tw = tp.width, th = tp.height
                     let a0 = s.mid - share * .pi, a1 = s.mid + share * .pi
@@ -4577,13 +4586,18 @@ extension ChartPainter {
                         }
                         return inside
                     }
-                    return stride(from: 0.98, through: 0.0, by: -0.02).first { f in
-                        let c0 = on(s.mid, f)
-                        return [(-tw / 2, -th / 2), (tw / 2, -th / 2), (-tw / 2, th / 2), (tw / 2, th / 2)].allSatisfy { contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }
+                    func fits(_ c0: Offset) -> Bool {
+                        [(-tw / 2, -th / 2), (tw / 2, -th / 2), (-tw / 2, th / 2), (tw / 2, th / 2)].allSatisfy { contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }
                     }
+                    if let f = stride(from: 0.98, through: 0.7, by: -0.02).first(where: { fits(on(s.mid, $0)) }) { return on(s.mid, f) }
+                    let c = on(s.mid, 0)
+                    if let d = stride(from: max(rx, ry), through: 0, by: -0.25 * k).first(where: { fits(Offset(c.dx + cos(s.mid) * $0, c.dy + sin(s.mid) * $0)) }) {
+                        return Offset(c.dx + cos(s.mid) * d, c.dy + sin(s.mid) * d)
+                    }
+                    return stride(from: 0.68, through: 0.0, by: -0.02).first(where: { fits(on(s.mid, $0)) }).map { on(s.mid, $0) }
                 }
                 let half = share * .pi
-                return stride(from: 0.6, through: 0.3, by: -0.05).first { f in
+                return stride(from: 0.6, through: 0.3, by: -0.05).first(where: { f in
                     let c0 = on(s.mid, f)
                     return [(-w / 2, -h / 2), (w / 2, -h / 2), (-w / 2, h / 2), (w / 2, h / 2)].allSatisfy { cx, cy in
                         let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
@@ -4593,11 +4607,11 @@ extension ChartPainter {
                         while d < -.pi { d += 2 * .pi }
                         return abs(d) < half
                     }
-                }
+                }).map { on(s.mid, $0) }
             }()
             let fitsInside = insideAt != nil
-            if let f = insideAt {
-                at = on(s.mid, f)
+            if let p = insideAt {
+                at = p
             } else if l.outside {
                 let gap = 4 * k
                 let edge = on(s.mid, 1)

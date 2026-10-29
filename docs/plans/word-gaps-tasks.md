@@ -402,11 +402,58 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
-### 3-D pie OUTSIDE labels, then lowest unclaimed Mac zh — CLAIMED (Claude, starling-mac-labs, 2026-10-28, user-assigned)
+### 3-D pie OUTSIDE labels, then lowest unclaimed Mac zh — lab DONE; inside screen-ray rule DONE (next commit); outside placement/stacking and (2) RELEASED (Claude, starling-mac-labs, 2026-10-28, user-assigned)
 Owner: Claude worker, clone `starling-mac-labs`, this machine's only Word driver. (1) Mac Word lab
 measuring 3-D pie outside-label distance (share, angle, label size, rotX) and stacking, under
 ~/starling-word-check/lab/p3dout; rule, pair, land (zh-27a874b7, zh-d62da4dd, zh-61aaad09). (2) Then the
 lowest unclaimed Mac-mode zh documents from base b2 (9151bb23), skipping reference defects and others' claims.
+
+**Base b2 (9151bb23), both modes, 756 docs each:** identical to c1 in every document (the rebase caveat
+of 59b09234 is covered). Mac zh 98.5 (614 at 95%), POI 91.8; Windows zh 99.3 (631), POI 90.7.
+
+**Lab p3dout (fresh Mac Word per print, quit between; ~/starling-word-check/lab/p3dout, `build.py`,
+`meas.py`, `rel.py`, `cand.py`, `outrel.py`).** zh-27a874b7 chart 2, every manual move removed. Series o:
+丹麥 alone (other labels `c:delete`) at 1% and 3%, turned to 12 clock angles, 1 or 3 lines, rotX 30/60.
+Series s: every label, the file's values, rotY 0/90/180/270, 1 or 3 lines. Findings:
+- An isolated outside label is not set at a radius: its box stands beside the slice's rim point P,
+  corner-anchored — left/right edge 3.6-5.5pt off P beside the pie, bottom 2-7pt above P over the back,
+  top at the wall's foot (+0-4) under the front, centred over/under P within ~15° of 12/6 o'clock.
+  Ours (edge + 4pt + half box) is within ~3pt of that for one-line labels. "1.16-1.5 radii" is not a rule:
+  it is this, plus the frame clamp, plus stacking.
+- Wall foot or top rim: at 3 o'clock (clk 90-94) Word centres the label on the TOP rim point; from ~clk 106
+  on the wall's foot (1-line 法國 clk94 top, 日本 clk106 foot). Ours takes the foot for any front angle,
+  31pt low at clk 90+. Left side not symmetric in the prints (clk 274 1-line on the foot), so no rule
+  landed.
+- Tall (3-line) labels the frame clamps (frame top 120 / bottom 328 here) slide sideways along the rim
+  instead of overlapping the pie: C0 → (381-414,120-156), C330 → (184-217,…); ours clamps in place.
+  Not modelled (no corpus label has it unmoved).
+- Stacking is a global layout, not a push: e.g. rotY0 德國 (clk248) leaves its corner place by (-20,-9)
+  for 新加坡; labels form a column on the left with 4-11pt between boxes, some overlap remains (rotY180
+  丹麥/香港). Not reproduced; the matcher needs ~2.5pt, so a rough stacker would not score.
+- INSIDE, three-line labels: Word's place is the parametric middle when it fits there from 0.76 out
+  (丹麥, 香港, the p3dfit probes, all one-line labels), but back slices whose fit on the middle is only
+  0.56-0.64 out stand on the SCREEN ray at the middle's angle, as far out as fits — 美國 25.8% at clk 46 and
+  316, 其他 14% at clk 335, within 4pt (ours 24-51pt off; 其他 was outside). Side slices (clk 136/155/202/
+  226) stand between the two; 英國 (8.8%, clk148) inside in Word fits neither.
+- **Candidate c2 (inside: middle from 0.98 to 0.7, else the screen ray, else the middle below 0.7):** the
+  lab's labels — 美國 24→2pt, 其他 51→2, 美國 (rotY270) 25→2 off Word, no other label moved; the 32 solo
+  decisions of p3dfit unchanged.
+  **Pair b2 -> c2, PASS:** same checkout and shared engine host_release_arm64, unchanged sweep.sh /
+  sweep-win.sh, OFFICE_FONT_SOURCE=bundled, 756 docs per mode, none missing, exact audit: only two
+  documents changed, both up. Mac zh-27a874b7 69.2 -> 71.4, zh-d62da4dd 72.2 -> 76.3; Windows zh-27a874b7
+  68.5 -> 71.7, zh-d62da4dd 70.7 -> 73.7; POI identical in both. Left open: 英國's inside place, side
+  slices' in-between place, outside stacking and the clamp slide (findings above), zh-61aaad09's misses
+  are not 3-D labels (bar-axis steps, a category wrap, the 2-D pie legend's y).
+- (2) Looked, released (Mac mode): zh-e329b438 89.1 — p4's merged label cell "接聽速度30分" (14pt, widths
+  balanced, 499tw grid) is 28.1pt wide in Mac Word's print and ours, but Word sets "3" and "0" a line each
+  (digits 7.0 wide, the quarter-em automatic space before "分" past the line) and ours keeps "30" (drawn at
+  the YaHei stand-in's 8.63 each, which is what widens our column: two errors cancelling). Word for
+  Windows keeps "30" (25pt column). Trying `_wideWordStarts` with the gap did not part it (the engine's
+  own measure fits); needs the digits' balanced width in Mac mode first. zh-015abfaf Mac: Word's print
+  stands every line 0.09pt right of ours (79.44 vs the 79.35 margin) and its grid pitch rounds to 15.749
+  on some lines — the p10 "区）" hairline, as 7bd18d8e found; no rule. zh-b0401810 p1: Word sets the
+  序号/类别 cells (exact 12pt lines, vAlign center) 9pt above the name cell (auto line, textAlignment
+  center) in each 15.6pt exact row; ours row 2 0.5 above, row 3 as Word — open.
 
 ### Lowest zh/POI residuals, one at a time — RELEASED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
