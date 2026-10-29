@@ -9220,6 +9220,8 @@ Done: same-base pairs, 756 docs, engine c34c8aa8eba, Mac references a1188040: Wi
 95.9, nothing else moved in either. Left in zh-147bdae0: p19/p27 hyphenation (the user's), p64's one cell, a few singles.
 
 ### zh-13552a3a p27 — DONE 70126e36 (Windows 94.8→100, Codex, 2026-10-27)
+Mac mode (94.7, p28-p31): CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, macos's Mac-mode round — Mac Word's print
+keeps the same row's "正)" at the foot (503); trying t135's continued-row height in Mac mode too.
 Full paired results are in handoff item 2 above. Earlier investigation follows:
 All 44 misses follow from p27: a 14-cell row (trHeight 2460 at least) whose long cell ("1.《中华人民共和国政府信息公开条例》…六部法律
 的决定》修正)", 16 lines at x269) is merged down over the next two rows. In Word's print the three rows end at 504.9, the merged
