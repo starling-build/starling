@@ -461,6 +461,11 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
+### 3-D pie OUTSIDE labels, round 2 — CLAIMED (Mac 01Xgpbk5, 2026-10-29, routed by macos; this Mac's Word driver)
+zh-27a874b7, zh-d62da4dd, zh-61aaad09, Mac mode first. From p3dout's open findings: (a) tall labels the frame clamps slide
+along the rim, (b) crowded labels stack as a column, (c) side slices between the middle ray and the screen ray, (d) the
+3/9 o'clock side-wall vs top-rim choice. Each measured in fresh Mac Word, then built, paired in both modes, landed.
+
 ### 3-D pie OUTSIDE labels, then lowest unclaimed Mac zh — lab DONE; inside screen-ray rule DONE (next commit); outside placement/stacking and (2) RELEASED (Claude, starling-mac-labs, 2026-10-28, user-assigned)
 Owner: Claude worker, clone `starling-mac-labs`, this machine's only Word driver. (1) Mac Word lab
 measuring 3-D pie outside-label distance (share, angle, label size, rotX) and stacking, under
