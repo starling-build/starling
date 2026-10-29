@@ -9355,3 +9355,8 @@ and in a face Word compresses nothing in, the paragraph's last mark never hangs 
 Pair (bundled fonts, same checkout): Windows 93.6 -> 99.1, Mac 94.4 -> 99.8; no other document moved in either mode
 (Windows mean 97.927 -> 97.934, Mac 97.557 -> 97.564). Remaining Windows misses p33, p35-37 (landscape tables) are
 matcher artifacts: positions agree within ~0.5pt, only the digit glyph boxes (stand-in vs SimSun) differ.
+
+### T231. zh-f6886fbb: 94.7 against word-win (p7-p8) — CLAIMED (Linux office1, 2026-10-29, macos's Windows-mode round)
+p7's "3、“重要程度”…★★★…" (方正楷体简体 bold, eastAsia hint → YaHei Bold): Word steps "★" 9.83 at 12pt and sets
+"“"/"”" a full em with no autospace; ours steps "★" 12.05 and sets the quotes half-width in the Latin face plus
+~5.4 autospace each side. Re-measuring from the earlier released note (zh-f6886fbb, office1).
