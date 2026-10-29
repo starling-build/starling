@@ -8,6 +8,9 @@ import Foundation
 #if os(macOS) || os(iOS)
 import CoreText
 #endif
+#if os(Windows)
+import WinSDK
+#endif
 
 /// The document faces Office ships: Liberation Sans/Serif/Mono, Carlito and
 /// Caladea — metric clones of Arial/Times/Courier, Calibri and Cambria — so
@@ -945,10 +948,29 @@ enum OfficeFonts {
         var out = Set<UInt32>()
         for u in UInt32(0x2E80) ... 0xFFFF {
             guard let scalar = Unicode.Scalar(u) else { continue }
-            if String(Character(scalar)).data(using: .shiftJIS) != nil { out.insert(u) }
+            if encodesInShiftJIS(scalar) { out.insert(u) }
         }
         return out.isEmpty ? nil : out
     }()
+    /// Whether code page 932 holds the character — the table Foundation's
+    /// `.shiftJIS` converts by on a Mac. Foundation on Windows converts
+    /// nothing to it, not even "A", so there the set came out empty and
+    /// Mincho's lines lost their JhengHei: zh-202582e2 108/139 in word-win
+    /// natively where the Mac's Windows mode matched 136. Windows' own
+    /// converter, best fit off, minus the user-defined rows it gives the
+    /// private use area, which the code page's table does not have.
+    private static func encodesInShiftJIS(_ scalar: Unicode.Scalar) -> Bool {
+        #if os(Windows)
+        guard scalar.value <= 0xFFFF, !(0xE000 ... 0xF8FF).contains(scalar.value) else { return false }
+        var wide = [WCHAR(scalar.value)]
+        var bytes = [CHAR](repeating: 0, count: 4)
+        var usedDefault: WindowsBool = false
+        let n = WideCharToMultiByte(932, DWORD(WC_NO_BEST_FIT_CHARS), &wide, 1, &bytes, 4, nil, &usedDefault)
+        return n > 0 && !usedDefault.boolValue
+        #else
+        return String(Character(scalar)).data(using: .shiftJIS) != nil
+        #endif
+    }
     /// The face Word for Windows sets an East Asian name it lacks in,
     /// where that is not YaHei (nil): "mincho" (`windowsMincho`) or
     /// "jhenghei". By the file's own font-table entry, as the map
