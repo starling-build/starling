@@ -9389,7 +9389,9 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
     is not rounded to cells. So twip2's one-twip gaps come from the marks and Latin on those lines, not from the cell sum.
     q18 (task 2) found the limit: Word takes a line-end "）" while it hangs no more than half its grid advance (em + the
     grid's addition): 7.874 at 16pt with cs -1032, 5.874 at 12pt, 7.756 at -2000, 8.0 at 0, 8.122 at +1000; off the grid
-    it is half the em. The fix is being built.
+    it is half the em. wip/grid-hang 625b141c: q18's labs a, d, e, f, h and i now agree at every step (j, cs > 0, is the
+    column's rounding to whole cells, apart); zh-015abfaf 169 -> 170/271 lines, its first miss now p10's "…开发|区)", which
+    Word refuses at ~6.8 against the new 7.874. That one is still not explained. Wants pairing in both modes.
 (2) zh-015abfaf p10 "）": Word's hang limit [6.76, 6.86) against our half an em. Needs a second witness, another mark or size, before a rule (lab q17 follow-up).
 (3) Triage of the board's older Windows-mode "needs a lab" notes; stale ones closed.
 (4) Lab p13 (zh-505b9619 p13 "…為3日）。", macOS-doc's spec 608f742b) — MEASURED (Windows 01QbbApP). ~/starling-doc-check/lab/p13:
@@ -9417,6 +9419,26 @@ the middle of the row's top rule: (a) tblBorders sz 8 11.40; (b) the same as tcB
 (f) auto lines 12.12. Each row's top rule is drawn inside the row, from its top edge (+0.05 in the print). The text
 centres in [row top + top rule's width, row bottom]: half the rule over the cell, nothing for the rule under it, since
 that rule is the next row's top and the table's last bottom rule is drawn below the last row.
+(5b) cellmid g/h and cellmid2 (lenovo-3's follow-up), same package. Rules:
+  - A 2.25pt rule (sz 18) between exact rows lies wholly in the lower row (100.70-102.86 for a row top of 100.65) and moves
+    that row's text down 1.08 (half its width). This holds as tblBorders and as a tblHeader's own bottom rule over an sz 4
+    table. It answers T129's open question (zh-e1b09977's heavy header line): Word puts it all in the lower row.
+  - Plain body paragraphs, exact 12pt, SimSun 10.5: baseline 9.65 under the line top (not 13/16 = 9.75).
+  - Exact rows, no rules, auto lines: 11.69 under the row top.
+  - Exact 20pt rows: 13.61 (15.6 rows: 11.45). So the text centres as (row - line)/2 + 9.65; the offset scales with the room.
+  lenovo-3 has the numbers; lab exline (exact-line baselines by face and size) is next in my queue.
+(3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
+Windows-mode "needs a lab" notes against the tip:
+  - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
+    zh-b378d8c4 (parted row at least N, the 0.5pt `stated` term): 946/946. zh-c5b5087b (the 楷体-as-YaHei reprint): 202/202.
+    The 宋体 foot (lab footlab), zh-d35cbbdb (labs kai/round), zh-7eba7349/zh-20c1d74a (lab pf), the autoSpaceDN digits
+    (windows-1's follow-up) and zh-799c91cd's spaces (lab tbsp) were already answered by labs.
+  - PARTLY STALE: zh-1cfb652b's footer number (Mac 01Xgpbk5's 6pt-low note) now stands 0.13 from Word's (788.01 vs 788.14).
+    zh-884c6e3e's is still 5.85 low (796.27 vs 790.42), and zh-4f70ee2d has no number on p1 to compare. Open, low:
+    every line still matches.
+  - ANSWERED, NOT BUILT: T129's heavy line (zh-e1b09977 719/729, zh-5251dd23 549/557, zh-cec9d337 815/821), see 5b.
+  - OPEN: zh-b8de3ae2's 0-margin first column, right side (659/726; most misses are its charts, claimed by macos-ios).
+    zh-1cfb652b's 9 misses are T229's (topLinePunct, lenovo-2; done since, not in this base).
 
 ### T229. `w:topLinePunct` on every line, not just the first — DONE (Linux lenovo-2 01BR2wHn, 2026-10-29, macos's Mac-mode round)
 zh-1cfb652b (Mac 90.9): its body paragraphs carry `w:topLinePunct` under `characterSpacingControl doNotCompress`. Both
