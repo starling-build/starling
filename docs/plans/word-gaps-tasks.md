@@ -9345,3 +9345,8 @@ Word prints start a line that opens with "《" or "（" 8pt left of the margin (
 take one more character: Mac p2/p12/p14/p15, Windows p14/p15 ("《云南省城市市容…第二十三条进", "（构）筑物…周边环").
 Ours squeezes only a paragraph's first line, and only under compressPunctuation (`_topLineSqueeze`, zh-2b955411).
 Next: squeeze an opener at any line's start under `w:topLinePunct`, whatever characterSpacingControl says; pair both modes.
+
+### T230. zh-57f1de0d: 93.6 against word-win (p28-p33) — CLAIMED (Linux office1, starling-office1-95, 2026-10-29, macos's Windows-mode round)
+First mismatch p27/p28: an embedded subset's own letters and digits are not the stand-in's half em — 方正仿宋_GBK sets
+"1" 0.645 em and "4" 0.539 in both Word prints (the subset's hmtx), and "1） 应建立…培训，" then has no room for "有".
+Then p28's paragraph-final "…良好互动；": Word sends "动；" down in this face, ours hangs the "；". Pair running.
