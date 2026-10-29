@@ -8,6 +8,13 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
+Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
+(stroke 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, joins nothing, text matters, either shadow +2.28). (2) POI `rtl`
+28.6% Windows-hosted vs 100% Mac-hosted: first cause (Arabic text layer read back as U+06CC/U+06BE and presentation
+forms; lines ~2pt taller). (3) Windows-native zh 99.21 vs Mac-hosted 99.30: per-document comparison, first cause.
+No Word driving here (prints via `windows`). Pairs in both modes, same checkout/engine, bundled fonts.
+
 ### Windows-mode Word labs: zh-f39e54b6 DONE 4a0a7059; zh-015abfaf and WordWithAttachments labs run (q015, q17, wa4), not built; grid question open — RELEASED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28/29, the user's assignment)
 Owner: Claude worker on the Windows box, this machine's only Word for Windows driver. Runs the Word for Windows
 labs these Windows-mode gaps are blocked on, in order: (1) zh-f39e54b6 第十四條/第十五條 (one-change variants
