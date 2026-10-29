@@ -181,7 +181,7 @@ Linux baseline b0 at 40a00d7f (Windows zh 99.270 / POI 89.614, Mac zh 98.399 / P
   squeeze witness (mode 14, "超”", Latin "”" hung, 6.57 over one mark, Word refuses) and Mac's is the 0.018pt
   tab-line hairline (Mac 7bd18d8e); WordWithAttachments is the parked inline-WordArt extent (stroke/shadow
   terms, a56561c7). No new evidence here; both need Word labs.
-### Mac fidelity takeover (gap analysis §4): 3-D pies, e0ca/c5b squeeze, 884c — CLAIMED (Claude mac-fidelity, 2026-10-28)
+### Mac fidelity takeover (gap analysis §4): 884c and e0ca DONE 147001ea; c5b and 3-D pies RELEASED pending Word labs (specs below) (Claude mac-fidelity, 2026-10-28)
 Owner: Claude worker, clone `starling-mac-fidelity`, branch `office`, coordinator
 assignment (Codex sessions out of tokens until Nov 1). In order: (1) 3-D pie
 labels zh-27a874b7 / zh-d62da4dd and zh-61aaad09's remaining labels, taking over
