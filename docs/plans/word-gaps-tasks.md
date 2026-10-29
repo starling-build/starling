@@ -424,7 +424,7 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
   stand between ideographs give nothing": 167ee06c 90.2 -> 99.2, but zh-799c91cd 100 -> 98.8 in both modes
   (p1 "…為授權代表人為代表" — Word takes "負"/"責" there with such spaces giving). Not a rule; needs a lab on
   balanced spaces between ideographs (space count, over, Mac vs Windows). Pair d1 -> d2, reverted.
-- **zh-7773163d Windows (83.3 on Linux; 95.4 on the Mac host) — MEASURED, cause found, not built.** Every
+- **zh-7773163d Windows (83.3 on Linux; 95.4 on the Mac host) — CLAIMED (Linux fidelity worker, 2026-10-28): building the rise-on-line-1-only fix.** Every
   "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
   apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
   the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
