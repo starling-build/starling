@@ -263,6 +263,71 @@ fit) in freshly launched Mac Word, lab files under ~/starling-word-check/lab/
 support for zh-c5b5087b and zh-27a874b7 / zh-d62da4dd / zh-61aaad09 labels,
 paired in both modes.
 
+**c5b — no new print needed; the existing prints settle it.** The c5b spec
+above rests on a misreading: in every Mac print, and in ours, line 1 of 第一条
+takes "粮" (its "，" at 10.24). The real split is the squeeze itself, by
+print (`lab/c5bsq/sq.py`, mid-line "，、。；" set under 16pt in kinsoku-0 text):
+
+| Mac print of zh-c5b5087b (PDF date) | squeezing lines by page | stops after |
+|---|---|---|
+| zh2 2026-10-17 | p2 9, p3 8, p4 11, p5 9, p6 2 | p6 |
+| kai-reprint 10-23 | p2 9, p3 8, p4 11, p5 4 | p5 "做到专仓储存…" |
+| fresh-reprint 10-24 | … p5 9, p6 7 | p6 |
+| sqcut 10-24 | … p6 8, p7 5, p8 6, p9 6, p10 1 | p10 |
+| **reference a3304812, 10-27 03:04** | **none from p2** ("，" opens a line) | p1 |
+| Word for Windows reference | none from p2 | p1 |
+
+p1 (kinsoku on, its runs `w:eastAsia` zh-CN) squeezes in every print; p2 on
+(Normal says `w:eastAsia` en-US, kinsoku 0) squeezes up to a page that moves
+from session to session in one Word build (72da925e and 2a241df1, printed the
+same night by the same Word, still squeeze their CJK-tagged text). That is
+not a rule of the file: Mac Word's own language detection tagging the text as
+it goes is the reading that fits. The deterministic state, the reference's, is
+Windows Word's: T-rule `windowsMuted` (pause marks and curly quotes in text
+with no East Asian line rules give nothing). Candidate c1: the same in Mac
+mode. Focused on the 213 files with a non-CJK `w:eastAsia`: zh-c5b5087b
+26.7 -> 100, zh-264d7516 89.9 -> 98.8, zh-efd9229a 96.6 -> 100, zh-51af781b
+97.4 -> 99.1, nothing else moved. (Lab t218's "paragraph alone refuses 无" is
+the same state.) Full pair running.
+
+**3-D best fit — lab p3dfit (fresh Mac Word per print, quit between),
+~/starling-word-check/lab/p3dfit.** zh-27a874b7's package, chart 2, idx 4's
+move kept, the other moves removed; probe 丹麥 (idx 3) at 4-8%, turned to 3 or
+9 o'clock by rotY; I = drawn on its slice, O = outside (`classify.py`):
+
+| probe 丹麥 | 4% | 5% | 6% | 7% | 8% |
+|---|---|---|---|---|---|
+| 3 o'clock, 1 line (cat), rotX 30 | O | I | I | I | I |
+| 3 o'clock, 1 line, rotX 60 | I | I | I | I | I |
+| 3 o'clock, 3 lines (cat/val/pct), rotX 30 | O | O | O | O | O |
+| 3 o'clock, 3 lines, rotX 60 | O | O | O | O | O |
+| 9 o'clock, each of the four | same as 3 o'clock | | | | |
+
+One-line inside labels stand on the slice's middle at 0.84-0.89 of the
+radius (100+ labels, within 4pt). With every label on the page, 3-line
+labels of small front slices sit under the pie and collide, so a second lab
+took the probe's label alone (all others `c:delete`), 3 lines (~32 x 36pt),
+rotX 30, 4-25%:
+
+| probe alone, 3 lines | 4 | 6 | 8 | 10 | 12 | 15 | 20 | 25% | inside at |
+|---|---|---|---|---|---|---|---|---|---|
+| 12 o'clock | O | O | O | O | I | I | I | I | 0.52 of the radius |
+| 3 o'clock | O | O | O | O | O | I | I | I | 0.78 |
+| 6 o'clock | O | I | I | I | I | I | I | I | 0.76 |
+| 9 o'clock | O | O | O | O | O | I | I | I | 0.78 |
+
+Rule (candidate c2): a 3-D best-fit label stands inside where its text's own
+box, no margin, fits within its slice's wedge of the top face as the eye sees
+it (our perspective, which matches Word's pie to 3pt), as far out along the
+middle as it fits; else outside. Ours makes all 32 of the solo decisions
+Word's, inside at 0.56/0.78/0.80/0.80. Drops the "unmoved 3-D pie: every
+label inside" shortcut. Focused: zh-27a874b7 Mac 68.1 -> 69.2, Windows 66.3 ->
+68.5; zh-d62da4dd Mac 71.1 -> 72.2, Windows 69.1 -> 71.1; zh-b8de3ae2 same.
+Also: 3-D pies now turn by `c:rotY` (ours started at twelve; no corpus pie
+turns). Not modelled, open: outside placement (Word 1.16-1.5 of the radius
+out and stacked, ours 1.10-1.14), and a point's own `c:dLbl/c:delete` (ours
+draws the label; no corpus chart uses it).
+
 ### Lowest zh/POI residuals, one at a time — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
 documents per mode at base d0 (ccd66af2, Windows zh 99.3 / POI 89.8, Mac zh 98.5 / POI 90.9), skipping claimed
