@@ -9122,6 +9122,14 @@ CLAIMED Mac 7bd18d8e (Windows-focus round, routed by macos), w96 92.1. Besides t
 ideographs at 7.20 of 9.28, the space 4.34 of 4.55, the run's ideographs 9.24 of 9.275 — about 5.4 given. Ours: 5.85 over,
 legacy cell test (half an em, 4.74) refuses it, and every later line of the cell starts a character early. A Windows witness
 for the marks allowance (lab p13: ~2-2.5 a mark between ideographs).
+Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two marks; jc both).
+- zh-3c055c9b (w96 93.2) RELEASED by Mac 7bd18d8e, to windows-2 (grid squeeze owner) via macos: every one of its 39 misses is
+  one grid behaviour (17pt character grid, mode 15, overflowPunct 0). To take a line's end Word gives back the grid's addition
+  of a mark AND the character before it: p9 "…第10892號、" with "號、" 17.0 -> 12.7 each and "、" 3.7 past the margin; p11
+  "寫，" 14.2/14.2, "的。" 14.0/14.0 and "」、" 8.4/8.4 to take "「（舉". Ours keeps whole steps and stretches (17.9). p2's
+  "費、" (lab tfe) is the same family. Not zh-4e5fe46f's (no grid, mode 14 cell, marks giving ~2 of their blank halves).
+- zh-b24b396a (w96 93.6, T210) CLAIMED by Mac 7bd18d8e: all 23 misses are p12-p13 text-box labels — the text-box half of
+  the first-character-past-its-box rule (cells landed cf2997f8). Lab spec sent to macos for `windows`.
 
 ### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
 zh-9bcea239 (92.7) p11: the score cells (tcW 389 = 19.45pt, firstLine 632 = 31.6pt, jc center, vAlign center, HTML autospacing)
