@@ -9346,7 +9346,19 @@ public final class RichLayout {
             // (With none of the run's spacing: a run spaced 0.6pt gave
             // each break it holds 0.6pt the fitter does not count, and
             // zh-b00fef0d's "…改革决策部署" lost "署" to the next line.)
-            func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0) }
+            // (Nor any height: it sets no line, as a space sets none beside
+            // other text. zh-7773163d's p38 paragraph, a 17pt "一、" head
+            // over 16pt text (no strut, two sizes), took the Latin face's
+            // deeper descent from its joiners, and its lines stood 24.6pt
+            // apart where Word's print has 23.0. Except in a math face's
+            // run, whose letters are set at 0.6 of its line to keep the
+            // platform math face's split out of it: there the joiners are
+            // what gives the line Cambria Math's 1.17 em, bug59058's
+            // formula lines 15.24pt apart as in Word's print, 15.0 without.)
+            func zeroWidth(_ kind: Int) -> TextStyle {
+                let s = style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0)
+                return theme.wordRules && s.fontSize ?? 0 > 0.5 && !(kind >= 0 && latinFace?.setsMath == true) ? s.copyWith(height: 0.01) : s
+            }
             // (Arabic set to the original face's joining widths, word by
             // word — it parts only at spaces: each word its own span, drawn
             // condensed or widened to the width its joining forms have in
