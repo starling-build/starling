@@ -3,8 +3,9 @@
 Writer's rendering is substantially ahead of its cross-platform release validation.
 The latest accepted Mac-hosted corpus run matches **99.3% of Windows Word lines and
 98.2% of Mac Word lines on the 645-document Chinese corpus**. Linux now has a fresh,
-private native/skwasm engine build and a passing native/browser gate. Current
-Windows-native and iOS builds have not been validated against this engine set.
+private native/skwasm engine build and a passing native/browser gate. Windows
+native now has one too (engine `bd7be6b10e59`, receipt in the platform table);
+a current iOS build has not been validated against this engine set.
 Rendering imported content also does not mean Writer offers Word's editing tools
 for that content.
 
@@ -202,8 +203,9 @@ packaged, five-platform release or authorization to change a live site.
 the current release unit suite, package that snapshot, and verify open/edit/save/
 reopen/PDF plus platform UI behavior. macOS needs the validated toolchain. Linux
 needs the tested private artifacts intentionally packaged rather than accidentally
-using its older shared outputs. Windows needs current engine/app builds, crash
-witnesses, installed-font and parity checks. iOS needs a modern engine/app build
+using its older shared outputs. Windows has a current engine/app build and a
+native parity receipt; it still needs crash witnesses, an installed-font run and
+a UI pass. iOS needs a modern engine/app build
 and physical-device validation before a native mobile release claim.
 
 **Before web redeploy:** follow the prepared
@@ -264,4 +266,5 @@ Linux evidence root: `/home/starling/office-validation-20261028/`:
 
 No new corpus conversion, Word automation, shared-engine mutation or production
 source change was needed: the accepted same-engine sweeps were fresh and complete.
-Windows-current and iOS-current results remain explicitly unverified.
+iOS-current results remain explicitly unverified (Windows: see the platform table's
+later receipt).
