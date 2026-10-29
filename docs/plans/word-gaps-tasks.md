@@ -142,6 +142,45 @@ validation's pinning: `STARLING_ENGINE_OUT` = `FLUTTER_SWIFT_ENGINE_OUT` =
 `starling-engine-validation-20261028/.../host_release` (libflutter_engine 4485edfc…), `STARLING_ICU` = its
 `icudtl.dat`, bundled fonts, Swift 6.2.4; base and candidate on one checkout. No Word access from this box:
 nothing here is "verified against Word" beyond the existing prints and the labs already on this board.
+
+Linux baseline b0 at 40a00d7f (Windows zh 99.270 / POI 89.614, Mac zh 98.399 / POI 90.755; 756 docs each mode).
+
+- **(2) zh-13d11e99 — DONE (next commit).** Not plot sizing: a font line. Word for Windows sets the chart's theme
+  text (`a:ea` "", `lang="zh-CN"`) in MS Mincho and its "动" in Microsoft JhengHei, so the title line
+  "主动公开信数量" is JhengHei's 1.729 em, not Mincho's 1.3 (the constants `_tableRows` already measured). Word for
+  Windows' print: title baseline 3.67 and the plot's top 6.34 under Word for Mac's (SimSun, which ours already
+  matched). Rule: in a `windowsMinchoText` chart, a theme-faced title line holding a character Mincho lacks
+  grows by 0.429 em, its text half of that lower. Not where the title's runs say zh-TW/HK/MO: zh-b8de3ae2's
+  eleven rich titles are PMingLiU in Word for Windows' print (a first cut without that guard took b8de 91.6 ->
+  88.8). Pair b0 -> c1, both modes, 756 docs: Windows zh-13d11e99 95.9 -> 100 (194/194), nothing else moved in
+  either mode. Left in 13d: the plot's foot stands 3.0 high in both modes (axis 0 at 550.5 vs Word 553.5 / Mac
+  553.2) — ours keeps ~3pt more between category labels and the bottom legend (23.7 vs Word's 19.9-20.8); one
+  witness, not built.
+- **(4) delins — DONE (next commit), first concrete mismatch.** Balloon order: Word for Windows' print stacks
+  each link item's balloons "Formatted", "Formatted", "Field Code Changed"; ours put "Field Code Changed" first
+  (anchored where the result begins). Now it is anchored where the field's result ends, after the result's and
+  the next words' "Formatted". Pair c1 -> c2, both modes, 756 docs: Windows delins 74.6 -> 96.6, Mac 75.9 ->
+  94.8, nothing else moved in either mode; PdfMarkupTests/ChartTests pass. Left: the "Uri Boness" item,
+  whose words after the link are unchanged, where Word stacks two "Field Code Changed" in a row (57/59).
+- **(1) zh-f39e54b6 — MEASURED, no rule.** Word's own prints rule out width arithmetic for this witness:
+  第十四條 and 第十五條 are the same table cell, the same indents (first line −108 twips, right −108), the same
+  runs and fonts, 4 + 26 characters with commas at the same places, and start at the same x (Mac 89.880, Windows
+  90.024). With the next character both need the same squeeze, 7.01 (Mac print: natural advance end 537.862 vs
+  537.863). Word squeezes 第十五條's two commas by 3.51 each and keeps "查" (ends 530.768 Mac / 531.107 Windows), but
+  sends 第十四條's "日" down — in both Word for Mac and Windows. No width, rounding or twip rule can part two
+  lines of equal width, so the earlier tie/epsilon tries were bound to fail here. What differs is only the
+  characters (overflow "查" vs "日", the one before it "經" vs "按"). Next: a Word lab swapping 日/查 between the two
+  paragraphs (Windows box). Also measured: Word's cell text left is 95.28 (ours 95.4) in every article row
+  (first-line starts 89.78/89.88/91.08 = 95.28 + left − hanging), so the 0.12pt start offset is real but is
+  not what decides this line. zh-8d6f702e / zh-5be7e156 (char grids): Mac-print pitches are within ±0.001pt of
+  size + charSpace/4096 (minus doubled spacing on 5be), which is too coarse to pin the one-twip rounding
+  01QbbApP's twip2 lab found; left as that lab says.
+- **(3) Text-box overflow — not started.** Codex's 96 Word controls (`geometry-next/…`) are on the Mac, not
+  here, and this box cannot make new ones; the whole-frame and band-clip rules stay rejected.
+- **(4) zh-015abfaf / WordWithAttachments — reconciled, unchanged.** 015abfaf's first Windows miss is the T181
+  squeeze witness (mode 14, "超”", Latin "”" hung, 6.57 over one mark, Word refuses) and Mac's is the 0.018pt
+  tab-line hairline (Mac 7bd18d8e); WordWithAttachments is the parked inline-WordArt extent (stroke/shadow
+  terms, a56561c7). No new evidence here; both need Word labs.
 ### Mac fidelity takeover (gap analysis §4): 3-D pies, e0ca/c5b squeeze, 884c — CLAIMED (Claude mac-fidelity, 2026-10-28)
 Owner: Claude worker, clone `starling-mac-fidelity`, branch `office`, coordinator
 assignment (Codex sessions out of tokens until Nov 1). In order: (1) 3-D pie
