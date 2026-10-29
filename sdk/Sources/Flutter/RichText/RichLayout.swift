@@ -12129,6 +12129,7 @@ public final class RichLayout {
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
         var lineRaised = false  // a raised number the line opens with (see below)
+        var lineTabbed = false  // a tab stands on the line (see `afterTabSpace`)
         var onFirstLine = true  // the paragraph's first line, which its first-line indent sets
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineEms = 0.0       // … and their ems, summed
@@ -12612,7 +12613,19 @@ public final class RichLayout {
                         runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
                     }
-                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) && (!topOnly || leadOpeners[$0] != nil) }
+                    // (Nor, in Word for Windows, an opening mark right after a
+                    // space on a line a tab stands on: lab p10 (zh-015abfaf's
+                    // "17.手工嵌线技能竞赛<tab>                 （文登区开发区）",
+                    // mode 14, a grid) leaves "区）" for the next line until
+                    // the room is the line as set less the hang, the "（"
+                    // whole — with 12 to 17 spaces after the tab, the tab
+                    // wider or narrower. Without the tab it gives its blank
+                    // half, and after an ideograph with it.)
+                    let afterTabSpace: (Int) -> Bool = { o in
+                        RichTextTheme.wordWindowsPages && o > 0 && units[o - 1] == 0x20 && Self._openingUnits.contains(units[o])
+                            && (lineTabbed || (a ..< max(a, o)).contains { units[$0] == 0x09 })
+                    }
+                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
@@ -13212,7 +13225,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
                     continue
                 }
             }
@@ -13244,6 +13257,7 @@ public final class RichLayout {
                 lineBlank = false
                 lineSpaced = false
                 lineRaised = false
+                lineTabbed = false
             }
             // (An opening mark a line starts with keeps its blank half:
             // squeezing it there is what `w:topLinePunct` asks for, and
@@ -13317,6 +13331,7 @@ public final class RichLayout {
                 }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
+            if (a ..< piece.b).contains(where: { units[$0] == 0x09 }) { lineTabbed = true }
             pastFrom = (last ..< piece.b).last(where: { units[$0] == 0x09 }).flatMap { runsPast.contains($0) ? (x + w, $0) : nil }
             x += w + piece.trail
             opening = false
@@ -13361,6 +13376,7 @@ public final class RichLayout {
                 lineBlank = false
                 lineSpaced = false
                 lineRaised = false
+                lineTabbed = false
             }
         }
         // What opens a line and gives some of itself there (a mark of
