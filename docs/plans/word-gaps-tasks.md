@@ -8,6 +8,15 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — CLAIMED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
+Owner: Claude worker on the Windows box, coordinator-assigned. Gap-analysis §3's
+missing Windows receipt: back up the box's host_release DLLs (bak-c34c8aa8eba),
+fast-forward the engine to origin/starling, apply BUILDING.md 1.7 patches,
+rebuild host_release incrementally; build OfficeApp release in the private
+clone `dev/starling-win-native`; compare Windows-native layout with Mac-native
+on welcome/TextEdit/boringcrypto and score a corpus sample in Windows mode
+(bundled fonts). No fidelity rule change unless a Windows-only bug is paired.
+
 ### Cross-platform DOCX status and gap analysis — DONE (release session, 2026-10-28)
 Owner: Codex release/validation session, coordinator/user-requested. Write
 `word-status-gap-analysis-2026-10-28.md` on office: freshest Windows/Mac-mode
