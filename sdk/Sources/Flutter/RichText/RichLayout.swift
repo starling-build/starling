@@ -12463,8 +12463,18 @@ public final class RichLayout {
                     // commas unsqueezed and one starting the next line,
                     // where ours took a 28th with a comma at its half and
                     // ran a page long.)
+                    // (Word for Mac's the same, in a print from a fresh
+                    // Word: zh-c5b5087b's reference (a3304812, its Normal
+                    // `w:eastAsia` en-US, mode 14, kinsoku off) sets every
+                    // "，、。；" from p2 on at its whole em, one opening a
+                    // line. Its older Mac prints squeezed them up to a page
+                    // that moved from session to session — p5, p6, p6, p10
+                    // in four prints — and none past it: Mac Word's own
+                    // language detection tagging the text as it goes, not
+                    // a rule of the file. zh-264d7516, zh-efd9229a and
+                    // zh-51af781b go to their Mac prints with it too.)
                     let windowsMuted: (Int) -> Bool = { o in
-                        RichTextTheme.wordWindowsPages && runRulesOff(o)
+                        runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
                     }
                     let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) }
