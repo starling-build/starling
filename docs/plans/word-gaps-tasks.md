@@ -9315,3 +9315,9 @@ Word for Mac's msyh.ttc (regular = bold but √): □ 1336, ■ 1237, ○ 1237, 
 zh-e0ca7252 itself only 63.3 -> 63.4: its next line ("□3.履約標的…__日（") ends on a "（" in Word's print after two "，" at 13.42 —
 not yet understood. The metrics pair passed; the punctuation follow-up remains open.
 
+
+### Mac-mode residuals, round of 2026-10-29 — CLAIMED (Mac 7bd18d8e, routed by macos)
+- zh-e329b438 (Mac): Mac Word breaks "30" in a narrow cell, ours overflows; lead: Mac-mode digit widths for 標楷體 set in YaHei.
+- zh-167ee06c (Mac 90.2): ours squeezes eight spaces between ideographs in a cell to take a character, Word does not;
+  zh-799c91cd squeezes such spaces (a blanket rule took it 100 -> 98.8). Lab spec to separate them, printed by macos-ios.
+- Then the lowest unclaimed Mac-mode zh documents.
