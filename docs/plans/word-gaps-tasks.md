@@ -9426,7 +9426,13 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - Plain body paragraphs, exact 12pt, SimSun 10.5: baseline 9.65 under the line top (not 13/16 = 9.75).
   - Exact rows, no rules, auto lines: 11.69 under the row top.
   - Exact 20pt rows: 13.61 (15.6 rows: 11.45). So the text centres as (row - line)/2 + 9.65; the offset scales with the room.
-  lenovo-3 has the numbers; lab exline (exact-line baselines by face and size) is next in my queue.
+  lenovo-3 has the numbers.
+(5c) Lab exline (lenovo-3's spec, Windows 01QbbApP), plain body paragraphs, jc left, spacing 0, three per case. On an exact
+  line the baseline is 4/5 of the line down, whatever the face or size: 0.8 x line + 0.05-0.08 (the print's 1/600in offset).
+  - SimSun 10.5/12/16: 9.65-9.68 in 12, 12.85-12.88 in 16, 16.05-16.08 in 20, 24.06-24.10 in 30.
+  - Times New Roman 12: 9.68 / 12.88 / 24.09. 仿宋 12 in 16: 12.90.
+  It is not 13/16 (9.75 / 13.0 / 24.375). zh-1563bd74's 24.4 (16pt in 30) is ~0.35 lower than SimSun 16's 24.06 here,
+  so something else in that document adds it. ~/starling-doc-check/lab/exline.
 (3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
 Windows-mode "needs a lab" notes against the tip:
   - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
@@ -9434,8 +9440,9 @@ Windows-mode "needs a lab" notes against the tip:
     The 宋体 foot (lab footlab), zh-d35cbbdb (labs kai/round), zh-7eba7349/zh-20c1d74a (lab pf), the autoSpaceDN digits
     (windows-1's follow-up) and zh-799c91cd's spaces (lab tbsp) were already answered by labs.
   - PARTLY STALE: zh-1cfb652b's footer number (Mac 01Xgpbk5's 6pt-low note) now stands 0.13 from Word's (788.01 vs 788.14).
-    zh-884c6e3e's is still 5.85 low (796.27 vs 790.42), and zh-4f70ee2d has no number on p1 to compare. Open, low:
-    every line still matches.
+    zh-884c6e3e's "5.85 low" was a measuring ARTEFACT (lenovo-2, glyph by glyph): "- 1 -" is at y 796.32 in both Word
+    prints and 796.27 in ours. Word's PDF also carries a lone 9pt space at 790.3 (the box's anchor paragraph), which a
+    line-grouping read merges with the left-margin number. Nothing to chase. zh-4f70ee2d has no number on p1.
   - ANSWERED, NOT BUILT: T129's heavy line (zh-e1b09977 719/729, zh-5251dd23 549/557, zh-cec9d337 815/821), see 5b.
   - OPEN: zh-b8de3ae2's 0-margin first column, right side (659/726; most misses are its charts, claimed by macos-ios).
     zh-1cfb652b's 9 misses are T229's (topLinePunct, lenovo-2; done since, not in this base).
