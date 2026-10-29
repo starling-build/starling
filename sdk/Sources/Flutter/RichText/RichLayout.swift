@@ -847,6 +847,9 @@ public struct RichResolvedFace: Sendable {
     /// face in another, and measures their line by it: a name Word on a
     /// Mac lacks, set in Microsoft YaHei, draws them from SimSun.
     public var symbolFamily: String? = nil
+    /// Whether a bold run's are `symbolFamily`'s too: not in Word for
+    /// Windows, which sets them in the stand-in's bold.
+    public var symbolsInBold = true
     /// A math face (Cambria Math): its characters past ASCII come from
     /// the platform's math face, set inside the run's line.
     public var setsMath = false
@@ -10195,7 +10198,8 @@ public final class RichLayout {
                 } else if ea, theme.wordRules, let u = ch.unicodeScalars.first?.value,
                           [0x25B2, 0x25B3, 0x25BC, 0x25BD, 0x2605, 0x2606].contains(u),
                           let symbols = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                                            ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.symbolFamily {
+                                                            ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)
+                              .flatMap({ face in face.symbolsInBold || !(run.bold || (named?.char.bold ?? false) && !run.off.contains(.bold)) ? face.symbolFamily : nil }) {
                     // (A triangle or star in a face Word lacks is SimSun's,
                     // and so is its line — circles and squares are YaHei's
                     // own in Word's prints, zh-7dc3afad's ○ and □: lab `tr2`, zh-6cd1befe's "▲" in

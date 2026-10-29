@@ -9495,10 +9495,13 @@ Pair (bundled fonts, same checkout): Windows 93.6 -> 99.1, Mac 94.4 -> 99.8; no 
 (Windows mean 97.927 -> 97.934, Mac 97.557 -> 97.564). Remaining Windows misses p33, p35-37 (landscape tables) are
 matcher artifacts: positions agree within ~0.5pt, only the digit glyph boxes (stand-in vs SimSun) differ.
 
-### T231. zh-f6886fbb: 94.7 against word-win (p7-p8) — CLAIMED (Linux office1, 2026-10-29, macos's Windows-mode round)
+### T231. zh-f6886fbb: 94.7 against word-win (p7-p8) — DONE (Linux office1, 2026-10-29, macos's Windows-mode round)
 p7's "3、“重要程度”…★★★…" (方正楷体简体 bold, eastAsia hint → YaHei Bold): Word steps "★" 9.83 at 12pt and sets
 "“"/"”" a full em with no autospace; ours steps "★" 12.05 and sets the quotes half-width in the Latin face plus
-~5.4 autospace each side. Re-measuring from the earlier released note (zh-f6886fbb, office1).
+~5.4 autospace each side. Re-measured: the quotes were right (full width; the "gap" is the em's blank), the stars were not.
+Fix: Word for Windows sets a bold run's stars and triangles in a face it lacks in YaHei Bold, not SimSun (every regular one in
+word-win is SimSun's); YaHei Bold's "★" is 1678/2048. Pair (bundled fonts, same checkout): Windows 94.7 -> 100.0, nothing else
+moved (mean 97.934 -> 97.941); Mac unchanged (97.564).
 
 ### zh-e329b438 border lab te32 — BUILT, for macos-ios to print when free (Mac 7bd18d8e, 2026-10-29)
 ~/starling-word-check/lab/te32/ (MANIFEST.txt): the label cell "接聽速度30分" with only its own left line changed — sz 4 (0.5pt,

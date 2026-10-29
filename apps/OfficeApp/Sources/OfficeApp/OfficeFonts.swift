@@ -962,8 +962,9 @@ enum OfficeFonts {
         /// face's OS/2 ascent and descent rather than its hhea ones.
         var scaledHeight: Double? = nil
         var scaledBaseline: Double? = nil
-        /// `RichResolvedFace.symbolFamily`.
+        /// `RichResolvedFace.symbolFamily` and `symbolsInBold`.
         var symbols: String? = nil
+        var symbolsInBold = true
         /// Whether its symbols are an em as a square face's, where it has a
         /// table of ASCII widths besides (PMingLiU): nil, as having none.
         var squareSymbols: Bool? = nil
@@ -1862,6 +1863,11 @@ enum OfficeFonts {
         if wordOnWindows, windowsLacks, ignoringEmbedding || !isEmbedded(family) {
             var standIn = yaHei
             standIn.symbols = "SimSun"
+            // (Not in bold: zh-f6886fbb's bold 方正楷体简体 "★★★" is
+            // YaHei Bold's in Word for Windows' print, 9.83 apart at 12pt;
+            // ours, SimSun's, an em, and its line lost "重". Every regular
+            // star and triangle in such a face there is SimSun's.)
+            standIn.symbolsInBold = false
             return standIn
         }
         // (方正小标宋 by its ASCII name is SimSun's, not YaHei's:
@@ -2207,6 +2213,7 @@ enum OfficeFonts {
         face.lacksCompatibilityIdeographs = standIn.lacksCompatibilityIdeographs
         face.fallback = standIn.fallback
         face.symbolFamily = standIn.symbolFamily
+        face.symbolsInBold = standIn.symbolsInBold
         return face
     }
 
@@ -2596,6 +2603,7 @@ enum OfficeFonts {
                 }
             }
             face.symbolFamily = ea.symbols
+            face.symbolsInBold = ea.symbolsInBold
             // (YaHei's ellipsis is its own width, not an em: 0.8135, and
             // 0.9629 in bold, by msyh.ttc and msyhbd.ttc. zh-457a8d62's
             // "……" in 標楷體 runs — YaHei to Word on a Mac — are 13.52pt
@@ -2635,7 +2643,9 @@ enum OfficeFonts {
                                               0x2190: 1, 0x2192: 1, 0x2191: 0.5, 0x2193: 0.5]
                 face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604,
                                       0x25CB: 0.604].merging(circled(1.0)) { $1 }
-                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861].merging(circled(1.0)) { $1 }
+                // (And its bold "★", 1678/2048: zh-f6886fbb's bold
+                // "★★★" steps 9.83 at 12pt in Word for Windows' print.)
+                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861, 0x2605: 1678.0 / 2048].merging(circled(1.0)) { $1 }
                 face.otherAdvances = face.otherAdvances?.merging(shapes) { $1 }
                 face.boldOtherAdvances = face.boldOtherAdvances?.merging(shapes) { $1 }
             }
@@ -2713,6 +2723,7 @@ enum OfficeFonts {
         face.kerns = ea.latinKerns
         face.boldKerns = ea.latinBoldKerns
         face.symbolFamily = ea.symbols
+        face.symbolsInBold = ea.symbolsInBold
         // (YaHei's middle dot, which its table of ASCII widths leaves to
         // the stand-in's: see the East Asian face above.)
         // (And its circled numbers, an em: Word's print of zh-34a6519a sets
