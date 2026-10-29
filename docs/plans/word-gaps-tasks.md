@@ -45,6 +45,56 @@ each measure twips ÷ 20 on its own, column − left + hanging − right, and ta
 fits no more than the first sweep; the float sum fits every print. zh-8d6f702e / zh-5be7e156 (one-twip grid
 question): not answered by this lab — a character grid's cells are not this tie; left for a grid lab.
 
+**Lab wa4 (Word for Windows, 2026-10-28, `lab/wa4`) — the WordArt stroke lab 7bd18d8e asked for.** windows-1's wa3
+(10-25, never reported) put all cases in one document; wa4 is the same cases, ONE per document, each a fresh Word:
+WordWithAttachments' package, mode 14, the 187.5×28.5pt `_x0000_t136` textpath ("Мой текст здесь", Arial Black
+20pt, gradient fill) between 10pt centred markers; marker-to-marker baseline distance, and against a bare
+`v:rect` of the box (`g`, default 0.75pt stroke, 41.52):
+
+| case | distance | vs rect | | case | distance | vs rect |
+|---|---|---|---|---|---|---|
+| no stroke | 40.68 | −0.84 | | 1pt, round joins | 42.96 | +1.44 |
+| 0.5pt stroke | 41.52 | 0.00 | | 4pt, round joins | 70.68 | +29.16 |
+| 1pt | 42.96 | +1.44 | | 1pt, "ОООО" | 41.52 | 0.00 |
+| 2pt | 51.96 | +10.44 | | 1pt, "IIII" | 41.52 | 0.00 |
+| 3pt | 60.24 | +18.72 | | no stroke, "ОООО" / "IIII" | 40.68 | −0.84 |
+| 4pt | 70.68 | +29.16 | | shadow offset 3pt, no stroke | 42.96 | +1.44 |
+| | | | | shadow perspective, no stroke | 42.96 | +1.44 |
+
+Over the unstroked textpath a stroke adds 0.84 / 2.28 / 11.28 / 19.56 / 30.0 at 0.5/1/2/3/4pt — not linear, and
+joins change nothing (so not miter spikes); at 1pt the string decides it (+2.28 for the title, +0.84 for
+ОООО or IIII). Either shadow alone adds 2.28. Not built here: tabled for the WordArt-extent owner.
+
+**Lab q015 (Word for Windows, 2026-10-28, `lab/q015`) — zh-015abfaf's "超”".** p8 cut to start at "着力抓好…" at the
+margin (so its first line is the witness), w:right swept 0…−300 twips by 20, each print a fresh Word. Word sets
+CESI仿宋 as Microsoft YaHei and the Nimbus Roman "”" as Calibri.
+
+| variant | right where 超 is first taken | the line then ends |
+|---|---|---|
+| c as is (Latin "”" after 超) | −120 (refused at −100; at 0 ends "比学赶帮" 520.78, as the reference) | 526.37 "超”", inside the 527.6 margin |
+| n that "”" removed | 0 (taken at once) | 520.54 "超" |
+| e that "”" hint eastAsia (YaHei mark) | −140 (refused at −120) | 535.54, the "”" hung past the 528.6 margin |
+
+So the Latin "”" never hangs and must fit inside; the East Asian one hangs. This is b206d70d's `z01` rule, already
+in. 015abfaf's first miss has moved on (62.7, 16 pages to Word's 15): p10 "17.手工嵌线技能竞赛<tab>+17 spaces（文登区
+开发区）" — Word wraps "区）", ours hangs the "）" (mode 14, useAltKinsokuLineBreakRules, YaHei 16 on a 15.75 grid).
+
+**Lab q17 (Word for Windows, 2026-10-28, `lab/q17`):** that paragraph alone, w:right swept, each a fresh Word.
+Refused at right 0; taken from −2 twips (0.1pt) on, the "）" whole at 512.50–528.46, i.e. hung 6.76 past the
+margin (our positions are Word's to 0.1). An ideograph after the "）" (so not the paragraph's end): the same.
+So Word hangs this "）" up to somewhere in [6.76, 6.86) — not half an em (7.87/8, ours) and not the glyph's blank
+right side (10.45 in YaHei). Not built; the limit wants a second witness (another mark/size) before a rule.
+
+**f39 rule — candidate built, pair RUNNING (not landed).** Patch `~/starling-doc-check/f39-tie-candidate.patch` on the
+Windows box (on a83dbd4d): `_layoutParagraph` computes Word's double sum of the first line's room (column − left +
+hanging − right, each twips ÷ 20) and of the other lines' (no hanging); where it falls under the twip value, the
+painter's 0.001 slack and `_fitEastAsianLines`' `hair`/`edge` (the no-Latin one) become −0.0005 on that line. Single
+document, bundled fonts, host_release bd7be6b10e59: zh-f39e54b6 Windows 94.5 → 95.9, Mac 94.6 → 95.9 (第十四條 ends
+"，按", 第十五條 keeps "查", as both Words). Full pair b=`bin-f39base` (a83dbd4d) vs c=`bin-f39cand`, 756 docs per mode,
+running (`f39b-{win,mac}`, `f39c-{win,mac}` under `~/starling-doc-check`; summary written to `f39-pair.txt` when
+done). Lands only if no document drops. (`~/starling-word-check/lab/tools/sweep*.sh` are not on this box;
+`wn-sweep.sh` drives the same docx-app-render.sh + docx-line-match.py.)
+
 ### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — DONE; one Windows-only bug fixed (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
 Owner: Claude worker on the Windows box, coordinator-assigned. Gap-analysis §3's
 missing Windows receipt: back up the box's host_release DLLs (bak-c34c8aa8eba),
