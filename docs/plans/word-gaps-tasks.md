@@ -373,6 +373,12 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
+### 3-D pie OUTSIDE labels, then lowest unclaimed Mac zh — CLAIMED (Claude, starling-mac-labs, 2026-10-28, user-assigned)
+Owner: Claude worker, clone `starling-mac-labs`, this machine's only Word driver. (1) Mac Word lab
+measuring 3-D pie outside-label distance (share, angle, label size, rotX) and stacking, under
+~/starling-word-check/lab/p3dout; rule, pair, land (zh-27a874b7, zh-d62da4dd, zh-61aaad09). (2) Then the
+lowest unclaimed Mac-mode zh documents from base b2 (9151bb23), skipping reference defects and others' claims.
+
 ### Lowest zh/POI residuals, one at a time — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
 documents per mode at base d0 (ccd66af2, Windows zh 99.3 / POI 89.8, Mac zh 98.5 / POI 90.9), skipping claimed
