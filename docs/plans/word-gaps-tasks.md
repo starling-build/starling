@@ -9433,6 +9433,25 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - Times New Roman 12: 9.68 / 12.88 / 24.09. 仿宋 12 in 16: 12.90.
   It is not 13/16 (9.75 / 13.0 / 24.375). zh-1563bd74's 24.4 (16pt in 30) is ~0.35 lower than SimSun 16's 24.06 here,
   so something else in that document adds it. ~/starling-doc-check/lab/exline.
+(6) Lab p10 (zh-015abfaf p10 "17.手工嵌线技能竞赛<tab> 17 spaces （文登区开发|区）", Windows 01QbbApP; w:right -400..+400 by
+  2, ours on bin-hang alongside; ~/starling-doc-check/lab/p10). THE HANG RULE HOLDS. Word takes "区）" to w:right −2 and
+  "区" alone (no "）") to +156, so "）" hangs 7.85–7.90: grid-hang's 7.874. The "6.8" was the glyph's printed edge.
+  Changing "区" to "甲" or dropping the space run's eastAsia hint changes nothing. The residual is a SQUEEZE: on a line with
+  a tab, "（" right after Latin spaces gives nothing in Word, while ours gives its blank half (7.9) and takes 158 twips sooner.
+  - Same 158 for 12–17 spaces after the tab, and for a wider or narrower tab (± "17.", ± one ideograph before it).
+  - Word squeezes that "（" without the tab (17 and 18 spaces: we match), and after ideographs with the tab (8 ideographs,
+    1 space + 8, 8 spaces + 4 before "（": we match).
+  Candidate next (macos): on a line with a tab, an opening bracket directly after a space does not compress; to pair.
+(7) Lab lh (mixed-line heights, for lenovo-3's zh-7773163d / zh-0978dee9; Windows 01QbbApP; ~/starling-doc-check/lab/lh).
+  zh-0978dee9's package (mode 12, no grid): five lines per paragraph split by <w:br/> (E / E+L / L / L+E / E), plus each face
+  alone. Single spacing: a line is max(ascent) + max(descent) over its faces, per line, by Word's own split:
+  - SimSun and FangSong 1.008/0.288 em, Courier New 0.833/0.300, TNR ~0.936/0.222.
+  - A, SimSun 10 + Courier 10: steps 12.96/11.28/13.08/13.08 (mixed line 13.08, Courier alone 11.33).
+  - B, SimSun 16 + 17: 21.87/22.08/22.08/21.00.
+  - C, 仿宋_GB2312→FangSong 16 + TNR 16: 20.76/19.58/19.68/20.76.
+  At 1.5 lines (auto 360) a line is 1.5 x that, and the extra half goes wholly BELOW the baseline (descent = maxD + H/2):
+  A 19.44/17.88/18.72/19.56 against the model's 19.44/17.87/18.75/19.62; B and C within 0.1. The grid variant says nothing:
+  this package's Normal has snapToGrid 0.
 (3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
 Windows-mode "needs a lab" notes against the tip:
   - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
