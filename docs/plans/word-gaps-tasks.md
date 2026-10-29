@@ -85,14 +85,16 @@ margin (our positions are Word's to 0.1). An ideograph after the "）" (so not t
 So Word hangs this "）" up to somewhere in [6.76, 6.86) — not half an em (7.87/8, ours) and not the glyph's blank
 right side (10.45 in YaHei). Not built; the limit wants a second witness (another mark/size) before a rule.
 
-**f39 rule — candidate built, pair RUNNING (not landed).** Patch `~/starling-doc-check/f39-tie-candidate.patch` on the
+**f39 rule — DONE (next commit), paired.** Patch `~/starling-doc-check/f39-tie-candidate.patch` on the
 Windows box (on a83dbd4d): `_layoutParagraph` computes Word's double sum of the first line's room (column − left +
 hanging − right, each twips ÷ 20) and of the other lines' (no hanging); where it falls under the twip value, the
 painter's 0.001 slack and `_fitEastAsianLines`' `hair`/`edge` (the no-Latin one) become −0.0005 on that line. Single
 document, bundled fonts, host_release bd7be6b10e59: zh-f39e54b6 Windows 94.5 → 95.9, Mac 94.6 → 95.9 (第十四條 ends
 "，按", 第十五條 keeps "查", as both Words). Full pair b=`bin-f39base` (a83dbd4d) vs c=`bin-f39cand`, 756 docs per mode,
 running (`f39b-{win,mac}`, `f39c-{win,mac}` under `~/starling-doc-check`; summary written to `f39-pair.txt` when
-done). Lands only if no document drops. (`~/starling-word-check/lab/tools/sweep*.sh` are not on this box;
+done). **Pair result, 756 per mode, same checkout/engine:** Windows zh 99.2158 → 99.2180, POI 90.0703 unchanged;
+Mac zh 98.6248 → 98.6268, POI 91.1829 unchanged; the one mover either way zh-f39e54b6 (94.5 → 95.9 / 94.6 → 95.9),
+every other document's score identical. Left in f39: its other misses (not looked at). (`~/starling-word-check/lab/tools/sweep*.sh` are not on this box;
 `wn-sweep.sh` drives the same docx-app-render.sh + docx-line-match.py.)
 
 ### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — DONE; one Windows-only bug fixed (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)

@@ -8587,3 +8587,15 @@ with no other document changes; tab indentation remains a separate issue.
   Mac 884c 49.5→100, e0ca 70.5→99.1; Windows identical. zh-b0401810 loses
   one Mac line by cancelling errors (its last row's text had stood 0.5 high,
   hiding a 0.46pt id/number column baseline difference every row has).
+- **A line exactly as wide as its room: Word's double sum decides (2026-10-29).**
+  Word sums a line's room in doubles, each measure in twips made points on
+  its own (÷ 20) — column, less the left indent, plus the hanging one, less
+  the right — and a line needing all of it fits only if that sum reaches its
+  width. 5.4 is not a double, so some indent pairs land a hair short: lab f39
+  (Word for Windows, zh-f39e54b6's package, 62 prints a twip apart in left,
+  hanging and right) parts on exactly that, 441.0 against
+  440.99999999999994; no rounding of the measures to a unit fits. Ours took
+  every such tie (0.001 slack, the fitter's `hair`/`edge`); now a line whose
+  sum falls short refuses it. Pair on the Windows box, 756 documents per
+  mode: zh-f39e54b6 94.5→95.9 Windows (第十四條 sends "日" down, 第十五條
+  keeps "查", as both Words' prints), every other document identical.

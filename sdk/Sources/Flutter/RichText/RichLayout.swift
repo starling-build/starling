@@ -7622,6 +7622,42 @@ public final class RichLayout {
         }
         let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
+        // A line exactly as wide as its room fits or not as Word's sum of
+        // the room comes out: each measure in twips made points on its own
+        // (÷ 20, in doubles) and added — the column, less the left indent,
+        // plus the hanging one, less the right. Where that lands a hair
+        // under the room's true width (5.4 is not a double), the line that
+        // needs all of it does not fit. Lab f39 (Word for Windows,
+        // zh-f39e54b6's package): 第十四條 and 第十五條 need 441.0pt
+        // exactly, their two commas squeezed to half; at left 1026,
+        // hanging 1134, right -108 the sum is 440.99999999999994 and "日"
+        // goes down, at 1023/1131 it is 441 and "查" stays — and 62 prints
+        // over left, hanging and right a twip apart all part on that sum's
+        // side of 441, which no rounding of the measures to a unit does.
+        // Word for Mac's print refuses 第十四條's the same way. The painter's
+        // slack takes the verdict, and so does `_fitEastAsianLines`, whose
+        // `hair` and `edge` would otherwise take such a line.
+        var tieSlack = 0.001
+        var tieShort = (first: false, rest: false)
+        if theme.wordRules, wordList == nil, style.list == nil, !style.rightToLeft {
+            let tw = { (px: Double) -> Int in Int((px / self._px(1) * 20).rounded()) }
+            let w = tw(textWidth + ownLeft + right), l = tw(ownLeft), r = tw(right), h = -tw(lead)
+            let point = { (t: Int) -> Double in Double(t) / 20 }
+            let rest = point(w) + -point(l) + -point(r)
+            tieShort.rest = rest < point(w - l - r)
+            tieShort.first = tieShort.rest
+            if tieShort.rest { tieSlack = -0.0005 }
+            if lead != 0 {
+                let first = point(w) + -point(l) + point(h) + -point(r)
+                tieShort.first = first < point(w - l + h - r)
+                let firstSlack = tieShort.first ? -0.0005 : 0.001
+                // (The first line's room is the painter's width less its
+                // indent box: the box takes what the other lines' slack
+                // gives the first line beyond its own.)
+                lead += _px(tieSlack - firstSlack)
+                _leadWidth[i] = lead
+            }
+        }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
@@ -7690,7 +7726,9 @@ public final class RichLayout {
             // more: zh-ae655121's "(F)＝(D)－(E)", YaHei's widths at
             // 14pt, is 81.8535pt in a cell of 81.85, and Word puts "(E)"
             // on a line of its own; at five thousandths it stayed.)
-            let slack = theme.wordRules ? _px(0.001) : 0
+            // (Less, where Word's sum of the room falls short of it: see
+            // `tieSlack`.)
+            let slack = theme.wordRules ? _px(tieSlack) : 0
             // (A paragraph of pictures, spaces and breaks with a picture
             // wider than the line is laid out as wide as that picture: the
             // engine sets such a picture alone on its line and loses the
@@ -7800,7 +7838,7 @@ public final class RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast)
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, tieShort: tieShort)
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
@@ -11711,7 +11749,7 @@ public final class RichLayout {
 
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
-                                    runsPast: Set<Int> = []) -> [Int: Double] {
+                                    runsPast: Set<Int> = [], tieShort: (first: Bool, rest: Bool) = (false, false)) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
@@ -12013,6 +12051,7 @@ public final class RichLayout {
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
         var lineRaised = false  // a raised number the line opens with (see below)
+        var onFirstLine = true  // the paragraph's first line, which its first-line indent sets
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineEms = 0.0       // … and their ems, summed
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
@@ -12050,7 +12089,11 @@ public final class RichLayout {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0) || wideDot($0)) && !closesUp($0)
             }
             let em = a < ems.count ? ems[a] : 0
-            let hair = min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
+            // (Less than nothing on a line whose room Word's sum puts a hair
+            // short of its width — a line that needs all of it does not
+            // fit: see `tieShort` in `_layoutParagraph`.)
+            let hair = (onFirstLine ? tieShort.first : tieShort.rest) ? -_px(0.0005)
+                : min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
             // (The half em a line takes at most is Word's to a twentieth
             // of a point: 7.12pt over at 14pt is not taken. The widths
             // are the faces' own now, and the hair would take it.)
@@ -12067,7 +12110,11 @@ public final class RichLayout {
             // 7.3232, is not taken by Word — it ends the line at "格",
             // justified.)
             let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !isSpace(units[$0]) }
-            let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045)) : _px(0.0001)
+            // (And less than nothing, as `hair`, where Word's sum of the
+            // room falls short of it: zh-f39e54b6's 第十四條 sends "日"
+            // down that starts exactly half of "按" inside — `tieShort`.)
+            let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045))
+                : (onFirstLine ? tieShort.first : tieShort.rest) ? -_px(0.0005) : _px(0.0001)
             // (Under `w:kinsoku` 0 a closing mark that closes up with the one
             // after it, which may start the next line, ends this one at its
             // whole width: the pair is parted, and the half it gave is the
@@ -13072,6 +13119,7 @@ public final class RichLayout {
                 if fits {
                     // The line is full: whatever comes next starts another.
                     x = width
+                    onFirstLine = false
                     marks = []
                     spaces = []
                     wordSpaces = []
@@ -13095,6 +13143,7 @@ public final class RichLayout {
                     adjust[last - 1, default: 0] -= min(after, w - width + 0.02)
                 }
                 x = 0
+                onFirstLine = false
                 marks = []
                 spaces = []
                 wordSpaces = []
@@ -13193,6 +13242,7 @@ public final class RichLayout {
             if after > 0 { spaces.append(last - 1) }
             if piece.hard {
                 x = 0
+                onFirstLine = false
                 marks = []
                 spaces = []
                 wordSpaces = []
