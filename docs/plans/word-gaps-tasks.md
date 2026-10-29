@@ -9348,8 +9348,40 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
 
 ### Windows-mode Word labs, round of 2026-10-29 — CLAIMED (Windows 01QbbApP, routed by macos)
 (1) Grid lab for zh-8d6f702e p38 and zh-5be7e156 p2, the one-twip question: how Word sums a gridded line's widths (labs twip/twip2 left it open).
+    Lab g2 (Windows 01QbbApP; zh-5be7e156's package, plain ideographs, cell 15.4 + cs/4096 on 8 charSpace sections, right indent
+    -10..+10 twips by 1). In mode 14 Word keeps the C-th character at the exact tie and drops it at +1 twip on every grid,
+    so the room is whole cells less the indents with no tolerance. In mode 15 nothing drops within ±10 twips: the column
+    is not rounded to cells. So twip2's one-twip gaps come from the marks and Latin on those lines, not from the cell sum.
+    q18 (task 2) found the limit: Word takes a line-end "）" while it hangs no more than half its grid advance (em + the
+    grid's addition): 7.874 at 16pt with cs -1032, 5.874 at 12pt, 7.756 at -2000, 8.0 at 0, 8.122 at +1000; off the grid
+    it is half the em. The fix is being built.
 (2) zh-015abfaf p10 "）": Word's hang limit [6.76, 6.86) against our half an em. Needs a second witness, another mark or size, before a rule (lab q17 follow-up).
 (3) Triage of the board's older Windows-mode "needs a lab" notes; stale ones closed.
+(4) Lab p13 (zh-505b9619 p13 "…為3日）。", macOS-doc's spec 608f742b) — MEASURED (Windows 01QbbApP). ~/starling-doc-check/lab/p13:
+the paragraph alone in its package, a `<w:br/>` after line 1's "單" so line 2 is always "線通車（未載明者為8小時），   日內全線
+通車（未載明者為3", w:right stepped by 4 or 8 twips, each variant in a fresh Word. Variants: a as is, s without the three
+spaces, k with "（…8小時）"'s brackets as "某", sk both, m every mark before "日）。" as "某", ms that without spaces. The room
+(margin less line 2's start, 133.22) at which Word first takes "日）。" (and leaves it 0.2–0.4 below):
+a 403.18, s 377.98, k 411.98, sk 386.38, m 416.98, ms 391.98. Nominal (ideograph 14, digit 7, space 7, autospace 3.5,
+mark a full em, "。" hanging) is 427 with spaces and 406 without. So the give is a 23.9, s 28.2, k 15.2, sk 19.8, m 10.2, ms 14.2:
+  - The last "）" before the hanging "。" gives 10.2 (m), and "。" hangs whole.
+  - "，" and the second "（" (both between ideographs) give 5.0 together (k − m), or 5.6 without spaces.
+  - The first "（" and the "）" against "，" give 8.7 (a − k).
+  - The spaces give nothing in any variant (printed 6.96–7.10 on every taken line).
+  - The four autospaces around "8" and "3" give ~1.0 each (4.0–4.6 in total) only when the line has no spaces; with spaces
+    they print at their full 3.4–3.5.
+  - The taken last line itself is laid out much tighter than the decision: "（" 7 (its blank half gone), "）" 3.6, "，" 10.7;
+    that leaves 13.7 of slack in a.
+  At w:right 0 the room is 399.78, 3.3 short of a's 403.18, so Word leaves p13 as its print shows. Ours (cd63f54b's rule:
+  spaces give nothing, marks give) counts 35 of mark room against 13.15 over. Word's four marks before "日" give about
+  13.7 here, so ours counts each mark's whole blank half where Word allows about 2.5–3.5 for a mark between ideographs.
+(5) Lab cellmid (lenovo-3's spec f2ea0813, zh-b0401810) — MEASURED (Windows 01QbbApP), sent to lenovo-3.
+~/starling-doc-check/lab/cellmid: 3 rows of exact 15.6, vAlign center, exact 12pt lines, SimSun 10.5 "148". Baseline below
+the middle of the row's top rule: (a) tblBorders sz 8 11.40; (b) the same as tcBorders 11.40; (c) sz 6 11.40;
+(d) no rules: 11.45 below the row top; (e) atLeast rows 11.88/11.88/12.00, the rows grow to 16.56 = 15.6 + the rule;
+(f) auto lines 12.12. Each row's top rule is drawn inside the row, from its top edge (+0.05 in the print). The text
+centres in [row top + top rule's width, row bottom]: half the rule over the cell, nothing for the rule under it, since
+that rule is the next row's top and the table's last bottom rule is drawn below the last row.
 
 ### T229. `w:topLinePunct` on every line, not just the first — CLAIMED (Linux lenovo-2 01BR2wHn, 2026-10-29, macos's Mac-mode round)
 zh-1cfb652b (Mac 90.9): its body paragraphs carry `w:topLinePunct` under `characterSpacingControl doNotCompress`. Both
