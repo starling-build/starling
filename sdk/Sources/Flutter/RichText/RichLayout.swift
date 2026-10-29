@@ -7706,12 +7706,27 @@ public final class RichLayout {
         // lower down, stood 21.5pt where Word's is 20.4.)
         let spacedOver = theme.wordRules && style.lineHeightPoints == nil
             && (style.lineSpacing > 1.2 || document.usesEastAsianLayout)
+        // (A larger number's height over the first line, where the
+        // paragraph keeps its strut: see `laidOut`.)
+        var numberLift = 0.0
         func laidOut(_ span: TextSpan) -> TextPainter {
+            let rises = Self._risesForNumber(inline)
+            numberLift = 0
+            // (A number larger than its text lifts the first line alone;
+            // every line keeps the paragraph's strut, and the first is set
+            // as much lower as the number's box takes it. zh-7773163d's
+            // "●案例" headings, 18pt text under a 20pt bullet at 1.3 lines,
+            // stand 27.3pt apart after the first in Word's print, as
+            // without the bullet; with the strut dropped for the box, every
+            // line was the fallback face's own, 29.1. The engine's forced
+            // strut does not see the box, so its lift is measured from a
+            // layout without the strut.)
+            let strut = picturesInLine ? nil : _strut(span, near: spacedOver)
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
                 textDirection: style.rightToLeft ? .rtl : .ltr,
-                strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span, near: spacedOver)
+                strutStyle: strut
             )
             // (Word's lines keep the fraction of their height: a 12pt
             // PMingLiU line is 15.61pt, 1332/1024 em, and zh-de3410bd's
@@ -7761,6 +7776,21 @@ public final class RichLayout {
                painter.computeLineMetrics().count > 1 {
                 let whole = painter.maxIntrinsicWidth.rounded(.up) + 1
                 if whole > lineWidth { painter.layout(minWidth: whole, maxWidth: whole) }
+            }
+            if rises, strut != nil, let first = painter.computeLineMetrics().first {
+                let free = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                free.fractionalLineHeights = painter.fractionalLineHeights
+                free.setPlaceholderDimensions(inline.map { $0.dimensions })
+                free.layout(minWidth: painter.width, maxWidth: painter.width)
+                // (A paragraph of one line is that line, as without the
+                // strut: zh-76700e5f's "5.3 制棒" headings, 1.3pt deeper
+                // held to it and lifted, set what followed that much low.)
+                if painter.computeLineMetrics().count == 1 {
+                    painter.dispose()
+                    return free
+                }
+                if let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
+                free.dispose()
             }
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
                 let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
@@ -8112,6 +8142,15 @@ public final class RichLayout {
                 }
                 _inkShift[i] = _px(target) - line.baseline
             }
+        }
+        // (The number's lift sets the first baseline no higher than the
+        // layout without the strut does, over whatever baseline the text
+        // was given above — not on top of it: zh-76700e5f's "5.3 制棒"
+        // headings stood a point under Word's with both.)
+        if numberLift > 0.001 {
+            let extra = max(0, numberLift - _inkShift[i])
+            _inkShift[i] += extra
+            segoeLift += extra / _px(1)
         }
         if i < _overhang.count {
             _overhang[i] = 0

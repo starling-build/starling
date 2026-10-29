@@ -523,7 +523,7 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
   stand between ideographs give nothing": 167ee06c 90.2 -> 99.2, but zh-799c91cd 100 -> 98.8 in both modes
   (p1 "…為授權代表人為代表" — Word takes "負"/"責" there with such spaces giving). Not a rule; needs a lab on
   balanced spaces between ideographs (space count, over, Mac vs Windows). Pair d1 -> d2, reverted.
-- **zh-7773163d Windows (83.3 on Linux; 95.4 on the Mac host) — CLAIMED (Linux fidelity worker, 2026-10-28): building the rise-on-line-1-only fix.** Every
+- **zh-7773163d Windows — DONE (Linux fidelity worker, 2026-10-29): 83.3 -> 95.6 on Linux; Mac mode 93.6 -> 94.2.** A paragraph whose list number rises over its text now keeps its strut on every line; the first line is set as low as the strut-less layout puts it (an extra, not added to the baseline the text already gets), and a one-line paragraph keeps the old strut-less layout (zh-76700e5f's "5.3" headings dropped 99.7->65.6 without that). Pair e0/e3 on this checkout, engine-validation-20261028 host_release, bundled fonts: Windows no other document moved; Mac no drops. History below: Every
   "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
   apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
   the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
