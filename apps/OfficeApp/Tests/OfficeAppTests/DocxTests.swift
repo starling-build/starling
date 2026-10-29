@@ -3557,7 +3557,9 @@ final class DocxTests: XCTestCase {
         // 25 characters of 14pt (12 here: 300pt) and "維" 5 over.
         XCTAssertGreaterThan(try firstLineWidth(text, width: 307, language: "zh-TW"), 306, "taken, the colon giving")
         XCTAssertLessThan(try firstLineWidth(text, width: 307, language: "x-none"), 301, "left: under no language the colon gives nothing")
-        XCTAssertGreaterThan(try firstLineWidth(text, width: 307, language: "en-US"), 306, "en-US gives as before: zh-c5b5087b")
+        // (Nor under en-US, now in Word for Mac as in Windows: zh-c5b5087b's
+        // print from a fresh Mac Word sets its en-US body's marks whole.)
+        XCTAssertLessThan(try firstLineWidth(text, width: 307, language: "en-US"), 301, "en-US gives nothing either: zh-c5b5087b")
     }
 
     func testAHintedDegreeSignInSongTiIsAnEm() throws {
@@ -4203,9 +4205,12 @@ final class DocxTests: XCTestCase {
             let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
             layout.width = 300
             layout.ensureLaidOut(back)
-            let lines = layout.geometry(0).painter.computeLineMetrics()
+            // (The lift is the paragraph's ink shift: its lines keep the
+            // strut, zh-7773163d's "●案例" headings.)
+            let geometry = layout.geometry(0)
+            let lines = geometry.painter.computeLineMetrics()
             XCTAssertGreaterThan(lines.count, 2)
-            return (lines[0].baseline / theme.pixelsPerPoint, (lines[1].baseline - lines[0].baseline) / theme.pixelsPerPoint)
+            return ((lines[0].baseline + geometry.inkShift) / theme.pixelsPerPoint, (lines[1].baseline - lines[0].baseline) / theme.pixelsPerPoint)
         }
         let plain = try baselines(numberSize: nil)
         let larger = try baselines(numberSize: 14)
