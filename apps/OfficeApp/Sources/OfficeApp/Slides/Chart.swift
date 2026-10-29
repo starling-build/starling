@@ -212,6 +212,11 @@ struct Chart: Equatable {
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
     var pieTilt: Double? = nil
+    /// A 3-D pie's turn (`c:view3D/c:rotY`, degrees): its first slice
+    /// starts that far clockwise from twelve o'clock. Lab p3dfit (Word for
+    /// Mac, zh-27a874b7's chart 2): a slice turned by it to three or nine
+    /// o'clock prints there, its label with it; ours started at twelve.
+    var pieTurn = 0.0
     /// How far a 3-D pie's slices are pulled out (`c:explosion`, the
     /// largest of the series' and its points'), as a fraction of the
     /// radius: the pie is that much smaller, to leave them room.
@@ -1529,6 +1534,7 @@ enum ChartXML {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
             // and with 15, and fits them otherwise at 30 and 60.)
             c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15
+            c.pieTurn = chart.first("c:view3D")?.first("c:rotY")?["val"].flatMap(Double.init) ?? 0
             let pulls = el.all("c:ser").flatMap { ser in
                 ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
             }
@@ -4347,7 +4353,7 @@ extension ChartPainter {
         let centre = at(0, 0)
         // The slices, clockwise from twelve o'clock.
         var slices: [(from: Double, to: Double, color: Color, value: Double)] = []
-        var angle = -Double.pi / 2
+        var angle = -Double.pi / 2 + c.pieTurn * .pi / 180
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
             slices.append((angle, angle + sweep, c.pointColor(i, accents: theme.accents), v))
@@ -4410,17 +4416,12 @@ extension ChartPainter {
         let rx = (at(0).dx - at(.pi).dx) / 2, ry = (at(.pi / 2).dy - at(-.pi / 2).dy) / 2
         if var l = c.pieLabels {
             var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
-            var a = -Double.pi / 2
+            var a = -Double.pi / 2 + c.pieTurn * .pi / 180
             for (i, v) in values.enumerated() where v > 0 {
                 let sweep = v / sum * 2 * .pi
                 placed.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
                 a += sweep
             }
-            // (A best fit on a 3-D pie is inside each slice, in the
-            // labels' own colour: the survey's. Not where the file moves
-            // them: 45544's moves are from beside the pie, where Excel
-            // prints them.)
-            if l.fitted, l.moves.isEmpty { l.outside = false }
             _pieLabels(c, l, canvas, frame: frame ?? plot, slices: placed, centre: centre, rx: rx, ry: ry, inner: 0,
                        k: k, theme: theme, ink: ink ?? theme.text,
                        // (From outside, a front slice's edge is its wall's foot:
@@ -4552,6 +4553,35 @@ extension ChartPainter {
             // "文化"'s from beside its slice in both.)
             let insideAt: Double? = {
                 guard l.fitted, l.outside, inner == 0, l.moves[s.index] == nil else { return nil }
+                // (On a 3-D pie its text's own box, no margin, within its
+                // slice's wedge of the top face as the eye sees it, as far
+                // out along the slice's middle as it fits: lab p3dfit
+                // (Word for Mac, zh-27a874b7's chart 2, rotX 30, the probe's
+                // label alone, 32 x 36pt) — inside from 15% at three and
+                // nine o'clock, 0.78 of the radius out, from 6% at six and
+                // from 12% at twelve, 0.52 out; all 32 of its decisions
+                // this test's. A one-line label stands 0.84-0.89 out.
+                // Before, every label of an unmoved 3-D pie stood inside.)
+                if let point {
+                    let tw = tp.width, th = tp.height
+                    let a0 = s.mid - share * .pi, a1 = s.mid + share * .pi
+                    let n = max(4, Int((a1 - a0) / (.pi / 180)))
+                    let wedge = [point(0, 0)] + (0 ... n).map { point(a0 + (a1 - a0) * Double($0) / Double(n), 0.9999) }
+                    func contains(_ q: Offset) -> Bool {
+                        var inside = false
+                        var j = wedge.count - 1
+                        for i in 0 ..< wedge.count {
+                            let p1 = wedge[i], p2 = wedge[j]
+                            if (p1.dy > q.dy) != (p2.dy > q.dy), q.dx < (p2.dx - p1.dx) * (q.dy - p1.dy) / (p2.dy - p1.dy) + p1.dx { inside.toggle() }
+                            j = i
+                        }
+                        return inside
+                    }
+                    return stride(from: 0.98, through: 0.0, by: -0.02).first { f in
+                        let c0 = on(s.mid, f)
+                        return [(-tw / 2, -th / 2), (tw / 2, -th / 2), (-tw / 2, th / 2), (tw / 2, th / 2)].allSatisfy { contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }
+                    }
+                }
                 let half = share * .pi
                 return stride(from: 0.6, through: 0.3, by: -0.05).first { f in
                     let c0 = on(s.mid, f)
