@@ -39,6 +39,11 @@ names before editing; don't edit mine, and don't build in `starling-win-native` 
 - **Compare.** `python -I wn-mean.py NEW.match OLD.match`: zh/poi means, ≥95 and page-equal counts, movers ≥0.05.
 - Windows-host scores differ from Mac-hosted Windows mode (e.g. zh-6a4fc013, Thai); pair on one host only.
 
+### zh-8d6f702e (Windows mode 90.8, 42 pages): first cause of its misses — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
+Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows-mode scores only (word-win). Lab g2 says plain
+ideographs on its grid are exact, so the one-twip misses are looked for in the marks and Latin on those lines. Word labs via
+`windows`. Pair in both modes, 756 docs, same base and host, before landing.
+
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
 (stroke 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, joins nothing, text matters, either shadow +2.28). (2) POI `rtl`
