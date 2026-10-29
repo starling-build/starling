@@ -266,8 +266,13 @@ paired in both modes.
 ### Lowest zh/POI residuals, one at a time — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
 documents per mode at base d0 (ccd66af2, Windows zh 99.3 / POI 89.8, Mac zh 98.5 / POI 90.9), skipping claimed
-items, reference defects, lab-pending items and iOS. Working now: **zh-57f1de0d Mac (78.9)** — the
-uncompressed-embedded-face rule is Windows-gated, but Mac Word's print breaks the same lines. Same pinning as §4.
+items, reference defects, lab-pending items and iOS. Same pinning as §4.
+
+- **zh-57f1de0d Mac — DONE (next commit).** The uncompressed-embedded-face rule (Word probes 「 in the
+  embedded face; mapped to a zero advance, no mark there compresses) was gated to Word for Windows; Mac Word's
+  print breaks the same p1 lines ("…世界文" / "化遗产区…", 》 and ： whole). Gate dropped. Pair d0 -> d1, both
+  modes, 756 docs each, none missing: Mac zh-57f1de0d 78.9 -> 94.4 (894 -> 1069/1133 matched), nothing else moved
+  in either mode. Left: p28 "…互动；", Windows' own residual.
 
 ### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full

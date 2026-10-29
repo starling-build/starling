@@ -11785,12 +11785,13 @@ public final class RichLayout {
             guard wordRules, o >= 0, o < runOf.count else { return false }
             return !Self._eastAsianLineRules(p.runs[runOf[o]].style, document, named: lineStyle)
         }
-        // (Nor a mark in a face Word compresses nothing in, in Word for
-        // Windows: `RichDocument.uncompressedFaces`. zh-57f1de0d's 》 and ：
+        // (Nor a mark in a face Word compresses nothing in:
+        // `RichDocument.uncompressedFaces`. zh-57f1de0d's 》 and ：
         // stay whole in its embedded 方正仿宋_GBK where ours gave 2.65 each
-        // and took "化"; the gaps beside its digits still give.)
+        // and took "化"; the gaps beside its digits still give. Word for
+        // Mac too: its print breaks the same lines, 78.9 -> 94.4 there.)
         let uncompressed: (Int) -> Bool = { o in
-            guard RichTextTheme.wordWindowsPages, !document.uncompressedFaces.isEmpty, o >= 0, o < runOf.count else { return false }
+            guard !document.uncompressedFaces.isEmpty, o >= 0, o < runOf.count else { return false }
             let style = p.runs[runOf[o]].style
             guard let face = style.eastAsiaFontFamily ?? lineStyle?.char.eastAsiaFontFamily ?? self._normalChar(document)?.eastAsiaFontFamily else { return false }
             return document.uncompressedFaces.contains(face)
