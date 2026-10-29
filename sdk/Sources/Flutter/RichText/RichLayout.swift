@@ -12432,7 +12432,16 @@ public final class RichLayout {
                     // margin — and never hangs the 6.57pt "”"; ours hung it and
                     // took the pair 6pt further. Mode 15 takes it further.)
                     && !(legacy && squeezes && document.hangsHalf && (units[tail] == 0x201D || units[tail] == 0x2019) && !wideQuote(tail))
-                    ? (closesUp(tail) || document.hangsHalf || closedUpTo ? min(ems[tail] * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
+                    // (Half the mark as the grid of characters sets it, its
+                    // em and the grid's addition, under the alternative
+                    // kinsoku rules: lab q18 (Word for Windows, zh-015abfaf's
+                    // package, mode 14, a line of ideographs and "）" with its
+                    // right indent stepped by two twips) takes the mark while
+                    // it hangs 7.874 at 16pt with charSpace -1032, 5.874 at
+                    // 12pt, 7.756 at -2000 — never the em's 8 or 6; off the
+                    // grid 8 and 6.)
+                    ? (closesUp(tail) || document.hangsHalf || closedUpTo
+                       ? min((ems[tail] + (document.hangsHalf && tail < runOf.count && !runsOffGrid[runOf[tail]] ? gridAdd : 0)) * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
                 // (From 2013's layout, where marks are compressed, the
                 // paragraph's last mark hangs only once the line's marks,
                 // itself among them, and its automatic spaces cannot give
