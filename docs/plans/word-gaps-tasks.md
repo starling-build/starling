@@ -3314,6 +3314,10 @@ After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout
 Shapes inside a VML `v:group` draw only their text — no outlines, fills or arrows (zh-6e6b9821, 5e452e14). Checked by eye against Word's prints, plus a pair sweep.
 
 ### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: 99.7; zh-6d402586 91.3 -> 96.7, zh-2e7ef069 90.0 -> 92.8, nothing down (pair n5/n6). Released]
+- Windows 95.6 (2026-10-29): CLAIMED Linux lenovo-2 (starling-d6), macos's Windows-mode round. Every page from p10 misses its
+  eaVert page-number box (footer2, 47.3pt inside): " - 10 -" in SimSun 14pt is 49pt, and Word keeps it on one line, its two
+  inner spaces 6.1 for 7 (mode 14, balanceSingleByteDoubleByteWidth); ours wraps the leading space to a column of its own.
+  The fitter returns before it looks: no marks, no automatic spaces, and spaces give only from mode 15.
 Its landscape pages number themselves in an `eaVert` box at the page's left ("- 33 -" reads down in Word's print); ours set it across. Also moves zh-2e7ef069, zh-6d402586 (its "通知書一式兩聯…" side box, not the 附件 boxes Windows holds), zh-6cd1befe.
 
 ### Note from the Mac (2026-10-23): the zh corpus is 645 documents — a thirtieth sample, of 400-800 KB
