@@ -461,10 +461,29 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
-### Chart residuals from 82771ef6 — CLAIMED (Mac 01Xgpbk5, 2026-10-29, routed by starling-bd)
+### Chart residuals from 82771ef6 — (1) title line + (2) faces DONE; (3) in hand (Mac 01Xgpbk5, 2026-10-29, routed by starling-bd)
 (1) zh-b8de3ae2 p9/p12: the plot area is 4pt higher than in Word's print; (2) a chart run's explicit East Asian face
 (PMingLiU titles, DengXian-Bold pie labels in zh-b8de3ae2) is ignored; (3) zh-61aaad09's data-table header "投诉举报总量"
 wraps 总|量 in Word's print, not in ours. Then (b), crowded outside labels, if tractable. Mac mode first, paired in both.
+- (2) DONE. Labs in ~/starling-word-check/lab/ctitle, 15 prints in fresh Mac Word. Where the theme's `a:ea` is "", Word
+  for Mac picks a chart run's CJK face from the theme's per-script list by the run's `lang`:
+  - zh-TW/HK/MO → the Hant face (新細明體 → PMingLiU);
+  - untagged or zh-CN → the Hans face (宋体 → SimSun; the chart part's themeOverride first, zh-b8de3ae2's pies' 等线 →
+    DengXian);
+  - en-US-tagged CJK → YaHei (NOT built yet).
+  A paragraph's end mark does not count (zh-b8de3ae2's axes, `endParaRPr lang="zh-TW"`, are SimSun).
+  `Chart.macSimplifiedFace`/`macTraditionalFace`/`titleTraditional`, `PieLabels.traditional`.
+- (1) DONE for 2-D titles. A CJK chart title stands on its face's East Asian line, the body's `EastAsianFace`:
+  SimSun 1.293 em, baseline 1.017 under the line's top; YaHei 1.72 and 1.27; PMingLiU's baseline 0.95. We had set it
+  on SimSun's bare em, its plot 3.3pt high at 14pt and 4.8 at 24pt; now within 1.1pt, as the Latin controls are.
+  Also: an axis title in the file's `sz` (千元 10pt; ours took 13.3).
+  Left: (i) a shared ~1pt — titled charts' plots 1.0-1.2 high and titles 0.6 high, Latin and CJK alike;
+  (ii) an UNTITLED chart's plot sits 4.2pt LOW (lab ctitle t-none);
+  (iii) zh-b8de3ae2's 3-D column plot box is bigger than Word's: the front plane is 423 x 176.7 in Word's print and
+  448.6 x 182.6 in ours, though the depth offsets match (dy 10.0/10.15, dx 11.6/12.6). Word leaves 24.4pt at the
+  right to our 13.4, and sets the axis title 25pt in from the frame to our 10.
+- Pair w61/w62 + n232/n233 (both modes, bundled, base 9e270b53): Windows zh-b8de3ae2 91.6 -> 91.9; Mac
+  zh-13d11e99 99.5 -> 100, zh-b8de3ae2 81.2 -> 82.1; nothing else moved.
 
 ### 3-D pie OUTSIDE labels, round 2 — (c), (d) and chart SimSun DONE; (a), (b) RELEASED (Mac 01Xgpbk5, 2026-10-29, routed by macos)
 zh-27a874b7, zh-d62da4dd, zh-61aaad09, Mac mode first. From p3dout's open findings: (a) tall labels the frame clamps slide
