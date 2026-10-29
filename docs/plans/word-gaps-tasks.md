@@ -255,6 +255,14 @@ shared engine host_release_arm64, both modes, OFFICE_FONT_SOURCE=bundled.
   inside/outside per probe and its centre. That bounds the threshold
   (angle vs label size) before any rule; no threshold is fitted to one chart.
 
+### Mac Word labs for c5b squeeze and 3-D pie best fit — CLAIMED (Claude, starling-mac-labs, 2026-10-28)
+Owner: Claude worker, clone `starling-mac-labs`, branch `office`, user-assigned;
+this machine's only Word driver. Runs the two lab specs above (c5b, 3-D best
+fit) in freshly launched Mac Word, lab files under ~/starling-word-check/lab/
+{c5bsq,p3dfit}; results tabled here before any code; then the rules they
+support for zh-c5b5087b and zh-27a874b7 / zh-d62da4dd / zh-61aaad09 labels,
+paired in both modes.
+
 ### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
 mac-simhei-border audit gives141/173 (81.50%) on Mac. Grepped all12 board
