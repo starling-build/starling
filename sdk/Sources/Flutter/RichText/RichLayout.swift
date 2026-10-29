@@ -2675,7 +2675,12 @@ public final class RichLayout {
                     // leaves for p3. Not one the cells state for themselves:
                     // zh-5c6ff0d7's, under no table line, stays inside as
                     // the Mac's does, and its note keeps its page.)
-                    let tableLine = RichTextTheme.wordWindowsPages && below > 0
+                    // (Word for Mac too: zh-884c6e3e's fresh Mac print sets the
+                    // text after each such table about the line lower, and its
+                    // p2 leaves "房交付之月…" for p3. The Mac's lab `rb`,
+                    // which kept a single line inside, ruled its cells, not
+                    // the table.)
+                    let tableLine = below > 0
                         && !(k0 ..< j).contains { Self._cellSide(document.paragraphs[$0].cell?.bordersXML, "bottom") != nil }
                     let hung = exact && lastRow && (below > _px(1) || tableLine) ? below : 0
                     // (An exact one is that tall and its cells' bottom margin
@@ -12349,6 +12354,14 @@ public final class RichLayout {
                 // keep their hang and squeeze.)
                 let squeezedFirst: Bool = {
                     guard hung > 0, over > hung + 0.0001, squeezes, paragraphEnd, !legacy, !inCell, !document.hangsHalf else { return false }
+                    // (Not a Latin ")" or ",": it gives nothing, so it hangs
+                    // whole and the rest is weighed as any line's.
+                    // zh-e0ca7252's fresh Mac print (mode 15) takes
+                    // "…免載於招標文件)" 14.25pt over, three marks able to give
+                    // 20.6: its ")" hung, "件" needs 9.8, which the share test
+                    // takes; held to the whole 14.25 it refused, and p26 on
+                    // ran a line late.)
+                    guard !(latinComma && units[tail] < 0x2E80) else { return false }
                     let muted: (Int) -> Bool = { o in
                         RichTextTheme.wordWindowsPages && runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))

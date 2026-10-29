@@ -8574,3 +8574,16 @@ with no other document changes; tab indentation remains a separate issue.
   Windows geometry is unchanged. Native controls and full browser gates pass.
   Unformatted-break defaults, SimSun precision and unembedded CJK browser
   fonts remain separate measured gaps.
+
+- **Mac table closing line and a paragraph-final Latin ")" (2026-10-28).**
+  Word for Mac, like Word for Windows (eba13300), hangs a table's own single
+  bottom line (`w:tblBorders`) under an exact last row: zh-884c6e3e's fresh
+  Mac print sets the text after each such table ~0.45pt lower and leaves p2's
+  fourth line for p3. Lab `rb`, which kept the line inside, ruled its cells.
+  And from 2013's layout a paragraph's last character that is a Latin ")" or
+  "," hangs whole before the line's marks are weighed: `squeezedFirst` no
+  longer holds it to the whole over (zh-e0ca7252 "…免載於招標文件)", 14.25
+  over, marks 20.6: Word takes it). Pair b0→c1, 756 documents per mode:
+  Mac 884c 49.5→100, e0ca 70.5→99.1; Windows identical. zh-b0401810 loses
+  one Mac line by cancelling errors (its last row's text had stood 0.5 high,
+  hiding a 0.46pt id/number column baseline difference every row has).

@@ -195,6 +195,66 @@ No Word driving: existing lab PDFs and references only; a rule that needs a new
 Word lab gets its spec written here and I move on. Baseline b0 on abd0eda7,
 shared engine host_release_arm64, both modes, OFFICE_FONT_SOURCE=bundled.
 
+**Findings (2026-10-28):**
+- zh-884c6e3e (Mac 49.5): the p2 foot is not scale. The fresh Mac print sets
+  the text after each `w:tblBorders`-ruled table of exact rows ~0.45pt lower
+  than ours (title-to-title over table 1 + table 2, solved for the table's
+  extra: 0.44, the print's 0.24pt raster aside) — Word for Mac, like Windows
+  (eba13300), hangs the table's own single bottom line under an exact last
+  row. Lab `rb`, the reason it was Windows-only, ruled its CELLS (tcBorders, no
+  tblBorders), which the rule already leaves inside. Candidate: drop the
+  `wordWindowsPages` gate on `tableLine`.
+- zh-e0ca7252 (Mac 70.5): from p26 on a line late. "…免載於招標文件)" ends the
+  paragraph 14.25 over with three marks able to give 20.6; Mac Word takes
+  "件)" (")" 0.25 past). Ours refused: `squeezedFirst` held the Latin ")" to
+  the whole over, so the mode-15 share test saw 14.25 instead of 9.77 (")"
+  hung). Candidate: `squeezedFirst` does not apply to a Latin ")"/"," tail
+  (`latinComma`, < U+2E80). (Mac Word's PDFs set 14pt as 13.92 and 16 as
+  16.08 — a 0.24pt size raster in the print only: advances stay 14.00 on
+  unjustified lines, so not a layout rule.) The "○1" misses are EQ `\o\ac`
+  text-layer artefacts (we draw ①, Word's PDF says "○" + "1").
+- Focused 53 documents (targets, table-line and squeeze witnesses, all 36
+  kinsoku-0 documents), both modes: 884c 49.5→100, e0ca 70.5→99.1, nothing
+  else moved; Windows identical.
+- **DONE (both candidates, one commit): full pair b0→c1**, same checkout
+  and engine, unchanged sweep.sh/sweep-win.sh, 756 documents per mode, none
+  missing, no page changes. Mac zh 98.3→98.4 (610→612 at ≥95%): zh-884c6e3e
+  49.5→100, zh-e0ca7252 70.5→99.1. Windows (zh and POI) and Mac POI: every
+  document identical. Exact audit: zh-b8de3ae2 and zh-340d52e9 change our line
+  count only, matched lines unchanged. **zh-b0401810 Mac −1 line (159→160
+  missed), the cancelling-errors exception:** its p19 table's last row's
+  text stood 0.5pt high in b0 (only that row), which happened to match
+  Word's 0.96pt offset between the id column ("158") and the number column
+  ("100000151"); c1 sets the row like the others (id 0.22 from Word's, was
+  0.28). **Uncovered error, OPEN:** in every row of that table ours sets the
+  number column 0.5 below the id column where Word sets 0.96.
+  Remaining e0ca misses: the "○1" EQ text-layer artefacts (p6, p20) and a
+  few later lines. Lab specs below stand for c5b and the 3-D pies.
+- zh-c5b5087b (Mac 26.7): line 1 of "第一条" ends "…县人民政府对" with "粮" 5.75
+  over and a "，" that could give 8 (trace: STARLING_RICHTEXT_FIT). Its fresh
+  print (a3304812) refuses it. TRIED, REJECTED: in Mac mode a kinsoku-0
+  paragraph's pause marks give nothing — c5b 26.7→40.6 but zh-2a241df1
+  100→7.6, zh-72da925e 87.5→11.2, zh-cec9d337 99.9→46.0, zh-8628cfbe, zh-9e08ed28,
+  zh-b00fef0d, zh-c6da60a9 and six more down. Kinsoku 0 is not the switch.
+  **Lab spec (c5b, fresh Mac Word, no driving here):** the "第一条  为切实…对粮"
+  paragraph alone in c5b's package, w:right stepped so "粮" is 2/4/6/8pt
+  over; variants each changing ONE of: kinsoku 0→on, autoSpaceDE/DN 0→on,
+  adjustRightInd 0→on, textAlignment baseline→auto, the 黑体 "第一条" run's
+  kern 0 removed, the two spaces removed, useAltKinsokuLineBreakRules and
+  doNotWrapTextWithPunct off (settings). Record whether "粮" is taken and the
+  "，" width. T218 already has: mode 15 takes it unsqueezed.
+- 3-D pies: 27a874b7 chart 2 (moves on six small labels) — Word sets the
+  UNMOVED 香港 11%, 英國 9%, 丹麥 6%, 其他 14% inside (3-line labels, ~20×37pt)
+  and 韓國/新加坡 5%, 德國 4% outside; ours tests the label box's four corners
+  inside the wedge on the flat ellipse, which a 37pt box under ry≈54 fails
+  for all but 美國. With no moves (Codex's controls) ours is all-inside.
+  **Lab spec (3-D best fit, fresh Mac Word):** zh-27a874b7 chart2 with idx 4's
+  move kept, the rest of the moves removed; slice shares for one unmoved
+  probe slice stepped 4,5,6,7,8% at three o'clock and at nine, label lines 1
+  (category only) and 3 (cat/value/percent); rotX 30 and 60. Record
+  inside/outside per probe and its centre. That bounds the threshold
+  (angle vs label size) before any rule; no threshold is fitted to one chart.
+
 ### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
 mac-simhei-border audit gives141/173 (81.50%) on Mac. Grepped all12 board
