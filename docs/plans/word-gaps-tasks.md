@@ -23,6 +23,14 @@ Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the Word
 28.6% Windows-hosted vs 100% Mac-hosted: first cause (Arabic text layer read back as U+06CC/U+06BE and presentation
 forms; lines ~2pt taller). (3) Windows-native zh 99.21 vs Mac-hosted 99.30: per-document comparison, first cause.
 No Word driving here (prints via `windows`). Pairs in both modes, same checkout/engine, bundled fonts.
+Status 2026-10-29: first causes found, fixes built, not yet committed. Full 756 pair (21ae32b0 tip vs Thai+WordArt)
+is clean: Windows mode only WordWithAttachments 73.7→81.6 and zh-6a4fc013 48.5→66.9 move; Mac mode only zh-6a4fc013
+48.7→49.8. (3) A Windows host never sets thaiBreaksAtSpaces (registerWordCordia is Mac-only), so Thai broke inside
+words; fix = set it on Windows + Browallia advances. Residual: p18 bold heading Word keeps on one line. (2) rtl: the cs
+face "Noto Sans Arabic UI" is missing on both hosts; Windows fell back to Segoe UI (1.33em, 15.96pt lines vs Word ~14).
+Fix = uninstalled cs face → Times New Roman: rtl 28.6→85.7 both modes; full pair running. (1) WordArt model matches the
+wa4 lab within 0.02 except text dependence ("ОООО"/"IIII" at 1pt: 42.95 vs 41.52); WWA's remaining misses are p2's
+embedded document.
 
 ### Windows-mode Word labs: zh-f39e54b6 DONE 4a0a7059; zh-015abfaf and WordWithAttachments labs run (q015, q17, wa4), not built; grid question open — RELEASED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28/29, the user's assignment)
 Owner: Claude worker on the Windows box, this machine's only Word for Windows driver. Runs the Word for Windows
