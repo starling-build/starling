@@ -9338,3 +9338,10 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
 (1) Grid lab for zh-8d6f702e p38 and zh-5be7e156 p2, the one-twip question: how Word sums a gridded line's widths (labs twip/twip2 left it open).
 (2) zh-015abfaf p10 "）": Word's hang limit [6.76, 6.86) against our half an em. Needs a second witness, another mark or size, before a rule (lab q17 follow-up).
 (3) Triage of the board's older Windows-mode "needs a lab" notes; stale ones closed.
+
+### T229. `w:topLinePunct` on every line, not just the first — CLAIMED (Linux lenovo-2 01BR2wHn, 2026-10-29, macos's Mac-mode round)
+zh-1cfb652b (Mac 90.9): its body paragraphs carry `w:topLinePunct` under `characterSpacingControl doNotCompress`. Both
+Word prints start a line that opens with "《" or "（" 8pt left of the margin (仿宋_GB2312 16pt: the mark's blank half) and
+take one more character: Mac p2/p12/p14/p15, Windows p14/p15 ("《云南省城市市容…第二十三条进", "（构）筑物…周边环").
+Ours squeezes only a paragraph's first line, and only under compressPunctuation (`_topLineSqueeze`, zh-2b955411).
+Next: squeeze an opener at any line's start under `w:topLinePunct`, whatever characterSpacingControl says; pair both modes.
