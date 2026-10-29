@@ -2517,7 +2517,10 @@ enum OfficeFonts {
             // stands 14.45 over the baseline at 471 auto and 14.53 single —
             // 12.08 + 2.34 — and its page number, a box hung from the
             // paragraph, 6.07 higher than ours at the face's bare 1.113.)
-            if wordOnWindows, let registered = embeddedFamily(family), let entry = fontEntry(family),
+            // (Word for Mac's print the same: zh-1cfb652b's number stands at
+            // 788.4 there, 788.1 in Windows', where the bare face's line
+            // put ours 6pt lower.)
+            if wordOnWindows || wordOnMac, let registered = embeddedFamily(family), let entry = fontEntry(family),
                ["86", "88", "80", "81"].contains(entry.charset.uppercased()) {
                 declaredLock.lock()
                 let line = embeddedLines[registered]

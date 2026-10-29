@@ -9485,7 +9485,9 @@ Same-base pair, validation engine (ICU + both engine vars pinned, bundled fonts)
 zh-55087b5f 97.5 -> 100, zh-053f8706 99.2 -> 99.5, mean 97.557 -> 97.562; nothing lower in either. office-layout gate
 (native/browser on the validation skwasm, all Word controls incl. the 12 opener controls) passes.
 Left in zh-1cfb652b (Mac): the footer page number box ~6pt low on every page — Mac Word's print puts it where Word for
-Windows does (788.4 vs 788.1), so fc321def's Windows-only East Asian charset line holds for the Mac too. Next, here.
+Windows does (788.4 vs 788.1), so fc321def's Windows-only East Asian charset line holds for the Mac too. DONE as a follow-up (Linux lenovo-2): an embedded face with an East Asian
+charset (86/88/80/81) takes the 1.3x line in Mac mode as well. Pair on a fresh base (88320dd12): Mac 97.587 -> 97.590,
+zh-1cfb652b 91.7 -> 94.3, nothing else moved; Windows 97.948 unchanged, no document moved.
 
 ### T230. zh-57f1de0d: 93.6 against word-win (p28-p33) — DONE (Linux office1, 2026-10-29, macos's Windows-mode round)
 First mismatch p27/p28: an embedded subset's own letters and digits are not the stand-in's half em — 方正仿宋_GBK sets
