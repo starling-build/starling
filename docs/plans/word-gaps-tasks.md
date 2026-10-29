@@ -9002,7 +9002,7 @@ docs, engine 8bc30c5c89a: Windows zh-1cfb652b 94.6 -> 98.3, zh-55087b5f 91.8 -> 
 First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" (a Latin "”" hung), Word leaves it; mode 14. Lab next.
 [TAKEN OVER 2026-10-28 by Linux Claude (starling-linux-fidelity) at the user's assignment — see the §4 claim at the top.]
 
-### zh-4e5fe46f: 90.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26)
+### zh-4e5fe46f: 90.8 against word-win — RELEASED (Windows 01QbbApP, 2026-10-29; 92.1 now; the box's 3pt is left, not taken up again)
 wip/parted-floats 63e7a955: a parting paragraph's floats drawn whole with its first piece (p6's 496pt table box showed one row). 218 -> 221/240. Left: the box 3pt high — its anchor paragraph's place (lab sb: offsets from space before are Word's).
 
 ### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
@@ -9067,7 +9067,7 @@ Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, �
   stand against the digit groups and the piece — not a count or a cap, and five points pin no rule that also holds tg.
   (A "+2pt takes unsqueezed" reading was the line before taking "廳", windows-1 confirmed.) Ours takes it; left as is.
 
-### zh-8628cfbe p13 (93.3, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
+### zh-8628cfbe p13 (93.3, word-win): measured, CLAIMED (Windows 01QbbApP, 2026-10-29, routed by macos: lab then fix) (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
 Cell paragraph "2.與去年實際數比較，相同者得基準分75分，每增(減)…" (kinsoku 0, overflowPunct 0, compressPunctuation, mode 15,
 zh-TW): Word's line ends "…75分", every character 12.12 apart (the line justified) and "，" after "較" whole; ours squeezes that
 "，" to 7.4 and takes the next "，" at the end. Tried: under kinsoku 0 a closing mark that is a piece alone does not take
