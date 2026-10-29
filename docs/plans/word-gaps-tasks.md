@@ -9346,7 +9346,12 @@ take one more character: Mac p2/p12/p14/p15, Windows p14/p15 ("《云南省城�
 Ours squeezes only a paragraph's first line, and only under compressPunctuation (`_topLineSqueeze`, zh-2b955411).
 Next: squeeze an opener at any line's start under `w:topLinePunct`, whatever characterSpacingControl says; pair both modes.
 
-### T230. zh-57f1de0d: 93.6 against word-win (p28-p33) — CLAIMED (Linux office1, starling-office1-95, 2026-10-29, macos's Windows-mode round)
+### T230. zh-57f1de0d: 93.6 against word-win (p28-p33) — DONE (Linux office1, 2026-10-29, macos's Windows-mode round)
 First mismatch p27/p28: an embedded subset's own letters and digits are not the stand-in's half em — 方正仿宋_GBK sets
 "1" 0.645 em and "4" 0.539 in both Word prints (the subset's hmtx), and "1） 应建立…培训，" then has no room for "有".
-Then p28's paragraph-final "…良好互动；": Word sends "动；" down in this face, ours hangs the "；". Pair running.
+Then p28's paragraph-final "…良好互动；": Word sends "动；" down in this face, ours hangs the "；".
+Fix: an embedded face's own ASCII letter/digit advances (read from its hmtx) replace the stand-in's, in both modes;
+and in a face Word compresses nothing in, the paragraph's last mark never hangs (no trailing space needed).
+Pair (bundled fonts, same checkout): Windows 93.6 -> 99.1, Mac 94.4 -> 99.8; no other document moved in either mode
+(Windows mean 97.927 -> 97.934, Mac 97.557 -> 97.564). Remaining Windows misses p33, p35-37 (landscape tables) are
+matcher artifacts: positions agree within ~0.5pt, only the digit glyph boxes (stand-in vs SimSun) differ.

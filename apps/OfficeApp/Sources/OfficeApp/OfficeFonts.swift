@@ -585,6 +585,9 @@ enum OfficeFonts {
     nonisolated(unsafe) private static var embeddedLines: [String: (ascent: Double, descent: Double)] = [:]
     /// The characters each loaded embedded face holds (its `cmap`).
     nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:]
+    /// Each loaded embedded face's advances for the ASCII letters and
+    /// digits it holds (`alnumAdvances`).
+    nonisolated(unsafe) private static var embeddedAlnum: [String: [UInt32: Double]] = [:]
     /// Each loaded embedded face's own family, from its `name` table.
     nonisolated(unsafe) private static var embeddedNames: [String: String] = [:]
     /// The loaded embedded faces that carry bitmaps (`EBDT`).
@@ -742,10 +745,59 @@ enum OfficeFonts {
         loadedEmbedded.insert(family)
         if let covered { embeddedCoverage[family] = covered }
         if let line = lineMetrics(data) { embeddedLines[family] = line }
+        if let alnum = alnumAdvances(data) { embeddedAlnum[family] = alnum }
         if let own = familyName(data) { embeddedNames[family] = own }
         if hasTable(data, "EBDT") { embeddedBitmaps.insert(family) }
         declaredLock.unlock()
         return family
+    }
+
+    /// A face's advances, in ems, for the ASCII letters and digits it
+    /// maps to a glyph of some advance (`cmap`'s Windows Unicode
+    /// subtable, `hmtx` over `head`'s units per em).
+    static func alnumAdvances(_ data: Data) -> [UInt32: Double]? {
+        let d = [UInt8](data)
+        func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        guard d.count > 12 else { return nil }
+        func table(_ tag: String) -> Int? {
+            let t = Array(tag.utf8)
+            for k in 0 ..< u16(4) {
+                let e = 12 + 16 * k
+                guard e + 16 <= d.count else { return nil }
+                if Array(d[e ..< e + 4]) == t { return u32(e + 8) }
+            }
+            return nil
+        }
+        guard let cmap = table("cmap"), let hhea = table("hhea"), let hmtx = table("hmtx"), let head = table("head") else { return nil }
+        let units = u16(head + 18), metrics = u16(hhea + 34)
+        guard units > 0, metrics > 0 else { return nil }
+        var sub: Int? = nil
+        for k in 0 ..< u16(cmap + 2) {
+            let r = cmap + 4 + 8 * k
+            if u16(r) == 3, u16(r + 2) == 1 || u16(r + 2) == 10, u16(cmap + u32(r + 4)) == 4 { sub = cmap + u32(r + 4); break }
+        }
+        guard let f = sub else { return nil }
+        let segs = u16(f + 6) / 2
+        let ends = f + 14, starts = ends + 2 * segs + 2, deltas = starts + 2 * segs, offsets = deltas + 2 * segs
+        var out: [UInt32: Double] = [:]
+        for c in Array(0x30 ... 0x39) + Array(0x41 ... 0x5A) + Array(0x61 ... 0x7A) {
+            var glyph = 0
+            for i in 0 ..< segs where c <= u16(ends + 2 * i) {
+                guard c >= u16(starts + 2 * i) else { break }
+                let ro = u16(offsets + 2 * i)
+                if ro == 0 { glyph = (c + u16(deltas + 2 * i)) & 0xFFFF }
+                else {
+                    let g = u16(offsets + 2 * i + ro + 2 * (c - u16(starts + 2 * i)))
+                    glyph = g == 0 ? 0 : (g + u16(deltas + 2 * i)) & 0xFFFF
+                }
+                break
+            }
+            guard glyph != 0 else { continue }
+            let advance = u16(hmtx + 4 * min(glyph, metrics - 1))
+            if advance > 0 { out[UInt32(c)] = Double(advance) / Double(units) }
+        }
+        return out.isEmpty ? nil : out
     }
 
     /// Whether a face maps a character to a glyph of no advance (`cmap`'s
@@ -2699,6 +2751,20 @@ enum OfficeFonts {
         // Calibri — and zh-5450d509's holds none, its "2017", "42" 6.12
         // and 6.08 at 12pt in word-win where ours, the stand-in's half em,
         // set 6.0, and its p1 line took "署，" Word's leaves.)
+        // (And those it holds at the subset's own widths, in Word for
+        // Windows and on a Mac: zh-57f1de0d's 方正仿宋_GBK sets "1" 0.645
+        // em and "4" 0.539 in both prints — a 16pt "1） 应建立…培训，" then
+        // 450.3pt with its "有", 0.5 over the line, and Word sends the
+        // "有" down; ours, the stand-in's half em, took it.)
+        if own, let registered = embeddedFamily(family) {
+            declaredLock.lock()
+            let alnum = embeddedAlnum[registered]
+            declaredLock.unlock()
+            if let alnum {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(alnum) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(alnum) { $1 }
+            }
+        }
         if wordOnWindows, own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered) {
             for (u, w) in Self.calibriAlnumAdvances where !covered.contains(u) { face.otherAdvances = (face.otherAdvances ?? [:]).merging([u: w]) { $1 } }
             for (u, w) in Self.calibriBoldAlnumAdvances where !covered.contains(u) { face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([u: w]) { $1 } }
