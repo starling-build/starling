@@ -9328,3 +9328,8 @@ not yet understood. The metrics pair passed; the punctuation follow-up remains o
 - zh-167ee06c (Mac 90.2): ours squeezes eight spaces between ideographs in a cell to take a character, Word does not;
   zh-799c91cd squeezes such spaces (a blanket rule took it 100 -> 98.8). Lab spec to separate them, printed by macos-ios.
 - Then the lowest unclaimed Mac-mode zh documents.
+
+### Windows-mode Word labs, round of 2026-10-29 — CLAIMED (Windows 01QbbApP, routed by macos)
+(1) Grid lab for zh-8d6f702e p38 and zh-5be7e156 p2, the one-twip question: how Word sums a gridded line's widths (labs twip/twip2 left it open).
+(2) zh-015abfaf p10 "）": Word's hang limit [6.76, 6.86) against our half an em. Needs a second witness, another mark or size, before a rule (lab q17 follow-up).
+(3) Triage of the board's older Windows-mode "needs a lab" notes; stale ones closed.
