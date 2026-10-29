@@ -192,16 +192,32 @@ struct PdfMarkup {
         var out: [Note] = []
         // The stretch still open: what it says, and the field it is in.
         var last: (text: String, field: Int)? = nil
+        // (A field whose code was reformatted: "Field Code Changed" where
+        // its result ends, after the result's own "Formatted" and the next
+        // words' — delins's link items in Word for Windows' print stack
+        // "Formatted", "Formatted", "Field Code Changed", and an item
+        // whose words after the link were not reformatted has its field's
+        // balloon before the next item's.)
+        var codeChanged: (field: Int, author: String)? = nil
         for (i, p) in document.paragraphs.enumerated() {
+            // (A result that runs to its paragraph's end ends there.)
+            defer {
+                if let c = codeChanged {
+                    out.append(Note(anchor: RichPosition(paragraph: i, offset: p.text.utf16.count), label: "Field Code Changed", paragraphs: [""], author: c.author))
+                    codeChanged = nil
+                }
+            }
             var at = 0
             // (An empty run, an empty paragraph's, breaks nothing.)
             for run in p.runs where run.length > 0 {
                 defer { at += run.length }
-                // (A field whose code was reformatted: "Field Code Changed"
-                // where its result begins, before the result's own.)
+                var ended: String? = nil
+                if let c = codeChanged, run.style.fieldResult != c.field { ended = c.author; codeChanged = nil }
+                defer {
+                    if let ended { out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Field Code Changed", paragraphs: [""], author: ended)) }
+                }
                 if run.style.fieldCodeChanged, run.style.revision?.kind != .deleted {
-                    out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Field Code Changed", paragraphs: [""],
-                                    author: run.style.formatChange?.author ?? ""))
+                    codeChanged = (run.style.fieldResult, run.style.formatChange?.author ?? "")
                     last = nil
                 }
                 guard let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
