@@ -379,7 +379,7 @@ measuring 3-D pie outside-label distance (share, angle, label size, rotX) and st
 ~/starling-word-check/lab/p3dout; rule, pair, land (zh-27a874b7, zh-d62da4dd, zh-61aaad09). (2) Then the
 lowest unclaimed Mac-mode zh documents from base b2 (9151bb23), skipping reference defects and others' claims.
 
-### Lowest zh/POI residuals, one at a time — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
+### Lowest zh/POI residuals, one at a time — RELEASED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
 documents per mode at base d0 (ccd66af2, Windows zh 99.3 / POI 89.8, Mac zh 98.5 / POI 90.9), skipping claimed
 items, reference defects, lab-pending items and iOS. Same pinning as §4.
@@ -389,6 +389,21 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
   print breaks the same p1 lines ("…世界文" / "化遗产区…", 》 and ： whole). Gate dropped. Pair d0 -> d1, both
   modes, 756 docs each, none missing: Mac zh-57f1de0d 78.9 -> 94.4 (894 -> 1069/1133 matched), nothing else moved
   in either mode. Left: p28 "…互动；", Windows' own residual.
+- **zh-167ee06c Mac (90.2) — TRIED, REJECTED; released.** p5's cell "民國   年  月   日止" (mode 15, balanced
+  widths, 14pt, no marks) leaves "止" 0.8pt over in Mac Word's print; ours takes it through the lab-`jg`
+  word-space squeeze (eight spaces of 7.14 set at 7.04). Candidate "under the balance, word spaces that all
+  stand between ideographs give nothing": 167ee06c 90.2 -> 99.2, but zh-799c91cd 100 -> 98.8 in both modes
+  (p1 "…為授權代表人為代表" — Word takes "負"/"責" there with such spaces giving). Not a rule; needs a lab on
+  balanced spaces between ideographs (space count, over, Mac vs Windows). Pair d1 -> d2, reverted.
+- **zh-7773163d Windows (83.3 on Linux; 95.4 on the Mac host) — MEASURED, cause found, not built.** Every
+  "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
+  apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
+  the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
+  Linux than on the Mac, hence the host gap. Cut to that paragraph, without the numPr it is 27.3. A fix needs
+  the rise on line 1 only under a forced strut (forced struts ignore placeholders in skparagraph), e.g. the
+  excess carried above the paragraph; bug65649 (100) is the rise's witness. Open for whoever goes next.
+- Skipped as known/owned: zh-76700e5f (Mac p10 is a cropped reference print), zh-8dc59b5b (known sub-0.1pt
+  edge), zh-72da925e Mac (squeeze history), zh-d97c5474/zh-8d72961c (Nunito Sans cloud font), rtl (Arabic face).
 
 ### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
 Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
