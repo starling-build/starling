@@ -285,7 +285,7 @@ shared engine host_release_arm64, both modes, OFFICE_FONT_SOURCE=bundled.
   inside/outside per probe and its centre. That bounds the threshold
   (angle vs label size) before any rule; no threshold is fitted to one chart.
 
-### Mac Word labs for c5b squeeze and 3-D pie best fit — CLAIMED (Claude, starling-mac-labs, 2026-10-28)
+### Mac Word labs for c5b squeeze and 3-D pie best fit — DONE eee69765 + 59b09234; 3-D outside placement RELEASED (Claude, starling-mac-labs, 2026-10-28)
 Owner: Claude worker, clone `starling-mac-labs`, branch `office`, user-assigned;
 this machine's only Word driver. Runs the two lab specs above (c5b, 3-D best
 fit) in freshly launched Mac Word, lab files under ~/starling-word-check/lab/
@@ -318,7 +318,7 @@ with no East Asian line rules give nothing). Candidate c1: the same in Mac
 mode. Focused on the 213 files with a non-CJK `w:eastAsia`: zh-c5b5087b
 26.7 -> 100, zh-264d7516 89.9 -> 98.8, zh-efd9229a 96.6 -> 100, zh-51af781b
 97.4 -> 99.1, nothing else moved. (Lab t218's "paragraph alone refuses 无" is
-the same state.) Full pair running.
+the same state.) **DONE eee69765.**
 
 **3-D best fit — lab p3dfit (fresh Mac Word per print, quit between),
 ~/starling-word-check/lab/p3dfit.** zh-27a874b7's package, chart 2, idx 4's
@@ -357,6 +357,21 @@ Also: 3-D pies now turn by `c:rotY` (ours started at twelve; no corpus pie
 turns). Not modelled, open: outside placement (Word 1.16-1.5 of the radius
 out and stacked, ours 1.10-1.14), and a point's own `c:dLbl/c:delete` (ours
 draws the label; no corpus chart uses it).
+
+**Pair b1 -> c1 (both commits together), PASS:** base 62e73e2c, same checkout
+and shared engine host_release_arm64, unchanged sweep.sh / sweep-win.sh,
+OFFICE_FONT_SOURCE=bundled, 756 documents per mode, none missing, exact audit
+zero drops. Mac zh 98.4 -> 98.5 (612 -> 614 at 95%, page-count matches 642 ->
+644): zh-c5b5087b 26.7 -> 100, zh-264d7516 89.9 -> 98.8, zh-efd9229a 96.6 ->
+100, zh-51af781b 97.4 -> 99.1, zh-27a874b7 68.1 -> 69.2, zh-d62da4dd 71.1 ->
+72.2. Windows: zh-27a874b7 66.3 -> 68.5, zh-d62da4dd 68.7 -> 70.7; POI
+identical in both. (Rebased before push over 0a7187bf..cd0836cf, whose only
+source change is OfficeFonts.swift, paired by its owner.) RELEASED, open:
+3-D outside label placement and stacking (the rest of 27a/d62's misses), a
+point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
+(Word sets small front slices' labels under the pie). Lab files and scripts
+(`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
+~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
 ### Lowest zh/POI residuals, one at a time — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
 Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
