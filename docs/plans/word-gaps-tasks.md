@@ -461,6 +461,11 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
+### Chart residuals from 82771ef6 — CLAIMED (Mac 01Xgpbk5, 2026-10-29, routed by starling-bd)
+(1) zh-b8de3ae2 p9/p12: the plot area is 4pt higher than in Word's print; (2) a chart run's explicit East Asian face
+(PMingLiU titles, DengXian-Bold pie labels in zh-b8de3ae2) is ignored; (3) zh-61aaad09's data-table header "投诉举报总量"
+wraps 总|量 in Word's print, not in ours. Then (b), crowded outside labels, if tractable. Mac mode first, paired in both.
+
 ### 3-D pie OUTSIDE labels, round 2 — (c), (d) and chart SimSun DONE; (a), (b) RELEASED (Mac 01Xgpbk5, 2026-10-29, routed by macos)
 zh-27a874b7, zh-d62da4dd, zh-61aaad09, Mac mode first. From p3dout's open findings: (a) tall labels the frame clamps slide
 along the rim, (b) crowded labels stack as a column, (c) side slices between the middle ray and the screen ray, (d) the
