@@ -294,6 +294,10 @@ public struct ImageFloat: Hashable, Sendable {
     public var horizontalAlign: String? = nil
     public var verticalAlign: String? = nil
     public var takesRoom = false
+    /// A table nested in a cell and floating that is placed against the
+    /// text (`w:vertAnchor="text"`), not the page: only that one is as
+    /// tall in its row as it lays out (see the row's height).
+    public var againstText = false
     /// Placed against the page or its margin with the text above and
     /// below it (`takesRoom` as the file has it): a band of its page the
     /// text keeps off, wherever on the page its anchor is — laid out and
