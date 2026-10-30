@@ -170,6 +170,11 @@ item (3) above (decision table, lab gs). Labs through starling-bd to `windows`.
   fell (zh-4c5da793 mode 12 100→12.5): Word hangs their marks ("〔2019〕" 16pt past). Something zh-7773163d alone has
   decides (no themeFontLang, ulTrailSpace + shapeLayoutLikeWW8, 細明體_HKSCS): lab spm3 (wip/lab-spm3) queued. Also: a
   break inside `_hanJoins` stretches desyncs engine and fitter — skip them (lenovo-3's 1255-miss collapse).
+  Lab spm3 (S0-S7) and S8 (windows): themeFontLang zh-TW, ulTrailSpace, shapeLayoutLikeWW8, 細明體_HKSCS → 新細明體,
+  compatibilityMode 12, the defaults' eastAsia zh-TW, and the styles' lowercase "zh-tw" → "zh-TW" — each alone — break
+  p44/p55/p49 as Word's own print. None decides; the closer question is OPEN. Left (windows): the paragraphs' pPr and
+  style chain (autoSpaceDE/DN 0 in pPrDefault, jc), and whether those lines are full. Word's print has 23 lines opening
+  with a closing mark and none hung, list and body paragraphs alike.
 - (2) gs2 (wip/lab-gs2): mark TYPE and LANGUAGE change nothing, mark COUNT does; a refused line stretches only its
   automatic spaces, and the space between the line's end and the piece leaves with the piece. Built:
   wip/mac-01Xgpbk5-gridgap (f515dc49), zh-3c055c9b 93.2→96.9 Mac pre-pair, in windows-1's round 3. Open: "費、" (its
