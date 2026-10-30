@@ -13092,7 +13092,16 @@ public final class RichLayout {
                             // with fourteen; the line's p2 "頁】，" is taken and
                             // p8's "餐，" (two marks, seven spaces) is not.)
                             ? (onCharacterGrid
-                                ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
+                                // (Not the automatic space between the line and what
+                                // comes next: sent down, the line ends before it and
+                                // has none there to stretch. Lab gs2 (Word for
+                                // Windows, zh-3c055c9b's lines alone, w:right stepped):
+                                // "…【附件12，第257" takes "頁】，" 39.9 over, every mark
+                                // at its half and the spaces 1.6 each, where its two
+                                // spaces left would stretch 5.6 each; refused, the
+                                // line's three spaces counted, ours sent it down —
+                                // and "…第4829號、" the same.)
+                                ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + ($1 == a - 1 ? 0 : gaps[$1] ?? 0) } * 0.44)
                                     <= markRoom * (stretchRoom + hair)
                                 : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
                                     <= room * (stretchRoom + hair) || cellRest)
