@@ -5888,7 +5888,16 @@ public final class RichLayout {
                 // column's left in Word's print (12pt); zh-37b6536f's under
                 // its row of photos, which leaves 5.0, go under it.)
                 let bare = document.paragraphs[i].text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
-                let em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize) * (bare ? 0.5 : 1)
+                // (A list paragraph's first line asks its label's room as well,
+                // and starts at the label: zh-f2ca3070's "二、 共同工作空間",
+                // its label slot 27pt, starting 21pt in, has 24pt left of a
+                // tight-wrapped price list and 38 right of it, and Word sets
+                // it under the picture — a line that meets the picture's top
+                // 5pt down, its own top above it.)
+                let listed = !bare && RichTextTheme.wordWindowsPages ? _listIndents(document.paragraphs[i], document) : nil
+                let label = listed.map { _px($0.hanging) } ?? 0
+                let lineStart = listed.map { max(0, _px($0.left - $0.hanging)) } ?? 0
+                let em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize) * (bare ? 0.5 : 1) + label
                 // (Over any of the line, not only its top: an empty
                 // anchor's line that a photo starts 16pt down went under
                 // the photo in Word's print.)
@@ -5897,7 +5906,7 @@ public final class RichLayout {
                     guard !over.isEmpty else { return nil }
                     // The widest stretch of the column no picture covers.
                     var spans = over.map { (max(0, $0.left - gap), min(column, $0.right + gap)) }.sorted { $0.0 < $1.0 }
-                    var widest = 0.0, edge = 0.0
+                    var widest = 0.0, edge = lineStart
                     for s in spans { widest = max(widest, s.0 - edge); edge = max(edge, s.1) }
                     widest = max(widest, column - edge)
                     spans.removeAll()
@@ -5935,7 +5944,20 @@ public final class RichLayout {
                     // ours did.)
                     let reach = RichTextTheme.wordWindowsPages
                         ? (Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? 0) : 0
-                    while let below = noRoom(at: y, height: reach, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                    // (A list paragraph's whole first line meets the picture, and
+                    // steps a line and its space before at a time, as Word does:
+                    // zh-f2ca3070's heading, first at 285, stands at 376.7 under a
+                    // picture ending 361.8, 4 steps of 23.)
+                    let firstHeight = label > 0 ? (Self._lineBottoms(geometry(i).painter).first ?? 0) : 0
+                    if label > 0, firstHeight + lead > 1 {
+                        let step = firstHeight + lead
+                        while let below = noRoom(at: y + lead, height: firstHeight, []), guardSteps < 20 {
+                            y += max(1, ((below - y - lead) / step - 0.001).rounded(.up)) * step
+                            guardSteps += 1
+                        }
+                    } else {
+                        while let below = noRoom(at: y, height: reach, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                    }
                 }
                 // (A table placed down the page keeps the whole of a line
                 // off it, not only the line's top: zh-10eab555's contents
