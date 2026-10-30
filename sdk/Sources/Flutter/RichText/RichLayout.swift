@@ -8010,7 +8010,10 @@ public final class RichLayout {
             while end > (starts.last ?? 0), [0x20, 0x09, 0x0A, 0x0B, 0x3000].contains(units[end - 1]) { end -= 1 }
             // (Each character's first unit: a surrogate pair is one.)
             let chars = ((starts.last ?? 0) ..< end).filter { !(units[$0] >= 0xDC00 && units[$0] <= 0xDFFF) }
-            if chars.count > 1, let last = chars.last,
+            // (One character alone is centred: zh-bbbb2e6a's p13 cells,
+            // "一", "二", "三" a cell, 16pt in 51.3pt of room, stand at the
+            // middle in Word's print, 17.6pt in; ours set each at the start.)
+            if let last = chars.last,
                let box = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(last), extentOffset: map.painter(end - 1) + 1)).last {
                 // (A twentieth of a point short of the end — Word's unit —
                 // or a point: set to the hair, the engine's rounding can
@@ -8020,6 +8023,7 @@ public final class RichLayout {
                     let spare = textWidth - box.right - short
                     guard spare > 0 else { break }
                     var spread: [Int: Double] = [:]
+                    if chars.count == 1 { spread[last] = spare / 2 }
                     for k in chars.dropFirst() { spread[k] = spare / Double(chars.count - 1) }
                     let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit,
                                                    held: held, spread: spread)
