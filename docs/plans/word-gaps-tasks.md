@@ -161,6 +161,11 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   `w2-decisions-3c055c9b.txt` (our trace vs Word's verdict per decision), `w2-sharefit.py` (makes it from
   `w2-fit-trace-3c055c9b.txt`, base b82b195f, Windows mode).
 - (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
+### Census of every missed line under v2, Windows mode, by first cause — CLAIMED (Mac 01Xgpbk5, 2026-10-30, starling-bd's assignment)
+From the freshest Mac-hosted v2 sweep of the tip (zh-6a4fc013 and rtl left out: Windows-host fonts). Classes: line break, line
+height, table, float/text box, header/footer, chart/drawing, list numbering, pagination, font/width, reader artefact. Goal: the
+next 3-5 systemic fixes. Table to follow here.
+
 ### Line fitter: (1) a closing mark that cannot fit carried to the next line alone (zh-7773163d p49); (2) zh-3c055c9b's per-mark give — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's assignment)
 Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt (zh-7773163d entry, T167 section): in old-mode
 documents Word sends a closing mark down alone only when it cannot fit, and does not hang it. (2) taken over from windows-2's
