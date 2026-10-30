@@ -72,7 +72,7 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
   spaces 4.25 -> 6.45 instead). "稱：" has the same need/marks/stretch as "費、" with 3 spaces and is taken: lab gs asked of windows.
 - (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
@@ -138,6 +138,14 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   with 15pt runs (spaced 9/4/8, auto 322); ours 28.8pt for that line (Word's ~26). Not narrowed further.
 - zh-505b9619: the numbering candidate takes it 96.6 → 96.8; its remaining p59 misses are the mode-15 fit (ours squeezes
   "：" and the spaces round "5" to take "員。", Word squeezes nothing) — T181's ground.
+
+- zh-c591c1fa 97.7 — CLAIMED. p1's "【原訂2月28日發行之公報，因適逢和平紀念日，改至本日發行。】" is two lines in one
+  (`w:combine`, 29 characters, 標楷體 14pt, digits Times): Word sets rows of 15 and 14 at 7pt; ours splits the same, but sized
+  the box by measuring each row in the East Asian face alone, so the box's own layout (digits in the Latin face) is wider and
+  "適" wraps to a third row, and the page below stands 10pt low. Candidate: measure the rows as the box sets them.
+- zh-424775e4 97.6 — CLAIMED. p1 "…research on the " | "China-sponsored…" (Calibri 12): Word leaves "China-" for the next
+  line though it fits by ~6pt; ours breaks after the hyphen. Other prints do break after a Latin hyphen. Lab hyc asked.
+- zh-cd48112c 97.7, zh-147bdae0: T181's line fit / long URLs — not taken. zh-eec0747a: p21's form cells, not looked at yet.
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
