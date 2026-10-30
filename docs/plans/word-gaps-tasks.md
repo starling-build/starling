@@ -248,6 +248,14 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "÷" set East Asian parts like "×" (538960d0): zh-427cb16c and zh-5f045fc1 -> 100, zh-b2e0f286 99.5 -> 99.8. "﹚﹜﹞" hang as
   closing marks (0df8587f): zh-ab1ea005 99.9 -> 100 (its page-number misses are lenovo-2's). zh-6b242483 "（家）|×1" is a mode-14
   squeeze (5.1 over, 4 marks, Word refuses), sent to macos-ios as a per-mark witness.
+### zh-c2c92639 (95.8, 54 pages) against word-win v2 — looked at, two clusters (Mac 01Xgpbk5, 2026-10-30; RELEASED as a lead)
+- p41 "引用标准名录" and its 25-line list stand 10pt low in ours: the heading opens with a page-break character and has space before 360 —
+  T238's construct (compatibilityMode 15 case); expected to be fixed when T238 lands.
+- p39: display equations drift 4 -> 13pt lower than Word's by the page foot. The equation paragraphs are tables of an equation cell and a
+  number cell ("9.3.3-1" right aligned); the first drift (-4) is already at the line before the first equation. Needs a Word for Windows lab:
+  the same three paragraphs isolated (text line, equation table with a sum with limits, text line), with variants without the limits and
+  without the number cell, to read the equation row's height and baseline against the text lines around it.
+
 ### Lab sqz / sqz2: squeeze-or-stretch outside the grid — F, G and what firstLineChars measures (Mac 01Xgpbk5, 2026-10-30)
 Kits wip/lab-sqz (66 prints, seven lines) and wip/lab-sqz2 (F's width swept 1-40 twips, four marks), run by `windows`. Read-out:
 - C (marks needed, doNotCompress refuses), D (mode 15, or a grid; refused in 12/14), E (take needs the linesAndChars grid): the
