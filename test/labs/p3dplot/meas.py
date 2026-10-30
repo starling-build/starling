@@ -23,7 +23,8 @@ def blob(pg, clip, z=2):
                 if n > 1500: U = bx if U is None else [min(U[0], bx[0]), min(U[1], bx[1]), max(U[2], bx[2]), max(U[3], bx[3])]
     if U is None: return None
     b = U; return [clip.x0 + b[0] / z, clip.y0 + b[1] / z, clip.x0 + (b[2] + 1) / z, clip.y0 + (b[3] + 1) / z]
-for f in sys.argv[1:]:
+def main():
+  for f in sys.argv[1:]:
     pg = pymupdf.open(f)[2]
     row = []
     for clip in (pymupdf.Rect(100, 95, 505, 320), pymupdf.Rect(105, 385, 500, 612)):
@@ -31,3 +32,5 @@ for f in sys.argv[1:]:
         row.append("none" if not b else "top %6.1f bot %6.1f left %6.1f right %6.1f centre (%6.1f,%6.1f) %5.1fx%5.1f" % (
             b[1], b[3], b[0], b[2], (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, b[2] - b[0], b[3] - b[1]))
     print("%-28s c1 %s | c2 %s" % (f.split("/")[-1][:28], row[0], row[1]))
+
+if __name__ == '__main__': main()
