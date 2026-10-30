@@ -2792,7 +2792,17 @@ public final class RichLayout {
                         let pads = cell.pad.top + cell.pad.bottom - cell.ruleBelow
                         let firstLine = _painters[k].flatMap { Self._lineBottoms($0).first }
                         let rests = (r + 1 ..< min(rows.count, r + cell.rowSpan)).contains { standing[$0] }
-                        if !rests { own[r] = max(own[r], (firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads) }
+                        // (Not in Word for Windows, where a merged cell's text
+                        // counts against the rows it spans together only:
+                        // zh-eec0747a's form header, rows of 31.5 and 31.2pt
+                        // at least, every cell merged over both, holds its
+                        // two 22pt exact lines and a 微软雅黑 line in 31.5 +
+                        // 39.2 (the continued row's own empty YaHei line) —
+                        // labs eec, eef and eeg (Windows 01QbbApP): the
+                        // first row's text, two lines, one or none, never
+                        // moves the header, which ours stood 7.5pt taller,
+                        // the first row held at 38 by "职称"'s line.)
+                        if !rests, !RichTextTheme.wordWindowsPages { own[r] = max(own[r], (firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads) }
                         let continued = document.paragraphs[k].cell?.continuationParagraphs ?? []
                         for offset in 1 ..< cell.rowSpan where r + offset < rows.count && offset - 1 < continued.count {
                             var h = 0.0
