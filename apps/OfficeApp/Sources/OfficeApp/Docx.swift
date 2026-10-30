@@ -1810,6 +1810,15 @@ enum DocxFormat {
                     columns[columns.count - 1].append(q)
                 }
                 guard columns.count == gaps.count, (start ... i).allSatisfy({ bodyNodes[$0] != nil }) else { continue }
+                // (Only where every paragraph's markup can be kept for the save:
+                // one that names a part the package does not hold — LibreOffice's
+                // tdf123163-1 has a picture with no media in it — has none, and
+                // was left out of the kept markup, text and all.)
+                var captured = Set<ObjectIdentifier>()
+                guard (start ... i).allSatisfy({ k in
+                    let node = bodyNodes[k]!
+                    return !captured.insert(ObjectIdentifier(node)).inserted || _keptFragment(node, notes) != nil
+                }) else { continue }
                 out.removeLast(i - start + 1)
                 tableCount += 1
                 let id = "t\(tableCount)"

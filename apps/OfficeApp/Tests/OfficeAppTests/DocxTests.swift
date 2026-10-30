@@ -137,6 +137,30 @@ final class DocxTests: XCTestCase {
         XCTAssertThrowsError(try DocxFormat.read(Zip.write(entries.filter { $0.name != "word/trial.xml" })))
     }
 
+    /// A save loses no paragraph's text. LibreOffice's tdf123163-1 sets a
+    /// section's columns as a table whose markup is kept for the save, and
+    /// a paragraph whose picture names media the package does not hold had
+    /// none: the copy left that paragraph's text out. (The copy no longer
+    /// points at the picture that was never there, so its columns read as
+    /// a table the second time and the paragraph counts differ: no text.)
+    func testSectionColumnsKeepAParagraphWhoseMediaIsMissing() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-d88152cce1e2574c.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let first = try DocxFormat.read(data).document
+        let saved = try DocxFormat.write(first, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(try Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">").replacingOccurrences(of: "&amp;", with: "&")
+        let lost = first.paragraphs.map(\.text).filter { text in
+            let word = text.replacingOccurrences(of: "\u{FFFC}", with: " ").replacingOccurrences(of: "\u{00AD}", with: " ").split(whereSeparator: \.isWhitespace).last.map(String.init) ?? ""
+            return !word.isEmpty && !xml.contains(word)
+        }
+        XCTAssertEqual(lost, [], "paragraphs whose last word is not in the saved document")
+    }
+
     func testRightToLeftRunsResolveTheirComplexScriptFont() {
         let theme = RichTextTheme(fontFamily: "Latin default")
         theme.fontFamilyResolver = { _ in "Latin clone" }
