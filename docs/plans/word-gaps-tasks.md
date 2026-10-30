@@ -7826,6 +7826,7 @@ fallback while it downloads. Eight cloud faces arrived during the full reprint: 
 So word-win is clean apart from the two above.
 
 ### delins 74.6: Word for Windows' balloon order at one anchor — PARKED (Windows 01QbbApP, 2026-10-24)
+CLAIMED Mac 01Xgpbk5 (2026-10-30, starling-bd's assignment, baseline #1 96.6): what is left of its markup layout.
 At 8309c3f8 the pitch matches Word's to 1pt, and only the order of the x428 column is left. Word's
 print (word-win), with each box paired to its connector by draw order, shows the following.
 - Every link item draws its balloons in document order: Field Code Changed (the field code's
