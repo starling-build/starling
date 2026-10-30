@@ -2129,7 +2129,10 @@ enum ChartPainter {
             // No wider than four fifths of the chart: aascu 5864's 20 pt
             // title breaks before "at" in PowerPoint's print, its first
             // line 535 pt of a 696 pt chart, "at" taking it past 557.
-            tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide ? min(area.width, 0.8 * r.width) : area.width))
+            // (Word's too, beside Excel's: tdf122014's 14pt title in a 432pt
+            // chart wraps before "left" in Word for Windows' print, its first
+            // line 340.5pt wide; ours took "left when" on it, 397pt.)
+            tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide || !c.onSheet ? min(area.width, 0.8 * r.width) : area.width))
             // (Where Word for Windows sets the theme's text in Mincho, a
             // title line holding a character Mincho lacks is JhengHei's,
             // 1.729 em to Mincho's 1.3 (`_tableRows`): it grows by the
@@ -2699,6 +2702,18 @@ enum ChartPainter {
         return shown.isEmpty ? label(v, percent: false) : shown
     }
 
+    /// An axis tick in the General format: as many decimals as the value needs
+    /// (the ticks are multiples of a nice step, so ten are all there are).
+    /// Word's print of tdf130969 (axis 0.35781 to 0.3579 by 0.00001) reads
+    /// "0.35781 … 0.3579", where `label`'s two decimals made every one "0.36".
+    static func tickLabel(_ v: Double) -> String {
+        if abs(v - v.rounded()) < 1e-9 { return String(Int(v.rounded())) }
+        var s = String(printf: "%.10f", v)
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s == "-0" ? "0" : s
+    }
+
     static func label(_ v: Double, percent: Bool) -> String {
         if percent { return "\(Int((v * 100).rounded()))%" }
         if abs(v - v.rounded()) < 1e-9 { return String(Int(v.rounded())) }
@@ -2921,9 +2936,9 @@ enum ChartPainter {
         // In the axis's own number format where it has one: "1,600", and
         // an accounting format's "-" for nought. (Its padding is a cell's.)
         func valueLabel(_ v: Double) -> String {
-            guard let code = c.valueFormat, !c.percent else { return label(v, percent: c.percent) }
+            guard let code = c.valueFormat, !c.percent else { return c.percent ? label(v, percent: true) : tickLabel(v) }
             let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
-            return shown.isEmpty ? label(v, percent: false) : shown
+            return shown.isEmpty ? tickLabel(v) : shown
         }
         let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         // The second axis' labels, in its own format ("60.00%").
