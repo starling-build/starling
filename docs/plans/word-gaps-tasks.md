@@ -10590,3 +10590,6 @@ wip/t241-shape-anchor 4f0b145d (Windows mode, v2, 756 pre-pair): zh-291fcea7 98.
 
 ### T242. zh-b62c9e11 (98.0, p2:2 p5:1 p8:2 p15:1) and zh-cd8987db (98.3, p1:3 p7:1 p10:1) against word-win — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4)
 Looking at both on the new base; each is measured before any fix is built.
+
+### T243. zh-8415d258 (96.2, 21 of 553 lines) against word-win — CLAIMED (Mac 7bd18d8e, 2026-10-30, Windows mode)
+Body paragraphs open with two plain spaces ("  根据…", 仿宋_GB2312 15pt, balanceSingleByteDoubleByteWidth, grid lines 312): Word's text starts at x=120 (each space advances 15pt); ours starts at x=91 (spaces collapse). Also p1's right-aligned "水利部办公厅" wraps 办|公厅 in Word, 办公|厅 in ours. Tracing the space width.
