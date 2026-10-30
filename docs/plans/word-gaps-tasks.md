@@ -9958,7 +9958,11 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     and the writer folds a continuation into the paragraph whose trailing break it follows. Test testPageBreakDoesNotAddParagraphsOnEverySave.
   - NumberedList, tdf103976 (nested tables): our saved outer table has no style and no borders, so the reader takes it for an
     invisible wrapper and dissolves it; `tableXML` now names TableNormal on a table the reader's own predicate would dissolve.
-  - OPEN: extras/layout/tdf123163-1 (201 -> 196): literal newlines inside <w:t> and kept-table text matching; tables turn into body paragraphs on re-read.
+  - tdf123163-1 (201 -> 196): FIXED, landed c81a756bc (2026-10-30). A multi-column section is set as a one-row table whose markup is kept
+    for the save, built from each source paragraph; a paragraph whose picture names media the package does not hold (this file has none) had
+    no kept markup and its TEXT was left out of the copy (data loss). The section is now a table only where every paragraph can be kept.
+    The counts still differ (198 -> 200: the copy no longer points at the missing picture, so its columns read as a table), no text lost.
+    Pre-pair 756 v2 Windows: nothing moved (98.321). Round trip of the 2,121 now has no real failures but that benign count.
   - docx-corpus.py takes OFFICE_APP (55bdd0a17). LANDED 302126c50 (2026-10-30): compile-checked, Office suite 530 green, Windows-mode
     pre-pair of 756: nothing moved (96.832 both sides), so no windows-1 round needed.
 
