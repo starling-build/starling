@@ -469,6 +469,26 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
   glyph tested against the clip path's area (how much of the glyph shows), which PyMuPDF's text API does not give.
 - NEXT (lenovo-3): one-to-one assignment for short lines and pieces (a label pairs with at most one of ours, nearest in x
   within a tolerance), as a flagged v2 revision; zh-27a874b7 (74 -> 84 under v2) and zh-d62da4dd (78 -> 86) to show.
+- v2 AND THE LO SET (Linux 01F2SWc8 lenovo-3, 2026-10-30). (1) Ten documents in each set score 0/0: the Word print has no text
+  glyphs at all (51921-Word-Crash067, 59378, Bug62859, TestTableColumns, comment, headerPic, issue_51265_1/2/3, zero-length
+  officially), and a print with no Word lines scores 0.0 (0/1), so headline the mean over documents with text ("746 with text"):
+  official 98.3 -> 99.6. No matcher change (starling-bd declined). (2) tdf138773 scores 0 because Word draws its chart's text as
+  outlines (1,826 curves) while ours prints 93 characters. (3) tdf169843, tdf134146 and tdf130380 (v2 0 / 7.1 / 8.3 against v1
+  100 / 64.3 / 16.7): v2 is right in all three, v1 lenient. Word's print scored against itself is 100 in both matchers, so v2 does
+  not blank math or chart text. tdf169843: Word centres "ℝ" (CambriaMath 24pt) at x 288.8, ours draws a plain "R" (Caladea italic)
+  at x 76.1 — lenovo-5's e0dbaf38 centres it, and the glyph must also be ℝ. tdf134146 and tdf130380 are charts whose value axes
+  differ (Word 6.2..4.4 in 0.2 steps against our 7..0; the axis title wrapped in three lines against one).
+- COMPAT LAB RESULT (Windows 01QbbApP, 2026-10-30; read by lenovo-3): fdo63164-1's page-4 paragraph, no w:compat (a) and an EMPTY
+  w:compat (b) print identically — a line's last "." / "," hangs past the margin ("65m." ends 1.7pt over); with compatibilityMode
+  15 (c) it wraps and "Wa" is kerned 0.10 tighter; form_footnotes with its w:compat removed prints as its own. So the key is the
+  compatibility mode, not the element: wip/lenovo3-stops (115b1a51) hangs the stop and sets the East Asian rules where a file names
+  no mode and no useFELayout; kerning where styles carry no docDefaults. Guards: all 80 documents in that state (49 official, 31 LO)
+  swept base against candidate on Linux, only fdo63164-1 moved (72.8 -> 98.9). Evidence is one document that shows the hang plus
+  the lab; if round 8 drops any guard the key is wrong.
+- LANDED 48ccb2365 (lvlfont, windows-1 round 6): an all-ASCII list label under a level naming only a hAnsi face takes the paragraph's
+  face (zh-57f1de0d 99.2 -> 99.9). Queued for round 8 (windows-1): wip/lenovo3-hdrblock 3a2afd381 (a table whose marked header rows
+  are together taller than a page starts on a page of its own: tdf88496 10.3 -> 100, the only document that reaches it) and
+  wip/lenovo3-stops. Round 7: wwspace (c6deb6b4) and moves (935f0d62, tdf104797 50 -> 100).
 
 ### Windows-mode 99.0–99.4 band — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
 49 documents, mostly one or two lines a line break apart. Looking for rules that lift several:
