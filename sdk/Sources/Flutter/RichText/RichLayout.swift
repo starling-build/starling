@@ -1248,6 +1248,9 @@ public final class RichLayout {
     /// each paragraph's text for its first line's indent or its list
     /// number; 0 for none.
     private var _leadWidth: [Double] = []
+    /// How far a paragraph's first line is held in beside a floating table
+    /// it follows (`_besideIndent`), in layout pixels; 0 for none.
+    private var _besideLead: [Double] = []
     /// A fixed box still puts the first glyph at its stated indent when
     /// it overflows. Its painter reserves room for that glyph on line one;
     /// painting restores the difference before clipping to the frame.
@@ -1390,6 +1393,7 @@ public final class RichLayout {
         _lineOverhang = Array(repeating: [], count: n)
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
+        _besideLead = Array(repeating: 0, count: n)
         _boxFirstLineShift = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
@@ -1465,6 +1469,7 @@ public final class RichLayout {
                 _lineOverhang.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _besideLead.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _boxFirstLineShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -1504,6 +1509,7 @@ public final class RichLayout {
                 _lineOverhang.removeSubrange(at ..< end)
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
+                _besideLead.removeSubrange(at ..< end)
                 _boxFirstLineShift.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
@@ -4629,12 +4635,12 @@ public final class RichLayout {
             if let beside = besideTable {
                 let p = document.paragraphs[i]
                 if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
-                else if _cells[i] != nil || !blank(p) { y = beside.bottom; besideTable = nil }
+                else if _cells[i] != nil || !(blank(p) || (i < _besideLead.count && _besideLead[i] > 0)) { y = beside.bottom; besideTable = nil }
             }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
-               blank(document.paragraphs[i]),
+               blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil, !ts.pageAnchored, ts.keptPosition != nil,
-               _tableLeft(prev, document) - _px(9) >= _px(18),
+               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) >= _px(18),
                let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 {
                 besideTable = (y, page)
                 y = top
@@ -7403,6 +7409,16 @@ public final class RichLayout {
         // number fits in the hanging indent).
         var lead = _px(firstLineIndent(p, at: i, document))
         _boxFirstLineShift[i] = 0
+        // (Beside a table floating by the text that stands at the margin: the
+        // first line is held in past it, as Word sets text in the strip a
+        // narrow floating table leaves. LibreOffice's n775899, a one-row
+        // table of 283pt with "This is some text" after it, has that line at
+        // x 359.5 on the table's own line in Word's print.)
+        _besideLead[i] = 0
+        if let beside = _besideIndent(i, p, document), beside > lead {
+            lead = beside
+            _besideLead[i] = beside
+        }
         if theme.wordRules, _fixedTextFrame != nil, p.cell == nil, style.list == nil,
            !style.rightToLeft, style.alignment == .left || style.alignment == .justify, lead > 0,
            !p.text.utf16.contains(0x09), _named(p, document)?.char.horizontalScale == nil,
@@ -11346,6 +11362,32 @@ public final class RichLayout {
     /// zh-457a8d62's leftChars 200 at 16pt on a grid of 17.0 starts its
     /// lines 34pt in, in Word's print, where ours were at 32 and a line
     /// 2pt longer took a character Word leaves for the next.
+    /// Where the text of paragraph `i` starts, from its own left edge, beside
+    /// the table floating by the text that it follows — a narrow one against
+    /// the margin with room at its right for a few characters — or nil.
+    private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
+              p.style.list == nil, p.style.alignment != .right, p.style.alignment != .center,
+              let before = i - 1 < _cells.count ? _cells[i - 1] : nil,
+              let ts = document.tableStyles[before.table], ts.floatsOverText, !ts.pageAnchored, ts.floatOffsetY != nil,
+              let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
+              !kept.containsSubstring("w:horzAnchor=\"page\""), !kept.containsSubstring("w:tblpXSpec"),
+              let widths = _columnWidths[before.table] else { return nil }
+        func twips(_ name: String) -> Double {
+            guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
+            return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
+        }
+        let column = _flowWidth(i)
+        let left = _tableLeft(before.table, document)
+        let right = left + widths.reduce(0, +)
+        // The text's edge: the table's right side and the clear it asks.
+        let edge = right + _px(twips("w:rightFromText") / 20)
+        let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+        guard left < column / 2, right < column / 2 + _px(100), column - edge - _px(p.style.indentRight) >= size * 3 else { return nil }
+        let own = _px(p.style.indentLeft)
+        return edge > own ? edge - own : nil
+    }
+
     private func _sideIndents(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> (left: Double, right: Double) {
         var left = p.style.indentLeft, right = p.style.indentRight
         guard theme.wordRules, !p.style.eastAsian.isEmpty else { return (left, right) }
