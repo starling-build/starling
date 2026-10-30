@@ -1407,6 +1407,20 @@ enum DocxFormat {
                     // "需要补正内容如下：" in Word's print; ours sat on it.
                     if frame["w:yAlign"] == nil, let v = Double(frame["w:y"] ?? ""), v > 0 { style.floatOffsetY = v / 20 }
                     if frame["w:xAlign"] == "center", frame["w:x"] == nil { style.alignment = .center }
+                } else if case let frames = unwrapped(node, "w:tr").flatMap({ unwrapped($0, "w:tc") }).flatMap({ unwrapped($0, "w:p") })
+                            .map({ $0.first("w:pPr")?.first("w:framePr") }),
+                          !frames.isEmpty, let frame = frames[0], frame["w:vAnchor"] == "page", frame["w:hAnchor"] == "page",
+                          frame["w:wrap"] == "notBeside", frame["w:yAlign"] == nil, frame["w:xAlign"] == nil,
+                          let fx = Double(frame["w:x"] ?? ""), let fy = Double(frame["w:y"] ?? ""),
+                          Set(frames.map { $0.map { PptxXML.serialize($0) } ?? "" }).count == 1 {
+                    // (Set in a frame placed on the page, the same way:
+                    // the ICS and CCS lines of a standard's cover, zh-cd8987db
+                    // — x 68.6, y 28.4 from the page's edge in Word's print,
+                    // where ours flowed from the margin.)
+                    style.pageAnchored = true
+                    style.pageOffsetY = fy / 20
+                    style.floatX = fx / 20
+                    style.floatXAnchor = "page"
                 }
                 // A spacing of ZERO is still a statement: Word then rules each
                 // cell on its own rather than collapsing shared edges, and
