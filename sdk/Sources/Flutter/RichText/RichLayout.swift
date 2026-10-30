@@ -897,6 +897,23 @@ public struct RichResolvedFace: Sendable {
 
 // MARK: - Pages
 
+/// A section's line numbers (`w:lnNumType`): Word counts the lines of the
+/// body's paragraphs (not those of tables, frames, notes, headers or
+/// footers, nor of a paragraph that says `suppressLineNumbers`) and sets the
+/// count in the margin, `distance` points left of the text, at every
+/// `countBy`th line.
+public struct LineNumbering: Hashable, Sendable {
+    public enum Restart: Sendable { case newPage, newSection, continuous }
+    public var countBy = 1
+    /// The first line's number.
+    public var start = 1
+    /// From the text's left edge, in points; nil is Word's "auto".
+    public var distance: Double? = nil
+    /// `w:restart`'s default is a new count on every page.
+    public var restart = Restart.newPage
+    public init() {}
+}
+
 /// Paper size and margins, in points. `nil` on the layout means a continuous
 /// column (a note, a text field); set, the flow is cut into pages at line
 /// boundaries and every geometry query has a canvas-space twin.
@@ -933,6 +950,8 @@ public struct PageSetup: Hashable, Sendable {
     /// section's are `RichDocument.pageNumberStart`/`pageNumberFormat`.
     public var pageNumberStart: Int? = nil
     public var pageNumberFormat: String? = nil
+    /// The section's line numbers (`w:lnNumType`), nil where it has none.
+    public var lineNumbers: LineNumbering? = nil
     /// An explicit odd/even section start (`w:type`). Its page numbers,
     /// rather than physical sheet indices, determine the requested side.
     public enum PageParity: Int, Hashable, Sendable { case even = 0, odd = 1 }
@@ -17491,12 +17510,82 @@ public final class RichLayout {
         }
     }
 
+    /// The lines of `piece` that Word numbers: those of a body paragraph
+    /// (not a table's, a frame's or one that suppresses them) whose tops
+    /// stand in the piece. Positions are the paragraph painter's own.
+    private func _numberedLines(_ piece: PagePiece, _ document: RichDocument) -> [LineMetrics] {
+        let i = piece.paragraph
+        guard i < document.paragraphs.count, i < _cells.count, i < _heights.count, piece.part != .rules, !piece.repeated,
+              _cells[i] == nil, _heights[i] > 0 else { return [] }
+        let p = document.paragraphs[i]
+        guard p.style.frame == nil, p.style.eastAsian["w:suppressLineNumbers"] != "1",
+              (p.style.eastAsian["w:suppressLineNumbers"] == "0" || document.styles.resolve(p.style)?.paragraph.eastAsian["w:suppressLineNumbers"] != "1") else { return [] }
+        let g = geometry(i)
+        // (A line is the piece's when its baseline stands in it.)
+        let from = piece.flowTop - g.textTop, to = piece.flowBottom - g.textTop + 0.5
+        return g.painter.computeLineMetrics().filter { $0.baseline > from && $0.baseline <= to }
+    }
+
+    /// How many numbered lines come before each piece, in its section's
+    /// count (`restart`): keyed by slot * 1_000_000 + the piece's index.
+    private func _lineNumberOrdinals(_ document: RichDocument) -> [Int: Int] {
+        var table: [Int: Int] = [:]
+        var count = 0, lastPage = -1, lastSection = -1
+        for slot in _pages.indices {
+            let page = slot / max(1, _columns)
+            for (index, piece) in _pages[slot].enumerated() {
+                let i = piece.paragraph
+                guard i < document.paragraphs.count, let numbering = _setup(ofParagraph: i).lineNumbers else { continue }
+                let section = i < _sectionOf.count ? _sectionOf[i] : 0
+                switch numbering.restart {
+                case .newPage: if page != lastPage { count = 0 }
+                case .newSection: if section != lastSection { count = 0 }
+                case .continuous: break
+                }
+                lastPage = page; lastSection = section
+                let lines = _numberedLines(piece, document)
+                if lines.isEmpty { continue }
+                table[slot * 1_000_000 + index] = count
+                count += lines.count
+            }
+        }
+        return table
+    }
+
+    private func _paintLineNumbers(_ piece: PagePiece, ordinal: Int, origin: Offset, _ canvas: any Canvas, _ document: RichDocument) {
+        let i = piece.paragraph
+        guard let numbering = _setup(ofParagraph: i).lineNumbers else { return }
+        let lines = _numberedLines(piece, document)
+        guard !lines.isEmpty else { return }
+        let p = document.paragraphs[i]
+        // (In the paragraph's style, not its runs': Word's "Line Number"
+        // is a character style on the paragraph's own.)
+        let style = theme.textStyle(for: CharStyle(), in: p.style, named: _named(p, document), normal: _normalChar(document),
+                                    scale: scale, fontScale: fontScale, gridPitch: nil)
+        let g = geometry(i)
+        let distance = _px(numbering.distance ?? 18)
+        canvas.save()
+        canvas.translate(origin.dx, origin.dy)
+        for (k, m) in lines.enumerated() {
+            let n = ordinal + k + 1
+            guard n % numbering.countBy == 0 else { continue }
+            let tp = TextPainter(text: TextSpan(text: String(numbering.start + n - 1), style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: .infinity)
+            let base = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic)
+            tp.paint(canvas, Offset(-distance - tp.width, g.inkTop + _baselineShift(i, document) + m.baseline - base))
+            tp.dispose()
+        }
+        canvas.restore()
+    }
+
     /// Every visible paragraph, page by page and column by column: its
     /// table row's shading only (`shading`), or everything else.
     private func _paintFlow(_ canvas: any Canvas, visible: Rect, document: RichDocument, shading: Bool) {
         if isPaged {
             let firstPage = page(atCanvasY: visible.top)
             let lastPage = page(atCanvasY: visible.bottom)
+            let numbered = !shading && theme.wordRules && (pageSetup?.lineNumbers != nil || _sectionSetups.contains { $0.lineNumbers != nil })
+            let ordinals = numbered ? _lineNumberOrdinals(document) : [:]
             for p in firstPage ... lastPage {
                 let pageTop = pageRect(p).top + _pxMarginTop(p)
                 for column in 0 ..< _columns {
@@ -17507,7 +17596,7 @@ public final class RichLayout {
                     // the page, so a table wider than the text can still show.
                     let columnClipL = _columns > 1 ? left - 1 : 0
                     let columnClipR = _columns > 1 ? left + _pxColumnW(p) + 1 : _pxPageW(p)
-                    for piece in _pages[slot] {
+                    for (pieceIndex, piece) in _pages[slot].enumerated() {
                         // (A cover's one-column section, set across the page:
                         // `_fullWidthCover`.)
                         let across = _fullWidthCover.contains(piece.paragraph)
@@ -17603,6 +17692,9 @@ public final class RichLayout {
                         }
                         lines?.painter.dispose()
                         canvas.restore()
+                        if numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
+                            _paintLineNumbers(piece, ordinal: ordinal, origin: Offset(left, top - piece.flowTop), canvas, document)
+                        }
                     }
                 }
             }
