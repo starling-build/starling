@@ -177,6 +177,25 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "÷" set East Asian parts like "×" (538960d0): zh-427cb16c and zh-5f045fc1 -> 100, zh-b2e0f286 99.5 -> 99.8. "﹚﹜﹞" hang as
   closing marks (0df8587f): zh-ab1ea005 99.9 -> 100 (its page-number misses are lenovo-2's). zh-6b242483 "（家）|×1" is a mode-14
   squeeze (5.1 over, 4 marks, Word refuses), sent to macos-ios as a per-mark witness.
+### Lab sqz / sqz2: squeeze-or-stretch outside the grid — F, G and what firstLineChars measures (Mac 01Xgpbk5, 2026-10-30)
+Kits wip/lab-sqz (66 prints, seven lines) and wip/lab-sqz2 (F's width swept 1-40 twips, four marks), run by `windows`. Read-out:
+- C (marks needed, doNotCompress refuses), D (mode 15, or a grid; refused in 12/14), E (take needs the linesAndChars grid): the
+  marks/mode/grid picture, E is the gs2 family. A and B: the isolated paragraph's width differs from the in-document one; set aside.
+- F (zh-360c1df1 p6, "展", mode 14, FangSong 16pt): Word refuses at its own width and takes from 2 twips (0.1pt) more room, the same
+  for 。 ， 、 ；. Not a squeeze limit and not a margin: the quotes are Times New Roman Bold, half-width and giving nothing, as in ours.
+  The paragraph is firstLine 643 / firstLineChars 200 on a plain "lines" grid (charSpace 0); Word's first line starts at x 117.26
+  (= 85.05 + 32.15, 643 twips), ours at 117.05 (200 chars x 16pt = 640 twips, 32.0): 0.15pt more room in every first line, which is
+  the 0.1pt "spare". With the stored 643 ours refuses too (single document, F's line then starts 117.2).
+- NOT a rule yet: "use the stored firstLine within 1pt of the count" gained nothing on the 756 and cost zh-c591c1fa 97.7 -> 97.0 (its
+  paragraph stores 560 for 200 chars of 14pt; Word's print starts it 27.25 in, i.e. 13.6pt a character, not 14 and not the stored 14.0).
+  Word's "character" for firstLineChars is the face's, not the size: 643 stands for 200 chars in 1,207 paragraphs of ~50 documents,
+  640 in 11,620 of ~170. To model it, read the unit per (face, size) from Word's prints: a paragraph's first line x - margin, over
+  firstLineChars/100. Open.
+- G (zh-6b242483's lone "×", mode 14): Word refuses in every form, F8 (× made an ideograph) and F9 (+2pt) included; a width difference
+  on a line of digits and Latin letters in 仿宋_GB2312 16pt, not a squeeze question. Open.
+- Word's glyph steps (markgive.py, lab/census): the smallest mid-line step of a mark varies by face and size (FangSong 16pt ，
+  0.44-0.57 em, SimSun 12pt 。 0.84, DFKai 。 0.75-0.84, YaHei ， 0.53), so "up to half an em" is a ceiling, not Word's limit.
+
 ### Census of every missed line under v2, Windows mode, by first cause — DONE (Mac 01Xgpbk5, 2026-10-30, starling-bd's assignment)
 Setup: v2 sweep of office 5f124114, Windows mode, Mac-hosted (zh-6a4fc013 and rtl left out); scripts wip/lab-census
 (census.py: unmatched Word lines per page -> incidents; classify.py: first cause by region/shift/page). Totals match the
