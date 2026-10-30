@@ -9904,3 +9904,14 @@ shift (meant for upright cells) moves it too. Word sets it at its indent from th
 Also seen in the band, not layout gaps: zh-c4f2be3b (33 misses, one a page) is its turned footer page number, whose line box
 in Word's print runs 7pt past its glyphs (the matcher reads a turned line by its box); zh-d0a207ac's misses are Wingdings 2
 boxes, which Word's text layer names U+F0A3 (dropped) and ours U+2610.
+
+### zh-6d402586 p6: squeeze then hang at ~1.6 em over — Lab spec (Word for Windows) (Linux office1, 2026-10-29, band 95.0-95.9)
+Measured (Windows mode, 95.5, 33 misses; p6-p7's 16 from one line): paragraph "9、雇主接續聘僱…" (mode 15, compressPunctuation,
+zh-TW, 標楷體 14pt, jc both, no useAltKinsoku). Its line 2 "COVID-19疫苗者，得免除PCR檢驗，未完整接種疫苗之移" ends at the margin in Word's
+print with both commas whole (14.0) and the automatic spaces 5.2; ours takes "工，": 22.9 over, the "，" hung (14), 8.9 left for two
+commas (7 each) and three automatic spaces (1.75 each), 19.25 of room. Lab t175's staging (squeeze first, the last mark hung only at
+~21-23 over with the others relaxed to 1.4-2.0) would take it too, so the hang stage's room is the open question.
+Lab spec: zh-6d402586's package, that paragraph alone; sweep w:right in 2-twip steps from where "工，" is taken to where it goes down,
+and read each step's comma widths, automatic-space widths and where the hung "，" starts. Variants: (a) as is; (b) "COVID-19" and "PCR"
+replaced by ideographs (no automatic spaces); (c) one comma replaced by an ideograph. Wanted: the largest over Word takes with a
+mid-paragraph hang, as marks + spaces + hang.
