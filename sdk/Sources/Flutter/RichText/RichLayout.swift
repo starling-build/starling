@@ -8000,7 +8000,11 @@ public final class RichLayout {
             // 31-character first-line indent, and its row is as tall as
             // the text beside it in Word's print, 189pt; ours set the
             // spaces a line each and the row stood 216.)
+            // (Not twenty or more under `w:wordWrap` off in the body, which
+            // wrap as characters do: zh-621d8756's 102 are two lines of 51 in
+            // Word's print, lab `trail`.)
             if theme.wordRules, !p.text.isEmpty, p.text.unicodeScalars.allSatisfy({ $0.value == 0x20 }),
+               !(p.style.eastAsian["w:wordWrap"] == "0" && p.cell == nil && p.text.utf16.count >= 20),
                painter.computeLineMetrics().count > 1 {
                 let whole = painter.maxIntrinsicWidth.rounded(.up) + 1
                 if whole > lineWidth { painter.layout(minWidth: whole, maxWidth: whole) }
@@ -14322,8 +14326,33 @@ public final class RichLayout {
             // each page's body lost one.)
             var s = units.count
             while s > 0, units[s - 1] == 0x20 { s -= 1 }
-            if s > 0, units.count - s > 1, p.style.alignment != .right, p.style.alignment != .center {
+            if s == 0, units.count >= 20, p.cell == nil { RuleTrace.hit("wordwrap0-spaces-only-paragraph-wraps") }
+            // (A paragraph of spaces alone too, from twenty: zh-621d8756's 102
+            // underlined spaces are two lines of 51 in Word's print.)
+            if s > 0 || units.count >= 20, units.count - s > 1, p.style.alignment != .right, p.style.alignment != .center {
                 for k in s + 1 ..< units.count { out.insert(k) }
+            }
+            // (And a long run of them with text after it: zh-621d8756's
+            // "                                    （本页不够可以续页）", 81
+            // underlined spaces and the note, is 51 spaces to the margin and
+            // 30 more with the note after them in Word's print, a fresh
+            // print of the whole document the same (lab `trail`, windows:
+            // the paragraphs carry `w:wordWrap` 0; with it on, spaces hang
+            // and never wrap by count). Ours hung all 81 and set the note
+            // at the margin of the next line, the page's closing block a
+            // line high. From twenty on, so that a few spaces stay as they
+            // were.)
+            var runStart: Int? = nil
+            for k in 0 ... units.count {
+                if k < units.count, units[k] == 0x20 {
+                    if runStart == nil { runStart = k }
+                } else if let from = runStart {
+                    if k < units.count, k - from >= 20 {
+                        RuleTrace.hit("wordwrap0-long-space-run-before-text")
+                        for j in from + 1 ..< k { out.insert(j) }
+                    }
+                    runStart = nil
+                }
             }
             // (One closing space after a mark that may hang parts from it
             // too, and is set as a character — `_closingSpaceHeld`.)
