@@ -11050,3 +11050,45 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
 
 - LO NESTED TABLES, step 1 LANDED (Linux lenovo-2 Sonnet 5.5, 2026-10-30): a nested table that floats only in name (text-anchored, no spec, y at most 1pt) is an inline block shifted by its x. tdf170381-split-float-table-in-normal-table 37.5 -> 100. Passed windows-1's round 6; landed as fc2588498 on office. Steps 2 (wip/nested-box-parting) and 3 (wip/nested-float-height, tdf170477 83.6 -> 100) are in round 7. Next: the queue-2 nested witnesses (tdf92157, floattable-anchor-height, fdo77887, tdf158349_SDTstreamStateStack, tdf149089, fdo80097).
 - T251 follow-up 2 (Linux lo5, 2026-10-30, starling-bd's order): CLAIMED, in this order: (1) LINE NUMBERING (`w:lnNumType`: countBy, start, distance, restart; not drawn at all, the text starts at x 71 where Word's numbered lines start at 47; floattable-heading-split-hyphen 32.6, floattable-heading-split-footer 20.8, lo-7cba9019 42.9, 7 LO documents carry it); (2) tdf170672 (one drift of two lines from page 2); (3) tdf38575_fullWidthLine (2 pages against Word's 4). Full pre-pair of e0dbaf38c is DONE: 756 only zh-31d580df moved (98.9 -> 99.1), LO 197 mean 64.1 -> 65.7, three 0 -> 100, none lower. tdf119200's baseline fix is on wip/lo-objbase (stacked on it), its pair is running.
+
+  T250 QUEUE-2 BATCH 2 SCORED (Linux lo4, 2026-10-30; prints c58f98ce: positions 174-273, frames and part of sections, 102 new, no new skips). Everything
+  below is ONE release build of office c58f98ce (it includes fc2588498 tdf170381 nested-float, 418086a1, 56b6e5c7, 69a4b2a2, 48ccb236 that landed after batch 1's build);
+  all 463 printed re-scored on it, Windows mode, v2, bundled fonts, Linux validation engine. Renders ~/tmp/lo4/c2 (batch 1 on the older build: ~/tmp/lo4/b1, b2).
+  Landed code vs the older build, same 463 prints: 4 up, none down (lo-1e0077c3 37.5 -> 100, lo-6ccf0ac0 floattable-multi-nested 44.4 -> 100, lo-f1b99324 66.7 -> 100, lo-e88ee54e 80 -> 100).
+  HEADLINE over the 430 documents whose Word print has text lines (463 printed): MEAN 65.3, MEDIAN 83.6, >= 95: 189, 100%: 185; Word's page count: 401 of 463.
+  First 197: 70.2 over 181 with text (94 >= 95, 92 at 100). Queue 2 so far (266 printed): 61.8 over 249 with text (95 >= 95, 93 at 100).
+  By group (printed with text, mean, >= 95): floating 94, 55.4, 28; frames 47, 54.4, 19; nested 44, 69.9, 18; sections 45, 72.7, 23; charts 19, 67.7, 7.
+  Class table over all 463 (lo_triage.py, rough; below 95: 274, missed lines in them 5,647):
+  | class | docs | missed lines | share | worst three (missed lines, score) |
+  |---|---|---|---|---|
+  | floating tables | 81 | 2123 | 38% | tdf170672 (956, 28%); floattable-avoid-last-manip-ofst (131, 15%); floattable-heading-split-hyphen (89, 33%) |
+  | nested tables | 33 | 1346 | 24% | fdo43573-2-min (390, 1%); tdf92157 (194, 1%); floattable-anchor-height (104, 15%) |
+  | frames | 27 | 977 | 17% | fdo78904_fileHang (690, 14%); special_styles (48, 49%); tdf105035_framePrB (41, 9%) |
+  | tracked changes / comments / balloons | 13 | 284 | 5% | fdo63164-1 (207, 73%); n830205 (32, 56%); merge_hidden_redline (17, 26%) |
+  | sections and columns | 22 | 264 | 5% | shape-anchored-in-follow (67, 26%); tdf135144 (34, 31%); tdf36117_verticalAdjustment (30, 21%) |
+  | charts | 35 | 238 | 4% | tdf124398_groupshapeChart (15, 6%); tdf128207 (15, 40%); xaxis-labelbreak (14, 0%) |
+  | text layer (Word print has no text lines) | 33 | 137 | 2% | tdf138773 (81, 0%); FDO78590 (32, 0%); fdo79540 (23, 0%) |
+  | tables (other) | 6 | 78 | 1% | tdf88496 (52, 10%); fdo78885 (11, 8%); tdf152298 (9, 85%) |
+  | headers / footers / page count | 5 | 68 | 1% | tdf152983-1-min (32, 18%); tdf149555 (17, 37%); tdf153964_topMarginAfterBreak14 (12, 25%) |
+  | bidi / Hebrew / Arabic | 6 | 58 | 1% | Cool16066_addRowsUnderOmittedHeading (28, 33%); tdf146248 (16, 71%); tdf135216_evenOddFooter (7, 30%) |
+  | fields | 3 | 45 | 1% | tdf164905 (43, 59%); tdf116486 (1, 50%); btlr-frame-vml (1, 0%) |
+  | text: line breaks, fonts and widths | 5 | 15 | 0% | tdf122878 (5, 86%); Cool15691_headerTextWrapsAroundImage (4, 20%) |
+  | images / shapes / text boxes | 5 | 14 | 0% | tdf106153 (6, 84%); tdf128198-1 (5, 44%); tdf124600 (1, 67%) |
+  BATCH 2 FIRST-MISMATCH READS (new documents; missed lines of Word's, score):
+  - FRAMES (50 printed, mean 54.4, 31 under 95): fdo78904_fileHang (690 of 799, 14%; 21 pages both): 109 matched; from p2 (y 677-690) the frame-set table rows of ours are a
+    different row/column order from Word's (not read to the cause). tdf105035_framePrB (41 of 45, 9%): the IEEE title frame: Word breaks "…TRANSACTIONS | and JOURNALS", ours
+    "…TRANSACTIONS and | JOURNALS" — our frame is wider than Word's (title at x 56 in ours, 77 in Word), and the author and abstract lines shift (frame width/indent).
+    Tdf147485 (32, 0%; ours draws NOTHING, 0 lines): Word draws 32 single glyph lines (rotated/vertical text, "m s i l" at y -36), the same class as tdf147485-forcepoint.
+    tdf133924 (26, 0%): Word starts with the body text "Lorem ipsum…" at y 85; ours puts two lines of frame text ("Around", "not Beside") first, so the wrap order of a frame against
+    the text differs. tdf109316_dropCaps (20, 0%): ours sets "L" on a line of its own then the text (drop cap not folded into the paragraph; T248 owns this).
+    tdf154703_framePrWrapSpacing (12 of 13): 2 pages for 1. special_styles (48): Word's index/caption/envelope styles block sits at x 513; ours differs from p1 y 577 (not read).
+  - SECTIONS (52 printed, mean 72.7, 29 under 95): tdf135144 (34 of 49, 31%): Word's p1 lines after y 264 move: a figure caption "Figure 1: Flow of page styles" (y 400) and the heading below it
+    are placed 150pt lower in ours (not read to the cause). n830205 (32 of 73; ours 140 lines on 2 pages): Word's tracked-change margin BALLOONS ("Deleted: XXX", "Formatted: Font: 9pt",
+    "Deleted: Section Break (Continuous)", at x 437) are text lines in Word's print; ours does not print them the same way (tracked-changes class, now 13). tdf149555 (17): Word 4 pages,
+    ours 3: the TOC and the page-number lines ("Seriously", "Footer 1", "HEADER 2") move; tdf146248 (16): a long TOC (Word p2 y 390 onward: a list of entries at x 97) is
+    missing 5 lines in ours and ours has a third page. tdf108272 (15, 0%): the header is centred 47pt further left and 16pt lower in ours (x 232, y 53 against Word's x 279, y 37), the table below it
+    16pt lower: a header's position/alignment, small; tdf96750_landscapeFollow (12 of 24): 29 lines for 24.
+    tdf131963 (10 of 176, 94%): p9 only, a quotation block (indent) drifts by a few points.
+  - PAGE VERTICAL ALIGNMENT (sectPr w:vAlign, NEW, small): 2 documents carry it (tdf36117_verticalAdjustment 21.1%, 6 pages both; tdf154703 7.7%). Word's p1 text sits at y 403, ours
+    has none on p1 (the text goes to p2). Not claimed.
+  - LINE NUMBERS (reported with batch 1): 7 documents; the two printed ones above plus lo-7cba9019 (42.9%, not read).
