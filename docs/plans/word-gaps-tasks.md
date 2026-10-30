@@ -55,6 +55,15 @@ names before editing; don't edit mine, and don't build in `starling-win-native` 
 Windows mode first, scored vs word-win; includes the "Mac line heights around a tight-wrapped chart" finding below. First lead: p3's
 香港 lands outside where Word-win and Word-mac put it inside at (401.7,476.7); our Windows label runs 36.7pt tall against
 Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the default fallback, not Mincho's 1.3em line.
+- DONE (this commit): Windows-mode pie labels set their Chinese on Mincho's 1.3em line (JhengHei's 1.729 where Mincho
+  lacks a character), `ChartPainter.labelSpan`. Word-win's label pitch 12.48/12.12 at 9.96pt, ours now 12.65/12.2 at 10
+  (was 12.9); 香港's label 38.4 → 37.4pt, inside its 11% slice at 0.84, within 1.5pt of Word's (was 37/45 off). Pair w65→w66:
+  zh-d62da4dd 75.8→76.8, zh-27a874b7 73.9→72.8; Mac n236→n237 no changes. The drop is CANCELLING ERRORS, logged: chart 1's
+  top labels (教育 金融 建築) stand clamped to the frame's top in ours, and the shorter line lifts their baselines 0.75pt
+  (2.1 → 2.9pt over Word's; their merged line "2723" leaves the 3pt window). Word's are not clamped: its pie (bitmap,
+  coloured extent) is 125.5-285.8 against ours 128.2-289.0, 3pt higher, with its labels lower; chart 2's is 418.2-580.0
+  against ours 420.8-578.8 (4pt shorter). Both untitled auto plots with no legend — Word's 3-D pie auto plot moves with
+  its labels (residual (ii) above). Next: a Word for Windows lab of that plot box, through `windows`.
 
 ### zh-8d6f702e (Windows mode 90.8, 42 pages): first cause of its misses — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
 Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows-mode scores only (word-win). Lab g2 says plain

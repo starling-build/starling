@@ -2029,6 +2029,26 @@ enum ChartPainter {
     static var glyphFallback: [String]? { RichTextTheme.glyphFallback.isEmpty ? nil : RichTextTheme.glyphFallback }
     /// The fallback for `c`'s own text (`Chart.macSimplifiedFace`), its
     /// Traditional Chinese text's where `traditional`.
+    /// A label's text as Word for Windows sets it where the chart's East
+    /// Asian text is MS Mincho's (`Chart.windowsMinchoText`): its Chinese
+    /// on Mincho's line, 1.3 em, and JhengHei's 1.729 where Mincho lacks a
+    /// character — not the platform fallback's, 1.4 em. Word for Windows'
+    /// print of zh-27a874b7's chart 2: "香港" over "44" and "11%" at 9.96pt,
+    /// its first baseline 12.48 over the second (ours 12.9), the label
+    /// 1.1pt shorter than ours and so inside its 11% slice, where ours
+    /// stood outside.
+    static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle) -> TextSpan {
+        guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers,
+              text.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) }) else { return TextSpan(text: text, style: style) }
+        var runs: [(String, Double?)] = []
+        for ch in text {
+            let cjk = ch.unicodeScalars.first.map { (0x2E80 ... 0x9FFF).contains($0.value) } ?? false
+            let h: Double? = cjk ? (ch.unicodeScalars.allSatisfy { covers.contains($0.value) } ? 1.3 : 1.3301 * 1.3) : nil
+            if let last = runs.last, last.1 == h { runs[runs.count - 1].0.append(ch) } else { runs.append((String(ch), h)) }
+        }
+        return TextSpan(children: runs.map { TextSpan(text: $0.0, style: $0.1.map { Flutter.TextStyle(height: $0) }) }, style: style)
+    }
+
     static func glyphFallback(_ c: Chart, traditional: Bool = false) -> [String]? {
         guard let face = (traditional ? c.macTraditionalFace : nil) ?? c.macSimplifiedFace else { return glyphFallback }
         return [face] + RichTextTheme.glyphFallback
@@ -4588,7 +4608,7 @@ extension ChartPainter {
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
             }()
             let colour = c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
-            let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(
+            let tp = TextPainter(text: Self.labelSpan(c, text, Flutter.TextStyle(
                 color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
                 fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
                 fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))), textAlign: .center, textDirection: .ltr)
