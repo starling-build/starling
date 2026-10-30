@@ -9745,7 +9745,7 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). Both built; v2 pre-pair running.
 
 
-### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-27, office1's witness)
+### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED Mac 7bd18d8e 2026-10-30 (baseline #1 95.7; was lenovo-2's, released): at the offset placement, Windows mode
 "全县增援武警力量梯次名额分配表" (tblpPr vertAnchor text, tblpY 881) falls 760.8pt down p18, past the 757 foot (bottom margin 1701, footer 992). Word for Windows sets its first row there, 760.8-792.0, just above the footer's place at 792.4, and the rest on p19; ours takes it all to p19, a row late. The same footer-edge room as T222 (e70bd5d3), here row by row for a table floating by the text. Pairing in both modes.
 Tried and dropped (lenovo-2): (1) every text-floating table's rows using the room down to the footer's place: a dozen documents down in Windows mode (zh-c97500b6 100 -> 30, zh-588ee9e3 100 -> 53, zh-9ba2ead7 99 -> 58). (2) That only for a first row that starts past the foot: no change at all, zh-5a9a85c6 included. Such a table is sent over before the row loop sees it (its offset placement, `textFloatTop` / `raiseAtHead`), and that is where a fix belongs. RELEASED with that.
 
@@ -10078,7 +10078,7 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   REPLACED in c56dd6b9 (with zh-cb56e605 in a9d43428): zh-202582e2 (Yu Gothic -> MS Mincho, 449 glyphs moved),
   zh-604e21e5 (p30, 161 glyphs 9pt up), zh-ab9cbe66 (p63, ~415 moved), zh-ae2dd08d (p18 on, 1129 moved, 6pt),
   zh-e1b09977 (one glyph MS Gothic -> MS PGothic). RE-BASE sweeps: these six documents' scores will move.
-  - zh-ae2dd08d (w104 95.0, 137 missed, p17 on 4-6pt) CLAIMED by Mac 7bd18d8e (2026-10-29): what the fresh print moves.
+  - zh-ae2dd08d (w104 95.0, 137 missed, p17 on 4-6pt) RELEASED to T238 by Mac 7bd18d8e (2026-10-30): its p18 drop is brk2's mode-15 rule; the p17 flowchart box text (1.3-3.5pt high) is left open.
 (14) Labs since (12) (Windows 01QbbApP; the details went to the requesters):
   - hc2 (windows-2): a firstLineChars indent and its twips value are alike; Word's fit tolerance is under 0.0572pt
     (316 twips taken, 317 refused), as if summed in whole twips.
