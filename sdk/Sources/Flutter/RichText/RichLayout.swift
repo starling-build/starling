@@ -1186,6 +1186,8 @@ public final class RichLayout {
     /// A turned text box's layout (`RichTextBox.textDirection` not across):
     /// its lines run along the box's height.
     private var _turnedBox = false
+    /// Whether this layout is a text box's text (`_textBox`).
+    private var _inTextBox = false
     // Frame edges in the nested layout's line coordinates, for restoring
     // an overflowing first-line indent. Other lines keep their own policy.
     private var _fixedTextFrame: (left: Double, right: Double)?
@@ -11989,7 +11991,12 @@ public final class RichLayout {
         // "）" 2.6pt past the row's foot; eleven ideographs make two
         // columns, ten and one. Ours squeezed "（" and "，" to fit.)
         let turned = theme.wordRules && (_cells[i]?.vertical ?? false)
-        let hangs = fitted && (!inCell || turned) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
+        // (Nor, before 2013's layout, out of a text box: zh-2e7ef069's
+        // 76pt flowchart boxes (mode 14, zh-CN, 12pt SimSun, insets 7.2)
+        // send "化前期设计，" down as "设" | "计，" in Word for Windows'
+        // print, 10.05pt over with its one mark, and take "工图、能评、",
+        // as over, with two marks giving half each — as a cell does.)
+        let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
         // (Nor where the defaults name a Latin face for East Asian text, in
         // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
@@ -15876,6 +15883,7 @@ public final class RichLayout {
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
         layout._turnedBox = box.textDirection != .horizontal
+        layout._inTextBox = true
         if _canCorrectFixedBoxIndent(box) {
             let inset = box.textDirection == .horizontal ? box.insetLeft
                 : box.textDirection == .up ? box.insetBottom : box.insetTop
