@@ -10035,6 +10035,29 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   - docx-corpus.py takes OFFICE_APP (55bdd0a17). LANDED 302126c50 (2026-10-30): compile-checked, Office suite 530 green, Windows-mode
     pre-pair of 756: nothing moved (96.832 both sides), so no windows-1 round needed.
 
+  TRIAGE TABLE, FIRST CUT (lenovo-2, 2026-10-30, 107 of 200 printed (batches 1-2), Windows mode, v2, code at c81a756bc, i.e. BEFORE the nested-table
+  steps). Score so far: 107 documents, mean 63.1, median 90.0, >= 95: 50, 100%: 49. Each document under 95 is put in ONE class by its content
+  features in a fixed priority (text layer, charts, nested tables, floating tables, tracked, bidi, headers/footers with a page-count miss, sections/
+  columns, frames, other tables, special spaces, fields, lists, images, text) — a rough cut, not a first-mismatch read: a Hebrew document that
+  also has footers is counted under the earlier class it matches, "text layer" includes documents where nothing is missed (0/0), and
+  "nested tables" holds any document with a table in a table. Missed lines = Word's lines less the matched.
+  scored 107; below 95: 57; missed lines in them: 808
+  | class | docs | missed lines | share | worst three (missed lines, score) |
+  |---|---|---|---|---|
+  | nested tables | 5 | 302 | 37% | tdf170381-split-float-table-in-float-table (96, 8%); floattable-del-empty (86, 62%); fdo48718-1 (81, 1%) |
+  | floating tables | 9 | 137 | 17% | floattable-next-leaf-in-section (53, 5%); floattable-negative-height (50, 74%); floattable-footer-object (15, 6%) |
+  | charts | 13 | 94 | 12% | xaxis-labelbreak (14, 0%); tdf134146 (13, 7%); tdf134235 (12, 14%) |
+  | text layer (Word print has no text lines) | 10 | 82 | 10% | tdf138773 (81, 0%); tdf137025 (1, 0%); do-not-capture-draw-objs-draw-obj-no-capture (0, 0%) |
+  | tables (other) | 4 | 64 | 8% | tdf88496 (52, 10%); tdf152298 (9, 85%); tdf96749 (2, 90%) |
+  | bidi / Hebrew / Arabic | 3 | 41 | 5% | Cool16066_addRowsUnderOmittedHeading (28, 33%); tdf135216_evenOddFooter (7, 30%); tdf69647_text (6, 14%) |
+  | headers / footers / page count | 1 | 32 | 4% | tdf152983-1-min (32, 18%) |
+  | sections and columns | 2 | 26 | 3% | tdf153136 (24, 42%); tdf103931 (2, 0%) |
+  | images / shapes / text boxes | 4 | 13 | 2% | tdf106153 (6, 84%); tdf128198-1 (5, 44%); groupshape-sdt (1, 0%) |
+  | frames | 1 | 12 | 1% | tdf150438 (12, 0%) |
+  | tracked changes / comments / balloons | 3 | 3 | 0% | del-then-format-own (1, 89%); tdf104797 (1, 50%); CT-formatted-deletion (1, 90%) |
+  | fields | 1 | 1 | 0% | btlr-frame-vml (1, 0%) |
+  | text: line breaks, fonts and widths | 1 | 1 | 0% | tdf169843 (1, 0%) |
+  Next: the full 200 once the prints are in; the first-mismatch read of the top of each class is the second cut.
   FIRST SCORES (Linux lenovo-2, 2026-10-30, office 8f2f2639 prints; Windows mode, v2, bundled fonts, the lo set scored apart from the official mean):
   batch 1, 50 documents (the first 50 ids): mean 67.2 (74.7 over the 45 where Word's print has text lines), median 99.5, >= 95: 26, 100%: 25,
   half or more: 33, Word's page count: 42. Five have no text lines in Word's print (bottom-margin-with-footer, tdf134277, tdf124423 — no text
