@@ -11926,8 +11926,17 @@ public final class RichLayout {
         // 2.0, 3.0 with four and not 3.5, 6.0 with eight and not 6.5 —
         // lab `js`, `body50.py`, 2026-10-14; zh-4b8e0abc's Indonesian
         // lines take a word ours left for the next.)
-        let squeezesSpaces = !legacy && p.style.alignment == .justify
+        // (Before it, a page field's result with no ideograph in it gives
+        // them so set as it is, since it cannot break at its own spaces:
+        // zh-c4f2be3b's eaVert page number " - 10 -" (mode 14, right-
+        // aligned, SimSun 14pt, 49pt in a 47.3pt box) is one line in Word
+        // for Windows' print, its two inner spaces 6.1 for 7. Any legacy
+        // paragraph without ideographs giving them costs bug57031 and
+        // zh-d62da4dd lines.)
         let units = Array(p.text.utf16)
+        let squeezesSpaces = !legacy && p.style.alignment == .justify
+            || legacy && fitted && units.contains(0x2060)
+                && !units.contains(where: { $0 >= 0x2E80 })
         // (Where nothing else is compressed, `w:topLinePunct` still lets a
         // line's opening mark give: see `leadOpeners` below.)
         let topLinePunct = fitted && !turned && p.style.eastAsian["w:topLinePunct"] == "1"

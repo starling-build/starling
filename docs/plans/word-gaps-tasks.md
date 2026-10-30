@@ -3418,7 +3418,14 @@ After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout
 Shapes inside a VML `v:group` draw only their text — no outlines, fills or arrows (zh-6e6b9821, 5e452e14). Checked by eye against Word's prints, plus a pair sweep.
 
 ### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: 99.7; zh-6d402586 91.3 -> 96.7, zh-2e7ef069 90.0 -> 92.8, nothing down (pair n5/n6). Released]
-- Windows 95.6 (2026-10-29): CLAIMED Linux lenovo-2 (starling-d6), macos's Windows-mode round. Every page from p10 misses its
+- Windows 95.6 (2026-10-29): DONE Linux lenovo-2 (starling-d6), released. A page field's result with no ideograph in it now
+  gives its word spaces under modes before 15, so " - 10 -" stays one line as in Word's print. Score stays 95.6: every
+  remaining page miss is the scorer, not the layout. Word's PDF line carries a trailing space glyph, so its box is
+  [49.6, 432.7, 63.7, 481.7] to ours [48.5, 432.7, 61.7, 474.6] on p5, while the glyph origins agree: Word ' '432.7 '-'439.8
+  ' '446.7 '5'453.7 ' '460.8 '-'467.7, ours 432.7/439.7/446.7/453.7/460.7/467.6; p10 now at x 52.0 to Word's 52.1 (was 33.9,
+  split). Pair on 608df3326 (both modes): nothing moved, mean 97.957 Windows / 97.793 Mac. The wider form — any legacy
+  paragraph without ideographs — cost bug57031 100 -> 95 and zh-d62da4dd 77.8 -> 63.6, so it is kept to page fields.
+  Was: every page from p10 misses its
   eaVert page-number box (footer2, 47.3pt inside): " - 10 -" in SimSun 14pt is 49pt, and Word keeps it on one line, its two
   inner spaces 6.1 for 7 (mode 14, balanceSingleByteDoubleByteWidth); ours wraps the leading space to a column of its own.
   The fitter returns before it looks: no marks, no automatic spaces, and spaces give only from mode 15.
