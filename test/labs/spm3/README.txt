@@ -1,0 +1,1 @@
+Lab spm3 (NOT for office): python build.py test/corpus/docx/docs/zh-7773163d*.docx OUT -> 7 t-S*.docx; print each in a fresh Word for Windows; send `python meas.py OUT/t-*.pdf` (and Word's print of S0 should read: p44 …法之程序規定 | ，應作狹義解  p55 …其一項或數項 | ，同時或先後  p49 …關業務運作） | 。).
