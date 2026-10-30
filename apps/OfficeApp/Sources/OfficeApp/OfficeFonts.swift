@@ -2676,6 +2676,17 @@ enum OfficeFonts {
                 face.otherAdvances = (face.otherAdvances ?? [:]).merging(own) { $1 }
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(own) { $1 }
             }
+            // (Windows' FangSong sets its middle dot an em, where the
+            // stand-in's is half of one: every "·" Word for Windows draws
+            // in FangSong is 0.9 to 1.0 em — zh-6d1afa56, zh-20ff844e,
+            // zh-e653f583's bold "12·4" 16.2 at 16pt, whose line then sends
+            // "传" down; ours took it. Its "×" too: an em in all of the
+            // 270 Word for Windows draws in FangSong, zh-22ecbdc8's
+            // "㎜×700㎜" among them.)
+            if wordOnWindows, fangSongFamily(family) == starlingFangSong {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging([0xB7: 1.0, 0xD7: 1.0]) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0xB7: 1.0, 0xD7: 1.0]) { $1 }
+            }
             // (PMingLiU's en dash is an em, where the run sets it East
             // Asian — hinted, or by its Latin face: zh-05699f05's
             // "（100%+目標值）–基準維護件數】" in 新細明體 sets "–" 12.0 at
