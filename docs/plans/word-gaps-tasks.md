@@ -10878,3 +10878,7 @@ n775899, square-wrapped pictures). Also found: a Word 2010 inline drawing (wp:in
 floating object (Docx _float took the VML) and drawn one height above its line — tdf147485's logo; now the line's. tdf147485 still scores 0: Word sets the
 frame's group 27pt higher (its y 22.8 for frame y 49.8, the page's top margin 27) and 9pt left of ours, and its WordArt glyph lines are 32.
 756 pre-pair (Windows mode, v2): nothing moved. LO set (197 printed): tdf150438 0 -> 100, mean 63.79 -> 64.29, nothing lower.
+
+### T249. LO IMAGES / SHAPES / TEXT BOXES (tdf126426, tdf135035, groupshape-sdt, tdf106153, tdf128198-1, tdf124600) — CLAIMED (Linux office1, 2026-10-30, starling-bd's order)
+Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. Order: the 0% ones first (tdf126426: a group of a picture and a white text box read as one picture; tdf135035: a text box 6pt right and
+51pt low; groupshape-sdt: an SDT in a group shape not drawn), then tdf106153 (84%), tdf128198-1 (44%), tdf124600. Lab kit for the frame logo is T248's (wip/lab-frame).
