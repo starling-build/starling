@@ -27,7 +27,7 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP = os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")
+APP = os.environ.get("OFFICE_APP") or os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")
 CHECK = os.path.join(ROOT, "test/ooxml-check.py")
 LIST = "https://api.github.com/repos/apache/poi/contents/test-data/document"
 
