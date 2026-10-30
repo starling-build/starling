@@ -10367,6 +10367,9 @@ documents the rule drops (their word-win references keep the space), full names:
   zh-ee7c2e9b64a6559a045dd89e2c4d946ae74999430d54d2eff993d90c23a09608
   zh-f01f268a9a7627f7d1911f1026f54e8a6431e354d1d6f76149a41ec764f588e6
 Once replaced, office1 re-pairs the patch against the new references and sends it to windows-1.
+RE-PAIRED against the replaced references (Linux office1, 2026-10-30, Windows mode, v2, 756): 41 up, none down, mean 96.736 ->
+98.164 (zh-c5f59397 22.1 -> 100, zh-25381d22 32.2 -> 99.3, zh-604e21e5 98.2 -> 100, zh-ae2dd08d 95.7 -> 99.0). Pushed as
+wip/pagebreak-space b81b7fdb8; sent to windows-1 for the front of its queue. AWAITING confirmation.
 
 ### T239. FangSong's "·" and "×" an em in Word for Windows (zh-e653f583, zh-6d1afa56) — PARKED (Linux office1, 2026-10-30, band 98.0-98.4)
 Word for Windows draws "·" 0.9-1.0 em in FangSong (17 + 12 in its prints) and "×" 1.0 em (270), where our stand-in sets "·" half an
