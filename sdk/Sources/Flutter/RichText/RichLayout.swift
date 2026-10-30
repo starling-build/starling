@@ -6205,7 +6205,10 @@ public final class RichLayout {
                         let before = _floatShift[box.id] ?? 0
                         r.left -= before; r.right -= before
                         var shift = 0.0
-                        for b in bands + placed where b.top < r.bottom - 0.5 && b.bottom > r.top + 0.5
+                        // (A float only grazing another does not move: tdf128207's four charts, in a
+                        // grid of two by two, `allowOverlap` 1, the right-hand pair 8.5 twips into
+                        // each other from the wrap polygon, kept their columns in Word's print.)
+                        for b in bands + placed where b.top < r.bottom - 10 && b.bottom > r.top + 10
                             && b.left < r.right + shift - 0.5 && b.right > r.left + shift + 0.5 && r.left + shift < b.right {
                             shift = max(shift, b.right - r.left)
                         }
