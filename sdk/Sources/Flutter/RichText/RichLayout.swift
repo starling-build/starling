@@ -6239,8 +6239,14 @@ public final class RichLayout {
                     let first = all.firstIndex(where: { $0 > cursor + 0.01 }) ?? 0
                     let last = all.lastIndex(where: { $0 <= chosen + 0.01 }) ?? first
                     var keep = last - first + 1
+                    // (Kept whole where its lines all fit and only its space
+                    // after does not: zh-64044a1d's one-line "資料來源：本計畫
+                    // 整理。", its style's `w:keepLines` and 18pt after, ends
+                    // p34 under its figure in Word for Windows' print, the
+                    // space past the foot; ours sent it to p35, and the 66
+                    // lines after it a page down.)
                     if st.keepLines, bottom - top <= contentH + 0.01 {
-                        keep = 0
+                        if last < all.count - 1 { keep = 0 }
                     } else if st.widowControl, !document.widowControlSuspended {
                         if all.count - 1 - last == 1 { keep -= 1 }
                         // (An orphan only where lines go on: the whole of
