@@ -3008,7 +3008,11 @@ public final class RichLayout {
 
     // MARK: Pagination
 
-    private var _columns: Int { _oneColumn ? 1 : max(1, pageSetup?.columns ?? 1) }
+    private var _columns: Int { _oneColumn ? 1 : max(1, _bodyColumns ?? pageSetup?.columns ?? 1) }
+    /// The columns of a body of sections that all have them, closed by a
+    /// section of one with nothing in it (see `_resolveSections`); nil
+    /// elsewhere.
+    private var _bodyColumns: Int? = nil
     /// The document's sections disagree on their columns: the layout has
     /// one count for the whole document (slots are `page * columns`), so
     /// one column — zh-8f9b19f4's thirteen sections are one column but
@@ -3197,10 +3201,33 @@ public final class RichLayout {
                 from = i + 1
             }
         }
+        // (A body of columns closed by a section of one with nothing in it:
+        // lenovo-2's fdo43573-2-min is one section of two unequal columns,
+        // ending at a paragraph's sectPr, and a continuous section of one
+        // holding the last, empty paragraph. Word sets the text in two
+        // columns on 15 pages; ours took the last section's count for all
+        // of it and set one column on 20. The body's count and gap stand,
+        // and the closing paragraph is set in a column of it. Not where
+        // that section holds text — unbalanced-columns-compat sets its
+        // closing paragraph across the page under two short columns.)
+        _bodyColumns = nil
+        var bodyGap: Double? = nil
+        if theme.wordRules, last.columns == 1, !_oneColumn {
+            let owns = document.paragraphs.enumerated().filter { i, p in
+                p.cell == nil && i < document.paragraphs.count - 1 && p.style.sectionPage != nil
+            }
+            if let first = owns.first?.element.style.sectionPage, first.columns > 1,
+               owns.allSatisfy({ $0.element.style.sectionPage?.columns == first.columns }),
+               let closing = owns.last?.offset, document.paragraphs.count - 1 - closing <= 3,
+               document.paragraphs[(closing + 1)...].allSatisfy({ $0.cell == nil && $0.text.allSatisfy(\.isWhitespace) && $0.image == nil }) {
+                _bodyColumns = first.columns
+                bodyGap = first.columnGap
+            }
+        }
         for (i, p) in document.paragraphs.enumerated() where p.cell == nil {
             guard var setup = p.style.sectionPage, i < document.paragraphs.count - 1 else { continue }
-            setup.columns = _oneColumn ? 1 : last.columns
-            setup.columnGap = last.columnGap
+            setup.columns = _oneColumn ? 1 : _bodyColumns ?? last.columns
+            setup.columnGap = bodyGap ?? last.columnGap
             setup.gap = last.gap
             for k in start ... i { of[k] = setups.count }
             setups.append(setup)
@@ -3209,6 +3236,7 @@ public final class RichLayout {
         if start < of.count { for k in start ..< of.count { of[k] = setups.count } }
         var final = last
         if _oneColumn { final.columns = 1 }
+        if let body = _bodyColumns { final.columns = body; final.columnGap = bodyGap ?? final.columnGap }
         setups.append(final)
         let changed = setups != _sectionSetups || (setups.count > 1 && of != _sectionOf)
         _sectionSetups = setups
