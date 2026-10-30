@@ -1187,6 +1187,7 @@ enum DocxFormat {
                     f.wraps = true
                     if let l = Double(pos["w:leftFromText"] ?? "") { f.distanceLeft = l / 20 }
                     if let r = Double(pos["w:rightFromText"] ?? "") { f.distanceRight = r / 20 }
+                    f.againstText = pos["w:vertAnchor"] == "text"
                     // (One that floats only in name — against the text, from the
                     // column's edge, a twip or so under its paragraph's top —
                     // stands where it is set, an inline block shifted by its x:
