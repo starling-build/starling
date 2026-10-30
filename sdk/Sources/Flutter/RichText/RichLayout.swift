@@ -5855,7 +5855,13 @@ public final class RichLayout {
                 let st = document.paragraphs[i].style
                 let newSection = i > 0 && document.paragraphs[i - 1].style.sectionXML != nil
                 let ownBreak = _pageBreak[i] && !st.pageBreakInline && !st.breakEndsPrevious
-                leavesLead = !newSection && !st.pageBreakInline && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
+                // (One its own page break opens keeps it before 2013's layout
+                // only: lab brk2 (Word for Windows) — zh-ae2dd08d's heading
+                // keeps its 6pt in mode 12 and drops it in 15, and so does
+                // zh-604e21e5's "附件2：報告書內容大綱" (mode 15, 9pt) in its
+                // fresh print, where ours stood p30 9pt low.)
+                let inlineKeeps = st.pageBreakInline && !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15)
+                leavesLead = !newSection && !inlineKeeps && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
             }
             // How much of it a page's head takes off, for where a line
             // under a float first stands (below): zh-27a874b7's chart
