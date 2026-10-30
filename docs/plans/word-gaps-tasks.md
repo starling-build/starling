@@ -10748,3 +10748,6 @@ its logo table and foot line still 11pt off. Also tried and dropped: label of an
 
 ### T246. zh-6e7ff836 (98.2) and zh-f47b8a74 (98.4) against word-win — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4)
 Looking at both on the current base (Linux Windows-mode v2); measured before anything is built.
+
+### T247. LO floating tables (floattable-footer-object 6.2, floattable-compat14 37.5, floattable-del-empty 62.3, n775899 50, tdf88496 10.3) — CLAIMED (Mac 7bd18d8e, 2026-10-30, starling-bd's order: the LibreOffice set, class A)
+Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`; the table's start position, text beside a floating table joining its line, a floating table's page break. Not claimed: the two tdf170381 nested ones (lenovo-2, nested tables). T240 is finishing in parallel (zh-1d2a7c35 back to 100.0 with the fifth kept off a space after a circled number; full 756 pair running).
