@@ -85,6 +85,21 @@ Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt 
 documents Word sends a closing mark down alone only when it cannot fit, and does not hang it. (2) taken over from windows-2's
 item (3) above (decision table, lab gs). Labs through starling-bd to `windows`.
 
+### Line matcher v2 (test/docx-line-match.py, DOCX_LINE_MATCH=v2) — LANDED; v2 official from windows-1's next baseline (user-approved) (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
+Opt-in switch; the default (v1) is byte-identical to the old matcher over a 756-doc Windows base. Report v1 alongside for a
+while. v2 reads lines from the page's glyphs: whitespace takes no part; a line is the glyphs on one baseline (origins,
+within 2.5pt of the first; the reader's lines cut where the baseline jumps, a smaller raised mark kept with its text);
+turned text by its own baseline; a line set out in pieces (0.8 em gaps) matches whole or piece by piece. Full base: mean
+98.0 -> 98.1, 111 up, 9 down (all <= 1.6, mostly cells 3-8pt off Word's that v1 merged away: zh-8415d258, zh-e51c31a7,
+zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da5, zh-77079ee8 p1, zh-884c6e3e.
+- KNOWN v2 LIMIT, clip geometry: zh-b24b396a (v1 94.2, v2 92.9). Word's print carries turned "3"s on p13 that its clip
+  hides; they read as lines. Dropping clipped glyphs (PyMuPDF without TEXT_CLIP) fixes it, but the reader drops any glyph
+  the clip does not wholly hold: Word's clipped footer boxes then read "10" as "1" (zh-f47b8a74, zh-037d2845), and our
+  Thai, drawn inside a clip, vanished (zh-6a4fc013 90.7 -> 46.6). So v2 keeps clipped glyphs, as v1. A fix needs each
+  glyph tested against the clip path's area (how much of the glyph shows), which PyMuPDF's text API does not give.
+- NEXT (lenovo-3): one-to-one assignment for short lines and pieces (a label pairs with at most one of ours, nearest in x
+  within a tolerance), as a flagged v2 revision; zh-27a874b7 (74 -> 84 under v2) and zh-d62da4dd (78 -> 86) to show.
+
 ### Windows-mode 99.0–99.4 band — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
 49 documents, mostly one or two lines a line break apart. Looking for rules that lift several:
 - "+" between ideographs: Word breaks after an ASCII "+" before an ideograph ("…互联网+" | "监管…"); the engine keeps
