@@ -10103,6 +10103,20 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - zh-c5f59397's REFERENCE IS STALE. Mode 15, ref 貳、 at 65.28 (kept), but fresh whole prints give 55.32 (dropped),
     3 of 3. Its mode-12 sibling zh-a498e874 keeps 65.28 fresh, 3 of 3, as its ref does. Needs the user's OK to reprint.
     Any other mode-15 "keeper" is a reference suspect. ~/starling-doc-check/lab/brk2 (mk*.py; re/ = reprints).
+(19) FULL REFERENCE AUDIT, IN PROGRESS (Windows 01QbbApP; user-approved via macos/starling-bd, 2026-10-30): every
+  word-win reference not yet reprinted alone in a fresh Word gets reprinted that way, compared glyph by glyph, and replaced
+  if it changed.
+  - Done: zh-c5f59397 (e9b689b8), then the page-break set (3122c6d4, 39 replaced). That set is the code's predicate: mode >= 15,
+    a paragraph opened by its own page break, before > 0; 50 docs. All 37 年度重要計畫 references (T238's list) were stale
+    (fresh: 貳、 at 55.32, the space dropped; the old refs had 65.28), so T238's mode-15 rule can be re-paired. zh-15ecc2c6 and
+    zh-c2c92639 also moved; 10 unchanged.
+  - Left: 388 references (~/starling-doc-check/audit2/chunk-00..07, 50 each). chunk-00 has 2 printed, then it was stopped for
+    the session restart. Score impact of 3122c6d4 not measured yet (11 of 40 scored against the old refs).
+  - In pairing: wip/wordart-wae 98cb1490 (lab wae; WordWithAttachments 31 -> 38/38), windows-1 round 4.
+  Labs since (18): bsw (lenovo-2: zh-6c447317's narrow balanced spaces come from the missing 仿宋_GB2312, state-dependent;
+  bsp's paragraph is justified), spm3 S0-S8 (nothing moves zh-7773163d), eec/eef/eeg (windows-3: merged header rows), bkt
+  (windows-3, parked), vmp + fine sweep (lenovo-2: a merged-down cell keeps the lines whose box ends inside the row's piece,
+  the piece = max(trHeight, unmerged cells' kept lines)).
 (13) MISSING-FACE REFERENCE AUDIT DONE (Windows 01QbbApP; user-approved via macos). All 327 word-win references whose
   document names a face this box lacks (word-win-missing-faces.txt), less db46d815's 14 and today's two, were reprinted alone
   in a fresh Word and compared glyph by glyph (face and position to 0.3pt, order-free, code points ignored). 322 identical.
