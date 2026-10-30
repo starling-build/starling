@@ -93,6 +93,9 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// Where those labels stand by their points (`c:dLblPos`): nil is
+    /// Excel's default for a line, to the right ("r").
+    var labelPos: String? = nil
     /// Those labels' own number format (`c:dLbls/c:numFmt`, not linked
     /// to the source); else they show the line's numbers' (`format`).
     var labelCode: String? = nil
@@ -1274,6 +1277,7 @@ enum ChartXML {
             let own = ser.first("c:dLbls"), group = overlay?.first("c:dLbls")
             s.valueLabels = (own?.first("c:showVal") ?? group?.first("c:showVal"))?["val"] == "1"
                 && own?.first("c:delete")?["val"] != "1"
+            s.labelPos = (own?.first("c:dLblPos") ?? group?.first("c:dLblPos"))?["val"]
             if s.valueLabels, let d = own {
                 if let f = d.first("c:numFmt"), !["1", "true"].contains(f["sourceLinked"] ?? ""), let code = f["formatCode"],
                    !code.isEmpty, code.lowercased() != "general" { s.labelCode = code }
@@ -3380,7 +3384,17 @@ enum ChartPainter {
                             fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                         tp.layout(minWidth: 0, maxWidth: .infinity)
                         let nudge = l.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
-                        tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
+                        // (To the right where the file gives no place, a line's
+                        // default: zh-b8de3ae2's rates over its columns, no
+                        // dLblPos, in Word for Windows' print — 9pt, the text's
+                        // origin 8.45 right of its point and its baseline 3.03
+                        // under it; ours stood over the point, 14 high and 21
+                        // left.)
+                        if (l.labelPos ?? "r") == "r", let line = tp.computeLineMetrics().first {
+                            tp.paint(canvas, Offset(q.dx + 8.45 * k + nudge.dx, q.dy + 3.03 / 9 * max(3, (l.labelSize ?? c.baseTextSize) * k) - line.baseline + nudge.dy))
+                        } else {
+                            tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
+                        }
                         tp.dispose()
                     }
                 }
