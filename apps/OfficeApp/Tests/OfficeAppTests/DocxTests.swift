@@ -65,6 +65,78 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try read("<w:p>\(control("Another document"))</w:p>").paragraphs.map(\.text), ["Another document"])
     }
 
+    /// Characters XML 1.0 cannot hold never reach the saved part: the
+    /// copy of LibreOffice's EDB-36788-1 (bytes that were never a
+    /// document, read as text) had 3,508 of them in its document.xml and
+    /// no parser opened it.
+    func testControlCharactersNeverReachTheXML() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "A\u{1}B\u{19}C\u{0}D\u{FFFE}E tab\there & <more>")])
+        let saved = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let xml = try XCTUnwrap(saved.first { $0.name == "word/document.xml" }).data
+        let parser = XMLParser(data: xml)
+        XCTAssertTrue(parser.parse(), "document.xml must be well-formed: \(String(describing: parser.parserError))")
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["ABCDE tab\there & <more>"])
+    }
+
+    /// A page break does not add a paragraph on every save. Where the
+    /// file says the paragraph mark follows the break
+    /// (`w:splitPgBreakAndParaMark`, before 2013's layout) each shape
+    /// below read as one paragraph more after a save — LibreOffice's
+    /// tdf123636_newlinePageBreak and its twelve like it.
+    func testPageBreakDoesNotAddParagraphsOnEverySave() throws {
+        func read(_ body: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+            let i = entries.firstIndex { $0.name == "word/document.xml" }!
+            entries[i] = ZipEntry(name: "word/document.xml", data: Data("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(body)<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/></w:sectPr></w:body></w:document>".utf8))
+            let s = entries.firstIndex { $0.name == "word/settings.xml" }!
+            entries[s] = ZipEntry(name: "word/settings.xml", data: Data("<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:compat><w:splitPgBreakAndParaMark/><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"12\"/></w:compat></w:settings>".utf8))
+            return try DocxFormat.read(Zip.write(entries)).document
+        }
+        let page = "<w:r><w:br w:type=\"page\"/></w:r>"
+        func run(_ text: String) -> String { "<w:r><w:t>\(text)</w:t></w:r>" }
+        let shapes: [String: String] = [
+            "break alone": "<w:p>\(page)</w:p>",
+            "text then break": "<w:p>\(run("A"))\(page)</w:p>",
+            "text, break, text": "<w:p>\(run("A"))\(page)\(run("B"))</w:p>",
+            "break alone, then a paragraph": "<w:p>\(page)</w:p><w:p>\(run("Next"))</w:p>",
+            "text then break, then a paragraph": "<w:p>\(run("A"))\(page)</w:p><w:p>\(run("Next"))</w:p>",
+        ]
+        for (name, body) in shapes {
+            let first = try read(body)
+            let saved = try DocxFormat.write(first, pageSetup: .letter)
+            let again = try DocxFormat.read(saved).document
+            XCTAssertEqual(again.paragraphs.map(\.text), first.paragraphs.map(\.text), name)
+            XCTAssertEqual(again.paragraphs.count, first.paragraphs.count, "\(name): paragraphs after one save")
+            let twice = try DocxFormat.read(DocxFormat.write(again, pageSetup: .letter)).document
+            XCTAssertEqual(twice.paragraphs.count, first.paragraphs.count, "\(name): paragraphs after two saves")
+        }
+    }
+
+    /// The main part is the one the root relationships name, wherever it
+    /// stands in `word/`: LibreOffice's tdf104713_undefinedStyles calls it
+    /// `word/trial.xml`, with `word/_rels/trial.xml.rels` beside it.
+    func testMainPartNamedByTheRootRelationships() throws {
+        let plain = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "Named by the root relationships")]), pageSetup: .letter)
+        var entries = try Zip.read(plain)
+        entries = entries.map { e in
+            switch e.name {
+            case "word/document.xml": return ZipEntry(name: "word/trial.xml", data: e.data)
+            case "word/_rels/document.xml.rels": return ZipEntry(name: "word/_rels/trial.xml.rels", data: e.data)
+            case "_rels/.rels":
+                return ZipEntry(name: e.name, data: Data(String(decoding: e.data, as: UTF8.self).replacingAll("word/document.xml", with: "word/trial.xml").utf8))
+            default: return e
+            }
+        }
+        XCTAssertFalse(entries.contains { $0.name == "word/document.xml" })
+        let back = try DocxFormat.read(Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Named by the root relationships"])
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        XCTAssertTrue(saved.contains { $0.name == "word/document.xml" }, "saved under the usual name")
+        // No such part anywhere: still the error, not a guess.
+        XCTAssertThrowsError(try DocxFormat.read(Zip.write(entries.filter { $0.name != "word/trial.xml" })))
+    }
+
     func testRightToLeftRunsResolveTheirComplexScriptFont() {
         let theme = RichTextTheme(fontFamily: "Latin default")
         theme.fontFamilyResolver = { _ in "Latin clone" }

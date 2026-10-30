@@ -208,8 +208,28 @@ enum DocxFormat {
 
     // MARK: Reading
 
+    /// A package whose main part is not named `word/document.xml`: the root
+    /// relationships say which it is (LibreOffice's tdf104713_undefinedStyles
+    /// names `word/trial.xml`), and it and its relationships file are read
+    /// under the usual names. Only a main part in `word/`, whose relative
+    /// targets are then the same; any other package is left as it is.
+    static func _withStandardMainPart(_ entries: [ZipEntry]) -> [ZipEntry] {
+        guard !entries.contains(where: { $0.name == "word/document.xml" }),
+              let root = entries.first(where: { $0.name == "_rels/.rels" }).flatMap({ XNode.parse($0.data) }),
+              let rel = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") && $0["TargetMode"] != "External" }),
+              var main = rel["Target"] else { return entries }
+        if main.hasPrefix("/") { main.removeFirst() }
+        let parts = main.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0] == "word", entries.contains(where: { $0.name == main }) else { return entries }
+        return entries.map { e in
+            if e.name == main { return ZipEntry(name: "word/document.xml", data: e.data) }
+            if e.name == "word/_rels/\(parts[1]).rels" { return ZipEntry(name: "word/_rels/document.xml.rels", data: e.data) }
+            return e
+        }
+    }
+
     static func read(_ archive: Data) throws -> DocxDocument {
-        let entries = try Zip.read(archive)
+        let entries = _withStandardMainPart(try Zip.read(archive))
         func part(_ name: String) -> Data? { entries.first { $0.name == name }?.data }
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
@@ -4630,6 +4650,7 @@ enum DocxFormat {
                 flush(pageBreakAfter: true)
                 built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = leadingBreakRPr
                 built[built.count - 1].breakColumn = leadingColumnBreak
+                splitBefore = true   // (what follows the break is the same paragraph's: see where the body is written)
             }
             else if built.isEmpty { style.pageBreakBefore = true; style.pageBreakInline = true; style.columnBreak = leadingColumnBreak; style.breakRunPropertiesXML = leadingBreakRPr }
             else {
@@ -5614,6 +5635,24 @@ enum DocxFormat {
                 xml += "</w:tr>"
             }
             xml += "</w:tbl>"
+            // (A table the reader would take for an invisible wrapper — one
+            // with no style, no borders, a column of room — is dissolved on
+            // reading, and what it held stands in the body: LibreOffice's
+            // NumberedList, a table with a table in its cell, came back
+            // with the nested one as the outer. This one was a table when
+            // it was read, and says so: the file's default table style,
+            // which Word takes as no change.)
+            if xml.hasPrefix("<w:tbl><w:tblPr>"), !xml.hasPrefix("<w:tbl><w:tblPr><w:tblStyle"), xml.utf8.count < 2_000_000 {
+                let spaces = ["w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+                              "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing", "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+                              "mc": "http://schemas.openxmlformats.org/markup-compatibility/2006", "w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+                              "w15": "http://schemas.microsoft.com/office/word/2012/wordml", "wp14": "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing",
+                              "v": "urn:schemas-microsoft-com:vml", "o": "urn:schemas-microsoft-com:office:office"]
+                    .sorted { $0.key < $1.key }.map { "xmlns:\($0.key)=\"\($0.value)\"" }.joined(separator: " ")
+                if let node = XNode.parse(Data("<w:wrap \(spaces)>\(xml)</w:wrap>".utf8))?.first("w:tbl"), _isInvisibleWrapper(node) {
+                    xml = "<w:tbl><w:tblPr><w:tblStyle w:val=\"TableNormal\"/>" + xml.dropFirst("<w:tbl><w:tblPr>".count)
+                }
+            }
             return (xml, end)
         }
 
@@ -5636,7 +5675,20 @@ enum DocxFormat {
                 body += t.xml
                 i = t.end
             } else {
-                body += paragraphXML(i)
+                let xml = paragraphXML(i)
+                // (The rest of a paragraph a page break split goes back into
+                // it: the break ended the one before as its last run, and the
+                // text after it is the same w:p. Written as two, the first's
+                // mark read back as a paragraph of its own and every save
+                // added one — LibreOffice's tdf123636_newlinePageBreak,
+                // two paragraphs, then three.)
+                if doc.paragraphs[i].style.continuesParagraph, breakRidesOnPrevious(i), body.hasSuffix("</w:p>"),
+                   xml.hasPrefix("<w:p><w:pPr>"), let end = xml.range(of: "</w:pPr>") {
+                    body.removeLast(6)
+                    body += xml[end.upperBound...]
+                } else {
+                    body += xml
+                }
                 i += 1
             }
         }
@@ -5901,13 +5953,19 @@ enum DocxFormat {
 
     private static func _esc(_ s: String) -> String {
         var out = ""
-        for ch in s {
-            switch ch {
+        for u in s.unicodeScalars {
+            // (Not a character XML 1.0 can hold: the C0 controls but tab,
+            // line feed and carriage return, U+FFFE and U+FFFF. A file read
+            // as text from bytes that were never a document — LibreOffice's
+            // EDB-36788-1 — saved a document.xml no parser opens.)
+            let v = u.value
+            guard v == 0x9 || v == 0xA || v == 0xD || (v >= 0x20 && v <= 0xD7FF) || (v >= 0xE000 && v <= 0xFFFD) || v >= 0x10000 else { continue }
+            switch u {
             case "&": out += "&amp;"
             case "<": out += "&lt;"
             case ">": out += "&gt;"
             case "\"": out += "&quot;"
-            default: out.append(ch)
+            default: out.unicodeScalars.append(u)
             }
         }
         return out
