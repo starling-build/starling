@@ -1072,6 +1072,7 @@ enum DocxFormat {
                 // "margin", stand 29.5 and 321.2pt from the cell's left edge
                 // and centred on the cell, side by side; ours stacked them
                 // down the cell.)
+                var nominalLeft = 0.0
                 if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
                     var f = ImageFloat()
                     f.horizontalFrom = "cell"
@@ -1079,7 +1080,19 @@ enum DocxFormat {
                     if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
                     f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
                     f.wraps = true
-                    image.float = f
+                    // (One that floats only in name — against the text, from the
+                    // column's edge, a twip or so under its paragraph's top —
+                    // stands where it is set, an inline block shifted by its x:
+                    // LibreOffice's tdf170381, a 75pt table in a 383pt cell,
+                    // which Word parts over two pages between its rows, as an
+                    // inline one does; a floating box ran off the page's foot
+                    // and its rows were never cut.)
+                    if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
+                       f.y <= 1, f.x >= 0 {
+                        nominalLeft = f.x
+                    } else {
+                        image.float = f
+                    }
                     // (Placed so, it stands at its box's corner inside it: the
                     // box's copy of its style floats it no further.)
                     for (key, var st) in box.tableStyles {
@@ -1090,6 +1103,7 @@ enum DocxFormat {
                     image.textBox = box
                 }
                 var para = RichParagraph(image: image, style: cellBase)
+                para.style.indentLeft += nominalLeft
                 if let frag = _keptFragment(node, notes) {
                     keptTableCount += 1
                     let kid = "kt\(keptTableCount)"

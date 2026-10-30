@@ -161,6 +161,25 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(lost, [], "paragraphs whose last word is not in the saved document")
     }
 
+    /// A table nested in a cell that floats only in name (against the text,
+    /// from the column's edge, a twip under its paragraph's top) is an
+    /// inline block shifted by its x, so that it parts between its rows
+    /// over a page break as one does: LibreOffice's tdf170381, a 75pt table
+    /// in a 383pt cell, was a floating box that ran off the page's foot.
+    func testNominallyFloatingNestedTableIsAnInlineBlock() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-1e0077c34b69d826.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let doc = try DocxFormat.read(data).document
+        let boxes = doc.paragraphs.filter { $0.image?.textBox?.growsToFit == true }
+        XCTAssertEqual(boxes.count, 1)
+        let box = try XCTUnwrap(boxes.first)
+        XCTAssertNil(box.image?.float, "set in the flow, not floated")
+        XCTAssertEqual(box.style.indentLeft, 11.35, accuracy: 0.01, "shifted by its tblpX")
+        XCTAssertEqual(box.image?.width ?? 0, 74.85, accuracy: 0.01)
+    }
+
     func testRightToLeftRunsResolveTheirComplexScriptFont() {
         let theme = RichTextTheme(fontFamily: "Latin default")
         theme.fontFamilyResolver = { _ in "Latin clone" }
