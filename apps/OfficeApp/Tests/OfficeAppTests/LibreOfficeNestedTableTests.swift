@@ -62,6 +62,31 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         XCTAssertEqual(try pages("lo-6a5857f20e8eda1e"), 6)
     }
 
+    /// A table style's own indent: LibreOffice's tdf103976 sets its table in a style that indents
+    /// 360 twips, and the list's mark stands 18pt in from the margin in Word's print (108 on a
+    /// 90pt margin).
+    func testTableStyleIndentIsKept() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-5a78fd37d46a2f88.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let parsed = try DocxFormat.read(data)
+        let doc = parsed.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = parsed.pageSetup ?? .letter
+        layout.pageSetup = setup
+        layout.width = setup.width * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        func left(_ text: String) throws -> Double {
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix(text) })
+            return layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).left / theme.pixelsPerPoint
+        }
+        // (The caret at the paragraph's start stands at its left indent, 18pt, on the table's 18pt.)
+        XCTAssertEqual(try left("."), 36.0, accuracy: 1.5)
+    }
+
     /// A 56-row list of short rows in a cell is a table of its own and parts between its rows:
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
