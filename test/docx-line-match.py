@@ -21,6 +21,13 @@ On a Mac PDFKit reads the lines (test/pdf-text.swift, compiled into WORK on
 first use); anywhere else PyMuPDF does, into the same rows — so compare
 scores from the same kind of machine, as with the page diff. Compatibility forms are folded (NFKC), since a PDF's
 text names the glyph and the two sides' fonts name some ideographs apart.
+
+DOCX_LINE_MATCH=v2 (opt-in, PyMuPDF only; the default is unchanged) reads
+lines from the page's glyphs instead of the reader's lines: whitespace
+takes no part, a line is the glyphs on one baseline (`mupdf_glyphs`), and a
+line set apart in pieces is matched piece by piece (`found`) — so that a
+print's trailing space, a few tenths of a point between cells, or two
+labels sharing a baseline no longer score as misses.
 """
 import os
 import statistics
@@ -88,8 +95,147 @@ def mupdf_text(pdf):
     return out
 
 
+# DOCX_LINE_MATCH=v2: lines from the page's glyphs, not the reader's lines.
+# (Opt-in, so that a pair under way keeps its meaning; v1 stays the default.)
+V2 = os.environ.get("DOCX_LINE_MATCH") == "v2"
+
+
+def _inkless(c):
+    """A character that draws nothing a line could be told by: a space of
+    any width (a no-break one, U+3000) or a format or control character
+    (a zero-width space or joiner). (One of the private use area does
+    draw: it stands, as an unmapped glyph does, for whatever is opposite
+    it — zh-dc9e54ca's "☐" boxes are U+F0A8 in Word's print. So does a
+    glyph read as U+0000, which its font maps to no character: our Thai,
+    zh-6a4fc013's, is drawn so.)"""
+    return c != "\x00" and (c.isspace() or unicodedata.category(c) in ("Cf", "Cc"))
+
+
+def mupdf_glyphs(pdf):
+    """v2's rows, from the page's glyphs rather than the reader's lines.
+    Each line of text set across is the inked glyphs on one baseline:
+    grouped by their origins (the baseline itself — a fifth of the size
+    under it, which v1 reads a line by and a row still reports, puts
+    zh-d8247da5's 10pt stand-in "A" 0.4pt off the 12pt "※公有" whose
+    baseline it shares) within 2.5pt under the first of them, as v1 puts
+    the reader's lines together. (Not by gaps of a few tenths: a table's
+    cells stand that far apart in one print and on one baseline in the
+    other — zh-c399c91a's number cells, 0.7pt off their rows in Word's.)
+    Whitespace takes no part (`_inkless`): Word's print of zh-77079ee8
+    closes its number cell "1 " with a space glyph, and the reader's line
+    ran through it into the next cell's "需求評估及服", 10pt higher, where
+    ours, with no space, read two. Turned text is grouped by its own baseline
+    (below), and its box is the inked glyphs': zh-c4f2be3b's upright page
+    number " - 5 - " reached 7pt lower in Word's print by its closing
+    space."""
+    import pymupdf
+    out = []
+    with pymupdf.open(pdf) as d:
+        for i, page in enumerate(d):
+            glyphs = []
+            turned = []
+            line_no = 0
+            # (Clipped glyphs too, as v1 reads them: the reader drops a
+            # glyph the clip does not wholly hold, and Word's footer boxes
+            # clip their page numbers — zh-f47b8a74's "10" read "1", and our
+            # Thai, drawn inside a clip, read as nothing.)
+            for b in page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]:
+                for l in b.get("lines", []):
+                    line_no += 1
+                    across = tuple(round(v, 3) for v in l["dir"]) == (1, 0)
+                    inked = [(c, s["size"]) for s in l["spans"] for c in s["chars"] if not _inkless(c["c"])]
+                    if not inked:
+                        continue
+                    if across:
+                        # (The reader's line, parted where its baseline moves
+                        # on by more than 1pt — two cells' text the reader ran
+                        # together: zh-093d0f9a's "計畫" a cell over its row's
+                        # "工作計畫名稱…", 8pt apart in ours — but not at a mark
+                        # markedly smaller than its text, raised or lowered
+                        # against it: a footnote's "1" stays the line's.)
+                        parts, big, at = [], 0.0, None
+                        for s in l["spans"]:
+                            for c in s["chars"]:
+                                if _inkless(c["c"]):
+                                    continue
+                                z, y = s["size"], c["origin"][1]
+                                if parts and z < 0.85 * big:
+                                    parts[-1].append((c, z))
+                                    continue
+                                # (And the text a mark comes first in: Word's
+                                # zh-344a8d08 starts a line of its 16pt text
+                                # with an 8pt "1" 8pt higher.)
+                                if parts and 0.85 * z > big:
+                                    big, at = z, y
+                                    parts[-1].append((c, z))
+                                    continue
+                                if not parts or abs(y - at) > 1.0:
+                                    parts.append([])
+                                    big, at = z, y
+                                elif z > big:
+                                    big, at = z, y
+                                parts[-1].append((c, z))
+                        def base(q):
+                            top = max(z for _, z in q)
+                            return statistics.median(c["origin"][1] for c, z in q if z == top)
+                        for q in parts:
+                            line_no += 1
+                            at = base(q)
+                            for k, (c, size) in enumerate(q):
+                                ch = "\x00" if unicodedata.category(c["c"]) == "Co" else c["c"]
+                                glyphs.append((at, c["origin"][1] + 0.2 * size, c["origin"][0], ch, c["bbox"][2], size, line_no, k))
+                    else:
+                        d = tuple(round(v, 2) for v in l["dir"])
+                        for c, size in inked:
+                            turned.append((d, c["origin"][0], c["origin"][1], c["bbox"], c["c"], size))
+            glyphs.sort()
+            row = []
+            for g in glyphs + [None]:
+                if g is not None and (not row or g[0] - row[0][0] < 2.5):
+                    row.append(g)
+                    continue
+                if row:
+                    # (Leftmost first by the reader's lines, each in its own
+                    # order: a Thai vowel or tone mark is a glyph of its own,
+                    # its origin left of the letter it sits on, and zh-6a4fc013
+                    # read by position alone scrambled every Thai line.)
+                    left = {}
+                    for r in row:
+                        left[r[6]] = min(left.get(r[6], r[2]), r[2])
+                    row.sort(key=lambda r: (left[r[6]], r[6], r[7]))
+                    # (With its pieces, where four fifths of its
+                    # glyphs' sizes stand empty between two: see `found`.)
+                    pieces = [[row[0]]]
+                    for prev, g2 in zip(row, row[1:]):
+                        if g2[2] - prev[4] > 0.8 * max(prev[5], g2[5]):
+                            pieces.append([])
+                        pieces[-1].append(g2)
+                    parts = "\x1e".join(f"{round(q[0][2])}\x1f{''.join(r[3] for r in q)}" for q in pieces) if len(pieces) > 1 else ""
+                    out.append(f"p{i + 1}\t{round(-max(r[1] for r in row))}\t{round(row[0][2])}\t{''.join(r[3] for r in row)}\t{parts}")
+                row = [g] if g is not None else []
+            # (Turned text by its own baseline too — a column of glyphs,
+            # one origin across — parted where a glyph's size stands empty
+            # along it: zh-b24b396a's p13 sets each "30" turned 270°, its
+            # glyphs where Word's are to 0.2pt, and the reader took one
+            # print's "3" and "0" for a line and the other's for two.)
+            turned.sort(key=lambda g: (g[0], round(g[1] / 0.6), g[2]))
+            run = []
+            for g in turned + [None]:
+                if g is not None and run and g[0] == run[-1][0] and abs(g[1] - run[-1][1]) <= 0.6 \
+                        and g[3][1] - run[-1][3][3] <= max(g[5], run[-1][5]):
+                    run.append(g)
+                    continue
+                if run:
+                    text = "".join(r[4] for r in (run if run[0][0][1] > 0 else reversed(run)))
+                    out.append(f"p{i + 1}\t{round(-max(r[3][3] for r in run))}\t{round(min(r[3][0] for r in run))}\t{text}\t")
+                run = [g] if g is not None else []
+    return out
+
+
 def lines(tool, pdf):
-    if tool:
+    if V2:
+        out = mupdf_glyphs(pdf)
+    elif tool:
         out = subprocess.run([tool, pdf], capture_output=True, text=True).stdout.splitlines()
     else:
         out = mupdf_text(pdf)
@@ -100,13 +246,20 @@ def lines(tool, pdf):
             continue
         # (Without the object character a print may carry for an inline box.)
         t = unicodedata.normalize("NFKC", p[3]).replace("\ufffc", "").strip()
-        if t:
+        if t and V2:
+            parts = tuple((float(x), unicodedata.normalize("NFKC", q)) for x, q in
+                          (piece.split("\x1f") for piece in p[4].split("\x1e"))) if len(p) > 4 and p[4] else ()
+            rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t, parts))
+        elif t:
             rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t))
     # PDFKit cuts a line where its fonts change: the pieces of one line
     # (same page, same height) are put back together, leftmost first.
     # (Leftmost first whatever their heights: a mark that hangs past the
     # margin is a piece of its own, a hair higher than its line.)
     rows.sort(key=lambda r: (r[0], -r[1], r[2]))
+    # (v2's rows are lines already, grouped by their glyphs' baselines.)
+    if V2:
+        return rows
     groups = []
     for r in rows:
         if groups and groups[-1][0][0] == r[0] and abs(groups[-1][0][1] - r[1]) < 2.5:
@@ -168,6 +321,39 @@ def same_start(a, b):
     return False
 
 
+def matches(o, r):
+    """Whether our line `o` is Word's line `r`: within 3pt of its height,
+    beginning or ending alike."""
+    return abs(o[1] - r[1]) <= 3 and same_start(o[3], r[3])
+
+
+def found(r, ours):
+    """Whether Word's line `r` is matched among `ours` (the page's lines):
+    by a line of ours (`matches`) — or, under v2, piece by piece. A line
+    read by its baseline may be things set apart that only share it, and
+    ours need not share it to the tenth: zh-27a874b7's 3-D pie labels
+    "德國" and, 15.8 ems along, another slice's "24" at one height, where
+    ours has each in its place on baselines 0.3pt apart. So a line that
+    parts so is matched where
+    every piece is, by a line or a piece of ours within 3pt of the line's
+    height. (Where four fifths of a glyph's size stand empty — a
+    cell's margins: a piece may only find what ours has at that height.)
+    (By pieces only as well as whole: where the empty run is a
+    print's spaces — zh-dc9e54ca's "☐…同意書" and, 4 ems along, "☐其他" —
+    the other print may not part there.)"""
+    if any(matches(o, r) for o in ours):
+        return True
+    if not V2:
+        return False
+    def piece_found(x, t):
+        q = (r[0], r[1], x, t)
+        for o in ours:
+            if matches(o, q) or any(matches((o[0], o[1], px, pt), q) for px, pt in o[4]):
+                return True
+        return False
+    return all(piece_found(x, t) for x, t in (r[4] or ((r[2], r[3]),)))
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -196,7 +382,7 @@ def main():
         by_page = {}
         for r in b:
             by_page.setdefault(r[0], []).append(r)
-        missed = [r for r in a if not any(abs(o[1] - r[1]) <= 3 and same_start(o[3], r[3]) for o in by_page.get(r[0], []))]
+        missed = [r for r in a if not found(r, by_page.get(r[0], []))]
         pages = (max((r[0] for r in a), default=0), max((r[0] for r in b), default=0))
         results.append(((len(a) - len(missed)) / max(1, len(a)), f[:-4], len(a), len(b), pages))
         if key:
