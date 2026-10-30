@@ -10930,3 +10930,48 @@ T249, the two from macos-ios (Linux office1, 2026-10-30), read not built:
 - lo-3a0ca937 (42.9): ours already pushes the anchor paragraph's line under the 262pt wrapTopAndBottom chart (its block 380.7px, text@363.1px: line under) and the text after the six empty paragraphs
   is still 15pt above Word's (Word 468, ours 453, same breaks). So the 15pt is not that line; candidates: the six empty "Képaláírás" (Caption) paragraphs line 240 auto, space after 0 (ours 18.4px = 13.8pt each; Word's
   height unknown) or the wrapNone arrow 283pt below. Needs a lab (an anchor paragraph with a topAndBottom chart 8.3pt down, then N empty caption paragraphs: the y of a final text line).
+
+  T250 QUEUE-2 BATCH 1 SCORED (Linux lo4, 2026-10-30; prints 24ee20c3: 164 new of 173, 9 skipped "corrupt"; Windows mode, v2, bundled fonts, release build of
+  office 2bd5aac4a-equivalent code (sdk/ and apps/ unchanged since), engine = the Linux validation engine). Renders in ~/tmp/lo4/b1; ~/tmp/lo4/worst.py lists the worst by group.
+  HEADLINE over the 338 documents whose Word print has text lines (361 printed): MEAN 65.4, MEDIAN 80.0, >= 95: 143, 100%: 140; Word's page count: 308 of 361.
+  The first 197 alone (this build): 69.8 over 181 with text (all 197: 64.1; lenovo-2's 63.8 reproduced). Batch 1 alone: 60.2 over 157 with text (all 164: 57.7),
+  >= 95: 50, 100%: 49, page count 132 of 164. By group (printed, mean over text, under 95): floating 101, 55.4, 73; nested 44, 67.4, 29; charts 19, 67.7, 12.
+  Class table over all 361 (lo_triage.py; one class per document under 95, rough):
+  | class | docs | missed lines | share | worst three (missed lines, score) |
+  |---|---|---|---|---|
+  | floating tables | 81 | 2123 | 47% | tdf170672 (956, 28%); floattable-avoid-last-manip-ofst (131, 15%); floattable-heading-split-hyphen (89, 33%) |
+  | nested tables | 37 | 1373 | 31% | fdo43573-2-min (390, 1%); tdf92157 (194, 1%); floattable-anchor-height (104, 15%) |
+  | tracked changes / comments / balloons | 9 | 242 | 5% | fdo63164-1 (207, 73%); merge_hidden_redline (17, 26%); redline-image-inline (10, 33%) |
+  | charts | 35 | 238 | 5% | tdf124398_groupshapeChart (15, 6%); tdf128207 (15, 40%); xaxis-labelbreak (14, 0%) |
+  | sections and columns | 5 | 123 | 3% | shape-anchored-in-follow (67, 26%); tdf139336_ColumnsWithFootnote... (26, 0%); tdf153136 (24, 42%) |
+  | text layer (Word print has no text lines) | 23 | 105 | 2% | tdf138773 (81, 0%); fdo79540 (23, 0%); tdf137025 (1, 0%) |
+  | tables (other) | 6 | 78 | 2% | tdf88496 (52, 10%); fdo78885 (11, 8%); tdf152298 (9, 85%) |
+  | frames | 4 | 65 | 1% | tdf147485-forcepoint (32, 0%); tdf150200 (20, 5%); tdf150438 (12, 0%) |
+  | fields | 3 | 45 | 1% | tdf164905 (43, 59%); tdf116486 (1, 50%); btlr-frame-vml (1, 0%) |
+  | bidi / Hebrew / Arabic | 4 | 38 | 1% | Cool16066_addRowsUnderOmittedHeading (28, 33%); tdf135216_evenOddFooter (7, 30%); tdf129659 (2, 60%) |
+  | headers / footers / page count | 1 | 32 | 1% | tdf152983-1-min (32, 18%) |
+  | text: line breaks, fonts and widths | 5 | 15 | 0% | tdf122878 (5, 86%); Cool15691_headerTextWrapsAroundImage (4, 20%) |
+  | images / shapes / text boxes | 5 | 14 | 0% | tdf106153 (6, 84%); tdf128198-1 (5, 44%); tdf124600 (1, 67%) |
+  (the nested-tables class holds every document with a table in a table, and floating tables every one with a floating table: the cut is rough, the reads below are the second cut.)
+  BATCH 1 FIRST-MISMATCH READS (worst new documents by class; missed lines, score):
+  - FLOATING TABLES: tdf170672 (956 of 1326, 28%, 49 pages for 48): the text matches, but from p2 on ours is shifted ~25pt (two lines) against Word's, so
+    nearly every later line misses — one position drift in a floating table, not 956 independent errors. floattable-avoid-last-manip-ofst (131, 15%) and
+    floattable-avoid-manip-ofst (77, 51%, 7 pages for 6): the same text, Word breaks the page FOUR lines later (p1 ends at y 566 for ours 526): the table that
+    "avoids" the last paragraph is moved to the next page by us and not by Word. floattable-heading-split-hyphen (89) / -footer (57): see LINE NUMBERS below.
+    floattable-header (60, 36%): 8 pages for ours 10. tdf38575_fullWidthLine (60, 1.6%): Word 4 pages, ours 2 — Word pushes the floating pieces onto
+    p3 (a text box / table at x 109 / 274), ours keeps them on p1. tdf97090 (53, Russian): Word breaks "«Echoes» — музыкальная композиция" after
+    "композиция", ours adds "британской рок-группы" to the same line (our line is wider than Word's, a floating table's wrap). floattable-deleted-anchor (46):
+    the first line "Talking Points" is missing in ours at x 236. fdo68607 (40 of 317, 87%): 317 lines for 317, the table starts 24pt higher in ours (y 27, Word 51).
+  - NESTED TABLES: tdf92157 (194 of 196, 1%): Word's top-right block (Ministerie van Veiligheid en Justitie, x 468) is on p1; ours puts it on p2 and drops
+    the Word line order (7 pages for 6): a nested/floating address block pushed past the page break. floattable-anchor-height (104 of 123, 15%): Word 123 lines on
+    4 pages, ours 31 on 2 — the page-anchored table's height is read as one page. fdo77887 (81 of 82, 1%, 3 pages for 2): first mismatch the title at x 113 (ours 143),
+    then every row drifts by 8-13pt: a nested table's cell margins. tdf158349_SDTstreamStateStack (60 of 92): Word has "Operative words" block rows ours lacks, four pages for three.
+    tdf149089 (56 of 60, 3/3): not read. fdo80097 (36): 2 pages for 1.
+  - CHARTS: tdf128207 (15 of 25, 40%): Word draws the value axis ticks 6,5,4 and a "Bar chart" title at x 404; ours the category labels at x 559 instead (labels on
+    the wrong side/axis). tdf124398_groupshapeChart (15 of 16, 6%): Word 16 lines on p1, ours 2 on 2 pages — a chart in a group shape is not drawn and the figure caption spills a
+    page. fdo76098 (12, 72%): ours misses the chart's "Sales 1st Qtr…" block on p2 and puts the list a page early. chart-dupe, tdf123873, tdf82824: axis-label differences (macos-ios's).
+  - LINE NUMBERS (NEW CLASS, small): lo-000463df floattable-heading-split-hyphen (32.6%) and lo-069707e4 floattable-heading-split-footer (20.8%) both have
+    <w:lnNumType w:countBy="1" w:restart="continuous"/>. Word's text layer prints the line number joined to the line ("1L01, page 1 start" at x 47), ours prints
+    "L01, page 1 start" at x 71 with no number. 7 documents in the LO set carry lnNumType (2 are the worst floating-table misses above, 2 score 100, 2 not yet printed).
+    So these two are not floating-table failures: the line-number gutter is missing (or placed) first, and the rest of each page follows. Not claimed.
+  - Skipped by Word (corrupt): 9 (word-win/skipped.tsv), among them lo-09a33253 clearing-break-with-fly, lo-0b4c5e4d TestFirstFooterDisabled (both were in this batch's nested group).
