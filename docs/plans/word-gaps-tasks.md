@@ -9915,3 +9915,16 @@ Lab spec: zh-6d402586's package, that paragraph alone; sweep w:right in 2-twip s
 and read each step's comma widths, automatic-space widths and where the hung "，" starts. Variants: (a) as is; (b) "COVID-19" and "PCR"
 replaced by ideographs (no automatic spaces); (c) one comma replaced by an ideograph. Wanted: the largest over Word takes with a
 mid-paragraph hang, as marks + spaces + hang.
+
+### zh-3da9d7f2 p1: a level rule's own empty paragraph goes under it — Lab spec (Word for Windows) (Linux office1, 2026-10-29, band 98.0-98.4)
+Measured (Windows mode, 98.0, 9 misses, all p1). Two causes:
+(1) The title "青田县人民政府办公室文件" is a wrapNone text box, positionV page 8.45pt, anchored in a floating table's cell
+(layoutInCell 1): Word's print has it 129pt down (about the table's top + 8.45); ours 8.45 from the page's top.
+(2) The red rule: a zero-height line, wrapTopAndBottom, effectExtent t 1 / b 1.25pt, positionV paragraph +21.9pt, alone in an
+empty paragraph of exact 27pt. Word sets that paragraph's line under the rule: the title after it stands 23.2 lower than ours
+(= 21.9 + 1.25). But zh-f47b8a74's two rules, +5.25 and +2.25 in an empty paragraph of at least 28pt, are drawn over that
+paragraph's own line in Word's print (Docx.swift's h == 0 note). Two witnesses do not give the rule.
+Lab spec: zh-3da9d7f2's package, p1. Sweep the rule's positionV offset 0 to 27pt in 3pt steps; read where the title after it
+stands. Variants: (a) as is; (b) effectExtent 0; (c) the paragraph's line at least 27 instead of exact; (d) the rule 1pt tall.
+Wanted: when a top-and-bottom object pushes its own paragraph's line under it, and by how much.
+For (1), lab not needed yet: a corpus check of page-placed wrapNone boxes in layoutInCell cells comes first.
