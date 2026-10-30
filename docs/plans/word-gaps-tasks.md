@@ -49,7 +49,7 @@ Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows
 ideographs on its grid are exact, so the one-twip misses are looked for in the marks and Latin on those lines. Word labs via
 `windows`. Pair in both modes, 756 docs, same base and host, before landing.
 
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, T169 zh-74b34f3b (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619 (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
@@ -85,6 +85,13 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   from −120 the marks give to take "—5000" whole. Three runs, no hint, doNotUseEastAsianBreakRules and useAltKinsoku print
   identically. With "五千" for "5000" it ends a line at "—" (marks squeezed to take it). zh-e68a2f57's "4" | "—" | "1"
   (a digit before the dash) is the other case — windows-2's rule.
+
+- zh-505b9619 96.6 — CLAIMED. Its misses from p59 on carry "2.x" where Word's print has "3.x": the quality list (numId 14,
+  "%1" / "%1.%2" / "%1.%2.%3") opens at level 2 ("1.1下列檢驗項目…"), and Word numbers its first two level-1 items 2 and 3 —
+  the uncounted parent counted at its start when the deeper item showed it; ours only shows it (`RichListNumbering`, see
+  office.md "A list level begins at its own start") and numbers them 1 and 2. Candidate: a shallower level not yet counted is
+  counted at its start. Pair on the current tip to come. (Its p4/p5 "○1"/"○2" eq \oc misses are the text layer: ours
+  sets ①, which the reader folds to "1".)
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
