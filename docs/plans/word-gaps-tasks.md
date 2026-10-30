@@ -79,7 +79,7 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
 - zh-c2f6d17a: "…100" | "—150毫米" (a dash after digits opens the line; lab dash). Next.
 - zh-78d8bd98 exact last row's bottom line: wip/lenovo3-lastrow (cdefe320), 96.8 -> 98.9 on Linux, awaiting windows-1.
 
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
@@ -104,7 +104,8 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   as 《》, 》 gives up to half its em and 《 nothing. Corpus: the 94 Word-win prints that squeeze East Asian-face curly
   quotes have them almost all in runs hinted `eastAsia`; zh-e5eb092a's 242 are unhinted in a 宋体 hAnsi (Normal (Web)),
   never squeezed. Candidate: in Word for Windows a curly quote not hinted East Asian (set in the Latin slot, whatever its
-  face) gives nothing (`windowsMuted`). Pair to come after T169's.
+  face) gives nothing (`windowsMuted`). DONE (next commit): pair tip0 8d52c101 → q1, 756 Windows: only zh-e5eb092a
+  96.9 → 100 and zh-4a2ab598 99.6 → 99.9; rescored on d645363c, the same. Released.
 - zh-22ecbdc8 96.8 — CLAIMED. p3 "…组织人次达1000（含）—5000人/年" (mode 14, compressPunctuation, 仿宋_GB2312 16pt, hint
   eastAsia): Word ends line 3 at "（含）" with its marks whole and starts line 4 "—5000"; ours squeezes four marks
   1.44 each and ends at "—". Corpus prints: Word ends a body line with an East Asian "—" before a digit once

@@ -12708,9 +12708,24 @@ public final class RichLayout {
                     // language detection tagging the text as it goes, not
                     // a rule of the file. zh-264d7516, zh-efd9229a and
                     // zh-51af781b go to their Mac prints with it too.)
+                    // (Nor, in Word for Windows, a curly quote its run does not
+                    // hint East Asian: it is set in the Latin slot, full-width
+                    // or not by the face there. Lab e5t (zh-e5eb092a's package,
+                    // mode 14, compressPunctuation, zh-CN): its unhinted quotes
+                    // in a 宋体 hAnsi (Normal (Web)) take "府”，" only while
+                    // "…府”" fits with every “ ” at 12.0, where the same quotes
+                    // as 《》 let "》" give half its em; ours squeezed four
+                    // quotes 1.8 each and took the line. The Word-for-Windows
+                    // prints that squeeze full-width quotes have them hinted.)
+                    let latinSlotQuote: (Int) -> Bool = { o in
+                        wordRules && RichTextTheme.wordWindowsPages && o >= 0 && o < runOf.count
+                            && [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o])
+                            && (p.runs[runOf[o]].style.fontHint ?? lineStyle?.char.fontHint) != "eastAsia"
+                    }
                     let windowsMuted: (Int) -> Bool = { o in
                         runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
+                            || latinSlotQuote(o)
                     }
                     // (Nor, in Word for Windows, an opening mark right after a
                     // space on a line a tab stands on: lab p10 (zh-015abfaf's

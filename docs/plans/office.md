@@ -1332,6 +1332,18 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **An unhinted curly quote gives nothing, in Word for Windows (2026-10-29).**
+  A “ ” ‘ ’ whose run is not hinted `eastAsia` is set in the Latin slot,
+  full-width or not by the face there, and no line-end squeeze takes room
+  from it. Labs e5q–e5t (zh-e5eb092a's package, mode 14, compressPunctuation,
+  zh-CN, its quotes unhinted in Normal (Web)'s 宋体 hAnsi): "府”，" is taken
+  only while "…府”" fits with every quote at its em; the same quotes as 《》
+  let "》" give half its em, and "《" nothing. The Word-for-Windows prints
+  that squeeze full-width quotes have them hinted East Asian. Pair
+  tip0 (8d52c101) → q1, 756 documents, Windows mode: zh-e5eb092a 96.9 → 100,
+  zh-4a2ab598 99.6 → 99.9, nothing else moved; the same two again on
+  d645363c.
+
 - **Overflowing first-line indents in fixed text boxes (2026-10-28).**
   In measured standalone DrawingML `noAutofit` frames, Word keeps the first
   glyph on line one at its stated positive indent even when it cannot fit.
