@@ -262,6 +262,14 @@ Kits wip/lab-sqz (66 prints, seven lines) and wip/lab-sqz2 (F's width swept 1-40
   Word's "character" for firstLineChars is the face's, not the size: 643 stands for 200 chars in 1,207 paragraphs of ~50 documents,
   640 in 11,620 of ~170. To model it, read the unit per (face, size) from Word's prints: a paragraph's first line x - margin, over
   firstLineChars/100. Open.
+- UPDATE (same day): the indent unit, measured against OUR engine's output, not a naive count: of 142 paragraphs with firstLineChars
+  (Word's first line minus its next line's x, charunit2.py in wip/lab-census), 105 start where we count them and 37 where the file's
+  twips say (ours 0.2-1.1pt off); never the other way among those. But a stored value far from the count is stale and Word counts:
+  zh-f784cc40's firstLine 640 on 14pt runs starts 28pt in, zh-efd9229a's style-borne 836 and zh-76700e5f's firstLine 31680 over a
+  style's 200 chars (21pt, the count) likewise. Rule built (wip-storedindent 52db52eb): in Windows mode a first-line or hanging indent
+  follows the stored twips when the PARAGRAPH'S OWN w:ind writes them with the count, and they are within 1.5pt of it. Pair (756, v2):
+  no document moves; F's line starts at Word's 117.2. The unguarded versions dropped 10 documents (zh-76700e5f 100 -> 20.3, ...).
+  hangingChars: stored wins in every one of 456 measured paragraphs where it differs from the count (3 numbering artefacts).
 - G (zh-6b242483's lone "×", mode 14): Word refuses in every form, F8 (× made an ideograph) and F9 (+2pt) included; a width difference
   on a line of digits and Latin letters in 仿宋_GB2312 16pt, not a squeeze question. Open.
 - Word's glyph steps (markgive.py, lab/census): the smallest mid-line step of a mark varies by face and size (FangSong 16pt ，
