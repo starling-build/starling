@@ -9036,7 +9036,13 @@ Mac nothing moved. Left: p26-p31's few. Also seen, not done: in every document w
 Word's against the first note's baseline (19.08 there, ours 20.25 at 10pt; 1.44 for 11pt Calibri Normal), yet the same lines
 fit — the area agrees, only where the rule is drawn in its separator line (ours at its middle) differs.
 
-### zh-0978dee9 cell baselines (local 10024 / bundled 10035 lines on Windows) — OPEN finding, not claimed (office1 + windows, 2026-10-25)
+### zh-0978dee9 cell baselines (local 10024 / bundled 10035 lines on Windows) — KNOWN MODEL GAP, deferred (macos, 2026-10-29); not claimed (office1 + windows, 2026-10-25)
+DEFERRED (Linux 01F2SWc8 lenovo-3, 2026-10-29, macos's call; released): the fix is a per-run Word ascent/descent override in
+the SkParagraph patch. The engine already takes a line's max ascent + max descent over its runs, which is Word's rule (lab lh,
+(7) under the lab results), but each run's box is the stand-in face's split, not Word's (RichResolvedFace.baseline /
+naturalHeight). A strut cannot give per-line heights, and zero-width carriers would be stand-ins. Windows mode: 153 stacked
+mixed lines in 46 documents; the 13 under 99 have 1-12 each; zh-0978dee9 is 99+. A day plus engine rebuilds on all three
+machines: not worth it now.
 Not T203's: Word's print is SimSun + Courier New (p45/p127/p128), lines break alike in all three, and local sits 0.1-0.2pt
 under bundled (the strut's even leading splits by the drawn face's ascent/descent). The gap both modes share: p127's cells
 stand 0.3-0.5pt under Word's, the 10pt SimSun column at x117.9 0.8-0.9 (Word 100.1 / 113.1 / 126.0, bundled 100.9 / 113.9
@@ -9624,6 +9630,9 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
     (W 99.3 -> 96.8, M -1.4). Its amount column now sits 2.40 under the names as in Word (was 2.50), the offset
     zh-b0401810's number column lacked: the row placement itself is what is off.
   - Also lower by 1.2-1.3: zh-11709c74 (both), zh-e7bdb543 W, zh-753cd6a8 M — too few glyphs to measure, the same regrouping.
+  - **Exline follow-ups, one item: [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]** (1) the 10pt exact
+    lines in centred cells: zh-d8247da5, zh-e7bdb543, zh-e8d4c046, zh-11709c74 (with windows' 10/10.5pt lab when it lands);
+    (2) zh-78d8bd98 p7's rows (0.62 high) with zh-b0401810's number-column offset, probably one cause.
 (6) Lab p10 (zh-015abfaf p10 "17.手工嵌线技能竞赛<tab> 17 spaces （文登区开发|区）", Windows 01QbbApP; w:right -400..+400 by
   2, ours on bin-hang alongside; ~/starling-doc-check/lab/p10). THE HANG RULE HOLDS. Word takes "区）" to w:right −2 and
   "区" alone (no "）") to +156, so "）" hangs 7.85–7.90: grid-hang's 7.874. The "6.8" was the glyph's printed edge.
