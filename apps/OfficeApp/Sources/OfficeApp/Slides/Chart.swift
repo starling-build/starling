@@ -3221,7 +3221,7 @@ enum ChartPainter {
                 // plot ends 7.8 pt over them, and they stay at the frame's
                 // foot — bar-chart's at 401.4 in PowerPoint's print, where
                 // ours had risen with the plot to 397.8.)
-                let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : wordFoot ? 2.1 : 4) * k
+                let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
                 tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + under + belowOut))
             } else {
                 if c.valueGrid {
@@ -3343,12 +3343,12 @@ enum ChartPainter {
                     // the rest down to the right (chart-chart-text-can-
                     // overlap's 45°).
                     canvas.save()
-                    canvas.translate(cx, foot + 7.6 * k + belowOut - Self._wordLabelRise(c, catSize) * k)
+                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - Self._wordLabelRise(c, catSize) * k)
                     canvas.rotate(clockwise ? slant : -slant)
                     tp.paint(canvas, Offset(clockwise ? 0 : -tp.width, -tp.height / 2))
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + 7.6 * k + belowOut - Self._wordLabelRise(c, catSize) * k))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - Self._wordLabelRise(c, catSize) * k))
                 }
             }
         }
@@ -3581,7 +3581,10 @@ enum ChartPainter {
                     guard let raw = c.series[j].values[safe: i] ?? nil else { row.append(c.stacked ? base[i] : nil); continue }
                     let v = scaled(raw, i) + (c.stacked ? base[i] : 0)
                     row.append(v)
-                    labels.append((dataLabel(c, raw), Offset(xAt(i), vpos(v) - 9 * k), j))
+                    // (An area's stand in the middle of the area under the point, over the axis' foot
+                    // or the series below: lo-60124a3f's 5 and 6 over 4.4 to 6.2 in Word's print.)
+                    let y = c.type == .area ? (vpos(v) + min(vpos(c.stacked && j > 0 ? (tops[j - 1][i] ?? 0) : 0), plot.bottom)) / 2 : vpos(v) - 9 * k
+                    labels.append((dataLabel(c, raw), Offset(xAt(i), y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
