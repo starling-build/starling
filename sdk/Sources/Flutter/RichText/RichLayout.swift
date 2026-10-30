@@ -13821,7 +13821,11 @@ public final class RichLayout {
     // (The primes too, which Word's line rules keep from a line's start:
     // zh-bfe04e2f's "…31°10′48″N/122°10′43.2″" ends its line with the "″"
     // set at the margin, an em of FangSong past it, and "E；" a line down.)
-    private static let _hangingUnits = _closingUnits.union("？”’％′″".utf16)
+    // (And the small forms of the closing brackets, on the same list:
+    // zh-ab1ea005's "…（劳部发﹝1994﹞" ends its line with the "﹞" set at
+    // the margin in Word for Windows' print, where ours took "﹝1994﹞"
+    // down whole.)
+    private static let _hangingUnits = _closingUnits.union("？”’％′″﹚﹜﹞".utf16)
 
     /// Punctuation whose ink keeps to the left half of its em, and to
     /// the right half: Word takes half an em off the first of two that
