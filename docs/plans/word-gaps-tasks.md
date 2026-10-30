@@ -121,15 +121,20 @@ Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the de
 
 ### zh-8d6f702e (Windows 90.8) and zh-3c055c9b (Windows 93.2) — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
 Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pairs on this box, base b82b195f.
-- (1) Dash, PAIR RUNNING: zh-8d6f702e p21/p22 (and zh-c2f6d17a p19/p20) "…达100" | "—150": RichLayout's em-dash-between-digits
+- (1) Dash, LANDED 29b627ef: zh-8d6f702e p21/p22 (and zh-c2f6d17a p19/p20) "…达100" | "—150": RichLayout's em-dash-between-digits
   joiner (zh-b378d8c4) now only where the dash is set in the Latin face. Lab dash (windows): a hint="eastAsia" "—" breaks
   before itself, the same dash in Times takes "100—150" down whole; doNotUseEastAsianBreakRules changes nothing.
-  windows-3 builds the "（含）|—5000" joiner (zh-22ecbdc8, lab dsh) on top of this. 5 docs: 8d6f 90.8 -> 91.0, c2f6 99.4 -> 99.8.
-- (2) p38 tie, BUILT, pair queued after (1): "（3）…结束：" and "…影响情" are 0.0072pt over by ours — the 316-twip indent
+  windows-3 builds the "（含）|—5000" joiner (zh-22ecbdc8, lab dsh) on top of this. Windows 756 pair: 8d6f 90.8 -> 91.0,
+  c2f6 99.4 -> 99.8, nothing else moves (an earlier cut that also freed the break after the dash took zh-81a32de0 100 -> 99.8).
+- (2) p38 tie, REBUILDING: "（3）…结束：" and "…影响情" are 0.0072pt over by ours — the 316-twip indent
   (15.80) a hair past one cell (15.7927). Lab hc2 (windows): Word takes it at 316 twips with or without firstLineChars, in
   mode 12 and 14, and refuses at 317 (0.0572 over) or the right indent a twip in. Candidate: on a character grid in Word for
   Windows, legacy modes, not in a cell, the marks' give and the half-before test are weighed to half a twip (0.025pt).
   5 docs: 8d6f 90.8 -> 99.6, 5be7e156 97.8 -> 98.3 (its p2 "冷" witness matched; in cells it moved 专栏 lines off Word's, so cells are out).
+  Windows 756 pair at 0.025pt: 8d6f 90.8 -> 99.6, 5be7 +0.5, but the Control Yuan grid (charSpace 4127, 17.0076 cells, column
+  374.15) drops: zh-7654804a 99.6 -> 12.9, 344a8d08 100 -> 17.4, 7a16a243 -39.8, 457a8d62 -31.5, 72da925e -23.2, eb54d3b0 -4.7,
+  c15af02e -2.8, 92373179 -1.0. zh-7654804a "…最優申請人" with "，" squeezed is 0.0165pt over and Word refuses it: the
+  tolerance is between 0.0072 (taken) and 0.0165 (refused), not half a twip. Rebuilding at 0.01pt.
 - (3) zh-3c055c9b (mode 15, 17pt grid, overflowPunct 0) grid squeeze: started, released to me by macOS-doc.
   382 of our fit decisions checked against Word's print (our line start = Word's): 5 disagree — "採。", "「（舉" (tg cap),
   "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
