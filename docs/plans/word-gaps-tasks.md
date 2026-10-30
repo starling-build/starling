@@ -134,12 +134,18 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
 - zh-76cb73e2: lab pgb (`windows`): a wrap-none + fit-to-text page box is sized ONCE, for a one-digit line, and on two-digit
   pages Word wraps inside it and clips the second line; the cached result and the mode change nothing; in Times "— 10 —"
   still fits the one-digit width. Our `fitsOnce` already does this — what misses is that p10–11 use footer2 (third sectPr)
-  whose first page IS p10, so ours sizes it for "— 10 —"; Word still sizes it for one digit. Lab pgc asked.
+  whose first page IS p10, so ours sizes it for "— 10 —"; Word still sizes it for one digit. Lab pgc: every such box is
+  sized on the document's first page of its type (default/even/first), whichever section's part stood there — footer2
+  (first on p10) wraps as footer1; numbered from 10, every box holds two digits; cached result and saved width decide
+  nothing. Candidate: lay the part out as numbered on that page. Build queued.
 - zh-8415d258 97.8 — CLAIMED. Its paragraphs open with two U+2003 EM SPACEs in a 仿宋_GB2312 run: Word for Windows sets each
   15pt at 15pt (in Cambria Math); ours 6.7 (the stand-in's fallback), and those first lines take a character more
   ("…规范化" for Word's "…规范"). Candidate: an em space is an em and an en space half one. Pair on the current tip to come.
 - zh-27fc8f9d 97.7 — CLAIMED. p2 "第十条地面运行保障节点为《实施规范》中规定的22个节点：…": Word ends line 1 "…22个节" with 《》
-  whole; ours squeezes both 3.8 to take "点：" (the "：" hung). Lab f27 asked. (The 0.5 em gaps beside its "22" in Word's
+  whole; ours squeezes both 3.8 to take "点：" (the "：" hung). Lab f27 asked. Lab f27: nothing special holds it — Word takes "点：" from
+  w:right −42 (》 at half, "：" hung) and refuses at the document's −22, under 1pt short; the brackets' give is not the
+  limit (removing them changes nothing); refused again at −222 (a non-monotone window like lab kp's). PARKED: a sub-point
+  width difference (the gaps beside "22", 8.04 digits), not a rule. (The 0.5 em gaps beside its "22" in Word's
   print are justification; the corpus' balanced documents set the automatic space a quarter em, as ours.)
 - zh-202582e2 97.8: looked, released for now — p5's ¶3 lines stand 6–8pt low in ours: its first line mixes Times/仿宋 15.5
   with 15pt runs (spaced 9/4/8, auto 322); ours 28.8pt for that line (Word's ~26). Not narrowed further.
