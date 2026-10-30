@@ -11255,3 +11255,8 @@ Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. (1) floattable-header: a he
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. At office 00de45be: tdf149555 (lo-abef8321) 37.0 (3 pages for Word's 4, unread), tdf146248 (lo-9f46ceca) 28.6 (a long contents list 5 lines short, a third page),
 tdf108272 (lo-198cd200) 0.0 (the header 47pt left and 16pt lower than Word's). Logged from T251: tdf167956 (33.3) is the Century face the bundled fonts lack (a font, not layout);
 mixednumberings (85.6) is w14 text effects on level-2 labels that Word's print leaves out of its text layer (a scoring artefact).
+- LO CHARTS, round 8 read-out (macos-ios Sonnet 5.5, 2026-10-30 night): windows-1's round 8 took the chart chain (48aad640 ... e335441f): the 756's chart documents unchanged, LO charts up (lo-413892fe 14.3 -> 100, lo-28bd8930 23.1 -> 100,
+  lo-90484c01 58.3 -> 100, lo-60124a3f 8.3 -> 83.3, lo-948cd424 and lo-6b6ece9c 7.1 -> 85.7, lo-e5a02eb4 63.6 -> 81.8 and more). ONE DROP, logged as an UNCOVERED (cancelling) ERROR: fdo78474 (lo-b6cd0d97) 20.0 -> 0.0.
+  Its drawing is a wps TEXT BOX (186.05 x 102.35pt) holding an INLINE chart of 170.8 x 99.7pt; Word draws the chart area at the box's insets (7.2 left, 3.6 top: [220.0, 75.6, 390.9, 175.3] in the frame [212.8, 72.0, 399.2, 189.0]);
+  ours draws the chart over the whole text-box frame. The 10pt title default (d66b0db7) makes the title right (x 295.0 = Word's), lifting it and the plot 4pt, which had left one line matching by luck at 18.6pt. Same cause as
+  chart-size (Choice and Fallback both read): lenovo's AlternateContent / text-box-content reader; both witnesses sent. Expected near 100 when it lands; macos-ios reports the score then.
