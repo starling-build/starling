@@ -9619,6 +9619,8 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   CANDIDATE wip/tab-opener 45d8c6d5 (on wip/grid-hang): on Word for Windows pages an opening mark directly after a space
   gives nothing on a line a tab stands on. Every p10 variant now breaks as Word's print; zh-015abfaf 170 -> 271/271 lines,
   16 pages, with both wips; the other four documents with such a line unchanged. For lenovo to pair after grid-hang.
+  PAIRED AND LANDED (Linux office1, 2026-10-29, against grid-hang on office; validation engine, bundled fonts, 756 docs):
+  Windows zh-015abfaf 62.7 -> 100.0 (16/16 pages), nothing else moved (mean 97.955 -> 98.004); Mac unchanged (97.674).
 (7) Lab lh (mixed-line heights, for lenovo-3's zh-7773163d / zh-0978dee9; Windows 01QbbApP; ~/starling-doc-check/lab/lh).
   zh-0978dee9's package (mode 12, no grid): five lines per paragraph split by <w:br/> (E / E+L / L / L+E / E), plus each face
   alone. Single spacing: a line is max(ascent) + max(descent) over its faces, per line, by Word's own split:
