@@ -9831,6 +9831,27 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   Ebrima (substitute trap), now Calibri; p5's lines after them 3.5pt lower. zh-c399c91a reprints identically, kept. The audit of
   the 327 other missing-face references (word-win-missing-faces.txt, less db46d815's and today's) is RUNNING in chunks
   between labs; the list of replaced references will follow here.
+(13) MISSING-FACE REFERENCE AUDIT DONE (Windows 01QbbApP; user-approved via macos). All 327 word-win references whose
+  document names a face this box lacks (word-win-missing-faces.txt), less db46d815's 14 and today's two, were reprinted alone
+  in a fresh Word and compared glyph by glyph (face and position to 0.3pt, order-free, code points ignored). 322 identical.
+  REPLACED in c56dd6b9 (with zh-cb56e605 in a9d43428): zh-202582e2 (Yu Gothic -> MS Mincho, 449 glyphs moved),
+  zh-604e21e5 (p30, 161 glyphs 9pt up), zh-ab9cbe66 (p63, ~415 moved), zh-ae2dd08d (p18 on, 1129 moved, 6pt),
+  zh-e1b09977 (one glyph MS Gothic -> MS PGothic). RE-BASE sweeps: these six documents' scores will move.
+(14) Labs since (12) (Windows 01QbbApP; the details went to the requesters):
+  - hc2 (windows-2): a firstLineChars indent and its twips value are alike; Word's fit tolerance is under 0.0572pt
+    (316 twips taken, 317 refused), as if summed in whole twips.
+  - spm/spm2 (lenovo-3): with no compatibilityMode or mode 12 a closing mark may start a line and never hangs; from mode 14
+    the characters before it go down with it. Kinsoku, language and compression play no part.
+  - lc, tbi, tbi4g, fw (macOS-doc): w:w advances follow the face's own scaled width; at w95 仿宋 sits 0.057 under nominal and
+    標楷體 0.007. A vert270 box's first line is drawn at its indent while that is under the line's length; the rest wraps.
+  - p3dplot/p3dplot2 (macos-ios): a 3-D pie's size depends only on whether its labels are outside (x0.86), not on their text.
+  - gs, hyc/hyd (windows-2/3): Word breaks after a Latin hyphen only in mode 15 or under doNotCompress.
+  - pgb/pgc (windows-3): a wrap-none, fit-to-text page-number box takes its width from the document's FIRST page number,
+    for every footer.
+  - f27 (windows-3): "点：" is less than 1pt short; the brackets aren't the limit.
+  - p6d (lenovo): Word squeezes 2.6 per comma and never hangs a mid-paragraph "，" there.
+  - rul (lenovo): a wrapTopAndBottom rule pushes its paragraph's line down by offset + height + effectExtent b; with no
+    extent and no height it takes no room.
 (3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
 Windows-mode "needs a lab" notes against the tip:
   - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
