@@ -34,6 +34,18 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
   and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
   that says "both modes" now means Windows mode.
 
+**Confirmation round 5 — PASS for 5 of 6** (windows-1, 2026-10-30; base office 64f26dce; Windows mode, 756, final prints; v2 official).
+Stack of 6 (7190a877 lenovo-3 dotabove, 9dd407f8 macOS-doc spacegive T240, 8141e618 lenovo-2 mixed-size-baseline,
+7e254b8d + 7c31f4e7 macos-ios keepfloat, 4f0b145d lenovo T241): 14 up, ONE drop, zh-1d2a7c35 100.0→99.7 (v1 99.7→99.5; p6's ①②③
+paragraphs lose their last character per line). Bisect: the stack without 7c31f4e7 still dropped it (cleared); 9dd407f8 ALONE on the
+base reproduces it (381/382 lines). Cause: the paragraph opens with a plain space after the label's U+00A0; the base squeezes it
+(計 @78.67), spaceGive keeps it 6.0pt (計 @80.31), so each line holds a character less than Word's. T240 goes back to macOS-doc.
+The exact landing set (7190a877 8141e618 7e254b8d 7c31f4e7 4f0b145d, 756): v2 zh 99.686, 13 up, none down; v1 13 up, none down; witnesses
+zh-454e2e29 100, zh-c34269bd 100, zh-64044a1d 99.7, zh-1d2a7c35 100 all hold. Up: zh-34a6519a 96.6→100, zh-291fcea7 98.0→99.7,
+zh-f2ca3070 98.7→99.9, zh-31d580df 97.6→98.4, zh-ab34d9cb/zh-633792eb/zh-77bd4900/zh-86547e97/zh-167ee06c →100, zh-e2dc9dce 98.9→99.4,
+zh-15f60bac 98.7→99.0, zh-bdae17c0, zh-7773163d +0.1. Authors land those five. Queue next (round 6): 65b1ce5a, 97aa86b3, 942f299d,
+5da0347a, 52db52eb; probe 66e9f5ee (6 documents, real FangSong).
+
 ### OFFICIAL BASELINE #2 (Windows box, Windows mode, v2) — office a334f282, the FULL-audit references (windows-1, 2026-10-30)
 Rolling base `base4` = release build of office a334f282 (no T238, none of round 4's stack), bundled fonts, 756 documents,
 word-win through 0e8ae25d (every reference now reprinted alone in a fresh Word). Official score is matcher v2.
