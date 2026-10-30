@@ -10573,3 +10573,6 @@ Word centres it in that rectangle (8 and 7.7pt lower). Only boxes inside groups 
 frames only): RichTextBox.anchor, ctr/b, via the first paragraph's space before. Alone over the 10 corpus documents with such shapes:
 zh-291fcea7 98.0 -> 99.7, zh-77bd4900 99.5 -> 99.9, zh-e2dc9dce 98.9 -> 99.4, zh-bdae17c0 99.1 -> 99.2, none down. 756 pre-pair running.
 wip/t241-shape-anchor 4f0b145d (Windows mode, v2, 756 pre-pair): zh-291fcea7 98.0 -> 99.7, zh-77bd4900 99.5 -> 99.9, zh-e2dc9dce 98.9 -> 99.4, zh-bdae17c0 99.1 -> 99.2; none down. Asked windows-1 for a candidate sweep.
+
+### T242. zh-b62c9e11 (98.0, p2:2 p5:1 p8:2 p15:1) and zh-cd8987db (98.3, p1:3 p7:1 p10:1) against word-win — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4)
+Looking at both on the new base; each is measured before any fix is built.
