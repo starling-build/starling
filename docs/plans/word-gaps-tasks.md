@@ -71,6 +71,14 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   382 of our fit decisions checked against Word's print (our line start = Word's): 5 disagree — "採。", "「（舉" (tg cap),
   "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
   spaces 4.25 -> 6.45 instead). "稱：" has the same need/marks/stretch as "費、" with 3 spaces and is taken: lab gs asked of windows.
+  Lab gs (windows, the document's own lines, w:right swept, fresh Word each): A p2 "費、" (5 spaces) refused at 0, taken at
+  -2pt (marks squeezed ~2.3-2.5, 「 whole, spaces natural); B p13 "稱：" (3) taken at 0 (】 gave 8, each ， 2.6), refused at +2pt
+  (marks whole, spaces widened); C = A with "５月２４日" (1 space) taken only from -6pt; D p9 "號、" (6) taken at 0 and +2pt
+  (、 gave only 4.3), refused at +4pt. Every refused line widens the automatic spaces. No squeeze/stretch ratio from our counts
+  (per mark/per space or room-based) separates all 382 decisions plus gs: Word's per-mark give is not ours (D's 4.3, not 8.5).
+  RELEASED to macos-ios (starling-bd's routing): files on the Windows box `~/starling-doc-check/lab/gs/` — {A,B,C,D}-orig.pdf,
+  `w2-decisions-3c055c9b.txt` (our trace vs Word's verdict per decision), `w2-sharefit.py` (makes it from
+  `w2-fit-trace-3c055c9b.txt`, base b82b195f, Windows mode).
 - (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
 ### Line fitter: (1) a closing mark that cannot fit carried to the next line alone (zh-7773163d p49); (2) zh-3c055c9b's per-mark give — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's assignment)
 Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt (zh-7773163d entry, T167 section): in old-mode
