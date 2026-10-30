@@ -4442,8 +4442,31 @@ extension ChartPainter {
                 lo = (min(lo.x, q.x), min(lo.y, q.y)); hi = (max(hi.x, q.x), max(hi.y, q.y))
             }
         }
-        let scale = min(plot.width * 0.941 / (hi.x - lo.x), plot.height * 0.972 / (hi.y - lo.y)) / (1 + c.pieExplosion)
+        // (Where no label stands outside it, bigger by 1.16: Word keeps a
+        // band for outside labels whatever they say. Labs p3dplot and
+        // p3dplot2 (Word for Windows, zh-27a874b7's chart 1): 322 x 186
+        // with no labels or with them inside or centred, 277 x 160.5 with
+        // them best fit or outside — one, three or all six, two to six
+        // ideographs, one line or three; the same 1.16 at rotX 15 and 50
+        // and under a title. Ours, its labels' size whatever they were,
+        // is Word's with them outside.)
+        let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && !c.legend && !c.pieLabelsAround
+        let scale = min(plot.width * 0.941 / (hi.x - lo.x), plot.height * 0.972 / (hi.y - lo.y)) / (1 + c.pieExplosion) * (unbanded ? 1.16 : 1)
         let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2, plot.center.dy - scale * (lo.y + hi.y) / 2)
+        // (Drawn, where Word lays it out itself — no title, no legend, no
+        // layout of the file's — on the frame's middle and 1.5pt over it,
+        // its labels where they were: lab p3dplot (Word for Windows,
+        // zh-27a874b7's two charts, rotX 30), the pie as seen at 303.0 and
+        // 205.8 in a frame 102.7-503.3 x 99.3-315.3, 302.0 and 499.0 in
+        // 109.9-494.3 x 391.9-608.6, where ours stood 1.2 left and 2.7 low;
+        // its labels, though, stand where ours did — moved with the pie,
+        // all seventeen of chart 2's went 2.8 high.)
+        let drawn: Offset = {
+            guard let f = frame, !c.onSlide, !c.onSheet, c.plotLayout == nil, !c.legend, (c.title ?? "").isEmpty, abs(tilt - 30) < 0.5 else { return .zero }
+            return Offset(f.center.dx - (origin.dx + scale * (lo.x + hi.x) / 2), f.center.dy - 1.5 * k - (origin.dy + scale * (lo.y + hi.y) / 2))
+        }()
+        canvas.save()
+        canvas.translate(drawn.dx, drawn.dy)
         func at(_ a: Double, _ f: Double = 1, _ h: Double = 0) -> Offset {
             let q = unit(a, f, h)
             return Offset(origin.dx + q.x * scale, origin.dy + q.y * scale)
@@ -4511,6 +4534,7 @@ extension ChartPainter {
             canvas.drawPath(p, fill)
             canvas.drawPath(p, edge)
         }
+        canvas.restore()
         let rx = (at(0).dx - at(.pi).dx) / 2, ry = (at(.pi / 2).dy - at(-.pi / 2).dy) / 2
         if var l = c.pieLabels {
             var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
