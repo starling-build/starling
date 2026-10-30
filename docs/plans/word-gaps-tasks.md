@@ -313,6 +313,17 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
 - zh-cd48112c 97.7, zh-147bdae0: T181's line fit / long URLs — not taken.
 - zh-6a4fc013 66.9 (v2, the official list's lowest; Thai) — CLAIMED windows-3 2026-10-30, starling-bd's assignment, after the
   pairs above: page-by-page causes on this box (Windows-host Thai), starting from windows' parked p18 (_hanJoins lead).
+  Tip (8ac9be91, bin t1): 412/616 (66.9). Misses: p18 9, then 21-26 on every page p19-p26 — p18's heading
+  "คำถามที่ 4 ： บทลงโทษ…เป็นเท็จ?" takes two lines in ours and every line after runs one late, so p18 is worth ~200 lines.
+  Cause found (not yet built): `_spacesToHold` holds the space after "：" (a wide character beside it) as a no-break space
+  + U+200B, and with the long joined Thai stretch (`_thaiJoins`) after it the engine wraps at any width. windows' real
+  U+200B after "：" helped only because the next character is then not wide, so that space is no longer held. Candidate:
+  where Thai breaks at spaces, a space run followed by Thai is not held. Next after the restart.
+- State at the restart (2026-10-30 01:30): all candidates on wip/windows3-candidates (eb223831, one commit each on 8ac9be91):
+  em-space (clean pair, to land after the tip rescore), combine-width (clean pair, same prints: only zh-c591c1fa 97.7 ->
+  100), hyphen-join (pair interrupted 674/756, resumable), dash-digit, opener-autos, merge-row1 (tip builds frozen, pairs
+  not run). Tip base t1 sweep interrupted at 349/756 (resumable). Note: the audit's five new word-win prints landed between
+  d645363c and the tip; compare only sweeps scored against the same prints.
 - zh-eec0747a 97.5 — CLAIMED. p21's form header (rows 630/624 atLeast, every cell vMerge over both, 微软雅黑 12, linePitch 312,
   adjustLineHeightInTable) is 72.7 in Word, 80.2 in ours. Labs eec/eef/eeg (`windows`): row 2 is its continued cells' empty
   YaHei line, 39.2 (as unmerged, eefH, where ours matches Word row for row); row 1's restart text — two 22pt exact lines,
