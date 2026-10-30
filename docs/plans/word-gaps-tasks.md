@@ -10633,5 +10633,14 @@ paragraphs' two leading U+2003) took the first lines. What is left, all on p1-p2
 zh-b62c9e11 is already 100 on the current base. zh-cd8987db (98.3): p7 "5.6.2 … 每a≥3次。" — Word ends the line "…每a≥" (breaks after the East Asian ≥, squeezing three marks); ours kept "a≥3" whole. Built: a line may end after a ≥ or ≤ set East Asian (hinted run), before a non-space. 756 pre-pair (Windows mode, v2, wip/t243-ge-break 97aa86b3): zh-cd8987db 98.3 -> 98.6, zh-447f1d5c 99.4 -> 99.5, ONE dip: zh-0060058e 99.9 -> 99.8 (same 1709/1718 lines; its "≤" paragraph on p41: line 1 now agrees with Word, but ours fits 均 on line 2 where Word's justified line, 0.9pt short, cannot — digits of the stand-in FangSong are 8.00 where Word's are 8.04 (10 digits = 0.4pt) — the old lines matched only because the misplaced ≤ cancelled that). Left for windows-1 to judge; not a layout regression in the rule.
 Not done in zh-cd8987db: p1 cover (floating ICS/CCS frame table 9pt/2pt off; the logo table's "5308" 32pt/14pt off), p10 "附录A" label 4pt high (exact 20pt line, numbered empty paragraph).
 
-### T244. zh-72da925e (97.5, 31 of 1228 lines) against word-win — CLAIMED (Mac 7bd18d8e, 2026-10-30, Windows mode)
-p2-p4: a footnote reference after a caption ("舊觀" + raised 1: Word's "1" stands 8.1pt above the caption's baseline, ours on it — the superscript fix c269eb8f may have taken it), the footnote text 1.9pt low on p2 (736.7 / 738.6), and p3-p4's body lines a line off from there. Fresh base sweep w113 (office 7185e22b) first.
+### T244. zh-72da925e (97.5 -> 99.0 on the office tip, 12 of 1228 lines) against word-win — RELEASED, measured (Mac 7bd18d8e, 2026-10-30, Windows mode)
+On the tip (sweep w113, office 7185e22b) the p2 caption/footnote misses are gone (the superscript fix); 12 lines are left in five clusters of 1-3
+lines (p8 x2, p9 x3, p19 x2, p26 x4, p33 x1), every one a line fit where Word takes a character ours leaves, or the reverse:
+- p9 "（3）「基隆河整體治理計畫」係前經建會於91年4月": Word takes "月" at the line's end, its "」" set 8.5 (half) before "係" and every other gap whole
+  (17.0 on the 4127 spreading grid, 16 + 1.0); ours keeps the "」" whole and leaves "月" down (needs 9.1, the "」" gives 8.5). Same paragraph family,
+  kinsoku 0, overflowPunct 0, mode 15?: Word refuses a squeeze on spreading grids in lab gs2's cases and takes this one, 0.6pt more than the marks give.
+- p8 "，後因委辦期間又適逢90年9月納莉颱風帶來" (a line OPENING with "，", kinsoku 0): Word ends at "來"; ours takes "大" too, so squeezes the leading "，";
+  Word's leading comma gives nothing here.
+- p19 "…新橋兩個方案（" : Word ends the line on the opening "（" (kinsoku 0); ours sends the "（" down with "工期".
+All three are the per-mark give / squeeze model (Mac 01Xgpbk5's T-line-fitter claim, zh-3c055c9b); not mine to fix separately. Witness lines are in
+~/starling-doc-check-starling-office-zh/w113 (zh-72da925e); Word's glyph rows: p9 line 306.9 above.
