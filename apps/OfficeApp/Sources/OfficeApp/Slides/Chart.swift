@@ -3023,6 +3023,12 @@ enum ChartPainter {
         // (chartex's stock chart printed by Word with its axes' ticks
         // out and none: not a label moves).
         let ticksPush = !c.styled2013
+        // (A 2013-style chart in a Word document: its plot and labels sit by their own insets,
+        // measured on ten LibreOffice test charts against Word for Windows' prints.)
+        let word = !c.onSlide && !c.onSheet && !c.chartex && c.styled2013
+        // (Its foot as well where nothing but the category labels stands there: a legend or
+        // an axis title under the plot takes the foot's room its own way.)
+        let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
         let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         if horizontal {
@@ -3044,14 +3050,14 @@ enum ChartPainter {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
-            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut
+            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : 0)
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Labels by an axis above the foot take no room below it.)
             // (A `cx:` chart's on a sheet 2.53 pt higher, its labels with
             // it: their baselines 7.98 pt over the frame's foot in Excel's
             // prints of histograms, Pareto charts and waterfalls, ours 5.45.
             // Not a box plot's, already higher than Excel's.)
-            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) - (wordFoot ? 4.4 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -3060,7 +3066,7 @@ enum ChartPainter {
             // categories 151.3 apart, ours 150.9. Not against a legend
             // beside it: tdf149985's, +0.11 so.)
             let legendBeside = c.legend && c.legendBox == nil && ["r", "l", "tr"].contains(c.legendPosition)
-            var right = edges ? (catLabels.last?.width ?? 0) / 2 : (c.onSlide && c.styled2013 && !legendBeside ? 2.1 : 4) * k
+            var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
@@ -3215,7 +3221,7 @@ enum ChartPainter {
                 // plot ends 7.8 pt over them, and they stay at the frame's
                 // foot — bar-chart's at 401.4 in PowerPoint's print, where
                 // ours had risen with the plot to 397.8.)
-                let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
+                let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : wordFoot ? 2.1 : 4) * k
                 tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + under + belowOut))
             } else {
                 if c.valueGrid {
@@ -3231,7 +3237,7 @@ enum ChartPainter {
                 // plot than the room left for them: chart-slide-bg's and
                 // its three like it, at 166.5 where ours were at 169, the
                 // plot where PowerPoint's is.)
-                let further = c.styled2013 ? 2.5 * k : 2.6 * k
+                let further = word ? 0 : c.styled2013 ? 2.5 * k : 2.6 * k
                 // (A 2007-style chart's stand with their middles 1.45 pt
                 // above their lines, line- and scatter-chart's 18 pt
                 // labels. A newer chart's are measured so too, and came
