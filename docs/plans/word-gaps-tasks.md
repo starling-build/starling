@@ -9802,9 +9802,25 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
-- LibreOffice corpus, CLAIMED Linux lenovo-2 (starling-d6), 2026-10-30, starling-bd's task from the user: a second docx corpus from
+- LibreOffice corpus, DONE (set, sweep option) / triage below, Linux lenovo-2 (starling-d6), 2026-10-30, starling-bd's task from the user: a second docx corpus from
   LibreOffice core's own sw/qa documents, only if the license allows. Steps: license check (nothing committed before the OK),
   sparse blobless clone to ~/.cache/starling/docx-lo, manifest, round-trip triage, a seeded 200-document sample for windows' prints.
+  Committed 2026-10-30 (user's ruling, MPL-2.0): test/corpus/docx/lo — 200 unchanged documents, manifest, SHA256SUMS, LICENSE.md
+  (f4b8e9845); test/docx-line-sweep.sh with DOCX_CORPUS (6cd7db49b; windows-1 has the same option in wp-sweep.sh). Prints: windows.
+  ROUND TRIP of all 2,121 unique sw/qa documents (docx-corpus.py, commit c0ade982f09c, 4 parallel batches): 2,086 ok, 35 not.
+  Not ours: 4 ODF packages named .docx (extras/uiwriter/data/tdf132596, tdf171025_pageAfter, tdf171038_pageAfter, odfimport/
+  tdf76322_columnBreakInHeader), 4 encrypted (Encrypted_*_abc, unsupported on purpose), 5 deliberately corrupt fuzz files under
+  core/data/ooxml/fail (zlib / corrupt). READER BUG: extras/ooxmlexport/data/tdf104713_undefinedStyles — the main part is
+  word/trial.xml, named by _rels/.rels, and we ask for word/document.xml (noDocumentPart).
+  WRITE BUGS, saved copy unsound (CHECK-FAIL): extras/ooxmlexport/data/footer-margin-lost and extras/uiwriter/data/tdf157131 —
+  header rels point at word/media/image*.png/jpeg that the copy lacks; extras/uiwriter/data/tdf155685 — a chart's rels name a
+  missing word/embeddings part; core/data/ooxml/fail/EDB-36788-1 — the saved document.xml is not well-formed (invalid token, line 2).
+  WRITE BUGS, paragraph count changes on re-read (WRITE-FAIL, 16): +1 in 14 (ooxmlexport: tdf123636_newlinePageBreak, 3, 4,
+  tdf153964_firstIndentAfterBreak14, tdf153964_numberingAfterBreak14, n780843b, n782345, tdf99090_pgbrkAfterTable,
+  tdf97648_relativeWidth, tdf151704_thinColumnHeight; core: header_footer/bnc519228_odd-breaksB, layout/tdf157096,
+  layout/floattable-header), +3 in tdf103976 and NumberedList, -5 in extras/layout/tdf123163-1 (201 -> 196). Page-break-and-
+  break-after-table cases dominate. Files: ~/.cache/starling/docx-lo/{rt.out,rt-fails.json}. Not worked.
+
 - Mixed-size paragraphs without a strut (starling-bd's assignment, 2026-10-30): SCOPING by Linux lenovo-2 (starling-d6), not
   built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
   24/21 — even its plain 14pt first line is 5pt tall. Runs already carry Word's height ratio, so the no-strut line's extra
