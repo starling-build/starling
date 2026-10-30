@@ -9915,6 +9915,23 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   more room takes it. With hc2 (a plain fit taken 0.0072pt over, refused at 0.0572): compare in whole twips; an overrun under
   half a twip fits, and a squeeze must stay strictly under its limit. ~/starling-doc-check/lab/tie14.
   Also p3dplot3 (macos-ios): 12 rotations of zh-27a874b7 chart 1, label centres and pie extents, sent to macos-ios.
+(17) The two residuals of (15), MEASURED, PARKED (Windows 01QbbApP); nothing pushed:
+  - zh-6a4fc013 p18. Ours sets "คำถามที่ 4 ： บทลงโทษ…เป็นเท็จ?" on two lines at every column width up to 551.8pt; the line
+    is 465.7 in a 467.8 column, and Word's print holds it. The fitter itself says it fits (STARLING_RICHTEXT_FIT); the
+    engine probe already wraps.
+    - The trigger is an East Asian character (the "：", or 中) BEFORE a space and a Thai stretch held whole. ":" for "："
+      fits, so does Latin in place of the Thai, a shorter Thai, or "：" after the Thai.
+    - A real U+200B typed after the "：" in the docx makes it one line. The same zero-width space inserted by `_span` before
+      that space (zeroWidth or the run's own style) does not, and one after the space does not either.
+    - So something keyed on the paragraph's TEXT, not the span, ties "：" + space to the Thai. Not found:
+      `_thaiJoins`, held spaces and `_closingSpaceHeld` ruled out. Probes: ~/starling-doc-check/lab/th18 (v1–v14).
+  - WordWithAttachments p2: the "Документ-в-документе" icon object fits p1's foot in ours by 0.1pt (bottom 785.1 of
+    785.2) and goes to p2 in Word. Ours' p1 sits 2.5–3pt high after the three inline WordArt lines (the -0.3 before
+    them becomes -2.8 after). That is (8515)'s parked WordArt extent. Word lab: the empty paragraph before the icon
+    removed puts it on p1 in Word too; comments removed (no markup scaling) keep it on p2, so the break is real.
+    Needs (8515)'s stroke lab. ~/starling-doc-check/lab/wwa.
+  Labs since (16): gs2 (macos-ios, results sent), cq (lenovo-3: no East Asian language, so closing marks start lines),
+  p3dplot3.
 (13) MISSING-FACE REFERENCE AUDIT DONE (Windows 01QbbApP; user-approved via macos). All 327 word-win references whose
   document names a face this box lacks (word-win-missing-faces.txt), less db46d815's 14 and today's two, were reprinted alone
   in a fresh Word and compared glyph by glyph (face and position to 0.3pt, order-free, code points ignored). 322 identical.
