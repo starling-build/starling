@@ -61,8 +61,15 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   not a witness.) Lab e5r (`lab/e5q` h–k): it is width. Spaced +0.4, "府”，" is refused at w:right −140 and taken from
   −160 (room 460.6 / 461.6 against 458.8 for all 37 at 12.4 with the comma whole) — so the comma gets no hang when Word
   decides, and ~2pt more is wanted; once taken it hangs whole (12 past at −160). Unspaced it is taken whenever "…府”" fits,
-  the comma hung whole, to w:right +400. Ideographs for the earlier quotes change nothing. Quotes never squeeze. e5s
-  (1-twip thresholds at spacing 0.2/0.4/0.8, comma or quote → ideograph) asked.
+  the comma hung whole, to w:right +400. Ideographs for the earlier quotes change nothing. Quotes never squeeze.
+  e5s (1-twip thresholds, spacing 0.2/0.4/0.8): need = 36 × (12 + 2s), the comma hung whole — the document has
+  balanceSingleByteDoubleByteWidth, so that is the existing doubled spacing (printed doubled too, 12.8). The miss is the
+  quotes: at w:right 0 "…府”" is 7.2 over; ours squeezes line 1's four quotes 1.8 each, Word refuses. e5t: unspaced, "府”，"
+  is taken only while "…府”" fits with every “ ” at 12.0 (to +432, refused +436) — the quotes give nothing; the same quotes
+  as 《》, 》 gives up to half its em and 《 nothing. Corpus: the 94 Word-win prints that squeeze East Asian-face curly
+  quotes have them almost all in runs hinted `eastAsia`; zh-e5eb092a's 242 are unhinted in a 宋体 hAnsi (Normal (Web)),
+  never squeezed. Candidate: in Word for Windows a curly quote not hinted East Asian (set in the Latin slot, whatever its
+  face) gives nothing (`windowsMuted`). Pair to come after T169's.
 - zh-22ecbdc8 96.8 — CLAIMED. p3 "…组织人次达1000（含）—5000人/年" (mode 14, compressPunctuation, 仿宋_GB2312 16pt, hint
   eastAsia): Word ends line 3 at "（含）" with its marks whole and starts line 4 "—5000"; ours squeezes four marks
   1.44 each and ends at "—". Corpus prints: Word ends a body line with an East Asian "—" before a digit once
