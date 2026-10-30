@@ -2634,7 +2634,14 @@ public final class RichLayout {
                         if theme.wordRules {
                             for image in Array(document.paragraphs[k].inlineImages.values) + [document.paragraphs[k].image].compactMap({ $0 }) {
                                 guard let f = image.float, f.wraps, f.verticalAlign == nil else { continue }
-                                let h = _px(image.height + image.effectBottom + f.distanceBottom)
+                                var h = _px(image.height + image.effectBottom + f.distanceBottom)
+                                // (A table nested in the cell and floating is as tall as it
+                                // lays out, not the 1pt its object says: LibreOffice's
+                                // tdf170477, a 3547-twip row with a floating table down to
+                                // 184.0pt, is 184.0 in Word's print and was 178.4 here.)
+                                if image.textBox?.growsToFit == true, k < _imageSize.count, let size = _imageSize[k] {
+                                    h = size.height + _px(image.effectBottom + f.distanceBottom)
+                                }
                                 let top: Double
                                 switch f.verticalFrom {
                                 case "paragraph", "line": top = max(0, offset + cell.pad.top + _px(f.y))
