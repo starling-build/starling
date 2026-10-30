@@ -29,6 +29,54 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
   and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
   that says "both modes" now means Windows mode.
 
+### OFFICIAL BASELINE (Windows box, Windows mode) — #1, office 48f2a382 (windows-1, 2026-10-29)
+Rolling base: release build of office 48f2a382's code on DESKTOP-URK35LH, OFFICE_FONT_SOURCE=bundled, 756 documents,
+references word-win with the audit (a9d43428, c56dd6b9). Official score is matcher v2 (be4c11b4); v1 alongside.
+The 10 documents with no text lines in either print (0/0: 51921-Word-Crash067, 59378, Bug62859, TestTableColumns,
+comment, headerPic, issue_51265_1/2/3, zero-length) score 0 in every sweep; means are given with and without them.
+```
+v2: all 756 mean 98.185; 746 with text 99.501; >=95 733; 100% 554; zh(645) 99.479; poi(111) 90.666
+v1: all 756 mean 98.084; 746 with text 99.399; >=95 734; 100% 518; zh(645) 99.363; poi(111) 90.656
+lowest 30 (v2, documents with text; v1 in brackets):
+   66.9 ( 66.9) zh-6a4fc013
+   78.5 ( 69.6) zh-27a874b7
+   81.0 ( 72.7) zh-d62da4dd
+   81.6 ( 81.6) WordWithAtt
+   85.7 ( 85.7) rtl
+   90.8 ( 90.8) zh-8d6f702e
+   91.7 ( 90.9) zh-b8de3ae2
+   92.1 ( 99.9) zh-ab1ea005
+   92.9 ( 94.2) zh-b24b396a
+   93.2 ( 93.2) zh-3c055c9b
+   93.3 ( 92.1) zh-4e5fe46f
+   94.1 (100.0) zh-e02b0479
+   94.4 ( 95.9) zh-e51c31a7
+   95.3 ( 94.8) zh-ae2dd08d
+   95.4 ( 95.3) zh-64044a1d
+   95.7 ( 95.7) zh-5a9a85c6
+   95.9 ( 95.9) zh-f39e54b6
+   96.2 ( 97.8) zh-8415d258
+   96.3 ( 96.2) zh-9bcea239
+   96.4 ( 95.6) zh-d0a207ac
+   96.6 ( 96.3) zh-34a6519a
+   96.6 ( 96.6) delins
+   96.6 ( 95.5) zh-6d402586
+   96.7 ( 96.7) zh-b5359de4
+   96.8 ( 96.8) zh-22ecbdc8
+   96.9 ( 96.9) zh-e5eb092a
+   97.0 ( 96.9) zh-74b34f3b
+   97.0 ( 96.5) zh-77079ee8
+   97.1 ( 97.1) zh-61aaad09
+   97.1 ( 97.1) zh-4ea36aa8
+```
+The audit itself (c56dd6b9's five, same renders, old prints → new): zh-ae2dd08d 98.3→95.3, zh-ab9cbe66 98.3→97.3,
+zh-604e21e5 100→98.2, zh-202582e2 and zh-e1b09977 unchanged (v2); zh mean −0.009 (v1 and v2 alike).
+Next baseline: office a40ad5dc (b23de1e4, a40ad5dc and the round-1 stack once landed), with round 2.
+
+**Confirmation round 1 — PASS, nothing drops (v2 and v1).** q1t = base + 5c45b982 (macos-ios mincho labels) +
+e52785b3 (lenovo keeplines-foot) + cdefe320 (lenovo-3 lastrow). v2: zh-64044a1d 95.4→99.7, zh-27a874b7 78.5→81.7,
+zh-d62da4dd 81.0→84.0, zh-b8de3ae2 91.7→91.9; zh mean 99.479→99.495. v1 adds zh-78d8bd98 96.8→98.9. Authors land.
+
 ### Recipe: the 756-document pair on the Windows box (DESKTOP-URK35LH) — reference (Claude windows-1, 2026-10-29)
 Scripts are in `~/starling-doc-check/` (same user home for every session on the box). Copy them under your own
 names before editing; don't edit mine, and don't build in `starling-win-native` (mine).
@@ -50,6 +98,10 @@ names before editing; don't edit mine, and don't build in `starling-win-native` 
   mode). See `pair1.sh`. Outputs: `WORK/` (renders), `WORK.log`, `WORK.match`.
 - **Compare.** `python -I wn-mean.py NEW.match OLD.match`: zh/poi means, ≥95 and page-equal counts, movers ≥0.05.
 - Windows-host scores differ from Mac-hosted Windows mode (e.g. zh-6a4fc013, Thai); pair on one host only.
+- **Faster sweep (2026-10-29): `wp-sweep.sh TAG WORK KEYFILE [MODE] [JOBS]`.** Converts JOBS documents at once with
+  `xargs -P` and `timeout 300` each, straight to WORK/pdf, skipping docx-app-render.sh's raster page diff (the line
+  match never reads it); scores identical to wo-sweep.sh. `wp-fill.sh` renders only what a stopped sweep lacks;
+  `match-both.sh WORK` writes WORK.match (v1) and WORK.v2.match (DOCX_LINE_MATCH=v2). 4 jobs a side for a pair.
 
 ### zh-27a874b7 Windows mode (73.9): chart label placement — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's queue item 1)
 Windows mode first, scored vs word-win; includes the "Mac line heights around a tight-wrapped chart" finding below. First lead: p3's
