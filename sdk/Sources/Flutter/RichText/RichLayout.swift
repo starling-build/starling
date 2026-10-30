@@ -2716,8 +2716,15 @@ public final class RichLayout {
                     // p2 leaves "房交付之月…" for p3. The Mac's lab `rb`,
                     // which kept a single line inside, ruled its cells, not
                     // the table.)
+                    // (Its cells stating the line as well change nothing
+                    // where the table draws one: zh-78d8bd98's p7 table, sz4
+                    // by `w:tblBorders` and by every cell's `w:tcBorders`,
+                    // ends on an exact 25.3pt row whose text Word's print
+                    // centres in all of it, the text after the table 0.5
+                    // lower than ours, which had the row's text 0.25 high.)
+                    let ownBottom = document.tableStyles[table].map { !$0.bordersFromCells && ($0.edges?.bottom ?? $0.borders) } ?? false
                     let tableLine = below > 0
-                        && !(k0 ..< j).contains { Self._cellSide(document.paragraphs[$0].cell?.bordersXML, "bottom") != nil }
+                        && (ownBottom || !(k0 ..< j).contains { Self._cellSide(document.paragraphs[$0].cell?.bordersXML, "bottom") != nil })
                     let hung = exact && lastRow && (below > _px(1) || tableLine) ? below : 0
                     // (An exact one is that tall and its cells' bottom margin
                     // under it: the Mac's lab `rh` (zh-0243e7fc's package,
