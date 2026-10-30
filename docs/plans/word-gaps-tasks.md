@@ -72,6 +72,13 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
   spaces 4.25 -> 6.45 instead). "稱：" has the same need/marks/stretch as "費、" with 3 spaces and is taken: lab gs asked of windows.
 - (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
+### Windows-mode 99.0–99.4 band — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
+49 documents, mostly one or two lines a line break apart. Looking for rules that lift several:
+- "+" between ideographs: Word breaks after an ASCII "+" before an ideograph ("…互联网+" | "监管…"); the engine keeps
+  "+" with the ideograph (UAX14 PR × ID). zh-26660336 (3 lines), zh-c0ac6f55 (1), zh-41907c96 (4). In progress.
+- zh-c2f6d17a: "…100" | "—150毫米" (a dash after digits opens the line; lab dash). Next.
+- zh-78d8bd98 exact last row's bottom line: wip/lenovo3-lastrow (cdefe320), 96.8 -> 98.9 on Linux, awaiting windows-1.
+
 ### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
