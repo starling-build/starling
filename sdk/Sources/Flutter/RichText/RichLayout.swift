@@ -5790,7 +5790,7 @@ public final class RichLayout {
                     let lines = geometry(k).painter.computeLineMetrics()
                     return st.keepLines || lines.count <= 1 || (st.widowControl && !document.widowControlSuspended && lines.count <= 3)
                 }
-                func start(_ k: Int) -> Double {
+                func start(_ k: Int, trailing: Bool = false) -> Double {
                     if let c = _cells[k] {
                         // (A row that may part asks only for its first
                         // line in each cell: Word sets zh-64044a1d's
@@ -5827,7 +5827,21 @@ public final class RichLayout {
                     // "二、適用範圍" run, thirteen kept paragraphs, ends in
                     // "(九)其他應變處理…", 27pt with its 9 after, and Word
                     // sets it at page 41's foot with 1.1pt short of that.)
-                    if whole(k) { return theme.wordRules ? min(_heights[k], (g.textTop - g.top) + (bottoms.last ?? _heights[k])) : _heights[k] }
+                    if whole(k) {
+                        // (A member the run's last one asks for, a line set on
+                        // its own, may reach past the foot by the same
+                        // overhang as one whose lines part there: zh-34a6519a's
+                        // "3.2.2 防汛較大（Ⅲ級）事件" and the one line under it,
+                        // 1.5-spaced on a grid of 15.6, end 1.9pt past p14's
+                        // foot by their extra, and Word sets both there, p15
+                        // opening with "（1）"; ours sent the heading on.)
+                        var extra = 0.0
+                        if trailing, bottoms.count <= 1, theme.wordRules, pageNotes.isEmpty, k < _overhang.count {
+                            extra = _overhang[k]
+                            if k < _lineOverhang.count, let last = _lineOverhang[k].last { extra = max(extra, last) }
+                        }
+                        return theme.wordRules ? min(_heights[k], (g.textTop - g.top) + (bottoms.last ?? _heights[k])) - extra : _heights[k]
+                    }
                     let n = min(bottoms.count - 1, st.widowControl && !document.widowControlSuspended ? 1 : 0)
                     // (Its last line there may reach past the foot as it
                     // would set on its own — see the overhang below:
@@ -5840,6 +5854,15 @@ public final class RichLayout {
                     if theme.wordRules, pageNotes.isEmpty, k < _lineOverhang.count, n < _lineOverhang[k].count { reach = max(reach, _lineOverhang[k][n]) }
                     return (g.textTop - g.top) + bottoms[n] - reach
                 }
+                // (A run of ONE kept member and a one-line paragraph after it
+                // is weighed as set: the heading's space before shared with the
+                // paragraph above's space after is on the page once, and the
+                // line may reach past the foot by its overhang. zh-34a6519a's
+                // "3.2.2 防汛較大（Ⅲ級）事件", 6pt before over 8 after, and the
+                // 1.5-spaced line under it end 1.9pt past p14's foot and stay in
+                // Word's print. Longer runs keep the stricter sum: zh-64044a1d's
+                // and zh-c34269bd's fall 28 and 44 points with either credit.)
+                let sharedNow = i > 0 && _cells[i - 1] == nil ? min(y, max(0, _tops[i - 1] + _heights[i - 1] - top)) : 0
                 let room = contentH - y
                 var cum = 0.0
                 var k = i
@@ -5878,7 +5901,8 @@ public final class RichLayout {
                     break
                 }
                 if !violated, !ended, k < count, k > i, (_cells[k] != nil || !document.paragraphs[k].style.keepNext) {
-                    violated = cum + start(k) > room + 0.01
+                    let single = k == i + 1 && _cells[k] == nil && !document.paragraphs[k].style.keepNext
+                    violated = cum + start(k, trailing: single) > room + (single ? sharedNow : 0) + 0.01
                 }
                 if violated { newPage() }
             }
