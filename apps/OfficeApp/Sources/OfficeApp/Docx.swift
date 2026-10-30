@@ -3107,6 +3107,18 @@ enum DocxFormat {
         }
         setup.orientStated = sz["w:orient"] != nil
         if let t = sect.first("w:titlePg"), !_isOff(t) { setup.titlePage = true }
+        if let ln = sect.first("w:lnNumType") {
+            var numbering = LineNumbering()
+            numbering.countBy = max(1, Int(ln["w:countBy"] ?? "") ?? 1)
+            numbering.start = Int(ln["w:start"] ?? "") ?? 1
+            numbering.distance = Double(ln["w:distance"] ?? "").map { $0 / 20 }
+            switch ln["w:restart"] {
+            case "continuous": numbering.restart = .continuous
+            case "newSection": numbering.restart = .newSection
+            default: numbering.restart = .newPage
+            }
+            setup.lineNumbers = numbering
+        }
         if let num = sect.first("w:pgNumType") {
             setup.pageNumberStart = Int(num["w:start"] ?? "")
             setup.pageNumberFormat = num["w:fmt"]
