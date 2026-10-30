@@ -2888,7 +2888,11 @@ enum ChartPainter {
             tp.dispose()
         }
         if let t = c.valueAxisTitle, c.valueAxisTitleAt == nil {
-            let tp = text(t, titleSize, horizontal ? area.width : area.height)
+            // (No longer than four fifths of the chart in Word: lo-948cd424's category
+            // axis title, "In Word the default length of the axis title box is about to
+            // 80% of the length of the chart area.", breaks in two in its print.)
+            let writerChart = !c.onSlide && !c.onSheet
+            let tp = text(t, titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
@@ -2903,7 +2907,7 @@ enum ChartPainter {
             tp.dispose()
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
-            let tp = text(t, titleSize, horizontal ? area.height : area.width)
+            let tp = text(t, titleSize, min(horizontal ? area.height : area.width, !c.onSlide && !c.onSheet ? 0.8 * (horizontal ? frame.height : frame.width) : .infinity))
             if horizontal {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
