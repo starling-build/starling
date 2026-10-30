@@ -31,6 +31,11 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         return layout.pageCount
     }
 
+    /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
+    func testLongListOfShortRowsInACellTakesTwoPages() throws {
+        XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
+    }
+
     /// One column in a normal table, floating in name only: parts between its rows.
     func testSplitFloatTableInNormalTableTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-1e0077c34b69d826"), 2)
