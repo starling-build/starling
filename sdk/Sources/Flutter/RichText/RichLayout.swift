@@ -14103,6 +14103,12 @@ public final class RichLayout {
         // line "…總幹事占比為38.54" and starts the next "％，女性理事…".)
         if percentStarts, b == "%", wide(a), !_openingMarks.contains(a) { return true }
         if percentStarts, b == "％", wide(a) && !_openingMarks.contains(a) || a.isASCII && a.isNumber { return true }
+        // (And after a plus sign before an ideograph, which the engine
+        // keeps with what it prefixes, as a sign with its number:
+        // zh-c0ac6f55's "互联网+监管" ends a line "…互联网+" in Word's
+        // print, zh-26660336's "…+营业收入…" and zh-41907c96's "互联网+医疗
+        // 健康" too; ours took the "+" down and the paragraph ran behind.)
+        if a == "+", wide(b), !_closingMarks.contains(b) { return true }
         if b == "\u{201C}" || b == "\u{2018}" {
             return wide(a) && !_openingMarks.contains(a) || a == "\u{201D}" || a == "\u{2019}"
         }
