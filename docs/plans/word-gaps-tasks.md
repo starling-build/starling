@@ -691,6 +691,15 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
     bug59058 fell 100 -> 99.3 in both modes. Whoever gives math runs their own line height removes the special case in
     `zeroWidth` (RichLayout.swift).
   - zh-13d11e99: 100 in both modes on the 20261028 engine (Linux sweep, bundled fonts); nothing left there.
+  - **List numbers at their level's w:w — DONE (Linux 01F2SWc8 lenovo-3, 2026-10-29): Windows 97.2 -> 97.7, Mac 96.1 -> 97.0.**
+    p49 (Mac p45): the "（%1）" level says w:w 94 and 0.9pt spacing at 18pt; Word's "（3）" ends at 160.8, under the 161.9
+    stop; ours at full width ended at 163.7 and the text went to the next stop, each item's first line two characters short.
+    p49 12 -> 5 misses. None of the other 15 documents with a scaled level moved, nothing lower (sweep nw against nx, which
+    also carried 786980b3 / 4f995f59 / the zh-cb56e605 reprint: zh-015abfaf, zh-d9b085b1 and zh-cb56e605's jumps are theirs).
+  - p49's rest: Word sets item (5)'s final "。" ALONE on the next line, ours hangs it. Lab spm/spm2 (windows, 2026-10-29):
+    with no compatibilityMode or mode 12, Word for Windows keeps no line-start rule for a closing mark (<w:kinsoku/>, the
+    language, characterSpacingControl change nothing); from mode 14 on "作）。" goes down together. zh-f47b8a74 (our rule
+    "a closing mark after spaces may not start a line") is mode 14. Next for lenovo-3.
   "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
   apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
   the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
