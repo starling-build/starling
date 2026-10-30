@@ -7991,11 +7991,16 @@ So the +0.45-0.5 is not the picture line's grid rule (c77fd89d tracks Word withi
 - ◇, ◆: Word sets them in Cambria Math, 10.39 (no lift); ours sets them in DejaVu Sans, 10.88.
 - ★, ☆: Word sets them in Segoe UI Symbol, 10.99 (a lift of 0.60, its lines 12.96 apart, and the note's third line goes to p2); ours sets them in DejaVu Sans, 10.88 / 12.87.
 So for Windows mode: ◇◆ (with ①△◎) take Cambria Math and do not lift a 9pt 黑体/楷体 line; ★☆ take Segoe UI Symbol and lift it about 0.6 (0.067 em), its pitch +0.12; ×▲●□ take Times New Roman (above).]
-### T169. zh-74b34f3b: 96.9 against word-win — CLAIMED windows-3 (reassigned 2026-10-29 by starling-bd; the 10-24 windows claim was stale; was Linux b2 01JsizVV)
+### T169. zh-74b34f3b: 96.9 against word-win — PARKED windows-3 (reassigned 2026-10-29 by starling-bd; the 10-24 windows claim was stale; was Linux b2 01JsizVV)
 windows-3, 2026-10-29: its misses are p5's tbRlV columns ("東引鄉活動中心2樓", "會議、研習、喜宴", 標楷體 16pt, centred down a
 three-row merge), 1.8pt below Word's, so they group with the wrong lines. Word stands each upright ideograph with the middle of
 DFKai-SB's own line (0.30 em over the baseline) at its place's middle — baselines' middle 0.315 em under the cell's middle here,
-0.295 in zh-cec9d337 — where ours uses the em square's 0.38. Candidate: `_uprightMiddle` from the face's line; pair to come.
+0.295 in zh-cec9d337 — where ours uses the em square's 0.38. Tried (`~/starling-doc-check/w3/vmid-uprightMiddle.patch`,
+the face line's middle instead of 0.38): the columns moved 1.27 of the 1.84 and the document stayed 96.9 (the reader groups
+"東" with "上午" only within 2.5pt), while zh-cec9d337 99.3 → 99.1 and zh-e49d7943 97.6 → 97.4: their tbRlV county
+columns set from the cell's start (no jc) matched at 0.38 and rose 1.2pt. So the glyph's place is right and the CENTRING
+differs: centred DFKai-SB columns stand 0.11 em higher in Word than ours (12 and 16pt), centred YaHei ones (zh-b0401810)
+0.02 em. Not built further. PARKED (windows-3).
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
 
 ### Windows missing-face rule from the map — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24)
