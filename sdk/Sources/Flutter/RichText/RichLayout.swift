@@ -1092,6 +1092,9 @@ public final class RichLayout {
     /// one: a header's or footer's, where an object aligned "outside"
     /// stands at the left.
     public var leftHandPage = false
+    /// The same for a floating shape aligned inside or outside: see where
+    /// a header or footer sets it.
+    public var leftHandFloat = false
     /// The widths (pixels, by image id) a header's or footer's fit-to-text
     /// boxes keep from the first page that header or footer is on: Word
     /// sizes such a box once and wraps later pages' text inside it (a
@@ -16163,7 +16166,7 @@ public final class RichLayout {
         // the left on an even one — and "inside" the other: zh-a4b0f6ea's
         // page numbers, in a box aligned outside, stand left on page 10
         // and right on 11 in Word's print.)
-        let outside = leftHandPage ? "left" : "right", inside = leftHandPage ? "right" : "left"
+        let outside = leftHandFloat ? "left" : "right", inside = leftHandFloat ? "right" : "left"
         let align = float.horizontalAlign == "outside" ? outside : float.horizontalAlign == "inside" ? inside : float.horizontalAlign
         switch align {
         case "center": x = bandLeft + (bandWidth - w) / 2
@@ -16570,7 +16573,7 @@ public final class RichLayout {
         let setup = pageSetup(forPage: p)
         let shown = _pageNumber(number, document, format: _pageNumberFormat(p, document))
         let count = String(pageCount ?? self.pageCount)
-        let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(number % 2)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
+        let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(number % 2)|\(p % 2)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
         if let hit = _headerFooterCache[key] { return hit }
         // The paragraphs with this page's number and the count in their
         // fields — and those of the text boxes among them, where a page
@@ -16662,6 +16665,16 @@ public final class RichLayout {
         layout.floatsFrames = true
         layout.frameMargins = (setup.marginLeft + setup.gutter, setup.marginRight)
         layout.leftHandPage = number % 2 == 0
+        // (A floating shape aligned outside goes by the sheet, counted from
+        // the document's first number — a later section's restart counts
+        // for nothing: in Word for Windows' prints zh-ab1ea005's footer box
+        // (against the margin) stands left on sheets 2 and 10, though both
+        // are numbered 1, zh-f1f73836's right on sheet 5 and left on 6, both
+        // numbered 5, and zh-4f70ee2d's, numbered from 2, left on sheet 1.
+        // By the number, ours put zh-ab1ea005's on the other side; a frame
+        // keeps the number's: see `leftHandPage`.)
+        let firstNumber = (_sectionSetups.count > 1 ? _sectionNumberStart(0, document) : document.pageNumberStart) ?? 1
+        layout.leftHandFloat = theme.wordRules ? (p + firstNumber) % 2 == 0 : number % 2 == 0
         layout.width = _px(setup.contentWidth)
         // (Its fit-to-text boxes as wide as on the first page this one is
         // on: see `inheritedFitWidths`.)
