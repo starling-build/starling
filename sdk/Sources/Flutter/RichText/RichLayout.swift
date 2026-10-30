@@ -9990,6 +9990,14 @@ public final class RichLayout {
                 // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
                 // its "失".)
                 if kind == -9 { extra += cambriaWidth * em - _glyphWidth(style(kind), ch) }
+                // (An em space is an em and an en space half one, whatever face
+                // sets them: zh-8415d258's paragraphs open with two U+2003 in
+                // a 仿宋_GB2312 run, 15pt apiece at 15pt in Word for Windows'
+                // print (in Cambria Math), where the stand-in's fallback set
+                // them 6.7 and every such first line took a character more.)
+                if theme.wordRules, ch == "\u{2003}" || ch == "\u{2002}" {
+                    extra += (ch == "\u{2003}" ? 1 : 0.5) * em - _glyphWidth(style(kind), ch)
+                }
                 // (A symbol face's glyph drawn by a stand-in takes the face's
                 // own advance: Wingdings 2's box is 0.89 em in Word's print
                 // of zh-d0a207ac, 10.68 at 12pt, where the stand-in's is an

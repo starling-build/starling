@@ -1332,6 +1332,11 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **An em space is an em and an en space half one, whatever face sets it (2026-10-30).** zh-8415d258's paragraphs open with
+  two U+2003 in a 仿宋_GB2312 run: 15pt apiece at 15pt in Word for Windows' print (set in Cambria Math), where the stand-in's
+  fallback set them 6.7 and every such first line took a character more. Same-base pair on the tip (8ac9be91), 756
+  Windows documents, both matchers: zh-8415d258 97.8 -> 99.6 (v2 96.2 -> 98.0), zh-b62c9e11 98.0 -> 100, nothing else.
+
 - **A Thai word is measured by its shaped width, not letter by letter, for "wider than the line" (2026-10-30).**
   `_wideWordStarts` sends a word wider than the line to a line of its own, and summed each character's advance alone;
   for Thai (a base letter alone is wider than in a word) that put zh-6a4fc013's 392.7pt stretch over a 467.8 column
