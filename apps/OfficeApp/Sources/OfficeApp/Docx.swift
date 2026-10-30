@@ -208,6 +208,90 @@ enum DocxFormat {
 
     // MARK: Reading
 
+    /// Word's drop caps. A paragraph holding only `w:framePr w:dropCap="drop"`
+    /// (`w:lines` of them) and the letters it drops, on an exact line of
+    /// the lines' height, goes before the paragraph it is the first of; the
+    /// drop is a box at that paragraph's left, the letters in it at the size
+    /// Word sets them in (the lines' height over the text's, by the face's
+    /// cap height) and on the last of those lines' baseline, the text round
+    /// it as round a square-wrapped box. Here the box is written into
+    /// the paragraph after it — the reader reads it as any anchored text
+    /// box — and the paragraph itself is dropped from the body. (lo
+    /// tdf150438: Word's print sets 53pt "“" in 11pt text three lines
+    /// deep, its baseline the third line's, the lines beside it 23.5pt in;
+    /// ours set it on a line of its own.)
+    static func _foldDropCaps(_ root: XNode) {
+        // (The text's room: the section's page less its margins, in points.)
+        var column = 451.0
+        if let sect = root.first("w:body")?.descendants("w:sectPr").last, let sz = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
+           let w = Double(sz["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") {
+            column = (w - l - r - (Double(mar["w:gutter"] ?? "") ?? 0)) / 20
+        }
+        /// The em-widths of a text in Times-like faces, roughly (the
+        /// drop's own width and whether its paragraph is all beside it).
+        func em(_ text: String) -> Double {
+            text.unicodeScalars.reduce(0) { total, c in
+                switch c.value {
+                case 0x20: return total + 0.25
+                case 0x201C, 0x201D: return total + 0.444
+                case 0x2018, 0x2019: return total + 0.333
+                case 0x2D, 0x2013: return total + (c.value == 0x2D ? 0.333 : 0.5)
+                case 0x2E80...: return total + 1
+                case 0x41...0x5A: return total + 0.7
+                default: return total + 0.46
+                }
+            }
+        }
+        func fold(_ parent: XNode, top: Bool) {
+            var out: [XNode] = []
+            var i = 0
+            let kids = parent.children
+            while i < kids.count {
+                let p = kids[i]
+                if p.name == "w:p", i + 1 < kids.count, kids[i + 1].name == "w:p",
+                   let pPr = p.first("w:pPr"), let frame = pPr.first("w:framePr"), frame["w:dropCap"] == "drop",
+                   let lines = Double(frame["w:lines"] ?? ""), lines >= 2,
+                   let spacing = pPr.first("w:spacing"), spacing["w:lineRule"] == "exact", let line = Double(spacing["w:line"] ?? ""), line > 0,
+                   p.children.filter({ $0.name == "w:r" }).count == 1, p.children.filter({ $0.name != "w:pPr" && $0.name != "w:r" }).isEmpty,
+                   let run = p.first("w:r"), let t = run.first("w:t"), !t.text.isEmpty,
+                   case let host = kids[i + 1], host.first("w:pPr")?.first("w:framePr") == nil {
+                    let height = line / 20                      // points: the lines' height
+                    let pitch = height / lines
+                    // (Word's size: the lines above the last, over the face's
+                    // cap height, and the text's own cap height on top.)
+                    let capHeight = 0.655
+                    var hostSize = 11.0
+                    if let r = host.children.first(where: { $0.name == "w:r" }),
+                       let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init) { hostSize = sz / 2 }
+                    let size = hostSize + (lines - 1) * pitch / capHeight
+                    let capWidth = em(t.text) * size
+                    let halfPoints = Int((size * 2).rounded())
+                    let baseline = height - 0.25 * pitch        // the last line's baseline, from the box's top
+                    let exact = Int((baseline / 0.905 * 20).rounded())
+                    let rPrInner = (run.first("w:rPr")?.children ?? []).filter { $0.name != "w:sz" && $0.name != "w:szCs" }
+                        .map { PptxXML.serialize($0) }.joined()
+                    let esc = t.text.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;")
+                    let emu = Int(height * 12700)
+                    let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
+                    let hSpacePoints: Double = (Double(frame["w:hSpace"] ?? "") ?? 0) / 20
+                    let distRight: Int = Int(hSpacePoints * 12700)
+                    let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"\(distRight)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(emu)\" cy=\"\(emu)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"Drop cap\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emu)\" cy=\"\(emu)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(exact)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:rPr>\(rPrInner)<w:sz w:val=\"\(halfPoints)\"/><w:szCs w:val=\"\(halfPoints)\"/></w:rPr><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                    if let drawing = XNode.parse(Data(xml.utf8)) {
+                        let at = host.children.firstIndex(where: { $0.name != "w:pPr" }) ?? host.children.count
+                        host.children.insert(drawing, at: at)
+                        out.append(host)
+                        i += 2
+                        continue
+                    }
+                }
+                out.append(p)
+                i += 1
+            }
+            parent.children = out
+        }
+        if let body = root.first("w:body") { fold(body, top: true) }
+    }
+
     /// A package whose main part is not named `word/document.xml`: the root
     /// relationships say which it is (LibreOffice's tdf104713_undefinedStyles
     /// names `word/trial.xml`), and it and its relationships file are read
@@ -262,6 +346,7 @@ enum DocxFormat {
         }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
         _inheritSpace(root)
+        Self._foldDropCaps(root)
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
@@ -1081,6 +1166,8 @@ enum DocxFormat {
                     if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
                     f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
                     f.wraps = true
+                    if let l = Double(pos["w:leftFromText"] ?? "") { f.distanceLeft = l / 20 }
+                    if let r = Double(pos["w:rightFromText"] ?? "") { f.distanceRight = r / 20 }
                     // (One that floats only in name — against the text, from the
                     // column's edge, a twip or so under its paragraph's top —
                     // stands where it is set, an inline block shifted by its x:
@@ -2731,8 +2818,14 @@ enum DocxFormat {
             }
             if let t = Double(anchor["distT"] ?? "") { f.distanceTop = t / 12700 }
             if let b = Double(anchor["distB"] ?? "") { f.distanceBottom = b / 12700 }
+            if let l = Double(anchor["distL"] ?? "") { f.distanceLeft = l / 12700 }
+            if let r = Double(anchor["distR"] ?? "") { f.distanceRight = r / 12700 }
             return f
         }
+        // (Not for a drawing the file puts in the line, `wp:inline`, whose
+        // VML fallback says "position:absolute" all the same: lo
+        // tdf147485's logo, drawn one height above its line.)
+        if node.descendant("wp:inline") != nil { return nil }
         if let shape = _vmlTop(node), let st = shape["style"], st.containsSubstring("position:absolute") {
             var f = ImageFloat()
             for pair in st.split(separator: ";") {
