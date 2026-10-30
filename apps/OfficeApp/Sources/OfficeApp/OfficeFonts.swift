@@ -2780,6 +2780,20 @@ enum OfficeFonts {
                 face.otherAdvances = gb
                 face.boldOtherAdvances = gb
             }
+            // (Windows' FangSong sets its middle dot an em, where the
+            // stand-in's is half of one: every "·" Word for Windows draws
+            // in FangSong is 0.9 to 1.0 em — zh-6d1afa56, zh-20ff844e,
+            // zh-e653f583's bold "12·4" 16.2 at 16pt, whose line then sends
+            // "传" down; ours took it. Its "×" too: an em in all of the
+            // 270 Word for Windows draws in FangSong, zh-22ecbdc8's
+            // "㎜×700㎜" among them. After the defaults above, not before: they
+            // test `otherAdvances == nil`, and a merge here defeated them,
+            // taking the en dash, the corner brackets and GB2312's ° ′ ″ from
+            // FangSong runs — zh-bfe04e2f 99.1 -> 93.4, zh-cc7a08e8 100 -> 98.2.)
+            if wordOnWindows, fangSongFamily(family) == starlingFangSong {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging([0xB7: 1.0, 0xD7: 1.0]) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0xB7: 1.0, 0xD7: 1.0]) { $1 }
+            }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
             face.boldHeight = ea.boldHeight
