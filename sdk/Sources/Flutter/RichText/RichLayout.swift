@@ -645,6 +645,14 @@ public final class RichTextTheme {
         let shifted = scriptHidden && style.script != .normal && wordRules && NativeParagraphBuilder.supportsBaselineShift
         if scriptHidden, style.script != .normal, !shifted { color = color.withOpacity(0) }
         var px = size * widen * pixelsPerPoint * scale
+        // (A raised or lowered run's size, of its own: Word for Windows takes
+        // the face's (OS/2 ySuperscriptYSize) — half the size in an East
+        // Asian face, as SimSun, SimHei, KaiTi and MingLiU all say, and 65%
+        // in Times or Calibri. zh-e51c31a7's "*註1", superscript in 13pt
+        // 標楷體, is 6.5pt in its print and raised 6.5, where ours set 8.45
+        // and 4.6: see `baselineShift`.)
+        let scriptRatio = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
+            && (eastAsian || face?.isEastAsian == true) ? 0.5 : 0.65
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
             // a hair of a size keeps the span (and the caret) in the line.
@@ -656,7 +664,7 @@ public final class RichTextTheme {
             // Commented text carries Word's balloon tint.
             backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
             fontSize: style.script == .normal ? px
-                : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale : px * 0.65,
+                : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale : px * scriptRatio,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
             letterSpacing: {
@@ -678,7 +686,12 @@ public final class RichTextTheme {
             // up in 30pt exact lines, and Word's print has them there, the
             // lines' pitch unchanged.)
             baselineShift: {
-                let script = shifted ? (style.script == .superscript ? -0.355 : 0.2) * px : 0
+                // (Up by what the face's size leaves of the em: 0.355 at 65%,
+                // half at half.)
+                // (Of the run's own size: not a stand-in's drawn one.)
+                let script = !shifted ? 0
+                    : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
+                    : (style.script == .superscript ? -0.355 : 0.2) * px
                 let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0
                 let shift = script - raised * pixelsPerPoint * scale
                 return shift != 0 ? shift : nil
@@ -15024,7 +15037,7 @@ public final class RichLayout {
             // The size it was shrunk from (the style's is 65% of it).
             var plain = run.style
             plain.script = .normal
-            let full = theme.scriptSizeWholeUp
+            let full = theme.scriptSizeWholeUp || RichTextTheme.wordWindowsPages
                 ? theme.textStyle(for: plain, in: p.style, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale).fontSize ?? 0
                 : (style.fontSize ?? 0) / 0.65
             // (Measured on PowerPoint's page: 7.0 pt up and 5.0 down at 24 pt.
@@ -15033,7 +15046,8 @@ public final class RichLayout {
             // footnotes, bug65649 and three more, Calibri and Times alike
             // — 0.355 of the size within its 0.24pt raster, where 0.3 set
             // them 0.6pt low.)
-            let up = theme.wordRules ? 0.355 : 0.3
+            let ratio = full > 0 ? (style.fontSize ?? 0) / full : 0.65
+            let up = theme.wordRules ? (ratio < 0.6 ? 1 - ratio : 0.355) : 0.3
             let dy = run.style.script == .superscript ? -up * full : 0.2 * full
             var a = from
             while a < to {
