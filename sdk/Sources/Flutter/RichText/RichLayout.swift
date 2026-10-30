@@ -4270,6 +4270,29 @@ public final class RichLayout {
                             stuck = true
                         }
                     }
+                    // (A cell merged down keeps only the lines whose foot is
+                    // inside the row's piece on this page — the row's stated
+                    // height or what its own cells keep, whichever is more —
+                    // not every line the page would hold: lab vmp (Word for
+                    // Windows, zh-e6d54ae4's table, row 6 of 39.9pt with
+                    // "（二）提供民眾易讀…" merged over three rows on an 18pt
+                    // grid beside an unmerged item cell): pieces of 40.3 and
+                    // 47.3 keep two of its lines, the whole 62.9 three; its
+                    // own p2 keeps two, ours three. Top-aligned cells only;
+                    // a centred one is set above.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, first {
+                        let own = columns.indices.filter { _cells[columns[$0].members[0]]!.rowSpan == 1 }
+                        if !own.isEmpty, own.contains(where: { next[$0] < rowBottom - 0.01 }) {
+                            let statedBottom = ts.rowHeights[c.row].map { c.rowTop + _px($0) } ?? c.rowTop
+                            let bound = max(statedBottom, own.map { next[$0] >= rowBottom - 0.01 ? columns[$0].bottom : next[$0] }.max()!)
+                            for n in columns.indices where setWhole[n] == nil {
+                                let d0 = _cells[columns[n].members[0]]!
+                                guard d0.rowSpan > 1, !d0.vertical, d0.verticalAlign != "center", d0.verticalAlign != "bottom",
+                                      next[n] > bound + 0.01 || (next[n] >= rowBottom - 0.01 && columns[n].bottom > bound + 0.01) else { continue }
+                                next[n] = columns[n].cuts.last(where: { $0 > columns[n].cut + 0.01 && $0 <= bound + 0.01 }) ?? columns[n].cut
+                            }
+                        }
+                    }
                     // (The part on this page is as tall as what its other
                     // cells keep here — their last kept line and their
                     // margin — not the room to the page's foot: Word
