@@ -1171,6 +1171,9 @@ public struct TableStyle: Hashable, Sendable {
     public var pageAnchored = false
     /// Where such a table stands: its `w:tblpY` from the page's top edge,
     /// in points (nil where an alignment places it, `w:tblpYSpec`).
+    /// A floating table naming no w:vertAnchor stands w:tblpY under the top
+    /// margin (Word for Windows' print of fdo68607 and lo-89daf93d), in points.
+    public var marginOffsetY: Double? = nil
     public var pageOffsetY: Double? = nil
     /// The table floats anchored to the text (w:vertAnchor="text"): in a
     /// header or footer it takes no room, and stands over the paragraph
