@@ -355,7 +355,8 @@ enum WriterGroups {
     /// left, for the object attachment `id`; false where it has none to
     /// draw.
     @discardableResult
-    static func register(_ group: XNode, for id: String, themePart: Data?, wordArt: [ObjectIdentifier: DrawingWordArt] = [:]) -> Bool {
+    static func register(_ group: XNode, for id: String, themePart: Data?, wordArt: [ObjectIdentifier: DrawingWordArt] = [:],
+                         picture: (String) -> Data? = { _ in nil }) -> Bool {
         let theme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: theme)
         // (Or one shape alone, a `wps:wsp`: a group of itself.)
@@ -387,6 +388,17 @@ enum WriterGroups {
                 switch child.name {
                 case "wpg:grpSp":
                     if let xfrm = child.first("wpg:grpSpPr")?.first("a:xfrm") { walk(child.children, map(xfrm, outer: place)) }
+                case "pic:pic":
+                    // (A picture in the group, drawn over its box: lo
+                    // tdf126426's page-size photo under a white text box.)
+                    guard let rid = child.first("pic:blipFill")?.first("a:blip")?["r:embed"], let data = picture(rid),
+                          let xfrm = child.first("pic:spPr")?.first("a:xfrm") else { continue }
+                    let at = place(Rect.fromLTWH(number(xfrm.first("a:off"), "x"), number(xfrm.first("a:off"), "y"),
+                                                 number(xfrm.first("a:ext"), "cx"), number(xfrm.first("a:ext"), "cy")))
+                    shapes.append(Shape(rect: Rect.fromLTWH(at.left / 12700, at.top / 12700, at.width / 12700, at.height / 12700),
+                                        fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
+                                        rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil,
+                                        picture: (id + "#" + String(shapes.count), data)))
                 case "wps:wsp":
                     // (A freeform too, `a:custGeom`: zh-ae2dd08d's flowcharts
                     // draw their boxes and diamonds so, Word's print each with

@@ -4160,7 +4160,12 @@ enum DocxFormat {
                                                           height: place.height * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
-                    } else if !boxes.isEmpty, boxes.count > 1 || !drawingWordArt.isEmpty, boxes[0].descendant("w:txbxContent") === content {
+                    } else if !boxes.isEmpty, boxes.count > 1 || !drawingWordArt.isEmpty
+                                || (placed[0].place.top - (Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0) > 1),
+                              boxes[0].descendant("w:txbxContent") === content {
+                        // (A single box lower in its group is one of these too:
+                        // lo tdf126426's white box at the foot of a page-size
+                        // photo set its line at the group's top.)
                         // (Boxes of other widths or places: each box's text
                         // in its own column of the group, from its own top —
                         // its shape's place, the preset's text rectangle and
@@ -4371,7 +4376,12 @@ enum DocxFormat {
             if arrowed, att.outline?.kind == .line { att.outline = nil }
             if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
-                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), wordArt: drawingWordArt)
+                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), wordArt: drawingWordArt,
+                                      picture: { rid in
+                    guard let rel = notes.rels[rid], !rel.external, let data = notes.part(_resolvePath("word", rel.target)),
+                          Self._isRasterImage(data) else { return nil }
+                    return data
+                })
             } else if node.descendant("wpg:wgp") == nil, let group = _vmlTop(node), group.name == "v:group" {
                 // (A VML group's lines and boxes likewise: zh-6e6b9821's
                 // flowchart printed its text alone, no arrows or edges.)
@@ -4420,6 +4430,13 @@ enum DocxFormat {
             return space
         }
         func addImage(_ drawing: XNode) {
+            // (A group of a picture and shapes — lo tdf126426's photo under a
+            // white text box — is a drawing, not the picture its first
+            // `a:blip` is: its boxes' text was drawn nowhere.)
+            if drawing.descendant("wpg:wgp") != nil, drawing.descendant("wps:wsp") != nil, drawing.descendant("pic:pic") != nil {
+                addObject(drawing)
+                return
+            }
             guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
                   let target = rels[rid], let data = media(target) else { addObject(drawing); return }
             var w = 300.0, h = 200.0
