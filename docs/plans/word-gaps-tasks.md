@@ -10882,3 +10882,8 @@ frame's group 27pt higher (its y 22.8 for frame y 49.8, the page's top margin 27
 ### T249. LO IMAGES / SHAPES / TEXT BOXES (tdf126426, tdf135035, groupshape-sdt, tdf106153, tdf128198-1, tdf124600) — CLAIMED (Linux office1, 2026-10-30, starling-bd's order)
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. Order: the 0% ones first (tdf126426: a group of a picture and a white text box read as one picture; tdf135035: a text box 6pt right and
 51pt low; groupshape-sdt: an SDT in a group shape not drawn), then tdf106153 (84%), tdf128198-1 (44%), tdf124600. Lab kit for the frame logo is T248's (wip/lab-frame).
+
+### T250. LO SET, QUEUE 2 (408 new documents): SCORING AND TRIAGE — CLAIMED (Linux lo4 "windows-lo", 2026-10-30, starling-bd's order)
+Owner: this session. Scores each batch of queue-2 prints as `windows` commits them to lo/word-win (Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`),
+runs lenovo-2's class table (~/tmp/lo-tools/lo_triage.py), extends the class table here and reports new classes and the worst documents to starling-bd.
+No layout fixes: this entry is scores and triage only. Waiting for the first queue-2 batch (none of the 408 is printed on origin/office yet).
