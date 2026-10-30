@@ -1164,6 +1164,8 @@ enum DocxFormat {
                     if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
                     f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
                     f.wraps = true
+                    if let l = Double(pos["w:leftFromText"] ?? "") { f.distanceLeft = l / 20 }
+                    if let r = Double(pos["w:rightFromText"] ?? "") { f.distanceRight = r / 20 }
                     image.float = f
                     // (Placed so, it stands at its box's corner inside it: the
                     // box's copy of its style floats it no further.)
