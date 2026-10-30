@@ -10513,6 +10513,18 @@ public final class RichLayout {
                     let s = style(kind)
                     spans.append(TextSpan(text: String(ch), style: (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)))
                     start = after
+                } else if ea, theme.wordRules, ch == "\u{02D9}" {
+                    // (A dot above in East Asian text is a full cell: the
+                    // Bopomofo tone mark of Taiwan's faces, 標楷體's among
+                    // them, an em wide in Word's print as zh-ab34d9cb's "˙"
+                    // bullets are, 14pt apiece where the stand-in's Latin
+                    // fallback gave 4.7 and each such line took a character
+                    // more than Word's.)
+                    flush(i)
+                    let s = style(kind)
+                    let width = _glyphWidth(s, ch)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + max(0, em - width))))
+                    start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
                     // (A dash or an ellipsis in East Asian text is the
                     // CJK face's glyph, with its metrics: the Latin
@@ -14505,8 +14517,11 @@ public final class RichLayout {
         case 0x1100 ... 0x11FF, 0x2E80 ... 0x9FFF, 0xA960 ... 0xA97F, 0xAC00 ... 0xD7FF, 0xF900 ... 0xFAFF,
              0xFE30 ... 0xFE6F, 0xFF00 ... 0xFFEF, 0x20000 ... 0x3FFFF:
             return true
-        case 0xA1 ... 0x24F, 0x2010 ... 0x203B, 0x2103, 0x2109, 0x2116, 0x2121, 0x2160 ... 0x217F, 0x2190 ... 0x2199,
+        case 0xA1 ... 0x24F, 0x2B0 ... 0x2FF, 0x2010 ... 0x203B, 0x2103, 0x2109, 0x2116, 0x2121, 0x2160 ... 0x217F, 0x2190 ... 0x2199,
              0x2200 ... 0x22FF, 0x2460 ... 0x266F:
+            // (The spacing modifier letters too: zh-ab34d9cb's "˙" bullet,
+            // U+02D9 hinted East Asian, is 標楷體's full 14pt cell in Word's
+            // print.)
             // (Block elements too: zh-340d52e9's "▓", hinted East Asian in
             // a run whose Latin face is 新細明體 and whose East Asian one
             // is Normal's 標楷體, is YaHei Bold in Word's print, its line
