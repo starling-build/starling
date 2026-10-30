@@ -5878,11 +5878,18 @@ public final class RichLayout {
                 // The half is the face of its first characters', not the
                 // smallest on the line. Not with a push of its own. Word
                 // for Windows' lines only: see `pushUnder`.)
-                if theme.wordRules, i < _floatPush.count, _floatPush[i] < 0.01, noRoom(at: y, []) != nil,
-                   let line = Self._lineBottoms(geometry(i).painter).first,
+                // (The whole of its first line, not its top alone: zh-e51c31a7's
+                // "以下欄位由交通部填寫" starts 1.5pt above a 395pt form box
+                // and runs into it — the box wrapped square across the
+                // column, 14.35pt under the top of the line before — and
+                // Word for Windows sets it under the box, at 568.6.)
+                let firstLine = Self._lineBottoms(geometry(i).painter).first ?? 0
+                if theme.wordRules, i < _floatPush.count, _floatPush[i] < 0.01,
+                   noRoom(at: y, []) != nil || noRoom(at: y + lead - headSkip, height: firstLine, []) != nil,
+                   case let line = firstLine, line > 0,
                    case let step = lead + line - _firstLineGridHalf(i, document), step > 1 {
                     var t = y + lead - headSkip
-                    while let below = noRoom(at: t, []), guardSteps < 20 {
+                    while let below = noRoom(at: t, height: line, []), guardSteps < 20 {
                         t += max(1, ((below - t) / step - 0.001).rounded(.up)) * step
                         guardSteps += 1
                     }
