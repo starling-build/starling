@@ -249,7 +249,8 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
   v2 already matched those lines). The table's own bottom line hangs under an exact last row even where the cells state it.
 - "+" rule — DONE (landed after windows-1's round 2, nothing dropped): a line may break after "+" before an ideograph.
   v2: zh-22ecbdc8 96.8 -> 99.3, zh-26660336 99.1 -> 99.8, zh-41907c96 99.4 -> 100, zh-c0ac6f55 99.2 -> 100.
-- Closing curly quote where the language has no East Asian rules (wip/lenovo3-quote, ec878293): in windows-1's round 3.
+- Closing curly quote where the language has no East Asian rules — DONE (landed after windows-1's round 3, nothing dropped,
+  v1 and v2): zh-1cfb652b 99.4 -> 100. Not where w:kinsoku 0 is what turns the rules off (zh-b00fef0d drops).
   Linux pair: zh-1cfb652b 99.4 -> 100 (lab cq), nothing else.
 - zh-bbbb2e6a: a distributed line of one character is centred (wip/lenovo3-distribute, 60e741e5): in windows-1's round 4.
   Linux pair: v2 97.6 -> 99.1, nothing else.
