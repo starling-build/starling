@@ -7399,6 +7399,19 @@ public final class RichLayout {
                 let spaced = _marker(i, p, document, label: label + "\u{A0}", strut: nil)
                 end = _px(wl.first) + spaced.width - back
                 spaced.dispose()
+                // (After a number in an East Asian face, Word for Windows
+                // sets the space in Arial, a 0.278 em: zh-d45f16c4's 14pt
+                // 標楷體 "1." has its text 3.84 on in Word's print, 45 lines
+                // so, where ours took the face's half em and every item's
+                // first line held a character fewer; zh-753cd6a8's SimSun
+                // numbers too.)
+                let markerChar = _markerChar(p, document), named = _named(p, document)
+                if theme.wordRules, RichTextTheme.wordWindowsPages,
+                   let face = _levelNumberFonts(p, document).latin ?? markerChar.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily,
+                   theme.faceResolver?(face, false)?.isEastAsian == true {
+                    let size = _px(_levelNumberSize(p, document) ?? markerChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
+                    end = _px(wl.first) + marker.width + 0.2778 * size - back
+                }
             default:
                 // (A tab stop of the paragraph's own between the number's
                 // end and the indent takes the text first: zh-64044a1d's
