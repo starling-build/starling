@@ -3393,6 +3393,8 @@ enum DocxFormat {
         /// Every comment id whose range has been opened (a reference run
         /// for one of these ends a range; any other is a point comment).
         var seenComments = Set<String>()
+        /// The comment ids some run carries (a range with text in it).
+        var anchoredComments = Set<String>()
         /// Character styles (w:rStyle on a run), each as its chain of run
         /// properties from the root style down, applied under the run's
         /// own. drawing.docx's dates wear a Tahoma 7.5pt shaded style and
@@ -4525,6 +4527,7 @@ enum DocxFormat {
             cs.link = link
             cs.revision = revision
             cs.comments = notes.openComments
+            notes.anchoredComments.formUnion(notes.openComments)
             // Text that is a page reference's result stays one: Word
             // brings these up to date when it prints, and a contents page
             // of plain numbers kept the ones the file was saved with (a
@@ -4835,6 +4838,21 @@ enum DocxFormat {
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     walkInline(child, link: link, revision: revision)
                 case "m:oMathPara", "m:oMath":
+                    // (A comment whose reference stands inside the equation, its
+                    // range empty, anchors at the equation: tdf170236's
+                    // "Commented [A1]: Hello World!" balloon is in Word's print.)
+                    if notes.kept["word/comments.xml"] != nil {
+                        var stack: [XNode] = child.children.reversed()
+                        while let n = stack.popLast() {
+                            if n.name == "w:commentReference", let id = n["w:id"], !notes.anchoredComments.contains(id) {
+                                notes.anchoredComments.insert(id)
+                                RuleTrace.hit("comment-in-equation")
+                                var point = cellChar
+                                point.comments = [id]
+                                addText("\u{200B}", point)
+                            } else { stack.append(contentsOf: n.children.reversed()) }
+                        }
+                    }
                     // An equation: kept as the file wrote it, and drawn by
                     // `WriterMath` at the size it lays out to.
                     if let frag = _keptFragment(child, notes) {

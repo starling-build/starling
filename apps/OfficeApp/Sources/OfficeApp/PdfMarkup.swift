@@ -55,7 +55,11 @@ struct PdfMarkup {
                 // Its mark deleted, the paragraph runs on into the next:
                 // the next's text after its own, in the next's look (Word
                 // keeps a paragraph's look in its mark).
-                if head.cell == p.cell, p.image == nil, head.image == nil {
+                // (Not the document's first, empty, into an empty section end:
+                // that mark stays its own, tdf120336's deleted first mark on
+                // page 1 of two; a run of them in n830205 joins as it did.)
+                if head.cell == p.cell, p.image == nil, head.image == nil,
+                   !(paragraphs.isEmpty && p.style.sectionXML != nil && p.text.isEmpty && head.text.isEmpty) {
                     let runs = (head.runs.isEmpty && !head.text.isEmpty ? [Run(length: head.text.utf16.count)] : head.runs)
                         + (p.runs.isEmpty && !p.text.isEmpty ? [Run(length: p.text.utf16.count)] : p.runs)
                     own = head.text.utf16.count
@@ -262,7 +266,16 @@ struct PdfMarkup {
         if let was = attribute(old, "w:color"), !was.isEmpty, style.color == nil { rest.append("Font color: Auto") }
         let now = attribute(style.keptXML ?? "", "w:lang")
         let then = attribute(old, "w:lang")
-        if let now, !now.isEmpty, now != then { rest.append(_language(now)) }
+        // (Both an Asian and a Latin language changed: Word names each, as
+        // ins-then-format-self's "(Asian) Chinese (Simplified, Mainland
+        // China), (Other) French (France)"; one alone stands bare.)
+        let nowAsian = attribute(style.keptXML ?? "", "w:lang", "w:eastAsia")
+        let thenAsian = attribute(old, "w:lang", "w:eastAsia")
+        let asianChanged = nowAsian.map { !$0.isEmpty && $0 != thenAsian } ?? false
+        let latinChanged = now.map { !$0.isEmpty && $0 != then } ?? false
+        if asianChanged, latinChanged, let nowAsian, let now {
+            rest.append("(Asian) " + _language(nowAsian) + ", (Other) " + _language(now))
+        } else if latinChanged, let now { rest.append(_language(now)) }
         return (font.isEmpty ? [] : ["Font: " + font.joined(separator: ", ")]).joined() + (font.isEmpty || rest.isEmpty ? "" : ", ") + rest.joined(separator: ", ")
     }
 
@@ -275,6 +288,8 @@ struct PdfMarkup {
         // (Word for Windows spells the country out: delins's twenty-three
         // "Formatted: English (United States)" in word-win.)
         if DocxFormat.wordOnWindows, tag == "en-US" { return "English (United States)" }
+        if DocxFormat.wordOnWindows, let full = ["fr-FR": "French (France)", "de-DE": "German (Germany)", "en-GB": "English (United Kingdom)",
+                                                  "zh-CN": "Chinese (Simplified, Mainland China)", "zh-TW": "Chinese (Traditional, Taiwan)"][tag] { return full }
         return names[tag] ?? tag
     }
 

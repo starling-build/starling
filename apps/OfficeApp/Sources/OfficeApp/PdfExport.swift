@@ -91,6 +91,9 @@ extension PdfExport {
     static func hasMarkup(_ document: RichDocument) -> Bool {
         let silent = PdfMarkup.silentComments(document)
         return document.paragraphs.contains { p in
+            // (A deleted paragraph mark is a tracked change too, with its
+            // "Deleted: ¶" balloon: tdf120336's one empty paragraph.)
+            p.style.markRevision?.kind == .deleted ||
             p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision != nil || $0.style.formatChange != nil }
         }
     }
