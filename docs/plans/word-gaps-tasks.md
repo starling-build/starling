@@ -9558,6 +9558,11 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
 Tried and dropped (lenovo-2): (1) every text-floating table's rows using the room down to the footer's place: a dozen documents down in Windows mode (zh-c97500b6 100 -> 30, zh-588ee9e3 100 -> 53, zh-9ba2ead7 99 -> 58). (2) That only for a first row that starts past the foot: no change at all, zh-5a9a85c6 included. Such a table is sent over before the row loop sees it (its offset placement, `textFloatTop` / `raiseAtHead`), and that is where a fix belongs. RELEASED with that.
 
 ### zh-d0a207ac (95.6, word-win): Wingdings 2 checkboxes drawn as "£" — FIXED 67b573fe (Linux lenovo-2, 2026-10-27; drawn as ☐ at the face's 0.89 em; five Mac-mode drops of 0.3-1.4 are text-layer artefacts — Mac Word's PDF names the box "£" — landed so with macos's OK)
+CLAIMED Mac 7bd18d8e (2026-10-29): its 13 footer misses (p10-p16) are a linked footer's fit-to-text box. Sections 2-6
+have no footerReference and show section 1's VML "— PAGE —" (mso-fit-shape-to-text, wrap none); a section starts on page
+10, and ours re-fitted the box there to "— 10 —" (fit widths were inherited within a section only). Word for Windows keeps
+page 1's width and wraps "— 10" / "—" from p10. Fix (Windows pages): inherit from the first page showing the same part,
+in any section. Locally 372 -> 386/389; pair running.
 Its form (p9-p16, two misses a page) writes checkboxes as `<w:sym w:font="Wingdings 2" w:char="00A3"/>`. Word prints a box (text U+F0A3, Wingdings2). Ours reads the character as U+00A3 in a Wingdings 2 run, and with no Wingdings 2 face it falls to the text face and DRAWS "£". Metafile.symbols maps Wingdings, Webdings and Symbol codes to Unicode glyphs for metafiles, but nothing does so for `w:sym` in runs, and it has no Wingdings 2 table (£ ☐, R ☑, S ☒, …). The fix belongs at drawing time, so the reader's w:sym round-trips. Scoring: Word's text keeps the private code U+F0A3, so even a right glyph scores a miss at a line's edge. It's the drawing that matters. Also p9: its "建筑面积" / "工程造价" labels 3pt apart in ours, one line in Word's.
 
 ### Mac mode: _GB2312 faces by their font table's alternate — DONE (Mac 7bd18d8e, 2026-10-27, next commit)
