@@ -2446,16 +2446,34 @@ enum DocxFormat {
         if !off.contains(shape["stroked"] ?? "t"), !off.contains(stroke?["on"] ?? "t") {
             weight = _length(shape["strokeweight"] ?? stroke?["weight"] ?? "") ?? 0.75
         }
-        let table: [(Double, Double)] = [(0, 0), (0.5, 0.84), (1, 2.28), (2, 11.28), (3, 19.56), (4, 30.0)]
+        // (Lab wae, Word for Windows, WordWithAttachments' package: a
+        // 150 by 28.5pt Arial Black textpath between two Times 10pt lines
+        // adds 0.84 over its box unstroked and unshadowed, its text with
+        // descenders or without; a 0.5, 1, 2, 3 and 4pt outline 0.6, 0.75,
+        // 8.16, 15.0 and 24.6 more; a shadow its offset's y — 3pt down
+        // 3.03, 3pt across nothing, unstated (2pt) or perspective 2.28 —
+        // and a shadow and an outline together the larger. The table
+        // before it, an earlier lab's, set a 1pt outline 2.28 and any
+        // shadow 2.28: ours stood WordWithAttachments' p1 2.5pt high
+        // after its three titles, and its p2 icon on p1.)
+        let table: [(Double, Double)] = [(0, 0), (0.5, 0.6), (1, 0.75), (2, 8.16), (3, 15.0), (4, 24.62)]
         var outline = 0.0
         if weight >= 4 {
-            outline = 30.0 + (weight - 4) * (30.0 - 19.56)
+            outline = 24.62 + (weight - 4) * (24.62 - 15.0)
         } else if let i = table.indices.dropFirst().first(where: { table[$0].0 >= weight }) {
             let (w0, e0) = table[i - 1], (w1, e1) = table[i]
             outline = e0 + (e1 - e0) * (weight - w0) / (w1 - w0)
         }
-        let shadow = shape.first("v:shadow").map { !off.contains($0["on"] ?? "f") } ?? false
-        return 0.68 + max(outline, shadow ? 2.28 : 0)
+        var shadowDrop = 0.0
+        if let shadow = shape.first("v:shadow"), !off.contains(shadow["on"] ?? "f") {
+            let parts = (shadow["offset"] ?? "").split(separator: ",", omittingEmptySubsequences: false)
+            if parts.count >= 2, let y = _length(String(parts[1].filter { $0 != " " })) {
+                shadowDrop = max(0, y)
+            } else {
+                shadowDrop = 2.28
+            }
+        }
+        return 0.84 + max(outline, shadowDrop)
     }
     static let _keptSettingNames: [[String]] = [
         ["w:embedTrueTypeFonts", "w:embedSystemFonts", "w:saveSubsetFonts",
@@ -3742,15 +3760,12 @@ enum DocxFormat {
             att.float = _float(node)
             // (WordArt — a VML textpath — in its line, under Word for
             // Windows: the line holds more than the shape's box, by its
-            // outline's weight and its shadow, the larger of the two. Lab
-            // wa4 (Word for Windows, mode 14, a 187.5 by 28.5pt textpath
-            // between 10pt markers, each case a fresh Word): unstroked
-            // 0.68 over ours, and over that an outline of 0.5, 1, 2, 3 and
-            // 4pt 0.84, 2.28, 11.28, 19.56 and 30.0 — round joins the same
-            // — and a shadow, offset or perspective, 2.28. Each of
-            // WordWithAttachments' three, 1pt and a shadow or a shadow
-            // alone, then 2.96: 8.88 over the three, where its next line
-            // stood 8.47 high in ours.)
+            // outline's weight and its shadow's drop, the larger of the
+            // two; `_wordArtExtra` has lab wae's numbers, measured from
+            // the box. Lab wa4's, measured from ours, put WordArt's
+            // effect too high by a 1pt outline and by any shadow:
+            // WordWithAttachments' p1 stood 2.5pt high after its three
+            // titles and took its p2 icon.)
             if Self.wordOnWindows, att.float == nil, let shape = Self._vmlTop(node), let extra = Self._wordArtExtra(shape, types: notes.shapeTypes) {
                 att.effectTop += extra
             }
@@ -4073,12 +4088,7 @@ enum DocxFormat {
                         box.parts = [RichTextBox.Part(first: 0, top: place.top, height: max(0, place.bottom - place.top), atFoot: false)]
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
                     } else if let textbox = node.descendant("v:textbox"), let inset = textbox["inset"] {
-                        // (A `v:rect` as well as a `v:shape`: zh-e02b0479's footer page
-                        // number is a 144pt rect, centred, wrap none and fitted to its
-                        // text, which Word for Windows centres as the "1" alone; ours
-                        // centred the 144pt and set the "1" at its left, 72pt off.)
-                        let shapeStyle = (node.name == "v:shape" || node.name == "v:rect" ? node
-                            : node.descendant("v:shape") ?? node.descendant("v:rect"))?["style"] ?? ""
+                        let shapeStyle = (node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? ""
                         box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")
                             && (textbox["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
                         box.fitsOnce = box.fitsText   // (lab `vf`: sized once, as DrawingML's)
