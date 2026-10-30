@@ -10837,3 +10837,32 @@ zh-6e7ff836: its p19/p26 misses are row heights 0.6pt apart where a row's cells 
 zh-f47b8a74 (98.4): p58's flowchart is a Word drawing canvas (mc:Choice Requires wpc, wpc:wpc), whose groups and shapes sit side by side in the canvas's units; only its first group was read, and the canvas stood 31pt off the page because "from the character" took the paragraph's edge in a centred line. Built: the canvas's groups and shapes read as one group of its extent, and a character-anchored float in a centred or right line starts at the line's first box. 756 pre-pair (Windows mode, v2): zh-f47b8a74 98.4 -> 99.7, nothing else moved. Remaining p17/p33 (5 lines) not looked at.
 - T247 WIP PUSHED (Mac 7bd18d8e, 2026-10-30), wip/lo-floattable-compat14 fe941e01 (on d64f645b), awaiting windows-1: floattable-compat14 37.5 -> 100 (a page-anchored table's FIRST row that ends above the footer's place stays whole past the margin — the old test asked the whole table; every row broke zh-3ab8a2fb 99.7 -> 92.4, whose fifth row Word sends over whole). 756 pair w115 -> w117 (Windows, v2): nothing moved from the change.
   FOUND, not built (the LO class is not all one thing): (a) n775899 (50) and floattable-del-empty (62.3; p4's "Honorio, Santo Abad" table, text at x108 beside it, 3 lines shift every later page) need TEXT SET BESIDE a text-floating table, its lines in the strip right of it and the rest under: the engine has no per-line width for a paragraph (pictures only push a whole paragraph under; the `besideTable` rule is for blank paragraphs). That is a feature, not a tweak. (b) floattable-footer-object (6.2): its footer holds a wrapTopAndBottom picture 88.5pt tall raised 81pt, so the body's foot is 138pt up the 419pt page (281.5); a table of five 55pt rows (275) does not fit under the 72pt margin, and Word LIFTS the table (every page) so it ends at the foot, its top 6.2 — rows pitch 55 as ours, all +66. One witness; not generalised. (c) tdf88496 (10.3) is NOT a floating table (one table, 57 rows, two tblHeader rows 137+76pt, a table style): Word has the table start on page 2 (page 1 only a paragraph), ours starts it on page 1: header rows + first row do not fit. Next: (c) and the cell-autospace rule (lab as12).
+
+### macos-ios (Sonnet 5.5, Claude-Session 01Xgpbk5) — 2026-10-30 night: keepfloat LANDED; the × | digit rule PARKED with its evidence; the (face, size) indent table PARKED; LO CHARTS claimed
+- DONE keepfloat: 7e254b8d + 7c31f4e7 landed on office as 13bff0fb (keep-with-next: a run of one kept member before an unkept paragraph is weighed as set,
+  zh-34a6519a 96.6 -> 100) and 385c6117 (a list paragraph's first line beside a tight-wrapped picture, zh-f2ca3070 98.7 -> 99.9). Round 5 (windows-1) passed both; zh-1d2a7c35's
+  drop was 9dd407f8's, not ours. Pushed to office and sheets. Confirmed on origin/office after the 2026-10-30 delete.
+- PARKED, the × | digit break (G, zh-6b242483 p6 "…9（家）|×1（每年1次）" and its twin "…8（家）|×2…", mode 14, left-aligned, FangSong 16): the squeeze budget was a wrong read.
+  sqz3 (12 prints, margin 0 to -240 twips): Word NEVER leaves the × alone: refused at 0 to -100 although the lone × fits unsqueezed at -100 (room 16.02, sign 15.96),
+  taken from -120 as "×1" (24pt) with the marks giving 7.2pt (。-1.7, the gap before （ 6.2 for 8, ）…). So Word keeps "×" with the digit after it; ours breaks after an East
+  Asian × (zh-b56eeded's rule) and takes the × alone 5.1 over.
+  Refuted keys for "no break × | digit" (all against Word for Windows prints; each variant a fresh Word):
+  - language (sqz4 b: zh-TW in styles, themeFontLang and the run): same as the original at every width.
+  - face (sqz4 c: all four rFonts PMingLiU; d: both): PMingLiU takes "×1" at margin 0 only because its marks leave more room; still never a lone ×.
+  - table cell / alignment (sqz5: one-cell table, jc both, both; 12 prints): never a lone ×; justified only stretches line 1.
+  - docGrid (lab sqz F4, earlier). wordWrap off, and "the digit's face is not East Asian": both pre-paired and DROPPED zh-a07193b8 100 -> 79.2, zh-04f73697, zh-a2aef793,
+    zh-b56eeded 100 -> 99.0 (zh-6b242483 99.5 -> 100): those documents' Normal names 新細明體 for ascii, their paragraphs are not wordWrap off, and Word still ends a line
+    "…）×" and opens the next "50%".
+  What is left: the corpus's break-allowed cases (74 line ends "…×" before a digit, all Traditional table cells, PMingLiU, Web style) have the digit followed by "%"/"％" or "-",
+  G's by an East Asian opening mark "（"; and G's run says rFonts ascii=仿宋_GB2312 hint=eastAsia over a Normal that names Calibri. Next lab, if anyone wants it: G with the text
+  "…×50%（每年" (a % after the digit) and with 仿宋_GB2312 swapped for Times in the run's ascii. No rule built or landed; the experiment code is in the Mac session's scratch only.
+  Labs: wip/lab-sqz4 dac40997, wip/lab-sqz5 d4b65edc (kits), prints in ~/starling-doc-check/lab/sqz4/OUT and sqz5/OUT on the Windows box.
+- PARKED, the (face, size) first-line indent unit table: not needed — Word follows the file's stored w:firstLine/w:hanging twips when the paragraph's own w:ind writes them with
+  the Chars count and they are within 1.5pt of the count (wip-storedindent 52db52eb, filler in windows-1's round 6, zero documents move; zh-360c1df1 F's first line starts at Word's 117.2).
+- CLAIMED, LO CHARTS (starling-bd's order, 2026-10-30; Mac, Sonnet 5.5): first slice on wip/mac-01Xgpbk5-lochart 4071cdfd (3 commits on office ef4e56b0; windows-1 queued):
+  tickLabel (General-format ticks keep their decimals: tdf130969 23.1 -> 100), a Writer chart's title and its axis titles wrap at 80% of the chart (lo-413892fe 14.3 -> 78.6,
+  lo-948cd424 7.1 -> 85.7; Word's own text in lo-948cd424: "the default length of the axis title box is about to 80% of the length of the chart area"), the automatic axis drops
+  zero at exactly 5/6 (lo-60124a3f 8.3 -> 58.3). The 29 LO documents with a chart and a print: mean 45.2 -> 54.5, none lower; the 10 chart documents of the 756 identical.
+  Still to do: tdf122014 and tdf132956 (a Word 2016 column chart's plot is taller and starts nearer its labels: label-to-plot gap 8.3, ours 11.0; the legend of a manual-layout
+  legend spreads its entries 120pt apart), lo-6b6ece9c (a rot=0 value-axis title wraps in three lines at the left), lo-40949e85 is NOT a chart (a text box above it
+  moves the chart down in Word). Also owed before landing: the Slides and Sheets gates (tickLabel and the 5/6 rule are Office-wide).
