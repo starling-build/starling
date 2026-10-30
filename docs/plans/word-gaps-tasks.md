@@ -9831,6 +9831,9 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   Ebrima (substitute trap), now Calibri; p5's lines after them 3.5pt lower. zh-c399c91a reprints identically, kept. The audit of
   the 327 other missing-face references (word-win-missing-faces.txt, less db46d815's and today's) is RUNNING in chunks
   between labs; the list of replaced references will follow here.
+(15) CLAIMED (Windows 01QbbApP, 2026-10-29, routed by macos; windows-1's residuals, asked to confirm the release):
+  - zh-6a4fc013 p18: Word keeps the bold "คำถามที่ 4 ： …" heading on one line; ours breaks after "：" though 1.4pt narrower.
+  - WordWithAttachments: the remaining misses, p2's embedded document.
 (13) MISSING-FACE REFERENCE AUDIT DONE (Windows 01QbbApP; user-approved via macos). All 327 word-win references whose
   document names a face this box lacks (word-win-missing-faces.txt), less db46d815's 14 and today's two, were reprinted alone
   in a fresh Word and compared glyph by glyph (face and position to 0.3pt, order-free, code points ignored). 322 identical.
