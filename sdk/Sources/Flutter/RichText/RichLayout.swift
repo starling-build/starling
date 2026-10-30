@@ -8991,6 +8991,8 @@ public final class RichLayout {
         var inserts: [Int] = []
         var before: Character? = nil
         var beforeBefore: Character? = nil
+        // (Whether `before` was set East Asian: see the em dash below.)
+        var beforeEastAsian = false
         // (Whether the run of ASCII letters, digits and hyphens the
         // character at hand ends has a letter in it: see the hyphen before
         // a digit, below.)
@@ -9793,7 +9795,7 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
-                } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber } == true)
+                } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && (beforeEastAsian || beforeBefore.map { $0.isASCII && $0.isNumber } == true))
                             || (ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true) {
                     // (Nor on either side of an em dash between digits — a span
                     // of years: zh-b378d8c4's "（2021—2030年）" goes down whole
@@ -9808,6 +9810,12 @@ public final class RichLayout {
                     // Windows, zh-8d6f702e's package): the same "—" hinted
                     // default in Times goes down with "100—150", with or without
                     // `doNotUseEastAsianBreakRules`; the face decides.)
+                    // (After it, one set in the East Asian face keeps the digits
+                    // after it whatever comes before it: zh-22ecbdc8's
+                    // "1000（含）—5000人/年" ends a line "…（含）" in Word for
+                    // Windows' print, "—5000" opening the next, where ours left
+                    // the dash behind. Lab `dsh`: an East Asian "—" never parts
+                    // from the digits after it.)
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -9909,6 +9917,7 @@ public final class RichLayout {
                 }
                 beforeBefore = before
                 before = ch
+                beforeEastAsian = ea
                 wordHasLetter = ch.isASCII && (ch.isLetter || ch.isNumber || ch == "-") ? wordHasLetter || ch.isLetter : false
                 if let c = current, c != kind { flush(i) }
                 else if joinedFace != nil, isArabic(ch) != (beforeBefore.map(isArabic) ?? false) { flush(i) }
