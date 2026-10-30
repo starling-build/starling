@@ -9608,6 +9608,22 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - Times New Roman 12: 9.68 / 12.88 / 24.09. 仿宋 12 in 16: 12.90.
   It is not 13/16 (9.75 / 13.0 / 24.375). zh-1563bd74's 24.4 (16pt in 30) is ~0.35 lower than SimSun 16's 24.06 here,
   so something else in that document adds it. ~/starling-doc-check/lab/exline.
+  **LANDED 50a28cfa (Linux 01F2SWc8 lenovo-3, 2026-10-29, both modes, macos's call): exact line baseline 4/5, text and a
+  tall picture's drop.** Pair ex (756 docs, bundled fonts, base = joiner tip). Judged by a glyph measure, not the score
+  (each Word glyph matched to ours, |dx| < 3, |dy| < 4): 34 of 39 moved Windows documents get closer, e.g. zh-053f8706 mean
+  0.26 -> 0.10pt, zh-18cb2079 0.25 -> 0.09, zh-22b31377 0.27 -> 0.06, zh-f2835e26 0.32 -> 0.05. Gains: zh-f6886fbb
+  94.7 -> 100, zh-55087b5f 95.6 -> 100, zh-ec6158d0 +1.9, zh-27a874b7 +2.2, zh-d62da4dd +2.0, zh-1cfb652b +1.1 (Mac +3.4).
+  Score drops are mostly the matcher regrouping glyphs after 0.1-0.3pt shifts (zh-18cb2079 -0.2 with 1178 glyphs closer,
+  31 further). The +0.05 is NOT in the rule: text the change does not touch sits 0.03-0.17 above Word's print as well
+  (median, eight documents), so it is the print's page-wide offset, not the exact line's.
+  - UNCOVERED (1): measured worse, slightly: zh-d8247da5 0.08 -> 0.10 (score W 97.9 -> 93.6, M 100 -> 95.6),
+    zh-e8d4c046 0.06 -> 0.14 (W 100 -> 97.3), zh-007ca091 0.12 -> 0.13, zh-f2441f00 0.09 -> 0.11, zh-7fd860f9 0.11 -> 0.13.
+    The two forms are 10pt exact lines in vAlign-center cells, below the lab's 12-30pt range. Lab sent to windows (exact
+    10 / 10.5pt, plain paragraph and jc-center vAlign-center cell, SimSun and Times).
+  - UNCOVERED (2): zh-78d8bd98 p7's table rows (FangSong 12 names, TNR amounts) stood 0.37 high of Word with 13/16, 0.62 now
+    (W 99.3 -> 96.8, M -1.4). Its amount column now sits 2.40 under the names as in Word (was 2.50), the offset
+    zh-b0401810's number column lacked: the row placement itself is what is off.
+  - Also lower by 1.2-1.3: zh-11709c74 (both), zh-e7bdb543 W, zh-753cd6a8 M — too few glyphs to measure, the same regrouping.
 (6) Lab p10 (zh-015abfaf p10 "17.手工嵌线技能竞赛<tab> 17 spaces （文登区开发|区）", Windows 01QbbApP; w:right -400..+400 by
   2, ours on bin-hang alongside; ~/starling-doc-check/lab/p10). THE HANG RULE HOLDS. Word takes "区）" to w:right −2 and
   "区" alone (no "）") to +156, so "）" hangs 7.85–7.90: grid-hang's 7.874. The "6.8" was the glyph's printed edge.
