@@ -9499,6 +9499,7 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   form is one text box ("外框1", 511.5 x 395.5pt, wrapSquare bothSides, from the margin -12.75), and Word sets the
   "以下欄位由交通部填寫" paragraph and its table under it; ours runs them under the box from the page's top.
 - zh-77079ee8 (96.5): p5's organisation chart (EAP 推動小組 / 工作圈 / 服務組 text boxes) placed differently.
+  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, Windows mode (misses p1:8 p2:1 p3:6 p5:7).
 
 
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-27, office1's witness)
