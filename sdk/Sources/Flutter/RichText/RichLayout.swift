@@ -9413,7 +9413,11 @@ public final class RichLayout {
             // hold "　" alone are as tall as its empty ones in Word's
             // print, one pitch of its line grid; ours, set in the East
             // Asian face, took two.)
-            guard theme.wordRules, p.text.utf16.contains(where: { $0 == 0x20 || $0 == 0x3000 }) else { return nil }
+            // (An en, an em and a four-per-em space too, in Word for Windows:
+            // lab `sp`, see below.)
+            let wider = theme.wordRules && RichTextTheme.wordWindowsPages
+            func spaceUnit(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || (wider && (u == 0x2002 || u == 0x2003 || u == 0x2005)) }
+            guard theme.wordRules, p.text.utf16.contains(where: spaceUnit) else { return nil }
             let normal = _normalChar(document)
             func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
             var best: Double? = nil
@@ -9423,7 +9427,7 @@ public final class RichLayout {
                 if run.style.inlineImage != nil { return nil }
                 // (Nor does a tab: IllustrativeCases' line of 11pt spaces
                 // and tabs under an 8pt mark is the mark's line.)
-                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x3000 }) { best = max(best ?? 0, size(run.style)) }
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x09 && !spaceUnit($0) }) { best = max(best ?? 0, size(run.style)) }
                 at = end
             }
             if let best { return (best, false) }
@@ -9592,7 +9596,19 @@ public final class RichLayout {
                     s = s.copyWith(height: 0.01)
                 }
                 // (A run of spaces alone takes the line's height, not its own.)
-                if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
+                // (An en, an em and a four-per-em space are spaces to Word for
+                // Windows as the plain one is, and give a line no height of
+                // their own: lab `sp` (2026-10-30), rows of one 48pt space in a
+                // 12pt row — U+0020, U+2002, U+2003 and U+2005 leave it 14.6pt,
+                // in any colour, bold, highlighted or shaded; U+2000, U+2001,
+                // U+2004, U+2006…200A, U+202F and a letter make it 56.7.
+                // tdf153136 sets them so, 48pt, by the dozen.)
+                let widerSpaces = theme.wordRules && RichTextTheme.wordWindowsPages
+                let spaceLike: (Character) -> Bool = {
+                    $0 == " " || $0 == "\t" || $0 == "\u{3000}"
+                        || (widerSpaces && ($0 == "\u{2002}" || $0 == "\u{2003}" || $0 == "\u{2005}"))
+                }
+                if let lineSize, !text.isEmpty, text.allSatisfy(spaceLike), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                     if !lineSize.blank, kind != -2, !text.containsSubstring("\t"), !text.containsSubstring("\u{3000}") {
                         // (Beside other characters, spaces have no height
