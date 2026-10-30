@@ -348,8 +348,10 @@ public final class RichTextTheme {
     ///   below the text;
     /// - "at least" is that or the natural height, and what it adds
     ///   goes above;
-    /// - an exact height stands whatever the face, its baseline 13/16
-    ///   of the way down;
+    /// - an exact height stands whatever the face, its baseline 4/5 of
+    ///   the way down (lab `exline`, Word for Windows: SimSun 10.5 to 16
+    ///   and Times New Roman 12 in 12 to 30pt lines, 0.8 of the line
+    ///   and the print's 0.05 offset each — not 13/16, 0.1 to 0.3 more);
     /// - on a line grid (`gridPitch`) the line is as many whole pitches
     ///   as the text needs, and a multiple counts pitches rather than
     ///   text heights (14pt Song on a 15.6pt grid is 31.2 at single and
@@ -362,7 +364,7 @@ public final class RichTextTheme {
         let t0 = baseline.map { $0 * size }
         let multiple = max(0.1, paragraph.lineSpacing - lineSpacingReduction)
         if let points = paragraph.lineHeightPoints, !paragraph.lineHeightIsMinimum {
-            return (points, points * 13 / 16)
+            return (points, points * 4 / 5)
         }
         if let pitch = gridPitch, pitch > 0 {
             let snapped = (n / pitch - 0.002).rounded(.up) * pitch
@@ -445,7 +447,7 @@ public final class RichTextTheme {
         // stand-in's natural line, as `baseline(for:)` measures it: zh-27a874b7's
         // Times 14pt in 27pt exact lines set by their middle stands 18.7pt
         // down each line in Word's print; with no middle ours fell to the
-        // exact line's 13/16, 21.9, and every English line was 3.4pt low.)
+        // exact line's baseline, 21.9, and every English line was 3.4pt low.)
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         guard size > 0, let face = faceResolver?(familyName, eastAsian),
               let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
@@ -8523,7 +8525,7 @@ public final class RichLayout {
             else if theme.wordRules, image.float == nil, image.textBox?.growsToFit != true, let exact = style.lineHeightPoints,
                     !style.lineHeightIsMinimum, exact > 0, h + room.top + room.bottom > _px(exact) + 0.5 {
                 bodyHeight = _px(exact)
-                _imageDrop[i] = _px(exact * 13 / 16) - h - room.bottom
+                _imageDrop[i] = _px(exact * 4 / 5) - h - room.bottom
             }
             // (A picture shorter than its paragraph's line of text stands
             // at the foot of that text's own line, which the line takes
