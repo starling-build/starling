@@ -9850,6 +9850,13 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
   24/21 — even its plain 14pt first line is 5pt tall. Runs already carry Word's height ratio, so the no-strut line's extra
   comes from elsewhere; a debug build of `_strut`'s caller is next.
+  FOUND (Linux lenovo-2, 2026-10-30): the first-baseline correction (`_inkShift`, from `theme.baseline`) ran only for a paragraph
+  with a strut, so a no-strut mixed-size paragraph stood its first line where the engine put it, 5pt under Word's. BUILT on
+  wip/mixed-size-baseline (8141e6185), for windows-1's confirmation: the correction also runs when the first line is of one size
+  and a later run differs (a first line of mixed sizes keeps its own: the wider version dropped zh-454e2e29 100 -> 98.7).
+  Pre-pair v2 Windows, 756: zh-31d580df 97.8 -> 98.6, zh-86547e97 99.5 -> 100, zh-167ee06c 99.6 -> 100, zh-15f60bac, zh-7773163d up,
+  nothing lower. LEFT, the engine's: the paragraph's later lines are 1-2pt too tall (zh-31d580df p8: 24/21 for Word's 23/20),
+  each run's box being the stand-in face's, not Word's (lenovo-3's note under zh-0978dee9).
 - zh-6c447317 (98.6, word-win): PARKED (starling-bd, 2026-10-30): box- and state-specific. Labs bsp/bsw (windows): the line is a
   plain fit; the print box lacks 仿宋_GB2312, and under its substitute a balanced Times space is 0.40 em (0.43 bold; Calibri bold
   0.537) — but a half em (8.11 bold at 16pt) in any document with a 宋体 row before it, and a half em under any present face.
