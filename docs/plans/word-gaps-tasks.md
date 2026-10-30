@@ -218,7 +218,7 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   before itself, the same dash in Times takes "100—150" down whole; doNotUseEastAsianBreakRules changes nothing.
   windows-3 builds the "（含）|—5000" joiner (zh-22ecbdc8, lab dsh) on top of this. Windows 756 pair: 8d6f 90.8 -> 91.0,
   c2f6 99.4 -> 99.8, nothing else moves (an earlier cut that also freed the break after the dash took zh-81a32de0 100 -> 99.8).
-- (2) p38 tie, REBUILDING: "（3）…结束：" and "…影响情" are 0.0072pt over by ours — the 316-twip indent
+- (2) p38 tie, history (landed 04b8b261, see below): "（3）…结束：" and "…影响情" are 0.0072pt over by ours — the 316-twip indent
   (15.80) a hair past one cell (15.7927). Lab hc2 (windows): Word takes it at 316 twips with or without firstLineChars, in
   mode 12 and 14, and refuses at 317 (0.0572 over) or the right indent a twip in. Candidate: on a character grid in Word for
   Windows, legacy modes, not in a cell, the marks' give and the half-before test are weighed to half a twip (0.025pt).
@@ -244,10 +244,14 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   RELEASED to macos-ios (starling-bd's routing): files on the Windows box `~/starling-doc-check/lab/gs/` — {A,B,C,D}-orig.pdf,
   `w2-decisions-3c055c9b.txt` (our trace vs Word's verdict per decision), `w2-sharefit.py` (makes it from
   `w2-fit-trace-3c055c9b.txt`, base b82b195f, Windows mode).
-- (4) Band 99.5-99.9, CLAIMED. Both built on b82b195f, 6 docs each, full pairs (vs w2b-win) not yet run; code on wip/w2-gridgive:
-  "÷" set East Asian parts like "×" (538960d0): zh-427cb16c and zh-5f045fc1 -> 100, zh-b2e0f286 99.5 -> 99.8. "﹚﹜﹞" hang as
-  closing marks (0df8587f): zh-ab1ea005 99.9 -> 100 (its page-number misses are lenovo-2's). zh-6b242483 "（家）|×1" is a mode-14
-  squeeze (5.1 over, 4 marks, Word refuses), sent to macos-ios as a per-mark witness.
+- (2) p38 tie, LANDED 04b8b261: the marks' give gets 0.01pt only where the grid's charSpace is negative, not in cells. Windows 756 pair
+  (clean 29b627ef base): zh-8d6f702e 91.0 -> 99.8, zh-5be7e156 97.8 -> 98.0, nothing else moves. On a spreading grid (4127) Word
+  refuses 0.0052 and 0.0165 over (zh-457a8d62, zh-7654804a).
+- (4) Band 99.5-99.9, LANDED fb97f745 (÷ set East Asian parts like ×) and c954c34c (﹚﹜﹞ and ？”’％′″ hang as closing marks).
+  Windows 756 pair against a clean 04b8b261 base: zh-427cb16c, zh-5f045fc1, zh-ab1ea005 99.9 -> 100, zh-b2e0f286 99.5 -> 99.8, no drops.
+  (An earlier pair against an older base showed 67 movers: those were other sessions' commits, not these.)
+  zh-6b242483 "（家）|×1" is a mode-14 squeeze (5.1 over, 4 marks, Word refuses), with macos-ios as a per-mark witness.
+  Next from the band: "≤" set East Asian after Latin (zh-0060058e), zh-499adba6's footnote "100|％".
 ### zh-c2c92639 (95.8, 54 pages) against word-win v2 — looked at, two clusters (Mac 01Xgpbk5, 2026-10-30; RELEASED as a lead)
 - p41 "引用标准名录" and its 25-line list stand 10pt low in ours: the heading opens with a page-break character and has space before 360 —
   T238's construct (compatibilityMode 15 case); expected to be fixed when T238 lands.
