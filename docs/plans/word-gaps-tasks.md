@@ -17,6 +17,12 @@ prints (test/corpus/docx/word-win) are the only target. From now on:
   accepted and noted; more than 1 point blocks the landing until it is explained.
 - Word for Windows labs go to `windows` (the box's only Word driver). Other sessions build and pair.
 
+**FOCUS (the user, 2026-10-30): the LibreOffice set (test/corpus/docx/lo).** New work comes from the LO set's misses,
+scored in Windows mode against its Word for Windows prints (lo/word-win), v2. Finish and land what is already in flight
+on the government corpus, but start no new government-only items. Every LO fix must still not drop the official 756
+(the Windows-box confirmation runs both sets). lenovo-2 keeps the LO scores and the triage by class; starling-bd routes
+the classes.
+
 **BASELINE (the user, 2026-10-29, later): the Windows box's sweep is the official score.** Scores taken on the Mac
 or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: zh-6a4fc013 48.5 there vs 90.7 on a Mac).
 - The official numbers are Windows mode, swept ON the Windows box (DESKTOP-URK35LH), its native engine, per the pair
