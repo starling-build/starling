@@ -2120,9 +2120,15 @@ enum OfficeFonts {
         // for its lines' height — Segoe UI's 1.33 em on Windows, 15.96pt a
         // 12pt line where Word's step 14 — and every line from the third
         // stood over 3pt low.)
+        // (Its spaces and neutral marks in Cambria, the Arabic in Times:
+        // Word-win's rtl print has 115 spaces of Cambria's 2.64pt at 12pt
+        // and the letters in TimesNewRomanPSMT. In Times' own 3.0pt spaces
+        // the paragraph's lines took three letters fewer each, and it ran
+        // to 8 lines where Word's has 7.)
         var name = family ?? "Times New Roman"
-        if embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil { name = "Times New Roman" }
-        var face = RichResolvedFace(family: embeddedFamily(name) ?? name)
+        let missing = embeddedFamily(name) == nil && installedFamilies[name.trimmingWhitespace().lowercased()] == nil
+        if missing { name = "Times New Roman" }
+        var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
         // (Word for Windows' Arabic in Arial and Times New Roman, which the
         // stand-ins have none of: Noto Naskh draws it, 11% wider than Arial

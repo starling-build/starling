@@ -8637,3 +8637,14 @@ with no other document changes; tab indentation remains a separate issue.
   WordWithAttachments 73.7→81.6; its rest is p2's embedded document. Pair on
   the Windows box, 756 documents, Windows mode: only those three move; Mac mode
   (Thai+WordArt) only zh-6a4fc013 48.7→49.8.
+- **A missing complex-script face: spaces in Cambria, Arabic in Times
+  (2026-10-30).** Word-win's rtl print sets the Arabic of a cs face it has
+  none of ("Noto Sans Arabic UI") in TimesNewRomanPSMT and its spaces and
+  neutral marks in Cambria — 115 spaces of 2.64pt at 12pt, where Times' are
+  3.0. Times as the primary face (2026-10-29) had fixed the lines' height but
+  set the spaces in Times: each line took three letters fewer, 8 lines to
+  Word's 7, rtl 85.7 — and on a Mac host, which had fallen through to the
+  same split before, down from 100. The Cambria clone is now the primary
+  face and Times' joining widths still set each Arabic word. Pair on the
+  Windows box, office 8ac9be91, Windows mode, 756 documents: rtl 85.7→100,
+  nothing else moves (v1 and v2).
