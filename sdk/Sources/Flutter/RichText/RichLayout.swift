@@ -4329,7 +4329,12 @@ public final class RichLayout {
                     // On a page of its own it takes what it can.)
                     var moved = false, stuck = false
                     for (n, column) in columns.enumerated() {
-                        let limit = column.cut + avail - ruleUnder(c, parted: true) + 0.01
+                        // (Under the table's STATED bottom cell margin too, in Word for Windows: tdf170672's one 18-row table,
+                        // 5.4pt from its style, ends each page's part of a row 9.9pt or more over the foot, 129 samples,
+                        // where ours put lines to 3.8pt from it. Not the cell's own `pad.bottom`, which holds more than
+                        // the margin: it cost 33 government documents; the stated one moves none of the 34 that state one.)
+                        let bottomMargin = RichTextTheme.wordWindowsPages && theme.wordRules ? _px(document.tableStyles[c.table]?.cellMarginBottom ?? 0) : 0
+                        let limit = column.cut + avail - ruleUnder(c, parted: true) - bottomMargin + 0.01
                         // (A cut, under the line the part is closed with —
                         // where the cell ends here, its own bottom has it.)
                         // (To Word for Windows' raster: it sets rows on a 1/600in grid
@@ -4337,7 +4342,7 @@ public final class RichLayout {
                         // foot's dot is on the page — zh-4c5da793 p15's row "对抚恤优待对象
                         // 冒领…" keeps its second line in Word's print, 0.09pt past ours,
                         // its row standing 0.11 high.)
-                        let closed = column.cut + avail - ruleClosing(c) + 0.01
+                        let closed = column.cut + avail - ruleClosing(c) - bottomMargin + 0.01
                         // (The foot's dot, to which a cut that rounds is on the page —
                         // to carry a cell's cut a line further in the same paragraph
                         // only: a cell's whole bottom is measured as before, a cell with
