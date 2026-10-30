@@ -9844,7 +9844,22 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   tdf153964_firstIndentAfterBreak14, tdf153964_numberingAfterBreak14, n780843b, n782345, tdf99090_pgbrkAfterTable,
   tdf97648_relativeWidth, tdf151704_thinColumnHeight; core: header_footer/bnc519228_odd-breaksB, layout/tdf157096,
   layout/floattable-header), +3 in tdf103976 and NumberedList, -5 in extras/layout/tdf123163-1 (201 -> 196). Page-break-and-
-  break-after-table cases dominate. Files: ~/.cache/starling/docx-lo/{rt.out,rt-fails.json}. Not worked.
+  break-after-table cases dominate. Files: ~/.cache/starling/docx-lo/{rt.out,rt-fails.json}.
+  WORKED (Linux lenovo-2, 2026-10-30, starling-bd's order; unit tests from the LO files; whole Office suite 530 green; round trip of
+  all 2,121 now 2,103 ok, 3 SRC-UNSOUND, 14 not-ours READ-FAIL, 1 WRITE-FAIL; our 775 + POI: 767 ok, the 8 known encrypted/fuzz):
+  - EDB-36788-1 (not well-formed document.xml): the escaper let the C0 controls and U+FFFE/FFFF into <w:t>, the file being bytes read
+    as text; `_esc` drops what XML 1.0 cannot hold. Test testControlCharactersNeverReachTheXML.
+  - footer-margin-lost, tdf157131, tdf155685: the ORIGINALS already name header images / a chart embedding they do not contain; the
+    copy keeps them. Not ours: docx-corpus.py now says SRC-UNSOUND where the copy fails the same check as its source.
+  - tdf104713_undefinedStyles: main part word/trial.xml, named by _rels/.rels: `_withStandardMainPart` reads a main part in word/ under
+    the usual names. Test testMainPartNamedByTheRootRelationships.
+  - 13 of the 16 WRITE-FAILs (page-break cases): a paragraph split at a page break is written as "A<br/>" + "B" in two <w:p>, and the
+    first's mark reads back as one more paragraph every save. The reader marks the break-only mark paragraph as a continuation too,
+    and the writer folds a continuation into the paragraph whose trailing break it follows. Test testPageBreakDoesNotAddParagraphsOnEverySave.
+  - NumberedList, tdf103976 (nested tables): our saved outer table has no style and no borders, so the reader takes it for an
+    invisible wrapper and dissolves it; `tableXML` now names TableNormal on a table the reader's own predicate would dissolve.
+  - OPEN: extras/layout/tdf123163-1 (201 -> 196): literal newlines inside <w:t> and kept-table text matching; tables turn into body paragraphs on re-read.
+  - docx-corpus.py takes OFFICE_APP (55bdd0a17). Layout pre-pair running before landing (the continuation flag could shift a floats-only paragraph's indent).
 
 - Mixed-size paragraphs without a strut (starling-bd's assignment, 2026-10-30): SCOPING by Linux lenovo-2 (starling-d6), not
   built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
