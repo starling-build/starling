@@ -2655,7 +2655,9 @@ enum ChartPainter {
     static func _offZero(_ lo0: Double, _ hi0: Double, intervals: Int) -> (lo: Double, hi: Double, step: Double)? {
         let neg = hi0 < 0
         let a = neg ? -hi0 : lo0, b = neg ? -lo0 : hi0
-        guard a > 0, b > a, a > b * 5 / 6 else { return nil }
+        // (Not strictly: lo-60124a3f's area, 5 and 6, runs 4.4 to 6.2 by 0.2 in
+        // Word's print, 5 being exactly five sixths of 6.)
+        guard a > 0, b > a, a >= b * 5 / 6 - 1e-9 else { return nil }
         let d = b - a
         // (5% of the run from where the axis starts, not of the values'
         // spread: zh-b8de3ae2's chart 10 rates, 84.97 to 99.22, run 75 to
