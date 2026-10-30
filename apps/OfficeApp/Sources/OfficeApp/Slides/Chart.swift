@@ -2105,9 +2105,10 @@ enum ChartPainter {
         var placed: (TextPainter, Offset)? = nil
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
-            // each line centred.
+            // each line centred. (A Word document's chart that gives no size anywhere: 10pt, as
+            // Word's print of fdo78474's "Sales" and the rest of its text.)
             let titleStyle = Flutter.TextStyle(
-                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
+                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
