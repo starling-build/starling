@@ -12337,6 +12337,24 @@ public final class RichLayout {
             // fit: see `tieShort` in `_layoutParagraph`.)
             let hair = (onFirstLine ? tieShort.first : tieShort.rest) ? -_px(0.0005)
                 : min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
+            // (On a character grid in Word for Windows, what the marks give
+            // for a character has a hundredth of a point to spare: lab hc2 (zh-8d6f702e's
+            // package, mode 12 and 14, cells of 15.7927) takes "（3）…结束："
+            // with "）" and "，" at half a cell and "：" at half — 0.0072pt
+            // over, its 316-twip indent a hair past one cell — and so its
+            // "…影响情" (lab z8); at 317 twips, 0.0572 over, or the right
+            // indent a twip in, it wraps. Only the marks' give: a line of
+            // plain ideographs on a grid fits to the twip (lab g2). Not in
+            // a cell: zh-5be7e156's boxed 专栏 tables keep Word's lines only
+            // without it. And only on a grid that packs characters tighter
+            // than their size (a negative charSpace, -849 there): on one that
+            // spreads them Word gives nothing — zh-7654804a's "…最優申請人"
+            // with "，" squeezed, cells of 17.0076 (charSpace 4127), 0.0165
+            // over, and zh-457a8d62's "…證稱：", 0.0052 over, go down a
+            // character short in Word's print; at 0.025 on every grid four
+            // of those Control Yuan documents fell 23 to 87 points.)
+            let gridGive = theme.wordRules && RichTextTheme.wordWindowsPages && (_grid(i, document).chars ?? 0) < 0 && !inCell
+                && !(onFirstLine ? tieShort.first : tieShort.rest) ? _px(0.01) : nil
             // (The half em a line takes at most is Word's to a twentieth
             // of a point: 7.12pt over at 14pt is not taken. The widths
             // are the faces' own now, and the hair would take it.)
@@ -13155,7 +13173,7 @@ public final class RichLayout {
                             // print leaves it and squeezes nothing.)
                             || ((a ..< last).contains { units[$0] >= 0x2E80 }
                                 && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
-                            || x + min(lead, w) - width <= before / 2 + edge
+                            || x + min(lead, w) - width <= before / 2 + (legacy ? gridGive ?? edge : edge)
                             // (Under `w:kinsoku` off, where it does not hang, the
                             // paragraph's last mark gives its blank half besides:
                             // lab `lab7b` k0 (macOS-doc, Word for Mac,
@@ -13295,7 +13313,7 @@ public final class RichLayout {
                     // set the colon at 13.5 of 16 to take it. In a cell one
                     // does: zh-20ff844e's narrow cells take their "③".)
                     let circled = !inCell && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
-                    if room > 0, taken, !circled, need <= room - ownGive - finalGive + hair {
+                    if room > 0, taken, !circled, need <= room - ownGive - finalGive + (gridGive ?? hair) {
                         let share = min(1, (need + 0.02) / room)
                         // (The marks give first, and the automatic spaces
                         // what is still needed: the colon of lab `ovc` is
