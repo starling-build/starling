@@ -721,6 +721,15 @@ enum DocxFormat {
                 // A file that states no size anywhere is 10pt in Word (the
                 // 2003-era default), not the 11pt of a fresh document.
                 if cs.fontSize == nil { cs.fontSize = 10 }
+                // A file whose styles carry no document defaults at all
+                // (LibreOffice's older export) kerns every pair, as one
+                // without styles does: fdo63164-1's "Wasserschöpfe" is
+                // 0.4pt shorter in Word's print by "Wa", and fits a line
+                // that ours, unkerned, spilled by a tenth of a point.
+                if styles.first("w:docDefaults") == nil, cs.kerningFrom == nil {
+                    cs.kerningFrom = 1
+                    RuleTrace.hit("no-docdefaults-kerns")
+                }
                 normal.char = cs
             } else if noStyles {
                 normal.char.fontSize = 12
@@ -2288,6 +2297,15 @@ enum DocxFormat {
             document.breakRulesOnlyForEastAsian = settings.first("w:compat")?.first("w:doNotUseEastAsianBreakRules").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
                 .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
+            // (A file that names no compatibility mode — with a w:compat block
+            // or without, as Word for Windows' labs `compat` a, b: fdo63164-1
+            // with none and with an empty one — hangs a line's last full stop
+            // or comma past the margin, and is set by the East Asian rules
+            // where its settings do not say.)
+            if document.compatibilityMode == nil, settings.first("w:compat")?.first("w:useFELayout") == nil {
+                document.hangsLatinStops = part("word/styles.xml") != nil
+                document.usesEastAsianLayout = document.usesEastAsianLayout || document.hangsLatinStops
+            }
             document.flipsMirrorIndents = !(settings.first("w:compat")?.all("w:compatSetting")
                 .contains { $0["w:name"] == "doNotFlipMirrorIndents" && ["1", "true", "on"].contains($0["w:val"] ?? "") } ?? false)
             document.addsParagraphSpacing = settings.first("w:compat")?.first("w:doNotUseHTMLParagraphAutoSpacing").map { !_isOff($0) } ?? false

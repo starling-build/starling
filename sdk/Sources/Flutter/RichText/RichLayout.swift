@@ -12450,7 +12450,11 @@ public final class RichLayout {
         // What each character's automatic space after it is.
         var gaps: [Int: Double] = [:]
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, adjust: tabs, autoSpaces: { gaps[$0] = $1 })
-        guard marked || !gaps.isEmpty || (squeezesSpaces && units.contains(0x20)) else { return [:] }
+        // (Marks to hang, or full stops and commas an older file's line may
+        // end on past the margin: `RichDocument.hangsLatinStops`.)
+        let stops = document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
+            && units.contains(where: { $0 == 0x2E || $0 == 0x2C })
+        guard marked || stops || !gaps.isEmpty || (squeezesSpaces && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
@@ -12962,6 +12966,7 @@ public final class RichLayout {
                 let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
                     || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80
                     || macThai || macComma
+                    || document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && (units[tail] == 0x2E || units[tail] == 0x2C)
                 // (Before Word 2013's layout, in a document that compresses
                 // punctuation, Taiwan's centred marks give nothing at a
                 // line's end to be taken, and the paragraph's own last one
@@ -16217,6 +16222,7 @@ public final class RichLayout {
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.hangsLatinStops = document.hangsLatinStops
         sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
@@ -16386,6 +16392,7 @@ public final class RichLayout {
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.hangsLatinStops = document.hangsLatinStops
         sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
@@ -17144,6 +17151,7 @@ public final class RichLayout {
         sub.lineGridPitch = nil
         sub.characterGridSpace = section.last ? document.characterGridSpace : setup.characterGridSpace
         sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.hangsLatinStops = document.hangsLatinStops
         sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation

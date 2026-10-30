@@ -2168,6 +2168,10 @@ public struct RichDocument: Hashable, Sendable {
     /// where `characterSpacingControl` compresses it, and two marks that
     /// stand together close up where the text kerns.
     public var usesEastAsianLayout = false
+    /// Settings that name no compatibility at all (an older LibreOffice
+    /// export): Word for Windows hangs a line's last "." or "," past the
+    /// margin there, in Latin text and set left — fdo63164-1's print.
+    public var hangsLatinStops = false
     /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
     /// label's tab goes to the next tab stop, not to the hanging indent.
     public var indentNotNumberingTabStop = false
