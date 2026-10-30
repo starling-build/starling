@@ -11177,7 +11177,7 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
     "اعالم نمایه ی" — garbled glyphs in ours, so probably a font or shaping fallback problem (a guess, not checked), 24 lines for 31. tdf135665 (6 of 10): an inline OLE object: Word prints the object's file name "OLE-example.xlsx" in the text, ours omits it (8 lines for 10).
   RESIDUE NOTE: the three biggest documents (tdf170672 956, fdo78904_fileHang 690, fdo43573-2-min 390) hold 2,036 of the 5,919 missed lines (34%). Each is read as ONE drift or page break (not independent errors); that is a reading of the first mismatch, not a proven cause.
 
-### T251. LO LISTS AND TEXT: tdf158597, tdf167956, mixednumberings, tdf132752, tdf108496 — CLAIMED (Linux lo4, 2026-10-30, starling-bd's order)
+### T254. LO LISTS AND TEXT (was T251, id collided): tdf158597, tdf167956, mixednumberings, tdf132752, tdf108496 — CLAIMED (Linux lo4, 2026-10-30, starling-bd's order)
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. Scores at office 00de45be: tdf158597 6.2 (Word's numbered lines 19-29pt apart, ours 14), tdf167956 33.3, mixednumberings 85.6 (p2 "4x / 4.1 xxxx" rows),
 tdf132752 6.7 (the "Hinweis" paragraphs' x: Word 123/105/72, ours 241/123), tdf108496 10.0 (rows 25pt apart in Word, 22 in ours). Order as listed. T250 (scoring) stays open for re-scores.
 
@@ -11251,7 +11251,7 @@ One round in starling-engine (the SkParagraph patch under engine/src/flutter/thi
 ### T252. LO floating tables, three placement items: floattable-header (36.2) and FLOAT STACKING (floattable-tables-lost, floattable-outer-nonsplit-inner) — CLAIMED (Mac 7bd18d8e, 2026-10-31, starling-bd's order, taken off macos-ios's queue)
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. (1) floattable-header: a header row plus a 693pt row fit on Word's page 2 (34 + 693 < 771), ours leaves page 2 blank. (2) floattable-tables-lost and floattable-outer-nonsplit-inner: Word sets a second floating table 19pt lower, where it avoids the first. WordArt on a path: PARKED (census: 4 LO — tdf147485 x2 textArchUp, fdo79540 t175 arch, FDO78590 t144 circle — and 1 official, zh-b24b396a textSlantDown; picture-only gain, line score doubtful).
 
-### T252. LO SECTIONS: tdf149555, tdf146248, tdf108272 — CLAIMED (Linux lo4, 2026-10-30, starling-bd's order; windows-2 is told)
+### T253. LO SECTIONS: tdf149555, tdf146248, tdf108272 — CLAIMED (Linux lo4, 2026-10-30, starling-bd's order; windows-2 is told)
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. At office 00de45be: tdf149555 (lo-abef8321) 37.0 (3 pages for Word's 4, unread), tdf146248 (lo-9f46ceca) 28.6 (a long contents list 5 lines short, a third page),
 tdf108272 (lo-198cd200) 0.0 (the header 47pt left and 16pt lower than Word's). Logged from T251: tdf167956 (33.3) is the Century face the bundled fonts lack (a font, not layout);
 mixednumberings (85.6) is w14 text effects on level-2 labels that Word's print leaves out of its text layer (a scoring artefact).
