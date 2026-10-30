@@ -1661,6 +1661,9 @@ public final class RichLayout {
     }
 
     private var _tableFirstParagraph: [String: Int] = [:]
+    /// The widest line a table's first-column cells state on their own
+    /// left (points), by table: see `_edgeShift`.
+    private var _tableOwnLeft: [String: (style: String, width: Double)] = [:]
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
         let sum = (_columnWidths[table] ?? []).reduce(0, +)
         let width = _tableFlowWidth[table] ?? self.width
@@ -1703,8 +1706,30 @@ public final class RichLayout {
         switch style?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
-        default: return theme.wordRules ? _px(style?.indent ?? 0) - left : _px(style?.indent ?? 0).rounded()
+        default: return theme.wordRules ? _px(style?.indent ?? 0) - left + _edgeShift(table, document) : _px(style?.indent ?? 0).rounded()
         }
+    }
+
+    /// How far a table's columns stand right of its indent: from Word
+    /// 2013's layout on, half its left edge line. The line
+    /// lies inside the table there, its outer edge at the indent, and the
+    /// columns are measured from its middle. Lab ci (zh-8628cfbe's table:
+    /// tblW 5000 pct, tblInd -114, fixed, 28-twip margins, a 1.5pt rim
+    /// and 0.5pt inside lines) prints the left line's middle 0.72 right of
+    /// the indent, 0.24 for a 0.5pt rim, with no indent too and with dxa
+    /// widths; ours stood the line's middle on the indent.
+    private func _edgeShift(_ table: String, _ document: RichDocument) -> Double {
+        guard theme.wordRules, (document.compatibilityMode ?? 12) >= 15,
+              let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.floatX == nil else { return 0 }
+        let ruled = ts.edges?.left ?? (ts.borders && !ts.bordersFromCells)
+        // (A first column whose cells state a wider line of their own
+        // stands by that: zh-e329b438's "Table Grid" (0.5pt) with 1.5pt
+        // left lines on its cells puts the line's middle 0.75 in, and lab ci's
+        // cells of 3pt lines 1.5.)
+        let width = ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5
+        let room = ruled ? Self._ruleRoom(ts.edgeStyles["left"] ?? ts.borderStyle, width) : 0
+        let own = _tableOwnLeft[table].map { Self._ruleRoom($0.style, $0.width) } ?? 0
+        return _px(max(room, own)) / 2
     }
 
     /// Column widths per table (px); a table whose widths changed has every
@@ -1714,9 +1739,12 @@ public final class RichLayout {
         _tableRows = [:]
         _tableMerged = [:]
         _tableFirstParagraph = [:]
+        _tableOwnLeft = [:]
         for (k, p) in document.paragraphs.enumerated() {
             if let c = p.cell {
                 if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
+                if c.column == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
+                   own.width > _tableOwnLeft[c.table]?.width ?? 0 { _tableOwnLeft[c.table] = own }
                 columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span)
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
                 if c.rowSpan > 1 { _tableMerged[c.table, default: []].append(k) }
@@ -7037,10 +7065,29 @@ public final class RichLayout {
                         // ours, a whole line in, set one.)
                         let modern = (document.compatibilityMode ?? 12) >= 15
                         let inside = c.column > 0, insideRight = inside && c.column + c.span < widths.count
+                        // (In Word for Windows and for Mac the lines take nothing from the
+                        // text's margin: it keeps the margin, or half the line
+                        // where that is more, from each line's middle. Lab ci
+                        // (zh-8628cfbe's table, mode 15, 28-twip margins): the
+                        // text of every column starts 1.32-1.44 past the line
+                        // on its left and ends 1.44 short of the one on its
+                        // right, under 0.5 and 1.5pt lines, the table's or the
+                        // cells' own alike, and 1.50 under 3pt ones; ours stood
+                        // half the left line further in and half the right one
+                        // nearer, 0.37pt wider in p13's cell, which took a "，"
+                        // Word sends down. Mac Word's lab cimac (macOS-doc, three
+                        // 120pt cells, 5.4 margins, lines 0.5 to 3pt) agrees. The table's left line stands inside
+                        // it, `_edgeShift`, its first column's text where it was.)
+                        let shift = _edgeShift(c.table, document)
+                        if modern, shift > 0 || inside {
+                            pad = EdgeInsets(left: max(pad.left, l / 2) + (inside ? 0 : max(0, l / 2 - shift)), top: pad.top,
+                                             right: max(pad.right, r / 2), bottom: pad.bottom)
+                        } else {
                         pad = modern
                             ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
                                          right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
                             : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
+                        }
                     }
                 }
                 var below = 0.0
