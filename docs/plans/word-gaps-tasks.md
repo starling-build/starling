@@ -3702,6 +3702,8 @@ file's — leave it.
 ### T123. zh-cb56e605 (93.1%, 7 pages): a form's label cells a few points off — measured, released
 Owner: none (Linux 017F2GnT measured it, 2026-10-18)
 Documents: zh-cb56e605.
+Windows (Linux lenovo-2, 2026-10-29): 100.0, 144/144 lines and 7/7 pages against the fresh solo print (a9d43428), on
+ed3d8a78a with bundled fonts. The 94.4 was the old reference's Ebrima nbsp runs. Nothing left in Windows mode; closed there.
 Nothing to fix that shows: p6's form looks the same in both prints. Its
 misses are the second lines of label cells ("2022年是否获" / "得关税配额",
 "种类、数量及贸" / "易方式", 10.5pt on a 15.6 grid under
