@@ -3984,7 +3984,11 @@ public final class RichLayout {
             // first cell's — says `w:keepNext`, and parts where a middle
             // or last one does, or the second cell's first. form_footnotes'
             // "INSTRUCTIONS" box opens with a Heading 5.)
-            if theme.wordRules, document.paragraphs[i].style.keepNext { return false }
+            // (Unless it is taller than a page, which cannot be kept whole and parts:
+            // LibreOffice's tdf170381, a title and a 694pt nested table in one
+            // row, parts over two pages in Word's print; kept whole it ran
+            // off the first page's foot.)
+            if theme.wordRules, document.paragraphs[i].style.keepNext, c.ownRowHeight <= contentH + 0.01 { return false }
             // (Nor where the page's footer holds a sized, raised frame and
             // reaches above its bottom margin:
             // there Word parts no row at the page's foot, but sends it to the
