@@ -63,7 +63,7 @@ final class PdfMarkupTests: XCTestCase {
     }
 
     /// delins: a hyperlink field whose code was reformatted under change
-    /// tracking — "Field Code Changed" where its result begins, before the
+    /// tracking — "Field Code Changed" where its result ends, after the
     /// result's own "Formatted:".
     func testAReformattedFieldCodeHasItsBalloon() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
@@ -82,12 +82,12 @@ final class PdfMarkupTests: XCTestCase {
         let runs = doc.paragraphs[0].runs
         XCTAssertTrue(runs.first?.style.fieldCodeChanged == true, "the result's first run")
         XCTAssertFalse(runs.dropFirst().contains { $0.style.fieldCodeChanged }, "and no other")
-        XCTAssertEqual(PdfMarkup(doc).notes.map(\.label), ["Field Code Changed", "Formatted:"])
+        XCTAssertEqual(PdfMarkup(doc).notes.map(\.label), ["Formatted:", "Field Code Changed"])
     }
 
     /// delins: a link item whose language was set under change tracking
-    /// has three balloons in Word's print — the field code's, the link
-    /// text's, and the words after it with the paragraph's mark; a field's
+    /// has three balloons in Word's print — the link text's, the words
+    /// after it with the paragraph's mark, then the field code's; a field's
     /// end breaks a stretch, a reformatted mark joins it to the next
     /// paragraph's (three headings, one balloon).
     func testAFieldsEndBreaksAFormattingStretchAndAMarkJoinsOne() throws {
@@ -108,9 +108,9 @@ final class PdfMarkupTests: XCTestCase {
             + "<w:p><w:r><w:t>plain</w:t></w:r></w:p>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let notes = PdfMarkup(try DocxFormat.read(try Zip.write(entries)).document).notes
-        XCTAssertEqual(notes.map(\.label), ["Formatted:", "Field Code Changed", "Formatted:", "Formatted:"])
+        XCTAssertEqual(notes.map(\.label), ["Formatted:", "Formatted:", "Formatted:", "Field Code Changed"])
         XCTAssertEqual(notes.map(\.anchor), [RichPosition(paragraph: 0, offset: 0), RichPosition(paragraph: 2, offset: 0),
-                                             RichPosition(paragraph: 2, offset: 0), RichPosition(paragraph: 2, offset: 16)])
+                                             RichPosition(paragraph: 2, offset: 16), RichPosition(paragraph: 2, offset: 16)])
     }
 
     /// delins: two list items deleted marks and all are one balloon, each

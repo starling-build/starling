@@ -125,6 +125,7 @@ SKWASM(paragraphBuilder_build) sk_ptr paragraphBuilder_build(sk_ptr builder);
 SKWASM(paragraph_dispose) void paragraph_dispose(sk_ptr paragraph);
 SKWASM(paragraph_layout) void paragraph_layout(sk_ptr paragraph, float width);
 SKWASM(paragraph_getHeight) float paragraph_getHeight(sk_ptr paragraph);
+SKWASM(paragraph_getGlyphInkBounds) bool paragraph_getGlyphInkBounds(sk_ptr paragraph, sk_ptr bounds);
 SKWASM(paragraph_getLongestLine) float paragraph_getLongestLine(sk_ptr paragraph);
 
 #endif  // STARLING_SKWASM_H

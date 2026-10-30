@@ -42,7 +42,10 @@ enum WordArt {
         case "textChevron": let a = adj(25000); return { (a * abs(2 * $0 - 1), 1 - a + a * abs(2 * $0 - 1)) }
         case "textChevronInverted": let a = adj(75000); return { ((1 - a) * (1 - abs(2 * $0 - 1)), 1 - (1 - a) * abs(2 * $0 - 1)) }
         case "textSlantUp": let a = adj(55556); return { (a * (1 - $0), 1 - a * $0) }
-        case "textSlantDown": let a = adj(44444); return { (a * $0, 1 - a * (1 - $0)) }
+        // The adjustment is the band's thickness: at 100000 the text is
+        // rectangular, at 28569 it is thin and slopes most. ECMA's two
+        // paths join (0,0) to (1,1-a), and (0,a) to (1,1).
+        case "textSlantDown": let a = max(0.28569, min(1, adj(44445))); return { ((1 - a) * $0, a + (1 - a) * $0) }
         // Curve: the text shrinks (or grows) along a quarter turn over a
         // level foot.
         case "textCurveDown": let a = adj(45977); return { (a * sin($0 * .pi / 2), 1) }
@@ -83,6 +86,7 @@ enum WordArt {
         let text: String
         let style: (Paint) -> Flutter.TextStyle
         let look: RunLook?
+        var ink: Rect? { painter.getGlyphInkBounds() }
         var width: Double { painter.width }
     }
 
@@ -193,7 +197,7 @@ enum WordArt {
     @discardableResult
     static func paint(lines paragraphs: [[(text: String, style: Flutter.TextStyle, look: RunLook?)]], alignment: ParagraphAlignment,
                       warp: TextWarp, area: Rect, canvas: any Canvas, pxPerPt px: Double, shadow: Shadow? = nil,
-                      fitsPath: Bool = false) -> Bool {
+                      fitsPath: Bool = false, fitsInk: Bool = false) -> Bool {
         guard draws(warp), area.width > 1, area.height > 1 else { return false }
         var lines: [Line] = []
         for runs in paragraphs {
@@ -207,7 +211,7 @@ enum WordArt {
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
         guard !lines.isEmpty else { return true }
-        _paint(lines, warp, area, canvas, pxPerPt: px, cache: nil, shadow: shadow, fitsPath: fitsPath)
+        _paint(lines, warp, area, canvas, pxPerPt: px, cache: nil, shadow: shadow, fitsPath: fitsPath, fitsInk: fitsInk)
         return true
     }
 
@@ -229,7 +233,7 @@ enum WordArt {
     /// The lines fitted into `area` and drawn: the shadow first, if any,
     /// then the letters.
     private static func _paint(_ lines: [Line], _ warp: TextWarp, _ area: Rect, _ canvas: any Canvas,
-                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false) {
+                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false, fitsInk: Bool = false) {
         /// Set while the shadow is drawn: every letter in it, filled.
         var shadowPaint: Paint? = nil
         /// One glyph through the map of its cell: `origin` its top left,
@@ -316,6 +320,51 @@ enum WordArt {
 
         /// One drawing of every letter, through `draw`.
         func pass() {
+            // DrawingML WordArt fits the visible letters into the text
+            // rectangle. Advance bearings and a font's line leading are
+            // not part of that rectangle (especially CJK parentheses).
+            if fitsInk, let envelope = envelope(warp) {
+                let width = lines.map(\.width).max() ?? 0
+                let height = lines.map(\.height).max() ?? 0
+                var placed: [(glyph: Glyph, origin: Offset)] = []
+                var ink: Rect?
+                for (index, line) in lines.enumerated() {
+                    let baseline = line.glyphs.map { $0.painter.computeDistanceToActualBaseline(.alphabetic) }.max() ?? 0
+                    let spare = width - line.width
+                    var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
+                    for glyph in line.glyphs {
+                        let origin = Offset(x, Double(index) * height * linePitch + baseline - glyph.painter.computeDistanceToActualBaseline(.alphabetic))
+                        placed.append((glyph, origin))
+                        if let bounds = glyph.ink?.shift(origin), !bounds.isEmpty {
+                            ink = ink.map { $0.expandToInclude(bounds) } ?? bounds
+                        }
+                        x += glyph.width
+                    }
+                }
+                if let ink, ink.width > 0, ink.height > 0 {
+                    func point(_ x: Double, _ y: Double) -> Offset {
+                        let u = (x - ink.left) / ink.width, v = (y - ink.top) / ink.height
+                        let edge = envelope(u)
+                        return Offset(area.left + u * area.width, area.top + (edge.top + (edge.bottom - edge.top) * v) * area.height)
+                    }
+                    for (glyph, origin) in placed where glyph.width > 0 && glyph.painter.height > 0 {
+                        let p00 = point(origin.dx, origin.dy)
+                        let p10 = point(origin.dx + glyph.width, origin.dy)
+                        let p01 = point(origin.dx, origin.dy + glyph.painter.height)
+                        let p11 = point(origin.dx + glyph.width, origin.dy + glyph.painter.height)
+                        let x = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / (2 * glyph.width),
+                                       (p10.dy - p00.dy + p11.dy - p01.dy) / (2 * glyph.width))
+                        let y = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / (2 * glyph.painter.height),
+                                       (p01.dy - p00.dy + p11.dy - p10.dy) / (2 * glyph.painter.height))
+                        let center = Offset((p00.dx + p10.dx + p01.dx + p11.dx) / 4, (p00.dy + p10.dy + p01.dy + p11.dy) / 4)
+                        draw(glyph, origin: Offset(center.dx - x.dx * glyph.width / 2 - y.dx * glyph.painter.height / 2,
+                                                  center.dy - x.dy * glyph.width / 2 - y.dy * glyph.painter.height / 2), x: x, y: y)
+                    }
+                    return
+                }
+                // A host without the optional ink query keeps the existing
+                // advance-box fit instead of losing the shape's text.
+            }
             if followsPath.contains(warp.preset) {
                 _paintAlongEllipse(lines, warp, area, fits: fitsPath, draw)
                 return

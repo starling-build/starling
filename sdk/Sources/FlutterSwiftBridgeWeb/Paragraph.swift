@@ -29,6 +29,21 @@ extension flutter.swift_bridge {
             skHandle == 0 ? 0 : Double(paragraph_getHeight(skHandle))
         }
 
+        public func GetGlyphInkBounds(
+            _ left: UnsafeMutablePointer<Double>?, _ top: UnsafeMutablePointer<Double>?,
+            _ right: UnsafeMutablePointer<Double>?, _ bottom: UnsafeMutablePointer<Double>?
+        ) -> Bool {
+            guard skHandle != 0 else { return false }
+            return withSkStack { stack in
+                let rect = stack.alloc(16)
+                guard paragraph_getGlyphInkBounds(skHandle, rect) else { return false }
+                let bounds: [Float] = skRead(rect, count: 4)
+                left?.pointee = Double(bounds[0]); top?.pointee = Double(bounds[1])
+                right?.pointee = Double(bounds[2]); bottom?.pointee = Double(bounds[3])
+                return true
+            }
+        }
+
         public func GetLongestLine() -> Double {
             skHandle == 0 ? 0 : Double(paragraph_getLongestLine(skHandle))
         }

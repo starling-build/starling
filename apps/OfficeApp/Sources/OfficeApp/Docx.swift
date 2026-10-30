@@ -2153,11 +2153,11 @@ enum DocxFormat {
             }
             var faces: [String: String] = [:]
             for font in table.all("w:font") {
-                // (And, in Word for Windows, one with a Latin name whose entry
-                // names an East Asian charset, for its line: zh-1cfb652b's
-                // GWZT-EN, charset 86 — see `OfficeFonts.face`.)
+                // (And, in Word — for Windows and for the Mac alike — one with
+                // a Latin name whose entry names an East Asian charset, for its
+                // line: zh-1cfb652b's GWZT-EN, charset 86 — see `OfficeFonts.face`.)
                 guard let name = font["w:name"],
-                      OfficeFonts.isEastAsianFace(name) || Self.wordOnWindows && ["86", "88", "80", "81"].contains(font.first("w:charset")?["w:val"]?.uppercased() ?? ""),
+                      OfficeFonts.isEastAsianFace(name) || (Self.wordOnWindows || Self.wordOnMac) && ["86", "88", "80", "81"].contains(font.first("w:charset")?["w:val"]?.uppercased() ?? ""),
                       let embed = font.first("w:embedRegular") ?? font.first("w:embedBold"),
                       let rid = embed["r:id"], let key = embed["w:fontKey"], let target = faceTargets[rid] else { continue }
                 let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
@@ -2175,6 +2175,9 @@ enum DocxFormat {
                 // (An East Asian entry over a charset-00 one for a repeated
                 // name: see the charsets above.)
                 let charset = font.first("w:charset")?["w:val"] ?? ""
+                // (Whichever entry is kept, the last one's family: Word for
+                // Mac's, `FontEntry.lastFamily`.)
+                if entries[name] != nil { entries[name]!.lastFamily = font.first("w:family")?["w:val"] ?? "auto" }
                 if entries[name] != nil, charset == "00" || entryCharsets[name] != "00" { continue }
                 entryCharsets[name] = charset
                 let alt = font.first("w:altName")?["w:val"]
@@ -2423,6 +2426,7 @@ enum DocxFormat {
     /// `OFFICE_WORD_FONTS=windows`: laid out as Word for Windows does where
     /// it differs from Word for Mac (the background's header marks).
     static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
     static let _keptSettingNames: [[String]] = [
         ["w:embedTrueTypeFonts", "w:embedSystemFonts", "w:saveSubsetFonts",
          "w:alignBordersAndEdges", "w:bordersDoNotSurroundHeader", "w:bordersDoNotSurroundFooter"],
@@ -2929,6 +2933,11 @@ enum DocxFormat {
             return nil
         }
         var setup = PageSetup(width: w / 20, height: h / 20)
+        switch sect.first("w:type")?["w:val"] {
+        case "oddPage": setup.sectionStartParity = .odd
+        case "evenPage": setup.sectionStartParity = .even
+        default: break
+        }
         setup.orientStated = sz["w:orient"] != nil
         if let t = sect.first("w:titlePg"), !_isOff(t) { setup.titlePage = true }
         if let num = sect.first("w:pgNumType") {
@@ -3670,9 +3679,42 @@ enum DocxFormat {
                 }
                 if outline.color != nil || outline.fill != nil { att.outline = outline }
             }
+            // Warped text belongs to the shape painter, with its rotation
+            // and fitted envelope. Read its styles through the same Word
+            // reader, but leave the body's notes and field state alone.
+            var drawingWordArt: [ObjectIdentifier: WriterGroups.DrawingWordArt] = [:]
+            if !notes.inTextBox, node.descendant("wpg:wgp") != nil || att.outline == nil {
+                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                             notes.seenComments, notes.fieldShown)
+                notes.inTextBox = true
+                defer {
+                    notes.inTextBox = false
+                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                     notes.seenComments, notes.fieldShown) = saved
+                }
+                for shape in node.descendants("wps:wsp") {
+                    guard let warp = WriterGroups.textWarp(shape), let content = shape.first("wps:txbx")?.first("w:txbxContent") else { continue }
+                    notes.fields = []
+                    let paragraphs = content.all("w:p").flatMap {
+                        _paragraphs($0, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil).map(\.paragraph)
+                    }
+                    if paragraphs.contains(where: { !$0.text.isEmpty }) {
+                        let body = shape.first("wps:bodyPr")
+                        func inset(_ name: String, _ fallback: Double) -> Double { Double(body?[name] ?? "").map { $0 / 12700 } ?? fallback }
+                        let insets = EdgeInsets.fromLTRB(inset("lIns", 7.2), inset("tIns", 3.6), inset("rIns", 7.2), inset("bIns", 3.6))
+                        drawingWordArt[ObjectIdentifier(shape)] = WriterGroups.DrawingWordArt(warp: warp, paragraphs: paragraphs, styles: sheet, insets: insets)
+                    }
+                }
+            }
+            func textBoxContent(_ n: XNode) -> XNode? {
+                if drawingWordArt[ObjectIdentifier(n)] != nil { return nil }
+                if n.name == "w:txbxContent" { return n }
+                for child in n.children { if let content = textBoxContent(child) { return content } }
+                return nil
+            }
             // A text box's text, for the layout to set in it: the
             // drawing's (`wps:txbx`), or its VML twin's.
-            if !notes.inTextBox, let content = node.descendant("w:txbxContent") {
+            if !notes.inTextBox, let content = textBoxContent(node) {
                 notes.inTextBox = true
                 // (The box's markup is kept whole and written back as it
                 // was: reading its text again must leave no mark on what
@@ -3716,7 +3758,7 @@ enum DocxFormat {
                     // in the group: zh-ae2dd08d p21's flowchart nests its
                     // boxes two groups deep, and ours read only the first
                     // box's text, set across the whole group.)
-                    let placed = Self._groupTextBoxes(group)
+                    let placed = Self._groupTextBoxes(group).filter { drawingWordArt[ObjectIdentifier($0.box)] == nil }
                     let boxes = placed.map(\.box)
                     let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
                     let ext = Double(gx?.first("a:ext")?["cy"] ?? "") ?? 0, chExt = Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0
@@ -3741,7 +3783,7 @@ enum DocxFormat {
                                                           height: place.height * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
-                    } else if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content {
+                    } else if !boxes.isEmpty, boxes.count > 1 || !drawingWordArt.isEmpty, boxes[0].descendant("w:txbxContent") === content {
                         // (Boxes of other widths or places: each box's text
                         // in its own column of the group, from its own top —
                         // its shape's place, the preset's text rectangle and
@@ -3783,6 +3825,7 @@ enum DocxFormat {
                             for q in first ..< inside.count {
                                 inside[q].style.indentLeft += x + l
                                 inside[q].style.indentRight += max(0, groupWidth - (x + w) + r)
+                                inside[q].style.boxInsetRight = r
                             }
                             parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b"))
                         }
@@ -3818,6 +3861,7 @@ enum DocxFormat {
                         // box has no insets of its own.)
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
                     } else if let body = node.descendant("wps:bodyPr") {
+                        box.hasFixedFrame = body.first("a:noAutofit") != nil
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
                         box.fitsAsDrawing = box.fitsText
@@ -3940,7 +3984,7 @@ enum DocxFormat {
             if arrowed, att.outline?.kind == .line { att.outline = nil }
             if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
-                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), wordArt: drawingWordArt)
             } else if node.descendant("wpg:wgp") == nil, let group = _vmlTop(node), group.name == "v:group" {
                 // (A VML group's lines and boxes likewise: zh-6e6b9821's
                 // flowchart printed its text alone, no arrows or edges.)
@@ -3961,7 +4005,14 @@ enum DocxFormat {
             if let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
                let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
-                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+                // (With the chart part's own theme override, for its faces.)
+                var comps = _resolvePath("word", rel.target).split(separator: "/").map(String.init)
+                let file = comps.popLast() ?? ""
+                let dir = comps.joined(separator: "/")
+                let over = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                    .first(where: { ($0["Type"] ?? "").hasSuffix("/themeOverride") && $0["TargetMode"] != "External" })?["Target"]
+                    .flatMap { notes.part(_resolvePath(dir, $0)) }
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over)
             }
             // A box-and-whisker chart (Office 2016's chartex part), drawn
             // on a column chart's axes, or a sunburst: named by `cx:chart`
@@ -4465,7 +4516,7 @@ enum DocxFormat {
     if s.bold { rPr += "<w:b/><w:bCs/>" } else { rPr += off("b", .bold) }
     if s.italic { rPr += "<w:i/><w:iCs/>" } else { rPr += off("i", .italic) }
     if s.caps { rPr += "<w:caps/>" } else { rPr += off("caps", .caps) }
-    if s.hidden { rPr += "<w:vanish/>" }
+    if s.hidden { rPr += "<w:vanish/>" } else { rPr += off("vanish", .hidden) }
     if s.smallCaps { rPr += "<w:smallCaps/>" } else { rPr += off("smallCaps", .smallCaps) }
     if s.underline { rPr += "<w:u w:val=\"single\"/>" } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
     if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
@@ -4722,7 +4773,7 @@ enum DocxFormat {
             case "w:u": cs.underline = child["w:val"] != "none"; if cs.underline { cs.off.remove(.underline) } else { cs.off.insert(.underline) }
             case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
-            case "w:vanish": cs.hidden = !_isOff(child)
+            case "w:vanish": cs.hidden = !_isOff(child); if cs.hidden { cs.off.remove(.hidden) } else { cs.off.insert(.hidden) }
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }

@@ -59,6 +59,14 @@ public final class RichTextTheme {
     /// this and the ideograph face's half em together — 0.225 em beside
     /// Times New Roman, 0.275 beside Courier New.
     public var averageCharWidth: ((String?) -> Double)? = nil
+    /// A symbol face's characters as the Unicode glyphs they show, for
+    /// drawing: a run in Wingdings 2 says "£" (`w:sym w:char="00A3"`) for
+    /// a box. Character for character, so offsets hold; the document keeps
+    /// what it said. Nil leaves the text as it is.
+    public var symbolGlyphs: ((String?, String) -> String)? = nil
+    /// … and such a glyph's advance in the symbol face, in ems, where
+    /// the stand-in's differs.
+    public var symbolAdvance: ((String?, Character) -> Double?)? = nil
     /// Families tried, in order, for a character the run's own family
     /// lacks. Process-wide rather than per theme: it answers "which faces did
     /// this app load for coverage", which is one fact, and an app builds a
@@ -340,8 +348,10 @@ public final class RichTextTheme {
     ///   below the text;
     /// - "at least" is that or the natural height, and what it adds
     ///   goes above;
-    /// - an exact height stands whatever the face, its baseline 13/16
-    ///   of the way down;
+    /// - an exact height stands whatever the face, its baseline 4/5 of
+    ///   the way down (lab `exline`, Word for Windows: SimSun 10.5 to 16
+    ///   and Times New Roman 12 in 12 to 30pt lines, 0.8 of the line
+    ///   and the print's 0.05 offset each — not 13/16, 0.1 to 0.3 more);
     /// - on a line grid (`gridPitch`) the line is as many whole pitches
     ///   as the text needs, and a multiple counts pitches rather than
     ///   text heights (14pt Song on a 15.6pt grid is 31.2 at single and
@@ -354,7 +364,7 @@ public final class RichTextTheme {
         let t0 = baseline.map { $0 * size }
         let multiple = max(0.1, paragraph.lineSpacing - lineSpacingReduction)
         if let points = paragraph.lineHeightPoints, !paragraph.lineHeightIsMinimum {
-            return (points, points * 13 / 16)
+            return (points, points * 4 / 5)
         }
         if let pitch = gridPitch, pitch > 0 {
             let snapped = (n / pitch - 0.002).rounded(.up) * pitch
@@ -437,7 +447,7 @@ public final class RichTextTheme {
         // stand-in's natural line, as `baseline(for:)` measures it: zh-27a874b7's
         // Times 14pt in 27pt exact lines set by their middle stands 18.7pt
         // down each line in Word's print; with no middle ours fell to the
-        // exact line's 13/16, 21.9, and every English line was 3.4pt low.)
+        // exact line's baseline, 21.9, and every English line was 3.4pt low.)
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         guard size > 0, let face = faceResolver?(familyName, eastAsian),
               let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
@@ -812,6 +822,9 @@ public struct RichResolvedFace: Sendable {
     /// whose line they then give theirs (see `_span`).
     public var covers: Set<UInt32>? = nil
     public var uncoveredFamily: String? = nil
+    /// Word for Mac draws this face from the subset the document embeds,
+    /// having none of its own by the name (see `covers`).
+    public var drawnFromSubset = false
     /// Where Word takes what the subset lacks from more than one face: in
     /// order, each face and what it holds (nil: anything). A character
     /// goes to the face the one before it went to while that face has
@@ -839,6 +852,9 @@ public struct RichResolvedFace: Sendable {
     /// face in another, and measures their line by it: a name Word on a
     /// Mac lacks, set in Microsoft YaHei, draws them from SimSun.
     public var symbolFamily: String? = nil
+    /// Whether a bold run's are `symbolFamily`'s too: not in Word for
+    /// Windows, which sets them in the stand-in's bold.
+    public var symbolsInBold = true
     /// A math face (Cambria Math): its characters past ASCII come from
     /// the platform's math face, set inside the run's line.
     public var setsMath = false
@@ -904,6 +920,10 @@ public struct PageSetup: Hashable, Codable, Sendable {
     /// section's are `RichDocument.pageNumberStart`/`pageNumberFormat`.
     public var pageNumberStart: Int? = nil
     public var pageNumberFormat: String? = nil
+    /// An explicit odd/even section start (`w:type`). Its page numbers,
+    /// rather than physical sheet indices, determine the requested side.
+    public enum PageParity: Int, Hashable, Sendable { case even = 0, odd = 1 }
+    public var sectionStartParity: PageParity? = nil
 
     public init(width: Double, height: Double, marginTop: Double = 72,
                 marginBottom: Double = 72, marginLeft: Double = 72,
@@ -1119,6 +1139,10 @@ public final class RichLayout {
         /// rules: a row is that much taller than the height the file
         /// gave it.
         var rules: Double = 0
+        /// The width of the cell's own top rule (px) — its tcBorders, row or
+        /// table — without the row above's bottom line it shares: what a
+        /// part carried to a new page draws above itself.
+        var ownTopRule: Double = 0
         /// … and how much of that is the table's bottom rule, which a
         /// cell that reaches the last row carries.
         var ruleBelow: Double = 0
@@ -1162,6 +1186,9 @@ public final class RichLayout {
     /// A turned text box's layout (`RichTextBox.textDirection` not across):
     /// its lines run along the box's height.
     private var _turnedBox = false
+    // Frame edges in the nested layout's line coordinates, for restoring
+    // an overflowing first-line indent. Other lines keep their own policy.
+    private var _fixedTextFrame: (left: Double, right: Double)?
     /// A nested table whose autofitting parent fitted its column narrower
     /// than the child's saved width: a share of it is a share of that
     /// column, under the saved grid too (lab dr2/h).
@@ -1203,6 +1230,10 @@ public final class RichLayout {
     /// each paragraph's text for its first line's indent or its list
     /// number; 0 for none.
     private var _leadWidth: [Double] = []
+    /// A fixed box still puts the first glyph at its stated indent when
+    /// it overflows. Its painter reserves room for that glyph on line one;
+    /// painting restores the difference before clipping to the frame.
+    private var _boxFirstLineShift: [Double] = []
     /// The tabs of each paragraph that are filled with a leader (a
     /// contents page's dots): the tab's offset, and the character.
     private var _leaders: [[(offset: Int, fill: String)]] = []
@@ -1341,6 +1372,7 @@ public final class RichLayout {
         _lineOverhang = Array(repeating: [], count: n)
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
+        _boxFirstLineShift = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
         _heights = Array(repeating: 0, count: n)
@@ -1415,6 +1447,7 @@ public final class RichLayout {
                 _lineOverhang.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _boxFirstLineShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _heights.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -1453,6 +1486,7 @@ public final class RichLayout {
                 _lineOverhang.removeSubrange(at ..< end)
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
+                _boxFirstLineShift.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
                 _heights.removeSubrange(at ..< end)
@@ -1627,6 +1661,9 @@ public final class RichLayout {
     }
 
     private var _tableFirstParagraph: [String: Int] = [:]
+    /// The widest line a table's first-column cells state on their own
+    /// left (points), by table: see `_edgeShift`.
+    private var _tableOwnLeft: [String: (style: String, width: Double)] = [:]
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
         let sum = (_columnWidths[table] ?? []).reduce(0, +)
         let width = _tableFlowWidth[table] ?? self.width
@@ -1669,8 +1706,30 @@ public final class RichLayout {
         switch style?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
-        default: return theme.wordRules ? _px(style?.indent ?? 0) - left : _px(style?.indent ?? 0).rounded()
+        default: return theme.wordRules ? _px(style?.indent ?? 0) - left + _edgeShift(table, document) : _px(style?.indent ?? 0).rounded()
         }
+    }
+
+    /// How far a table's columns stand right of its indent: from Word
+    /// 2013's layout on, half its left edge line. The line
+    /// lies inside the table there, its outer edge at the indent, and the
+    /// columns are measured from its middle. Lab ci (zh-8628cfbe's table:
+    /// tblW 5000 pct, tblInd -114, fixed, 28-twip margins, a 1.5pt rim
+    /// and 0.5pt inside lines) prints the left line's middle 0.72 right of
+    /// the indent, 0.24 for a 0.5pt rim, with no indent too and with dxa
+    /// widths; ours stood the line's middle on the indent.
+    private func _edgeShift(_ table: String, _ document: RichDocument) -> Double {
+        guard theme.wordRules, (document.compatibilityMode ?? 12) >= 15,
+              let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.floatX == nil else { return 0 }
+        let ruled = ts.edges?.left ?? (ts.borders && !ts.bordersFromCells)
+        // (A first column whose cells state a wider line of their own
+        // stands by that: zh-e329b438's "Table Grid" (0.5pt) with 1.5pt
+        // left lines on its cells puts the line's middle 0.75 in, and lab ci's
+        // cells of 3pt lines 1.5.)
+        let width = ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5
+        let room = ruled ? Self._ruleRoom(ts.edgeStyles["left"] ?? ts.borderStyle, width) : 0
+        let own = _tableOwnLeft[table].map { Self._ruleRoom($0.style, $0.width) } ?? 0
+        return _px(max(room, own)) / 2
     }
 
     /// Column widths per table (px); a table whose widths changed has every
@@ -1680,9 +1739,12 @@ public final class RichLayout {
         _tableRows = [:]
         _tableMerged = [:]
         _tableFirstParagraph = [:]
+        _tableOwnLeft = [:]
         for (k, p) in document.paragraphs.enumerated() {
             if let c = p.cell {
                 if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
+                if c.column == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
+                   own.width > _tableOwnLeft[c.table]?.width ?? 0 { _tableOwnLeft[c.table] = own }
                 columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span)
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
                 if c.rowSpan > 1 { _tableMerged[c.table, default: []].append(k) }
@@ -2649,7 +2711,12 @@ public final class RichLayout {
                     // leaves for p3. Not one the cells state for themselves:
                     // zh-5c6ff0d7's, under no table line, stays inside as
                     // the Mac's does, and its note keeps its page.)
-                    let tableLine = RichTextTheme.wordWindowsPages && below > 0
+                    // (Word for Mac too: zh-884c6e3e's fresh Mac print sets the
+                    // text after each such table about the line lower, and its
+                    // p2 leaves "房交付之月…" for p3. The Mac's lab `rb`,
+                    // which kept a single line inside, ruled its cells, not
+                    // the table.)
+                    let tableLine = below > 0
                         && !(k0 ..< j).contains { Self._cellSide(document.paragraphs[$0].cell?.bordersXML, "bottom") != nil }
                     let hung = exact && lastRow && (below > _px(1) || tableLine) ? below : 0
                     // (An exact one is that tall and its cells' bottom margin
@@ -2968,6 +3035,9 @@ public final class RichLayout {
     /// Pages left blank so that a section opens on its number's side
     /// (`_paginate`): they have no number, header or footer.
     private var _blankPages: Set<Int> = []
+    /// Explicit odd/even section breaks count their blank page when
+    /// numbering continues. Restart-alignment blanks do not.
+    private var _numberedBlankPages: Set<Int> = []
     private var _pageTops: [Double] = []
     /// Where each page's text starts below its top (pixels): the top
     /// margin, or under a taller header.
@@ -3429,6 +3499,7 @@ public final class RichLayout {
         }
         loadPins()
         _blankPages = _blankPages.filter { $0 < page / _columns }
+        _numberedBlankPages = _numberedBlankPages.filter { $0 < page / _columns }
         if restarted {
             // (The page restarted on keeps its section.)
             let insets = _bodyInsets(page: page / _columns, document)
@@ -3635,7 +3706,7 @@ public final class RichLayout {
             // asking its own top line's width, as before — zh-e061a08e's
             // page 4 parts a row under a thicker line at Word's line.)
             if c.ruleBelow > 0 && !parted && !spansOn { return 0 }
-            // (In Word 2007's mode, the half of the line that hangs
+            // (In Word for Windows' 2007 mode, the half of the line that hangs
             // under the row's edge: zh-1a3c7aa0, mode 12, sets page 13's
             // "5 O,O-二甲基…" row under a 0.5pt line with 0.22pt left,
             // where bug65649's 0.75 line with 0.6 left, mode 15, did not,
@@ -3660,7 +3731,15 @@ public final class RichLayout {
             // over under the double; zh-e1b09977's p13, no cell lines of its
             // own, closes under its table's 2.16 bottom.)
             if RichTextTheme.wordWindowsPages, c.edges?.bottom != nil || c.borders.bottom != nil { bottom = 0 }
-            return max(0, spansOn ? lineUnderRow(c) : c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
+            // (Word for Mac asks the whole closing line even in mode 12:
+            // ordinary and merged two-row controls, with 0.5/1.5pt rules,
+            // keep the first row only with the full rule's room. Removing
+            // the table's top line or making it heavier leaves that test
+            // unchanged. The old half-line allowance admitted zh-90e0cea8's
+            // p8 row 29 when its header got 0.033pt shorter, moving the
+            // merged label 8pt away from Word.)
+            let half = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 14
+            return max(0, spansOn ? lineUnderRow(c) : c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / (half ? 2 : 1)
         }
         // What a row's part at a page's foot is closed with there: its
         // top line's width, as `ruleUnder(parted:)` has it — and in the
@@ -3921,8 +4000,20 @@ public final class RichLayout {
                 // page after it a line long.)
                 let margins = theme.wordRules
                     ? columns.map { column -> Double in let d0 = _cells[column.members[0]]!; return d0.pad.top + d0.pad.bottom }.max() ?? 0 : 0
+                // (Word for Windows: the part goes on at the stated height, its
+                // own top rule — the line it draws at the page's head, the
+                // row above's bottom one staying behind — and its cells'
+                // margins as stated. Lab trow (windows-1): at least 138pt with
+                // no margins, 0.25/0.5/1pt rules, goes on 138.26/138.50/138.98;
+                // with 0.75pt margins 139.82/140.06/140.54; zh-13552a3a's cells,
+                // their top nil under a ruled row, go on at 138.03 — ours, the
+                // row above's line taken for theirs, at 138.5.)
+                let windowsExtra: Double? = theme.wordRules && RichTextTheme.wordWindowsPages ? columns.map { column -> Double in
+                    let d0 = _cells[column.members[0]]!
+                    return d0.ownTopRule + max(0, d0.pad.top + d0.pad.bottom - d0.rules)
+                }.max() : nil
                 let stated = ts.rowsExactHeight.contains(c.row) || ts.rowHeights[c.row] == nil ? 0
-                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + max(c.rules - c.ruleBelow, margins - c.ruleBelow, 0))
+                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + (windowsExtra ?? max(c.rules - c.ruleBelow, margins - c.ruleBelow, 0)))
                 // (And no shorter than a cell merged down into it whose
                 // text went over with it, as a whole row is not — see
                 // `pageHeight`: zh-e6d54ae4's "（三）注重服務人員…" is merged
@@ -4420,6 +4511,30 @@ public final class RichLayout {
             deferredUnder = []
         }
         while i < count {
+            var sectionBreakHandled = false
+            // An odd/even section may begin with a table, so enforce its
+            // side before either the table-row or paragraph path. Word's
+            // zh-291fcea7 leaves page 8 completely blank before its form.
+            // A stated numbering restart instead rounds that first number
+            // up to the requested side; it does not itself add a page.
+            if theme.wordRules, resumeCursor == nil, i > 0, i < _sectionOf.count,
+               _sectionOf[i] != _sectionOf[i - 1],
+               let parity = _setup(ofParagraph: i).sectionStartParity {
+                if y > 0.01 || !_pages[page].isEmpty || markOnPage { newPage() }
+                while page % _columns != 0 { newPage() }
+                if document.paragraphs[i].style.pageBreakTwice { newPage() }
+                let physical = page / _columns
+                if physical > 0, _sectionNumberStart(_sectionOf[i], document) == nil,
+                   (_pageNumberOf(physical - 1, document) + 1) % 2 != parity.rawValue {
+                    _blankPages.insert(physical)
+                    _numberedBlankPages.insert(physical)
+                    repeat { newPage() } while page % _columns != 0
+                }
+                // A page-anchored table can move y down before the row's
+                // break check. That offset is not content before this
+                // section: its already-handled break must not fire again.
+                sectionBreakHandled = true
+            }
             // (Under the table they were moved below, once it has ended.)
             if !deferredUnder.isEmpty, _cells[i]?.table != deferredTable { placeDeferred() }
             // (After a table placed further down the page, the text goes on
@@ -4685,7 +4800,7 @@ public final class RichLayout {
                 // the page that break opens. zh-2b21a9d4's form, 48.8pt down
                 // its page after a page-break paragraph, took page 2's last
                 // four lines under it onto page 3 and left page 2 blank.)
-                let rowBreaksPage = c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
+                let rowBreaksPage = !sectionBreakHandled && c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
                     && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
                     && (y > 0.01 || !_pages[page].isEmpty)
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
@@ -4775,7 +4890,7 @@ public final class RichLayout {
                 // w:pageBreakBefore in the cell. A break character inside
                 // a cell Word ignores. (Lab `sectbl` from bug65649's
                 // package: the test record's table on its own page.)
-                if c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
+                if !sectionBreakHandled, c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
                    y > 0.01 || !_pages[page].isEmpty {
                     newPage()
@@ -5482,7 +5597,7 @@ public final class RichLayout {
                     }
                 }
             }
-            if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
+            if _pageBreak[i] && !sectionBreakHandled && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 // (A page the line before hung past the foot of has no
                 // room for the break's own line: that line takes a page
                 // of its own, and the break ends that one too — a blank
@@ -5780,7 +5895,22 @@ public final class RichLayout {
                 // line 17, which would reach into the issuing table, goes
                 // under it — and so to page 3 — in Word's print.)
                 if !tableBands.isEmpty {
-                    let line = Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]
+                    // The lower half of grid leading is outside the text's
+                    // collision extent. In 291f's page-anchored table controls,
+                    // the 36pt-grid anchor still stands above an 87.95pt table:
+                    // its glyphs end before the table although the grid does not.
+                    // Explicit line heights retain their stated extent.
+                    // Use every face on this line, as at a page foot. Taking
+                    // only the first run's half lets a later, larger face
+                    // overlap the table; mixed 12/24pt controls rule that out.
+                    // Keep multiline paragraphs on their existing path until
+                    // later lines can be flowed around these page-wide bands.
+                    let style = document.paragraphs[i].style
+                    let lineBottoms = Self._lineBottoms(geometry(i).painter)
+                    let gridHalf = lineBottoms.count == 1 && style.lineHeightPoints == nil
+                        && style.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil
+                        && i < _overhang.count ? _overhang[i] : 0
+                    let line = (lineBottoms.first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
                     while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
                         y = band.bottom; guardSteps += 1
                     }
@@ -6273,7 +6403,8 @@ public final class RichLayout {
     /// <height> |<text>|`, after a first line with the page count. Two
     /// layouts that agree — native and browser, before and after a save —
     /// produce identical text, and where they differ, `diff` says which
-    /// line broke elsewhere. Heights are logical pixels to a tenth.
+    /// line broke elsewhere. Heights are line advances (the room pagination
+    /// consumes), in logical pixels to a tenth, not a fallback font's ink metrics.
     public func lineDump(_ document: RichDocument) -> String {
         ensureLaidOut(document)
         var out = "pages \(pageCount)\n"
@@ -6306,8 +6437,14 @@ public final class RichLayout {
                 let a = utf16.index(utf16.startIndex, offsetBy: start)
                 let b = utf16.index(utf16.startIndex, offsetBy: end)
                 let text = (String(utf16[a ..< b]) ?? "").trimmingWhitespace()
-                out += "p\(page(atFlow: y)) ¶\(i) \(_tenth(line.height)) |\(text)|\n"
-                y = first + (k < bottoms.count ? bottoms[k] : 0)
+                // A forced strut keeps the line's advance even when a
+                // fallback font has a taller ascent/descent. Those raw
+                // metrics differ across CoreText and FreeType (Carlito's
+                // missing U+2010 in word-boringcrypto), but set no extra
+                // room. Report the same advance used to page the line.
+                let bottom = k < bottoms.count ? bottoms[k] : y - first + line.height
+                out += "p\(page(atFlow: y)) ¶\(i) \(_tenth(first + bottom - y)) |\(text)|\n"
+                y = first + bottom
                 k += 1
                 start = end
                 if start >= para.length { break }
@@ -6823,6 +6960,7 @@ public final class RichLayout {
             // between every two rows, 31pt apart for rows 30 high.)
             var rules = 0.0
             var ruleBelow = 0.0
+            var ownTopRule = 0.0
             var ruleNext = 0.0
             // (A table with no style of its own — one made in the editor
             // — is ruled like one whose file says nothing more than
@@ -6936,10 +7074,29 @@ public final class RichLayout {
                         // ours, a whole line in, set one.)
                         let modern = (document.compatibilityMode ?? 12) >= 15
                         let inside = c.column > 0, insideRight = inside && c.column + c.span < widths.count
+                        // (In Word for Windows and for Mac the lines take nothing from the
+                        // text's margin: it keeps the margin, or half the line
+                        // where that is more, from each line's middle. Lab ci
+                        // (zh-8628cfbe's table, mode 15, 28-twip margins): the
+                        // text of every column starts 1.32-1.44 past the line
+                        // on its left and ends 1.44 short of the one on its
+                        // right, under 0.5 and 1.5pt lines, the table's or the
+                        // cells' own alike, and 1.50 under 3pt ones; ours stood
+                        // half the left line further in and half the right one
+                        // nearer, 0.37pt wider in p13's cell, which took a "，"
+                        // Word sends down. Mac Word's lab cimac (macOS-doc, three
+                        // 120pt cells, 5.4 margins, lines 0.5 to 3pt) agrees. The table's left line stands inside
+                        // it, `_edgeShift`, its first column's text where it was.)
+                        let shift = _edgeShift(c.table, document)
+                        if modern, shift > 0 || inside {
+                            pad = EdgeInsets(left: max(pad.left, l / 2) + (inside ? 0 : max(0, l / 2 - shift)), top: pad.top,
+                                             right: max(pad.right, r / 2), bottom: pad.bottom)
+                        } else {
                         pad = modern
                             ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
                                          right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
                             : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
+                        }
                     }
                 }
                 var below = 0.0
@@ -7007,6 +7164,7 @@ public final class RichLayout {
                 if c.row == 0 { top += frame("top") }
                 if top > 0 { pad = EdgeInsets(left: pad.left, top: pad.top + top, right: pad.right, bottom: pad.bottom) }
                 rules = top
+                ownTopRule = rule(c, "top")
                 // (A table that states its cell spacing — even none, as
                 // every HTML-converted table does — rules each cell on
                 // its own, the way the web's separated borders do: a
@@ -7061,6 +7219,7 @@ public final class RichLayout {
                                  verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
             _cells[i]!.ruleNext = ruleNext
             _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
+            _cells[i]!.ownTopRule = ownTopRule
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
             // (Across its hanging indent, as in the body — see above: a
@@ -7097,6 +7256,27 @@ public final class RichLayout {
         // after it, or the next tab stop (the text's own left, when the
         // number fits in the hanging indent).
         var lead = _px(firstLineIndent(p, at: i, document))
+        _boxFirstLineShift[i] = 0
+        if theme.wordRules, _fixedTextFrame != nil, p.cell == nil, style.list == nil,
+           !style.rightToLeft, style.alignment == .left || style.alignment == .justify, lead > 0,
+           !p.text.utf16.contains(0x09), _named(p, document)?.char.horizontalScale == nil,
+           !p.runs.contains(where: { $0.style.horizontalScale != nil || $0.style.ruby != nil }),
+           let ch = p.text.first, !ch.isWhitespace, ch != "\u{FFFC}", let run = p.runs.first {
+            // Measure with the same resolved faces and Word advances as
+            // the paragraph. A placeholder alone must not occupy line one:
+            // Word prints its first glyph there even when it overflows.
+            let first = RichParagraph(text: String(ch), charStyle: run.style, style: p.style)
+            let span = _span(for: first, at: nil, document, textWidth: 100_000).0
+            let probe = TextPainter(text: span, textDirection: .ltr)
+            probe.layout(maxWidth: 100_000)
+            let advance = probe.width
+            probe.dispose()
+            if lead + advance > textWidth + 0.01 {
+                let fitted = max(0, textWidth - advance - _px(0.01))
+                _boxFirstLineShift[i] = lead - fitted
+                lead = fitted
+            }
+        }
         // (A first line indented past the margin holds the first character
         // all the same, the rest from the second line. Lab `ind` (Word 16,
         // zh-9e020c95's package): "隆阳区…" at 5472 twips and a 6400-twip
@@ -7115,11 +7295,24 @@ public final class RichLayout {
             // `ovi`: in a 40pt column at 5.4pt margins 31.6pt draws, 60 does
             // not, and "5 abc def" loses only the "5"; zh-08e95de4's 31.2pt in
             // a 33.75pt cell, 22.95 of text, draws its "基". zh-9bcea239's scores
-            // (31.6pt in 19.45) are in no line of Word's print. Not yet in a
-            // text box: zh-b24b396a's p13 "A" stands where p12's does not.
+            // (31.6pt in 19.45) are in no line of Word's print.
             // Word for Windows only: Word for Mac's print of zh-9bcea239
             // keeps lines that this leaves out, 95.9 -> 94.7 with it.)
             if RichTextTheme.wordWindowsPages, p.cell != nil, let c = _cells[i], lead >= textWidth + ownLeft + right + c.pad.left + c.pad.right - 0.01 {
+                p = Self._hidingFirstWord(p)
+            }
+            // (In a text box the same, from the box's width less its left
+            // inset: lab `tbi` (`windows`, zh-b24b396a's package, each a fresh
+            // Word for Windows print) — a 23.5pt box at insets 7.2 draws a
+            // first line's "A" at its indent, past the box, to 15pt and none
+            // from 18 (edge 16.3); at insets 0 to 21, none at 30 (edge 23.5);
+            // "A abc def" in a 60pt box loses only its "A" at 60 (edge 52.8),
+            // grouped or not. zh-b24b396a's Text Box 49, 21pt into 16.3, is in
+            // no line of Word's print.)
+            // (A group's boxes set in one text carry their right insets.)
+            else if RichTextTheme.wordWindowsPages, p.cell == nil,
+                    let frame = _fixedTextFrame.map({ $0.right - ownLeft }) ?? style.boxInsetRight.map({ textWidth + _px($0) }),
+                    lead >= frame - 0.01 {
                 p = Self._hidingFirstWord(p)
             }
             // (The first character's em: zh-70094a34's footer opens with
@@ -7138,7 +7331,7 @@ public final class RichLayout {
             lead = _px(style.firstLineIndent) - _px(theme.listIndent) + marker.width
             marker.dispose()
         }
-        if let wl = wordList, !p.text.isEmpty, let label = listLabel(i, document) {
+        if let wl = wordList, let label = listLabel(i, document) {
             let marker = _marker(i, p, document, label: label, strut: nil)
             // (A number set right — `w:lvlJc` right — ends where the first
             // line starts, as it is drawn; centred, half of it past. Its
@@ -7506,6 +7699,42 @@ public final class RichLayout {
         }
         let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
+        // A line exactly as wide as its room fits or not as Word's sum of
+        // the room comes out: each measure in twips made points on its own
+        // (÷ 20, in doubles) and added — the column, less the left indent,
+        // plus the hanging one, less the right. Where that lands a hair
+        // under the room's true width (5.4 is not a double), the line that
+        // needs all of it does not fit. Lab f39 (Word for Windows,
+        // zh-f39e54b6's package): 第十四條 and 第十五條 need 441.0pt
+        // exactly, their two commas squeezed to half; at left 1026,
+        // hanging 1134, right -108 the sum is 440.99999999999994 and "日"
+        // goes down, at 1023/1131 it is 441 and "查" stays — and 62 prints
+        // over left, hanging and right a twip apart all part on that sum's
+        // side of 441, which no rounding of the measures to a unit does.
+        // Word for Mac's print refuses 第十四條's the same way. The painter's
+        // slack takes the verdict, and so does `_fitEastAsianLines`, whose
+        // `hair` and `edge` would otherwise take such a line.
+        var tieSlack = 0.001
+        var tieShort = (first: false, rest: false)
+        if theme.wordRules, wordList == nil, style.list == nil, !style.rightToLeft {
+            let tw = { (px: Double) -> Int in Int((px / self._px(1) * 20).rounded()) }
+            let w = tw(textWidth + ownLeft + right), l = tw(ownLeft), r = tw(right), h = -tw(lead)
+            let point = { (t: Int) -> Double in Double(t) / 20 }
+            let rest = point(w) + -point(l) + -point(r)
+            tieShort.rest = rest < point(w - l - r)
+            tieShort.first = tieShort.rest
+            if tieShort.rest { tieSlack = -0.0005 }
+            if lead != 0 {
+                let first = point(w) + -point(l) + point(h) + -point(r)
+                tieShort.first = first < point(w - l + h - r)
+                let firstSlack = tieShort.first ? -0.0005 : 0.001
+                // (The first line's room is the painter's width less its
+                // indent box: the box takes what the other lines' slack
+                // gives the first line beyond its own.)
+                lead += _px(tieSlack - firstSlack)
+                _leadWidth[i] = lead
+            }
+        }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
@@ -7554,12 +7783,27 @@ public final class RichLayout {
         // lower down, stood 21.5pt where Word's is 20.4.)
         let spacedOver = theme.wordRules && style.lineHeightPoints == nil
             && (style.lineSpacing > 1.2 || document.usesEastAsianLayout)
+        // (A larger number's height over the first line, where the
+        // paragraph keeps its strut: see `laidOut`.)
+        var numberLift = 0.0
         func laidOut(_ span: TextSpan) -> TextPainter {
+            let rises = Self._risesForNumber(inline)
+            numberLift = 0
+            // (A number larger than its text lifts the first line alone;
+            // every line keeps the paragraph's strut, and the first is set
+            // as much lower as the number's box takes it. zh-7773163d's
+            // "●案例" headings, 18pt text under a 20pt bullet at 1.3 lines,
+            // stand 27.3pt apart after the first in Word's print, as
+            // without the bullet; with the strut dropped for the box, every
+            // line was the fallback face's own, 29.1. The engine's forced
+            // strut does not see the box, so its lift is measured from a
+            // layout without the strut.)
+            let strut = picturesInLine ? nil : _strut(span, near: spacedOver)
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
                 textDirection: style.rightToLeft ? .rtl : .ltr,
-                strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span, near: spacedOver)
+                strutStyle: strut
             )
             // (Word's lines keep the fraction of their height: a 12pt
             // PMingLiU line is 15.61pt, 1332/1024 em, and zh-de3410bd's
@@ -7574,7 +7818,9 @@ public final class RichLayout {
             // more: zh-ae655121's "(F)＝(D)－(E)", YaHei's widths at
             // 14pt, is 81.8535pt in a cell of 81.85, and Word puts "(E)"
             // on a line of its own; at five thousandths it stayed.)
-            let slack = theme.wordRules ? _px(0.001) : 0
+            // (Less, where Word's sum of the room falls short of it: see
+            // `tieSlack`.)
+            let slack = theme.wordRules ? _px(tieSlack) : 0
             // (A paragraph of pictures, spaces and breaks with a picture
             // wider than the line is laid out as wide as that picture: the
             // engine sets such a picture alone on its line and loses the
@@ -7607,6 +7853,21 @@ public final class RichLayout {
                painter.computeLineMetrics().count > 1 {
                 let whole = painter.maxIntrinsicWidth.rounded(.up) + 1
                 if whole > lineWidth { painter.layout(minWidth: whole, maxWidth: whole) }
+            }
+            if rises, strut != nil, let first = painter.computeLineMetrics().first {
+                let free = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                free.fractionalLineHeights = painter.fractionalLineHeights
+                free.setPlaceholderDimensions(inline.map { $0.dimensions })
+                free.layout(minWidth: painter.width, maxWidth: painter.width)
+                // (A paragraph of one line is that line, as without the
+                // strut: zh-76700e5f's "5.3 制棒" headings, 1.3pt deeper
+                // held to it and lifted, set what followed that much low.)
+                if painter.computeLineMetrics().count == 1 {
+                    painter.dispose()
+                    return free
+                }
+                if let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
+                free.dispose()
             }
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
                 let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
@@ -7684,7 +7945,7 @@ public final class RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast)
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, tieShort: tieShort)
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
@@ -7807,8 +8068,15 @@ public final class RichLayout {
                 // text is Latin: form_footnotes' "D - " box in Symbol
                 // after 11pt spaces sets "Concessão" a point lower than
                 // the 10pt lines beside it in Word's print.)
-                if !lead.1, style.lineHeightPoints == nil {
+                // Under "at least", choose the text's controlling baseline
+                // before adding minimum-height leading. A small leading run
+                // otherwise wins when the minimum exceeds both runs' heights.
+                if !lead.1, style.lineHeightPoints == nil || style.lineHeightIsMinimum {
                     let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+                    var naturalStyle = style
+                    naturalStyle.lineHeightPoints = nil
+                    var naturalBaseline = -Double.infinity
+                    var minimumTarget: Double?
                     var start = 0
                     for run in p.runs where run.length > 0 {
                         defer { start += run.length }
@@ -7819,9 +8087,18 @@ public final class RichLayout {
                         let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
                         if p.text[from ..< to].allSatisfy(Self._setsNoLine) { continue }
                         if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
-                            target = max(target, b)
+                            if style.lineHeightPoints != nil,
+                               let own = theme.baseline(for: run.style, in: naturalStyle, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
+                                if own > naturalBaseline {
+                                    naturalBaseline = own
+                                    minimumTarget = b
+                                }
+                            } else {
+                                target = max(target, b)
+                            }
                         }
                     }
+                    if let minimumTarget { target = minimumTarget }
                 }
                 // (… and where its first line holds a character an
                 // embedded subset lacks, the face Word sets that in: its
@@ -7942,6 +8219,15 @@ public final class RichLayout {
                 }
                 _inkShift[i] = _px(target) - line.baseline
             }
+        }
+        // (The number's lift sets the first baseline no higher than the
+        // layout without the strut does, over whatever baseline the text
+        // was given above — not on top of it: zh-76700e5f's "5.3 制棒"
+        // headings stood a point under Word's with both.)
+        if numberLift > 0.001 {
+            let extra = max(0, numberLift - _inkShift[i])
+            _inkShift[i] += extra
+            segoeLift += extra / _px(1)
         }
         if i < _overhang.count {
             _overhang[i] = 0
@@ -8074,11 +8360,23 @@ public final class RichLayout {
         // under the box in the Mac's print, where three steps of its
         // line sent it 19pt lower; zh-d62da4dd's exact anchor steps in
         // both prints.)
-        let pushUnder: (Double) -> Double = { foot in
-            guard let exact = style.lineHeightPoints, exact > 0, !style.lineHeightIsMinimum,
-                  let first = firstLine(), first.line + before > 1 else { return foot }
-            let step = first.line + before
-            let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
+        // (And, in Word for Windows, a line on the line grid: by the grid
+        // line less the grid's half of the room under its text, until its
+        // text's top is clear of the foot — lab tph (windows-1,
+        // zh-37b6536f's p2): the empty anchor of a row of photos, 16pt
+        // 仿宋_GB2312 on a 15.6 grid, steps 26.0 = (31.2 + 20.8) / 2, its
+        // place holding while the foot moves 239.3 to 257.3; ours set it
+        // at the foot, and the row under it stood 5.5pt high.)
+        let pushUnder: (Double) -> Double = { [self] foot in
+            guard let first = firstLine(), first.line + before > 1 else { return foot }
+            if let exact = style.lineHeightPoints, exact > 0, !style.lineHeightIsMinimum {
+                let step = first.line + before
+                let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
+                return max(0, first.top + k * step - before)
+            }
+            guard RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, case let half = _firstLineGridHalf(i, document), half > 0.01,
+                  case let step = first.line - half + before, step > 1 else { return foot }
+            let k = max(0, ((foot - half - first.top) / step - 0.001).rounded(.up))
             return max(0, first.top + k * step - before)
         }
         if theme.wordRules, p.cell == nil {
@@ -8100,7 +8398,7 @@ public final class RichLayout {
                 var widest = 0.0, edge = firstLine
                 for s in sorted { widest = max(widest, s.0 - edge); edge = max(edge, s.1) }
                 widest = max(widest, column - max(0, lead) - right - edge)
-                if widest < em0 { push = max(push, sorted.map(\.2).max() ?? 0) }
+                if widest < em0 { push = max(push, pushUnder(sorted.map(\.2).max() ?? 0)) }
             }
             for image in p.inlineImages.values {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
@@ -8296,7 +8594,7 @@ public final class RichLayout {
             else if theme.wordRules, image.float == nil, image.textBox?.growsToFit != true, let exact = style.lineHeightPoints,
                     !style.lineHeightIsMinimum, exact > 0, h + room.top + room.bottom > _px(exact) + 0.5 {
                 bodyHeight = _px(exact)
-                _imageDrop[i] = _px(exact * 13 / 16) - h - room.bottom
+                _imageDrop[i] = _px(exact * 4 / 5) - h - room.bottom
             }
             // (A picture shorter than its paragraph's line of text stands
             // at the foot of that text's own line, which the line takes
@@ -8395,7 +8693,42 @@ public final class RichLayout {
             let boxes = combined && p.inlineImages.isEmpty ? (painter.inlinePlaceholderBoxes ?? []) : []
             let boxTop = boxes.map { $0.top }.min() ?? 0, boxFoot = boxes.map { $0.bottom }.max() ?? 0
             let boxPitches = ((boxFoot - boxTop) / px - 0.002).rounded(.up) * px
-            if p.image == nil, !combined, tallest > px + 0.01 {
+            // A picture shorter than the text's own baseline must not
+            // shrink that text to the picture's grid pitches. Keep the
+            // ordinary text line and baseline when it contains the picture.
+            var textFloor: (height: Double, inkShift: Double)?
+            let named = _named(p, document)
+            if p.image == nil, !combined, !Self._risesForNumber(inline),
+               ["auto", "baseline"].contains(style.eastAsian["w:textAlignment"] ?? "auto"),
+               p.inlineImages.values.allSatisfy({ $0.textBox == nil && $0.float == nil && $0.baseline == nil }),
+               p.runs.allSatisfy({ $0.style.script == .normal && ($0.style.raised ?? named?.char.raised ?? 0) == 0 }),
+               !p.text.contains(where: { $0 != "\u{FFFC}" && Self.isEastAsian($0, hinted: true) }),
+               let textStrut = _strut(span, tallest: true, near: spacedOver),
+               let size = textStrut.fontSize, let height = textStrut.height,
+               let line = painter.computeLineMetrics().first {
+                var naturalStyle = style
+                naturalStyle.lineHeightPoints = nil
+                var best = -Double.infinity
+                var baseline: Double?
+                var at = p.text.utf16.startIndex
+                for run in p.runs {
+                    let end = p.text.utf16.index(at, offsetBy: run.length)
+                    defer { at = end }
+                    guard run.style.inlineImage == nil,
+                          (run.style.fontHint ?? named?.char.fontHint) != "eastAsia",
+                          !p.text[at ..< end].allSatisfy(Self._setsNoLine),
+                          let own = theme.baseline(for: run.style, in: naturalStyle, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline),
+                          let placed = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) else { continue }
+                    if own > best { best = own; baseline = placed }
+                }
+                if let baseline, tallest <= _px(baseline) + 0.01 {
+                    textFloor = (size * height, _px(baseline) - line.baseline)
+                }
+            }
+            if let textFloor {
+                bodyHeight = max(textFloor.height, (tallest / px - 0.002).rounded(.up) * px)
+                _inkShift[i] = textFloor.inkShift
+            } else if p.image == nil, !combined, tallest > px + 0.01 {
                 let own = (tallest / px - 0.002).rounded(.up) * px
                 _inkShift[i] += own - bodyHeight
                 bodyHeight = own
@@ -8619,7 +8952,20 @@ public final class RichLayout {
             // paragraph whose mark is 黑体 12pt superscript is 18.00pt tall
             // in Word, plain 18.24; ours, shrunk to 0.65, 11.75.)
             if theme.wordRules { mark.script = .normal }
-            return (TextSpan(text: " ", style: theme.textStyle(for: mark, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), [], [])
+            var markNamed = named
+            // A paragraph mark can turn off its style's hiding. Resolving
+            // body runs also needs their hidden-mark joining semantics.
+            if theme.wordRules, mark.off.contains(.hidden) { markNamed?.char.hidden = false }
+            let look = theme.textStyle(for: mark, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            if theme.wordRules, p.style.list != nil, lead > 0 {
+                // An empty list still has a number and its suffix. Reserve
+                // their width so centered/right numbers move with the line.
+                let box = RichImageSpan(alignment: .baseline, baseline: .alphabetic, style: look)
+                let dimensions = PlaceholderDimensions(size: Size(lead, 0.01), alignment: .baseline,
+                                                       baseline: .alphabetic, baselineOffset: 0.01)
+                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
+            }
+            return (TextSpan(text: " ", style: look), [], [])
         }
         // Ruby wider than its base spreads the base across it, as Word's
         // distributeSpace does: a share between characters and half a
@@ -8679,7 +9025,9 @@ public final class RichLayout {
         // the engine kept the number whole on one line. Turned boxes only:
         // forcing the break across took zh-9e020c95 99.6 -> 19.7, where the
         // line part there anyway.)
-        if theme.wordRules, _turnedBox, let index, _px(firstLineIndent(p, at: index, document)) > textWidth + 0.01,
+        if theme.wordRules, let index,
+           (_turnedBox && _px(firstLineIndent(p, at: index, document)) > textWidth + 0.01)
+            || (index < _boxFirstLineShift.count && _boxFirstLineShift[index] > 0),
            let ch = p.text.first(where: { $0 != "\u{FFFC}" }), let at = p.text.firstIndex(of: ch) {
             let next = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at) + ch.utf16.count
             if next < p.text.utf16.count { wideStarts.insert(next) }
@@ -8735,6 +9083,7 @@ public final class RichLayout {
         // run of them but one between two Latin characters — see
         // `RichDocument.balancesSpaceWidth`.
         var wideSpaces: Set<Int> = []
+        var ordinaryBalancedSpaces: Set<Int> = []
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
@@ -8781,7 +9130,11 @@ public final class RichLayout {
                 guard !run.isEmpty, document.balancesSpaceWidth else { return }
                 func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) } ?? false }
                 if nbsp.isEmpty {
-                    if !(latin(left) && latin(right)) { wideSpaces.formUnion(run.filter { !complexSpaces.contains($0) }) }
+                    if !(latin(left) && latin(right)) {
+                        let balanced = run.filter { !complexSpaces.contains($0) }
+                        wideSpaces.formUnion(balanced)
+                        ordinaryBalancedSpaces.formUnion(balanced)
+                    }
                 } else if let first = run.first(where: { !nbsp.contains($0) }) {
                     wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
                 }
@@ -8872,7 +9225,14 @@ public final class RichLayout {
             }
             return raise != nil
         }()
-        func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
+        func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+            // (A symbol face's characters drawn as the glyphs they stand
+            // for: zh-d0a207ac's Wingdings 2 checkboxes, "£" in the file,
+            // drew as "£" in the text's face where Word's print has a box.)
+            if !symbolsShown, let glyphs = theme.symbolGlyphs, case let mapped = glyphs(run.fontFamily ?? named?.char.fontFamily, String(text)),
+               mapped != String(text), mapped.utf16.count == text.utf16.count {
+                return styled(Substring(mapped), run, at: base, next: next, symbolsShown: true)
+            }
             let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
             // (The face Word sets the Latin characters past ASCII in, where
@@ -8899,6 +9259,8 @@ public final class RichLayout {
             let latinDash = theme.wordRules && (run.fontHint ?? named?.char.fontHint) != "eastAsia" && (latinFace?.isEastAsian ?? false)
                 && hAnsiFace.map { !$0.isEastAsian } == true
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+            // (The run's character scale, Word's `w:w`.)
+            let wScale = run.horizontalScale ?? named?.char.horizontalScale ?? 1
             let closes = _closesUpMarks(run, named, document)
             // (So may text whose East Asian language has no such rules —
             // its run's own, else the document's: `eastAsianLineRules`.)
@@ -9060,7 +9422,19 @@ public final class RichLayout {
             // (With none of the run's spacing: a run spaced 0.6pt gave
             // each break it holds 0.6pt the fitter does not count, and
             // zh-b00fef0d's "…改革决策部署" lost "署" to the next line.)
-            func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0) }
+            // (Nor any height: it sets no line, as a space sets none beside
+            // other text. zh-7773163d's p38 paragraph, a 17pt "一、" head
+            // over 16pt text (no strut, two sizes), took the Latin face's
+            // deeper descent from its joiners, and its lines stood 24.6pt
+            // apart where Word's print has 23.0. Except in a math face's
+            // run, whose letters are set at 0.6 of its line to keep the
+            // platform math face's split out of it: there the joiners are
+            // what gives the line Cambria Math's 1.17 em, bug59058's
+            // formula lines 15.24pt apart as in Word's print, 15.0 without.)
+            func zeroWidth(_ kind: Int) -> TextStyle {
+                let s = style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0)
+                return theme.wordRules && s.fontSize ?? 0 > 0.5 && !(kind >= 0 && latinFace?.setsMath == true) ? s.copyWith(height: 0.01) : s
+            }
             // (Arabic set to the original face's joining widths, word by
             // word — it parts only at spaces: each word its own span, drawn
             // condensed or widened to the width its joining forms have in
@@ -9462,6 +9836,20 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if kinsokuOff && !breaksAtQuotes, let b = before,
+                          Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
+                            || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))
+                                && Self._eastAsianLineRules(run, document, named: named)) {
+                    // The paragraph's explicit kinsoku=0 works without
+                    // useFELayout too: fresh Word's comma/parenthesis controls
+                    // have identical breaks with that switch on and off.
+                    // Keep the other FE-layout break opportunities separate.
+                    // This synthetic break has no line metrics: its Latin
+                    // stand-in otherwise enlarges a mixed-size FangSong line
+                    // (zh-202582e2 p5) despite having no glyph to draw.
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (And end one with an opening mark, where it is
@@ -9552,6 +9940,11 @@ public final class RichLayout {
                 // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
                 // its "失".)
                 if kind == -9 { extra += cambriaWidth * em - _glyphWidth(style(kind), ch) }
+                // (A symbol face's glyph drawn by a stand-in takes the face's
+                // own advance: Wingdings 2's box is 0.89 em in Word's print
+                // of zh-d0a207ac, 10.68 at 12pt, where the stand-in's is an
+                // em, and its "☐鲁班杯" line lost its "杯".)
+                if symbolsShown, let w = theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) { extra += w * em - _glyphWidth(style(kind), ch) }
                 if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
@@ -9585,6 +9978,7 @@ public final class RichLayout {
                 // them: PMingLiU sets each an em, and zh-190d730c's
                 // line of it at 6.2pt took a character Word wraps.)
                 if let u = ch.unicodeScalars.first?.value,
+                   !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
                    (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022),
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {
@@ -9610,8 +10004,28 @@ public final class RichLayout {
                     // (The stand-in's spread is in the style's spacing,
                     // which the engine applies and the line above adds
                     // once more: off twice.)
-                    extra += em / 2 - _spaceWidth(s) + (s.letterSpacing ?? 0)
-                        - 2 * spread * (latinFace?.boldSpread ?? 0) + spread * (eaFace?.boldSpread ?? 0) / 2
+                    // (An embedded subset is different on Mac with an explicit
+                    // Latin face: tc22's embedded FangSong_GB2312 over Times or
+                    // Arial sets plain balanced spaces at 3/8 em, left-aligned
+                    // or justified. Removing the embedding restores 1/2 em, as
+                    // do ordinary named FangSong, SimSun, KaiTi and YaHei.
+                    // Mixed NBSP runs keep their existing half-em rule.)
+                    // (Whether or not the subset holds a space: lab esp, from
+                    // zh-d9b085b1, whose FangSong_GB2312 has one — 3/8 em over
+                    // Times, Arial or Courier New alike, in mode 12 and 15;
+                    // 1/2 em with the embedding stripped, under 宋体, or under
+                    // an embedded 黑体, which Word for Mac draws in its own
+                    // SimHei. Word for Windows: 1/2 em.)
+                    let missingSpace = !RichTextTheme.wordWindowsPages && ordinaryBalancedSpaces.contains(offset)
+                        && latinFace?.isEastAsian == false && eaFace?.drawnFromSubset == true
+                    // (The subset's spaces keep 3/8 em in bold too,
+                    // while its ideographs widen: the 12/16/20pt lab.)
+                    let fraction = missingSpace ? 0.375 : 0.5
+                    // (Half the run's em as scaled, `w:w`: zh-4e5fe46f's space
+                    // at w 95 is 4.32 in Word for Windows' print — 10.5 x 0.95
+                    // / 2 less the doubled spacing — where ours set 4.55.)
+                    extra += em * wScale * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                        - 2 * spread * (latinFace?.boldSpread ?? 0) + (missingSpace ? 0 : spread * (eaFace?.boldSpread ?? 0) / 2)
                     // (A trailing space set in the ideographs' face (kind -2)
                     // has the stand-in's width in its spacing: that is not
                     // the run's own, and not counted twice — zh-9dd9ce6d's
@@ -9880,7 +10294,8 @@ public final class RichLayout {
                 } else if ea, theme.wordRules, let u = ch.unicodeScalars.first?.value,
                           [0x25B2, 0x25B3, 0x25BC, 0x25BD, 0x2605, 0x2606].contains(u),
                           let symbols = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                                            ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.symbolFamily {
+                                                            ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)
+                              .flatMap({ face in face.symbolsInBold || !(run.bold || (named?.char.bold ?? false) && !run.off.contains(.bold)) ? face.symbolFamily : nil }) {
                     // (A triangle or star in a face Word lacks is SimSun's,
                     // and so is its line — circles and squares are YaHei's
                     // own in Word's prints, zh-7dc3afad's ○ and □: lab `tr2`, zh-6cd1befe's "▲" in
@@ -10571,7 +10986,20 @@ public final class RichLayout {
             // firstLineChars, starts 63.4pt in in Word's print, two of
             // 22 × 1.35 + 2 — lab `b24`, and 48 at 100% — where ours
             // took 48 and set "标" on the first line.)
-            let wide: Double = first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
+            var wide: Double = first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
+            // (And, in Word for Mac, as the first character is drawn: bold
+            // in a face it emboldens is that much wider. Lab tflc, fresh Mac
+            // Word, zh-8dc59b5b's "第三条" bold 16pt FangSong under 200: its
+            // first line starts 32.65 in, 2 × 16.32; not bold, 32.00; at 100
+            // and 300, 16.30 and 48.95; at 15.5 and 12pt, 2 × 15.80 and
+            // 2 × 12.23. The mark's size and the grid do nothing.)
+            let ownBold: Bool = first?.style.bold ?? false
+            let styleBold: Bool = (named?.char.bold ?? false) && !(first?.style.off.contains(.bold) ?? false)
+            if !RichTextTheme.wordWindowsPages, ownBold || styleBold {
+                let eaName: String? = first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                let faceName: String? = eaName ?? first?.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
+                if let face = theme.faceResolver?(faceName, true), face.boldSpread > 0 { wide *= 1 + face.boldSpread }
+            }
             // (In whole twips, as Word keeps an indent: 2 characters of
             // 14.6465pt are 586 twips, 29.3pt — lab `hc` sets the line as
             // it does `w:firstLine="586"`, not as 29.293.)
@@ -10652,6 +11080,8 @@ public final class RichLayout {
         guard theme.wordRules, p.cell == nil, p.image == nil, p.inlineImages.isEmpty else { return false }
         let named = _named(p, document)
         let styleHides = named?.char.hidden ?? false
+        if p.text.isEmpty, p.style.mark?.off.contains(.hidden) == true,
+           !p.style.markHidden, p.style.mark?.hidden != true { return false }
         guard p.style.markHidden || (p.style.mark?.hidden ?? styleHides) else { return false }
         if p.text.isEmpty { return styleHides || p.style.markHidden }
         return p.runs.allSatisfy { $0.style.hidden || styleHides }
@@ -10950,15 +11380,22 @@ public final class RichLayout {
     /// `painter` again with the text in `ranges` (its own offsets)
     /// clear — laid out as it is, drawn as nothing. nil where a line
     /// would come out other than it did. Kept while the painter is.
-    private func _clearedPainter(_ painter: TextPainter, _ ranges: [Range<Int>], key: Int) -> TextPainter? {
+    private func _clearedPainter(_ painter: TextPainter, _ ranges: [Range<Int>], key: Int,
+                                 clearBackgroundAndDecoration: Bool = false) -> TextPainter? {
         let id = ObjectIdentifier(painter)
         if let hit = _clearedPainters[id]?[key], hit.source === painter { return hit.cleared }
         guard !ranges.isEmpty, let root = painter.text else { return nil }
-        if _clearedPainters.count > 256 {
+        // Adding the second mask for this painter must not dispose the
+        // first mask that the caller is about to draw.
+        if _clearedPainters.count > 256, _clearedPainters[id] == nil {
             for entries in _clearedPainters.values { for entry in entries.values { entry.cleared.dispose() } }
             _clearedPainters = [:]
         }
-        let clear = TextStyle(foreground: { let paint = Paint(); paint.color = Color(0x00000000); return paint }(), shadows: [])
+        let transparent = Paint(); transparent.color = Color(0x00000000)
+        let clear = TextStyle(foreground: transparent,
+                              background: clearBackgroundAndDecoration ? transparent : nil,
+                              shadows: [], decoration: clearBackgroundAndDecoration ? TextDecoration.none : nil,
+                              decorationColor: clearBackgroundAndDecoration ? Color(0x00000000) : nil)
         var at = 0
         func copy(_ span: InlineSpan) -> InlineSpan {
             guard let t = span as? TextSpan else {
@@ -11244,7 +11681,8 @@ public final class RichLayout {
     private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
         let markerChar = _markerChar(p, document)
         let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
-        let named = _named(p, document)
+        var named = _named(p, document)
+        if theme.wordRules, p.text.isEmpty, markerChar.off.contains(.hidden) { named?.char.hidden = false }
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
         var markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
@@ -11332,6 +11770,29 @@ public final class RichLayout {
                     ? TextSpan(text: String(ch), style: spaced(markerStyle, _px(g)))
                     : TextSpan(text: String(ch), style: spaced(advanced(ch, latin), document.balancesSpaceWidth ? _px(g) / 2 : _px(g)))
             })
+        }
+        // (At its level's character scale, each character's advance that
+        // much of its own, the spacing after it not: zh-7773163d's
+        // "（%1）" level says `<w:w w:val="94"/>` and 0.9pt spacing at
+        // 18pt, and Word's "（3）" ends at 160.8, under the stop at 161.9
+        // where the text begins; at full width ours ended at 163.7, the
+        // text went on to the next stop, and each item's first line held
+        // two characters fewer.)
+        if theme.wordRules, let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+           let r = xml.rangeOfSubstring("<w:w w:val=\""), let v = Double(xml[r.upperBound...].prefix { $0 != "\"" }), v > 0, abs(v - 100) > 0.5 {
+            let k = v / 100
+            func narrowed(_ span: InlineSpan, _ inherited: TextStyle?) -> InlineSpan {
+                guard let t = span as? TextSpan else { return span }
+                let style = t.style.map { inherited?.merge($0) ?? $0 } ?? inherited
+                if let text = t.text, !text.isEmpty, let st = style {
+                    return TextSpan(children: text.map { ch in
+                        TextSpan(text: String(ch), style: st.copyWith(letterSpacing: (st.letterSpacing ?? 0) - (1 - k) * _glyphWidth(st.copyWith(letterSpacing: 0), ch)))
+                    } + (t.children ?? []).map { narrowed($0, style) })
+                }
+                guard let kids = t.children else { return span }
+                return TextSpan(text: t.text, children: kids.map { narrowed($0, style) }, style: t.style)
+            }
+            span = narrowed(span, nil) as? TextSpan ?? span
         }
         // (A spacing that takes a character back past its own start takes
         // it back to it: zh-7773163d's "（%2）" level is spaced -17.3pt at
@@ -11450,7 +11911,7 @@ public final class RichLayout {
 
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
-                                    runsPast: Set<Int> = []) -> [Int: Double] {
+                                    runsPast: Set<Int> = [], tieShort: (first: Bool, rest: Bool) = (false, false)) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
@@ -11492,11 +11953,24 @@ public final class RichLayout {
         // 2.0, 3.0 with four and not 3.5, 6.0 with eight and not 6.5 —
         // lab `js`, `body50.py`, 2026-10-14; zh-4b8e0abc's Indonesian
         // lines take a word ours left for the next.)
-        let squeezesSpaces = !legacy && p.style.alignment == .justify
+        // (Before it, a page field's result with no ideograph in it gives
+        // them so set as it is, since it cannot break at its own spaces:
+        // zh-c4f2be3b's eaVert page number " - 10 -" (mode 14, right-
+        // aligned, SimSun 14pt, 49pt in a 47.3pt box) is one line in Word
+        // for Windows' print, its two inner spaces 6.1 for 7. Any legacy
+        // paragraph without ideographs giving them costs bug57031 and
+        // zh-d62da4dd lines.)
         let units = Array(p.text.utf16)
+        let squeezesSpaces = !legacy && p.style.alignment == .justify
+            || legacy && fitted && units.contains(0x2060)
+                && !units.contains(where: { $0 >= 0x2E80 })
+        // (Where nothing else is compressed, `w:topLinePunct` still lets a
+        // line's opening mark give: see `leadOpeners` below.)
+        let topLinePunct = fitted && !turned && p.style.eastAsian["w:topLinePunct"] == "1"
+        let topOnly = topLinePunct && !squeezes && units.contains(where: { Self._openingUnits.contains($0) })
         // (Marks to hang or squeeze, or a letter or digit an automatic
         // space may stand beside.)
-        let marked = (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
+        let marked = topOnly || (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
             || squeezes && units.contains(0xB7)   // (a middle dot set an em gives too: `wideDot`)
         guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
@@ -11524,12 +11998,13 @@ public final class RichLayout {
             guard wordRules, o >= 0, o < runOf.count else { return false }
             return !Self._eastAsianLineRules(p.runs[runOf[o]].style, document, named: lineStyle)
         }
-        // (Nor a mark in a face Word compresses nothing in, in Word for
-        // Windows: `RichDocument.uncompressedFaces`. zh-57f1de0d's 》 and ：
+        // (Nor a mark in a face Word compresses nothing in:
+        // `RichDocument.uncompressedFaces`. zh-57f1de0d's 》 and ：
         // stay whole in its embedded 方正仿宋_GBK where ours gave 2.65 each
-        // and took "化"; the gaps beside its digits still give.)
+        // and took "化"; the gaps beside its digits still give. Word for
+        // Mac too: its print breaks the same lines, 78.9 -> 94.4 there.)
         let uncompressed: (Int) -> Bool = { o in
-            guard RichTextTheme.wordWindowsPages, !document.uncompressedFaces.isEmpty, o >= 0, o < runOf.count else { return false }
+            guard !document.uncompressedFaces.isEmpty, o >= 0, o < runOf.count else { return false }
             let style = p.runs[runOf[o]].style
             guard let face = style.eastAsiaFontFamily ?? lineStyle?.char.eastAsiaFontFamily ?? self._normalChar(document)?.eastAsiaFontFamily else { return false }
             return document.uncompressedFaces.contains(face)
@@ -11747,10 +12222,23 @@ public final class RichLayout {
             }
         }
         var x = leadWidth
+        // (Under `w:topLinePunct` the opening mark a line starts with gives
+        // its blank half as any mark does, whatever characterSpacingControl
+        // says, and gives it from its left: zh-1cfb652b's "《城市建筑垃圾管理
+        // 规定》…在运送过程" (doNotCompress, 仿宋_GB2312 16pt, justified)
+        // starts 8.5pt left of the margin in both of Word's prints and takes
+        // "程"; its "（一）包秩序…乱刻画、" first line the same, where the
+        // short "（一） 高空抛物；" keeps its indent. Where the settings
+        // compress, the first line's is given before the fit,
+        // `_topLineSqueeze`.)
+        let firstGiven = _topLineSqueeze(p, document) > 0
+        var leadOpeners: [Int: Int] = [:]   // a line's giving opener, and where its line ends
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
         var lineRaised = false  // a raised number the line opens with (see below)
+        var lineTabbed = false  // a tab stands on the line (see `afterTabSpace`)
+        var onFirstLine = true  // the paragraph's first line, which its first-line indent sets
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineEms = 0.0       // … and their ems, summed
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
@@ -11788,7 +12276,11 @@ public final class RichLayout {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0) || wideDot($0)) && !closesUp($0)
             }
             let em = a < ems.count ? ems[a] : 0
-            let hair = min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
+            // (Less than nothing on a line whose room Word's sum puts a hair
+            // short of its width — a line that needs all of it does not
+            // fit: see `tieShort` in `_layoutParagraph`.)
+            let hair = (onFirstLine ? tieShort.first : tieShort.rest) ? -_px(0.0005)
+                : min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
             // (The half em a line takes at most is Word's to a twentieth
             // of a point: 7.12pt over at 14pt is not taken. The widths
             // are the faces' own now, and the hair would take it.)
@@ -11805,7 +12297,11 @@ public final class RichLayout {
             // 7.3232, is not taken by Word — it ends the line at "格",
             // justified.)
             let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !isSpace(units[$0]) }
-            let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045)) : _px(0.0001)
+            // (And less than nothing, as `hair`, where Word's sum of the
+            // room falls short of it: zh-f39e54b6's 第十四條 sends "日"
+            // down that starts exactly half of "按" inside — `tieShort`.)
+            let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045))
+                : (onFirstLine ? tieShort.first : tieShort.rest) ? -_px(0.0005) : _px(0.0001)
             // (Under `w:kinsoku` 0 a closing mark that closes up with the one
             // after it, which may start the next line, ends this one at its
             // whole width: the pair is parted, and the half it gave is the
@@ -11868,7 +12364,13 @@ public final class RichLayout {
             // 法提起救濟？" breaks after the space in Word for Windows' print,
             // where ours hung the "？" and kept the line.)
             let joinedWord = last > a + 1 && hanJoins.contains(a + 1)
-            if !fits, last > a, !openingAlone, !joinedWord {
+            // (Mac Word can compress a body line to keep an opening mark
+            // under kinsoku off: zh-72da925e p8 ends in -「, and e0ca7252
+            // p22 in 日（. When the previous mark closes up to this one,
+            // the alternative line ending restores its blank half; the
+            // compression-versus-stretch comparison below counts it.)
+            let macBodyOpener = openingAlone && !RichTextTheme.wordWindowsPages && !inCell
+            if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
@@ -12042,13 +12544,14 @@ public final class RichLayout {
                     return (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A)
                 }()
                 // (Nor, in a face Word compresses nothing in, the paragraph's
-                // last mark with a space after it: Word for Windows sends
-                // zh-57f1de0d's "…基本物资。 " down as "资。", and its
-                // "…整洁、卫生。 " and "…信息等）。 " so, where the same marks
-                // with nothing after them hang. Not in other faces: there
-                // Word hangs them — zh-4c5da793 and zh-2b955411 fell to 16
-                // and 36 with every such mark kept in.)
-                let spacedEnd = paragraphEnd && tail + 1 < units.count && units[tail + 1] == 0x20 && uncompressed(tail)
+                // last mark: Word for Windows sends zh-57f1de0d's "…基本物资。 "
+                // down as "资。", and its "…整洁、卫生。 " and "…信息等）。 "
+                // so — and, once the face's own digits are counted, its
+                // "…良好互动；" with nothing after it, in both Words' prints;
+                // the face's marks hang there only inside a paragraph. Not in
+                // other faces: there Word hangs them — zh-4c5da793 and
+                // zh-2b955411 fell to 16 and 36 with every such mark kept in.)
+                let spacedEnd = paragraphEnd && uncompressed(tail)
                 let hung = hangs && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
@@ -12062,7 +12565,16 @@ public final class RichLayout {
                     // margin — and never hangs the 6.57pt "”"; ours hung it and
                     // took the pair 6pt further. Mode 15 takes it further.)
                     && !(legacy && squeezes && document.hangsHalf && (units[tail] == 0x201D || units[tail] == 0x2019) && !wideQuote(tail))
-                    ? (closesUp(tail) || document.hangsHalf || closedUpTo ? min(ems[tail] * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
+                    // (Half the mark as the grid of characters sets it, its
+                    // em and the grid's addition, under the alternative
+                    // kinsoku rules: lab q18 (Word for Windows, zh-015abfaf's
+                    // package, mode 14, a line of ideographs and "）" with its
+                    // right indent stepped by two twips) takes the mark while
+                    // it hangs 7.874 at 16pt with charSpace -1032, 5.874 at
+                    // 12pt, 7.756 at -2000 — never the em's 8 or 6; off the
+                    // grid 8 and 6.)
+                    ? (closesUp(tail) || document.hangsHalf || closedUpTo
+                       ? min((ems[tail] + (document.hangsHalf && tail < runOf.count && !runsOffGrid[runOf[tail]] ? gridAdd : 0)) * 0.5, boxes(tail, tail + 1)) : min(max(ems[tail], boxes(tail, tail + 1) - (gaps[tail] ?? 0)), boxes(tail, tail + 1))) : 0
                 // (From 2013's layout, where marks are compressed, the
                 // paragraph's last mark hangs only once the line's marks,
                 // itself among them, and its automatic spaces cannot give
@@ -12087,6 +12599,14 @@ public final class RichLayout {
                 // keep their hang and squeeze.)
                 let squeezedFirst: Bool = {
                     guard hung > 0, over > hung + 0.0001, squeezes, paragraphEnd, !legacy, !inCell, !document.hangsHalf else { return false }
+                    // (Not a Latin ")" or ",": it gives nothing, so it hangs
+                    // whole and the rest is weighed as any line's.
+                    // zh-e0ca7252's fresh Mac print (mode 15) takes
+                    // "…免載於招標文件)" 14.25pt over, three marks able to give
+                    // 20.6: its ")" hung, "件" needs 9.8, which the share test
+                    // takes; held to the whole 14.25 it refused, and p26 on
+                    // ran a line late.)
+                    guard !(latinComma && units[tail] < 0x2E80) else { return false }
                     let muted: (Int) -> Bool = { o in
                         RichTextTheme.wordWindowsPages && runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
@@ -12108,7 +12628,7 @@ public final class RichLayout {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= over + 0.02
                     fits = true
-                } else if squeezes {
+                } else if squeezes || topOnly {
                     // (Its own marks give too: the same form's "       ），"
                     // after a 344pt first-line indent, 4.25pt over, is
                     // one line in Word's print, the "）" set 4.3pt close.)
@@ -12187,11 +12707,33 @@ public final class RichLayout {
                     // commas unsqueezed and one starting the next line,
                     // where ours took a 28th with a comma at its half and
                     // ran a page long.)
+                    // (Word for Mac's the same, in a print from a fresh
+                    // Word: zh-c5b5087b's reference (a3304812, its Normal
+                    // `w:eastAsia` en-US, mode 14, kinsoku off) sets every
+                    // "，、。；" from p2 on at its whole em, one opening a
+                    // line. Its older Mac prints squeezed them up to a page
+                    // that moved from session to session — p5, p6, p6, p10
+                    // in four prints — and none past it: Mac Word's own
+                    // language detection tagging the text as it goes, not
+                    // a rule of the file. zh-264d7516, zh-efd9229a and
+                    // zh-51af781b go to their Mac prints with it too.)
                     let windowsMuted: (Int) -> Bool = { o in
-                        RichTextTheme.wordWindowsPages && runRulesOff(o)
+                        runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
                     }
-                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) }
+                    // (Nor, in Word for Windows, an opening mark right after a
+                    // space on a line a tab stands on: lab p10 (zh-015abfaf's
+                    // "17.手工嵌线技能竞赛<tab>                 （文登区开发区）",
+                    // mode 14, a grid) leaves "区）" for the next line until
+                    // the room is the line as set less the hang, the "（"
+                    // whole — with 12 to 17 spaces after the tab, the tab
+                    // wider or narrower. Without the tab it gives its blank
+                    // half, and after an ideograph with it.)
+                    let afterTabSpace: (Int) -> Bool = { o in
+                        RichTextTheme.wordWindowsPages && o > 0 && units[o - 1] == 0x20 && Self._openingUnits.contains(units[o])
+                            && (lineTabbed || (a ..< max(a, o)).contains { units[$0] == 0x09 })
+                    }
+                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
@@ -12212,7 +12754,7 @@ public final class RichLayout {
                     // side of "80" set at 2.2 of their 3.0 and "，" at its half.)
                     var wordStart = a
                     while wordStart > 0, units[wordStart - 1] < 0x2E80, !isSpace(units[wordStart - 1]) { wordStart -= 1 }
-                    var given = legacy || !inCell ? spaces + ownSpaces
+                    var given = topOnly ? [] : legacy || !inCell ? spaces + ownSpaces
                         : spaces.filter { $0 == a - 1 || (wordStart < a && $0 == wordStart - 1) }
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
@@ -12286,7 +12828,7 @@ public final class RichLayout {
                     // at its half, 7, and all four spaces 2.8 of 3.5 — 2.68 of
                     // their 7, a share the 9pt stretch over 15.75 allows.)
                     let cellRest: Bool = {
-                        guard inCell, !legacy, spaces.contains(a - 1), need > markRoom else { return false }
+                        guard inCell, !legacy, !topOnly, spaces.contains(a - 1), need > markRoom else { return false }
                         let spaced = (spaces + ownSpaces).reduce(0.0) { $0 + (gaps[$1] ?? 0) }
                         return (need - markRoom) * (lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64 + spaced)
                             <= spaced / 2 * (width - x + hair)
@@ -12427,9 +12969,31 @@ public final class RichLayout {
                     // over in Word's print, every mark squeezed and the last
                     // inside the margin; zh-33aa9899's "…不得擅自刪減。" leaves
                     // "減" that stands wholly past it.)
+                    // (If a mark and an opening mark part here, the first regains
+                    // the blank half it shared with the second. Word's
+                    // alternative to compression therefore has that much
+                    // less room to stretch: fresh 14pt controls take 甲（
+                    // 10pt over, but 「（ only 4pt, not 6, with two commas
+                    // on the line, with and without a character grid.
+                    // Counting the shared half as spare room took the 『
+                    // on zh-72da925e p56 and reflowed its remaining pages.)
+                    let partedOpener = macBodyOpener && a > 0 && closesUp(a - 1)
+                    // (The automatic space before a Latin word disappears
+                    // when that word wraps: it is neither occupied width nor
+                    // a stretch opportunity on the alternative line. Fresh
+                    // Mac Word controls keep e0ca7252's 第92 with 4.45pt left
+                    // before the word, while its date paragraph's 109 still
+                    // wraps: the latter has four internal spaces to stretch.
+                    // Keep the existing Windows, cell, grid and marked-word
+                    // rules; these controls measure plain Mac body words.)
+                    let macWordGap = modern && !RichTextTheme.wordWindowsPages
+                        && !wide && !inCell && !onCharacterGrid && !lineOther
+                        && lineWide > 1 && own.isEmpty && a > 0 && Self._isLatinWordUnit(units[a])
+                        ? gaps[a - 1] ?? 0 : 0
+                    let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0) + macWordGap
                     let takenFirst = squeezedFirst && !wordSpaced
                         ? lineWide > 1 && need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
-                            <= room * (width - x + hair)
+                            <= room * (stretchRoom + hair)
                         : modern
                         ? latinWord || ((!lineOther || wordSpaced) && lineWide > 1 && room > 0 && hang == 0
                             // (A sixty-fourth of each gap's em: of the line's
@@ -12458,9 +13022,9 @@ public final class RichLayout {
                             // p8's "餐，" (two marks, seven spaces) is not.)
                             ? (onCharacterGrid
                                 ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
-                                    <= markRoom * (width - x + hair)
-                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } + spacedStretch)
-                                    <= room * (width - x + hair) || cellRest)
+                                    <= markRoom * (stretchRoom + hair)
+                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
+                                    <= room * (stretchRoom + hair) || cellRest)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
@@ -12477,8 +13041,8 @@ public final class RichLayout {
                             // word spaces' below — zh-dc25c47e's "□", 2.9pt over
                             // with 6.1 of stretch before it.)
                             : { let giving = modern && lineOther && wide ? all.filter { !Self._cornerUnits.contains(units[$0]) } : all
-                                return (!giving.isEmpty || giving.count == all.count) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
-                                    && need / Double(max(1, giving.count)) <= width - x + (giving.count > 1 ? -_px(0.02) : hair) }())
+                                return (!giving.isEmpty || giving.count == all.count) && !(hang > 0 && all.isEmpty) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
+                                    && need / Double(max(1, giving.count)) <= stretchRoom + (giving.count > 1 ? -_px(0.02) : hair) }())
                         // (… on a line with spaces in it — `ovc`'s had 41. On
                         // one without, a Latin word no more than half an em
                         // over, the automatic space after it aside: lab `sqc`
@@ -12496,7 +13060,15 @@ public final class RichLayout {
                         // line "1分；…", where ours took the "1" 9.2pt over,
                         // starting 1.4 past, five marks and three spaces able
                         // to give.)
-                        : (!wide && inCell && ((lineBlank && x < width) || need < set / 2 - _px(0.25)
+                        // (In Mac Word the ordinary space must separate the
+                        // incoming word. Moving one space from inside either
+                        // parenthesis of 7b08's form to elsewhere on the line
+                        // still leaves A/AA below; placing it immediately
+                        // before A/AA keeps them, at the same natural width.
+                        // Spaces elsewhere do not bypass the half-em rule.
+                        // The Windows cell path retains its measured rule.)
+                        : (!wide && inCell && ((lineBlank && x < width
+                            && (RichTextTheme.wordWindowsPages || a > 0 && units[a - 1] == 0x20)) || need < set / 2 - _px(0.25)
                             // (… up to half an em and what its own marks give:
                             // zh-d35cbbdb's cell takes no "1333、" 35pt over,
                             // its six marks able to give 44, where Word's
@@ -12565,8 +13137,26 @@ public final class RichLayout {
                             // (After a Latin character — a word parted at its
                             // hyphen — the marks give for it as before: zh-424775e4
                             // ends "（US-led" 0.16pt inside in Word's print.)
+                            // (Not a one-character word that carries a closing
+                            // bracket of its own that cannot hang: that keeps the
+                            // start rule. zh-31d580df's "…說明2、3)" leaves "3)"
+                            // starting 0.15pt inside, 17.85 over with four marks
+                            // able to give 26.5; zh-06c46ba9's "（詳參附錄1）" takes
+                            // "1）" starting 10.7 in, and zh-0513f641's "附件4）"
+                            // hangs its bracket and is taken.)
+                            // (In a legacy Mac cell the letter itself keeps
+                            // the half-character limit, excluding its attached
+                            // pause mark: 7b08's A and A、 both wrap at right 0
+                            // and -2 twips, and both fit at -5. Replacing an
+                            // earlier bracket or the preceding one with a comma
+                            // changes neither result. Counting all of A、 as
+                            // the lead wrongly rejects 23ee's 2、: its digit
+                            // is only 1.7pt over, its comma carried with it.
+                            // The whole word must still fit the marks' capacity.)
                             || (!wide && x < width && (!inCell || need <= room + hair)
-                                && (oneLatin && need <= room + hair || x + before / 2 <= width + edge
+                                && (oneLatin && (RichTextTheme.wordWindowsPages || !inCell
+                                    || x + boxes(a, a + 1) - (gaps[a] ?? 0) - width <= before / 2 + edge)
+                                    && (hang > 0 || !own.contains { Self._closingUnits.contains(units[$0]) && !Self._pauseMarks.contains(units[$0]) }) && need <= room + hair || x + before / 2 <= width + edge
                                     || !onCharacterGrid && !inCell && latinBefore && all.contains { Self._pauseMarks.contains(units[$0]) }))
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
@@ -12635,6 +13225,7 @@ public final class RichLayout {
                         let spaceShare = given.isEmpty || markRoom <= 0 ? share
                             : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
                         for mark in all { adjust[mark, default: 0] -= half(mark) * markShare }
+                        for mark in all where leadOpeners[mark] != nil { leadOpeners[mark] = last }
                         for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * spaceShare }
                         // (What the marks cannot give of that fiftieth —
                         // where they give all they have — the last
@@ -12685,7 +13276,12 @@ public final class RichLayout {
                     // four, each set at 1.62 of 3.0 in Word's print, where
                     // zh-c5f59397's "…噸級巡" leaves a plain "緝" 3.8 over.)
                     let closes = last > a && Self._closingUnits.contains(units[last - 1])
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes ? em / 2 : em / 4)
+                    // (A quarter, not half, where the closing mark hangs, and
+                    // nothing by the share test with no mark to give: zh-6d402586's
+                    // "…(以下稱1人1室房" leaves "間)：" 5.4pt over past its hung
+                    // "：" with eight automatic spaces; zh-1b74ed91's "…作業，"
+                    // is taken 1.0 over with three.)
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes && hang == 0 ? em / 2 : em / 4)
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
@@ -12733,10 +13329,11 @@ public final class RichLayout {
                 if fits {
                     // The line is full: whatever comes next starts another.
                     x = width
+                    onFirstLine = false
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
                     continue
                 }
             }
@@ -12756,6 +13353,7 @@ public final class RichLayout {
                     adjust[last - 1, default: 0] -= min(after, w - width + 0.02)
                 }
                 x = 0
+                onFirstLine = false
                 marks = []
                 spaces = []
                 wordSpaces = []
@@ -12767,6 +13365,7 @@ public final class RichLayout {
                 lineBlank = false
                 lineSpaced = false
                 lineRaised = false
+                lineTabbed = false
             }
             // (An opening mark a line starts with keeps its blank half:
             // squeezing it there is what `w:topLinePunct` asks for, and
@@ -12840,12 +13439,30 @@ public final class RichLayout {
                 }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
+            if (a ..< piece.b).contains(where: { units[$0] == 0x09 }) { lineTabbed = true }
             pastFrom = (last ..< piece.b).last(where: { units[$0] == 0x09 }).flatMap { runsPast.contains($0) ? (x + w, $0) : nil }
             x += w + piece.trail
             opening = false
-            if squeezesSpaces, piece.trail > 0, last < piece.b {
+            // (Nor, under the balance, spaces with East Asian text on both
+            // sides, wherever on the line: lab tbsp (Mac Word, and Word for
+            // Windows' print alike) — zh-799c91cd's "…同意由        （公司名稱）
+            // 為授權代表，…負責" takes "負責" with every space a whole 6.00 at
+            // 12pt and its "（", "）" and "，" giving 4.7; zh-167ee06c's bold
+            // cell "民國   年  月   日止" leaves "止" 1.16 over with eight
+            // spaces untouched. Ours gave the spaces and kept the marks.)
+            // (Word for Mac: Word for Windows' print agrees on zh-799c91cd
+            // but takes nothing it would have on zh-505b9619's "…為3日）。"
+            // with them gone — Windows mode keeps the old weighing.)
+            let flanked = theme.wordRules && !RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && last > a && piece.b < units.count
+                && units[last - 1] >= 0x2E80 && units[piece.b] >= 0x2E80
+            if squeezesSpaces, piece.trail > 0, last < piece.b, !flanked {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
+            }
+            if topLinePunct, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._openingUnits.contains(units[k]),
+               !(onFirstLine && firstGiven) {
+                leadOpeners[k] = units.count
+                marks.append(k)
             }
             marks.append(contentsOf: own.filter { k in
                 k > (lastTab ?? -1) && (k != lineOpener || !(Self._openingUnits.contains(units[k]) || (wideQuote(k) && (units[k] == 0x201C || units[k] == 0x2018))))
@@ -12854,6 +13471,7 @@ public final class RichLayout {
             if after > 0 { spaces.append(last - 1) }
             if piece.hard {
                 x = 0
+                onFirstLine = false
                 marks = []
                 spaces = []
                 wordSpaces = []
@@ -12866,6 +13484,7 @@ public final class RichLayout {
                 lineBlank = false
                 lineSpaced = false
                 lineRaised = false
+                lineTabbed = false
             }
         }
         // What opens a line and gives some of itself there (a mark of
@@ -12879,6 +13498,21 @@ public final class RichLayout {
         for b in breaks {
             let given = b.opener.reduce(0.0) { $0 - min(0, adjust[$1] ?? 0) }
             if given > b.over - _px(0.25) { adjust[b.end, default: 0] += given - b.over + _px(0.25) }
+        }
+        // (What a line's opener gives comes off the line's characters
+        // alike rather than off the mark: Word takes it from the mark's
+        // left, the line starting that much left of the margin, and the
+        // engine can set nothing before a line's first character — a
+        // space there is given back, and an invisible joiner is folded
+        // into the mark, which would then give from its right, over the
+        // character after it. Spread, the line holds what Word's does,
+        // and justified, it is set as evenly.)
+        for (k, end) in leadOpeners {
+            guard let given = adjust[k], given < 0 else { continue }
+            let alike = (k ..< min(end, units.count)).filter { !isSpace(units[$0]) && units[$0] != 0xFFFC && !(0xDC00 ... 0xDFFF).contains(units[$0]) }
+            guard !alike.isEmpty else { continue }
+            adjust[k] = nil
+            for c in alike { adjust[c, default: 0] += given / Double(alike.count) }
         }
         // (With the tabs' widths, which the paragraph is laid out by.)
         guard !adjust.isEmpty else { return [:] }
@@ -13205,8 +13839,12 @@ public final class RichLayout {
         let units = Array(p.text.utf16)
         var out: Set<Int> = []
         var k = 0
-        // (Ideographs and full-width marks part words.)
-        func parts(_ u: UInt16) -> Bool { u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
+        // A tab separates words too. Including it in the word after a
+        // full-width colon inserted a hard break BEFORE the tab; its
+        // held space then occupied an extra blank line before the long
+        // Thai word (zh-6a4fc013 Q5). Let the tab and the engine's long-word
+        // rule place the following word, without stranding the tab.
+        func parts(_ u: UInt16) -> Bool { u == 0x09 || u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
         while k < units.count {
             guard !parts(units[k]) else { k += 1; continue }
             var end = k
@@ -14034,6 +14672,41 @@ public final class RichLayout {
         }
     }
 
+    /// Restore a fixed frame's overflowing indent without moving ink from
+    /// a later line. Tight lines can overlap: separate text passes, rather
+    /// than clipping the whole paragraph into horizontal bands.
+    private func _paintFixedBoxFirstLine(_ i: Int, _ painter: TextPainter, at: Offset,
+                                         _ shifts: [Double], _ canvas: any Canvas) -> Bool {
+        guard i < _boxFirstLineShift.count, _boxFirstLineShift[i] > 0,
+              let frame = _fixedTextFrame else { return false }
+        let length = painter.plainText.utf16.count
+        let end = painter.getLineBoundary(TextPosition(offset: 0)).end
+        guard end > 0, end <= length else { return false }
+        var first = painter
+        var rest: TextPainter?
+        if end < length {
+            // Keys 0/1 belong to scaled runs. These masks use the same
+            // line boundary for the lifetime of this immutable painter.
+            guard let onlyFirst = _clearedPainter(painter, [end..<length], key: 2,
+                                                  clearBackgroundAndDecoration: true),
+                  let onlyRest = _clearedPainter(painter, [0..<end], key: 3,
+                                                 clearBackgroundAndDecoration: true) else { return false }
+            first = onlyFirst
+            rest = onlyRest
+        }
+        canvas.save()
+        canvas.clipRect(Rect.fromLTRB(frame.left, -1_000_000, frame.right, 1_000_000),
+                        clipOp: .intersect, doAntiAlias: false)
+        canvas.translate(_boxFirstLineShift[i], shifts.first ?? 0)
+        first.paint(canvas, at)
+        canvas.restore()
+        if let rest {
+            if shifts.isEmpty { rest.paint(canvas, at) }
+            else { _paintShiftedLines(rest, at: at, shifts, canvas) }
+        }
+        return true
+    }
+
     /// Where paragraph `i`'s painter is drawn from, down the layout: its
     /// ink top moved by its face's baseline share. (Slides set each line
     /// on PowerPoint's whole points from it.)
@@ -14581,7 +15254,9 @@ public final class RichLayout {
         if let lines {
             lines.painter.paint(canvas, textAt)
         } else if !_paintScaled(i, g, canvas, document) {
-            if shifts.isEmpty, i < _leaders.count, _leaders[i].count == 1,
+            if _paintFixedBoxFirstLine(i, g.painter, at: textAt, shifts, canvas) {
+                // The first line and the remaining text were painted separately.
+            } else if shifts.isEmpty, i < _leaders.count, _leaders[i].count == 1,
                let box = g.painter.getBoxesForSelection(
                     TextSelection(baseOffset: _map(i).painter(_leaders[i][0].offset), extentOffset: _map(i).painter(_leaders[i][0].offset) + 1),
                     boxHeightStyle: .max).first, box.right - box.left > 1 {
@@ -14773,8 +15448,16 @@ public final class RichLayout {
         return image
     }
 
-    /// A text box's text, at the canvas's origin: its flow, and any
-    /// boxes of its group laid out beside it.
+    private func _canCorrectFixedBoxIndent(_ text: RichTextBox) -> Bool {
+        // Upright ideographs use a separate painter. Word's rotated
+        // unequal-inset frames also have another clip transform; measured
+        // here are horizontal frames and zero-inset turned ones.
+        theme.wordRules && text.hasFixedFrame && !text.fitsText && !text.fitsHeight && !text.growsToFit && text.parts.isEmpty
+            && !text.uprightIdeographs
+            && (text.textDirection == .horizontal
+                || [text.insetLeft, text.insetTop, text.insetRight, text.insetBottom].allSatisfy { $0 == 0 })
+    }
+
     /// A text box's text in its box `rect`: from its insets, or turned a
     /// quarter about the corner it reads from (`RichTextBox.textDirection`)
     /// — reading up from the bottom-left inset corner, its lines stacking
@@ -14831,6 +15514,8 @@ public final class RichLayout {
         return true
     }
 
+    /// A text box's text, at the canvas's origin: its flow, and any
+    /// boxes of its group laid out beside it.
     private func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas) {
         let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
         inside.layout.paint(canvas, visible: all, document: inside.document, selection: nil, caret: nil)
@@ -15122,6 +15807,12 @@ public final class RichLayout {
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
         layout._turnedBox = box.textDirection != .horizontal
+        if _canCorrectFixedBoxIndent(box) {
+            let inset = box.textDirection == .horizontal ? box.insetLeft
+                : box.textDirection == .up ? box.insetBottom : box.insetTop
+            let extent = box.textDirection == .horizontal ? boxWidth : image.height
+            layout._fixedTextFrame = (-_px(inset), _px(extent - inset))
+        }
         layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))
             : max(1, _px(image.height - box.insetTop - box.insetBottom))
         layout.ensureLaidOut(sub)
@@ -15598,8 +16289,7 @@ public final class RichLayout {
     /// after a cover and two pages of contents, which were 8).
     private func _pageNumberOf(_ p: Int, _ document: RichDocument) -> Int {
         func start(_ section: (index: Int, last: Bool)) -> Int? {
-            section.last ? document.pageNumberStart
-                : (section.index < _sectionSetups.count ? _sectionSetups[section.index].pageNumberStart : nil)
+            _sectionNumberStart(section.index, document)
         }
         guard _sectionSetups.count > 1 else { return p + (document.pageNumberStart ?? 1) }
         // (A section that begins down a page counts that page its first,
@@ -15625,7 +16315,11 @@ public final class RichLayout {
         }
         var number = 0
         var previous = -1
-        for q in 0 ... max(0, p) where !_blankPages.contains(q) || q == 0 {
+        for q in 0 ... max(0, p) {
+            if q > 0, _blankPages.contains(q) {
+                if _numberedBlankPages.contains(q) { number += 1 }
+                continue
+            }
             let section = _headerFooterSection(q)
             if q == 0 || section.index != previous {
                 if let first = start(section), let at = begins(section.index), at < q, at >= 0, q > 0,
@@ -15644,8 +16338,11 @@ public final class RichLayout {
 
     /// Where section `index` numbers its pages from, if it says.
     private func _sectionNumberStart(_ index: Int, _ document: RichDocument) -> Int? {
-        index >= _sectionSetups.count - 1 ? document.pageNumberStart
+        let number = index >= _sectionSetups.count - 1 ? document.pageNumberStart
             : (index < _sectionSetups.count ? _sectionSetups[index].pageNumberStart : nil)
+        guard let number, index > 0, index < _sectionSetups.count,
+              let parity = _sectionSetups[index].sectionStartParity else { return number }
+        return number % 2 == parity.rawValue ? number : number + 1
     }
 
     /// How page `p`'s section writes its numbers.

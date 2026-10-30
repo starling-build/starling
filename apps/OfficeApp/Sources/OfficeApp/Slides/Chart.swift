@@ -212,6 +212,11 @@ struct Chart: Equatable {
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
     var pieTilt: Double? = nil
+    /// A 3-D pie's turn (`c:view3D/c:rotY`, degrees): its first slice
+    /// starts that far clockwise from twelve o'clock. Lab p3dfit (Word for
+    /// Mac, zh-27a874b7's chart 2): a slice turned by it to three or nine
+    /// o'clock prints there, its label with it; ours started at twelve.
+    var pieTurn = 0.0
     /// How far a 3-D pie's slices are pulled out (`c:explosion`, the
     /// largest of the series' and its points'), as a fraction of the
     /// radius: the pie is that much smaller, to leave them room.
@@ -408,6 +413,27 @@ struct Chart: Equatable {
     /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
     /// table's rows stand on those faces' lines (`_tableRows`).
     var windowsMinchoText = false
+    /// … and its title too: not where the title's runs say Traditional
+    /// Chinese, which Word for Windows sets in PMingLiU (zh-b8de3ae2's
+    /// eleven titles, `lang="zh-TW"`, in its print).
+    var windowsMinchoTitle = false
+    /// Its East Asian text is set as Word for Mac sets a theme with no
+    /// East Asian face: in the theme's Simplified Chinese face (`a:font
+    /// script="Hans"`, 宋体 where it names none), where the platform's
+    /// fallback would take YaHei — a line 1.32 em tall to SimSun's 1.15.
+    /// Word for Mac's prints of zh-27a874b7's, zh-d62da4dd's and
+    /// zh-61aaad09's charts, their themes' `a:ea` "" and Hans 宋体: every
+    /// label's names in SimSun, a 3-line 10pt label 36.1pt tall where
+    /// ours, in YaHei, stood 37.6; zh-b8de3ae2's pie under a theme
+    /// override whose Hans face is 等线: its labels in DengXian.
+    var macSimplifiedFace: String? = nil
+    /// … and text whose runs say Traditional Chinese (`lang="zh-TW"`) in
+    /// its Hant face: zh-b8de3ae2's titles and its labels' zh-TW fields
+    /// in PMingLiU (新細明體) in Word for Mac's print, beside the same
+    /// chart's untagged axes in SimSun.
+    var macTraditionalFace: String? = nil
+    /// Its title's runs say Traditional Chinese (`macTraditionalFace`).
+    var titleTraditional = false
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -472,6 +498,9 @@ struct Chart: Equatable {
         /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
         /// shown as it stands: zh-61aaad09's pie says "109646, 15.85%".
         var texts: [Int: String] = [:]
+        /// The points whose own rich text says Traditional Chinese
+        /// (`Chart.macTraditionalFace`).
+        var traditional: Set<Int> = []
         var fill: Color? = nil
         var line: Color? = nil
         var lineWidth = 0.75
@@ -1482,6 +1511,7 @@ enum ChartXML {
                         }.joined()
                     }.joined(separator: "\n")
                     if !text.isEmpty { l.texts[i] = text }
+                    if Self._traditional(rich) { l.traditional.insert(i) }
                 }
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
@@ -1525,6 +1555,7 @@ enum ChartXML {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
             // and with 15, and fits them otherwise at 30 and 60.)
             c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15
+            c.pieTurn = chart.first("c:view3D")?.first("c:rotY")?["val"].flatMap(Double.init) ?? 0
             let pulls = el.all("c:ser").flatMap { ser in
                 ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
             }
@@ -1758,6 +1789,13 @@ enum ChartXML {
 
     /// A data label's fields (`a:fld type`), as the marks `_pieLabels`
     /// fills in.
+    /// Whether `n`'s runs say Traditional Chinese (`lang="zh-TW"`, zh-HK,
+    /// zh-MO): a run's own, not the paragraph's end mark — zh-b8de3ae2's
+    /// axes, `endParaRPr lang="zh-TW"`, are in Word for Mac's Hans face.
+    static func _traditional(_ n: XNode) -> Bool {
+        if n.name == "a:rPr" || n.name == "a:defRPr", let l = n["lang"]?.lowercased(), ["zh-tw", "zh-hk", "zh-mo"].contains(l) { return true }
+        return n.children.contains { _traditional($0) }
+    }
     static let _fieldMarks = ["CATEGORYNAME": "\u{E000}c", "VALUE": "\u{E000}v", "SERIESNAME": "\u{E000}s", "PERCENTAGE": "\u{E000}p"]
 
     private static func _texts(_ node: XNode, _ name: String) -> [String] {
@@ -1989,6 +2027,12 @@ enum ChartPainter {
     /// face lacks, as body text's: on Linux the engine has none without
     /// them, and zh-37b6536f's Chinese legend printed as boxes.
     static var glyphFallback: [String]? { RichTextTheme.glyphFallback.isEmpty ? nil : RichTextTheme.glyphFallback }
+    /// The fallback for `c`'s own text (`Chart.macSimplifiedFace`), its
+    /// Traditional Chinese text's where `traditional`.
+    static func glyphFallback(_ c: Chart, traditional: Bool = false) -> [String]? {
+        guard let face = (traditional ? c.macTraditionalFace : nil) ?? c.macSimplifiedFace else { return glyphFallback }
+        return [face] + RichTextTheme.glyphFallback
+    }
 
     static func paint(_ c: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
         guard r.width > 4, r.height > 4, !c.series.isEmpty else { return }
@@ -2006,7 +2050,7 @@ enum ChartPainter {
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
-                fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback)),
+                fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback(c))),
                 textAlign: align, textDirection: .ltr)   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
@@ -2041,7 +2085,7 @@ enum ChartPainter {
             let titleStyle = Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
-                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)
+                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
             let span: TextSpan
             if c.titleLineSizes.isEmpty {
@@ -2062,6 +2106,44 @@ enum ChartPainter {
             // title breaks before "at" in PowerPoint's print, its first
             // line 535 pt of a 696 pt chart, "at" taking it past 557.
             tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide ? min(area.width, 0.8 * r.width) : area.width))
+            // (Where Word for Windows sets the theme's text in Mincho, a
+            // title line holding a character Mincho lacks is JhengHei's,
+            // 1.729 em to Mincho's 1.3 (`_tableRows`): it grows by the
+            // difference, its text half of it lower. Word for Windows'
+            // print of zh-13d11e99's theme-faced "主动公开信数量" at 14pt,
+            // "动" in JhengHei: its baseline 3.67 and the plot's top 6.34
+            // under Word for Mac's, which sets it all in SimSun.)
+            var grown = 0.0
+            if c.windowsMinchoTitle, c.titleFont == nil, c.titleAt == nil, let covers = OfficeFonts.windowsMinchoCovers {
+                let units = Array(title.utf16)
+                var start = 0
+                repeat {
+                    let range = tp.getLineBoundary(TextPosition(offset: start))
+                    let end = max(start + 1, min(units.count, range.end))
+                    let line = String(decoding: units[start ..< end], as: UTF16.self)
+                    if line.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) && !covers.contains($0.value) }) {
+                        grown += (1.3301 * 1.3 - 1.3) * (c.titleLineSizes.isEmpty ? titleStyle.fontSize ?? 0 : c.titleLineSizes.values.max()! * k)
+                    }
+                    start = end
+                } while start < units.count
+            }
+            // (Where Word for Mac sets it in the theme's East Asian face, a
+            // title holding Chinese is on that face's East Asian line, its
+            // text at the line's baseline: lab `ctitle`, zh-13d11e99's 14pt
+            // "主动公开信数量" in SimSun, 1.293 em, its baseline 1.017 em
+            // under the line's top — where SimSun's own line, an em, set
+            // ours and its plot 3.3 high, 4.8 at 24pt.)
+            var drop: Double? = nil
+            if c.titleFont == nil, c.titleAt == nil,
+               let face = (c.titleTraditional ? c.macTraditionalFace : nil) ?? c.macSimplifiedFace,
+               title.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) }),
+               let line = OfficeFonts.eastAsianLine(face, bold: c.titleBold) {
+                let size = c.titleLineSizes.isEmpty ? titleStyle.fontSize ?? 0 : c.titleLineSizes.values.max()! * k
+                for (i, m) in tp.computeLineMetrics().enumerated() {
+                    grown += line.height * size - m.height
+                    if i == 0 { drop = line.baseline * size - m.ascent }
+                }
+            }
             // (Two points higher than the area's edge: where PowerPoint's
             // sits. Or where the file places its box, 3 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
@@ -2081,7 +2163,7 @@ enum ChartPainter {
                 // 18.76 under the frame's top in chart-sunburst's. Not 2.4
                 // lower, as the glyphs' tops measured against our box's
                 // once had it: 2.83 under Excel's, all twelve.)
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (drop ?? grown / 2) + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -2094,7 +2176,7 @@ enum ChartPainter {
             // (A pie on a slide stands 7 under it: pie-chart's, its top
             // 2.75 pt lower in PowerPoint's print and the pie 3.25 smaller.)
             let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
-            area = Rect.fromLTRB(area.left, area.top + tp.height + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
+            area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
             if placed == nil { tp.dispose() }
         }
 
@@ -2380,6 +2462,19 @@ enum ChartPainter {
     /// categories 36.8 (a JhengHei line and a Mincho one).
     static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
         let count = c.series.count + c.lineSeries.count + 1
+        // (Word for Mac wraps a category as Word for Windows does, each
+        // line past the first its face's East Asian line deeper: zh-
+        // 61aaad09's 11pt "投诉举报总" / "量" in SimSun, 14.4 apart in its print.)
+        if !c.windowsMinchoText, let face = c.macSimplifiedFace, let line = OfficeFonts.eastAsianLine(face) {
+            var rows = Array(repeating: 1.64 * size * k, count: count)
+            let lines = c.categories.map { s -> Int in
+                let tp = text(s, size, max(1, slot - 7.2 * k))
+                defer { tp.dispose() }
+                return tp.computeLineMetrics().count
+            }.max() ?? 1
+            rows[0] += Double(max(0, lines - 1)) * line.height * size * k
+            return rows
+        }
         guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers else {
             return Array(repeating: 1.64 * size * k, count: count)
         }
@@ -2429,12 +2524,12 @@ enum ChartPainter {
         // (Under Word for Windows' faces, a label of several lines
         // centred as a block: zh-61aaad09's wrapped categories.)
         func textTop(_ tp: TextPainter, _ j: Int) -> Double {
-            let lines = c.windowsMinchoText ? tp.computeLineMetrics().count : 1
+            let lines = c.windowsMinchoText || c.macSimplifiedFace != nil ? tp.computeLineMetrics().count : 1
             return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
                 - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
         func centred(_ s: String, _ cx: Double, _ j: Int) {
-            let tp = text(s, size, j == 0 && c.windowsMinchoText ? max(1, slot - 7.2 * k) : slot)
+            let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : slot)
             tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
         }
@@ -2621,7 +2716,7 @@ enum ChartPainter {
             if c.dataLabels {
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
                     color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),
-                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(r.center.dx - tp.width / 2, cy - tp.height / 2))
                 tp.dispose()
@@ -3282,7 +3377,7 @@ enum ChartPainter {
                         let tp = TextPainter(text: TextSpan(text: shown.isEmpty ? label(v, percent: false) : shown, style: Flutter.TextStyle(
                             color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                         tp.layout(minWidth: 0, maxWidth: .infinity)
                         let nudge = l.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
                         tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
@@ -3533,7 +3628,7 @@ enum ChartPainter {
             // own label look.
             let tp = TextPainter(text: TextSpan(text: l.text, style: Flutter.TextStyle(
                 color: l.series.labelColor ?? theme.text, fontSize: max(3, (l.series.labelSize ?? 12) * k),
-                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)),
+                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))),
                 textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let at = horizontal ? Offset(l.bar.right - tp.width - 3 * k, l.bar.center.dy - tp.height / 2)
@@ -3550,7 +3645,7 @@ enum ChartPainter {
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: .infinity)
                         return t
                     }()
@@ -3686,7 +3781,7 @@ enum ChartPainter {
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                     color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
-                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
                 tp.dispose()
@@ -4322,7 +4417,7 @@ extension ChartPainter {
         let centre = at(0, 0)
         // The slices, clockwise from twelve o'clock.
         var slices: [(from: Double, to: Double, color: Color, value: Double)] = []
-        var angle = -Double.pi / 2
+        var angle = -Double.pi / 2 + c.pieTurn * .pi / 180
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
             slices.append((angle, angle + sweep, c.pointColor(i, accents: theme.accents), v))
@@ -4385,24 +4480,25 @@ extension ChartPainter {
         let rx = (at(0).dx - at(.pi).dx) / 2, ry = (at(.pi / 2).dy - at(-.pi / 2).dy) / 2
         if var l = c.pieLabels {
             var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
-            var a = -Double.pi / 2
+            var a = -Double.pi / 2 + c.pieTurn * .pi / 180
             for (i, v) in values.enumerated() where v > 0 {
                 let sweep = v / sum * 2 * .pi
                 placed.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
                 a += sweep
             }
-            // (A best fit on a 3-D pie is inside each slice, in the
-            // labels' own colour: the survey's. Not where the file moves
-            // them: 45544's moves are from beside the pie, where Excel
-            // prints them.)
-            if l.fitted, l.moves.isEmpty { l.outside = false }
             _pieLabels(c, l, canvas, frame: frame ?? plot, slices: placed, centre: centre, rx: rx, ry: ry, inner: 0,
                        k: k, theme: theme, ink: ink ?? theme.text,
                        // (From outside, a front slice's edge is its wall's foot:
                        // lab tpie (windows-1, zh-d62da4dd's chart1, rotX 30) sets
                        // "經濟", at three o'clock, a wall's depth lower than the
                        // top face's edge would, its file's move taken off.)
-                       point: { a, f in at(a, f, f >= 1 && sin(a) > 0 ? deep : 0) })
+                       // (A label the file does not move, from a little past
+                       // three and nine o'clock only: lab p3dside's 香港 stands
+                       // by the top's edge with its middle at 90-97.4° and by
+                       // the wall's foot at 99.7°, the same at 270° and 265°.
+                       // zh-27a874b7's moved "經濟", 95.9°, is moved from the foot.)
+                       point: { a, f in at(a, f, f >= 1 && sin(a) > sin(8.5 * .pi / 180) ? deep : 0) },
+                       movedEdge: { a in at(a, 1, sin(a) > 0 ? deep : 0) })
         } else if c.dataLabels {
             for s in slices {
                 let pt = at((s.from + s.to) / 2, 0.7)
@@ -4410,7 +4506,7 @@ extension ChartPainter {
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, s.value), style: Flutter.TextStyle(
                     color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
-                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(pt.dx - tp.width / 2, pt.dy - tp.height / 2))
                 tp.dispose()
@@ -4457,7 +4553,7 @@ extension ChartPainter {
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
-                           point: ((Double, Double) -> Offset)? = nil) {
+                           point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil) {
         // A point `f` of the radius out along angle `a`: on the flat
         // ellipse, or where a 3-D pie's perspective puts it.
         func on(_ a: Double, _ f: Double) -> Offset {
@@ -4494,7 +4590,8 @@ extension ChartPainter {
             let colour = c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
             let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(
                 color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
-                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textAlign: .center, textDirection: .ltr)
+                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
+                fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))), textAlign: .center, textDirection: .ltr)
             // (Excel wraps a long label at about a fifth of the chart's width:
             // 45544's "Finance - Investment Banking" is three lines.)
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))
@@ -4525,10 +4622,67 @@ extension ChartPainter {
             // lab p3d, its move taken out, and its move of -24% of the
             // frame lands it where Word's print has it only from outside;
             // "文化"'s from beside its slice in both.)
-            let insideAt: Double? = {
+            let insideAt: Offset? = {
                 guard l.fitted, l.outside, inner == 0, l.moves[s.index] == nil else { return nil }
+                // (On a 3-D pie its text's own box, no margin, within its
+                // slice's wedge of the top face as the eye sees it, as far
+                // out along the slice's middle as it fits: lab p3dfit
+                // (Word for Mac, zh-27a874b7's chart 2, rotX 30, the probe's
+                // label alone, 32 x 36pt) — inside from 15% at three and
+                // nine o'clock, 0.78 of the radius out, from 6% at six and
+                // from 12% at twelve, 0.52 out; all 32 of its decisions
+                // this test's. A one-line label stands 0.84-0.89 out.
+                // Before, every label of an unmoved 3-D pie stood inside.)
+                // (Where it fits on the middle only nearer in than 0.7, it
+                // stands on the straight line from the centre at the
+                // middle's angle as the page sees it, as far out as it
+                // fits: lab p3dout (Word for Mac, zh-27a874b7's chart 2, no
+                // moves, turned by rotY 0/90/180/270), three-line labels on
+                // back slices — 美國 25.8% at 46° and 316°, 其他 14% at 335°
+                // — within 4pt of that, 17-25pt from the middle at 0.56-0.64;
+                // labels that fit from 0.76 out (one-line ones, 丹麥's,
+                // 香港's, the solo probes of p3dfit) stand on the middle.)
+                if let point {
+                    let tw = tp.width, th = tp.height
+                    let a0 = s.mid - share * .pi, a1 = s.mid + share * .pi
+                    let n = max(4, Int((a1 - a0) / (.pi / 180)))
+                    let wedge = [point(0, 0)] + (0 ... n).map { point(a0 + (a1 - a0) * Double($0) / Double(n), 0.9999) }
+                    func contains(_ q: Offset) -> Bool {
+                        var inside = false
+                        var j = wedge.count - 1
+                        for i in 0 ..< wedge.count {
+                            let p1 = wedge[i], p2 = wedge[j]
+                            if (p1.dy > q.dy) != (p2.dy > q.dy), q.dx < (p2.dx - p1.dx) * (q.dy - p1.dy) / (p2.dy - p1.dy) + p1.dx { inside.toggle() }
+                            j = i
+                        }
+                        return inside
+                    }
+                    func fits(_ c0: Offset) -> Bool {
+                        [(-tw / 2, -th / 2), (tw / 2, -th / 2), (-tw / 2, th / 2), (tw / 2, th / 2)].allSatisfy { contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }
+                    }
+                    if let f = stride(from: 0.98, through: 0.7, by: -0.02).first(where: { fits(on(s.mid, $0)) }) { return on(s.mid, f) }
+                    // (A front slice holds it on less: there it is enough that
+                    // the middles of its box's four sides, the box standing
+                    // 0.76 of the way out along the slice's middle, lie in the
+                    // slice — where Word's print has it. Lab p3dside (Word for
+                    // Mac, zh-27a874b7's chart 2, the 香港 probe at 6-16% and its
+                    // middle at 60-165° and the mirror 195-270°, 83 decisions,
+                    // all this test's): a 33 x 36pt label inside a 6% slice at
+                    // 165° and 8% at 150°, 10% at 135°, where its box's corners
+                    // overhang the slice by up to 5pt; at 3 and 9 o'clock and
+                    // up to 10° past them its corners still have to fit.)
+                    if sin(s.mid) > sin(10 * .pi / 180) {
+                        let c0 = on(s.mid, 0.76)
+                        if [(-tw / 2, 0.0), (tw / 2, 0.0), (0.0, -th / 2), (0.0, th / 2)].allSatisfy({ contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }) { return c0 }
+                    }
+                    let c = on(s.mid, 0)
+                    if let d = stride(from: max(rx, ry), through: 0, by: -0.25 * k).first(where: { fits(Offset(c.dx + cos(s.mid) * $0, c.dy + sin(s.mid) * $0)) }) {
+                        return Offset(c.dx + cos(s.mid) * d, c.dy + sin(s.mid) * d)
+                    }
+                    return stride(from: 0.68, through: 0.0, by: -0.02).first(where: { fits(on(s.mid, $0)) }).map { on(s.mid, $0) }
+                }
                 let half = share * .pi
-                return stride(from: 0.6, through: 0.3, by: -0.05).first { f in
+                return stride(from: 0.6, through: 0.3, by: -0.05).first(where: { f in
                     let c0 = on(s.mid, f)
                     return [(-w / 2, -h / 2), (w / 2, -h / 2), (-w / 2, h / 2), (w / 2, h / 2)].allSatisfy { cx, cy in
                         let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
@@ -4538,14 +4692,16 @@ extension ChartPainter {
                         while d < -.pi { d += 2 * .pi }
                         return abs(d) < half
                     }
-                }
+                }).map { on(s.mid, $0) }
             }()
             let fitsInside = insideAt != nil
-            if let f = insideAt {
-                at = on(s.mid, f)
+            if let p = insideAt {
+                at = p
             } else if l.outside {
                 let gap = 4 * k
-                let edge = on(s.mid, 1)
+                // (Where the file moves it, from `movedEdge`'s point when
+                // given: a 3-D pie's.)
+                let edge = l.moves[s.index] != nil ? movedEdge?(s.mid) ?? on(s.mid, 1) : on(s.mid, 1)
                 // (Centred on its slice where it stands over or under it, within
                 // about ten degrees of upright: lab tpie's "建築", 0.75% at
                 // twelve o'clock, in Word's print, where ours stood a half
@@ -4556,7 +4712,20 @@ extension ChartPainter {
                 at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
             }
             let moved = l.moves[s.index]
-            if let m = moved { at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height) }
+            if let m = moved {
+                // Word moves a flat pie's label from its default position
+                // already fitted into the chart frame. In zh-61aaad09 the
+                // outside default reaches above the frame: moving it before
+                // clamping loses 9.7pt of the stated downward move. Fresh
+                // Word controls at 1%, 15.85% and 35% keep the same 14.16pt
+                // move from that fitted default. Other chart hosts and 3-D
+                // placement retain their separately measured paths.
+                if l.fitted, point == nil, c.type == .pie, c.ofPie == nil, !c.onSlide, !c.onSheet {
+                    at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
+                                min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                }
+                at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height)
+            }
             // (Kept inside the frame: Word's labels over a 3-D pie's top
             // stand under the frame's edge in lab p3d, where ours were cut.)
             if l.fitted {

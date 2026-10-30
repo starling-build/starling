@@ -1332,6 +1332,67 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **Overflowing first-line indents in fixed text boxes (2026-10-28).**
+  In measured standalone DrawingML `noAutofit` frames, Word keeps the first
+  glyph on line one at its stated positive indent even when it cannot fit.
+  Following text wraps; the overflowing first line clips at the frame along
+  its reading direction. A layout placeholder must not take a line by itself
+  or clamp that glyph back inside. Measure the glyph with the resolved Word
+  face, reserve its first-line room, then restore the indent while painting.
+  Horizontal frames and zero-inset turned frames are covered; upright text,
+  autofit, groups and separate ruby/scale/tab painters remain outside this path.
+  Paint complementary first/rest text masks: horizontal clipping bands corrupt
+  a later line's overlapping ink under tight exact spacing. The 11-page
+  shared-font regression checks indent/rotation plus white-first overlap pairs
+  against explicit breaks; fresh Word, native in both modes and browser pass.
+  General frame clipping remains unresolved: broader candidates dropped
+  headers, dynamic page numbers and other labels and were rejected. Full
+  `drawing-wordart-final`→`box-first-line-masks` pair: Windows zh-b24b396a
+  330→339/362, Mac 328→337/360; 756 documents per mode, no missing documents,
+  no drops, no page-count changes, and all other normalized geometry identical.
+  Engine remains `3841e45e…`; no cancelling-errors exception is needed.
+
+- **DrawingML WordArt (2026-10-27).** A shape's `fromWordArt` text follows
+  its rotation and warp, rather than also appearing as an ordinary text-box
+  overlay. Keep its resolved paragraph/run styles and its original XML for
+  saving. `textSlantDown`'s adjustment sets the band's thickness (28569–100000),
+  not its displacement: 100000 is rectangular. Isolated Word controls and
+  ECMA's preset geometry agree. Fit visible glyph outlines into the text
+  rectangle: advance bearings and line leading are not ink. Native and skwasm
+  now expose the same read-only ink query; tight outline bounds avoid raster
+  padding changing the fitted shape between screen and PDF sizes. Bitmap-only
+  glyphs retain a raster-bounds fallback. Fifteen cross-engine probes agree,
+  and the permanent font-scale gate rejects the earlier raster-bounds attempt.
+  Word's no-autofit controls match with default and zero margins. Autofit sizing
+  and font appearance remain measured residuals, not claimed exact. The full
+  `ink-base`→`drawing-wordart-final` pair improves Windows zh-b24b396a 328→330/362,
+  with no drops in either mode; only this document's drawing text changes.
+  Requires engine `bd7be6b10e5`; older web hosts use the existing advance-box
+  fit when the optional ink query is unavailable. The final browser/native
+  layout gate and shared-font WordArt pixels agree. No live deployment.
+
+- **Odd/even section starts (2026-10-27).** Explicit `oddPage`/`evenPage`
+  starts use the continued logical page number, including an inserted blank
+  with no header/footer. A stated numbering restart is rounded upward to the
+  requested parity without itself adding a blank; the separate alignment rule
+  for restarted numbering with even/odd headers still applies. Eighteen fresh
+  Word controls cover prior page counts/numbers, restarts, header modes and
+  floating tables. Process the section break once before positioning a
+  page-anchored table: its vertical offset must not trigger a second break.
+  zh-291fcea7's Mac form now follows the blank eighth page, matching Word's
+  12 pages; 182→232/296 lines, both-mode full pairs with no other changes.
+
+- **Screen and native parity (2026-10-27).** FreeType's 26.6 requested size
+  must not quantize linear advances: 11pt at screen scale is 14⅔px, whereas
+  PDF scale uses 220px. `skia-freetype-linear-size.patch` restores the requested
+  scale for linear advances without changing hinted outlines; the browser's
+  word-boringcrypto wrapping then matches Mac CoreText. `test/office-layout.sh`
+  also checks fractional-size scaling directly. Its line dump reports the
+  advance pagination consumes, not raw fallback ascent + descent: an exact
+  13.2667px strut stays that height even if a missing U+2010 glyph uses a
+  taller fallback face. Compare identical document bytes, including welcome's
+  platform-specific shortcut labels, before diagnosing a layout difference.
+
 - **Lines.** An East Asian face's line is 1.3 times its ascent and
   descent; on a line grid a line is whole pitches; an exact height
   ignores the grid; the baseline sits 13/16 down an exact line and is
@@ -8258,3 +8319,283 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   zh-3fe252ff, Windows mode, same base ab10de75, PyMuPDF matcher:
   Tika-792 66.7 -> 100, delins 69.5 -> 74.6, comment.docx's page count
   now Word's, nothing lower.
+
+
+- **Mac body lines can compress an opening mark after Latin text with
+  kinsoku off (2026-10-27).** zh-72da925e p8 ends `…最終目標-「` in
+  a fresh Word print; the comma and quote share 7.43pt. A control with
+  `5「` keeps the quote too. Permit the existing fitting calculation
+  for a standalone opening mark after an ASCII non-space character,
+  in Mac body text. Extending this to an opener after an ideograph
+  was rejected: the same document lost 310 matched lines. The narrow
+  version recovers the three p8 lines, 1135→1138/1309; paired full
+  Windows/Mac sweeps have no other score or page-count changes.
+
+
+- **A paired mark's restored blank limits Mac opening-mark compression
+  (2026-10-28).** With kinsoku off, Mac body lines can compress punctuation
+  to keep an opening mark after Han too: e0ca7252's first line ends `日（`.
+  When the preceding mark closes up to it (`「（` or `）（`), splitting the
+  pair restores the preceding mark's blank half. Deduct that half from the
+  alternative line's stretch room when comparing stretching with compression.
+  At 14pt with two commas, fresh Word controls take `甲（` 10pt over but not 12;
+  paired marks take 4 but not 6, with and without a character grid. This explains
+  the earlier broad candidate's 72da p56 regression: it counted the shared half
+  as room to stretch. Windows and cell behavior remain unchanged.
+  Full same-base pairs on engine 3841e45e: 756 documents/mode, zero drops,
+  no page changes. Mac zh-72da925e 1138 → 1144/1309, zh-e0ca7252 1058 → 1061/1669; all other
+  geometry unchanged. `test/office-opener-fit.py` embeds a small OFL Noto
+  subset so its 12 Word boundary controls also run in the browser without
+  installed CJK fonts; baseline fails and candidate, browser and Word pass.
+
+
+- **A wrapping Mac body Latin word takes its preceding automatic gap
+  with it (2026-10-28).** In the modern off-grid compression-versus-stretch
+  comparison, that gap is neither occupied width nor a stretch opportunity
+  on the alternative line. Internal automatic gaps still count. Fresh Word
+  controls take e0ca7252's `第92` with 4.45pt left before the number, but wrap
+  its date paragraph's `109`, whose preceding line has four internal gaps.
+  Keep the existing half-prior-character path and Windows, cell, grid and
+  marked-word rules. Full same-base pairs: 756 documents per mode, zero drops,
+  no page changes; Windows geometry unchanged, Mac e0ca gains 118 matched
+  lines. Unscored boundary improvements in bdae17c0 and dc9cfa34 also match
+  Word. Five Word-printed embedded-font controls in `office-latin-fit.py`
+  pass native/browser and reject the old binary. Fine size-dependent edges
+  remain measured residuals; this is not a general tolerance relaxation.
+
+
+- **Mac balanced spaces in an embedded subset with a Latin ASCII face
+  (2026-10-27).** Where the embedded East Asian subset lacks U+0020 and
+  the run has a Latin ASCII face, ordinary balanced spaces take 3/8 em.
+  Fresh Word tc22 controls give 4.5/6/7.5pt at 12/16/20pt, and still
+  6pt at bold 16pt; Times and Arial agree. Removing embedding or using
+  ordinary FangSong, SimSun, KaiTi or YaHei restores half an em. Naming
+  the subset for ASCII instead invokes a wider fallback, so that case
+  keeps its old rule; mixed NBSP runs do too. Paired Windows/Mac sweeps:
+  zh-c2229d4a Mac 113→265/265, all other scores unchanged. The earlier
+  universal Mac exemption and subset-only candidate were rejected.
+
+
+- **YaHei geometric shapes use their own advances (2026-10-27, T227).**
+  Word's msyh.ttc and msyhbd.ttc agree: □ and ● 1336/2048 em,
+  ◇ and ◆ 1229/2048, ※ 1724/2048, ←/→ 1 em, ↑/↓ half an em.
+  Set those in both regular and bold tables. In particular □ no
+  longer inherits ■'s narrower advance. Triangle/star fallback stays
+  with SimSun. Paired full sweeps: Mac zh-e0ca7252 gains 2 matched lines,
+  zh-20c1d74a gains 1 and zh-505b9619 gains 4; no drops in either mode.
+
+
+- **A continued Windows table row uses its own top rule (2026-10-27).**
+  After a page break, a stated row height includes that cell's own
+  top border plus its stated margins, excluding the preceding row's
+  bottom border. Store the original top rule before border sharing.
+  The t135 pair recovers all 44 missing lines of zh-13552a3a (854/854)
+  and four lines of zh-0978dee9, with no drops in either mode; Mac
+  output is unchanged. Its page 27 final row ends at 504.55pt (Word 504.94),
+  instead of 489.45pt. See the handoff continuation on the task board.
+
+Mac Word gives explicitly named MS Gothic and Segoe UI their own line metrics,
+including in a paragraph that mixes them with JhengHei. Fresh five-line 12pt
+controls give MS Gothic 15.6pt steps (1.3 em, baseline 0.859375 + 0.15) and
+Segoe UI about 15.96pt (2210 above + 514 below, per 2048). Do not map those
+heights to YaHei or Arial merely because those faces draw the stand-in glyphs.
+The zh-8d72961c mixed-line drift was those mappings, not a need to force one
+height on every line: both-mode pair `parity-final` → `mixed-faces` fixes all
+14 vertical misses with nothing else moving.
+
+MS Gothic's own metrics apply only where its cmap contains the character.
+In Mac Word, missing ideographs use Microsoft YaHei, contributing that face's
+height. The all-Gothic variant of zh-8d72961c agrees for 167/167 Chinese
+characters; embedded faces retain their existing coverage handling.
+
+A tab separates words in `_wideWordStarts`. Treating it as part of a long
+word after a full-width colon inserted a hard break before the tab, stranding
+its held space on a blank line (zh-6a4fc013 Q5). Let the tab and the engine's
+existing long-word handling place the text. Do not generalize this into
+ignoring literal NBSP prefixes: the fresh Word NBSP + ZWSP control really
+does leave a blank line. Full paired sweeps gain 51 Windows / 53 Mac lines,
+with no other document changes; tab indentation remains a separate issue.
+
+
+- **A moved flat-pie label starts from its frame-constrained default
+  in Word (2026-10-28).** Apply the chart-frame constraint before the
+  label's manual offset, then keep the existing final frame constraint.
+  zh-61aaad09's outside default reaches above its frame; moving it first
+  lost 9.7 pt of the requested downward move. Fresh original-package Word
+  controls at 1%, 15.85% and 35% apply the same −33.177 pt / +14.16 pt move
+  from the constrained outside position. Restrict this measured rule to flat
+  Word pies; 3-D, doughnuts, bar-of-pie and other hosts retain their paths.
+  The label now starts 604.879 pt down against Word's 604.804. Full paired
+  sweeps: 756 documents per mode, zero drops or page changes; only 61aa
+  changes, gaining two matched lines in each mode. Four self-contained Word
+  controls verify full moves and untouched labels in native and browser,
+  rejecting the old 5.817 pt partial move. General 3-D fitting/collision and
+  remaining horizontal/legend differences are still unresolved.
+
+
+- **Legacy Mac cell words distinguish separating spaces from spaces elsewhere
+  (2026-10-28).** Ordinary spaces inside parentheses do not exempt an attached
+  Latin word from the existing half-character fitting limit. Moving one space
+  immediately before the word does, at the same natural width. A single Latin
+  character keeps that limit too; measure the character itself, excluding an
+  attached pause mark, while requiring capacity for the entire word. Fresh Word
+  controls of zh-7b08d744's form wrap A and A、 at right 0/−2 twips and keep both
+  at −5. Treating the entire A、 as the leading character incorrectly rejects
+  zh-23ee8575's 2、 and zh-540dc149's 3、; those counterexamples are preserved.
+  Windows, body and modern-layout paths retain their existing rules. No new
+  tolerance or modern share test is applied to legacy cells. Full paired sweeps:
+  756 documents per mode, no drops or page changes; only Mac zh-7b08d744 changes,
+  149→210/210 matched lines. Eight portable Word controls with an embedded OFL
+  CJK subset and explicit Arial spaces/letters pass in native and browser. The
+  PDF test asserts the embedded font was loaded, so native fallbacks cannot hide
+  an invalid fixture. The sub-twip −2 boundary remains a known private metric
+  miss; it is not patched with an epsilon.
+
+
+- **A missing Mac title face may name Arial Unicode MS as its alternate
+  (2026-10-28).** Extend the existing known-missing 方正/small-title-name path
+  to this alternate, as the GB2312 path already does. Each first document of a
+  fresh Word process chooses ArialUnicodeMS for zh-d5cc99a6's original title,
+  YaHei when only the alternate is removed, and SimHei when it is changed to
+  黑体. Keep installed/embedded faces, other missing-name families, author-font
+  mode and Windows rules unchanged. Full same-base pairs: 756 documents per
+  mode, no score drops or page changes. Mac d5cc309→435, c25d673→738,
+  08e952183→2251 and a78d423→424 matched lines; Windows geometry unchanged.
+  Six portable controls pair explicit faces with missing names and their
+  alternates; the native Mac-reference-mode test rejects the old binary.
+  These Mac-only expectations are not a browser-font-mode assertion: WASI
+  exposes no OFFICE_WORD_FONTS environment. The separate generic staged-web
+  CJK fallback gap is recorded on the board, not hidden by test fonts.
+
+
+- **A single grid line may clear a floating table before its grid cell ends
+  (2026-10-28).** For a one-line paragraph above a page-wide floating band,
+  exclude the lower half of its grid leading from the collision extent. Use
+  the existing minimum allowance across all its faces: a smaller first run
+  must not let a larger following run overlap the table. Keep explicit line
+  heights, off-grid text and multiline paragraphs on their existing paths.
+  Fresh whole-package Word controls of zh-291fcea7 place an empty anchor, X or
+  文 above the table at87.95pt; X goes below at82/84pt and stays above at86pt.
+  The attachment caption consequently fits on page11, and the final table
+  returns to Word's position on page12. Full paired sweeps: 756 documents per
+  mode, no drops or page changes; only Mac291f moves,232→281/296 matched lines.
+  Twelve portable Arial controls pass natively in both modes and in browser:
+  ten Word baselines plus two safeguards against later glyphs overlapping the
+  table. First-run-only and unrestricted-multiline prototypes were rejected.
+  General multiline flow around page-wide floats remains a separate gap; the
+  safeguards permit its eventual correction without asserting the old positions.
+
+
+- **Minimum line heights use the controlling text run's baseline (2026-10-28).**
+  For a first line of non-East-Asian text, consider its non-space, non-picture,
+  normal-script runs under an “at least” height as under automatic spacing.
+  Choose the controlling baseline before adding the minimum-height leading:
+  a small initial run can otherwise stand lower than the large run when the
+  minimum exceeds both natural heights. Exact heights keep their existing
+  placement. Twelve fresh Word Arial controls cover letters/spaces before a
+  larger run, minima below/above the natural line, exact/automatic spacing,
+  and a 30pt grid. All pass in native Windows/Mac modes and browser; the old
+  binary fails, and exact/auto controls remain pixel-identical. Full pairs:
+  756 documents per mode, no score or page-count changes. Seven normalized
+  positions in Mac bug59058 and both-mode bug65649 move toward or onto Word,
+  within the scorer's existing allowance. The standard-cover investigation
+  exposed this rule through no-picture controls; its original inline-picture
+  baseline and Mac print-paper crop remain separate, unresolved issues.
+
+
+- **Small inline pictures keep a larger text line on the grid (2026-10-28).**
+  A single ordinary non-East-Asian line with an inline picture must retain
+  its text height and baseline when the picture fits above that baseline.
+  Previously its height was replaced by the picture's grid pitches, which
+  could shrink a62.4pt text line to31.2pt and shift its ink up a full pitch.
+  Keep the larger of the natural text line and picture pitches; place the
+  text at its controlling run's baseline. Larger pictures retain the existing
+  picture rule. Exact heights, off-grid lines, combined text, raised/scripted
+  runs and East Asian text stay on their measured paths. Two twelve-page Word
+  fixtures cover24/48pt text, five picture heights, grid on/off and picture-
+  only lines. Native both modes and browser pass; non-target control pages
+  remain pixel-identical. Full756-document pairs have no drops or page changes;
+  only zh-76700e5f's cover baseline changes, gaining one matched line per mode.
+  Its paper-cropped Mac appendix reference and empty-list labels are separate.
+
+
+- **Empty list numbers honor their visible mark and paragraph alignment (2026-10-28).**
+  Preserve an explicit `w:vanish w:val="0"` in the character switches and
+  DOCX output. For an empty paragraph, its visible mark overrides a hidden
+  paragraph style, so both the number and the mark's line remain. Reserve
+  the number and suffix width in the empty line just as for a list with text;
+  centered/right numbers then travel with the line rather than staying at
+  the left indent. Eighteen Word controls cover each alignment, normal/hidden
+  styles, and off/omitted/on marks. Both native modes, saved copies and browser
+  pass; all six explicit-off mark tags survive saving. Full756-document pairs
+  restore seven reference lines per mode with no drops or page changes.
+  Additional table/appendix number x positions move to Word's, leaving every
+  other span position unchanged. This resolves empty marks only: general
+  hidden body runs also need inherited hidden paragraph-mark joining and
+  visible-mark line-height handling. A broader prototype failed those Word
+  controls and was rejected; the accepted version keeps all eight nonempty-
+  body control pages pixel- and geometry-identical to the prior renderer.
+
+- **Missing English GB2312 names in Mac reference mode (2026-10-28).**
+  An undeclared, unembedded FangSong_GB2312 or KaiTi_GB2312 is an absent
+  Latin font name in fresh Word for Mac: Cambria letters and quotes with
+  SimSun ideographs. Keep font-table and installed-face rules separate.
+  Five Word controls reproduce the distinction;38 non-target pages retain
+  baseline pixels. Full same-base756-document pairs have no drops or page
+  changes, Windows geometry unchanged, and zh-202582e2 rises116→129/138 in
+  Mac mode. Twelve newly matched lines have Word's entire normalized text;
+  one still differs at its end. Browser parity and all layout gates pass.
+  The remaining mixed-size baseline and explicit kinsoku0 rules are separate
+  measured gaps, not covered by this font correction.
+
+- **Explicit punctuation restrictions without FE layout (2026-10-28).**
+  Honor paragraph `kinsoku=0` even when `useFELayout` is absent: closing
+  punctuation may start a line, and an opening mark may end one under the
+  existing East Asian language rule. Added invisible breaks contribute no
+  line height; a mixed-size Word pair catches the rejected marker that
+  shifted following text. Preserve the existing FE-layout path. Full756-
+  document pairs have no drops or page changes, Windows geometry unchanged;
+  zh-202582e2 rises129→136/138 in Mac mode, all seven new full lines matching
+  Word. Native and embedded-font browser controls pass. Unembedded Chinese
+  font coverage in the local browser build, mixed-size absolute baselines,
+  and the old FE-path marker-height behavior remain separate measured gaps.
+
+- **Mac SimHei line height and legacy row-border clearance (2026-10-28).**
+  Fresh Word prints at10,10.5,12,14 and18pt bound SimHei's automatic advance
+  to1.29684110–1.29697071em; use332/256em, preserving its Latin advances and
+  Windows metrics. Separate paragraphs, styled breaks and both font aliases
+  agree. Word for Mac also requires the full closing border when a mode12
+  table row meets a page foot; the legacy half-border allowance belongs to
+  Windows mode. Ordinary/merged rows, minimum/exact/automatic heights and
+  asymmetric top borders confirm this independently. The border correction
+  prevents the shorter font's header from wrongly admitting an extra row
+  in zh-90e0cea8. Full756-document pairs have no drops or page changes:
+  zh-4c5da793 rises580→680/680, b00 gains one line,90e0 retains323/326;
+  Windows geometry is unchanged. Native controls and full browser gates pass.
+  Unformatted-break defaults, SimSun precision and unembedded CJK browser
+  fonts remain separate measured gaps.
+
+- **Mac table closing line and a paragraph-final Latin ")" (2026-10-28).**
+  Word for Mac, like Word for Windows (eba13300), hangs a table's own single
+  bottom line (`w:tblBorders`) under an exact last row: zh-884c6e3e's fresh
+  Mac print sets the text after each such table ~0.45pt lower and leaves p2's
+  fourth line for p3. Lab `rb`, which kept the line inside, ruled its cells.
+  And from 2013's layout a paragraph's last character that is a Latin ")" or
+  "," hangs whole before the line's marks are weighed: `squeezedFirst` no
+  longer holds it to the whole over (zh-e0ca7252 "…免載於招標文件)", 14.25
+  over, marks 20.6: Word takes it). Pair b0→c1, 756 documents per mode:
+  Mac 884c 49.5→100, e0ca 70.5→99.1; Windows identical. zh-b0401810 loses
+  one Mac line by cancelling errors (its last row's text had stood 0.5 high,
+  hiding a 0.46pt id/number column baseline difference every row has).
+- **A line exactly as wide as its room: Word's double sum decides (2026-10-29).**
+  Word sums a line's room in doubles, each measure in twips made points on
+  its own (÷ 20) — column, less the left indent, plus the hanging one, less
+  the right — and a line needing all of it fits only if that sum reaches its
+  width. 5.4 is not a double, so some indent pairs land a hair short: lab f39
+  (Word for Windows, zh-f39e54b6's package, 62 prints a twip apart in left,
+  hanging and right) parts on exactly that, 441.0 against
+  440.99999999999994; no rounding of the measures to a unit fits. Ours took
+  every such tie (0.001 slack, the fitter's `hair`/`edge`); now a line whose
+  sum falls short refuses it. Pair on the Windows box, 756 documents per
+  mode: zh-f39e54b6 94.5→95.9 Windows (第十四條 sends "日" down, 第十五條
+  keeps "查", as both Words' prints), every other document identical.

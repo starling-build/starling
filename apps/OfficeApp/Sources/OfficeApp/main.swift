@@ -673,13 +673,17 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
     let dst = CommandLine.arguments[i + 2]
     initializeHeadlessText()
     do {
-        let opened = try OfficeFormats.read(src)
+        let opened = try src == "welcome"
+            ? OpenedDocument(document: WelcomeDocument.make(), pageSetup: .letter)
+            : OfficeFormats.read(src)
         if dst.pathExtension.lowercased() == "pdf" {
             let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
             theme.fontFamilyResolver = OfficeFonts.drawn
             theme.faceResolver = OfficeFonts.face
             theme.complexFaceResolver = OfficeFonts.complexFace
             theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+            theme.symbolAdvance = Metafile.symbolAdvance
             theme.wordRules = true
             theme.disablesLigatures = true
             guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,

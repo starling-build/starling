@@ -119,6 +119,61 @@ final class WordArtTests: XCTestCase {
         XCTAssertFalse(WordArt.draws(TextWarp(preset: "textNoShape", adjust: [], xml: "")))
     }
 
+    /// ECMA's downward slant and isolated Word prints at 28569, 50000,
+    /// 100000: the adjustment grows the band, not the displacement.
+    func testDownwardSlantBecomesRectangularAtItsMaximum() throws {
+        let thin = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textSlantDown", adjust: [28569], xml: "")))
+        XCTAssertEqual(thin(0).top, 0, accuracy: 1e-9)
+        XCTAssertEqual(thin(0).bottom, 0.28569, accuracy: 1e-9)
+        XCTAssertEqual(thin(1).top, 0.71431, accuracy: 1e-9)
+        XCTAssertEqual(thin(1).bottom, 1, accuracy: 1e-9)
+        let rectangle = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textSlantDown", adjust: [100000], xml: "")))
+        for x in [0.0, 0.5, 1.0] {
+            XCTAssertEqual(rectangle(x).top, 0, accuracy: 1e-9)
+            XCTAssertEqual(rectangle(x).bottom, 1, accuracy: 1e-9)
+        }
+    }
+
+    func testInkBoundsExcludeSpacesWithoutChangingLayout() throws {
+        _ = OfficeFonts.register()
+        func painter(_ text: String) -> TextPainter {
+            let p = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(fontSize: 40, fontFamily: OfficeFonts.sans)), textDirection: .ltr)
+            p.layout(maxWidth: Double.infinity)
+            return p
+        }
+        let letter = painter("M"), padded = painter(" M "), blank = painter("   ")
+        defer { letter.dispose(); padded.dispose(); blank.dispose() }
+        let ink = try XCTUnwrap(letter.getGlyphInkBounds())
+        let paddedInk = try XCTUnwrap(padded.getGlyphInkBounds())
+        XCTAssertGreaterThan(ink.width, 0)
+        XCTAssertEqual(paddedInk.width, ink.width, accuracy: 0.001)
+        XCTAssertEqual(paddedInk.height, ink.height, accuracy: 0.001)
+        XCTAssertGreaterThan(paddedInk.left, ink.left)
+        XCTAssertGreaterThan(padded.width, letter.width)
+        XCTAssertNil(blank.getGlyphInkBounds())
+    }
+
+    func testInkBoundsScaleWithoutRasterPadding() throws {
+        _ = OfficeFonts.register()
+        for text in ["M", "gjpqy"] {
+            var reference: Rect?
+            for size in [220.0, 40.0, 44.0 / 3] {
+                let painter = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(fontSize: size, fontFamily: OfficeFonts.sans)), textDirection: .ltr)
+                defer { painter.dispose() }
+                painter.layout(maxWidth: Double.infinity)
+                let width = painter.width
+                let ink = try XCTUnwrap(painter.getGlyphInkBounds())
+                XCTAssertEqual(painter.width, width, "querying ink must not change advances")
+                if let reference {
+                    XCTAssertEqual(ink.width / size, reference.width / 220, accuracy: 0.00001)
+                    XCTAssertEqual(ink.height / size, reference.height / 220, accuracy: 0.00001)
+                } else {
+                    reference = ink
+                }
+            }
+        }
+    }
+
     func testADepthAndACameraAreRead() throws {
         func scene(_ inner: String) -> Scene3D? {
             Extrusion.read(XNode.parse(Data("<p:spPr xmlns:p=\"p\" \(ns)>\(inner)</p:spPr>".utf8)), colors: colors)

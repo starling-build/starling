@@ -8,6 +8,2773 @@ Release a claim the same way if you drop it. The rules each fix found go
 in `office.md` ("The painter against Word"); this file only says who does
 what next and how to check it.
 
+**STRATEGY (the user, 2026-10-29): Windows mode is the focus.** Word for Windows is the reference, and its
+prints (test/corpus/docx/word-win) are the only target. From now on:
+- Pick work from the Windows-mode scores only (sweep-win.sh / w-series). Do not chase Mac-only gaps, and do not
+  ask for new Mac Word labs; Mac-mode items already on the board are parked unless they also miss in Windows mode.
+- Still run the pair in BOTH modes on one base. Windows mode must not drop (the cancelling-errors exception still
+  applies, with the uncovered error logged). Mac mode is a guard only: a drop of 1 point or less in a document is
+  accepted and noted; more than 1 point blocks the landing until it is explained.
+- Word for Windows labs go to `windows` (the box's only Word driver). Other sessions build and pair.
+
+**BASELINE (the user, 2026-10-29, later): the Windows box's sweep is the official score.** Scores taken on the Mac
+or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: zh-6a4fc013 48.5 there vs 90.7 on a Mac).
+- The official numbers are Windows mode, swept ON the Windows box (DESKTOP-URK35LH), its native engine, per the pair
+  recipe on this board (8d52c101). windows-1 keeps a rolling base sweep of the office tip there and posts its mean and
+  lowest list here after each landing.
+- Pick work from that list. A Linux or Mac session may develop and pre-pair on its own host, but before landing it
+  pushes a wip branch and asks windows-1 for a Windows-box confirmation (candidate vs the rolling base, Windows mode):
+  no document may drop there (the cancelling-errors exception still applies, logged).
+- NO MAC WORD (the user, 2026-10-29): do not sweep or score against Mac Word's prints (test/corpus/docx/word) any more,
+  and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
+  that says "both modes" now means Windows mode.
+
+### Recipe: the 756-document pair on the Windows box (DESKTOP-URK35LH) — reference (Claude windows-1, 2026-10-29)
+Scripts are in `~/starling-doc-check/` (same user home for every session on the box). Copy them under your own
+names before editing; don't edit mine, and don't build in `starling-win-native` (mine).
+- **Build (release only).** The debug build fails on this host (MSVC `construct_at`/`error_code` C++ interop after
+  the engine moved to bd7be6b10e59); release works. `f39-build.sh TAG`: sets `STARLING_ENGINE_OUT` and
+  `FLUTTER_SWIFT_ENGINE_OUT` to `C:\Users\starling\dev\starling-engine\engine\src\out\host_release` (shared engine, not
+  rebuilt), runs `powershell -File sdk/tools/build-windows.ps1 -PackagePath apps/OfficeApp -Product OfficeApp
+  -Configuration release` in the checkout, then copies `OfficeApp.exe` + `*.resources` from
+  `apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/` to `bin-TAG/`. Change its `cd` to your own checkout.
+  ~9 min incremental, ~17 min cold. Check for running compilers first (`tasklist | grep -iE "swift-build|swift-frontend|swiftc"`).
+- **ICU.** If your checkout has no `engine` link, also copy `host_release/icudtl.dat` to `bin-TAG/data/icudtl.dat`;
+  without it every document fails "convert failed: unreadable".
+- **Sweep.** `wo-sweep.sh TAG WORK KEYFILE [windows|mac]`: PATH += host_release; `STARLING_ICU=<host_release>/icudtl.dat`;
+  `OFFICE_FONT_SOURCE=bundled`, `OFFICE_WORD_FONTS=$MODE`, `OFFICE_APP=bin-TAG/OfficeApp.exe`; refs
+  `test/corpus/docx/word-win` (windows) or `test/corpus/docx/word` (mac). Runs `test/docx-app-render.sh <R>/test/corpus/docx/docs
+  <R>/<refs> WORK keys…`, then `DOCX_WORD_REFS=<refs> python -I test/docx-line-match.py WORK > WORK.match`. Set `R=` to your
+  checkout and use ABSOLUTE paths (relative ones fail as "unreadable"). Key file: `all756.txt`, names WITH `.docx`.
+- **Pair.** Base and candidate from the same commit, both modes; base and candidate sweep in parallel (~55 min per
+  mode). See `pair1.sh`. Outputs: `WORK/` (renders), `WORK.log`, `WORK.match`.
+- **Compare.** `python -I wn-mean.py NEW.match OLD.match`: zh/poi means, ≥95 and page-equal counts, movers ≥0.05.
+- Windows-host scores differ from Mac-hosted Windows mode (e.g. zh-6a4fc013, Thai); pair on one host only.
+
+### zh-27a874b7 Windows mode (73.9): chart label placement — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's queue item 1)
+Windows mode first, scored vs word-win; includes the "Mac line heights around a tight-wrapped chart" finding below. First lead: p3's
+香港 lands outside where Word-win and Word-mac put it inside at (401.7,476.7); our Windows label runs 36.7pt tall against
+Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the default fallback, not Mincho's 1.3em line.
+
+### zh-8d6f702e (Windows 90.8) and zh-3c055c9b (Windows 93.2) — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
+Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pairs on this box, base b82b195f.
+- (1) Dash, PAIR RUNNING: zh-8d6f702e p21/p22 (and zh-c2f6d17a p19/p20) "…达100" | "—150": RichLayout's em-dash-between-digits
+  joiner (zh-b378d8c4) now only where the dash is set in the Latin face. Lab dash (windows): a hint="eastAsia" "—" breaks
+  before itself, the same dash in Times takes "100—150" down whole; doNotUseEastAsianBreakRules changes nothing.
+  windows-3 builds the "（含）|—5000" joiner (zh-22ecbdc8, lab dsh) on top of this. 5 docs: 8d6f 90.8 -> 91.0, c2f6 99.4 -> 99.8.
+- (2) p38 tie, BUILT, pair queued after (1): "（3）…结束：" and "…影响情" are 0.0072pt over by ours — the 316-twip indent
+  (15.80) a hair past one cell (15.7927). Lab hc2 (windows): Word takes it at 316 twips with or without firstLineChars, in
+  mode 12 and 14, and refuses at 317 (0.0572 over) or the right indent a twip in. Candidate: on a character grid in Word for
+  Windows, legacy modes, not in a cell, the marks' give and the half-before test are weighed to half a twip (0.025pt).
+  5 docs: 8d6f 90.8 -> 99.6, 5be7e156 97.8 -> 98.3 (its p2 "冷" witness matched; in cells it moved 专栏 lines off Word's, so cells are out).
+- (3) zh-3c055c9b (mode 15, 17pt grid, overflowPunct 0) grid squeeze: started, released to me by macOS-doc.
+  382 of our fit decisions checked against Word's print (our line start = Word's): 5 disagree — "採。", "「（舉" (tg cap),
+  "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
+  spaces 4.25 -> 6.45 instead). "稱：" has the same need/marks/stretch as "費、" with 3 spaces and is taken: lab gs asked of windows.
+- (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
+- zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
+  difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
+  `w:hint="eastAsia"`; Word for Windows sets that character in the East Asian slot (新細明體 lacks it: a 1-em .notdef
+  dot, the text layer keeps U+F0A3), Word for Mac draws the Wingdings 2 box; ours maps it to "☐", and the matcher's
+  four-character edges then differ. The only such run in the corpus. PARKED as a text-layer-only artefact (starling-bd:
+  no scorer change, no .notdef drawing for one run).
+- zh-e5eb092a 96.9 — CLAIMED. p4's "将第十四条…" (mode 14, compressPunctuation, jc both, SimSun 12pt, run spaced +0.4):
+  Word ends line 1 at "…区人民政", leaving "府”，" (with the "，" 5.2 over, the quotes unsqueezed); ours takes
+  "府”，", squeezing the quotes and hanging the "，". p5's "…“行政行为”；" has the same geometry (5.2 over) and Word
+  hangs its "；". Lab e5q (`windows`, fresh Word each, `lab/e5q`): no quote is ever squeezed below its em; without
+  the run's +0.4 spacing "府”，" is taken; with the "”" deleted the "，" alone hangs ("府，"); with 2pt (−40) or 5.5pt
+  (−110) more room it is still refused; "，"→"；" and the opener after it change nothing. (p5's "”；" fits whole —
+  not a witness.) Lab e5r (`lab/e5q` h–k): it is width. Spaced +0.4, "府”，" is refused at w:right −140 and taken from
+  −160 (room 460.6 / 461.6 against 458.8 for all 37 at 12.4 with the comma whole) — so the comma gets no hang when Word
+  decides, and ~2pt more is wanted; once taken it hangs whole (12 past at −160). Unspaced it is taken whenever "…府”" fits,
+  the comma hung whole, to w:right +400. Ideographs for the earlier quotes change nothing. Quotes never squeeze.
+  e5s (1-twip thresholds, spacing 0.2/0.4/0.8): need = 36 × (12 + 2s), the comma hung whole — the document has
+  balanceSingleByteDoubleByteWidth, so that is the existing doubled spacing (printed doubled too, 12.8). The miss is the
+  quotes: at w:right 0 "…府”" is 7.2 over; ours squeezes line 1's four quotes 1.8 each, Word refuses. e5t: unspaced, "府”，"
+  is taken only while "…府”" fits with every “ ” at 12.0 (to +432, refused +436) — the quotes give nothing; the same quotes
+  as 《》, 》 gives up to half its em and 《 nothing. Corpus: the 94 Word-win prints that squeeze East Asian-face curly
+  quotes have them almost all in runs hinted `eastAsia`; zh-e5eb092a's 242 are unhinted in a 宋体 hAnsi (Normal (Web)),
+  never squeezed. Candidate: in Word for Windows a curly quote not hinted East Asian (set in the Latin slot, whatever its
+  face) gives nothing (`windowsMuted`). Pair to come after T169's.
+- zh-22ecbdc8 96.8 — CLAIMED. p3 "…组织人次达1000（含）—5000人/年" (mode 14, compressPunctuation, 仿宋_GB2312 16pt, hint
+  eastAsia): Word ends line 3 at "（含）" with its marks whole and starts line 4 "—5000"; ours squeezes four marks
+  1.44 each and ends at "—". Corpus prints: Word ends a body line with an East Asian "—" before a digit once
+  (zh-e68a2f57 "表4" | "—" | "1…", three runs), starts one with "—"+digit ten times; zh-eb54d3b0 p8 squeezes to take
+  "）—5000" whole. Lab dsh (is "—5000" one piece?) asked. Agreed with windows-2: its Latin-face restriction of the digit–dash
+  joiner lands first (it cannot move this line: "）" before the dash); the East Asian "—|digit" joiner goes beside it after.
+  Lab dsh (`lab/dsh`, w:right 0…−160): Word never breaks between the "—" and "5000" — line 4 starts "—5000" to −100, and
+  from −120 the marks give to take "—5000" whole. Three runs, no hint, doNotUseEastAsianBreakRules and useAltKinsoku print
+  identically. With "五千" for "5000" it ends a line at "—" (marks squeezed to take it). zh-e68a2f57's "4" | "—" | "1"
+  (a digit before the dash) is the other case — windows-2's rule.
+
+- zh-505b9619 96.6 — CLAIMED. Its misses from p59 on carry "2.x" where Word's print has "3.x": the quality list (numId 14,
+  "%1" / "%1.%2" / "%1.%2.%3") opens at level 2 ("1.1下列檢驗項目…"), and Word numbers its first two level-1 items 2 and 3 —
+  the uncounted parent counted at its start when the deeper item showed it; ours only shows it (`RichListNumbering`, see
+  office.md "A list level begins at its own start") and numbers them 1 and 2. Candidate: a shallower level not yet counted is
+  counted at its start. Pair on the current tip to come. (Its p4/p5 "○1"/"○2" eq \oc misses are the text layer: ours
+  sets ①, which the reader folds to "1".)
+
+- 97.0–97.9 band (starling-bd, 2026-10-29), top down. zh-d8247da5 97.9: looked, released — its one miss is the reader
+  grouping a dense landscape form cell ("面私人醫"), lines at Word's heights.
+- zh-76cb73e2 97.9 — CLAIMED. All 4 misses are p10/p11's footers: a VML page box (mode 11, mso-wrap-style:none,
+  mso-fit-shape-to-text, "— PAGE —" in 宋体 14pt hinted East Asian, cached "2") that Word sizes for "— 2 —" (49pt, centred at
+  297.65) and that wraps "— 10" | "—" on two-digit pages; ours fits each page's own text. zh-5be7e156 and zh-785e46f8 (wps
+  wrap="none" + spAutoFit, the same text) wrap too; zh-08dc38da and zh-57f1de0d (same box, "— PAGE —" in Times hint default)
+  keep "— 11 —" on one line. Lab pgb asked of `windows`.
+
+- zh-76cb73e2: lab pgb (`windows`): a wrap-none + fit-to-text page box is sized ONCE, for a one-digit line, and on two-digit
+  pages Word wraps inside it and clips the second line; the cached result and the mode change nothing; in Times "— 10 —"
+  still fits the one-digit width. Our `fitsOnce` already does this — what misses is that p10–11 use footer2 (third sectPr)
+  whose first page IS p10, so ours sizes it for "— 10 —"; Word still sizes it for one digit. Lab pgc asked.
+- zh-8415d258 97.8 — CLAIMED. Its paragraphs open with two U+2003 EM SPACEs in a 仿宋_GB2312 run: Word for Windows sets each
+  15pt at 15pt (in Cambria Math); ours 6.7 (the stand-in's fallback), and those first lines take a character more
+  ("…规范化" for Word's "…规范"). Candidate: an em space is an em and an en space half one. Pair on the current tip to come.
+- zh-27fc8f9d 97.7 — CLAIMED. p2 "第十条地面运行保障节点为《实施规范》中规定的22个节点：…": Word ends line 1 "…22个节" with 《》
+  whole; ours squeezes both 3.8 to take "点：" (the "：" hung). Lab f27 asked. (The 0.5 em gaps beside its "22" in Word's
+  print are justification; the corpus' balanced documents set the automatic space a quarter em, as ours.)
+- zh-202582e2 97.8: looked, released for now — p5's ¶3 lines stand 6–8pt low in ours: its first line mixes Times/仿宋 15.5
+  with 15pt runs (spaced 9/4/8, auto 322); ours 28.8pt for that line (Word's ~26). Not narrowed further.
+- zh-505b9619: the numbering candidate takes it 96.6 → 96.8; its remaining p59 misses are the mode-15 fit (ours squeezes
+  "：" and the spaces round "5" to take "員。", Word squeezes nothing) — T181's ground.
+
+### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
+Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
+(stroke 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, joins nothing, text matters, either shadow +2.28). (2) POI `rtl`
+28.6% Windows-hosted vs 100% Mac-hosted: first cause (Arabic text layer read back as U+06CC/U+06BE and presentation
+forms; lines ~2pt taller). (3) Windows-native zh 99.21 vs Mac-hosted 99.30: per-document comparison, first cause.
+No Word driving here (prints via `windows`). Pairs in both modes, same checkout/engine, bundled fonts.
+Status 2026-10-29: first causes found, fixes built, not yet committed. Full 756 pair (21ae32b0 tip vs Thai+WordArt)
+is clean: Windows mode only WordWithAttachments 73.7→81.6 and zh-6a4fc013 48.5→66.9 move; Mac mode only zh-6a4fc013
+48.7→49.8. (3) A Windows host never sets thaiBreaksAtSpaces (registerWordCordia is Mac-only), so Thai broke inside
+words; fix = set it on Windows + Browallia advances. Residual: p18 bold heading Word keeps on one line. (2) rtl: the cs
+face "Noto Sans Arabic UI" is missing on both hosts; Windows fell back to Segoe UI (1.33em, 15.96pt lines vs Word ~14).
+Fix = uninstalled cs face → Times New Roman: rtl 28.6→85.7 both modes; full pair running. (1) WordArt model matches the
+wa4 lab within 0.02 except text dependence ("ОООО"/"IIII" at 1pt: 42.95 vs 41.52); WWA's remaining misses are p2's
+embedded document.
+
+### Windows-mode Word labs: zh-f39e54b6 DONE 4a0a7059; zh-015abfaf and WordWithAttachments labs run (q015, q17, wa4), not built; grid question open — RELEASED (Claude, Windows box DESKTOP-URK35LH, 2026-10-28/29, the user's assignment)
+Owner: Claude worker on the Windows box, this machine's only Word for Windows driver. Runs the Word for Windows
+labs these Windows-mode gaps are blocked on, in order: (1) zh-f39e54b6 第十四條/第十五條 (one-change variants
+from the document's own package; then the one-twip grid question if the same lab answers it); (2) zh-015abfaf
+and WordWithAttachments per the Linux worker's reconciliation; (3) any other Word-for-Windows lab spec on this
+board. Each variant printed alone in a fresh Word (docx-word-win-worker.ps1, warm-up, one key per batch); lab
+files under `~/starling-doc-check/lab/` on this box; results tabled here before any code. No Mac-mode labs.
+
+**Lab f39 (Word for Windows, 2026-10-28, `~/starling-doc-check/lab/f39`: `mk.py`, `run.sh`, `rd.py`, models).**
+zh-f39e54b6's whole package, ONE change per variant, each printed alone in a fresh Word (worker, warm-up, quit).
+The two paragraphs are NOT the same: p14 says `leftChars -45 left 1026 rightChars -45 right -108 hangingChars
+405 hanging 1134`, p15 `left 1023 hangingChars 404 hanging 1131` — same net first line (−108), different parts.
+First line of p14 / p15 (control reproduces the reference: p14 ends "，按", p15 "經查"):
+
+| variant (one change) | p14 takes 日? | p15 takes 查? |
+|---|---|---|
+| o control | no | yes |
+| a p14 gets p15's whole `w:ind` | **yes** | yes |
+| b p15 gets p14's whole `w:ind` | yes | **no** |
+| c p14 twips → 1023/1131, hangingChars 405 kept | no | yes |
+| d p14 hangingChars 405 → 404 alone | **yes** | yes |
+| e p14 without the *Chars attributes (1026/1134) | no | yes |
+| f p15 without the *Chars attributes (1023/1131) | no | yes |
+| g p14's 日 → 查 / h p14's 按 → 經 | no / no | yes |
+
+So the switch is the indent pair, not characters, fonts or position (a 1–5-twip table shift changes nothing).
+Hanging in characters is Word's whole twips (405 → 1134, 404 → 1131), as ours already rounds. Sweeps, p14
+without *Chars: left L, hanging L+108, right −108, L = 1000…1023: takes iff L mod 5 ∈ {3,4} (period exactly 5
+twips). Right swept a twip at a time: L≡0,1,2 take from right −109, L≡3,4 take at −108 and refuse at −107.
+Hanging−left D = 105/106/107/109 with right −(216−D) (the same exact room): D105 all take, D106 refuse L≡2 only,
+D107 refuse L≡1,2, D109 all take. **Rule (fits all 62 p14 prints, `model5.py`):** the line needs exactly
+441.0pt (31 ideographs, 4 spaces of 3.5, two commas squeezed to half — a tie); Word sums the room in doubles,
+each measure twips ÷ 20 on its own, column − left + hanging − right, and takes the character iff that sum ≥
+441.0 — 440.99999999999994 refuses. Rounding the measures to any unit (1/16pt and finer, half-up/floor/ceil)
+fits no more than the first sweep; the float sum fits every print. zh-8d6f702e / zh-5be7e156 (one-twip grid
+question): not answered by this lab — a character grid's cells are not this tie; left for a grid lab.
+
+**Lab wa4 (Word for Windows, 2026-10-28, `lab/wa4`) — the WordArt stroke lab 7bd18d8e asked for.** windows-1's wa3
+(10-25, never reported) put all cases in one document; wa4 is the same cases, ONE per document, each a fresh Word:
+WordWithAttachments' package, mode 14, the 187.5×28.5pt `_x0000_t136` textpath ("Мой текст здесь", Arial Black
+20pt, gradient fill) between 10pt centred markers; marker-to-marker baseline distance, and against a bare
+`v:rect` of the box (`g`, default 0.75pt stroke, 41.52):
+
+| case | distance | vs rect | | case | distance | vs rect |
+|---|---|---|---|---|---|---|
+| no stroke | 40.68 | −0.84 | | 1pt, round joins | 42.96 | +1.44 |
+| 0.5pt stroke | 41.52 | 0.00 | | 4pt, round joins | 70.68 | +29.16 |
+| 1pt | 42.96 | +1.44 | | 1pt, "ОООО" | 41.52 | 0.00 |
+| 2pt | 51.96 | +10.44 | | 1pt, "IIII" | 41.52 | 0.00 |
+| 3pt | 60.24 | +18.72 | | no stroke, "ОООО" / "IIII" | 40.68 | −0.84 |
+| 4pt | 70.68 | +29.16 | | shadow offset 3pt, no stroke | 42.96 | +1.44 |
+| | | | | shadow perspective, no stroke | 42.96 | +1.44 |
+
+Over the unstroked textpath a stroke adds 0.84 / 2.28 / 11.28 / 19.56 / 30.0 at 0.5/1/2/3/4pt — not linear, and
+joins change nothing (so not miter spikes); at 1pt the string decides it (+2.28 for the title, +0.84 for
+ОООО or IIII). Either shadow alone adds 2.28. Not built here: tabled for the WordArt-extent owner.
+
+**Lab q015 (Word for Windows, 2026-10-28, `lab/q015`) — zh-015abfaf's "超”".** p8 cut to start at "着力抓好…" at the
+margin (so its first line is the witness), w:right swept 0…−300 twips by 20, each print a fresh Word. Word sets
+CESI仿宋 as Microsoft YaHei and the Nimbus Roman "”" as Calibri.
+
+| variant | right where 超 is first taken | the line then ends |
+|---|---|---|
+| c as is (Latin "”" after 超) | −120 (refused at −100; at 0 ends "比学赶帮" 520.78, as the reference) | 526.37 "超”", inside the 527.6 margin |
+| n that "”" removed | 0 (taken at once) | 520.54 "超" |
+| e that "”" hint eastAsia (YaHei mark) | −140 (refused at −120) | 535.54, the "”" hung past the 528.6 margin |
+
+So the Latin "”" never hangs and must fit inside; the East Asian one hangs. This is b206d70d's `z01` rule, already
+in. 015abfaf's first miss has moved on (62.7, 16 pages to Word's 15): p10 "17.手工嵌线技能竞赛<tab>+17 spaces（文登区
+开发区）" — Word wraps "区）", ours hangs the "）" (mode 14, useAltKinsokuLineBreakRules, YaHei 16 on a 15.75 grid).
+
+**Lab q17 (Word for Windows, 2026-10-28, `lab/q17`):** that paragraph alone, w:right swept, each a fresh Word.
+Refused at right 0; taken from −2 twips (0.1pt) on, the "）" whole at 512.50–528.46, i.e. hung 6.76 past the
+margin (our positions are Word's to 0.1). An ideograph after the "）" (so not the paragraph's end): the same.
+So Word hangs this "）" up to somewhere in [6.76, 6.86) — not half an em (7.87/8, ours) and not the glyph's blank
+right side (10.45 in YaHei). Not built; the limit wants a second witness (another mark/size) before a rule.
+
+**f39 rule — DONE (next commit), paired.** Patch `~/starling-doc-check/f39-tie-candidate.patch` on the
+Windows box (on a83dbd4d): `_layoutParagraph` computes Word's double sum of the first line's room (column − left +
+hanging − right, each twips ÷ 20) and of the other lines' (no hanging); where it falls under the twip value, the
+painter's 0.001 slack and `_fitEastAsianLines`' `hair`/`edge` (the no-Latin one) become −0.0005 on that line. Single
+document, bundled fonts, host_release bd7be6b10e59: zh-f39e54b6 Windows 94.5 → 95.9, Mac 94.6 → 95.9 (第十四條 ends
+"，按", 第十五條 keeps "查", as both Words). Full pair b=`bin-f39base` (a83dbd4d) vs c=`bin-f39cand`, 756 docs per mode,
+running (`f39b-{win,mac}`, `f39c-{win,mac}` under `~/starling-doc-check`; summary written to `f39-pair.txt` when
+done). **Pair result, 756 per mode, same checkout/engine:** Windows zh 99.2158 → 99.2180, POI 90.0703 unchanged;
+Mac zh 98.6248 → 98.6268, POI 91.1829 unchanged; the one mover either way zh-f39e54b6 (94.5 → 95.9 / 94.6 → 95.9),
+every other document's score identical. Left in f39: its other misses (not looked at). (`~/starling-word-check/lab/tools/sweep*.sh` are not on this box;
+`wn-sweep.sh` drives the same docx-app-render.sh + docx-line-match.py.)
+
+### Windows-native gate (39bb8cb9328/6461fc4819e/bd7be6b10e59) — DONE; one Windows-only bug fixed (Claude, Windows box DESKTOP-URK35LH, 2026-10-28)
+Owner: Claude worker on the Windows box, coordinator-assigned. Gap-analysis §3's
+missing Windows receipt: back up the box's host_release DLLs (bak-c34c8aa8eba),
+fast-forward the engine to origin/starling, apply BUILDING.md 1.7 patches,
+rebuild host_release incrementally; build OfficeApp release in the private
+clone `dev/starling-win-native`; compare Windows-native layout with Mac-native
+on welcome/TextEdit/boringcrypto and score a corpus sample in Windows mode
+(bundled fonts). No fidelity rule change unless a Windows-only bug is paired.
+
+**Receipt:** engine `c34c8aa8eba` → `bd7be6b10e59` by fast-forward, all ten patches
+applied, host_release 7-step incremental rebuild; old DLLs/import libs in
+`out/host_release/bak-c34c8aa8eba`. New `flutter_engine.dll`
+`5e45502fa77b1a77b51087c9b31f1228c369b3b8771c32e15cec6d36a1bbdd26` exports
+`GetGlyphInkBounds`; 6461fc4819e's FreeType patch has no Windows object
+(DirectWrite). Gate documents equal the Mac receipt's counts (welcome 1/34,
+TextEdit 3/88, boringcrypto 24/1071, round trips 0); all 14 native Word-control
+scripts pass both modes. Full sweeps (756 each, bundled, same checkout/engine):
+Windows mode zh 99.0107% → **99.2084%** with the fix, POI 89.8721%; Mac mode zh
+98.3481%, POI 91.0126%, unchanged.
+**Fix `fd127eb8`:** Foundation on Windows encodes nothing as `.shiftJIS`, so
+`windowsMinchoCovers` was nil on Windows hosts (also feeds e101ebe1's chart
+titles). Now WideCharToMultiByte(932). Pairs: Windows mode zh-d97c5474 50.0→97.8,
+zh-10e3a42b 78.6→100, zh-202582e2 77.7→97.8 (= Mac-hosted 136/139), zh-f6686f89
+79.9→100, zh-2a241df1 81.9→100, nothing down; Mac mode no movers.
+**Open, released:** POI's −0.64 vs Mac-hosted in both modes is `rtl` alone
+(28.6%): Windows Times New Roman's Arabic reads back as U+06CC/U+06BE and
+presentation forms, and lines step ~2pt taller than Word's. ~0.09 zh point vs
+the Mac-hosted 99.2971% not localised (no Mac per-document list here). No
+Windows browser run, exact Mac dump diff or UI pass. Evidence:
+`~/starling-doc-check/wn-*` on the Windows box.
+
+### Cross-platform DOCX status and gap analysis — DONE (release session, 2026-10-28)
+Owner: Codex release/validation session, coordinator/user-requested. Write
+`word-status-gap-analysis-2026-10-28.md` on office: freshest Windows/Mac-mode
+zh/POI scores versus the October 27 snapshot; macOS/Linux/Windows/iOS/web build,
+engine currency, parity and installed-font coverage; fidelity/product gaps;
+release and redeploy gates. Read-only evidence gathering and documentation only.
+Do not claim a platform passes from another platform's run or modify production.
+
+Completed [the October 28 report](word-status-gap-analysis-2026-10-28.md).
+Recomputed all four corpus means/counts from accepted d6e61adf's exact audit;
+kept Mac-hosted reference modes separate from host validation. Covered current
+Mac evidence, Linux cd963220 +6413b39d, unverified current Windows/iOS,
+T203, fidelity/editor gaps and release/redeploy gates. Includes artifact hashes,
+zero-line POI caveats, scored versus physical pages and suggested next owners.
+Read-only checks confirmed remote engine bd7be6b10e59, the older shared Linux
+39bb8cb9328 checkout, and the September30 iOS checkout. No new rendering build,
+Word automation, production edit or deployment. Chart work remains private.
+
+### Linux private-engine/native-browser validation — DONE; PASS (release session, 2026-10-28)
+Owner: Codex release/web session, coordinator/user-approved. On Linux
+`starling@192.168.68.65`, build native and skwasm from pinned `origin/starling`
+including39bb8cb9328/6461fc4819e and all BUILDING.md1.7 patches, in private
+output directories. Preserve shared checkout outputs and10GB disk floor.
+Run `test/office-layout.sh` at a recorded office tip; report Linux native/
+browser parity with engine/source hashes. Disjoint from fidelity owner.
+
+Subclaim (same owner): separate the layout gate's HTTP port from the browser
+CDP port. Exported `PORT=18137` currently reaches both server and web-drive,
+which prevents DevTools binding. Preserve default behavior and expose an
+independent optional DevTools port; validate in the requested private run.
+
+**Engine build PASS:** private Linux engine at
+`bd7be6b10e590dbf4154169f72e9c8e3c157c4b1` contains both required ancestors.
+All ten BUILDING section 1.7 patches applied, zero skipped/failed; native and
+skwasm release builds passed. Native `libflutter_engine.so` SHA256
+`4485edfc3d68110c672c1a062ff2844d44933a58af77a36442cae7be4a60ebe2`;
+skwasm SHA256
+`c14456aa8ed4e35af2fa4d952cb7a80f93d169df4641be4d06b482264cc34667`
+matches the previously accepted renderer. Native GN's known include-check
+failure was handled by documented direct GN generation; no engine source fix.
+`ldd` resolves Office to the private engine, and all 17 recorded shared output
+hashes remain unchanged. Engine-build minimum free space was 73.2 GiB.
+Evidence: `/home/starling/office-validation-20261028/engine-result.json`,
+`patches.log`, native/wasm build logs and `shared-output-hashes.json`.
+**Readiness subclaim (same owner, disjoint test infrastructure):** the
+`bf92ed4b` gate initially fails boringcrypto with 84 differing dump lines at
+its fixed 8-second post-open wait (24 pages both sides, heights about 0.2
+units different). A fresh original-package capture reproduces this at 8s,
+but its 38s dump matches native byte-for-byte. Five single-body-paragraph
+controls, retaining original package defaults, all match. Add bounded
+requested-document/font-quiet readiness to the layout path using the existing
+PDF driver's pattern; retain failure on timeout and the final exact diff.
+No rendering or engine correction indicated. **Harness fix PASS:** `settle`
+waits boundedly for the requested document name and a `fontsPending()==0`
+quiet interval; the gate keeps its exact dump diff. Missing-document and
+permanently pending-font controls both fail with the expected timeout error.
+Full `bf92ed4b` rerun passes: welcome (1 page), TextEdit (3 pages),
+boringcrypto (24 pages / 1071 dump lines), every save roundtrip, fractional
+font/ink gate and all 11 fixed-frame pages in native Windows/Mac modes plus
+browser. Exported HTTP `PORT=18137` and DevTools `OFFICE_DEVTOOLS_PORT=19337`
+work independently. Evidence: `font-ready-gate/`, `readiness-timeout/` and
+`font-audit/` under the Linux evidence root. All 57 base font file hashes
+match; native/browser transformed Word fonts differ in OS/2 WinAscent, but
+this is a separate observation, not the demonstrated cause of the mismatch.
+Original failing binaries/dumps and exact 8s/38s captures are preserved.
+**Final pinned snapshot PASS:** native RELEASE and WASM app rebuilt at
+`cd96322005a801bae07a3b321968b7cd0bb5f926`, using exact committed harness
+`6413b39d` and the same private engine. Full gate exits 0 with no skips:
+all three document layouts/roundtrips, fractional advances/ink, 11 fixed-frame
+pages (native Windows/Mac modes and browser), and 12 opening-mark controls
+(native Mac mode and browser). Swift 6.2.4, Chrome 152, Node 22.22.1 on Linux.
+Native Office SHA256 `3c69b5583e8b3b62074493aed94eb70755082ec9be54f4a94006bc618498af12`;
+app WASM `619dc2b8097a577f362fc85d4a4cbe053e3e9fb93348b32783bf93a09c97ff5b`.
+Final receipt: `office-tip-cd963220/office-result.json` under the evidence root,
+SHA256 `47113137e1552575ba1953d2510d90fb0a916e509467f56767f644e7059c5b1c`.
+Minimum recorded free space 72.5 GiB; all 17 shared artifact hashes unchanged.
+No shared output promotion, production rendering edit or deployment. Preserved
+baseline binaries include matching Swift library/resources; local receipt mirror
+`/tmp/starling-linux-validation/receipts`. Newer `d6e61adf` numeric fit/Latin
+fixture is deliberately outside this Linux snapshot, per peer coordination;
+its owner gates are separate evidence. WASM was unoptimized (no wasm-opt),
+so this is parity validation, not a production loading/performance sign-off.
+
+### Linux loaded termd timing flake — DONE (release session, 2026-10-28)
+Owner: Codex release/web session, coordinator/user-approved. Reproduce
+`test/run.sh` termd failure under Linux load versus isolated test, inspect
+`termd/test-termd.py`, fix bounded timing tolerance while preserving meaningful
+assertions, validate under load and alone. Private checkout; avoid fidelity
+rendering changes and existing shared worktrees.
+
+**Result:** baseline isolated run passes, loaded run fails4/70 opens;
+instrumented repeat fails5/70, all received frames are delayed EXIT(type12),
+not OPEN errors. Eviction fixture detached without consuming child exit and
+mistook it for the next OPEN reply. Fix waits boundedly for the matching
+successful EXIT before next OPEN, and asserts70 completed fixtures; it still
+requires eviction beyond64 slots and preserves all original checks. Four
+loaded runs (12CPU workers on same core) pass, plus isolated socket and stdio
+runs. No daemon/rendering behavior changes. Evidence on Linux:
+`/home/starling/office-validation-20261028/termd-{baseline,fixed,diagnostic}*`.
+
+### Live web redeploy checklist only — DONE; not executed (release session, 2026-10-28)
+Owner: Codex release/web session, coordinator/user-approved. Prepare exact
+sites/artifacts/commands and gates for deploying new skwasm, and record on this
+board. DO NOT deploy. Live redeployment requires user's explicit yes after
+reviewing concrete checklist; engine and validation work is authorized now.
+
+Prepared [the redeploy checklist](office-web-redeploy-checklist.md): inventory
+four runtime sites and two static landing hosts; preserve versioned assets,
+shipping loading/font optimizations and rollback revisions. Includes source
+selection, build/package commands, native/browser/corpus/performance gates,
+explicit approval boundary and future publish commands. Office branch lacks
+main's optimized product packager/host: a reviewed merged release checkout must
+be built and retested before publishing. No live-site writes/deployments run.
+
+### Gap analysis §4, second half — CLAIMED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
+Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. In order: (1) sub-twip grid /
+width arithmetic — zh-8d6f702e, zh-5be7e156, zh-f39e54b6, measured from the prints, no epsilon; (2) other chart
+geometry — zh-13d11e99, zh-b8de3ae2; (3) text-box overflow beyond the first-line fix (whole-frame and band-clip
+rules stay rejected); (4) zh-015abfaf, POI WordWithAttachments and delins — reconcile history, then the first
+concrete mismatch. Takes over the older claims on these (Linux 01F2SWc8's 13d11e99 and b8de3ae2 charts, Windows
+01QbbApP's 015abfaf; Codex's item-6 notes and rejected candidates stand). Sweeps on Linux with the 10-28
+validation's pinning: `STARLING_ENGINE_OUT` = `FLUTTER_SWIFT_ENGINE_OUT` =
+`starling-engine-validation-20261028/.../host_release` (libflutter_engine 4485edfc…), `STARLING_ICU` = its
+`icudtl.dat`, bundled fonts, Swift 6.2.4; base and candidate on one checkout. No Word access from this box:
+nothing here is "verified against Word" beyond the existing prints and the labs already on this board.
+
+Linux baseline b0 at 40a00d7f (Windows zh 99.270 / POI 89.614, Mac zh 98.399 / POI 90.755; 756 docs each mode).
+
+- **(2) zh-13d11e99 — DONE (next commit).** Not plot sizing: a font line. Word for Windows sets the chart's theme
+  text (`a:ea` "", `lang="zh-CN"`) in MS Mincho and its "动" in Microsoft JhengHei, so the title line
+  "主动公开信数量" is JhengHei's 1.729 em, not Mincho's 1.3 (the constants `_tableRows` already measured). Word for
+  Windows' print: title baseline 3.67 and the plot's top 6.34 under Word for Mac's (SimSun, which ours already
+  matched). Rule: in a `windowsMinchoText` chart, a theme-faced title line holding a character Mincho lacks
+  grows by 0.429 em, its text half of that lower. Not where the title's runs say zh-TW/HK/MO: zh-b8de3ae2's
+  eleven rich titles are PMingLiU in Word for Windows' print (a first cut without that guard took b8de 91.6 ->
+  88.8). Pair b0 -> c1, both modes, 756 docs: Windows zh-13d11e99 95.9 -> 100 (194/194), nothing else moved in
+  either mode. Left in 13d: the plot's foot stands 3.0 high in both modes (axis 0 at 550.5 vs Word 553.5 / Mac
+  553.2) — ours keeps ~3pt more between category labels and the bottom legend (23.7 vs Word's 19.9-20.8); one
+  witness, not built.
+- **(4) delins — DONE (next commit), first concrete mismatch.** Balloon order: Word for Windows' print stacks
+  each link item's balloons "Formatted", "Formatted", "Field Code Changed"; ours put "Field Code Changed" first
+  (anchored where the result begins). Now it is anchored where the field's result ends, after the result's and
+  the next words' "Formatted". Pair c1 -> c2, both modes, 756 docs: Windows delins 74.6 -> 96.6, Mac 75.9 ->
+  94.8, nothing else moved in either mode; PdfMarkupTests/ChartTests pass. Left: the "Uri Boness" item,
+  whose words after the link are unchanged, where Word stacks two "Field Code Changed" in a row (57/59).
+- **(1) zh-f39e54b6 — MEASURED, no rule.** Word's own prints rule out width arithmetic for this witness:
+  第十四條 and 第十五條 are the same table cell, the same indents (first line −108 twips, right −108), the same
+  runs and fonts, 4 + 26 characters with commas at the same places, and start at the same x (Mac 89.880, Windows
+  90.024). With the next character both need the same squeeze, 7.01 (Mac print: natural advance end 537.862 vs
+  537.863). Word squeezes 第十五條's two commas by 3.51 each and keeps "查" (ends 530.768 Mac / 531.107 Windows), but
+  sends 第十四條's "日" down — in both Word for Mac and Windows. No width, rounding or twip rule can part two
+  lines of equal width, so the earlier tie/epsilon tries were bound to fail here. What differs is only the
+  characters (overflow "查" vs "日", the one before it "經" vs "按"). Next: a Word lab swapping 日/查 between the two
+  paragraphs (Windows box). Also measured: Word's cell text left is 95.28 (ours 95.4) in every article row
+  (first-line starts 89.78/89.88/91.08 = 95.28 + left − hanging), so the 0.12pt start offset is real but is
+  not what decides this line. zh-8d6f702e / zh-5be7e156 (char grids): Mac-print pitches are within ±0.001pt of
+  size + charSpace/4096 (minus doubled spacing on 5be), which is too coarse to pin the one-twip rounding
+  01QbbApP's twip2 lab found; left as that lab says.
+- **(3) Text-box overflow — not started.** Codex's 96 Word controls (`geometry-next/…`) are on the Mac, not
+  here, and this box cannot make new ones; the whole-frame and band-clip rules stay rejected.
+- **(4) zh-015abfaf / WordWithAttachments — reconciled, unchanged.** 015abfaf's first Windows miss is the T181
+  squeeze witness (mode 14, "超”", Latin "”" hung, 6.57 over one mark, Word refuses) and Mac's is the 0.018pt
+  tab-line hairline (Mac 7bd18d8e); WordWithAttachments is the parked inline-WordArt extent (stroke/shadow
+  terms, a56561c7). No new evidence here; both need Word labs.
+### Mac fidelity takeover (gap analysis §4): 884c and e0ca DONE 147001ea; c5b and 3-D pies RELEASED pending Word labs (specs below) (Claude mac-fidelity, 2026-10-28)
+Owner: Claude worker, clone `starling-mac-fidelity`, branch `office`, coordinator
+assignment (Codex sessions out of tokens until Nov 1). In order: (1) 3-D pie
+labels zh-27a874b7 / zh-d62da4dd and zh-61aaad09's remaining labels, taking over
+Codex's RELEASED T205 follow-up below — its 14 private controls, the rejected
+2-D vertical-centering and blanket no-manual-moves shortcuts stay rejected;
+(2) Mac squeeze/Latin edges zh-e0ca7252 (Mac 70.6) and zh-c5b5087b (Mac 26.7,
+11 pages to 10) — zh-7b08d744 is already DONE (Codex, 210/210); T218's broad
+"no squeeze" / useAltKinsoku tries stay rejected; (3) Mac residual zh-884c6e3e
+(51.4, p2 foot). zh-d5cc99a6 is 100.0 in Mac mode at 1a29f83e (435/435): no work.
+No Word driving: existing lab PDFs and references only; a rule that needs a new
+Word lab gets its spec written here and I move on. Baseline b0 on abd0eda7,
+shared engine host_release_arm64, both modes, OFFICE_FONT_SOURCE=bundled.
+
+**Findings (2026-10-28):**
+- zh-884c6e3e (Mac 49.5): the p2 foot is not scale. The fresh Mac print sets
+  the text after each `w:tblBorders`-ruled table of exact rows ~0.45pt lower
+  than ours (title-to-title over table 1 + table 2, solved for the table's
+  extra: 0.44, the print's 0.24pt raster aside) — Word for Mac, like Windows
+  (eba13300), hangs the table's own single bottom line under an exact last
+  row. Lab `rb`, the reason it was Windows-only, ruled its CELLS (tcBorders, no
+  tblBorders), which the rule already leaves inside. Candidate: drop the
+  `wordWindowsPages` gate on `tableLine`.
+- zh-e0ca7252 (Mac 70.5): from p26 on a line late. "…免載於招標文件)" ends the
+  paragraph 14.25 over with three marks able to give 20.6; Mac Word takes
+  "件)" (")" 0.25 past). Ours refused: `squeezedFirst` held the Latin ")" to
+  the whole over, so the mode-15 share test saw 14.25 instead of 9.77 (")"
+  hung). Candidate: `squeezedFirst` does not apply to a Latin ")"/"," tail
+  (`latinComma`, < U+2E80). (Mac Word's PDFs set 14pt as 13.92 and 16 as
+  16.08 — a 0.24pt size raster in the print only: advances stay 14.00 on
+  unjustified lines, so not a layout rule.) The "○1" misses are EQ `\o\ac`
+  text-layer artefacts (we draw ①, Word's PDF says "○" + "1").
+- Focused 53 documents (targets, table-line and squeeze witnesses, all 36
+  kinsoku-0 documents), both modes: 884c 49.5→100, e0ca 70.5→99.1, nothing
+  else moved; Windows identical.
+- **DONE (both candidates, one commit): full pair b0→c1**, same checkout
+  and engine, unchanged sweep.sh/sweep-win.sh, 756 documents per mode, none
+  missing, no page changes. Mac zh 98.3→98.4 (610→612 at ≥95%): zh-884c6e3e
+  49.5→100, zh-e0ca7252 70.5→99.1. Windows (zh and POI) and Mac POI: every
+  document identical. Exact audit: zh-b8de3ae2 and zh-340d52e9 change our line
+  count only, matched lines unchanged. **zh-b0401810 Mac −1 line (159→160
+  missed), the cancelling-errors exception:** its p19 table's last row's
+  text stood 0.5pt high in b0 (only that row), which happened to match
+  Word's 0.96pt offset between the id column ("158") and the number column
+  ("100000151"); c1 sets the row like the others (id 0.22 from Word's, was
+  0.28). **Uncovered error, OPEN:** in every row of that table ours sets the
+  number column 0.5 below the id column where Word sets 0.96. [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]
+  Remaining e0ca misses: the "○1" EQ text-layer artefacts (p6, p20) and a
+  few later lines. Lab specs below stand for c5b and the 3-D pies.
+- zh-c5b5087b (Mac 26.7): line 1 of "第一条" ends "…县人民政府对" with "粮" 5.75
+  over and a "，" that could give 8 (trace: STARLING_RICHTEXT_FIT). Its fresh
+  print (a3304812) refuses it. TRIED, REJECTED: in Mac mode a kinsoku-0
+  paragraph's pause marks give nothing — c5b 26.7→40.6 but zh-2a241df1
+  100→7.6, zh-72da925e 87.5→11.2, zh-cec9d337 99.9→46.0, zh-8628cfbe, zh-9e08ed28,
+  zh-b00fef0d, zh-c6da60a9 and six more down. Kinsoku 0 is not the switch.
+  **Lab spec (c5b, fresh Mac Word, no driving here):** the "第一条  为切实…对粮"
+  paragraph alone in c5b's package, w:right stepped so "粮" is 2/4/6/8pt
+  over; variants each changing ONE of: kinsoku 0→on, autoSpaceDE/DN 0→on,
+  adjustRightInd 0→on, textAlignment baseline→auto, the 黑体 "第一条" run's
+  kern 0 removed, the two spaces removed, useAltKinsokuLineBreakRules and
+  doNotWrapTextWithPunct off (settings). Record whether "粮" is taken and the
+  "，" width. T218 already has: mode 15 takes it unsqueezed.
+- 3-D pies: 27a874b7 chart 2 (moves on six small labels) — Word sets the
+  UNMOVED 香港 11%, 英國 9%, 丹麥 6%, 其他 14% inside (3-line labels, ~20×37pt)
+  and 韓國/新加坡 5%, 德國 4% outside; ours tests the label box's four corners
+  inside the wedge on the flat ellipse, which a 37pt box under ry≈54 fails
+  for all but 美國. With no moves (Codex's controls) ours is all-inside.
+  **Lab spec (3-D best fit, fresh Mac Word):** zh-27a874b7 chart2 with idx 4's
+  move kept, the rest of the moves removed; slice shares for one unmoved
+  probe slice stepped 4,5,6,7,8% at three o'clock and at nine, label lines 1
+  (category only) and 3 (cat/value/percent); rotX 30 and 60. Record
+  inside/outside per probe and its centre. That bounds the threshold
+  (angle vs label size) before any rule; no threshold is fitted to one chart.
+
+### Mac Word labs for c5b squeeze and 3-D pie best fit — DONE eee69765 + 59b09234; 3-D outside placement RELEASED (Claude, starling-mac-labs, 2026-10-28)
+Owner: Claude worker, clone `starling-mac-labs`, branch `office`, user-assigned;
+this machine's only Word driver. Runs the two lab specs above (c5b, 3-D best
+fit) in freshly launched Mac Word, lab files under ~/starling-word-check/lab/
+{c5bsq,p3dfit}; results tabled here before any code; then the rules they
+support for zh-c5b5087b and zh-27a874b7 / zh-d62da4dd / zh-61aaad09 labels,
+paired in both modes.
+
+**c5b — no new print needed; the existing prints settle it.** The c5b spec
+above rests on a misreading: in every Mac print, and in ours, line 1 of 第一条
+takes "粮" (its "，" at 10.24). The real split is the squeeze itself, by
+print (`lab/c5bsq/sq.py`, mid-line "，、。；" set under 16pt in kinsoku-0 text):
+
+| Mac print of zh-c5b5087b (PDF date) | squeezing lines by page | stops after |
+|---|---|---|
+| zh2 2026-10-17 | p2 9, p3 8, p4 11, p5 9, p6 2 | p6 |
+| kai-reprint 10-23 | p2 9, p3 8, p4 11, p5 4 | p5 "做到专仓储存…" |
+| fresh-reprint 10-24 | … p5 9, p6 7 | p6 |
+| sqcut 10-24 | … p6 8, p7 5, p8 6, p9 6, p10 1 | p10 |
+| **reference a3304812, 10-27 03:04** | **none from p2** ("，" opens a line) | p1 |
+| Word for Windows reference | none from p2 | p1 |
+
+p1 (kinsoku on, its runs `w:eastAsia` zh-CN) squeezes in every print; p2 on
+(Normal says `w:eastAsia` en-US, kinsoku 0) squeezes up to a page that moves
+from session to session in one Word build (72da925e and 2a241df1, printed the
+same night by the same Word, still squeeze their CJK-tagged text). That is
+not a rule of the file: Mac Word's own language detection tagging the text as
+it goes is the reading that fits. The deterministic state, the reference's, is
+Windows Word's: T-rule `windowsMuted` (pause marks and curly quotes in text
+with no East Asian line rules give nothing). Candidate c1: the same in Mac
+mode. Focused on the 213 files with a non-CJK `w:eastAsia`: zh-c5b5087b
+26.7 -> 100, zh-264d7516 89.9 -> 98.8, zh-efd9229a 96.6 -> 100, zh-51af781b
+97.4 -> 99.1, nothing else moved. (Lab t218's "paragraph alone refuses 无" is
+the same state.) **DONE eee69765.**
+
+**3-D best fit — lab p3dfit (fresh Mac Word per print, quit between),
+~/starling-word-check/lab/p3dfit.** zh-27a874b7's package, chart 2, idx 4's
+move kept, the other moves removed; probe 丹麥 (idx 3) at 4-8%, turned to 3 or
+9 o'clock by rotY; I = drawn on its slice, O = outside (`classify.py`):
+
+| probe 丹麥 | 4% | 5% | 6% | 7% | 8% |
+|---|---|---|---|---|---|
+| 3 o'clock, 1 line (cat), rotX 30 | O | I | I | I | I |
+| 3 o'clock, 1 line, rotX 60 | I | I | I | I | I |
+| 3 o'clock, 3 lines (cat/val/pct), rotX 30 | O | O | O | O | O |
+| 3 o'clock, 3 lines, rotX 60 | O | O | O | O | O |
+| 9 o'clock, each of the four | same as 3 o'clock | | | | |
+
+One-line inside labels stand on the slice's middle at 0.84-0.89 of the
+radius (100+ labels, within 4pt). With every label on the page, 3-line
+labels of small front slices sit under the pie and collide, so a second lab
+took the probe's label alone (all others `c:delete`), 3 lines (~32 x 36pt),
+rotX 30, 4-25%:
+
+| probe alone, 3 lines | 4 | 6 | 8 | 10 | 12 | 15 | 20 | 25% | inside at |
+|---|---|---|---|---|---|---|---|---|---|
+| 12 o'clock | O | O | O | O | I | I | I | I | 0.52 of the radius |
+| 3 o'clock | O | O | O | O | O | I | I | I | 0.78 |
+| 6 o'clock | O | I | I | I | I | I | I | I | 0.76 |
+| 9 o'clock | O | O | O | O | O | I | I | I | 0.78 |
+
+Rule (candidate c2): a 3-D best-fit label stands inside where its text's own
+box, no margin, fits within its slice's wedge of the top face as the eye sees
+it (our perspective, which matches Word's pie to 3pt), as far out along the
+middle as it fits; else outside. Ours makes all 32 of the solo decisions
+Word's, inside at 0.56/0.78/0.80/0.80. Drops the "unmoved 3-D pie: every
+label inside" shortcut. Focused: zh-27a874b7 Mac 68.1 -> 69.2, Windows 66.3 ->
+68.5; zh-d62da4dd Mac 71.1 -> 72.2, Windows 69.1 -> 71.1; zh-b8de3ae2 same.
+Also: 3-D pies now turn by `c:rotY` (ours started at twelve; no corpus pie
+turns). Not modelled, open: outside placement (Word 1.16-1.5 of the radius
+out and stacked, ours 1.10-1.14), and a point's own `c:dLbl/c:delete` (ours
+draws the label; no corpus chart uses it).
+
+**Pair b1 -> c1 (both commits together), PASS:** base 62e73e2c, same checkout
+and shared engine host_release_arm64, unchanged sweep.sh / sweep-win.sh,
+OFFICE_FONT_SOURCE=bundled, 756 documents per mode, none missing, exact audit
+zero drops. Mac zh 98.4 -> 98.5 (612 -> 614 at 95%, page-count matches 642 ->
+644): zh-c5b5087b 26.7 -> 100, zh-264d7516 89.9 -> 98.8, zh-efd9229a 96.6 ->
+100, zh-51af781b 97.4 -> 99.1, zh-27a874b7 68.1 -> 69.2, zh-d62da4dd 71.1 ->
+72.2. Windows: zh-27a874b7 66.3 -> 68.5, zh-d62da4dd 68.7 -> 70.7; POI
+identical in both. (Rebased before push over 0a7187bf..cd0836cf, whose only
+source change is OfficeFonts.swift, paired by its owner.) RELEASED, open:
+3-D outside label placement and stacking (the rest of 27a/d62's misses), a
+point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
+(Word sets small front slices' labels under the pie). Lab files and scripts
+(`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
+~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
+
+### Chart residuals from 82771ef6 — (1) title line + (2) faces + (3) Mac table header DONE; (b) dropped (Mac 01Xgpbk5, 2026-10-29, routed by starling-bd)
+(1) zh-b8de3ae2 p9/p12: the plot area is 4pt higher than in Word's print; (2) a chart run's explicit East Asian face
+(PMingLiU titles, DengXian-Bold pie labels in zh-b8de3ae2) is ignored; (3) zh-61aaad09's data-table header "投诉举报总量"
+wraps 总|量 in Word's print, not in ours. Then (b), crowded outside labels, if tractable. Mac mode first, paired in both.
+- (3) DONE. Mac mode: with the theme's Hans face in charge, a data-table header row grows by its wrapped lines on
+  that face's East Asian line, and the header wraps at the slot minus 7.2·k (as the Windows Mincho path does). Pair
+  w63→w64 no changes; n234→n235 zh-61aaad09 94.6→98.6, nothing else moved. (b) dropped per bd: Mac-only.
+- (2) DONE. Labs in ~/starling-word-check/lab/ctitle, 15 prints in fresh Mac Word. Where the theme's `a:ea` is "", Word
+  for Mac picks a chart run's CJK face from the theme's per-script list by the run's `lang`:
+  - zh-TW/HK/MO → the Hant face (新細明體 → PMingLiU);
+  - untagged or zh-CN → the Hans face (宋体 → SimSun; the chart part's themeOverride first, zh-b8de3ae2's pies' 等线 →
+    DengXian);
+  - en-US-tagged CJK → YaHei (NOT built yet).
+  A paragraph's end mark does not count (zh-b8de3ae2's axes, `endParaRPr lang="zh-TW"`, are SimSun).
+  `Chart.macSimplifiedFace`/`macTraditionalFace`/`titleTraditional`, `PieLabels.traditional`.
+- (1) DONE for 2-D titles. A CJK chart title stands on its face's East Asian line, the body's `EastAsianFace`:
+  SimSun 1.293 em, baseline 1.017 under the line's top; YaHei 1.72 and 1.27; PMingLiU's baseline 0.95. We had set it
+  on SimSun's bare em, its plot 3.3pt high at 14pt and 4.8 at 24pt; now within 1.1pt, as the Latin controls are.
+  Also: an axis title in the file's `sz` (千元 10pt; ours took 13.3).
+  Left: (i) a shared ~1pt — titled charts' plots 1.0-1.2 high and titles 0.6 high, Latin and CJK alike;
+  (ii) an UNTITLED chart's plot sits 4.2pt LOW (lab ctitle t-none);
+  (iii) zh-b8de3ae2's 3-D column plot box is bigger than Word's: the front plane is 423 x 176.7 in Word's print and
+  448.6 x 182.6 in ours, though the depth offsets match (dy 10.0/10.15, dx 11.6/12.6). Word leaves 24.4pt at the
+  right to our 13.4, and sets the axis title 25pt in from the frame to our 10.
+- Pair w61/w62 + n232/n233 (both modes, bundled, base 9e270b53): Windows zh-b8de3ae2 91.6 -> 91.9; Mac
+  zh-13d11e99 99.5 -> 100, zh-b8de3ae2 81.2 -> 82.1; nothing else moved.
+
+### 3-D pie OUTSIDE labels, round 2 — (c), (d) and chart SimSun DONE; (a), (b) RELEASED (Mac 01Xgpbk5, 2026-10-29, routed by macos)
+zh-27a874b7, zh-d62da4dd, zh-61aaad09, Mac mode first. From p3dout's open findings: (a) tall labels the frame clamps slide
+along the rim, (b) crowded labels stack as a column, (c) side slices between the middle ray and the screen ray, (d) the
+3/9 o'clock side-wall vs top-rim choice. Lab ~/starling-word-check/lab/p3dside (build.py, build2.py, build3.py; fresh Mac
+Word per print): a 3-line probe 香港 at shares 6-16%, turned 60-165° and mirrored 195-300°.
+- (c) DONE. Word's inside/outside choice is mirror-symmetric. Lab 1 (90-165°): none inside at 90° up to 12%; inside at 12%
+  for 105° and 120°, 10% at 135°, 8% at 150°, 6% at 165°. Lab 2 (60-100°, a 20pt box): 16% at 60-75°, 14% at 80-90°,
+  12% at 95-100°. Rule: a front slice (sin(mid) > sin 10°) also takes its label inside when the box's four edge
+  midpoints, centred at 0.76 of the radius, fall in the wedge. That is 0 errors over the 83 decisions; the old corner
+  rule already matched lab 2. Word's inside labels sit at f 0.74-0.76, turned 2-5° toward the bisector; an angle blend
+  moved the mean only 7.3 -> 5.1pt, so it was not built.
+- (d) DONE. Lab 3 (95.5-97°, 8-10%): an unmoved outside label stands by the TOP's edge through 97.4° and by the foot
+  (the side wall's bottom) at 99.7°; a manually moved label (zh-27a874b7's 經濟, 95.9°) is moved from the foot whenever
+  it is past 90°. 經濟 dy -25.5 -> 3.8.
+- Chart East Asian text in SimSun (Mac mode): Word for Mac sets a chart whose theme `a:minorFont/a:ea` is "" in SimSun
+  (10.08pt, line 11.6 at 10pt), and Word for Windows in MS Mincho; ours took YaHei (13.2). The 3-line label was 1.5pt
+  taller, which pushed 香港 over the fit. `Chart.macSimSunText`.
+- Pair w59/w60 + n230/n231 (base 0a9b750d, both modes, bundled): Windows zh-27a874b7 71.7 -> 73.9, zh-d62da4dd
+  73.7 -> 75.8, nothing else moved. Mac zh-d62da4dd 76.3 -> 74.2, zh-b8de3ae2 83.2 -> 81.2, zh-61aaad09 95.9 -> 94.6,
+  zh-13d11e99 100 -> 99.5. All four are CANCELLING ERRORS: their CJK chart spans now match Word's print to 0.1pt
+  (zh-61aaad09's 同比 396.5-407.5 to Word's 396.6-407.6; zh-b8de3ae2's 18pt title box 18.0 to Word's 18.0, YaHei's 23.8),
+  and the misses are lines that were already 4pt off moving to 5. Uncovered, LOGGED:
+  (1) zh-b8de3ae2 p9/p12: the plot area is 4pt higher than Word's (axis "120000" 115.7 to Word's 119.5); YaHei's taller
+  title had hidden 1.5pt of it.
+  (2) charts ignore a run's explicit East Asian face: zh-b8de3ae2's titles are PMingLiU in Word's print and its pie
+  labels DengXian-Bold / PMingLiU; ours are SimSun.
+  (3) zh-61aaad09: the data table's header "投诉举报总量" wraps 总|量 in Word's print; ours keeps it on one line (this
+  was already so).
+  (4) zh-d62da4dd p4's outside labels: the systematic ~3-4pt vertical offset.
+- (b) RELEASED, not built: Word moves crowded outside labels sideways, about 15pt, away from their neighbours
+  (zh-27a874b7 德國 dx 15.4); our labels sit on their rays.
+- (a) RELEASED: not reproduced as described. 經濟's error was the foot/rim anchor of (d), not the frame sliding it. Left
+  in zh-27a874b7 p3: 馬來西亞 dy 13.8 (moved), 科技 dx -13.
+
+### 3-D pie OUTSIDE labels, then lowest unclaimed Mac zh — lab DONE; inside screen-ray rule DONE (next commit); outside placement/stacking and (2) RELEASED (Claude, starling-mac-labs, 2026-10-28, user-assigned)
+Owner: Claude worker, clone `starling-mac-labs`, this machine's only Word driver. (1) Mac Word lab
+measuring 3-D pie outside-label distance (share, angle, label size, rotX) and stacking, under
+~/starling-word-check/lab/p3dout; rule, pair, land (zh-27a874b7, zh-d62da4dd, zh-61aaad09). (2) Then the
+lowest unclaimed Mac-mode zh documents from base b2 (9151bb23), skipping reference defects and others' claims.
+
+**Base b2 (9151bb23), both modes, 756 docs each:** identical to c1 in every document (the rebase caveat
+of 59b09234 is covered). Mac zh 98.5 (614 at 95%), POI 91.8; Windows zh 99.3 (631), POI 90.7.
+
+**Lab p3dout (fresh Mac Word per print, quit between; ~/starling-word-check/lab/p3dout, `build.py`,
+`meas.py`, `rel.py`, `cand.py`, `outrel.py`).** zh-27a874b7 chart 2, every manual move removed. Series o:
+丹麥 alone (other labels `c:delete`) at 1% and 3%, turned to 12 clock angles, 1 or 3 lines, rotX 30/60.
+Series s: every label, the file's values, rotY 0/90/180/270, 1 or 3 lines. Findings:
+- An isolated outside label is not set at a radius: its box stands beside the slice's rim point P,
+  corner-anchored — left/right edge 3.6-5.5pt off P beside the pie, bottom 2-7pt above P over the back,
+  top at the wall's foot (+0-4) under the front, centred over/under P within ~15° of 12/6 o'clock.
+  Ours (edge + 4pt + half box) is within ~3pt of that for one-line labels. "1.16-1.5 radii" is not a rule:
+  it is this, plus the frame clamp, plus stacking.
+- Wall foot or top rim: at 3 o'clock (clk 90-94) Word centres the label on the TOP rim point; from ~clk 106
+  on the wall's foot (1-line 法國 clk94 top, 日本 clk106 foot). Ours takes the foot for any front angle,
+  31pt low at clk 90+. Left side not symmetric in the prints (clk 274 1-line on the foot), so no rule
+  landed.
+- Tall (3-line) labels the frame clamps (frame top 120 / bottom 328 here) slide sideways along the rim
+  instead of overlapping the pie: C0 → (381-414,120-156), C330 → (184-217,…); ours clamps in place.
+  Not modelled (no corpus label has it unmoved).
+- Stacking is a global layout, not a push: e.g. rotY0 德國 (clk248) leaves its corner place by (-20,-9)
+  for 新加坡; labels form a column on the left with 4-11pt between boxes, some overlap remains (rotY180
+  丹麥/香港). Not reproduced; the matcher needs ~2.5pt, so a rough stacker would not score.
+- INSIDE, three-line labels: Word's place is the parametric middle when it fits there from 0.76 out
+  (丹麥, 香港, the p3dfit probes, all one-line labels), but back slices whose fit on the middle is only
+  0.56-0.64 out stand on the SCREEN ray at the middle's angle, as far out as fits — 美國 25.8% at clk 46 and
+  316, 其他 14% at clk 335, within 4pt (ours 24-51pt off; 其他 was outside). Side slices (clk 136/155/202/
+  226) stand between the two; 英國 (8.8%, clk148) inside in Word fits neither.
+- **Candidate c2 (inside: middle from 0.98 to 0.7, else the screen ray, else the middle below 0.7):** the
+  lab's labels — 美國 24→2pt, 其他 51→2, 美國 (rotY270) 25→2 off Word, no other label moved; the 32 solo
+  decisions of p3dfit unchanged.
+  **Pair b2 -> c2, PASS:** same checkout and shared engine host_release_arm64, unchanged sweep.sh /
+  sweep-win.sh, OFFICE_FONT_SOURCE=bundled, 756 docs per mode, none missing, exact audit: only two
+  documents changed, both up. Mac zh-27a874b7 69.2 -> 71.4, zh-d62da4dd 72.2 -> 76.3; Windows zh-27a874b7
+  68.5 -> 71.7, zh-d62da4dd 70.7 -> 73.7; POI identical in both. Left open: 英國's inside place, side
+  slices' in-between place, outside stacking and the clamp slide (findings above), zh-61aaad09's misses
+  are not 3-D labels (bar-axis steps, a category wrap, the 2-D pie legend's y).
+- (2) Looked, released (Mac mode): zh-e329b438 89.1 — p4's merged label cell "接聽速度30分" (14pt, widths
+  balanced, 499tw grid) is 28.1pt wide in Mac Word's print and ours, but Word sets "3" and "0" a line each
+  (digits 7.0 wide, the quarter-em automatic space before "分" past the line) and ours keeps "30" (drawn at
+  the YaHei stand-in's 8.63 each, which is what widens our column: two errors cancelling). Word for
+  Windows keeps "30" (25pt column). Trying `_wideWordStarts` with the gap did not part it (the engine's
+  own measure fits); needs the digits' balanced width in Mac mode first. zh-015abfaf Mac: Word's print
+  stands every line 0.09pt right of ours (79.44 vs the 79.35 margin) and its grid pitch rounds to 15.749
+  on some lines — the p10 "区）" hairline, as 7bd18d8e found; no rule. zh-b0401810 p1: Word sets the
+  序号/类别 cells (exact 12pt lines, vAlign center) 9pt above the name cell (auto line, textAlignment
+  center) in each 15.6pt exact row; ours row 2 0.5 above, row 3 as Word — open. [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]
+  [MEASURED, nothing pushed (Linux 01F2SWc8 lenovo-3, 2026-10-29): in Windows mode zh-b0401810's 148/C/序号 cells (exact 15.6 rows, 1pt table-level rules, exact 12pt lines, vAlign and jc center) stand 0.31 under Word's, the header row (exact 29.85) 0.28 under. Centring them from the middle of the rules, not their inner edges (a quarter of the rule over the cell less a quarter of the one under), puts them at 126.69/103.98 against Word's 126.74/104.06 and the number column 0.75 under them against Word's 0.72 — but it is not general. Pair cm, both modes, 756 docs, means unmoved: zh-b0401810 Mac 98.2 -> 99.3, zh-7dd5643e 97.1 -> 99.0, a dozen others up; down zh-881dda7b 100 -> 97.2, zh-d8247da5 97.9 -> 93.6, zh-e8d4c046 100 -> 97.3, zh-11709c74, zh-e329b438, zh-fb482d33, zh-20ff844e, zh-74b34f3b. Those are real: zh-d8247da5's centred cells (exact rows, cell-level 0.75pt rules, exact 10pt lines) stand within 0.1 of Word now and 0.1-0.4 above it with the change; zh-881dda7b's "息" (merged down at-least rows) 0.15 above Word now, 0.4 with it. Gating to exact rows keeps zh-d8247da5's loss. Rule width, rule source and the line rule don't sort risers from losers. Patch ~/tmp/word/cellmid.patch (lenovo-3). Wanted, a lab (windows-1): a 3-row table, rows exact 15.6pt, cells vAlign center, paragraphs exact 12pt jc center, SimSun 10.5 "148" — (a) rules from tblBorders 1pt (sz 8), (b) the same as tcBorders, (c) tblBorders 0.75pt (sz 6), (d) no rules, (e) rows atLeast 15.6, (f) auto line instead of exact; each the baseline's height under the row's top rule middle, to 0.01pt. Mac number column (grid line 0.24 high in Mac mode) still open with me.]
+- **Docx suite's two failures on the office tip — DONE 17b6b4ce (Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by bd).** Both were tests left behind by changes checked against Word, so the tests were updated, no code changed. testALargerNumberRaisesItsLineButSetsNoDeeper: broken by 3994962b, which lifts the first line by the paragraph's ink shift and keeps the strut on every line; the test now adds the ink shift. testAMarkInTextOfNoEastAsianLanguageGivesNothing: broken by eee69765 (Mac mutes pause marks in text without East Asian line rules, from a fresh Mac Word print of zh-c5b5087b); its en-US case now expects nothing given, as on Windows. Office tests 527, 0 failures. Lab cellmid's follow-up, cellmid2, sent to windows: in the package, ours sits 0.12 below Word with exact lines and 0.11 above with auto lines; the rule handling already matches.
+
+### Lowest zh/POI residuals, one at a time — RELEASED (Linux Claude, starling-linux-fidelity, 2026-10-28, the user's assignment)
+Owner: Linux Claude worker in `~/dev/starling-linux-fidelity`, branch `office`. From the 15 lowest zh and POI
+documents per mode at base d0 (ccd66af2, Windows zh 99.3 / POI 89.8, Mac zh 98.5 / POI 90.9), skipping claimed
+items, reference defects, lab-pending items and iOS. Same pinning as §4.
+
+- **zh-57f1de0d Mac — DONE (next commit).** The uncompressed-embedded-face rule (Word probes 「 in the
+  embedded face; mapped to a zero advance, no mark there compresses) was gated to Word for Windows; Mac Word's
+  print breaks the same p1 lines ("…世界文" / "化遗产区…", 》 and ： whole). Gate dropped. Pair d0 -> d1, both
+  modes, 756 docs each, none missing: Mac zh-57f1de0d 78.9 -> 94.4 (894 -> 1069/1133 matched), nothing else moved
+  in either mode. Left: p28 "…互动；", Windows' own residual.
+- **zh-167ee06c Mac (90.2) — TRIED, REJECTED; released.** p5's cell "民國   年  月   日止" (mode 15, balanced
+  widths, 14pt, no marks) leaves "止" 0.8pt over in Mac Word's print; ours takes it through the lab-`jg`
+  word-space squeeze (eight spaces of 7.14 set at 7.04). Candidate "under the balance, word spaces that all
+  stand between ideographs give nothing": 167ee06c 90.2 -> 99.2, but zh-799c91cd 100 -> 98.8 in both modes
+  (p1 "…為授權代表人為代表" — Word takes "負"/"責" there with such spaces giving). Not a rule; needs a lab on
+  balanced spaces between ideographs (space count, over, Mac vs Windows). Pair d1 -> d2, reverted.
+- **zh-7773163d Windows — DONE (Linux fidelity worker, 2026-10-29): 83.3 -> 95.6 on Linux; Mac mode 93.6 -> 94.2.** Its remaining gap: [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]. A paragraph whose list number rises over its text now keeps its strut on every line; the first line is set as low as the strut-less layout puts it (an extra, not added to the baseline the text already gets), and a one-line paragraph keeps the old strut-less layout (zh-76700e5f's "5.3" headings dropped 99.7->65.6 without that). Pair e0/e3 on this checkout, engine-validation-20261028 host_release, bundled fonts: Windows no other document moved; Mac no drops. History below: Every
+  - **Joiners — DONE (9d468cae, Linux 01F2SWc8 lenovo-3, 2026-10-29): Windows 95.6 -> 97.2, Mac 94.2 -> 96.0.** p38 (Mac p34)
+    is a 17pt "一、" head over 16pt w95 text, no strut. The U+2060 joiners the layout puts between its letter-spaced space runs
+    were set at full height in the Latin stand-in (Liberation Mono), so the lines took its deeper descent: 24.57pt steps
+    where Word's print has 23.04. They now set no height: 23.05. Pair jn/jn2, both modes, 756 docs, bundled fonts:
+    zh-a7a889eb Mac 99.2 -> 99.6, no drops. Left: Windows p49 (12 lines), Mac p37/p45.
+  - **DEBT (math line height): joiners in a math face's run still take height, standing in for Cambria Math's line.**
+    Our math letters are held to 0.6 of the run's line (so the platform math face's split stays out), and Word gives
+    bug59058's formula lines Cambria Math's 1.17 em, 15.24pt steps. Without the joiners' height ours were 15.0 and
+    bug59058 fell 100 -> 99.3 in both modes. Whoever gives math runs their own line height removes the special case in
+    `zeroWidth` (RichLayout.swift).
+  - zh-13d11e99: 100 in both modes on the 20261028 engine (Linux sweep, bundled fonts); nothing left there.
+  - **List numbers at their level's w:w — DONE (Linux 01F2SWc8 lenovo-3, 2026-10-29): Windows 97.2 -> 97.7, Mac 96.1 -> 97.0.**
+    p49 (Mac p45): the "（%1）" level says w:w 94 and 0.9pt spacing at 18pt; Word's "（3）" ends at 160.8, under the 161.9
+    stop; ours at full width ended at 163.7 and the text went to the next stop, each item's first line two characters short.
+    p49 12 -> 5 misses. None of the other 15 documents with a scaled level moved, nothing lower (sweep nw against nx, which
+    also carried 786980b3 / 4f995f59 / the zh-cb56e605 reprint: zh-015abfaf, zh-d9b085b1 and zh-cb56e605's jumps are theirs).
+  - p49's rest: Word sets item (5)'s final "。" ALONE on the next line, ours hangs it. Lab spm/spm2 (windows, 2026-10-29):
+    with no compatibilityMode or mode 12, Word for Windows keeps no line-start rule for a closing mark (<w:kinsoku/>, the
+    language, characterSpacingControl change nothing); from mode 14 on "作）。" goes down together. zh-f47b8a74 (our rule
+    "a closing mark after spaces may not start a line") is mode 14.
+    TRIED AND DROPPED (lenovo-3, ~/tmp/word/closers-attempt.patch): a break before every closing mark in old-mode Windows
+    documents. zh-7773163d fell to 1255 misses: lines ended before "，" where it fits ("…之事項" | "，如有…"), since our fitter
+    squeezes a mark only while it is glued to the character before it. Word sends the mark down only when it cannot fit,
+    and never hangs it here (no mode, mode 12 or 14 alike), where ours hangs "。". Needs the fitter to carry a mark that does
+    not fit to the next line alone instead of the character before it, and the hang question answered first. Open, 5 lines.
+  "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
+  apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
+  the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
+  Linux than on the Mac, hence the host gap. Cut to that paragraph, without the numPr it is 27.3. A fix needs
+  the rise on line 1 only under a forced strut (forced struts ignore placeholders in skparagraph), e.g. the
+  excess carried above the paragraph; bug65649 (100) is the rise's witness. Open for whoever goes next.
+- Skipped as known/owned: zh-76700e5f (Mac p10 is a cropped reference print), zh-8dc59b5b (known sub-0.1pt
+  edge), zh-72da925e Mac (squeeze history), zh-d97c5474/zh-8d72961c (Nunito Sans cloud font), rtl (Arabic face).
+
+### Fresh Mac residual: zh-7eba7349 — CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex after accepted1a29f83e. Latest full
+mac-simhei-border audit gives141/173 (81.50%) on Mac. Grepped all12 board
+mentions: T193's floating-table rule is DONE and explicitly Windows-only;
+older NUL/extraction observations are released. No active Mac residual owner
+found. Lower cases remain owned, documented reference exclusions, or just-
+measured/released squeeze/3-D boundaries. Start with current missing lines
+and fresh Word package validation, not a blind extension of the Windows rule.
+Windows8628 stays separately claimed/read-only; its earlier blanket-kinsoku
+candidate remains rejected. Same-base both-mode sweeps, pinned3841e45e and
+both engine variables, no-drop gate, board evidence and fetch/rebase before
+push remain required. No live deployment, shared engine relinking or
+hyphenation choice. Claim only; production checkout is clean.
+
+### Mac SimHei and legacy closing-border clearance: zh-4c5da793 — DONE (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, after accepted4afd66fc. Fresh full
+mac-kinsoku-neutral pair/exact audit: Mac580/680 (85.29%),18 physical pages;
+Windows679/679,18 pages. Grepped every4c5 board mention before claiming:
+T191's Windows foot rule is DONE, T226's last-font-entry fallback is DONE and
+left this Mac score; no current residual owner found. Lower cases retain
+their owners, reference exclusions, or recently measured/released boundaries
+(3-D labels, e0ca squeeze,767 paper crop). Inspect the100 remaining Mac misses
+against current references before proposing another font/table rule. Preserve
+the100% Windows result and both-mode no-drop gates. Same pinned engine3841e45e,
+both environment variables, board evidence, fetch/rebase before push; no live
+deployment, shared engine changes or hyphenation decision. Claim only.
+
+**Boundary audit / narrowed claim (2026-10-28):** fresh Word reproduces all680
+saved reference lines. All100 Mac misses begin with row89 at p15's foot;
+Windows679/679. Original-package bottom-margin controls keep the second line
+through1443twips and move it at1445. An isolated copy of the same row agrees
+with current Mac at spacer13316twips, while the existing Windows tolerance
+would admit an extra line: do NOT simply extend T191 or add a flat tolerance.
+Temporary cut tracing preserved privately and removed from source.
+
+Repeated original-row controls isolate a smaller metric: row78's SimHei
+heading is26.1pt in ours, versus about26.063pt in Word (24 repeats; its
+first-to-last text baselines step26.0661pt on average). Three-line SimSun
+rows remain consistent with their current height within the PDF raster's
+bounds. Narrow next claim: measure Mac SimHei automatic-line heights at
+10,10.5,12,14,18pt before proposing a metric correction; preserve Windows
+metrics and all table-cut rules. No other active SimHei-height owner found
+in the board search. Evidence `mac-4c5-next/` under the owner sweep root:
+fresh-reference-check.json, margin-results.json, original/isolated controls,
+repeated-78/79/88 Word/native PDFs, trace-only.patch and trace-provenance.json.
+This is measured evidence and a claim, not an accepted fix.
+
+**SimHei candidate, not accepted:** fresh five-size controls bound the common
+Mac line advance to1.29684110..1.29697071em after accounting for the0.24pt
+print raster.332/256 fits all five; the earlier1.2972 approximation does not
+fit the12/14/18pt bounds and was rejected before a full sweep, even though
+it recovered680/680 for4c5. Current candidate uses332/256 for Mac SimHei
+only, retaining its Latin advances and every table-cut/Windows rule.
+
+New20-page regression covers10,10.5,12,14,18pt, 黑体/SimHei, separate
+paragraphs/explicitly styled forced breaks. Both names give identical Word
+positions. Accepted baseline fails the10pt paragraph case by0.68pt.
+The initial fixture also exposed a PREEXISTING unformatted-break/default-style
+gap at10/10.5pt: baseline pitches14.042/14.744 versus Word12.970/13.617;
+first candidate14.012/14.712. This was not caused or fixed by the metric.
+Original fixture/PDFs preserved as simhei-default-breaks*; explicitly styling
+the breaks leaves all480 fresh Word positions unchanged. Oracle/provenance,
+approximate-candidate rejection and exact controls are in mac-4c5-next.
+**Precise candidate HELD after completed gates:** both mandated scripts exit0,
+756 scored documents per mode, missing0 and physical-page changes0. Exact
+mac-kinsoku-neutral→mac-simhei-precise audit: Windows geometry unchanged;
+Mac4c5 580→680/680, b00 726→727/740, but90e0cea8 323→288/326. DO NOT LAND:
+no cancelling-errors exception. Fresh90e0 Word print exactly reproduces all326
+saved lines. Its merged-cell label moves about8.02pt: the shorter10.5pt
+SimHei header gives the body0.0328125pt more room (682.97520065→683.00801315),
+admitting row29 whole at p8's foot and changing the merged-cell extent.
+This is a real regression, not just the scorer's adjacent-column grouping.
+
+Native40-page font controls and complete local native/browser gate pass with
+no skips; these do not override the corpus drop. Binarya7d6a0ce, WASMc23ce2d5,
+bridge3841e45e, engine unchanged. All1004c5 gains reviewed:96 full normalized
+lines exact; the other4 consist of exact cell texts with baseline differences
+at most0.129pt. Evidence simhei-held-receipt.json, simhei-focused-result.json,
+simhei-gained-lines-review.json,90e0-losses.json,90e0-row8-{base,candidate}.log,
+90e0-fresh-reference-check.json, and full pair/exact reports retained.
+
+**Regression follow-up CLAIMED here:** diagnose90e0's header extent/body
+boundary before accepting the SimHei correction. Old90e0 entries are DONE/
+released, no current owner found. Do not restore a font error to hide the
+boundary or infer an exception. Current precise candidate remains private,
+uncommitted. About40GiB free; no shared engine, Word reference or site writes.
+Separate read-only measurement: identical20-page SimSun controls reproduce
+all480 SimHei Word positions (simsun-read-only-comparison.json). No SimSun
+implementation change yet; ordinary margin1441/1443 controls remain measured
+residuals, and the unformatted-break gap remains open.
+
+**Guard rule measured; replacement candidate pending:**90e0 header-distance
+controls keep row29 over at1414/1416/1417twips but admit it at1412. Fresh
+mode12 Word micro-controls require the FULL closing border for both ordinary
+and vertically merged rows: half/full-clearance tests with0.5/1.5pt rules,
+plus no top border and a heavier1.5pt top over a0.5pt closing border. Thus
+this is not missing room at the table top or merge-specific. The old code
+shared Windows' legacy half-border allowance with Mac. Candidate now keeps
+that half allowance only in Windows mode; Mac reserves the full closing
+line. No changed split-row tolerance, body-inset formula, font advances,
+Windows metric or hyphenation rule. Public40-page page-break fixture is
+being checked against a fresh Word print. Rebuild/focused and full same-base
+pairs/browser gates must pass before landing; the earlier font-only pair
+remains rejected, with no exception.
+
+**Replacement accepted after full pair:** `mac-kinsoku-neutral` →
+`mac-simhei-border`, both unchanged mandated scripts exit 0. Exact audit of
+756 documents per mode: zero missing outputs, zero drops and zero physical-
+page changes. Windows normalized geometry is identical for every document.
+Mac zh-4c5da793 **580→680/680**, zh-b00fef0d **726→727/740**;
+zh-90e0cea8 retains **323/326**. No cancelling-errors exception. The 100
+4c5 gains are the same reviewed lines (96 full texts exact; four adjacent-cell
+normalization groupings with exact component text); b00's gained full line is
+exact. Thirty Mac documents have normalized geometry changes, with no other
+score changes. The earlier font-only candidate remains explicitly rejected.
+
+Fresh Word controls pass for minimum, exact and automatic row heights:
+20 minimum-height cases/40 pages plus 12 exact and 12 automatic cases/48
+pages. Asymmetric top-border cases rule out a top-clearance explanation.
+All four original90e0 header-distance variants now match Word's break choice;
+merged-label baseline differences are at most0.138pt. Native font/border
+regressions pass120 pages in both modes; full local native/browser layout,
+roundtrip, ink and existing control gates pass with no skips. Browser also
+passes the40-page border fixture. The SimHei glyph fixture is native-only;
+this does not certify unembedded CJK browser coverage or Windows/iOS hosts.
+
+Frozen diff7ec9c3bd, native2cd7cfde, WASM16cd1c70, bridge3841e45e unchanged.
+Evidence under `mac-4c5-next/`: border-acceptance-receipt.json,
+border-focused-result.json, border-browser.log, border-header-controls-result.json,
+row-height-types-result.json, row-border-word-provenance.json and
+border-gained-lines-review.json; full sweep/provenance/exact reports in the
+parent root. Same checkout and both engine variables throughout. About40GiB
+free. No live deployment, shared engine relinking or hyphenation choice.
+Remaining unformatted-break and SimSun-margin precision controls stay measured
+and open; this closes the original4c5 reference residual and90e0 guard.
+
+### Mac residual: zh-202582e2 — font and break rules DONE; mixed baselines measured (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, after accepted e8594b01. Fresh full
+mac-empty-list sweep/exact audit:116/138 matched Mac lines (84.06%),14 pages
+on both sides; Windows136/139,14 pages. Grepped every202582e2 board mention:
+older fallback/space work is DONE, no competing current claim found. Lower
+cases retain the prior owners, measured boundaries, font exclusions or the
+now-reproduced767 paper-crop explanation. Inspect the22 Mac misses before
+assuming another missing-font rule; the old English FangSong_GB2312/Latin
+FZXiaoBiaoSong findings and root-preserve-space history remain constraints.
+Windows8628 remains separately claimed/read-only. Same checkout/engine pairs
+in both modes, no drops without individually verified cancelling errors,
+board evidence and fetch/rebase before push; no deployment, engine relink or
+hyphenation decision. Current mac-picture-floor/mac-empty-list PDFs retained;
+settled mac-minimum-baseline pdf folders only removed, all match reports kept.
+Claim only; no new implementation. About42GiB free.
+
+**Missing English name isolated (candidate, not accepted):** fresh Word print
+reproduces all138 saved reference lines. Replacing FangSong_GB2312 with the
+unrelated undeclared StarlingMissingProbe leaves Word's138 lines identical,
+while the accepted app recovers13 matches (116→129/138) on that edited input.
+Fresh six-page Word controls set English FangSong_GB2312 and KaiTi_GB2312
+exactly like the opaque name: Cambria Latin/quotes, SimSun ideographs. Known
+FangSong/KaiTi retain square advances. Candidate limits this classification
+to Mac reference mode, those two exact names, no font-table entry and no
+embedded face; fixes the selected CJK fallback as well as Latin metrics.
+Only202582e2 meets the undeclared-name condition in the current corpus.
+Evidence mac-2025-next/{fresh-reference-check,opaque-word-comparison,
+eligible-inputs}.json and missing-names-word.pdf. Chinese GB names are outside
+this candidate: the private control raises another fallback question and is
+not used to generalize the English rule. Five-page repeatable regression
+fixture excludes that unresolved case. Full same-base pair and gates pending.
+
+Focused candidate:129/138 Mac,136/139 Windows, same14 pages. The five-page
+fixture passes its fresh Word print and candidate; the accepted baseline
+fails the missing-name quote/advance checks. Both-mode guards for table
+entries (empty or alternate), known names, unrelated missing name and the
+Chinese GB name keep all38 non-target pages pixel-identical at144DPI; span
+coordinates agree within0.001pt (section-offset floating-point rounding).
+This is focused evidence only; nine Mac misses remain, including p5 line
+height and p8 wrapping. Candidate frozen for full paired sweeps next.
+
+**Missing-name subtask DONE:** mac-empty-list → mac-missing-gb, both mandated
+scripts exit0; exact audit756 documents per mode, zero drops/missing/scored
+or physical page changes. Windows normalized geometry is identical throughout;
+only202582e2 changes in Mac mode,116→129/138. Twelve gained matches have exactly
+Word's full normalized line text; the thirteenth shares its start but still
+wraps a final 合 on p8 (do not call all13 exact breaks). All38 guard pages and
+the new regression pass. Native/browser full office-layout gate exit0, no
+skips, including24-page/1071-line boringcrypto exact parity and roundtrips.
+Native7b4f4e35, appWASM39975fe0, bridge3841e45e/skwasmc14456aa unchanged.
+Receipt mac-2025-next/missing-gb-acceptance-receipt.json; gained-lines-review.json
+records the partial line. No cancelling-errors exception, engine relink or
+live deployment. Settled mac-picture-floor pdf folders removed; match reports
+and current mac-empty-list/mac-missing-gb PDFs kept, about41GiB free.
+
+**Remaining paragraph rules CLAIMED, same owner:** private five-page p53 controls
+reproduce the mixed15/15.5pt auto-line baseline defect (~6.3pt low) while uniform
+sizes and exact spacing match. Twelve size/spacing controls show each line
+needs its own correction; a paragraph-wide shift is insufficient. No baseline
+candidate yet. P8: enabling useFELayout on a private input recovers the seven
+remaining scored wraps (136/138), pointing at the explicit kinsoku0 gating.
+Fresh eight-page Word prints with/without useFELayout have identical breaks:
+kinsoku0 permits closing marks at line starts and an opening mark at line end;
+kinsoku1 retains them. Current app ignores kinsoku0 without useFELayout.
+Private input/control evidence p53-height-*, mixed-size-*, kinsoku-* under
+mac-2025-next; next implementation must preserve the existing FE-layout path,
+pair both modes and inspect all changes. No claim of Windows-host validation.
+
+**Explicit-kinsoku prototype rejected in focus:** native3fbba87b recovers Mac
+136/138 but Windows136→130/139. This is NOT evidence of a platform break-rule
+difference: Windows line text stays unchanged; a synthetic zero-width break
+increases p53's second line height, shifting all later p5 paragraphs1.73pt.
+Patch/binary/results preserved as kinsoku-tall-break-*; no exception claimed.
+Two new mixed-size Word controls (known FangSong15/15.5, off/on) have identical
+line positions. Prototype breaks that equality by2.10pt Mac/1.73pt Windows at
+AFTER; regression catches it. Revised candidate gives only the new invisible
+break height0.01, consistent with existing non-line-setting spans; it leaves
+the old FE-layout path untouched. Native/WASM rebuilding; paired gate pending.
+Repeatable fixtures cover eight punctuation boundaries with/without FE layout
+and the mixed-size height pair without FE layout. Fresh Word prints pass all
+checks. The extra FE mixed-size pair also exposed the same preexisting height
+gap in the old path: baseline and candidate both fail it; evidence preserved,
+but no new assertion of correctness or change to that path is made here.
+
+Revised focus PASS, native2a86322a: Mac136/138, Windows136/139 restored; no
+Windows loss. All36 native fixture pages pass (10+8 in both modes). All24
+non-target private control pages remain pixel-identical, geometry within
+0.001pt. The two final generator outputs match their fresh Word inputs byte
+for byte by package part. Full mac-missing-gb → mac-kinsoku-neutral pair and
+browser gate now run on the frozen source; results pending.
+
+**Explicit-kinsoku subtask DONE:** mac-missing-gb → mac-kinsoku-neutral, both
+mandated scripts exit0; exact756-document audit in each mode has zero drops,
+missing documents or page changes. Windows normalized geometry is unchanged;
+all14 target pages are pixel-identical, character origins within0.0001pt.
+Only202582e2 changes in Mac mode,129→136/138; all seven gained lines have
+exactly Word's normalized full text. The only scored misses left are the two
+p5 mixed-size baselines, measured above; no paragraph-wide fix is proposed.
+Native2a86322a, appWASM3c0ba341, pinned bridge3841e45e/skwasmc14456aa unchanged.
+Full office-layout gate exit0, no skips: three exact native/browser layouts
+and roundtrips, all prior controls,68 native new-control pages and16 portable
+browser pages. Fresh Word prints and both fixture generators agree by package
+part. The rejected marker fails the added no-FE mixed-size guard in both modes.
+Receipt mac-2025-next/kinsoku-acceptance-receipt.json, kinsoku-exact-audit.log,
+kinsoku-gained-lines-review.json, kinsoku-windows-span-audit.json and
+kinsoku-browser-final.log. Production patch stayed identical after the sweep;
+only the browser fixture/harness changed to the embedded-font version.
+No cancelling-errors exception or live deployment. Settled mac-empty-list
+pdf folders removed; all match reports and current mac-missing-gb /
+mac-kinsoku-neutral PDFs retained, about42GiB free.
+
+**Separate browser coverage finding, not fixed here:** the initial unembedded
+SimSun fixture, and a FangSong-name control, produce missing-glyph boxes in
+this local office WASM build (LiberationSans NUL glyphs), despite native host
+font availability. Evidence browser-probe*/ under mac-2025-next, including a
+pixel crop; this is not merely Unicode extraction. The final portable variant
+uses the existing licensed StarlingOpenerCJKTest embedded face, repeats the
+Word boundary experiment, and passes native/browser. Do not infer generic
+unembedded Chinese-font coverage or any live-site status from that gate.
+Mixed-size absolute baselines and the older FE-path height gap remain measured
+residuals; scope is retained for a future per-line solution, not asserted done.
+
+### Mac standard cover/appendix labels — DONE; paper crop measured/released (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, after021d9aaf; Windows8628 remains
+separately claimed above its evidence. Fresh mac-grid-single exact audit:
+zh-76700e5f245/297 (82.49%),10 physical pages on both sides. Grepped every board
+mention before claiming: prior cover/grid-picture work is DONE and p8–10 runs
+explicitly released; no current owner found. Lower57f/7eba are in the user's
+embedded-font reference exclusion, and the other lower cases retain their
+recorded owners/measurement boundaries. Do not fit a known Type3-em-dash
+FontBBox/text-extraction artifact or repeat the old cover-frame false diagnosis;
+compare actual glyph origins/ink with Word before touching layout.
+Both-mode same-base pairs and both engine variables stay pinned3841e45e;
+no drops without individually Word-verified cancelling errors, board evidence,
+fetch/rebase before push, no live deploy, no engine relink or hyphenation choice.
+Claim only; no new implementation. About45GiB free; keep current
+mac-arial-alt/mac-grid-single PDFs and all reports, settled mac-cell-letter
+PDF folders removed after acceptance.
+Read-only triage: 50 of52 misses are on p10. Its DOCX section requests
+23811x16838twips (A3 landscape); Windows Word and Writer use that size.
+The Mac print is842x595pt (A4 landscape), crops the right third, and moves
+content up about123.5pt. A fresh original-package Mac print has exactly the
+same297 normalized lines and page sizes as the saved reference. Do not tune
+layout to that print crop; no reference changed. p9's other miss is two1pt A
+labels; p1's large3311 is a genuine baseline difference, unrelated to the
+previous Type3-em-dash bbox artifact.
+Bounded follow-up under this claim: the cover begins inside a floating table,
+with a10.5pt space before48pt Latin text and an atLeast12pt line. Whole-package
+controls removing the picture and inherited/direct paragraph frames keep
+Word's3311 baseline147.36; Writer111.294. Removing the grid gives Word142.56,
+Writer109.532. The Latin tallest-run baseline guard currently accepts only
+unspecified line heights, excluding minimum heights. Test admitting minimum
+heights while preserving exact heights; picture-line behavior remains separately
+measured, not a reason to generalize the change. Evidence standard-residual-next/
+under the owner evidence root:767-reference-audit.json, fresh print, cover-*.
+Both-mode pairs and Word controls required before any production landing.
+Minimum-height candidate (private, not landed): twelve fresh Arial controls
+confirm that the controlling Latin run is selected before minimum-height
+leading is added. Merely enabling the old maximum-final-baseline loop was
+insufficient for a minimum taller than both fonts; that incomplete compile
+was stopped and its patch preserved, without a binary/corpus claim. Revised
+production diff540b4649 / nativea286737c passes all12 controls in both modes:
+minimum12/36pt, exact12/36pt and auto, on/off a30pt grid. Native exact and
+auto controls keep baseline behavior. Focused203 documents per mode: no score
+drops; only Mac bug59058 and both-mode bug65649 normalized geometry changes.
+All seven changed normalized positions move toward or onto Word's position;
+these improvements remain inside the scorer's3pt matching allowance. Original
+767's inline-picture cover remains unchanged; no-picture controls improve,
+with small font-metric residuals. Do not claim the cover is fixed.
+Evidence standard-residual-next/minimum-{candidate-provenance,focused-results,
+focused-geometry-review,baseline-control-measures}.json and Word control hashes.
+New12-page office-minimum-baseline.py reproduces every XML/package part of
+the fresh Word-printed fixture. Full same-base pairs and browser gate pending.
+**Minimum-baseline subtask DONE, accepted:** full mac-grid-single →
+mac-minimum-baseline pair, both mandated sweep scripts exit0. Exact audit:
+756 documents/mode, zero missing, score drops or scored/physical-page changes;
+only the focused three mode/document geometries change (seven normalized
+positions), all toward/onto Word. No cancelling-errors exception. The12-page
+regression rejects both old native modes and passes both new ones; all12
+exact/auto mode-page rasters remain pixel-identical to baseline. The complete
+Mac native/browser layout gate passes with no skips, including all existing
+controls and the new12-page baseline set. App WASM rebuilt privately against
+unchanged skwasmc14456aa; native bridge remains3841e45e. Receipt:
+standard-residual-next/minimum-acceptance-receipt.json; full provenance and
+exact audit at the evidence root. Current paper-crop reference and cover's
+inline-picture baseline remain unresolved and claimed; no reference changed.
+No live deploy, shared engine change, hyphenation decision or new Windows/iOS
+host validation. About42GiB free before settled-PDF cleanup.
+Cover follow-up remains CLAIMED: no-scale and auto-spacing variants keep
+Writer's wrong134.80pt baseline; Word147.36 (148.32 with scaling removed).
+Private app-only diagnostic build, default rendering unchanged, shows the
+31.5pt inline placeholder (picture plus effect extent) reducing a62.4pt text
+line to46.8pt and applying−15.6pt ink shift. A15.75pt placeholder reduces it
+to31.2 and applies−31.2. The50.75pt placeholder already needs the full62.4pt
+line. Diagnostic source was restored; binary/patch and both-mode logs retained.
+Twelve further Word picture/text controls confirm off-grid baselines are close,
+while small pictures on a grid must preserve the larger text's line/baseline.
+Picture-only controls preserve the earlier picture-grid rule. Test a bounded
+single-line, ordinary non-East-Asian text floor only where the picture fits
+above that text's own baseline; keep larger-picture, exact-height, combined,
+shifted-script and off-grid paths intact. This is a candidate hypothesis, not
+a landed rule. Evidence picture-text-*, diagnostic-*, cover-diagnostic-* in
+standard-residual-next. Current accepted base is7a433bf6 / nativea286737c.
+Settled mac-arial-alt pdf folders removed; matches and currentmac-grid-single /
+mac-minimum-baseline pair retained, about43GiB free.
+
+**Picture/text subtask DONE, accepted:** full mac-minimum-baseline →
+mac-picture-floor same-base pair, both mandated scripts exit0. Exact audit:
+756 documents per mode, no missing files, score drops, scored-page or physical-
+page changes. Only767's cover3311 changes normalized geometry, from y−146 to
+−159 (Mac Word−158; Windows Word−159). Windows297→298/299 matched lines;
+Mac245→246/297. No cancelling-errors exception. The text baseline moves from
+134.80 to148.12pt (fresh Mac Word147.36); the small horizontal/font-metric
+residual is not claimed fixed. No other document's normalized geometry changes.
+Two12-page Word fixtures at24/48pt text reproduce every original package part.
+All48 native mode-pages pass; non-target larger-picture, picture-only, no-image
+and off-grid pages remain pixel-identical to baseline. The old binary fails
+both sizes in both modes. The complete native/browser gate passes without
+skips, including both new fixtures. Final nativefcfed58f, app WASMe5e401cc;
+bridge3841e45e/skwasmc14456aa unchanged. Source/test patch0ddbc06d; receipt
+standard-residual-next/picture-acceptance-receipt.json, geometry audit
+picture-full-geometry-review.json and full pair reports at the evidence root.
+No reference edits, live deploys, engine relinks, hyphenation decision or new
+Windows/iOS host validation. About41GiB free. The Mac paper-crop residual stays
+outside this renderer correction; appendix empty-list labels remain under the
+existing claim, with new Word visibility controls prepared privately.
+
+**Appendix empty-number follow-up CLAIMED (same owner, after2c7b21f1):**
+Fresh pair leaves767 Mac246/297, Windows298/299; grepped empty-list/hidden-
+override board entries and found no competing current claim. Its two p9
+1pt A labels come from empty numbered paragraphs, styles199/200 hiding text,
+but direct paragraph marks explicitly have vanish=0. Original and visible-
+style controls show both labels in fresh Word; omit-mark/hidden-mark controls
+hide them. Writer omits the explicit-off labels; removing style hiding restores
+ink but exposes an independent empty-centered-list x-position error (~92pt
+rather than~298/308pt). Do not call a line-score gain alone an alignment fix.
+An18-page portable Arial lab confirms both issues at ordinary sizes, across
+left/center/right and inherited-hidden/normal styles with off/omitted/on marks.
+Explicit-off hidden-style paragraphs must display their numbers and reserve a
+line; centered/right empty labels must travel with that line. All18 Word pages
+and accepted native comparison retained under standard-residual-next/
+tiny-label-controls/{empty-list-visibility*,empty-list-comparison.json,result.json}.
+Investigate preserving the explicit-off switch through import/export and list
+layout, with original hidden/omitted controls unchanged. No new production
+candidate yet; full same-base pairs/both modes/no drops and browser gate still
+required. Current mac-minimum-baseline/mac-picture-floor PDFs retained;
+settled mac-grid-single pdf folders only removed, all match reports retained.
+
+Private empty-list controls PASS; full pair pending. Broad prototype23e260a4 /
+nativeb3fcc952 passed all80 empty-list checks (18 pages × original/saved ×
+both modes plus eight original-package label checks), but was REJECTED before
+sweeping: separate hidden-body controls show that an inherited hidden paragraph
+mark joins visible text into the next paragraph in Word; broad visibility
+restoration instead moved AFTER to another line. A visible mark over entirely
+hidden body runs also requires a normal-height blank line. Do not infer a
+complete body-visibility rule from the empty-list examples.
+Narrowed95d9f895 / native48b2283f preserves explicit-off vanish on read/write,
+resolves that switch only for empty paragraph marks/numbers, and reserves an
+empty list's number/suffix width for alignment. All80 checks pass; all eight
+nonempty-body mode-pages remain pixel- and geometry-identical to accepted base.
+General hidden body-run rendering/joining remains unresolved, explicitly out
+of this candidate. New18-page office-empty-list.py reproduces every Word input
+package part; its native original/save/reopen checks pass in both modes and
+retain all six explicit-off mark tags. Evidence empty-list-{broad-*,provenance,
+focused-controls,native-test} and tiny-label-controls/{hidden-run-*,result.json}
+under standard-residual-next. Bridge remains3841e45e; about42GiB free.
+
+**Empty-list subtask DONE, accepted:** full mac-picture-floor → mac-empty-list
+same-base pair, both mandated scripts exit0. Exact audit:756 documents/mode,
+no missing files, score drops, scored-page or physical-page changes. Per mode:
+767 gains1 (Windows298→299/299; Mac246→247/297),90e0cea8 gains2
+(Windows320→322/325; Mac321→323/326),9db183d5 gains4 (256→260/265).
+All seven new normalized lines match their Word references exactly. Two other
+documents change horizontal geometry only: cd8987db's empty appendix number
+moves x71→279, matching Word's x279 while retaining its existing4pt vertical
+residual;60c80728's50 table numbers per mode move to within0.5pt of Word x,
+with their y positions and every other span origin unchanged. The normalized
+line reader regroups some neighboring table text after these horizontal moves;
+this is not a body-flow change. No cancelling-errors exception.
+The complete native/browser gate passes with no skips, including all18 new
+Word controls, native original/saved copies in both modes, and all existing
+fixtures. App WASM807263ae, native48b2283f; bridge3841e45e and
+skwasmc14456aa unchanged. Frozen source/test/board patch724a48e2. Receipt
+standard-residual-next/empty-list-acceptance-receipt.json; exact audit at root;
+empty-list-full-geometry-review.json and empty-list-cell-all-span-audit.json
+hold the additional geometry evidence. No reference edits, live deploys,
+engine relinks, hyphenation decision or new Windows/iOS host validation.
+This closes the cover/empty-label claim:767 is100% against Windows; its50
+remaining Mac misses are the reproduced A4 print crop of an A3 landscape
+section, measured/released without changing references or renderer paper size.
+General hidden body-run joins remain a separate known gap, not fixed here.
+
+### Next accepted-sweep residuals: Mac final table DONE; Windows cell punctuation CLAIMED (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, coordinator item4; accepted59f0eecc.
+Fresh mac-arial-alt reports and exact audit: Mac zh-291fcea7 is232/296 (78.38%);
+Windows zh-8628cfbe is1498/1605 (93.33%). Grepped all board mentions before
+claiming. T133/flowchart residuals are released; the Windows8628 p13 note is
+explicitly measured/not claimed. Lower documents retain the exclusions/owners
+recorded in the preceding fresh-sweep claim;3c055's boundary-gap trial is now
+rejected and released with preserved Word counterexamples.
+Mac291f has64 misses: p4 two, p5 five, p9 three, p11 one, p12 fifty-three.
+Start with the final-page table displacement after accepted section parity;
+keep existing WordArt/first-line mask behavior. Windows8628 has107 misses,
+mostly p13–15 after a cell wraps differently. Preserve T181's rejected
+kinsoku-zero blanket rule, which dropped12 documents; inspect its own cell
+before another fitting change. No implementation change for either task yet.
+Both-mode same-base pairs, both engine variables pinned3841e45e, no drops
+without individually verified cancelling errors, board results and fetch/rebase
+before push. No live deploy, shared-engine mutation or hyphenation decision.
+Current free space about47GiB; settled flat-pie PDF folders deleted, all reports
+and the current accepted base/candidate PDFs retained.
+Fresh Word original and whole-package X/文 replacements confirm the empty
+anchor stands above the page-anchored table (baseline79.44), while the next
+caption stays on p11 at764.16. Writer pushes the anchor below and the caption
+onto p12, moving the final table down about30pt. With X and the table top at
+82/84pt Word instead puts X below; 87.95pt keeps it above. Testing whether the
+lower half of line-grid leading should be excluded from the first line's
+collision extent, preserving explicit line-height behavior. This is a private
+candidate pending the remaining Word boundaries and both-mode pairs; no result
+claimed. Evidence table-residual-next/anchor-controls* and page11/12 renders.
+First-face prototype: 23 banded documents in both modes plus8 original-package
+controls, no score drops; only Mac291f changes232→281/296. Eight fresh Word
+anchor controls agree in page placement, including84pt below/86pt above.
+A separate mixed12/24pt portable control exposed an incorrect first-run
+assumption: with the small run first, the prototype puts text above the table
+where Word puts it beside/below. Rejected that prototype; use existing per-line
+minimum grid-leading measurements instead. Preserved binary grid-half-OfficeApp,
+patch/provenance and controls. The first portable table was36pt narrower than
+its page, so Word correctly used the side strip; preserved under side-room-controls
+and regenerated full-width cases to isolate vertical clearance. No full-sweep
+or acceptance claim yet.
+The per-line prototype preserves the focused gain/no-drop result and corrects
+mixed-size single lines, but a two-line X/Y control exposes existing missing
+flow-around support: after moving X above the table, Y paints over it. Reject
+that prototype too. Limit the correction to one-line paragraphs, using the
+existing minimum grid overhang across their faces. Multiline text keeps its
+prior placement; a no-overlap regression covers it without locking in the
+known incorrect baseline positions. Full-width12-page Word fixture and both
+prototypes are preserved in table-residual-next; general multiline wrapping
+remains separate. No new tolerance, engine change or hidden font substitution.
+**Narrowed focused PASS:** single-line paragraphs only, minimum allowance across
+all faces on the line; exact heights, off-grid and multiline paths unchanged.
+23 banded corpus documents in both modes plus8 whole-package Mac Word controls:
+no drops, only Mac291f corpus geometry changes232→281/296; pages unchanged.
+The original caption returns to p11 at764.335pt (fresh Word764.160), and the
+p12 title returns to74.432 (Word74.640). Twelve portable full-width Arial pages
+pass in both native modes:10 Word baseline controls and2 later-line no-overlap
+safeguards. They reject baseline at page2, the first-face prototype at page5,
+and the multiline prototype at page11. The final generator's package parts
+are byte-identical to the fresh Word print; Python3.11 syntax also passes.
+Frozen production patch e4859f609c286102088611cef822a729bf560c456a5dd7124a31bb694040598b; binary 3e37b942c2b26c97a359e8c5f876b8273c3e186df22ba0c45d7b66ab4edd7769.
+**Full acceptance PASS:** unchanged sweep-win.sh and sweep.sh both exit0 for
+mac-arial-alt→mac-grid-single, one checkout/engine and frozen source. Exact audit:
+756 documents in each mode, zero drops/missing documents or scored/physical page
+changes. Only Mac291f geometry changes232→281/296 (78.38→94.93%); every other
+normalized row, including all Windows rows, is unchanged. Same8 unscored
+malformed/encrypted Mac refusals as base. No cancelling-errors exception.
+Native RELEASE/WASM builds and full browser layout gate pass with no skips:
+three exact layouts/roundtrips, fractional advances/ink, fixed-frame/opener/Latin/
+cell/pie controls, and the new12-page grid-band check in native both modes and
+browser. The six Mac-font fallback pages remain native-only, as documented.
+Static lint, Python3.11 syntax, shell syntax and diff checks pass. Fixture parts
+remain byte-identical to the Word-printed package. Source/binary/engine hashes
+rechecked; app WASM529dd593, bridge3841e45e and skwasmc14456aa unchanged.
+Acceptance receipt table-residual-next/acceptance-receipt.json, full audit
+mac-arial-alt--mac-grid-single-exact.json, grid-single-* logs, Word PDF and
+regression-rejection-results.json. About45GiB free; no shared engine changes,
+live deployments or hyphenation decision. Mac291f's15 remaining drawing/table
+misses are released; multiline wrapping is explicitly still unsolved.
+
+Windows8628 remains claimed, read-only. Current PDF confirms the old p13 comma
+witness (the layout text dump alone omits its final punctuation): at ¶396,
+width218.1, incoming comma starts215.4, needs9.3, two commas give12, no automatic
+spaces,19 characters/228 em-points. Current share test takes it; Word keeps the
+preceding comma whole and wraps it. Word's last column is about230.21pt versus
+app230.05, so a narrower reference column does not explain it. The second
+repeated paragraph and rows below are about17pt early. Preserve the prior
+rejected blanket kinsoku rule; no new rule or rendering change for8628 yet.
+Evidence 8628-cell-trace.*,8628-{word,base}-p13.* and8628-windows-layout.txt under
+table-residual-next. No current Windows-native or iOS validation inferred.
+
+
+
+
+
+### Fresh after legacy-cell fitting: Mac alternate DONE; Windows grid measured, released (Codex, 2026-10-28)
+Owner: Mac starling-word-fidelity-codex, coordinator item 4 after 878d44bb.
+Fresh accepted mac-cell-letter sweep: Mac zh-d5cc99a6 309/435 (71.03%);
+Windows zh-3c055c9b 537/576 (93.23%). Grepped every board occurrence before
+claiming. Lower Mac a031/d9b/e8 are documented reference artifacts; c5b/015
+remain owned; 884 is the measured boundary covered by the prior user decision;
+27a/d62/e0ca were just measured and released without further predictive rules.
+Lower Windows015/WordWithAttachments/b8de/4e5 remain owned, delins's tie-break
+and 8d6/3-D residuals were just rechecked. T206's 3c055 grid trials are released;
+preserve the tfe digit/mark-order counterexample and do not retry its rejected
+count/cap formulas. Start with reference/package triage of remaining misses.
+
+Mac d5cc's title names 方正小标宋简体 with alternate Arial Unicode MS; the
+stored Word PDF uses ArialUnicodeMS, current app uses YaHei. No existing
+specific d5cc claim found. The October18 session-state warning applies: verify
+in a fresh Word process and with controlled font-table variants before inferring
+a rule. This is a hypothesis, not an accepted font mapping or reference change.
+Same-checkout/engine both-mode pairs, exact no-drop gate, board results and
+fetch/rebase before push remain required. Both engine variables stay pinned to
+3841e45e; no shared engine promotion, live deployment or hyphenation choice.
+At least10GiB free; current ~47GiB. Claim only; no new production changes yet.
+
+**Fresh-process font controls:** d5cc original reproduces ArialUnicodeMS,
+title baseline133.920; removing only its alternate yields YaHei126.000;
+changing alternate to 黑体 yields SimHei125.280. A private generic missing
+name with the same Arial alternate also takes ArialUnicodeMS133.920. Each is
+the first document after restarting an empty Word process. No reference edits.
+Testing the existing known-missing 方正/small-title-name path accepting
+Arial Unicode MS as an available alternate, as _GB2312 already does. Do not
+broaden all other font families: the known-font list is incomplete and their
+installed-face handling is outside this claim. Fifty documents reference an
+Arial Unicode alternate somewhere; use that superset for the focused pair.
+Evidence: alternate-grid-next/font-choice-results.json, font-controls-provenance.json,
+used-arial-alternates.json and fresh Word PDFs. No candidate result yet.
+Focused PASS: 50 corpus documents in both modes plus four private controls,
+104 PDFs, no drops. Windows geometry unchanged. Mac gains d5cc309→435/435,
+c25d673→738/738, 08e952183→2251/2301, a78d423→424/440. Generic missing-name
+control remains unchanged; only the claimed known-missing title-family path
+is extended. No-alternate and SimHei-alternate whole-package controls unchanged.
+Six-page portable Word fixture pairs explicit Arial Unicode MS / SimHei / YaHei
+with missing title-family names and their alternates (or no alternate).
+Word and candidate pass all six baseline/text controls; baseline fails page2.
+The final generator produces byte-identical parts to the Word-printed package.
+Production diff dfbaf302ad982cbc90ff334cc442408f7b1e72d9ecf8f566ad147736343b30dc;
+frozen binary3dbcd46213be8c7a6e0e0631f486a3fcbfd640240a3e1737f9dc6a59813f1e56.
+**Full pair PASS:** mac-cell-letter→mac-arial-alt, unchanged sweep-win.sh and
+sweep.sh both exit0, one checkout and pinned3841e45e engine. Exact audit:
+756 documents per mode, zero drops/missing documents, zero scored/physical
+page changes. Windows all normalized geometry unchanged. Mac gains the four
+focused witnesses above; eleven further documents have geometry-only changes.
+Most are title alignment/baseline improvements; not every moved line improves:
+e74's correctly restored Arial Unicode title pushes its already-late bottom
+lines another4.5pt, and some other baseline differences remain under the scorer's
+threshold. These are recorded in geometry-only-audit.json; no score-drop
+exception used. The same eight unscored malformed/encrypted Mac conversions
+fail as in the base. Production diff and engine remained frozen throughout.
+
+The six-page font regression is **native Mac-reference-mode only**, and the
+old binary fails it. A first attempt to assert these same baselines in the
+browser was invalid: WASI exposes an empty environment, so the browser uses
+its author-font mode, not OFFICE_WORD_FONTS=mac. Default-mode native baseline
+and candidate layouts are byte-identical. Preserve the browser experiment:
+all six CJK pages draw missing-glyph boxes in the generic staged build, whose
+font manifest has no general CJK fallback. This is a separate web font-packaging
+limitation, not evidence of Mac-reference parity or a candidate regression;
+no fonts were silently added to make the test pass. The harness now runs this
+particular regression natively only, retaining all existing browser gates.
+Native/WASM builds and the final corrected full layout harness PASS (no skips):
+welcome/TextEdit/24-page boringcrypto exact layout and save roundtrips,
+fractional font advances/ink,11 fixed-frame pages in native both modes/browser,
+12 opener,5 Latin-word,8 cell-word and4 flat-pie pages in native/browser;
+6 font-alternate pages in native Mac-reference mode only. Static lint,
+bash syntax and git diff checks pass. Acceptance receipt:
+alternate-grid-next/acceptance-receipt.json; native3dbcd462, bridge3841e45e,
+skwasmc14456aa unchanged. About46GiB free.
+Evidence: alternate-grid-next/{full-exact.log,geometry-only-audit.json,
+font-browser-debug/,font-browser-debug.png,letter-lead-default-layout.txt,
+font-alt-default-layout.txt,font-browser-final.log}, and
+mac-cell-letter--mac-arial-alt-exact.json. Keep base/candidate PDFs and all
+match reports. No live deployment, shared-engine change or hyphenation decision.
+
+**Windows grid investigation (now released):** 3c055's39 misses cluster at
+p2, p9–14; p9 refuses 號、 after4829,17.83165pt over with17.00757pt of mark
+capacity and six4.25189pt automatic gaps. Investigating whether the disappearing
+boundary gap belongs in the alternative line's stretch calculation; no rule or
+code change yet. Recovered old ab3a/b/c DOCX/Word PDFs under
+~/starling-word-check/lab/tools/ (the earlier search pattern missed underscores).
+Preserve their0.44 calibration, T206's rejected caps and tfe mark-order witness.
+Private experimental candidate now credits only the automatic gap immediately
+before an incoming ideograph on a modern character grid, and excludes that
+same gap from the alternative line's0.44 stretch sum. No cap/tolerance change;
+not an accepted Word rule. **REJECTED after focused pairs:** all43 character-grid
+corpus documents in both modes plus12 recovered Mac Word controls (98 candidate
+PDFs,12 additional control baselines). Only3c055 corpus geometry changes:
+Windows537→558/576 and Mac557→575/588, no corpus score drops. But exact first-line
+text exposes four new control failures hidden by the approximate start matcher:
+ab3b−776/−774 and ab3c695/697 now keep 頁】， where Word and baseline wrap it.
+Four opposite-boundary controls improve; the digit-free ab3a controls stay as
+before, including its preexisting227-twip miss. Do not accept the corpus gains
+as a rule. No full sweep or browser build for this rejected candidate, no
+cancelling-errors exception. Production source restored byte-for-byte to59f0eecc.
+Evidence: alternate-grid-next/{grid-gap.patch,grid-gap-provenance.json,
+grid-gap-results.json,grid-gap-boundaries.json,grid-gap/}; frozen
+~/starling-doc-check-starling-word-fidelity-codex/grid-gap-OfficeApp retained.
+The boundary gap cannot simply be credited under the existing0.44 calibration;
+no new weight or document-specific guard guessed. Grid residuals released.
+
+
+
+
+
+
+### zh-7b08d744 Mac squeeze boundary — DONE (Codex, 2026-10-28)
+Owner: Mac `starling-word-fidelity-codex`, coordinator item 3 after ee675bab.
+Grepped the board and read the tsq manifest/results and a6d27ff7's rejected
+mode-14 share test. Preserve those counterexamples: do not retry the broad
+modern share calculation in legacy cells or body text.
+Accepted-binary trace of tsq's original centered bold SimSun cell:
+`（      ）年（    ）A` starts A at 107.0474976pt in 107.05pt of room,
+only 0.0025024pt inside. A needs 5.4522476pt; three marks can give 16.0571243pt.
+The legacy cell's literal-space path takes it because x < width, whereas Word
+wraps it. First test one-twip width steps around that strict boundary, with
+fresh Word prints, before changing capacity or adding a tolerance. No new
+production change yet. Same-base pairs in both modes, both engine variables
+pinned to 3841e45e, exact no-drop gate, board results and fetch/rebase before
+push remain required. No shared-engine relinking, live deployment or automatic
+hyphenation decision. Keep at least 10 GiB free; current free space about 47 GiB.
+
+**Fresh controls, 2026-10-28:** latest accepted sweep is Mac 149/210, Windows
+207/207. One-twip width steps reject a simple boundary-rounding correction:
+Word wraps at right 0, −1 and −2 twips, but takes A at −5/−10/−15. Replacing A
+with AA or 12 still wraps, so this is not a single-letter special case.
+Moving one ordinary space out of a parenthesis but elsewhere on the line
+still wraps A and AA; moving it immediately before A/AA keeps both, at the same
+natural width (all four controls use right −2 twips). Testing the legacy Mac
+cell exception only when the incoming word directly follows U+0020. Existing
+half-em checks, Windows, modern layout and body text remain unchanged. No new
+capacity test or tolerance. The −2-twip A edge may remain a small metric-boundary
+miss; do not hide it with an unrelated epsilon. No candidate result yet.
+Private authoritative whole-package Word/native controls and logs are under
+`~/starling-doc-check-starling-word-fidelity-codex/squeeze-edge-next/`:
+`right*`, `AA`, `12`, `r-5/r-10/r-15`, `outside-first-*`, `outside-last-*`.
+The initial rounding and single-letter hypotheses are rejected, not rules.
+
+The first candidate (only requiring a directly preceding space in the cell
+exception) changed no corpus geometry in a focused 14-document, both-mode
+pair and had no drops. It fixed the private AA controls but not original A:
+a second shortcut lets any single Latin character starting inside a legacy
+cell take the marks' capacity. Its documented oracle is Word for Windows.
+Fresh Mac controls replacing the ten spaces with five equal-width Han still
+wrap attached A and AA. Testing the two guards together: preserve that single-
+character shortcut in Windows cells and body text, but let attached letters in
+legacy Mac cells use the existing half-character/start rules. Ordinary-space
+paths still keep A/AA. No body/modern/Windows changes or new tolerance.
+The first candidate's patch/binary/results are preserved under `part1-*`.
+A self-contained six-page private fixture with an embedded five-glyph Noto
+subset reproduces both rules in fresh Word: attached A/AA wrap; a space directly
+before them keeps them. Baseline fails the three attached-word pages. Combined candidate focused pair PASS: Mac zh-7b08d744 149→210/210;
+Windows remains 207/207. All 13 other focused documents have identical
+geometry in both modes, including the old share-test regression witnesses.
+All six embedded-font Word controls pass; the baseline fails pages 1, 2 and 5.
+Production diff SHA256 3d0c44898b93b4451889affa7ad26f88e248c9b92c296669a9c547795b627a35;
+frozen native binary f4db1aad043f9bc9f7c1cd005f7b6d3f116ea6ff8c9d5b7ddb75130222530da4.
+Evidence: candidate-provenance.json, focused-results.json and candidate/ in
+squeeze-edge-next. Added test/office-cell-word-fit.py with OFL font/generator
+and browser gate. Starting full flat-pie-move→mac-cell-latin pairs and browser
+validation. Full pair completed, but **DO NOT LAND** this candidate:
+756 documents/mode, no missing, Windows geometry unchanged; Mac zh-23ee8575
+296→295/296 (one lost line), zh-540dc149 geometry changes at unchanged 282/282,
+and target 149→210/210. No page-count changes. Both changed counterexamples
+involve a digit with its own pause mark, after pause marks already on the line;
+the removed single-Latin shortcut admits them in the baseline. The first
+(space-only) candidate preserves the drop witness exactly. The broad second
+guard needs a narrower Word-measured rule; no cancelling-errors exception.
+New fresh Word controls already show that simply restoring words with any
+own punctuation is too broad: 7b08's attached A、/2、 still wrap in Word.
+Evidence: flat-pie-move--mac-cell-latin-exact.json, mac-cell-latin-* logs,
+drop-{base,part1,combined}.*, punct-controls.*, rejected-combined-*.
+WASM build completed; no browser acceptance or landing claimed for this version.
+
+**Bounded refinement:** replacing an earlier bracket or the character before
+A/AA with a comma still wraps; donor-punctuation or preceding-comma exceptions
+are rejected. Fresh A、 controls wrap at right 0 and −2 twips, but fit at −5,
+the same boundary as bare A. The single Latin character's own advance, without
+its attached pause mark, keeps the existing previous-character half-width test;
+the whole word still needs sufficient mark capacity. This predicts 23ee's 2、
+(its digit only 1.7pt past the edge, the preceding character half 6pt) without
+admitting 7b08's A、 at right 0. Testing that narrower guard, unchanged Windows,
+body, modern and direct-space paths. No new tolerance or blanket punctuation
+exception. Evidence: prior-pause-controls.*, punct-edge-controls.*.
+Refined focused pair PASS: 16 corpus documents in both modes plus 32 private
+Mac controls (64 PDFs), zero drops. Only target Mac geometry changes,
+149→210/210; the two full-sweep counterexamples now exactly restore baseline
+geometry in both modes. Fresh Word reprints confirm their original line breaks.
+Expanded portable fixture to eight pages: all pass in fresh Word and refined
+native; rejected combined binary fails page 8, proving regression sensitivity.
+The −2-twip boundary retains its existing metric miss; not hidden with epsilon.
+Production diff 9fd23297760c7ba5d36d4371d5b48ef9bd1af59664c7b3fb23c1b5e0b53dc0ca;
+frozen binary d40ce194eaf4486a26289b0c0f295b62c3056b2b7dfcc7957118adcc12ce914e.
+Evidence: letter-lead-candidate-provenance.json, letter-lead-focused-results.json,
+fresh-drop-witnesses.json, cell-word-eight-word.pdf, eight-rejected-combined.log.
+Starting full flat-pie-move→mac-cell-letter pair, unchanged engine3841e45e;
+full native/browser gate is running. No full acceptance yet.
+
+**Final acceptance:** both unchanged scripts exit 0 for flat-pie-move→mac-cell-letter;
+exact audit has 756 documents per mode, zero missing, zero drops, zero physical
+or scored page-count changes. Windows normalized line geometry is identical.
+Only Mac zh-7b08d744 changes: 149→210/210 (71.0→100.0). All other geometry,
+including 23ee and 540, is identical. The same eight encrypted/malformed Mac
+conversion refusals have no scored references; no new failure. No exception used.
+Full Mac native/browser gate exits 0: welcome/TextEdit/24-page boringcrypto exact
+layout plus roundtrips, fractional advances/ink, 11 frame pages in both native
+modes/browser, 12 opener pages, five Latin pages, eight cell-word pages and four
+pie-move pages. These are Mac-host receipts, not native Windows/iOS validation.
+
+Fixture correction during browser validation: the initial subset's English name
+was not recognized as CJK, so native fallback faces hid a missing embedded-font
+load and browser output was NUL text. No font-key collision (registration hashes
+font bytes). The final fixture names its font Starling Cell Space CJK Test,
+uses Arial for ASCII spaces/letters, and asserts the CJK font is present in every
+PDF page. Fresh Word, native and browser all pass the final eight-page fixture;
+baseline fails page 1 and rejected combined candidate fails page 8. All original
+whole-package Word controls and focused corpus results are retained independently.
+The temporary browser harness differed only in the helper's private path; copied
+the exact tested helper/font/generator after the sweep's source freeze ended.
+Production patch remains exactly 9fd23297…; no rendering changes during either gate.
+
+Evidence: flat-pie-move--mac-cell-letter-exact.json; mac-cell-letter-* provenance,
+mode/build/conversion logs; squeeze-edge-next/letter-lead-browser-final.log,
+browser-tested-harness.sh, cell-portable-final-word.pdf, portable-final-*.log,
+acceptance-receipt.json. Static lint, shell syntax and diff checks pass.
+Removed settled mac-cell-latin and mac-number-gap pdf/ folders, retaining all
+match.txt reports, exact audits, frozen binaries and current flat-pie-move /
+mac-cell-letter PDFs. About 47 GiB free; shared engine and live sites untouched.
+Coordinator item 3 complete; proceed to fresh lowest unclaimed documents.
+
+
+
+
+### T205 follow-up and zh-61aaad09 chart 2 — 61aa move FIXED; residuals RELEASED (Codex, 2026-10-28)
+Owner: Mac `starling-word-fidelity-codex`, following the coordinator's explicit
+2026-10-28 reassignment/order. Earlier T205 Linux ownership below is historical;
+retain its findings and counterexamples. Scope: zh-27a874b7 / zh-d62da4dd 3-D
+pie label placement, fit and collision rules, plus zh-61aaad09 chart 2 labels.
+Read T205, piefit and windows-1 tpie results before this board-only claim.
+Start with fresh baseline renders on d6e61adf and pinned engine3841e45e.
+No production change yet. Any candidate must pass unchanged both-mode scripts,
+same-base same-engine pairs, exact no-drop audit (only a verified/logged Word
+cancelling-errors exception allowed), browser checks, fetch/rebase before push.
+Keep 10 GiB free; no shared engine changes, deployment or hyphenation decision.
+Grid/punctuation accepted through d6e61adf; unresolved measured edges released.
+
+**2026-10-28 measurements / 2-D candidate:** fresh bundled-font baseline:
+Windows 27a61/92, d6268/99, 61aa64/68; Mac 27a62/92, d6267/99, 61aa69/76.
+Fourteen new 3-D controls distinguish best-fit / center / inside-end / outside,
+label height and tilt. Explicit center keeps its anchor across label heights;
+best-fit does not. Visible-background controls confirm actual label boxes,
+but adding their border also moves best-fit positions. No general 3-D fitting
+or collision rule yet predicts all controls; no 3-D source change or offset
+patch. The blanket no-manual-moves → all-inside shortcut remains a confirmed
+limitation against piefit; removing it alone is not a measured placement rule.
+
+For 61aa chart2, full original-package controls isolate a narrower rule:
+Word applies a label's manual move from its outside default AFTER that default
+is constrained to the chart frame. Original first label: outEnd y590.64,
+moved y604.80 (14.16pt); its stated fraction gives14.25pt. The same -33.177pt
+x / +14.16pt y move holds with the first slice changed from15.85% to1% and35%.
+Native moves the unconstrained default first, losing9.7pt of the downward move.
+Angle controls rejected an initial vertical-centering hypothesis: away from
+the frame edge, the existing outside offset is right. Testing only pre-move
+frame constraint for best-fit, manually moved flat Word pies; 3-D, other chart
+hosts, doughnuts and bar-of-pie keep their existing paths. No corpus result yet.
+A stripped-body control was rejected by Word and is NOT evidence; authoritative
+flat controls preserve every original package part except chart2.xml.
+Evidence: `~/starling-doc-check-starling-word-fidelity-codex/pie-label-next/`
+(`baseline.json`, `baseline-provenance.json`, `pie-controls*`, `pie-label-boxes*`,
+`flat-whole-*`, `flat-angle-*`, `flat-moved-angle-*`, `flat-angle-measurements.json`).
+Settled box-first-line-masks pdf/ folders removed, match reports and current
+opener/numeric pair retained. About48GiB free; no shared engine/site changes.
+
+Focused flat-move candidate passes: 61aa Windows64→66/68 and Mac69→71/76;
+27a/d62/b8 unchanged in both modes. Nine private control packages rendered in
+both modes have no drops; fresh Word controls are Mac prints, not Windows-host
+receipts. The moved1% control improves; the moved35% and unmoved/outEnd angle
+controls are unchanged. Self-contained `office-pie-label-move.py` checks four
+pages: both intended14.25pt moves and both untouched labels. Fresh Word prints
+14.40/14.16pt, native candidate passes in both modes; old binary fails with
+only5.817pt movement at the frame edge. Generated fixture XML matches the Word
+package after whitespace normalization. Production patch42a19976ae6cb168d184511935a05b9f134d8fe33125fabd704380e118508843,
+native d96328c9c89e9085c277eccab97330a669e1ec5f4137204c6fe266183aa48647,
+bridge3841e45e. Starting full `mac-number-gap → flat-pie-move` pair; source/board
+frozen until completion, both unchanged scripts and both exported engine vars.
+
+**Full flat-pie-move pair PASS:** unchanged `sweep-win.sh` and `sweep.sh`
+exit0; exact audit756 documents/mode, zero drops, zero missing outputs, no
+physical-page changes. Only61aa changes geometry: Windows64→66/68 and
+Mac69→71/76. Every other document is geometrically unchanged. No cancelling-
+errors exception. The corrected label's top is604.879pt versus fresh Word
+604.804pt; its existing horizontal difference remains separate. The same eight
+unscored malformed/password-protected conversion failures match baseline.
+Full private browser gate passes all3 native/browser layouts and roundtrips,
+font/ink probes,11 fixed-frame controls (both native modes/browser),12 opener
+controls,5 Latin-word controls and4 new pie-move controls (both modes/browser).
+HTTP18142 and DevTools19342 are independent. Applied the peer's explicit
+DevTools-port prefix to the newer Latin/pie PDF calls too; the final tracked
+harness exactly matches the tested copy (copied after the sweep's source-diff
+freeze ended). Static lint, shell syntax and diff checks pass.
+Evidence: `mac-number-gap--flat-pie-move-exact.json`, `flat-pie-move-*` full
+run/mode/provenance logs; `pie-label-next/flat-move-browser-layout.log`,
+`candidate-provenance.json`, `moved-label-geometry.json`,
+`pie-move-regression-word.pdf`, `pie-move-baseline-rejection.log`,
+`pie-move-candidate-regression.log`, `browser-harness-tested.sh`.
+About47GiB free, no engine relinking, live deployment or hyphenation choice.
+**61aa manual-move subtask complete; 3-D and other label residuals RELEASED.**
+No complete 3-D best-fit/collision rule was established; preserve all piefit,
+tpie and the new height/position controls as counterexamples. 61aa's remaining
+horizontal placement, legend and first-chart differences are not claimed fixed.
+Proceed to coordinator's zh-7b08d744 squeeze-capacity edge next.
+
+### Fresh after fixed-frame masks: grid and punctuation residuals — DONE; residual edges released (Codex, 2026-10-28)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+Fresh full `box-first-line-masks` sweeps/exact audit: **Windows zh-8d6f702e
+816/899 (90.77%)**, **Mac zh-e0ca7252 1058/1669 (63.39%)**. Board grepped
+before claiming. T208/T115 are done and explicitly leave 8d6's residuals as
+witnesses; the sub-twip grid experiment is measured/released, not a rule to
+repeat blindly. T227 fixed e0ca's square-symbol metrics; its following-line
+punctuation/line-fitting issue is explicitly open. Start from current first
+misses and preserve the earlier rejected controls as counterexamples.
+Lower Windows015/27a/d62/WordWithAttachments remain owned; delins's balloon
+ordering was freshly rechecked without a predictive rule. Lower Mac a031/d9b/e8
+are documented broken references, c5b/015 are owned, and884 is the previously
+measured sub-point boundary case without new evidence. No reference edits.
+Claim is board-only before implementation. Every rendering candidate requires
+both unchanged sweep scripts, same checkout and pinned engine3841e45e, both
+engine variables exported, no drops except a verified logged cancelling-error
+exception, and fetch/rebase before push. No live deployment or hyphenation
+choice. Settled rejected `fixed-text-box/pdf` folders removed; reports and
+current accepted base/candidate retained. About49.5GiB free.
+
+**2026-10-28 measured controls / candidate in progress:** 18 e0ca controls
+(six opening-mark kinds, three widths) all reproduce Word keeping the opener
+after 日 while baseline wraps it. A 66-page width scan and 32 minimal controls
+rule out a character-grid-only restriction. At 14pt with two commas, Word takes
+甲（ 10pt over but not 12; for adjacent 「（ it takes 4 but not 6, on and off a
+grid. The alternative line ending restores the first opener's shared blank
+half. Testing Mac body opener compression with that half deducted from the
+alternative line's stretch room. This specifically retains 72da p56's earlier
+counterexample; no claimed corpus result yet. Private Word controls and native
+baseline PDFs: `grid-punctuation-next/` (`mac-openers`, `nested-openers-notes`,
+`opener-limit`, `simple-opener-grid`). No corpus reference changes.
+First focused candidate: seven documents in both modes, Windows exact unchanged;
+Mac 72da1138→1144 and e0ca1058→1061, others unchanged. All32 minimal opening
+controls match Word's line-end decisions. The replacement `）『` control exposes
+the same shared-blank restoration for a closing mark followed by an opener;
+extending the correction to that measured pair before any full sweep. One early
+probe executable lacked its sibling font bundle and is explicitly INVALID;
+all stated focused counts are from the repeated bundled-font invocation.
+Refined `opener-paired` candidate: all48 minimal Word boundary controls match,
+including closing/opening pairs, on and off the grid; original nested control
+returns47/47 scored lines. Seven-document pair: Windows unchanged, Mac gains
+remain72da+6/e0ca+3 with no focused drops. Starting full `box-first-line-masks`
+→ `mac-opener-paired` pair on engine3841e45e; source/board frozen during sweep.
+**Full pair PASS:** both unmodified `sweep-win.sh` and `sweep.sh` exit 0;
+exact audit 756 documents per mode, no missing outputs, **zero drops**, no
+physical-page changes. Windows geometry is identical throughout. Only two Mac
+documents change: **zh-72da925e 1138 → 1144/1309**, **zh-e0ca7252 1058 → 1061/1669**. No cancelling-error
+exception. Production diff SHA256 `2d2f2d0d97a865c08bfdf326bdb033b55b5ce6ef1c8843f1456690f51e3f6048`,
+native binary `e52fef9c527c3b67112d1fc0f76cbfdf755312a187c518f8ea1f9b7c1d6930da`.
+The full browser/native gate passes welcome, TextEdit, boringcrypto, roundtrips,
+font/ink probes and the 11 fixed-frame controls. New `office-opener-fit.py`
+12-page fixture passes a fresh Word print, native Mac mode and browser; it rejects
+the old binary at page 1. Its 4 KB embedded Noto Sans SC subset (OFL 1.1, renamed,
+license and regeneration script included) avoids installed-CJK-font dependence.
+The initial unembedded browser fixture exposed missing glyphs and was replaced;
+it is not counted as a pass. Embedded fixture browser/native layouts and saved
+copy are identical. Static lint and shell/diff checks pass.
+Evidence: `box-first-line-masks--mac-opener-paired-exact.json`, full run/mode logs,
+`grid-punctuation-next/opener-paired/`, `opener-paired-browser-layout.log`,
+`opener-paired-browser-embedded.log`, and `opener-regression-embedded-word.pdf`.
+About 47 GiB free; no shared-engine changes, live deployment or hyphenation choice.
+Opener subtask complete; grid/punctuation claim remains active for e0ca's later
+number fit and Windows 8d's residuals before the coordinator's pie-label tasks.
+
+**Number-fit follow-up, active after cd963220:** e0ca's next unresolved line
+ends `第92` in a fresh Word print. Native starts the number4.45pt inside but
+wraps it (need11.97pt, room22.75pt). Fresh42 size/width controls, repeated with
+kinsoku on, show modern Word taking numbers much nearer the edge than the
+old half-prior-character gate. The existing date-paragraph109 counterexample
+was freshly printed and still wraps; baseline matches its13 lines exactly.
+Testing the share calculation with the automatic gap before the incoming
+Latin word removed from the alternative line's occupied width AND stretch
+opportunities. Four internal gaps in the date counter still count. Windows,
+cells, character grids and words carrying marks keep their existing rules.
+No new corpus claim yet; base is accepted `mac-opener-paired`, same engine.
+Private controls: `number-start*`, `number-date-counter*` in
+`grid-punctuation-next/`. The small20pt threshold remains a measured edge;
+no blanket tolerance adjustment. Windows8d's0.0072pt grid edge remains
+unresolved; fresh Mac range controls do not separate the three compatibility
+flags from ordinary em-dash behavior, so no Windows range change yet.
+Focused `number-gap` pair: 13 documents in both modes, no drops; only Mac
+e0ca changes, **1061 → 1179/1669 (+118)**. All18 original opener paragraph
+controls now match Word's complete line breaks. The fresh date paragraph stays
+exactly13 lines, unchanged. Minimal number/Latin-word controls improve without
+any previously matching page regressing; earlier-layout controls are unchanged.
+Known old misses remain near the20pt number boundary and two Latin-word edges;
+no tolerance change or claim to have solved those. Starting full
+`mac-opener-paired → mac-number-gap` pair with both mandated scripts and
+engine3841e45e; source and board frozen for that run.
+
+**Full numeric pair PASS (2026-10-28):** both unchanged sweep scripts exit 0;
+756 documents per mode, no missing outputs, zero drops and no physical-page
+changes. Windows geometry is identical. Mac zh-e0ca7252 improves
+**1061 → 1179/1669**, still 52 pages. Two other Mac documents change geometry
+without changing their scores: zh-bdae17c0 (1822/1848) now matches Word's
+`30 | %,並` and `7 | 種常用` boundaries on pages 7/31; zh-dc9cfa34 (257/259)
+now matches `85 | 分以上` on page 4. These were hidden by the scorer's shared
+line-start matching; they are improvements against the reference, not drops
+or exceptions. All other geometry is unchanged. No cancelling-error exception.
+Production patch SHA256
+`92ae3f51351681878ea7395b090a9f79d0e8ab912c783b3e0f13de702a9d0a57`;
+native binary `f4310e1559b0f888795247d6bed37ab1487cf978281550f47ecaf8412073295a`.
+Full browser/native gate passes (welcome/TextEdit/boringcrypto, roundtrips,
+font/ink probes, fixed frames and opener controls). New `office-latin-fit.py`
+adds five embedded-font Word controls: number and letter words taken, a word
+too far over, a date with internal stretch opportunities, and the existing
+half-prior-character path. Generated DOCX parts exactly match the privately
+Word-printed package. Word, native and browser pass; accepted opener-only
+baseline fails page 1 as expected. The five-page browser/native dump and saved
+copy also match exactly. Static lint, shell syntax and diff checks pass.
+Evidence: `mac-opener-paired--mac-number-gap-exact.json`, `mac-number-gap-*`
+logs/provenance, `grid-punctuation-next/number-gap-browser-layout.log`,
+`number-gap-browser-regression.log`, `number-gap-regression-word.pdf`,
+`number-gap-regression-base-rejection.log`, `number-gap-final-lint.log`.
+About 47 GiB free. No shared engine changes, live deployment or hyphenation choice.
+
+**Grid/punctuation scope complete for this pass; remaining edges RELEASED.**
+The accepted opener and numeric rules improve e0ca without forcing its remaining
+boundaries. The measured 20pt/Latin edges and Windows8d 0.0072pt grid edge have
+no safe general rule yet. Broad grid tolerance and range splitting are not
+landed; their counterexamples remain authoritative. Proceed to coordinator's
+T205 / zh-61aaad09 pie-label work, then zh-7b08d744, in the requested order.
+
+
+### Frozen text-mask full RELEASE suite — DONE; pass (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Preserve64eb,
+then apply exact ae5c47b1 production patch only in private validation checkout.
+Run full Swift6.2.1 RELEASE suite with both engine variables pinned to3841e45e;
+compare all530 test identities/outcomes with prior baseline. Preserve10GiB
+free; stop on source mismatch/failure. No candidate commit, rendering edits,
+shared-engine changes, Word automation or site changes. Owner full corpus
+pair remains a separate mandatory gate; this suite cannot authorize landing.
+
+**Result:** exact ae5c47b1 passed full Swift6.2.1 RELEASE:530 tests,two existing
+skips,zero failures (36.517s tests;550.09s total). All530 identities/outcomes
+match committed baseline and64eb run; no missing/extra/changed tests. Both
+engine variables stayed pinned3841e45e; bridge/source hashes unchanged before/
+after. Minimum free48.83GiB. Test executable SHA256:
+`660926af8dc48b6be38f76d87f2006a2c2b2d1178e262889aee41eca8f22e600`.
+Evidence: `/tmp/starling-mask-full-release/report.txt`, `release.log`,
+`provenance.json`, `test-comparison.json`. Prior64eb patch/source preserved
+there; ae5c candidate remains uncommitted in private checkout. No production
+fixes, shared-engine changes, Word automation or deployment. Report sent to
+owner; their full corpus gate is still independently required.
+
+### First-line text-mask candidate review — DONE; bounded controls pass (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Read-only delta
+review of frozen `box-first-line-masks-candidate.patch` SHA256
+`ae5c47b1aa4af7f70fe5e387743f66a9da8646171c07cab31d29e8dcea06cfef`.
+Review text isolation, transparent decoration/background masks and cache
+lifetime. Repeat the same preserved private controls only when owner binary
+is supplied. No peer builds, production edits or Word automation.
+
+**Read-only delta review complete:** no new source-level blocker identified.
+Complementary text masks isolate first/rest ink; clipping precedes first-line
+translation and rest is unshifted. Explicit transparent background/decoration
+styles override inherited paint; old scale-mask defaults are unchanged.
+Same-painter second-mask insertion no longer evicts/disposes the first mask
+at capacity. Keys2/3 are disjoint from scale0/1. Existing metric guards can
+fall back to ordinary painting, so source review is not binary validation.
+Report: `/tmp/starling-first-line-masks-review/report.txt`. The26 prior private
+controls and rejected-candidate evidence are preserved. Awaiting owner binary
+for the authorized rerun; no peer build or production change.
+
+**Supplied-binary rerun PASS:** verified native binary SHA256
+`2929a8833af3f16d637aa787d2e0f397cd8a50358865578204718c35c68cd90e`;
+rendered only the26 preserved controls in both modes (52 PDFs). All26
+zero-indent comparisons exactly match baseline full-page144DPI/crop288DPI
+pixels and text geometry. All6 white overflow/reference comparisons exactly
+match explicit-break references: intact552-pixel B at top105.75pt, no shifted
+or missing top. All20 colored overflow results contain one blue B at x100.
+No failures; the bounded19707 overlap blocker is cleared. This does not
+replace owner full pairs/browser checks. DYLD logs confirm pinned shared
+bridge3841e45e loaded in both modes; source64eb and prior evidence manifest
+unchanged. Evidence: `/tmp/starling-first-line-masks-controls/report.txt`,
+`result.json`, `comparison.json`, `provenance.json` and52 PDFs/PNGs. No builds,
+production/source edits or new control scope. Results sent to owner.
+
+### First-line band-overlap private controls — DONE; blocker confirmed (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Compare preserved
+baseline binary with supplied frozen `box-first-line-OfficeApp` (19707ac6 source)
+using private two-line DOCX controls: normal/tight spacing, raised/large first
+runs, overflowing indent. Check later glyph ink/geometry. No peer builds,
+production/source changes, or Word automation; owner retains Word references.
+
+**Result: 19707ac6 is blocked; owner accepted, no full sweep or landing.**
+Rendered 26 private DOCX controls with baseline/owner binaries in both font
+modes (104 PDFs). White first A24pt + black B12pt, exact8pt spacing and30pt
+indent in a20pt fixed frame reproduces second-line ink loss: B text origin
+unchanged, but raster top105.75→108.5pt and552→381 black pixels at288DPI.
+White g12pt + B12pt additionally shifts/clips B's top fragment sideways;
+explicit-break reference isolates the ordinary B. Normal18pt reference is
+pixel-identical. All20 zero-indent colored mode/control comparisons are also
+pixel-identical. Evidence preserved under `/tmp/starling-first-line-controls/`:
+`report.txt`, `provenance.json`, `white-comparison.json`, PDFs/PNGs,26 DOCX
+files, `combined-white-controls.docx` for owner's Word print, and checksums.
+Both loaded bridge paths hash3841e45e;64eb source remains unchanged. No builds
+or rendering edits. Owner will supply corrected text-isolating patch/binary;
+no further independent work requested until then.
+
+### Read-only clipping-drop XML audit — DONE (release session, 2026-10-28)
+Owner: Codex release/web session (private `/tmp` evidence, clean validation
+notes worktree), requested by the fidelity owner. Compare the dropping
+DOCX packages in `box-clip-drops.json` against b24: explicit body overflow/
+autofit attributes, compatibility mode, matching VML fallback fit flags,
+and shape/anchor extents. Keep absence distinct from explicit values and
+ambiguous lost-line/shape matches explicit. No rendering, Word automation,
+production/source changes, or inferred Word rule. Candidate checkout stays
+untouched; owner continues targeted Word controls and corpus diagnosis.
+
+**Result:** audited all 12 unique dropping documents plus b24. The 198
+fixed frames in dropping packages mix 50 explicit overflow/overflow with
+148 absent pairs; compatibility modes also mix 14/15. Among 18 lost-line
+frame candidates, 17 shape/anchor extents match exactly and one differs by
+only 1 EMU. All 18 matching VML fallbacks (including four `v:rect`) have no
+explicit fit flag in the inspected shape/textbox/type properties. Both PAGE
+witnesses are 5×11.05pt with 0.05pt insets. Six lost tuples remain ambiguous;
+one e51 scored line combines box dashes with a normal body paragraph and
+cannot be attributed wholly to the box. No general Word rule inferred.
+Evidence: `/tmp/starling-clip-xml-audit/report.txt`, `frames.tsv`,
+`frame-mapping.json`, `audit.json` and source hashes in `inputs.json`.
+
+### First-line-only candidate source review — DONE (release session, 2026-10-28)
+Owner: Codex release/web session, requested by fidelity owner. Read-only review
+of frozen `box-first-line-candidate.patch`, SHA256
+`19707ac69dc6bc5c2329f6f441e56fd0501dd214d8f85e3d66c1237bdc55a127`:
+coordinates, cache and alternate-painter interactions. No build or replacement
+of preserved 64eb checkout. Owner retains binaries and focused/full pairs.
+
+**Result:** no confirmed regression from source inspection; no fidelity
+approval or build result claimed. Frame coordinates agree with inset/rotation
+transforms (12 algebra checks, no rendering). Guards cover upright, scaled,
+ruby, tabs and cell painters; current native/skwasm baseline-shift support
+keeps scripts in the main painter. Shift arrays and fixed-frame hash state
+are maintained consistently. Two bounded follow-ups sent to owner: ink that
+crosses the first/second geometric band may not stay wholly in its intended
+shift/clip pass; the existing cache key omits image height despite turned
+layout depending on it (live-resize risk, not a static corpus regression).
+Evidence: `/tmp/starling-first-line-review/report.txt`, `coordinate-checks.json`
+and frozen patch/source copies. Preserved validation diff remains exactly
+`64eb8a57…`; no builds, rendering, production edits or shared-engine changes.
+
+### Independent frozen clipping-candidate review — DONE; candidate not ready to land (release session, 2026-10-28)
+Owner: Codex release/web session (`starling-office-test-collab`), requested by
+the Word-fidelity owner. Apply only the frozen three-file production patch
+`geometry-next/box-clip-independent-candidate.patch` (SHA256
+`8975ecb5e95a7dbb4ffd41d50b8b05ed16a29f7de09b30e9c9b1a4693864a0c4`)
+in this private validation checkout, run the full correctly initialized
+Swift 6.2.1 RELEASE suite against bridge `3841e45e…`, and review regressions.
+Report failures first. Candidate remains uncommitted/unpushed; do not alter
+rendering in response, the owner's checkout, shared engine outputs, or sites.
+Owner retains Word controls and complete paired sweeps; this check does not
+replace them. Preserve the 10 GiB disk floor.
+
+**Disposition: do not land the candidate as-is.** The fidelity owner reports
+its final paired exact audit drops **six Windows-mode and eleven Mac-mode
+documents**. No cancelling-errors exception is claimed. The independent
+results below do not override those corpus regressions.
+
+- Original `8975ecb5…`: full native Swift 6.2.1 RELEASE suite passes **530 tests,
+  two existing font-dependent skips, zero failures**. Independent inspection
+  found `_paintUprightBox` bypassing the new first-line shift restoration. A
+  private `eaVert` control (`A甲乙`, 10pt, zero insets, 60×20pt frame, 30pt first
+  indent) reproduces a **3.9146pt** unintended movement of its leading `A` in
+  both font modes. No Word automation/reference claim is made for this control.
+- Owner-supplied update **`64eb8a57f17c913ba4363d62a9d888b88e6b05133b065636e0152fc1de19c5e4`**
+  has exactly two deltas: UTF-16 tab detection and exclusion of the separate
+  upright painter. Its full RELEASE suite also passes **530 tests, two skips,
+  zero failures** (36.51s). All test names and outcomes equal the baseline and
+  original candidate. The source diff exactly matches the supplied patch hash;
+  both runs preserve the pinned `3841e45e…` bridge before/after.
+- All **eight upright controls** (Han/mixed text, normal/overflow indent,
+  Mac/Windows font modes) now match baseline exactly in full-page 144-DPI pixels,
+  page count and extracted span text/geometry. All **12 horizontal/ordinary
+  turned controls** match the original candidate exactly on the same measures.
+  No additional confirmed regression found in the scoped code review. Native
+  tests/control comparisons do not substitute for the owner's full Word pairs.
+
+Evidence: `/tmp/starling-clip-independent-review/review-result.json`,
+`comparison-baseline-original-updated.json`, all controls/PDFs/binary hashes
+in that directory; `/tmp/starling-clip-candidate-release.log` and
+`/tmp/starling-clip-upright-release.log` with matching `-provenance.json` files.
+Both candidates remain uncommitted/unpushed. The validation checkout retains
+exactly the updated three-file patch. Only this report is committed through a
+separate clean notes worktree. Results sent directly to the owner; independent
+rendering work stopped pending a newly frozen candidate or specific check.
+
+### Full native RELEASE validation — DONE (release session, 2026-10-28)
+Owner: Codex release/web session (`starling-office-test-collab`), agreed directly
+with the Word-fidelity session. Build and run all native Office tests in
+release configuration using Swift 6.2.1 (the peer reports a default-toolchain
+release compiler crash). Pin both engine environment variables to the shared
+validated `host_release_arm64` bridge SHA256 `3841e45e…`. Preserve a 10 GiB disk
+floor; monitor space and stop this build before crossing it. No rendering,
+shared engine, Word automation, or deployment changes. Report release results
+and any failures to the fidelity peer; the debug result is a separate check.
+
+**Result:** full release suite at `e8a9abcc` passed with Swift 6.2.1:
+**530 tests, two skips, zero failures** (38.6 seconds; fresh build 600 seconds).
+Exact comparison with the debug run: all 530 test names present in both,
+no additional/missing tests, and identical per-test pass/skip outcomes. The
+same two font-dependent cases are skipped; bundled-font/ICU startup passes.
+Both engine variables remained pinned to the validated shared bridge, whose
+full SHA256 stayed `3841e45ef047247b884aa5e3868f3be917ae68041a61ed7903e18c02cca3bfd6`
+before and after. Release test executable SHA256:
+`63578a71182367fad77e65756c81658ff550b55b2e034bda447ee04f3f694251`.
+Minimum observed free disk: **16.85 GiB**, above the 10 GiB floor. No shared
+engine outputs or live sites changed. This validates the committed Office
+snapshot, not the peer's still-uncommitted clipping candidate.
+Evidence: `/tmp/starling-collab-full-release.log`,
+`/tmp/starling-collab-full-release-provenance.json`, and
+`/tmp/starling-collab-native-config-comparison.json`.
+
+### Full native Office validation — DONE (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`). Coordinated
+by direct `codex queue` message to the fidelity session. Validate `526dcbb1`
+in one uninterrupted native debug run with both engine variables pinned to
+`starling-engine/engine/src/out/host_release_arm64`; record binary/engine
+hashes and test outcomes. Investigate harness/release failures independently;
+leave production Word layout/fonts/WordArt/clipping to the fidelity owner.
+No shared engine rebuild, Word automation, or live deployment.
+
+**Result:** full native debug Office suite passed at `306eed27`: **530 tests,
+two font-dependent skips, zero failures**, 119.2 seconds. Skips: Noto joiner
+unavailable under these faces; no qualifying page-foot size for these faces.
+The bundled-font startup test passes. Invocation: both engine variables set
+as above, `sdk/tools/run-tests.sh --package-path apps/OfficeApp --skip-build`.
+Test executable SHA256 `f776308f766e9c1a88d9b4df48257e98ff0ea149a7b150214bf2f340b6484be1`;
+bridge SHA256 `3841e45ef047247b884aa5e3868f3be917ae68041a61ed7903e18c02cca3bfd6`.
+Both hashes are unchanged after the run. Evidence:
+`/tmp/starling-collab-full-native.log` and
+`/tmp/starling-collab-full-native-provenance.json`. No claim about uncommitted
+fidelity candidates or a different paired engine. Results and the proposed
+work split were delivered to the peer's active turn through the documented
+app-server `turn/steer` API after the CLI messages remained queued.
+
+### Native regression harness crash — DONE (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`, isolated worktree
+based on `office`; pushes to `office`). Scope: `SplitCellLayoutTests` crashes
+with an unchecked line-metric index during native release validation, preventing
+later tests from running. Reproduce with both engine variables pinned, make
+missing metrics report an XCTest failure instead of terminating the process,
+and record current-suite results. No production layout/font/WordArt changes,
+no shared engine rebuild, no Word automation, and no live deployment. This is
+separate from the fidelity session's drawing and remaining document claims.
+
+**Result:** the release check set only `STARLING_ENGINE_OUT`; test ICU startup
+recognized only `STARLING_ICU` / `FLUTTER_SWIFT_ENGINE_OUT`. With both engine
+variables set, the unchanged split-cell test passes. The helper now accepts
+the app engine path as its final fallback and returns the real initialization
+result. Missing line metrics throw an XCTest failure rather than trapping.
+On `b9d77ca0`, the single-variable control exited 133; with the fix, all three
+startup/split-cell tests pass. Deliberately missing ICU now exits 1 with an
+explicit missing-line diagnostic (no crash). After rebasing onto `39a97dd9`,
+the same three tests pass with both engine variables. Lint/diff check pass.
+Full single-variable debug suite passed 407 cases before a separate Sheets
+recursion crash below. Evidence: `/tmp/starling-collab-{single-env-before,
+single-env-after,missing-icu-after,rebased-focused,full-after,lint}.log`.
+No rendering changes; paired Word sweeps do not apply to these test helpers.
+
+### Bring main's Darwin recursion guard to office — DONE (release session, 2026-10-27)
+Owner: Codex release/web session (`starling-office-test-collab`).
+The full native debug run on `b9d77ca0` plus the ICU helper fix crashed in
+`SheetsEngineTests.testLambdaThroughDefinedNames` after 407 passing cases.
+macOS crash report confirms stack exhaustion in recursive formula evaluation.
+`main` already has the fix, `1fdfc75a`; `office` has never included it. Bring
+that exact single-file fix across, then run the existing named-LAMBDA tests
+and remaining suite. Scope: `Sheets/StackRoom.swift`; no formula semantics,
+Word rendering, shared engine or deployment changes. No overlapping named
+claim found in this board or `sheets.md`.
+
+**Result:** cherry-picked `1fdfc75a` with source attribution (single-file
+Darwin stack guard; existing Windows path unchanged). On the rebased `39a97dd9`
+checkout, the isolated named-LAMBDA control exited 139 before the guard;
+afterwards **32 Sheets engine tests pass**, including `FOREVER(1)` returning
+`#NUM!`. The **106 startup and remaining non-publication tests** also pass.
+The initial segmented run omitted `AAATextSetupTests` and initialized ICU too
+late after Sheets text layout; it reported the now-safe split-cell failure.
+Repeating the segment with the documented startup class first passes. This
+is not a claim of a fresh uninterrupted full-suite pass on latest office;
+publication classes were not repeated in this checkout. Static lint/diff
+checks pass. Evidence: `/tmp/starling-collab-lambda-{before,after}.log`,
+`/tmp/starling-collab-remaining-initialized-after.log`, and
+`/tmp/starling-collab-lint-final.log`. Both release-session claims are complete;
+the fidelity session's remaining drawing/clipping claims are unchanged.
+
+### Flowchart and drawing geometry — DONE; residuals released (Codex, 2026-10-28)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+**Complete:** section parity, DrawingML WordArt and fixed-frame first-line
+indent correction landed through this entry. Final clipping pair has no drops
+in756 documents per mode; only b24 changes, +9 matched lines in each mode.
+All page counts unchanged. The11-page Word/native/browser regression and
+independent530-test RELEASE suite pass (two existing skips, zero failures).
+General frame overflow, WordArt autofit, leading-space balance and the remaining
+Mac flowchart/split-table geometry are released with the measurements below.
+From full `tab-fallback` sweeps and exact audit: **Mac zh-291fcea7 182/296
+(61.49%)**, **Windows zh-b24b396a 328/362 (90.61%)**. Grepped every occurrence
+before claiming: T133's flowchart work and T210's drawing work are explicitly
+released. Start from current misses, not the obsolete early scores.
+Mac's lower a031/d9b/e8 references have documented missing/broken glyphs;
+c5b remains claimed; 884 remains the measured sub-point page boundary with
+no new evidence. Windows' lower 015/27a/d62/WordWithAttachments have owners,
+and delins's unmeasured balloon ordering was just rechecked and released.
+The Thai blank-line fix now leaves it above this drawing case in both modes.
+All rendering changes require full pairs in both modes, pinned engine paths,
+no drops except the user's verified cancelling-errors exception, and a
+fetch/rebase before push. No live deploy or hyphenation decision.
+
+**Section parity DONE (a279a3b7):** zh-291fcea7's last section says
+`oddPage`; Mac Word leaves physical p8 entirely blank and starts its form on
+p9. The reader ignored this, putting the form on p8. Fourteen isolated fresh
+Word controls establish that continued *logical* page numbers decide parity;
+the inserted blank counts in numbering but has no header/footer. A stated
+restart rounds its number up to the requested parity without itself inserting
+a blank (the existing even/odd-header restart alignment still applies).
+Both renderer modes match all 14 controls' page/text/number sequences. The
+22-case regression includes paragraphs and page-anchored floating tables:
+an initial candidate broke twice after positioning the table, was rejected
+at spot validation, and was corrected before any sweep/landing. Corrected
+spot: Mac **182→232/296, 11→12 pages** (Word 12); Windows **280/291, 9 pages
+unchanged**. Remaining p4/p5 flowchart and split-table geometry is separate.
+Full same-checkout pair **tab-fallback→section-parity**: both unmodified
+`sweep-win.sh` and `sweep.sh` exited 0, both engine variables pinned to
+`engine-pair` (bridge SHA `e0c8478f…`). Exact audit: **756 documents per mode,
+zero missing, zero drops**, only Mac zh-291fcea7 changes; all other normalized
+line geometry and physical page counts stay identical. Candidate p8 has zero
+text, drawings and images, like Word. All **18 fresh Word controls** (14 plain,
+four floating-table) match page/text/number sequences in both modes. DOCX suite:
+201 tests, two skipped, zero failures; lint and diff check passed. No exception
+used. Evidence: `tab-fallback--section-parity-exact.json`, sweep logs/provenance,
+`geometry-next/section-parity-*`, `section-floating-comparison.json`, and
+`291f-{mac,windows}-fixed.pdf`. Frozen release `section-parity-OfficeApp` SHA
+`95a17d7a…`; the rejected first probe remains explicitly separate. The remaining
+Mac split-table/flowchart geometry is released with its previous measurements.
+
+**Earlier WordArt investigation (completed below):** the two rotated labels are DrawingML
+WordArt (`fromWordArt`, `textSlantDown`, 302°). Four isolated Word prints separate
+rotation from warp; two additional prints test adjustments 50000 and 100000.
+The ordinary text-box path ignores both transforms. The existing Slides painter
+also inverts the downward-slant adjustment: the value sets the band thickness,
+not its downward displacement, as confirmed by the [ECMA-376 Part 1 geometry
+definitions](https://ecma-international.org/wp-content/uploads/ECMA-376-1_5th_edition_december_2016.zip).
+Preparing a shared painter correction and styled DrawingML WordArt registration;
+no drawing implementation or score claim landed yet. Evidence: `geometry-next/wordart-*`
+and `ecma-presetTextWarpDefinitions.xml`. Corpus audit finds these two DrawingML
+WordArt shapes in this document only; no Slides corpus `textSlantDown` shapes.
+
+**Drawing progress (not landed):** the first styled/rotated prototype passes
+209 DOCX/WordArt tests (two skipped) and spots Windows 328→329/362, but visual
+controls show letters too tall/heavy: an unrotated rectangular warp is 41.75pt
+tall vs Word's 27.75pt. Rejected at visual validation; no full-sweep claim.
+Saved under `geometry-next/wordart-initial` and `drawing-wordart-prototype.patch`.
+The existing painter fits advance boxes and guessed vertical metrics, not ink.
+Fresh no-autofit controls confirm Word fits visible glyphs into the text margins;
+spAutoFit adds a separate size interaction, still under measurement.
+Private native and skwasm builds now expose a read-only glyph-ink query from
+Skia's glyph visitor (engine checkout `starling-engine-word-fidelity-codex`).
+SDK/Writer candidate consumes it without changing normal layout or hit testing.
+The initial raster-bounds query included size-dependent pixel padding and was
+replaced by tight outline bounds (bitmap glyphs retain a raster fallback).
+Native SHA `3841e45e…`, skwasm `c14456aa…`, under
+`geometry-next/ink-bounds-engine/precise`; **shared engine/framework untouched**.
+All 15 native/browser API probes agree exactly, including spaces and three sizes.
+210 DOCX/WordArt tests pass (two skipped). No-autofit Word controls match the
+visible text rectangle with default/zero margins; rotation and slant now follow
+the box. Autofit sizing and font appearance remain separate measured residuals,
+not claimed exact. Focused score: Windows 330/362, Mac 328/360, both 14 pages.
+
+**First complete pair and browser gate passed:** fresh `ink-base` on a279a3b7,
+then `drawing-wordart-ink`, same checkout and private native engine `3841e45e…`,
+both engine variables exported. Both unchanged sweep scripts exit 0 for both
+base and candidate. Exact audit: **756 documents per mode, zero missing,
+zero drops**, Windows zh-b24b396a **328→330/362**, Mac **328/360 unchanged**;
+only this document's normalized drawing text changes and every physical page
+count is unchanged. Installing the unused query alone (`section-parity`→
+`ink-base`) changes no geometry, scores or pages. Frozen base/candidate SHA
+`0e1b737f…` / `97a50123…`; logs, provenance and exact JSON under the artifact
+root. No exception used. The expanded browser font-scale test passes all 21
+cases on the precise engine and fails the rejected raster query on ink width
+(14px MMMMMMMM, 93.7881 vs 93.5881). Native suite: **211 tests, two skipped, zero failures**, including the
+scale regression. Updated WASM app `a9449fee…` passes the complete layout gate:
+welcome 1p/34 lines, TextEdit 3p/88, boringcrypto 24p/1071 and all round trips.
+Shared-Carlito WordArt controls match native **pixel-for-pixel** in the label
+region when sampled from full-page renders. MuPDF clipped previews falsely
+omitted the transformed web glyphs; their PDF text/geometry/font bytes and
+full-page ink are correct. Chinese web controls show the existing missing-CJK-
+font gap (the manifest has no CJK family; ordinary unwarped text also lacks it).
+This is not claimed fixed.
+
+**WordArt DONE (`bb06181a`; engine `bd7be6b10e5`):** final compatibility pair
+`drawing-wordart-ink`→`drawing-wordart-final`, same checkout and pinned engine,
+passes both unmodified sweep scripts. Exact audit: **756 documents per mode,
+zero missing, zero drops, zero changed geometry/pages/scores**. Cumulative
+`ink-base`→`drawing-wordart-final` confirms **Windows 328→330/362**, Mac
+**328/360 unchanged**, only b24's drawing text changes, all page counts unchanged.
+No exception used. Final native SHA `af839926…`, WASM app `7afa0689…`.
+The final browser gate passes the same three documents and round trips, plus
+21 font-scale/ink cases. Both shared-Carlito labels remain pixel-identical
+between native/browser full-page renders. A browser host deliberately missing
+the new export invokes the optional fallback 45 times, starts successfully,
+and visibly draws the label with the existing advance-box fit. The 211-test
+native suite preceded that fallback; the final pair and browser controls cover
+the follow-up. Lint, diff check and matching SDK/engine header check pass.
+Evidence: `drawing-wordart-final-{run,windows,mac,exact,cumulative-exact}.log`,
+both `*--drawing-wordart-final-exact.json`, source/provenance, and
+`geometry-next/{drawing-wordart-final-browser-layout.log,wordart-final-web,
+wordart-fallback-web}`. Engine source/binary validation is recorded under
+`geometry-next/ink-bounds-engine/precise`. The shared local bridge and skwasm
+were atomically updated to these validated binaries because the SDK now calls
+the new API; the framework is unchanged. Hashes are recorded in
+`geometry-next/ink-bounds-engine/local-promotion.json`. No live site deployment.
+Settled section-parity and ink-base PDF folders removed; match reports and
+current drawing-wordart-ink/final base/candidate retained. More than 18 GiB free.
+
+
+**Next within this drawing claim: text-box clipping.** Ten isolated controls
+and a 30-case boundary sweep show that Word clips overflow rather than
+semantically omitting the first character. A partly overflowing italic A is
+a sliver of ink, then vanishes; a turned "30" retains its second line while
+the first digit runs outside the box. The Mac PDF has outward-rounded clipping
+rectangles (e.g. 23.5pt width→24pt); both original Mac and Windows p13 PDFs
+also contain the text-box clips. No text-box implementation change yet.
+Evidence: `geometry-next/box-indent-{controls,boundary}*`, the A crops and
+`b24-p13-reference-clips.json`. The first probe, whose inherited character
+indent masked the changed twip indent, is retained separately and rejected.
+Twenty further fresh Word controls separate fixed `noAutofit` from `spAutoFit`,
+which changes the clipping extent; negative indents also clip rather than move
+back inside. Six direction/inset controls show rotated boxes with unequal
+insets need additional measurement. Do not assume their clip is the horizontal
+rectangle rotated blindly (`box-clip-{controls,directions}*`).
+Next candidate: explicit DrawingML `noAutofit` standalone boxes, horizontal
+or rotated with zero insets. Keep the first glyph at an overflowing first-line
+indent, then clip at the fixed frame. Autofit, groups and rotated unequal-inset
+frames remain separate; do not hide a whole word or clamp its actual position.
+
+**Clipping candidate (not landed):** explicit `noAutofit` is retained on the
+text frame. Standalone horizontal and zero-inset turned frames clip at their
+saved geometry. Their plain left/justified text keeps its first glyph on line
+one at the stated indent even when it overflows; following text wraps below.
+Separate ruby/scale/tab paint paths are excluded from the indent correction;
+upright ideographs are excluded from both changes because their separate
+painter does not restore the first-line shift (peer review).
+The first probe accidentally gated the correction on left alignment while the
+controls inherit justified alignment: clipping alone dropped b24 two lines in
+both modes. Rejected, saved under `geometry-next/box-clip-first-probe`.
+The corrected probe is **Windows 330→336/362, Mac 328→334/360**, both 14 pages.
+A whole-point clip approximation was removed: rounding flow coordinates made
+its phase depend on page position. The final candidate clips actual geometry.
+Word's Mac PDF outward quantization and fallback-glyph ink can still differ at
+sub-point boundaries; no glyph-hiding threshold was added.
+
+Fresh Word controls now cover 96 cases (10 indent, 30 boundary, 20 fixed/auto,
+six direction/inset, 12 words, 18 leading-space cases). They establish the
+first-glyph placement and fixed-frame clipping; they are **not** a claim that
+every wrapped line or autofitting frame matches. The leading-space cases expose
+a separate balance rule: after the overflowing glyph Word uses a 6pt leading
+blank at 12pt where ours uses 3pt, and a narrow frame may consume that blank on
+its own line. Rotated unequal-inset clips and autofit remain separate.
+`test/office-fixed-text-box.py` adds eight standalone shared-font controls,
+inherited justification and explicit left alignment, and checks actual PDF
+text/positions. It passes the fresh Word print and the final candidate in both
+modes. The initial test frame was too narrow across the turned Carlito lines:
+both Word and ours correctly clipped its second digit, invalidating that test
+expectation; widening only the cross-line frame to 20pt makes the intended
+visible-second-digit regression valid. The original witness is retained under
+`geometry-next/fixed-box-regression-too-narrow`.
+Full paired sweeps and the expanded native/browser gate are next. The peer
+release session is independently testing the production candidate. Original
+review patch `8975ecb5…` is superseded by `64eb8a57…`: a portable UTF-16 tab
+check fixes a WASM link failure from Foundation's String.contains overload,
+and the upright-text guard preserves that separate painter. Peer notified
+before the changes; no other production differences. Their previous 530-test
+release/debug pass covers the committed WordArt snapshot, not this candidate.
+The eight-page regression also passes Word's own print, and is now included
+in the browser gate as native checks in both modes plus a browser PDF check.
+Production files are frozen for final builds/checks. Engine remains
+`3841e45e…` in both modes, both variables exported.
+
+
+**Final 64eb audit — REJECTED, not landed (2026-10-28).** Both unchanged
+sweep scripts completed, 756 documents per mode, zero missing. Exact paired
+comparison against `drawing-wordart-final` finds **6 Windows and 11 Mac drops**;
+target b24 improves 330→336/362 and 328→334/360 respectively. No cancelling-errors
+exception is claimed. Evidence: `drawing-wordart-final--fixed-text-box-exact.json`,
+`geometry-next/box-clip-drops.json`, full frozen `fixed-text-box` pair and logs.
+Most lost lines are across-line overflow in other fixed frames; the broad
+clipping rule is under investigation. Both modes use the same pinned engine
+and checkout. Candidate remains uncommitted.
+The expanded browser gate passes all earlier documents/roundtrips, 21 font/ink
+controls and the eight fixed-frame controls; those eight have identical native
+and browser full-page raster crops. This does not override the corpus drops.
+Independent peer RELEASE validation: original 8975 and updated 64eb each pass
+530 tests with the same two skips. Updated 64eb restores all eight upright
+controls exactly to baseline geometry/pixels and preserves twelve supported
+path controls exactly against 8975. Bridge and patch identities verified.
+Peer explicitly recommends **DO NOT LAND** because of the corpus regressions.
+Evidence copied to `geometry-next/peer-native-review`; original report under
+`/tmp/starling-clip-independent-review`. Read-only frame metadata audit delegated
+to the peer; owner retains Word automation and rendering changes. ~49 GiB free.
+
+
+**Narrower along-line candidate under test:** 24 fresh Word controls vary
+compatibilityMode 14/15, anchor wrapNone/wrapSquare and explicit/absent
+vertOverflow/horzOverflow attributes. Each family produces the same clipping;
+these flags do not establish a distinguishing rule. Evidence:
+`geometry-next/box-overflow-policy-{14,15}*`. Across-line clipping is deferred;
+the new candidate preserves existing across-line overflow and only clips along
+the line direction while retaining the measured first-glyph indent correction.
+This is deliberately partial scope, not a general fixed-frame overflow fix.
+Target and all rejected-pair drop documents will be checked before full pairs.
+
+
+**Along-line broad probe rejected too.** Target b24 rises to 339/362 Windows
+and 337/360 Mac, but Mac zh-505b9619 drops 2783→2768/2805 and the narrow dynamic
+PAGE frames zh-63a571aa / zh-81aa310b still lose 1 / 3 lines. No full sweep on
+this failed probe and no exception. Native/browser gate and eight controls
+pass, demonstrating why those checks alone are insufficient. Evidence:
+`geometry-next/box-axis-probe`, `box-axis-candidate.patch`, frozen binary.
+Next candidate scopes the new clipping to **only the corrected first line**
+whose overflowing indent previously displaced the first glyph. Its frame
+bounds are stored in local line coordinates; ordinary lines and their clipping
+are unchanged. Source property records `noAutofit` as `hasFixedFrame`, rather
+than treating it as a general clipping command. Native/WASM builds pending.
+Settled `drawing-wordart-ink/pdf` folders removed; match reports retained,
+accepted base and rejected pair retained. About 50 GiB free.
+
+
+**Corrected-first-line candidate 19707ac6 — focused checks pass; not landed.**
+Frozen binary SHA b82e36bc…; same engine3841e45e… in both modes. All34 focused
+comparisons (17 documents ×2 modes, including every previous geometry change)
+have no drops: b24 Windows330→339/362, Mac328→337/360; other scores unchanged.
+Eight native controls pass both modes. Browser gate passes welcome/TextEdit/
+boringcrypto layouts and roundtrips, font/ink probes and eight frame controls.
+Evidence: `geometry-next/box-first-line-probe`, `box-first-line-browser-layout.log`.
+Peer source review confirms consistent local coordinates and cache/array guards;
+no confirmed regression. Before full sweeps, private controls are checking one
+bounded risk: tight line spacing/raised ink can overlap the bands used by
+`_paintShiftedLines`. Existing turned-box resize cache risk is separate.
+No full-corpus verdict or landing approval yet. Source frozen for this check.
+
+
+**19707ac6 rejected by independent overlap control, before full sweeps.**
+With a24pt white first A,12pt black B, exact8pt pitch and30pt indent in a20pt
+frame, the old band painter cuts B's top despite unchanged text origin. Both
+font modes reproduce it; a tight gB case splits B into two PDF spans. Fresh
+Word prints intact B, identical ink extents/counts against explicit-break
+controls. Standard spacing controls are unchanged. Evidence copied under
+`geometry-next/peer-first-line-review`; Word PDF/ink measurements are
+`box-first-line-overlap-word*`. No cancelling-errors exception, no landing.
+Revised frozen patch **ae5c47b1…** uses complementary cached text masks from
+`_clearedPainter`: first-line-only shifted/clipped, rest-only normally painted.
+Masks clear highlights/decorations as well as glyphs for these new calls;
+existing scale-mask defaults remain unchanged. A cache capacity guard prevents
+adding a second mask from disposing its first. Original `_paintShiftedLines`
+is unchanged. Peer source review has no new blocker; binary checks pending.
+Regression now has11 pages, including three white-first paired overlap cases;
+it fails19707ac6 by catching split B spans. New Word/native/browser validation
+and full both-mode corpus pairs are required before landing.
+
+
+**ae5c47b1 mask candidate — focused/independent controls pass; full pair next.**
+Frozen binary2929a883…; engine3841e45e… unchanged. All34 focused comparisons
+pass without drops; b24 remains339/362 Windows and337/360 Mac. All11 shared-
+Carlito regression pages pass native in both modes and Word's fresh print.
+Independent peer rendered only the preserved26 DOCX controls in both modes:
+52 PDFs, no failures. All26 zero-indent/reference comparisons exactly match
+baseline pixels/geometry; all6 white overflow/reference comparisons have
+identical complete B ink/geometry; all20 colored overflow cases have one
+correct B span. Prior split/clipped tops are gone. Evidence copied under
+`geometry-next/peer-first-line-masks-controls`. This clears the bounded paint
+blocker, not the corpus landing gate. Starting unchanged sweep-win.sh and
+sweep.sh against `drawing-wordart-final`, same checkout and pinned engine,
+both engine variables exported. No source edits during the pair.
+
+
+**Final mask pair and independent RELEASE suite PASS (2026-10-28).**
+Both prescribed unmodified scripts exit0 on the same checkout/engine with both
+engine variables exported. Exact `drawing-wordart-final`→`box-first-line-masks`
+audit covers756 documents per mode: **zero missing, zero drops**, all physical
+page counts unchanged. Only zh-b24b396a normalized geometry changes:
+**Windows330→339/362, Mac328→337/360**,14 pages each. No exception used.
+The expanded browser gate passes all earlier layouts/roundtrips,21 font/ink
+probes and11 control pages, including the overlap witnesses. Frozen source
+production patchae5c47b1…, binary2929a883…, bridge3841e45e…, skwasmc14456aa….
+Evidence: `drawing-wordart-final--box-first-line-masks-exact.json`,
+`box-first-line-masks-{run,windows,mac,exact}.log`, source/provenance, and
+`geometry-next/box-first-line-masks-browser-layout.log`. Independent full
+RELEASE suite is running on the identical patch plus latest test/Sheets fixes;
+no candidate changes, shared-engine changes or live deployment.
+Final independent RELEASE result: **530 tests, two existing skips, zero failures**
+in36.517s, all530 identities/outcomes exactly match baseline and64eb. Patch
+and bridge hashes unchanged; minimum48.828GiB free. Test executable660926af…;
+provenance/comparison copied under `geometry-next/peer-mask-full-release`.
+No cancelling-errors exception or user decision was needed. Rules documented
+in `office.md`; no live site deployment or automatic-hyphenation change.
+
+
+### Fresh lowest unclaimed documents — measured, RELEASED (Codex, 2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+After the browser fix and item 6 investigation, next are **Mac zh-e8d4c046**
+(13/38, 34.21%) and **Windows delins** (44/59, 74.58%) from `parity-final`.
+Board grepped before claiming: lower Mac a031/d9b are documented broken
+reference text; c5b's T218 remains claimed. Lower Windows 015abfaf, 27a874b7,
+d62da4dd and WordWithAttachments have outstanding claims. e8's old Windows
+reference issue was resolved; its Mac misses need fresh triage. delins is
+parked with a measured balloon tie-break that minimal labs did not reproduce;
+re-check the current misses before attempting any rule. No content-specific
+ordering adjustment. Both-mode pairs and the standing no-drop rule apply.
+
+**Results:** a fresh, isolated Mac Word print of e8 exactly repeats the broken
+reference text and missing glyphs. The rendered table omits characters that
+our embedded font draws correctly; title, table and footnotes align. This is
+another witness for the existing user decision not to reproduce Word's broken
+embedded faces. Reference unchanged. Artifacts: `lowest-next/e8-fresh-word.pdf`,
+`e8-text-audit.json` and page images under the per-checkout artifact root.
+For delins, all 15 current Windows misses are Field Code Changed / Formatted
+balloon order at the same anchors, with positions within 1pt. The previous
+isolated Word labs still supply no predictive tie-break rule; no document-specific
+ordering is introduced. Released with no source change or score claim.
+
+### Mixed fonts and Thai blank line — DONE; remaining issues RELEASED (Codex, 2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+**Mac zh-8d72961c (28/47, 59.57%)**: mixed-font line heights, explicitly not
+claimed in the board's T207 follow-up. Lower unclaimed 884c6e3e remains the
+measured sub-point page-boundary case with no rule (T218); c5b remains owned.
+**Windows zh-6a4fc013 (525/616, 85.23%)**: Thai residuals after the accepted
+long-word change. Grepped all board occurrences: the old Thai claim explicitly
+says DONE as far as it goes, RELEASED; the engine confirmation above is done.
+Both modes will be paired before any rendering change lands.
+
+**Mixed fonts DONE, full pair:** `parity-final` → `mixed-faces`, both prescribed
+scripts exit 0, 756 documents per mode on one checkout and pinned bridge
+`e0c8478f…`, bundled fonts, Swift 6.2.1, PyMuPDF. Windows: no changes. Mac:
+zh-8d72961c **28 → 42/47 (59.57 → 89.36%)**, all 14 vertical misses fixed;
+no other normalized rows or page counts change, no missing documents or drops.
+The remaining five misses are p2's Arabic in its EMF, not line heights.
+Candidate executable `4fd05de1…`; `parity-final--mixed-faces-exact.json` and
+`mixed-faces-*` logs/provenance under the per-checkout artifact root.
+
+Correction to the earlier model-change diagnosis: Mac mode mapped explicit
+MS Gothic to YaHei's 1.715-em height and Segoe UI to Arial's 1.15. Fresh Word
+controls (`lowest-next/mixed-face-lines-word.pdf`) give five 12pt MS Gothic
+lines exactly 15.6pt apart and Segoe UI about 15.96pt. Applying their own
+1.3-em and 2724/2048-em metrics fixes the mixed paragraph without changing
+per-line layout. The original paragraph and three font substitutions were
+also printed in a fresh Word process (`mixed-controls-word.pdf`). Windows
+mapping remains unchanged.
+
+**Thai still in flight:** Q5 on p23 has an extra blank line after the heading.
+The span diagnostic shows a synthetic hard break **before its tab**, followed
+by the tab's NBSP and a soft break. `_wideWordStarts` includes the tab in the
+long Thai word after the full-width colon. A fresh Word control of the
+original paragraph, tab replaced by space, and tab removed has three lines
+in all cases; ours has four only with the tab. Fix the tab boundary in that
+scan next. A broader private engine experiment treating NBSP as a blank
+prefix was rejected: a literal NBSP + ZWSP control in Word really does leave
+a blank line. Its private bridge was never installed or landed; the existing
+long-word engine patch is unchanged. Evidence: `lowest-next/thai-tab-controls-*`,
+`blank-prefix-word*`, `blank-prefix-engine/REJECTED.txt`.
+
+**Tab boundary and missing-glyph fallback DONE, full pair:** `mixed-faces` →
+`tab-fallback`, both prescribed scripts exit 0, exact 756 documents per mode,
+no missing files or drops. Windows zh-6a4fc013 **525 → 576/616**; Mac
+**529 → 582/614**. Its page count drops from 27 to Word's 26. Every other
+normalized document row and physical page count is unchanged. Candidate
+`bb435224…`, pinned bridge `e0c8478f…`; `mixed-faces--tab-fallback-exact.json`
+and `tab-fallback-*` reports/provenance. The targeted tab-boundary regression
+passes. The original-tab Word control now has three lines in ours too.
+Remaining Thai differences include the tab's indentation on the following
+line and heading spacing; this fixes the extra line, not all Thai layout.
+
+The all-MS-Gothic counter-control exposed a necessary missing-glyph rule:
+Mac Word uses YaHei for Chinese characters outside Gothic's cmap. Auditing
+167 CJK characters in its fresh PDF gives 167/167 agreement. Use Gothic's
+coverage for that explicit, unembedded face in Mac mode; the existing
+per-character fallback then contributes YaHei's line metrics. The control's
+later baselines return to within 1.6pt of Word, instead of drifting 26pt.
+The corpus's mixed original retains all 14 gains. Artifacts:
+`lowest-next/gothic-fallback-audit.json`, `mixed-controls-tab-fallback.pdf`.
+
+Disk housekeeping (user/coordinator request): settled sweep `pdf/` folders
+removed, keeping match reports, exact audits and provenance. Current pairs
+retained; 21.47 GiB free after cleanup. Local runner checks 11.5 GiB before a
+new sweep and 10.1 GiB before each conversion to preserve the 10 GiB floor.
+
+### Mac browser/native parity — DONE; item 6 measured, no rule (2026-10-27)
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`).
+User-directed order: (1) reproduce and fix the Mac-only word-boringcrypto
+browser/native mismatch (26 differing lines; web redeploy blocker), rebuilding
+private Mac native/skwasm artifacts as needed; (2) zh-f39e54b6 squeeze, then
+zh-13d11e99 chart labels where a measured rule holds; (3) fresh both-mode sweep,
+grep this board before claiming the next lowest unclaimed documents.
+Same-base pairs in both modes, both engine variables exported, no document
+drops except a Word-verified cancelling-error correction logged here.
+Fetch/rebase before pushing; no live deploy or automatic-hyphenation decision.
+Results and artifact provenance follow here as the work proceeds.
+
+**Mac parity verified; Linux pair complete (exception below).** FreeType truncates the
+14⅔px screen font to 14.65625px before computing linear advances. A private
+skwasm build restores the requested-size ratio for linear advances only;
+hinted outlines and bitmap strikes retain their existing behavior. All 24
+wrap-diff lines disappear. `test/office-font-scale.js` fails on the original
+skwasm and passes all 21 measurements on the candidate; its A/B controls use
+fresh browser profiles and remove stale precompressed variants.
+
+The remaining two diff lines were raw fallback ascent/descent, not extra flow
+room: native and web both advance the U+2010 line by **13.266666412px**, with
+baseline **11.646354675px**. The dump now reports the actual line advance used
+by pagination. The welcome gate writes one .docx and opens identical bytes on
+both platforms, avoiding Cmd/Ctrl content differences; all round trips remain.
+`web-drive` awaits asynchronous evaluations so a rejected probe fails the gate.
+
+Fresh **`parity-base` → `parity-final`**, both prescribed scripts, one checkout
+at `4b6a70db` plus the recorded source patch, Swift 6.2.1, bundled fonts,
+PyMuPDF, both engine variables pointing at `engine-pair`:
+
+| Mode on Mac host | Documents | Missing / drops | Geometry / page / matched-count changes |
+|---|---:|---:|---:|
+| Windows | 645 Chinese + 111 POI | 0 / 0 | 0 |
+| Mac | 645 Chinese + 111 POI | 0 / 0 | 0 |
+
+The exact candidate executable also passes the browser gate: **24 pages /
+1,071 lines** for word-boringcrypto; welcome and TextEdit match too; all three
+save/reopen checks pass. Static lint and local Office wasm build pass.
+`test/run.sh` now fails only the same two terminal child-startup steps recorded
+in the previous batch; its browser gate passes. No live deployment.
+
+Artifacts: `~/starling-doc-check-starling-word-fidelity-codex/`,
+`parity-base--parity-final-exact.json`, phase provenance/source patches,
+`browser-parity/final-fixed-layout.log`, `font-regression-final.log`, raw width
+and strut probes, compile/link commands and private skwasm artifacts.
+Native bridge remains `e0c8478f…`; exact executable `05e1db6c…`; candidate
+skwasm.wasm `0f8c72a7…` (original `442e9f4a…`). The shared Mac engine was untouched during the pair; see the verified local SDK promotion below.
+
+The first candidate phase (`parity-candidate`) is **invalidated**, not landing
+evidence: an overlapping test build changed Swift's build configuration and
+the lab wrapper rebuilt the executable. The replacement `parity-final`
+freshly converted every PDF and retained the same executable through both
+scripts; only that pair is used. Linux has its own checkout at `4b6a70db` and
+private base/candidate engine libraries. Its first full pair (`ft-base` →
+`ft-candidate`) had no drops but is **not landing evidence**: the new checkout
+lacked ICU data and silently broke between characters. Pinning `STARLING_ICU`
+to the same private engine restores the zh-6a4fc013 control from 236 to
+557/616, matching the existing Linux executable. A fresh `fticu-base` →
+`fticu-candidate` pair is running in both modes before landing the patch.
+No cancelling-error exception used.
+
+**Item 6, further controls — no speculative fix.** Sixteen fresh Mac Word
+prints in `f39-rounding-lab/`; the unchanged control has exactly the same 148
+normalized rows as the reference. Fixed table layout, removing character
+indents, combining the three runs, equalizing font hints and ±1-twip table
+origin shifts all still wrap 縣. One extra twip of width fits it. With compensating
+paragraph indents, explicit 5.4pt padding still refuses it, while 0, 5, 5.25,
+5.5, 5.6 and 6pt fit; a minimal fixed-width table reproduces this distinction.
+A separate nine-case lab at 12/14/16pt admits an exact half-em overrun and
+refuses a twip more, as ours does. This rules out a stricter general half-em
+cap, a cap based on the PDF's rounded font size, and a general fractional-padding
+rule. The remaining issue is narrower width arithmetic; no threshold fudge lands.
+
+For zh-13d11e99, the fresh sweep is **194/194 on Mac**, **185/194 on Windows**.
+The unchanged chart evidence below still shows opposite title offsets in
+zh-b8de3ae2 and a different plot height, not one translation. No new measured
+chart rule justifies a change; the rejected global shift stays out. Continue
+to fresh unclaimed documents after the engine confirmation.
+
+**Linux fractional-font pair complete; cancelling-errors exception recorded.**
+The ICU-pinned `fticu-base` → `fticu-candidate` pair ran both prescribed
+scripts successfully on the same checkout (`4b6a70db`), executable
+`606cad71…`, bundled fonts and engine directory; both engine variables and
+`STARLING_ICU` were explicit. Exact audit: 756 documents/mode, no missing
+files or physical page-count changes. Windows zh-5be7e156 **770 → 769/786**;
+Mac zh-5be7e156 **769 → 766/785**, zh-b76a6636 **470 → 472/472**; all other
+matched counts unchanged. This is not a no-drop pair.
+
+The engine fix is independently verified against a fresh Word print:
+11pt Calibri, eight M then X, un-justified, measures **75.239822pt** to X.
+Old FreeType at screen scale gives 75.184845pt (0.054977pt short);
+corrected FreeType/CoreText gives 75.238312pt (0.001511pt short).
+The drop removes a cancellation at an existing character-grid tie: 16pt,
+grid -842/4096, spacing -6 twips doubled by balanceSingleByteDoubleByteWidth
+gives a full-width advance of **15.19443359375pt**, which corrected FreeType
+reports. Old FreeType gives e.g. 15.19440307617pt. At the half-cell limit,
+floating glyph positions accumulate about 0.00015pt beyond the exact tie;
+the current fitter permits only 0.0001pt. Old truncation accidentally
+cancelled this in Linux. Windows p6 before 科 needs 7.597277832 → 7.597363281pt;
+Mac p14 before 品 needs 7.597155762 → 7.597363281pt. Word takes both ties;
+corrected Linux now refuses just as CoreText already did. The respective
+one and three subsequent start-text misses are acknowledged under the
+user's explicit **Word-verified cancelling-errors exception**. No blanket
+fitting tolerance or hyphenation rule is changed. Grid precision stays open.
+Evidence: `browser-parity/linux-drops/acceptance.md`, fresh Word control and
+measured results, base/candidate diagnostic logs/PDFs, and
+`browser-parity/fticu-base--fticu-candidate-exact.json`.
+
+**Final local SDK gate passed:** engine `6461fc4819e` fetched/rebased/pushed.
+The shared engine checkout fast-forwarded and only the verified FreeType
+source patch was applied. The exact privately tested skwasm pair was
+atomically installed into its default local web SDK; **no native bridge was
+relinked** (still `e0c8478f…`). Clean reason: restore requested fractional
+advances and remove the confirmed browser/native wrap differences. Office
+was rebuilt from `40a6fc09`; app.wasm `c1976041…`, skwasm `0f8c72a7…`.
+Fresh gzip/Brotli variants decompress to those exact bytes. Against frozen
+native `bb435224…`, the final gate passes all 21 font measurements, welcome
+1p/34 lines, TextEdit 3p/88 lines and boringcrypto **24p/1,071 lines**, plus
+all three save/reopen checks. Static lint passes. No live site deployed.
+Artifacts: `browser-parity/final-promoted-sdk-layout.log`, `final-web-build.log`,
+`final-stage-hashes.json`, `default-sdk-promotion.json`, `final-lint.log`.
+Settled parity sweep PDFs removed after preserving their reports and exact
+proof; the affected CoreText PDFs remain beside the Linux drop evidence.
+Current `mixed-faces`/`tab-fallback` PDFs retained; **21.9 GiB free**.
+
+### 2026-10-27 handoff continuation — verified batch; follow-ups OPEN
+Owner: Codex (Mac, `starling-word-fidelity-codex`, branch `office`, 2026-10-27).
+Taking the handoff's in-flight list in order, starting with the confirming pair for
+engine `39bb8cb9328`. Claude sessions stopped for the day per the user. Subsequent
+items: t135 continuation; tc22 Mac spaces; zh-72da925e Mac grid; T227 YaHei shapes;
+zh-f39e54b6, then zh-13d11e99 chart labels. Existing owners' notes remain below.
+No live-site deployment, no automatic-hyphenation decision, no shared-engine relink.
+Validation: both engine environment variables pinned; both sweep scripts, same-base
+pairs, full per-document comparison (including <0.3-point drops and missing files).
+The long-word confirmation uses office `6ceb5145` as specified in the handoff;
+subsequent Swift changes use fresh paired runs on this checkout and one engine.
+Results, rejected candidates and exact artifact provenance are recorded below.
+
+#### Item 1 — DONE: long-word engine confirmation (Codex, 2026-10-27)
+Engine `39bb8cb9328` pushed to `origin/starling` after fetching/rebasing and the
+engine's pre-push formatting check. Fresh paired runs on this checkout at
+`6ceb5145`, Swift **6.2.1-RELEASE**, bundled fonts, PyMuPDF, both engine variables
+set to `~/starling-doc-check-starling-word-fidelity-codex/engine-pair`.
+The baseline bridge reverses only the long-word patch in a private TextWrapper
+source/object, linked with the same engine objects; the candidate is a copy of
+the already-built shared bridge. **No Mac shared-source edit or engine relink.**
+
+Both unmodified lab scripts ran: `sweep-win.sh none long-base` / `sweep.sh none
+long-base`, then `sweep-win.sh long-base long-candidate` / `sweep.sh long-base
+long-candidate`. Completed PDFs were populated in parallel before the scripts'
+normal resume/scoring pass. Exact audit uses full document identifiers and
+integer matched-line counts, including changes below the scripts' display cutoff:
+
+| Mode | Documents | Missing / drops | Improvements |
+|---|---:|---:|---|
+| Windows | 645 Chinese + 111 POI | 0 / 0 | zh-6a4fc013 514→525/616 (83.4416→85.2273%); zh-7773163d 1338→1340/1404 (95.2991→95.4416%) |
+| Mac | 645 Chinese + 111 POI | 0 / 0 | zh-6a4fc013 517→529/614 (84.2020→86.1564%) |
+
+All other matched counts and page counts unchanged, including zh-fec5fa30.
+No cancelling-error exception needed. Artifacts under
+`~/starling-doc-check-starling-word-fidelity-codex/`: `wlong-*`, `wplong-*`,
+`nlong-*`, `nplong-*`, `long-base--long-candidate-exact.json`, phase provenance,
+corpus hashes, and `engine-baseline/` (reproducible compile/link commands).
+Bridge SHA256: base `e3feb7c651427b752d300243839cdff31f6554581a929a9c27c045c1dfaf3c6f`,
+candidate `e0c8478f57a59b810463abea525442a9d170968a990aa85bf0020d3b8e782868`.
+
+Checks: static lint passed; local Office wasm build passed. Native/browser checks
+have **identical output before/after**: textedit matches, both document round trips
+pass, word-boringcrypto retains its known 26 differing lines; welcome differs in
+platform-specific Cmd/Ctrl labels. No deployment. The broader repository tests
+still fail terminal-daemon/live-PTY child startup on this Mac; an initial run also
+lacked SDKROOT and STARLING_SKWASM_DIR (the explicit Office web build supplied the
+latter). Office unit tests remain required for the subsequent Swift changes.
+
+Toolchain warning: the first, discarded run used Xcode Swift 6.3.2 and crashed in
+`_fitEastAsianLines`' Dictionary lookup on zh-0060058e with **both** bridges.
+The historical Swift 6.2.1 toolchain converts it and completes both corpora.
+Discarded output is isolated in `invalid-xcode-6.3.2/`; none entered this pair.
+Linux follow-up: Lenovo `192.168.68.65` fetched/rebased to `39bb8cb9328`, applied
+only this patch (TextWrapper source hashes match the Mac pair), and rebuilt
+`host_release_lenovo2` with four jobs. Prior libraries are preserved under
+`~/tmp/codex-word-engine-c34c8aa8`; the new runtime is
+`~/tmp/codex-word-engine-39bb8cb9328`. Existing `~/tmp/lenovo2-engine` and other
+runtime copies were not replaced. New `libflutter_engine.so` SHA256:
+`6a075a1cdd9e84e6fbf8f7db8e3a94b8e9d3d7886020e7277d606b3c8856ae88`.
+Smoke pair on one existing Linux Office binary, both modes, the three witnesses:
+zh-7773163d Windows 1167→1169/1404; all five other counts unchanged, no failures.
+Artifacts copied to the Mac output root's `linux-smoke/`. This is a smoke check,
+not a second full Linux corpus pair. Windows rebuild awaits its SSH host/user
+(asked asynchronously); no Windows runtime was changed.
+
+#### Item 2 — DONE: t135 continued-row height (Codex, 2026-10-27)
+Applied the handoff's `~/starling-word-check/lab/t135-continuation.patch` on
+`78415381`, after fresh `office-base` sweeps. Windows continuation rows take the
+cell's own top border plus stated margins, excluding the previous row's bottom
+border. The Mac calculation stays unchanged. Same checkout, Swift 6.2.1, fixed
+engine `39bb8cb9328`, both engine variables pinned as above.
+Both scripts: `none office-base`, then `office-base t135`; exact full-identifier
+audit of 756 documents per mode: **zero missing, zero drops**. Windows:
+- zh-13552a3a **810→854/854 (94.8478→100%)**, all 44 misses recovered.
+- zh-0978dee9 **10035→10039/10095 (99.4056→99.4453%)**.
+All other matched-line counts unchanged; Mac unchanged throughout. Physical and
+scored page counts unchanged. The target's page-27 last row now stays on the page:
+its bottom border moves from 489.45 to 504.55pt (Word 504.94); its start from
+239.57 to 239.07 (Word 239.21). No cancelling-error exception needed.
+Artifacts: `w/ wp/ n/ np` prefixes with `office-base` and `t135`,
+`office-base--t135-exact.json`, source patch, provenance and logs in the output
+root above. Static lint passed. Final Office unit/browser results are recorded below; each subsequent change
+received its own pair.
+
+#### Item 3 — DONE: subset spaces with an explicit Latin face
+Use the completed t135 candidate as the next base (same source and engine).
+Mac ordinary spaces under balanceSingleByteDoubleByteWidth should retain their
+face's advance, as the tc22 Word lab shows. Keep mixed NBSP/plain-space handling
+and all other character-grid balancing intact; Windows behavior stays unchanged.
+Full pair `t135 → tc22` completed both scripts, 756 documents per mode, zero missing.
+Windows unchanged; Mac target **113→265/265 (42.6415→100%)**, but **149 documents
+drop**, including zh-e27cd8bf 613→197/613, zh-db07d44e 1735→1340/1765,
+zh-f39e54b6 140→3/148. The broad Mac ordinary-space exemption is **reverted**;
+no cancellation exception is claimed. Exact audit: `t135--tc22-exact.json`.
+The tc22 lab establishes the target's narrower spaces, not a universal Mac rule.
+A copied baseline executable initially lacked its sibling font resource bundles;
+those preliminary standalone lab positions are invalid (the full corpus pair
+used the normal build executable and its resources throughout). Next: isolate the
+font/style/justification condition using Word labs before another implementation.
+Fresh controls (`tc22-width-lab/`) narrow the condition: original left-aligned
+spaces are **6pt at 16pt**; a 5pt wider paragraph still has 6pt plus justify slack.
+Ordinary FangSong, SimSun, KaiTi and YaHei substitutions give **8pt**. Removing
+fontTable's embedRegular entries, keeping the original names/styles, also gives
+**8pt** (YaHei fallback). The embedded FangSong_GB2312 subset has UPM256 and no
+U+0020 or U+00A0 cmap entry. The distinguishing evidence is the embedded subset,
+not a universal Mac space rule.
+Follow-up scaling controls: 12pt→4.5pt spaces, 20pt→7.5pt, bold16pt→6pt (the
+letters widen but spaces do not). Testing **3/8 em only for an ordinary balanced
+space whose embedded East Asian face lacks U+0020**, preserving mixed-NBSP and
+Windows behavior. This uses the existing subset-coverage metadata. Pair from the
+accepted `opener-latin` baseline before the YaHei metrics change.
+First subset pair `opener-latin → tc22-subset`: both scripts, 756/mode,
+zero missing. Windows unchanged; Mac target **113→265/265**, but zh-5450d509
+**320→319/335**. **Rejected**; this is not a cancellation exception. Its
+`公开对 象` run names 仿宋_GB2312 for ASCII too, and Word's space is about
+6.25pt at 12pt, not 4.5. The subset holds only 5 glyphs and its Chinese falls
+back to YaHei. A fresh tc22 control naming that subset for ASCII reproduces
+8.336pt spaces at 16pt; explicitly naming Arial, like Times, keeps 6pt.
+Narrowed candidate requires a resolved **Latin ASCII face** as well as an
+embedded EA subset missing U+0020. Pair `opener-latin → tc22-latin` next.
+That refined pair **passed**: both unmodified scripts, 756 documents/mode,
+zero missing and zero drops. Mac zh-c2229d4a **113→265/265 (42.6415→100%)**;
+all other matched-line counts unchanged in both modes, including zh-5450d509.
+No cancellation exception. Static lint passed. Evidence: `opener-latin--tc22-latin-exact.json`,
+`tc22-width-lab/` Word controls, `tc22-subset-lab-positions.json`, provenance and
+source patches under the artifact root. Final Office unit/browser results are recorded below.
+
+#### Item 4 — grid candidate REJECTED; Latin-following opening mark DONE
+Use the verified t135 base after reverting the rejected tc22 candidate. Remove
+only the Windows gate for the paragraph-final half-grid addition, as the handoff
+requests; compare against current fresh Mac references, then inspect p8's final 「.
+Both scripts `t135 → grid-final`, 756 documents per mode, zero missing:
+Windows unchanged; Mac **zh-72da925e 1135→931/1309 (86.7074→71.1229%)**,
+all other counts unchanged. This reproduces the old regression **against current
+references**, so the handoff's stale-reference explanation is not supported.
+Reverted the gate removal; no cancellation exception. Artifact: `t135--grid-final-exact.json`.
+
+Separate p8 evidence: fresh private Word lab `grid-opener-lab/a-original-word.pdf`
+reproduces the corpus line ending `…最終目標-「`. With kinsoku off, Word compresses
+both the comma and opening quote; our explicit `openingAlone` exclusion refuses
+all compression and sends 「 down (need 7.4343pt). Word positions: 題172.8579,
+，188.0005, 另203.1430, -492.2820, 「495.9926. The no-compression Word control
+reflows the paragraph. Testing the existing compression machinery for a Mac body
+opening mark; Windows and cells retain their established behavior.
+Broad-body pair `t135 → opener`: both scripts, 756/mode, no missing; Windows
+unchanged, Mac zh-72da925e **1135→825/1309**, zh-e0ca7252 1056→1059/1669.
+Rejected despite correcting p8; no cancellation claim for the 310-line loss.
+A fresh control replacing the preceding hyphen with `5` also ends on `5「`.
+Next candidate restricts this compression to an opening mark immediately after
+an ASCII non-space character, still Mac body only. Both modes pair from t135.
+Narrowed pair **`t135 → opener-latin` passed**: both unmodified scripts,
+756/mode, zero missing/drops. Mac zh-72da925e **1135→1138/1309
+(86.7074→86.9366%)**; all other counts and physical/scored page counts unchanged
+in both modes. The three p8 misses are recovered, without the broad version's
+later-page regression. Static lint passed. No cancellation exception. Full audit
+`t135--opener-latin-exact.json`, phase/source logs
+under the same artifact root. Final Office unit/browser results are recorded below.
+
+#### Item 5 — DONE: YaHei geometric shapes (T227)
+Read the advances from Word 16.113.3's msyh.ttc and msyhbd.ttc; the nine added
+entries match in regular/bold: □●1336, ◇◆1229, ※1724, ←→2048, ↑↓1024
+(out of 2048). Add them to both dictionaries, preserving existing entries and
+SimSun's triangle/star fallback. Pair from accepted `tc22-latin`, same engine.
+Measured evidence and font hashes: `yahei-shapes-word-evidence.json` and
+`word-lab-font-provenance.json`. No broader punctuation rule in this change.
+Both unmodified scripts `tc22-latin → yahei-shapes`, 756 documents per mode:
+**zero missing, zero drops**. Windows unchanged. Mac improvements:
+- zh-e0ca7252 **1056→1058/1669**;
+- zh-20c1d74a **1476→1477/1486**;
+- zh-505b9619 **2779→2783/2805**.
+All other matched counts unchanged. Static lint passed. No cancellation exception.
+Exact results: `tc22-latin--yahei-shapes-exact.json`; final unit/browser results are recorded below.
+The remaining zh-e0ca7252 punctuation/line-fitting misses are still open.
+
+#### Item 6 — measured; squeeze and chart model remain OPEN
+Codex examined zh-f39e54b6, then zh-13d11e99 against zh-b8de3ae2; no code
+change or cancellation exception for either, and no blanket tolerance/offset.
+
+- **Squeeze:** current Mac trace for zh-f39e54b6's 第二十四條 needs exactly
+  7pt at 14pt, so our half-em limit admits 縣; Word wraps it and leaves both
+  commas whole. Word starts at 89.8801pt (ours 90), its right edge about 530.8
+  (ours 531). The earlier estimate of a 7.08pt overrun is not precise enough:
+  fresh Word controls fit 縣 with only **one extra twip (0.05pt)** of table/grid
+  width; two twips also fit. Cell shading preserves all 148 normalized reference
+  rows and exposes painted bounds [90,531.12], inner [95.28,525.60], which are
+  raster-rounded and do not identify the logical fitting width. Removing only
+  hangingChars 507, keeping hanging 1420, still wraps 縣, ruling out that proposed
+  character-count rounding explanation. No tolerance change is justified yet. The paragraph carries leftChars=-45/left=1312,
+  rightChars=-45/right=-108, hangingChars=507/hanging=1420; table width 8820,
+  indent 108. This points to width/indent rounding, not a blanket squeeze cap.
+  Artifacts: `squeeze-f39-{base-fit.log,properties.json,positions.json}` and
+  `f39-width-lab/` (shading, +1/+2-twip widths, hanging-in-twips control).
+- **Charts:** the outer frames match, excluding anchor placement as the
+  cause: zh-13d11e99 p2 [79.7,297.7,479.7,597.7]; zh-b8de3ae2 p9 first chart
+  [35.4,57,575.35,341.9] in Word and ours. Inside 13d, Word title baseline 323.11
+  (14.04pt MS Mincho/JhengHei), ours 319.55; axis 0 baseline 553.51 vs 550.95,
+  axis 200 344.50 vs 338.45. The plot height also differs, so one translation
+  cannot explain both. By contrast b8de's 18pt PMingLiU/Calibri title is 81.67
+  in Word vs 83.10 here, the opposite direction. Its first title is explicit,
+  13d's automatic; chart body properties also differ (spcFirstLastPara 1 vs 0).
+  A Windows Word lab should vary those properties/font choices independently before
+  changing title/plot sizing. Artifacts: `chart-{frame-drawings,title-axis-positions,
+  xml-evidence}.json`. The previously rejected global 3pt plot shift stays out.
+
+#### Accepted batch — final verification (Codex, 2026-10-27)
+
+Commits: `70126e36` (continued-row top rule), `24aad564` (Mac opening mark
+following Latin text), `ded14d73` (Mac embedded-subset spaces), `76916cff`
+(YaHei geometric advances). Each has its own full pair above; the rejected
+candidates are absent. The aggregate `office-base → yahei-shapes` exact audit
+also passes: **756 documents in each mode, zero missing, zero drops, all
+physical/scored page counts unchanged**. Windows recovers 48 matched lines
+in two documents; Mac recovers 162 in five. No cancelling-error exception.
+
+| Corpus | Baseline mean | Candidate mean | At least 95%, before→after |
+|---|---:|---:|---:|
+| Windows Chinese (645) | 99.2715% | 99.2795% | 629→630 |
+| Mac Chinese (645) | 98.0554% | 98.1452% | 603→604 |
+| Windows POI (111) | 90.5145% | unchanged | 99→99 |
+| Mac POI (111) | 91.6555% | unchanged | 101→101 |
+
+These are the Swift batch's gains on the confirmed long-word engine; the
+separate engine pair's gains are recorded in item 1, not counted again here.
+Aggregate artifact: `office-base--yahei-shapes-exact.json` and
+`final-batch-exact.log`, under the artifact root recorded above.
+
+Checks on the accepted production sources:
+
+- Release Office suite: **525 tests, 2 platform/font-dependent skips, 0 failures**;
+  bundled-font and ICU startup checks pass. Initial candidate and a fresh rebuild
+  of `78415381` both failed the same pre-existing Wingdings assertion. `b5b568f2`
+  corrects its font name and adds Wingdings 2 checkbox coverage: Microsoft's
+  Wingdings cmap names F06C/F06E circle6/square6, whereas Wingdings 2 names them
+  three/five. No rendering change; font hashes/cmaps in `wingdings-test-evidence.json`.
+  Logs: `baseline-office-tests.log`, `final-office-tests.log`, and
+  `final-office-tests-corrected.log`. The skips concern a Noto joiner absent on
+  this platform and a page-foot test with no qualifying size for these faces.
+- Static lint and local Office wasm build pass. The final paired engine/binary
+  hashes and production source identity were rechecked after the test-only fix
+  (`final-paired-artifact-check.json`).
+- Native/browser check output is **identical to the pre-fix engine candidate**:
+  textedit and both document round trips pass; word-boringcrypto retains 26
+  differing lines, and welcome retains six Cmd/Ctrl-label differences.
+  Logs: `long-candidate-layout.log`, `final-browser-layout.log`.
+- Full repository checks retain the same three failed steps: terminal-daemon
+  child startup, live-PTY child startup, and that browser/native comparison.
+  Sheets browser/native and saved-copy checks pass. `final-repo-tests.log`
+  records the full run. These are not claimed green and no live site was deployed.
+
+Remaining: item 6's squeeze boundary and chart-title/plot model, the remaining
+zh-e0ca7252 punctuation, and the Windows engine rebuild/Word lab once its host
+is available. The proposed Mac paragraph-final grid gate removal was rejected
+against the current references, not accepted as a stale-reference exception.
+Automatic hyphenation remains the user's decision. No live-site deployment or
+Mac shared-engine relink.
+
 ## How a fix is checked
 
 The steering number is `test/docx-line-match.py WORK`: the share of
@@ -697,6 +3464,17 @@ After ef6e6f16 (Word's own CJK faces, no Type3), the board's "reader, not layout
 Shapes inside a VML `v:group` draw only their text — no outlines, fills or arrows (zh-6e6b9821, 5e452e14). Checked by eye against Word's prints, plus a pair sweep.
 
 ### zh-c4f2be3b 95.4 — East Asian vertical text boxes (`eaVert`) [DONE Mac 7bd18d8e (macOS-doc) 2026-10-23: 99.7; zh-6d402586 91.3 -> 96.7, zh-2e7ef069 90.0 -> 92.8, nothing down (pair n5/n6). Released]
+- Windows 95.6 (2026-10-29): DONE Linux lenovo-2 (starling-d6), released. A page field's result with no ideograph in it now
+  gives its word spaces under modes before 15, so " - 10 -" stays one line as in Word's print. Score stays 95.6: every
+  remaining page miss is the scorer, not the layout. Word's PDF line carries a trailing space glyph, so its box is
+  [49.6, 432.7, 63.7, 481.7] to ours [48.5, 432.7, 61.7, 474.6] on p5, while the glyph origins agree: Word ' '432.7 '-'439.8
+  ' '446.7 '5'453.7 ' '460.8 '-'467.7, ours 432.7/439.7/446.7/453.7/460.7/467.6; p10 now at x 52.0 to Word's 52.1 (was 33.9,
+  split). Pair on 608df3326 (both modes): nothing moved, mean 97.957 Windows / 97.793 Mac. The wider form — any legacy
+  paragraph without ideographs — cost bug57031 100 -> 95 and zh-d62da4dd 77.8 -> 63.6, so it is kept to page fields.
+  Was: every page from p10 misses its
+  eaVert page-number box (footer2, 47.3pt inside): " - 10 -" in SimSun 14pt is 49pt, and Word keeps it on one line, its two
+  inner spaces 6.1 for 7 (mode 14, balanceSingleByteDoubleByteWidth); ours wraps the leading space to a column of its own.
+  The fitter returns before it looks: no marks, no automatic spaces, and spaces give only from mode 15.
 Its landscape pages number themselves in an `eaVert` box at the page's left ("- 33 -" reads down in Word's print); ours set it across. Also moves zh-2e7ef069, zh-6d402586 (its "通知書一式兩聯…" side box, not the 附件 boxes Windows holds), zh-6cd1befe.
 
 ### Note from the Mac (2026-10-23): the zh corpus is 645 documents — a thirtieth sample, of 400-800 KB
@@ -970,6 +3748,8 @@ file's — leave it.
 ### T123. zh-cb56e605 (93.1%, 7 pages): a form's label cells a few points off — measured, released
 Owner: none (Linux 017F2GnT measured it, 2026-10-18)
 Documents: zh-cb56e605.
+Windows (Linux lenovo-2, 2026-10-29): 100.0, 144/144 lines and 7/7 pages against the fresh solo print (a9d43428), on
+ed3d8a78a with bundled fonts. The 94.4 was the old reference's Ebrima nbsp runs. Nothing left in Windows mode; closed there.
 Nothing to fix that shows: p6's form looks the same in both prints. Its
 misses are the second lines of label cells ("2022年是否获" / "得关税配额",
 "种类、数量及贸" / "易方式", 10.5pt on a 15.6 grid under
@@ -5287,7 +8067,16 @@ So the +0.45-0.5 is not the picture line's grid rule (c77fd89d tracks Word withi
 - ◇, ◆: Word sets them in Cambria Math, 10.39 (no lift); ours sets them in DejaVu Sans, 10.88.
 - ★, ☆: Word sets them in Segoe UI Symbol, 10.99 (a lift of 0.60, its lines 12.96 apart, and the note's third line goes to p2); ours sets them in DejaVu Sans, 10.88 / 12.87.
 So for Windows mode: ◇◆ (with ①△◎) take Cambria Math and do not lift a 9pt 黑体/楷体 line; ★☆ take Segoe UI Symbol and lift it about 0.6 (0.067 em), its pitch +0.12; ×▲●□ take Times New Roman (above).]
-### T169. zh-74b34f3b: 64.9 against word-win — CLAIMED windows, after the DFKai-SB face (reassigned 2026-10-24 by the Mac coordinator at the user's approval, Linux sessions offline; was Linux b2 01JsizVV)
+### T169. zh-74b34f3b: 96.9 against word-win — PARKED windows-3 (reassigned 2026-10-29 by starling-bd; the 10-24 windows claim was stale; was Linux b2 01JsizVV)
+windows-3, 2026-10-29: its misses are p5's tbRlV columns ("東引鄉活動中心2樓", "會議、研習、喜宴", 標楷體 16pt, centred down a
+three-row merge), 1.8pt below Word's, so they group with the wrong lines. Word stands each upright ideograph with the middle of
+DFKai-SB's own line (0.30 em over the baseline) at its place's middle — baselines' middle 0.315 em under the cell's middle here,
+0.295 in zh-cec9d337 — where ours uses the em square's 0.38. Tried (`~/starling-doc-check/w3/vmid-uprightMiddle.patch`,
+the face line's middle instead of 0.38): the columns moved 1.27 of the 1.84 and the document stayed 96.9 (the reader groups
+"東" with "上午" only within 2.5pt), while zh-cec9d337 99.3 → 99.1 and zh-e49d7943 97.6 → 97.4: their tbRlV county
+columns set from the cell's start (no jc) matched at 0.38 and rose 1.2pt. So the glyph's place is right and the CENTRING
+differs: centred DFKai-SB columns stand 0.11 em higher in Word than ours (12 and 16pt), centred YaHei ones (zh-b0401810)
+0.02 em. Not built further. PARKED (windows-3).
 Owner: Linux b2 (starling-b2). 5 pages; 97.8 against the Mac prints after its tbRlV cell fix; off the missing-faces list.
 
 ### Windows missing-face rule from the map — DONE 99f9f05e (Mac 01Xgpbk5, 2026-10-24)
@@ -5667,9 +8456,10 @@ DONE c3bfddd3 (Linux 01F2SWc8, same-base pair h182 against word-win, 756 of 756)
 - A paragraph's LAST mark hangs only once the line's marks, itself among them, and half its automatic spaces can't give the over (t175's staging). Short of that it stays inside, and the character is taken by the share test with the automatic spaces weighed at half. zh-e0ca7252 "…依第17款辦理。": 21.55 over, 22.75 to give, so no hang, refused, as Word does. zh-505b9619 "…工作天。" (18.9 of 21), zh-d746674a "…應予以提供。" (22.6) and zh-76d361b2 "…代號：F）；" (24.7) are taken squeezed, last mark inside. zh-021b8feb "…核定。" (18.2 over, 14 to give) still hangs. Tried and dropped: staging inside a paragraph too (zh-505b9619 -12, zh-1b74ed91 -7; Word hangs sooner there), never hang + squeeze at a paragraph's end (zh-e0ca7252 -48, zh-021b8feb -68), and a marks-halves test with "at most half of itself over" (too strict for zh-d746674a and zh-76d361b2).
 - A line with word spaces weighs them in the share test at 0.44 of themselves (lab t181: predicts 4.32/3.89/5.93/2.56 for Word's 4.41/3.42/6.20/2.74). Corner brackets give with the rest there: zh-ea70c30e's "…辦公室 – 投訴" squeezes "」" in Word's print, so sq-sp's "corners give nothing" is not Word for Windows'. A paragraph's last character with no mark after it keeps the older test: zh-84702a67's "填表日期：    年   月   日" takes "日", with twenty spaces whole.
 Witnesses NOT moved, for whoever goes next: zh-57f1de0d (mode 14, "》"/"：" giving, "化" 5.3 over refused by Word, inside lab zq's half em; Word may not compress "》"/"：" there, which needs a lab); zh-015abfaf (mode 14, "超”" with a Latin "”" hung, 6.57 over 1 mark, refused by Word); zh-cd48112c p1 ("设" 4.75 over, 1 zh-TW "，" + 2 word spaces, refused by Word; its runs mix en-US defaults, zh-TW style and zh-CN runs); zh-3f871b7d is not a squeeze ("·" U+00B7 is a full em in SimSun in Word, 5.33 in ours; the Mac has the width patch, which needs a "·" squeeze class: zh-b9af65b5); zh-b00fef0d (mode 12, kinsoku 0, lenovo-2's p5/p6/p10 lines); the too-strict word-space lines zh-33aa9899 p5 ("通」" 2.97 over) and zh-1b74ed91 p9 ("3" 10.75 over), unchanged.
-Two more T181 witnesses (lenovo-2, 2026-10-27, Windows mode, routed to lenovo-3 by macos) — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-27):
+Two more T181 witnesses (lenovo-2, 2026-10-27, Windows mode, routed to lenovo-3 by macos) — DONE cbb1dab50 (Linux 01F2SWc8 lenovo-3, 2026-10-27): both now break as Word does. (1) A one-character Latin word carrying a closing bracket that cannot hang keeps the start rule instead of being taken wherever the marks can give ("3)" starts 0.15pt inside; zh-06c46ba9's "1）" 10.7 in and zh-0513f641's hung "4）" still taken). (2) Past a hung mark, automatic spaces give at most a quarter em, not the half a closing piece gets, and the share test takes nothing with no mark to give ("間)：" 5.4 over with eight spaces wraps; zh-1b74ed91's "作業，" 1.0 over with three is taken). Tried and dropped: no hang after a Latin ")" (zh-505b9619's "(請載明)，" hangs in Word, 96.6 -> 92.0), and any own mark blocking the one-character rule (zh-54e91165, zh-f47b8a74, zh-0513f641 down 13-36). Same-base pairs, 756 docs, both modes: Windows zh-31d580df 95.5 -> 97.6, zh-6d402586 95.0 -> 95.5; Mac zh-6d402586 94.1 -> 94.7; nothing down.
 - zh-31d580df p8 "…之工地人員人數。(★參考撰寫說明2、3)": Word ends the line at "2、" and wraps "3)"; ours takes it, "over 17.85 need 17.85 room 26.5 of 4 marks, lead 18.0 set 12.0, 32 characters, 1 space" (compressPunctuation, no mode stated). p8-p9 then run a line ahead, 30 misses.
 - zh-6d402586 p5 "6、預為準備1人1室且有獨立衛浴房間(以下稱1人1室房" / "間)：…": ours takes "間)：" with the "：" hung, "over 19.4, hang 14, need 5.4, no marks, 8 spaces giving" (compressPunctuation, no mode stated). Word wraps.
+- MEASURED, RELEASED, nothing pushed (Linux 01F2SWc8 lenovo-3, 2026-10-27, routed by macos): zh-f39e54b6 p2 (94.5) "第十四條指定兌付銀行兌付縣庫支票，應依規定在支票上註記，按" / "日編製…": ours takes "日" "over 7.0 need 7.0 room 14.0 of 2 marks, 29 characters, 0 spaces, other true" (compressPunctuation, no mode stated); Word wraps. 8 misses p2-p4. Neither of cbb1dab5's rules covers it (no hang, nothing Latin). It is mode 14 (compatibilityMode 14, balanceSingleByteDoubleByteWidth), the paragraph's first line, hanging 1134: "第十四條" + four spaces of 7.0 each (Word's print: 146.06, 153.02, 160.09, 167.05) + ideographs at 14.04 pitch. Ours takes "日" by the older half-the-character-before rule: it stands 6.9993 over by our advances (7.0 exactly at 14), against "按"'s half, 7.0; Word's print ends "按" at 524.0 and the margin is at 531.02, so it is the same 7.0 there and Word refuses the tie. Tried and dropped (pair ht, both modes): ties never taken where nothing Latin is on the line — zh-f39e54b6 94.5 -> 98.6, but zh-18cb2079 99.8 -> 24.2, zh-c2f6d17a 99.4 -> 57.4, zh-d68ac84a 99.9 -> 75.8, zh-5be7e156, zh-eb54d3b0, zh-8d6f702e, zh-92373179 down too: Word takes exact ties elsewhere. So what refuses it is this line's own context: the four balanced word spaces (lineOther), or the hanging first line. Wanted, a lab (windows-1, zh-f39e54b6's package): this paragraph with (a) the four spaces removed, (b) them as one, (c) no hanging indent, each with w:right swept a twip at a time round the tie, to say whether a word space on the line moves Word's half-character limit.
 
 ### T182. zh-2f9463d6: 56.5 against word-win, 33/33 pages — CLOSED by windows' reprint 0012bc50: 56.5 -> 99.7 with no code change (its title is SimHei on both sides) (Linux 01F2SWc8, 2026-10-25)
 From the low list at d9aabe26 (T126 fixed its p20-21 row on the Mac references). First: its first miss on word-win.
@@ -6275,6 +9065,33 @@ PIN YOUR PRIVATE SWEEP SCRIPTS: export OFFICE_FONT_SOURCE=bundled, or a machine 
 Next: windows checks local mode (showcase F01's line breaks, a couple of corpus docs); the Windows list is the face table,
 not the registry, so a face outside it still falls back to the stand-in — a follow-up if F01 shows it.
 
+### T203-iOS. Installed fonts on iOS — DONE in code; app link BLOCKED on a current iOS engine (Mac Claude worker, starling-mac-ios-fonts, 2026-10-28)
+Owner: Mac Claude worker (gap analysis 2026-10-28: `installedFamilies` has no iOS branch). Widen the CoreText import and
+the enumeration to os(macOS) || os(iOS) (Word-for-Mac reference-mode gates untouched), unit test, build with
+build/ios-app.sh OfficeApp on the existing iOS simulator engine (no engine rebuild), both-mode no-op sweeps.
+Done (this commit). `OfficeFonts.installedFamilies` (now internal, for its test) lists Core Text's families on iOS as
+on macOS: the CoreText import and that one branch widened to os(macOS) || os(iOS); every Word-for-Mac reference-mode
+gate (wordMacIdeographs, the Cordia/Thonburi path, the rest) still says os(macOS) only. New InstalledFontsTests: keys are
+the lowercased names, and on Apple systems Helvetica and Courier New are listed (iOS has no plain Courier) — passes on
+macOS. On an iOS 18.4 simulator of its own (iPad Pro 11, deleted afterwards) a probe of the same call lists 87 families,
+Helvetica, PingFang SC, Courier New, Arial and Times New Roman among them.
+Pair, same checkout and engine (host_release_arm64), bundled pinned: Mac mode n1/np1 -> n2/np2 98.3 / 91.6 both sides,
+nothing moved; Windows mode w1/wp1 -> w2/wp2 99.3 / 90.5, nothing moved but one flake: zh-e68a2f57 99.6 -> 87.2 in w2,
+whose PDF came out corrupt (MuPDF: bad xref, "zlib invalid distance", stray content tokens; 13 bytes longer) — the same
+candidate binary reconverting it gives 99.6. Unrelated to this change (the macOS binary's code is unchanged), but it
+means --convert can write a broken PDF now and then (that run shared the CPU with a swift test build). Unclaimed.
+BLOCKED: build/ios-app.sh OfficeApp against the existing simulator engine (starling-engine-ios 1848a377952, Sept 30)
+compiles every Swift file for iOS — the enumeration among them (the iOS objects reference
+CTFontManagerCopyAvailableFontFamilyNames, whose only caller is this branch) — and fails at the link: the old
+swift_bridge lacks ParagraphBuilderBridge::SetBaselineShift, ::SetForegroundPaint, ParagraphBridge::GetGlyphInkBounds
+and ::ComputeLineAdvances. Not rebuilt (no engine rebuilds). Next, for the iOS host owner: rebuild ios_debug_sim_arm64
+at a current `starling`, then build/ios-app.sh OfficeApp --run and check the Options page's installed mode draws a
+document in a system face (e.g. PingFang SC for a 苹方 run, Helvetica).
+Follow-up (limit): on iOS the list is the system's faces plus any the app registers. Fonts a font-provider app installs
+(Settings > General > Fonts) are not listed: an app reaches those only with the
+com.apple.developer.user-fonts entitlement ("app-usage") and CTFontManagerRequestFonts. A document named in such a
+face falls back to Starling's stand-in. Unclaimed.
+
 ### T205. The 3-D pies: zh-27a874b7 (55.4) and zh-d62da4dd (56.6) — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-25, moved from macos-ios by macos)
 Owner: Linux lenovo-2. History above: the pies' geometry matches Word to 3pt (Mac lab piefit); left were three label rules (inside placement, the fit test, outside stacking) and zh-27a874b7's caption 20pt low. Scores from here on the new engine (~/tmp/lenovo2-engine, 8bc30c5c89a).
 (Renumbered from T204, which is windows' mode-14 task, in c33a1e39.)
@@ -6308,7 +9125,13 @@ Mac nothing moved. Left: p26-p31's few. Also seen, not done: in every document w
 Word's against the first note's baseline (19.08 there, ours 20.25 at 10pt; 1.44 for 11pt Calibri Normal), yet the same lines
 fit — the area agrees, only where the rule is drawn in its separator line (ours at its middle) differs.
 
-### zh-0978dee9 cell baselines (local 10024 / bundled 10035 lines on Windows) — OPEN finding, not claimed (office1 + windows, 2026-10-25)
+### zh-0978dee9 cell baselines (local 10024 / bundled 10035 lines on Windows) — KNOWN MODEL GAP, deferred (macos, 2026-10-29); not claimed (office1 + windows, 2026-10-25)
+DEFERRED (Linux 01F2SWc8 lenovo-3, 2026-10-29, macos's call; released): the fix is a per-run Word ascent/descent override in
+the SkParagraph patch. The engine already takes a line's max ascent + max descent over its runs, which is Word's rule (lab lh,
+(7) under the lab results), but each run's box is the stand-in face's split, not Word's (RichResolvedFace.baseline /
+naturalHeight). A strut cannot give per-line heights, and zero-width carriers would be stand-ins. Windows mode: 153 stacked
+mixed lines in 46 documents; the 13 under 99 have 1-12 each; zh-0978dee9 is 99+. A day plus engine rebuilds on all three
+machines: not worth it now.
 Not T203's: Word's print is SimSun + Courier New (p45/p127/p128), lines break alike in all three, and local sits 0.1-0.2pt
 under bundled (the strut's even leading splits by the drawn face's ascent/descent). The gap both modes share: p127's cells
 stand 0.3-0.5pt under Word's, the 10pt SimSun column at x117.9 0.8-0.9 (Word 100.1 / 113.1 / 126.0, bundled 100.9 / 113.9
@@ -6391,9 +9214,42 @@ docs, engine 8bc30c5c89a: Windows zh-1cfb652b 94.6 -> 98.3, zh-55087b5f 91.8 -> 
 
 ### zh-015abfaf: 62.4 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26, routed by macos)
 First miss p1 "…发挥劳动竞赛“比学赶帮超”": ours takes "超”" (a Latin "”" hung), Word leaves it; mode 14. Lab next.
+[TAKEN OVER 2026-10-28 by Linux Claude (starling-linux-fidelity) at the user's assignment — see the §4 claim at the top.]
 
-### zh-4e5fe46f: 90.8 against word-win — CLAIMED (Windows 01QbbApP, 2026-10-26)
+### zh-4e5fe46f: 90.8 against word-win — RELEASED (Windows 01QbbApP, 2026-10-29; 92.1 now; the box's 3pt is left, not taken up again)
 wip/parted-floats 63e7a955: a parting paragraph's floats drawn whole with its first piece (p6's 496pt table box showed one row). 218 -> 221/240. Left: the box 3pt high — its anchor paragraph's place (lab sb: offsets from space before are Word's).
+CLAIMED Mac 7bd18d8e (Windows-focus round, routed by macos), w96 92.1. Besides the box's 3pt (p6) and the "类别" header cell
+7pt higher than Word's (p6/p8/p9/p11, reader grouping follows), p9's 5970-twip cell (mode 14, jc left, sz 21 w 95, spacing
+-7/-5, compressPunctuation, balance): Word takes "的" on "一般应有…材料。呈报审批文书，应有 基本的" — "。" and "，" between
+ideographs at 7.20 of 9.28, the space 4.34 of 4.55, the run's ideographs 9.24 of 9.275 — about 5.4 given. Ours: 5.85 over,
+legacy cell test (half an em, 4.74) refuses it, and every later line of the cell starts a character early. A Windows witness
+for the marks allowance (lab p13: ~2-2.5 a mark between ideographs).
+Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two marks; jc both).
+  Lab lc (`windows`): our squeeze test is right (half an em in all; ours gives the same 94 twips); our widths are 1.8pt long.
+  Two parts: (1) a balanced space took half the UNSCALED em under w:w — now the scaled one (4.55 -> 4.29, Word 4.32): landed,
+  next commit. (2) Word's advances here sit on 1/600in (行 9.24 of 9.275, 基 9.48 of 9.475). Rounding each scaled run's East
+  Asian advance to whole dots took zh-4e5fe46f 92.1 -> 95.4 (p9's five lines exact) but dropped zh-e2dc9dce 98.8 -> 98.7:
+  there (標楷體 10pt at w 90, spacing -0.4 doubled, 8.2 nominal) Word steps 8.16/8.28 alternately — positions on the dot grid,
+  advances unrounded; rounding each set 8.16 and took "樣". No one dot rule (scaled size, spacing, both) fits both prints.
+  NOT landed; kept at the scratchpad's rounding-block.swift. Open: what makes zh-4e5fe46f's FangSong 10.5pt at w 95 step
+  9.24 (and 9.12, never 9.36) — perhaps the face's hinted advance at that ppem. A lab there would say (sizes, w, faces).
+- zh-3c055c9b (w96 93.2) RELEASED by Mac 7bd18d8e, to windows-2 (grid squeeze owner) via macos: every one of its 39 misses is
+  one grid behaviour (17pt character grid, mode 15, overflowPunct 0). To take a line's end Word gives back the grid's addition
+  of a mark AND the character before it: p9 "…第10892號、" with "號、" 17.0 -> 12.7 each and "、" 3.7 past the margin; p11
+  "寫，" 14.2/14.2, "的。" 14.0/14.0 and "」、" 8.4/8.4 to take "「（舉". Ours keeps whole steps and stretches (17.9). p2's
+  "費、" (lab tfe) is the same family. Not zh-4e5fe46f's (no grid, mode 14 cell, marks giving ~2 of their blank halves).
+- zh-b24b396a (w96 93.6, T210) CLAIMED by Mac 7bd18d8e: all 23 misses are p12-p13 text-box labels — the text-box half of
+  the first-character-past-its-box rule (cells landed cf2997f8). Lab spec sent to macos for `windows`.
+  Lab tbi (`windows`): the edge is the box's width less its LEFT inset — at or past it the first line's word is left out,
+  short of it drawn at its indent, past the box; grouped or not. DONE (next commit, Windows mode): a fixed box's frame, and
+  a group's boxes set in one text, which now carry their right inset (RichParagraphStyle.boxInsetRight). Left: p13's
+  vert270 "30" boxes (lab (4) did not reproduce the document's layout outside its group).
+- Pairs on 608df332 (w97 -> w99, n24 -> n26, the space and box rules together): Windows zh-8f9b19f4 97.4 -> 98.7,
+  zh-b24b396a 93.6 -> 94.2, zh-7773163d 97.2 -> 97.5, zh-b8de3ae2 91.6 -> 91.9; Mac zh-a7a889eb 97.0 -> 98.9,
+  zh-8f9b19f4 95.5 -> 96.2, zh-b8de3ae2 81.2 -> 82.1, zh-13d11e99 99.5 -> 100; nothing lower in either.
+- zh-e51c31a7 (w99 95.9) CLAIMED by Mac 7bd18d8e (Windows-focus round): p5's text box 外框1 (511 x 395pt, wrapSquare, 14.35pt
+  under its anchor "治理主題應用模組版本…", 12.75pt left of the margin — wider than the column) holds the application form; Word
+  sets the next paragraph "以下欄位由交通部填寫" and its table under the box (y557), ours under the box's top (y159), drawn over.
 
 ### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
 zh-9bcea239 (92.7) p11: the score cells (tcW 389 = 19.45pt, firstLine 632 = 31.6pt, jc center, vAlign center, HTML autospacing)
@@ -6457,7 +9313,8 @@ Witnesses: zh-72da925e (60.5; t206b's taken-pair lab: uneven gives, ： most, �
   stand against the digit groups and the piece — not a count or a cap, and five points pin no rule that also holds tg.
   (A "+2pt takes unsqueezed" reading was the line before taking "廳", windows-1 confirmed.) Ours takes it; left as is.
 
-### zh-8628cfbe p13 (93.3, word-win): measured, not claimed (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
+### zh-8628cfbe p13 (93.3, word-win): measured, CLAIMED (Windows 01QbbApP, 2026-10-29, routed by macos: lab then fix)
+[Labs kp and ci: the squeeze is right; the cell's width was 0.37 wide. Fix cellin2 (both modes), see the Windows round's (8)-(9).] (Linux office1, 2026-10-26, from macos's w15 list) — T181's kind
 Cell paragraph "2.與去年實際數比較，相同者得基準分75分，每增(減)…" (kinsoku 0, overflowPunct 0, compressPunctuation, mode 15,
 zh-TW): Word's line ends "…75分", every character 12.12 apart (the line justified) and "，" after "較" whole; ours squeezes that
 "，" to 7.4 and takes the next "，" at the end. Tried: under kinsoku 0 a closing mark that is a piece alone does not take
@@ -6574,6 +9431,7 @@ Windows: 510 -> 525 of 538 lines. The page-placement witnesses are unchanged: zh
 p19-20's turned text is still left.
 
 ### zh-b8de3ae2 (90.8): its charts — CLAIMED (Linux 01F2SWc8, 2026-10-26, routed by macos): the chart with the most misses first.
+[TAKEN OVER 2026-10-28 by Linux Claude (starling-linux-fidelity) at the user's assignment; the notes below stand.]
 - p9 (the most, 9): the bar of pie's labels — DONE (Linux 01F2SWc8): one-line labels wrap past 0.1857 of the chart's width (Word wraps "罰款及賠償收入, 0.64%" at 100.0pt in a 538.5pt chart and keeps 99.9); Windows 89.9 -> 90.4, Mac 79.3 -> 80.0, nothing else moved. Left on p9: "圖1/圖2" titles 4pt off and the bar chart's "千元" axis title. Note: on the tip DocxTests.testARightStopAfterANegativelySpacedStartEndsAtTheStop fails with or without this change on engine 5357bf0b374 (probably the line-spacing-shift sdk commits awaiting the c34c8aa8eba engine).
 - (Linux 01F2SWc8, on lenovo-2's c34c8aa8eba engine: that test passes there; scores unchanged, Windows 90.4, Mac 80.0.) Windows misses now: p9 6, p20 4, p21 5, p23 9, p24 10 (table, scorer), p25 15, p27 14. p27's 3-D pie (chart10, 566.2 x 303.8, labels 12pt bold rich text "人事費"+[值]+", " / "15.29%"): Word wraps "人事費87,167,004," (93.7pt) into "人事費" / "87,167,004,", ours keeps it (our limit there 105). So the wrap width is not a fixed share of the chart's width; 0.255 of the HEIGHT fits both this and chart2 (100 of 392.3) but would wrap zh-61aaad09's "582054," (35pt in a 204.6 x 122.4 chart) that Word keeps. Needs more charts' labels (or a lab sweeping a chart's width and height) before a rule. Not built.
 - p25 (chart 10, all columns below zero) — DONE (Linux 01F2SWc8): a falling column's label stands 0.94 of its size under its foot, as on slides; Windows 90.4 -> 90.9, Mac 80.0 -> 80.4, nothing else moved (engine c34c8aa8eba). Left on p25: see next.
@@ -6608,7 +9466,11 @@ tab and a rule's anchor lost its line. With text meaning a visible character, th
 Done: same-base pairs, 756 docs, engine c34c8aa8eba, Mac references a1188040: Windows zh-147bdae0 95.0 -> 97.6, Mac 95.5 ->
 95.9, nothing else moved in either. Left in zh-147bdae0: p19/p27 hyphenation (the user's), p64's one cell, a few singles.
 
-### zh-13552a3a p27 (94.8, word-win): measured (Linux office1, 2026-10-26); CLAIMED Mac 01Xgpbk5 (2026-10-27, routed by macos) — a merged cell's last line at a page's foot
+### zh-13552a3a p27 — DONE 70126e36 (Windows 94.8→100, Codex, 2026-10-27)
+Mac mode (94.7, p28-p31): RELEASED as Mac-only (Linux lenovo-2, 2026-10-29; Windows-mode focus, Windows 100) — Mac Word's
+print keeps the same row's "正)" at the foot (503); the candidate is t135's continued-row height without its Windows gate
+(RichLayout `windowsExtra`), unpaired.
+Full paired results are in handoff item 2 above. Earlier investigation follows:
 All 44 misses follow from p27: a 14-cell row (trHeight 2460 at least) whose long cell ("1.《中华人民共和国政府信息公开条例》…六部法律
 的决定》修正)", 16 lines at x269) is merged down over the next two rows. In Word's print the three rows end at 504.9, the merged
 cell's last line "正)" at 503 on p27, the centred cells beside it 8pt lower than ours; ours ends them at 489.4 and carries
@@ -6638,7 +9500,7 @@ Its landscape p6 holds a 13-row table placed against the page (tblpY 2536) after
 DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either (pairs at a18ec01f). Left in Windows: ours still makes 8 pages to Word's 7.
 
 ### macos's w25 queue, measured (Linux office1, 2026-10-26, engine c34c8aa8eba) — none built
-- zh-13d11e99 (95.9 here): all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
+- zh-13d11e99 (95.9 here) — CLAIMED (Linux 01F2SWc8, 2026-10-27, routed by macos) [TAKEN OVER 2026-10-28, Linux Claude, starling-linux-fidelity, the user's assignment] [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos: the plot's foot ~3pt high in both modes, the gap over the legend too big; only for a cause general over the charted documents]: all 8 misses are p2's chart's value-axis labels, ours 3-5pt high (200 at 341 vs 346 ... 0 at 552 vs
   555; the plot area's top lower in Word). Charts' (macos-ios, T201).
   Tried (office1, routed by macos): a titled 2013-style chart in a Word document, its plot 3pt lower (Chart.swift, beside the
   sheet's 2.57) — zh-13d11e99 95.9 -> 100, but chartex 100 -> 94.7 (87.7 with cx: charts too) and zh-b8de3ae2 90.9 -> 88.8,
@@ -6646,18 +9508,24 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   others' default 14pt too?), its legend at the foot. Reverted; what differs between its chart and b8de3ae2's is the lead.
 - zh-13552a3a: see its own entry — the lever is the 0.4pt the rows above row 24 add up to (macos-ios: not T191's tolerance).
 - zh-37b6536f (95.6): p2's last paragraph 6pt high (606 vs 612) at the page's foot, one line in.
+  (lenovo-2, 2026-10-27: it's the second row of photos, anchored in ¶18 (exact 25pt, posV +23.15) after ¶17, which anchors row 1 and whose auto 31.2pt grid line goes under row 1. Word's row 2 tops at 300.9, ours 295.4, the text under it following. Our ¶17 line stands at row 1's foot (248.3) and ¶18 under it at 272.3; Word's ¶18 top works out at 277.75, which fits neither the foot plus 31.2 nor the line+before steps of T205. A lab on ¶17's line under row 1 (an X in it) would say where Word sets it. Not claimed.)
+  DONE b025902ac (lenovo-2): lab tph (windows-1) — ¶17's grid line steps under its own photos by (31.2 + 20.8) / 2 = 26.0 until its text clears the foot; 95.6 -> 99.3, row 2 within 0.7pt of Word's; pairs in both modes, nothing else moved.
 - zh-5a9a85c6 (95.7): p18-19, a floating table (vertAnchor text, horzAnchor page, tblpX 1957, tblpY 881, tblOverlap never) 44pt
   under its title has its top past the 757 foot; Word sets its first row on p18 at 760.8-792.0 (over the footer) and the rest on
   p19; ours takes it all to p19. Sent to lenovo-2 as a witness for T222.
 - zh-e51c31a7 (95.9): p5's form tail (dashed separators, "收件日期 年 月 日…", check-box rows) a few points off.
+  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, macos's Windows-mode round: not a few points — the whole application
+  form is one text box ("外框1", 511.5 x 395.5pt, wrapSquare bothSides, from the margin -12.75), and Word sets the
+  "以下欄位由交通部填寫" paragraph and its table under it; ours runs them under the box from the page's top.
 - zh-77079ee8 (96.5): p5's organisation chart (EAP 推動小組 / 工作圈 / 服務組 text boxes) placed differently.
+  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, Windows mode (misses p1:8 p2:1 p3:6 p5:7).
 
 
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-27, office1's witness)
 "全县增援武警力量梯次名额分配表" (tblpPr vertAnchor text, tblpY 881) falls 760.8pt down p18, past the 757 foot (bottom margin 1701, footer 992). Word for Windows sets its first row there, 760.8-792.0, just above the footer's place at 792.4, and the rest on p19; ours takes it all to p19, a row late. The same footer-edge room as T222 (e70bd5d3), here row by row for a table floating by the text. Pairing in both modes.
 Tried and dropped (lenovo-2): (1) every text-floating table's rows using the room down to the footer's place: a dozen documents down in Windows mode (zh-c97500b6 100 -> 30, zh-588ee9e3 100 -> 53, zh-9ba2ead7 99 -> 58). (2) That only for a first row that starts past the foot: no change at all, zh-5a9a85c6 included. Such a table is sent over before the row loop sees it (its offset placement, `textFloatTop` / `raiseAtHead`), and that is where a fix belongs. RELEASED with that.
 
-### zh-d0a207ac (95.6, word-win): Wingdings 2 checkboxes drawn as "£" — a product bug, measured, not claimed (Linux lenovo-2, 2026-10-27)
+### zh-d0a207ac (95.6, word-win): Wingdings 2 checkboxes drawn as "£" — FIXED 67b573fe (Linux lenovo-2, 2026-10-27; drawn as ☐ at the face's 0.89 em; five Mac-mode drops of 0.3-1.4 are text-layer artefacts — Mac Word's PDF names the box "£" — landed so with macos's OK)
 Its form (p9-p16, two misses a page) writes checkboxes as `<w:sym w:font="Wingdings 2" w:char="00A3"/>`. Word prints a box (text U+F0A3, Wingdings2). Ours reads the character as U+00A3 in a Wingdings 2 run, and with no Wingdings 2 face it falls to the text face and DRAWS "£". Metafile.symbols maps Wingdings, Webdings and Symbol codes to Unicode glyphs for metafiles, but nothing does so for `w:sym` in runs, and it has no Wingdings 2 table (£ ☐, R ☑, S ☒, …). The fix belongs at drawing time, so the reader's w:sym round-trips. Scoring: Word's text keeps the private code U+F0A3, so even a right glyph scores a miss at a line's edge. It's the drawing that matters. Also p9: its "建筑面积" / "工程造价" labels 3pt apart in ours, one line in Word's.
 
 ### Mac mode: _GB2312 faces by their font table's alternate — DONE (Mac 7bd18d8e, 2026-10-27, next commit)
@@ -6680,7 +9548,7 @@ the push in pagination), set out of caution; zh-4adfcce2's Mac case was T209's h
 condition stays. Done: same-base pairs, 756 docs, engine c34c8aa8eba, final Mac references: Mac zh-27a874b7 54.3 -> 65.2,
 nothing else moved; Windows nothing moved.
 
-### Mac: 仿宋_GB2312 with no alternate is YaHei 133 times, SimSun 16 — OPEN, nothing in the files separates them (Linux office1, 2026-10-27)
+### Mac: 仿宋_GB2312 with no alternate is YaHei 133 times, SimSun 16 — SOLVED by lab tsim2 (the last entry's family; see below) (Linux office1, 2026-10-27)
 Each from today's reprints, one document per freshly launched Mac Word (macos), so a real choice per document. Same in both
 groups: the entry's panose1 02010609030101010101, usb0/usb1 00000001/080E0000, charset 86, family (modern/auto/swiss/roman
 either way); compatibilityMode; the defaults' East Asian language and face; themeFontLang; the theme's minor ea ("") and Hans
@@ -6689,9 +9557,329 @@ or not. SimSun: zh-4c5da793 (26.0 in Mac mode, 21 pages for Word's 18), zh-6c447
 zh-c599aaa1, zh-d3d3f266, zh-e0268388, zh-13552a3a, zh-5450d509, zh-9ef811c8, zh-a917e13c, zh-abe7e063, zh-c10532da,
 zh-cbc2f113, zh-540dc149. A Mac lab swapping parts (as t209b) between zh-4c5da793 and a YaHei one would find it.
 
-### T225. Mac: a 方正 name takes its font table's alternate — CLAIMED (Linux office1, starling-office1-95, 2026-10-27, from the Mac triage)
+### T225. Mac: a 方正 name takes its font table's alternate — DONE (Linux office1, starling-office1-95, 2026-10-27, from the Mac triage)
 zh-2f9463d6's p12 title in 方正小标宋简体 (alternate 黑体) is SimHei in a fresh Mac Word's print, as in Word for Windows', where
 our Mac mode set every 方正 name in YaHei ("方正 names fall back", from the old prints) and the title stood 9pt low. As a69b98a8
 did for the _GB2312 names. On the 32 files whose 方正 entry names 黑体/宋体/楷体/仿宋/新宋体: Mac zh-2f9463d6 56.6 -> 99.9,
 zh-419ea527 72.5 -> 100, zh-23ee8575 87.5 -> 100, zh-8dc59b5b 79.5 -> 90.2, zh-6de512cb 97.7 -> 100, zh-625b6374 98.3 -> 98.9,
-none lower. Pair running.
+none lower. Done: same-base pairs, 756 docs, engine c34c8aa8eba, final Mac references: Mac those six, nothing lower; Windows
+nothing moved.
+
+
+### Mac mode: fake bold 1.95% and firstLineChars as drawn — DONE (Mac 7bd18d8e, 2026-10-27, ee76953c + next)
+Labs tkai2/tflc (macos printed): Word for Mac widens an emboldened face by 1.95% of each advance (KaiTi, FangSong, SimSun
+alike), and counts firstLineChars from the first character as drawn. Mac n13 -> n15: zh-e7bdb543 5.0 -> 97.5, six up
+0.3-1.3; Windows nothing. Landed past one drop by the 2026-10-27 policy (verified fix, two errors had cancelled):
+### Squeeze-capacity edge in Mac mode — OPEN (lab tsq asked of macos)
+Ours squeezes a mark to take one more character where Mac Word (mode 14) squeezes nothing:
+- zh-7b08d744 99.5 -> 71.6 (fell with the bold fix): p6 cell "（      ）年（    ）A", bold 宋体 10.5pt — ours squeezes "）"
+  10.67 -> 8.88 and takes "A"; Mac Word sets every glyph whole (its "（" 10.71, spaces 5.35) and wraps "A".
+- zh-8dc59b5b 79.4: p1 "…是指局本级管理范围内实" — ours squeezes the "，" to 8.3 (7.7 given) and takes "实"; Mac keeps it 15.5
+  and sends "实" down (half an em at 15.5pt is 7.75 — a sub-0.1pt edge, or a rule).
+- LEFT AS KNOWN EDGES (macos, 2026-10-27). Lab tsq (Mac Word, w:right steps): ours matches Mac's squeezes to 0.05pt
+  in 10 of 12; both misses are at r+0. zh-8dc59b5b's is the half-em limit with Mac's widths (need 7.79 > 7.75; ours 7.736
+  from the indent's twip rounding, 32.60 vs 32.65 — 0.0195 and 1/50 each fail one tflc variant). zh-7b08d744's cell
+  refuses 5.45 with 16 to give, which our mode-15 share test (need × (lineEms×(n−1)/n/64 + gaps) ≤ room × (width−x+hair))
+  reproduces — tried in Mac mode-14 cells, dropped: Mac n16 -> n17 zh-7b08d744 71.6 -> 99.5 but mean 97.8 -> 97.6,
+  zh-c399c91a 100 -> 17.8, zh-0a56c942 98.3 -> 69.0, zh-27fc8f9d 97.6 -> 76.0, zh-68a0ee2e 100 -> 89.1, zh-d35cbbdb
+  100 -> 93.0, zh-9c162f26 99.8 -> 92.1, zh-7fd860f9 96.5 -> 91.0 (applied to body text it also broke zh-7b08d744's p3).
+  The cell limit is not that one rule; start from these when taking the squeeze family next.
+
+### T226. Mac: a name Word lacks, no alternate, last table entry roman -> SimSun — DONE (Linux office1, starling-office1-95, 2026-10-27, lab tsim2)
+Lab tsim2 (Mac Word; macOS-doc built, macos printed), zh-4c5da793's fontTable alone edited: Word for Mac reads the LAST entry
+for a repeated name, and a name it lacks with no alternate is SimSun where that entry's w:family is roman, YaHei otherwise
+(7 for 7: only the roman entry SimSun, only the swiss YaHei, swapped YaHei, roman -> modern YaHei, the halves likewise; no
+宋体 entry needed). Our reader keeps the first entry (an East Asian one over charset 00); it now also notes the last one's
+family (FontEntry.lastFamily), read in Mac mode only. Spot: Mac zh-4c5da793 26.0 -> 85.3 (21 pages -> Word's 18),
+zh-c599aaa1 97.2 -> 100. Done: same-base pairs, 756 docs, c34c8aa8eba, final Mac references: Mac those two, nothing lower;
+Windows nothing moved. Closes the YaHei/SimSun split entry above.
+
+### zh-e0ca7252 (Mac 63.3, 613 missed from p22): a YaHei line Word does not squeeze — measured, lab asked (Linux office1, 2026-10-27)
+Reference confirmed by a fresh reprint (macos): body 標楷體 -> YaHei (no alternate, family script; tsim2's rule). Mode 15,
+compressPunctuation, justified, 14pt, ind left 1135 hanging 284. p22's "□1.依履約進度分期□查驗□審查（由機關於招標時載明），於最後一
+次…" ends at "一" in Mac Word's print, every ideograph 14.13 apart (the justify's spread), "（" and "，" whole at 14.14, "□" 9.26
+(0.661 em); ours squeezes "（" and "，" to 10.07 each, sets "□" 8.46 (0.604), and takes "期", and the pages after run early.
+Tried: "（" after an ideograph never gives — Word's prints have "（" between ideographs whole almost always (Mac YaHei 1,723 of
+1,834; Windows FangSong 1,473 of 1,519), but those are lines that needed no squeeze: the rule took 50+ documents down in both
+modes (zh-d68ac84a 99.9 -> 43.4 Windows, zh-db07d44e 98.6 -> 75.3). Reverted. Lab question: why this line takes no squeeze —
+the YaHei "□" at 0.661 em (its own width, not 0.604) may leave too much over for two halves, or Word may cap the squeeze per line.
+
+
+### zh-c2229d4a — DONE ded14d73 (Mac 42.6→100; Windows unchanged, Codex, 2026-10-27)
+Full paired results and narrower Word controls are in handoff item 3 above. Earlier measurement:
+p2 "第四条  政府投资资金应当投向市场不能有效配置资源的社" holds "社" in Mac Word's print; ours (and Word for Windows) end at "…资源的". The line is 3 SimHei + 2 Times spaces + 23 FangSong at 16pt in a 447.9pt column, under balanceSingleByteDoubleByteWidth. Windows sets each space about 8.6 (half an em and the stretch); the Mac print sets each 6.1 (16pt at 1.005: about 6.08 natural), so 27 ideographs and 2 spaces fit. Ours, balanced, needs 0.1pt more. Tried and dropped: Mac mode ignoring balanceSingleByteDoubleByteWidth altogether (Mac mean 96.96 -> 91.0, dozens of documents down), so Mac Word does balance elsewhere. Wanted from the Mac: the paragraph alone, with and without the two spaces, the "第四条" run in FangSong instead of SimHei, and with balanceSingleByteDoubleByteWidth removed, reading the spaces' advance. p6 on (22 misses a page) not looked at yet.
+
+### T227. YaHei's geometric shapes — DONE 76916cff (Codex, 2026-10-27)
+Full paired results are in handoff item 5 above; no drops in either mode. Original measurements:
+Word for Mac's msyh.ttc (regular = bold but √): □ 1336, ■ 1237, ○ 1237, ● 1336, ◇ ◆ △ 1229, ▲ 2027, ☆ 1686, ★ 1671, ※ 1724,
+√ 1437, ─ 1451, → ← 2048, ↑ ↓ 1024 (of 2048). Our YaHei table lacked □ (its fallback set it ■'s 0.604): zh-e0ca7252's p22
+"□1.依履約…" line now Word's to the hundredth (14.14 steps, no squeeze). Added □ ● ◇ ◆ ※ ← → ↑ ↓; ▲△★☆ left to SimSun (symbols).
+zh-e0ca7252 itself only 63.3 -> 63.4: its next line ("□3.履約標的…__日（") ends on a "（" in Word's print after two "，" at 13.42 —
+not yet understood. The metrics pair passed; the punctuation follow-up remains open.
+
+
+### Mac-mode residuals, round of 2026-10-29 — CLAIMED (Mac 7bd18d8e, routed by macos)
+- zh-e329b438 (Mac): Mac Word breaks "30" in a narrow cell, ours overflows; lead: Mac-mode digit widths for 標楷體 set in YaHei.
+- zh-167ee06c (Mac 90.2): ours squeezes eight spaces between ideographs in a cell to take a character, Word does not;
+  zh-799c91cd squeezes such spaces (a blanket rule took it 100 -> 98.8). Lab spec to separate them, printed by macos-ios.
+- Then the lowest unclaimed Mac-mode zh documents.
+- zh-167ee06c DONE (next commit, Mac 98.8): lab tbsp (macos-ios printed) — in Word for Mac balanced spaces between East
+  Asian text never give for a taken character; marks do (zh-799c91cd's "（" 1.58, "）" 1.58, "，" ~0.8 a side). Mac only:
+  OPEN for Windows — with the spaces giving nothing, ours takes zh-505b9619's p13 "…為3日）。" (13.15 over, four marks
+  room 35) that Word for Windows leaves (96.6 -> 55.4). Lab spec (Word for Windows, `windows`): zh-505b9619's p13
+  paragraph alone at w:right 0/+20/+40/-20 twips, with and without its three spaces after "，", and with "（未載明者
+  為8小時）" -> ideographs; read where the line ends and the marks' and spaces' advances.
+- zh-e329b438 (Mac 89.1, Windows 99.4) MEASURED, RELEASED: Mac Word breaks "30" in the label cell "接聽速度30分" (tcW
+  499, left line sz 12 = 1.5pt, column 28.08): its text centres between the left line's inner edge (58.08) and 84.72,
+  15.84 of room, where ours takes 17.28 and holds "30" (16.42). Taking every cell's own left line out of its text
+  (both modes) took the corpus 98.6 -> 92.2 (Mac) and 99.3 -> 93.0 (Windows) — 0.5pt lines don't do it. Wants a lab of
+  that cell with its left line at sz 4/8/12/24.
+- zh-e329b438 lab te32 (macos-ios printed, sz 0/4/8/12/24): a cell's left line grows outward from the gridline and never
+  moves the text; Mac Word's column is 26.64 (58.08-84.72) where our autofit makes it 28.1, widened to hold the unbreakable
+  "30". Wants autofit not to widen a column for a digit run Word breaks. Low value; released.
+- zh-e8d4c046 IGNORED in Mac mode (test/corpus/docx/word/IGNORE.txt, read by docx-line-match.py; word-win/ still scores
+  it): Mac Word writes a wrong ToUnicode for the embedded 仿宋_GB2312 subset, the drawing right; a fresh reprint is the
+  same (lab e8d4). Mac means are over 644 documents from here (n21 98.6 -> 98.8 with it out).
+- zh-d9b085b1 (Mac 15.9) mode-12 legacy-space pair FAILED, not landed: n21 -> n22 98.6 -> 96.5 (zh-d9b085b1 96.9, 100+
+  down), w94 -> w95 unchanged. The premise was wrong: Mac Word's "第N条" + two TNR spaces are 0.373 em each (6.00 at
+  16pt) on loose lines too — a narrower natural width, not a squeeze. Only where the run's eastAsia is an EMBEDDED
+  _GB2312 face (the same doc's 黑体 "第二章  " is 0.5; zh-7b5b3de2 and zh-32f4ad9f, both embedding, show 0.373; no
+  embedding doc does); Word for Windows prints 0.5. Lab esp (~/starling-word-check/lab/esp, 9 variants: embedding,
+  Latin face, East Asian face, balance, mode) out to macos-ios, each printed alone in a fresh Word, with a fresh
+  reprint of zh-d9b085b1 as control.
+  DONE (next commit, Mac only): lab esp — Mac Word sets a balanced space at 3/8 em (0.373) exactly when the run's East
+  Asian face is DRAWN from an embedded subset (A0 embedded 仿宋_GB2312, over Times, Arial or Courier New alike, mode 12 and
+  15); 1/2 em with the embedding stripped (A1, A8), under 宋体 (A4) or an embedded 黑体 (A5, drawn in the installed
+  SimHei); 1/4 em with balance off (A6). The fresh zh-d9b085b1 reprint matches its ref to 0.001pt. ded14d73's 3/8-em rule
+  required the subset to LACK U+0020; zh-d9b085b1's has one. Now RichResolvedFace.drawnFromSubset (set where an embedded
+  subset's covers are) decides. Pairs n23 -> n24 / w96 -> w97: Mac zh-d9b085b1 15.9 -> 100, zh-e68a2f57 95.6 -> 99.1,
+  nothing else moved; Windows nothing moved.
+- Lab cimac (Mac Word, plain unmerged row, lines 0.5-3pt, tbl/tc borders, tblInd -114): Word for Mac follows windows' ci
+  rule — the left line inside the table (outer edge at the indent), the grid from its middle, text the margin from each
+  line's middle on both sides, centred between the middles; all prints +0.12. te32's "between inner edges" is particular
+  to zh-e329b438's cell. So `cellin` can serve both modes.
+- PARKED as Mac-only (Windows-focus round, c007de10): zh-7eba7349 (Windows 100; the fresh solo Mac reprint matches the
+  ref, so page 2's line is ours), zh-e329b438 (Windows 99.4), zh-5c7787f5 (no layout gap: PDFKit groups Word's "3 " with
+  the next cell; 100/100 under PyMuPDF). zh-b0401810 released.
+- Windows-mode marks allowance: PARKED for want of a witness — zh-167ee06c and zh-799c91cd are 100 in Windows mode.
+  Lab p13's numbers above stand for when one turns up. (Since found, see zh-4e5fe46f below.)
+- zh-7eba7349 (Mac 80.8, Windows 100): page 2 stands a line low — the empty paragraph after p1's floating table
+  (tblpPr, vertAnchor text, tblpY 114) goes to page 2 in Mac mode only. Embeds six faces; re-check on a base past
+  e005aa8f before working it.
+
+### Windows-mode Word labs, round of 2026-10-29 — CLAIMED (Windows 01QbbApP, routed by macos)
+(1) Grid lab for zh-8d6f702e p38 and zh-5be7e156 p2, the one-twip question: how Word sums a gridded line's widths (labs twip/twip2 left it open).
+    Lab g2 (Windows 01QbbApP; zh-5be7e156's package, plain ideographs, cell 15.4 + cs/4096 on 8 charSpace sections, right indent
+    -10..+10 twips by 1). In mode 14 Word keeps the C-th character at the exact tie and drops it at +1 twip on every grid,
+    so the room is whole cells less the indents with no tolerance. In mode 15 nothing drops within ±10 twips: the column
+    is not rounded to cells. So twip2's one-twip gaps come from the marks and Latin on those lines, not from the cell sum.
+    q18 (task 2) found the limit: Word takes a line-end "）" while it hangs no more than half its grid advance (em + the
+    grid's addition): 7.874 at 16pt with cs -1032, 5.874 at 12pt, 7.756 at -2000, 8.0 at 0, 8.122 at +1000; off the grid
+    it is half the em. wip/grid-hang 625b141c: q18's labs a, d, e, f, h and i now agree at every step (j, cs > 0, is the
+    column's rounding to whole cells, apart); zh-015abfaf 169 -> 170/271 lines, its first miss now p10's "…开发|区)", which
+    Word refuses at ~6.8 against the new 7.874. That one is still not explained. Wants pairing in both modes.
+    PAIRED AND LANDED (Linux office1, 2026-10-29, on office f6c375ea2; validation engine, bundled fonts, 756 docs, same
+    checkout): no document moved in either mode (Windows mean 97.955, Mac 97.587, both sides). zh-015abfaf is 170/271 with
+    and without it on this head — the line it took is already taken here. Landed as is.
+(2) zh-015abfaf p10 "）": Word's hang limit [6.76, 6.86) against our half an em. Needs a second witness, another mark or size, before a rule (lab q17 follow-up).
+(3) Triage of the board's older Windows-mode "needs a lab" notes; stale ones closed.
+(4) Lab p13 (zh-505b9619 p13 "…為3日）。", macOS-doc's spec 608f742b) — MEASURED (Windows 01QbbApP). ~/starling-doc-check/lab/p13:
+the paragraph alone in its package, a `<w:br/>` after line 1's "單" so line 2 is always "線通車（未載明者為8小時），   日內全線
+通車（未載明者為3", w:right stepped by 4 or 8 twips, each variant in a fresh Word. Variants: a as is, s without the three
+spaces, k with "（…8小時）"'s brackets as "某", sk both, m every mark before "日）。" as "某", ms that without spaces. The room
+(margin less line 2's start, 133.22) at which Word first takes "日）。" (and leaves it 0.2–0.4 below):
+a 403.18, s 377.98, k 411.98, sk 386.38, m 416.98, ms 391.98. Nominal (ideograph 14, digit 7, space 7, autospace 3.5,
+mark a full em, "。" hanging) is 427 with spaces and 406 without. So the give is a 23.9, s 28.2, k 15.2, sk 19.8, m 10.2, ms 14.2:
+  - The last "）" before the hanging "。" gives 10.2 (m), and "。" hangs whole.
+  - "，" and the second "（" (both between ideographs) give 5.0 together (k − m), or 5.6 without spaces.
+  - The first "（" and the "）" against "，" give 8.7 (a − k).
+  - The spaces give nothing in any variant (printed 6.96–7.10 on every taken line).
+  - The four autospaces around "8" and "3" give ~1.0 each (4.0–4.6 in total) only when the line has no spaces; with spaces
+    they print at their full 3.4–3.5.
+  - The taken last line itself is laid out much tighter than the decision: "（" 7 (its blank half gone), "）" 3.6, "，" 10.7;
+    that leaves 13.7 of slack in a.
+  At w:right 0 the room is 399.78, 3.3 short of a's 403.18, so Word leaves p13 as its print shows. Ours (cd63f54b's rule:
+  spaces give nothing, marks give) counts 35 of mark room against 13.15 over. Word's four marks before "日" give about
+  13.7 here, so ours counts each mark's whole blank half where Word allows about 2.5–3.5 for a mark between ideographs.
+(5) Lab cellmid (lenovo-3's spec f2ea0813, zh-b0401810) — MEASURED (Windows 01QbbApP), sent to lenovo-3.
+~/starling-doc-check/lab/cellmid: 3 rows of exact 15.6, vAlign center, exact 12pt lines, SimSun 10.5 "148". Baseline below
+the middle of the row's top rule: (a) tblBorders sz 8 11.40; (b) the same as tcBorders 11.40; (c) sz 6 11.40;
+(d) no rules: 11.45 below the row top; (e) atLeast rows 11.88/11.88/12.00, the rows grow to 16.56 = 15.6 + the rule;
+(f) auto lines 12.12. Each row's top rule is drawn inside the row, from its top edge (+0.05 in the print). The text
+centres in [row top + top rule's width, row bottom]: half the rule over the cell, nothing for the rule under it, since
+that rule is the next row's top and the table's last bottom rule is drawn below the last row.
+(5b) cellmid g/h and cellmid2 (lenovo-3's follow-up), same package. Rules:
+  - A 2.25pt rule (sz 18) between exact rows lies wholly in the lower row (100.70-102.86 for a row top of 100.65) and moves
+    that row's text down 1.08 (half its width). This holds as tblBorders and as a tblHeader's own bottom rule over an sz 4
+    table. It answers T129's open question (zh-e1b09977's heavy header line): Word puts it all in the lower row.
+  - Plain body paragraphs, exact 12pt, SimSun 10.5: baseline 9.65 under the line top (not 13/16 = 9.75).
+  - Exact rows, no rules, auto lines: 11.69 under the row top.
+  - Exact 20pt rows: 13.61 (15.6 rows: 11.45). So the text centres as (row - line)/2 + 9.65; the offset scales with the room.
+  lenovo-3 has the numbers.
+(5c) Lab exline (lenovo-3's spec, Windows 01QbbApP), plain body paragraphs, jc left, spacing 0, three per case. On an exact
+  line the baseline is 4/5 of the line down, whatever the face or size: 0.8 x line + 0.05-0.08 (the print's 1/600in offset).
+  - SimSun 10.5/12/16: 9.65-9.68 in 12, 12.85-12.88 in 16, 16.05-16.08 in 20, 24.06-24.10 in 30.
+  - Times New Roman 12: 9.68 / 12.88 / 24.09. 仿宋 12 in 16: 12.90.
+  It is not 13/16 (9.75 / 13.0 / 24.375). zh-1563bd74's 24.4 (16pt in 30) is ~0.35 lower than SimSun 16's 24.06 here,
+  so something else in that document adds it. ~/starling-doc-check/lab/exline.
+  **LANDED 50a28cfa (Linux 01F2SWc8 lenovo-3, 2026-10-29, both modes, macos's call): exact line baseline 4/5, text and a
+  tall picture's drop.** Pair ex (756 docs, bundled fonts, base = joiner tip). Judged by a glyph measure, not the score
+  (each Word glyph matched to ours, |dx| < 3, |dy| < 4): 34 of 39 moved Windows documents get closer, e.g. zh-053f8706 mean
+  0.26 -> 0.10pt, zh-18cb2079 0.25 -> 0.09, zh-22b31377 0.27 -> 0.06, zh-f2835e26 0.32 -> 0.05. Gains: zh-f6886fbb
+  94.7 -> 100, zh-55087b5f 95.6 -> 100, zh-ec6158d0 +1.9, zh-27a874b7 +2.2, zh-d62da4dd +2.0, zh-1cfb652b +1.1 (Mac +3.4).
+  Score drops are mostly the matcher regrouping glyphs after 0.1-0.3pt shifts (zh-18cb2079 -0.2 with 1178 glyphs closer,
+  31 further). The +0.05 is NOT in the rule: text the change does not touch sits 0.03-0.17 above Word's print as well
+  (median, eight documents), so it is the print's page-wide offset, not the exact line's.
+  - UNCOVERED (1): measured worse, slightly: zh-d8247da5 0.08 -> 0.10 (score W 97.9 -> 93.6, M 100 -> 95.6),
+    zh-e8d4c046 0.06 -> 0.14 (W 100 -> 97.3), zh-007ca091 0.12 -> 0.13, zh-f2441f00 0.09 -> 0.11, zh-7fd860f9 0.11 -> 0.13.
+    The two forms are 10pt exact lines in vAlign-center cells, below the lab's 12-30pt range. Lab sent to windows (exact
+    10 / 10.5pt, plain paragraph and jc-center vAlign-center cell, SimSun and Times).
+  - UNCOVERED (2): zh-78d8bd98 p7's table rows (FangSong 12 names, TNR amounts) stood 0.37 high of Word with 13/16, 0.62 now
+    (W 99.3 -> 96.8, M -1.4). Its amount column now sits 2.40 under the names as in Word (was 2.50), the offset
+    zh-b0401810's number column lacked: the row placement itself is what is off.
+  - Also lower by 1.2-1.3: zh-11709c74 (both), zh-e7bdb543 W, zh-753cd6a8 M — too few glyphs to measure, the same regrouping.
+  - **Exline follow-ups, one item: [CLAIMED Linux 01F2SWc8 lenovo-3, 2026-10-29, routed by macos]** (1) the 10pt exact
+    lines in centred cells: zh-d8247da5, zh-e7bdb543, zh-e8d4c046, zh-11709c74 (with windows' 10/10.5pt lab when it lands);
+    (2) zh-78d8bd98 p7's rows (0.62 high) with zh-b0401810's number-column offset, probably one cause.
+(6) Lab p10 (zh-015abfaf p10 "17.手工嵌线技能竞赛<tab> 17 spaces （文登区开发|区）", Windows 01QbbApP; w:right -400..+400 by
+  2, ours on bin-hang alongside; ~/starling-doc-check/lab/p10). THE HANG RULE HOLDS. Word takes "区）" to w:right −2 and
+  "区" alone (no "）") to +156, so "）" hangs 7.85–7.90: grid-hang's 7.874. The "6.8" was the glyph's printed edge.
+  Changing "区" to "甲" or dropping the space run's eastAsia hint changes nothing. The residual is a SQUEEZE: on a line with
+  a tab, "（" right after Latin spaces gives nothing in Word, while ours gives its blank half (7.9) and takes 158 twips sooner.
+  - Same 158 for 12–17 spaces after the tab, and for a wider or narrower tab (± "17.", ± one ideograph before it).
+  - Word squeezes that "（" without the tab (17 and 18 spaces: we match), and after ideographs with the tab (8 ideographs,
+    1 space + 8, 8 spaces + 4 before "（": we match).
+  CANDIDATE wip/tab-opener 45d8c6d5 (on wip/grid-hang): on Word for Windows pages an opening mark directly after a space
+  gives nothing on a line a tab stands on. Every p10 variant now breaks as Word's print; zh-015abfaf 170 -> 271/271 lines,
+  16 pages, with both wips; the other four documents with such a line unchanged. For lenovo to pair after grid-hang.
+  PAIRED AND LANDED (Linux office1, 2026-10-29, against grid-hang on office; validation engine, bundled fonts, 756 docs):
+  Windows zh-015abfaf 62.7 -> 100.0 (16/16 pages), nothing else moved (mean 97.955 -> 98.004); Mac unchanged (97.674).
+(7) Lab lh (mixed-line heights, for lenovo-3's zh-7773163d / zh-0978dee9; Windows 01QbbApP; ~/starling-doc-check/lab/lh).
+  zh-0978dee9's package (mode 12, no grid): five lines per paragraph split by <w:br/> (E / E+L / L / L+E / E), plus each face
+  alone. Single spacing: a line is max(ascent) + max(descent) over its faces, per line, by Word's own split:
+  - SimSun and FangSong 1.008/0.288 em, Courier New 0.833/0.300, TNR ~0.936/0.222.
+  - A, SimSun 10 + Courier 10: steps 12.96/11.28/13.08/13.08 (mixed line 13.08, Courier alone 11.33).
+  - B, SimSun 16 + 17: 21.87/22.08/22.08/21.00.
+  - C, 仿宋_GB2312→FangSong 16 + TNR 16: 20.76/19.58/19.68/20.76.
+  At 1.5 lines (auto 360) a line is 1.5 x that, and the extra half goes wholly BELOW the baseline (descent = maxD + H/2):
+  A 19.44/17.88/18.72/19.56 against the model's 19.44/17.87/18.75/19.62; B and C within 0.1. The grid variant says nothing:
+  this package's Normal has snapToGrid 0.
+(8) Lab kp (zh-8628cfbe p13, Windows 01QbbApP; ~/starling-doc-check/lab/kp). What keeps p13's "，" whole is the room. Word takes
+  the final "，" while the line needs ≤ ~9.3 of squeeze (room 227.75) and sends it down from 227.55; the cell has 227.33.
+  Cell or body, overflowPunct, zh-TW/zh-CN, a digit after the first mark: all the same.
+  - Under kinsoku 0: the trailing "，" gives 6 (3 squeezed, 3 hung), and the marks before give 3.35/4.15/4.55/4.75/4.95 in
+    all for 1-5 marks. Under kinsoku 1 every mark gives its whole half.
+  - Ours (bin-opener2) breaks at Word's threshold in all nine variants run. p13 is the CELL's width: ours is 0.37 wider. -> (9)
+(9) Lab ci (zh-8628cfbe's table, mode 15; ~/starling-doc-check/lab/ci). Text keeps max(margin, half the line) from each line's
+  MIDDLE on both sides:
+  - 0.5 and 1.5pt lines alike, the table's insideV or the cells' own tcBorders; 3pt lines 1.50 at 1.4 margins.
+  - jc center centres between the line middles.
+  - The table's left edge line lies inside the table, its outer edge at the indent, so the grid starts half a line right of it
+    (0.72 for 1.5pt). Holds with tblInd -114 or 0 and with pct or dxa widths; a first column's own wider left line decides it
+    (zh-e329b438, lab k).
+  - Mac Word's lab cimac (macOS-doc) agrees. Ours set the grid on the indent and inset margin + half the left line / margin
+    - half the right one.
+  BUILT (cellin2, both modes): guard over 146 mode-15 table documents (Windows) 67673 -> 67765 matched lines,
+  zh-8628cfbe 1498 -> 1594/1605. To push as wip/cellin on tab-opener, for lenovo's 756 pair in both modes.
+  PAIRED AND LANDED (Linux office1, 2026-10-29, against tab-opener on office; validation engine, bundled fonts, 756 docs):
+  Windows zh-8628cfbe 93.3 -> 99.3, zh-ab9cbe66 96.7 -> 97.8, zh-b13d0fb4 99.7 -> 100, no drop (mean 98.006 -> 98.016);
+  Mac zh-8628cfbe 88.4 -> 94.3, zh-7a16a243 95.3 -> 96.3, zh-ab9cbe66 97.0 -> 98.1, zh-ae2dd08d +0.1, zh-b13d0fb4 -> 100,
+  no drop (mean 97.793 -> 97.804).
+(10) Labs for others (Windows 01QbbApP):
+  - dash (windows-2, zh-8d6f702e): an East Asian-hinted "—" after digits starts the next line ("…100" | "—150"). A Times
+    (hint default) "—" joins "100—150" whole. doNotUseEastAsianBreakRules changes nothing.
+  - dsh (windows-3, zh-22ecbdc8): "—5000" is one piece. It never breaks after the dash before digits, whatever the run split,
+    hint, doNotUseEastAsianBreakRules or useAltKinsoku. Before an ideograph ("—五千") it breaks after the dash.
+  - e5q/e5r/e5s (windows-3, zh-e5eb092a): Word decides a line with each character's w:spacing counted TWICE, 37 x (12 + 2s),
+    and lets a final "，" hang its whole advance. Thresholds: +0.2 446.4, +0.4 460.8, +0.8 ~490.1; "，" -> "甲" (no hang)
+    473.6 = 37 x 12.8 exactly.
+(11) More labs (Windows 01QbbApP):
+  - lc (macOS-doc, zh-4e5fe46f p9, legacy cell, mode 14). The squeeze to take "的" is about half an em IN ALL, whatever the
+    count of marks: two marks 4.7, one 4.6. The space gives nothing (removing it gains only its own width). Ours gives the same,
+    but its line is 1.8pt wider at every threshold: ideographs 9.275 vs Word's 9.24 (77 dots at 1/600in), the space 4.55 vs
+    4.32. jc both adds an unexplained refused window at -189..-163.
+  - tbi (macOS-doc, zh-b24b396a). A text box's first line is drawn AT its indent, even past the box, while the indent is short
+    of the box width less its left inset, and left out from there on (the rest wraps from line 2): the cell rule of ovi2.
+    Grouping doesn't change it (only the exact edge, by rounding). A vert270 box 11.9 x 7.8 draws "3" at its indent and never
+    the "0". Trap: zh-b24b396a's Normal has firstLineChars 200, which overrides a box paragraph's own w:firstLine.
+  - e5t (windows-3, zh-e5eb092a). Curly quotes "“ ”" and an opening "《" give nothing; a closing "》" gives up to about half an em.
+  - exl2 (lenovo-3). The exact-line baseline is 4/5 of the line at 10 and 10.5pt too, for SimSun, TNR and PMingLiU. In exact
+    vAlign-center cells the line plus its space before centres as a block: (row - line - before)/2 + before + 0.8 line.
+(12) zh-cb56e605's word-win reference replaced by a fresh solo print (a9d43428, user-approved via macos): its nbsp runs were
+  Ebrima (substitute trap), now Calibri; p5's lines after them 3.5pt lower. zh-c399c91a reprints identically, kept. The audit of
+  the 327 other missing-face references (word-win-missing-faces.txt, less db46d815's and today's) is RUNNING in chunks
+  between labs; the list of replaced references will follow here.
+(3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
+Windows-mode "needs a lab" notes against the tip:
+  - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
+    zh-b378d8c4 (parted row at least N, the 0.5pt `stated` term): 946/946. zh-c5b5087b (the 楷体-as-YaHei reprint): 202/202.
+    The 宋体 foot (lab footlab), zh-d35cbbdb (labs kai/round), zh-7eba7349/zh-20c1d74a (lab pf), the autoSpaceDN digits
+    (windows-1's follow-up) and zh-799c91cd's spaces (lab tbsp) were already answered by labs.
+  - PARTLY STALE: zh-1cfb652b's footer number (Mac 01Xgpbk5's 6pt-low note) now stands 0.13 from Word's (788.01 vs 788.14).
+    zh-884c6e3e's "5.85 low" was a measuring ARTEFACT (lenovo-2, glyph by glyph): "- 1 -" is at y 796.32 in both Word
+    prints and 796.27 in ours. Word's PDF also carries a lone 9pt space at 790.3 (the box's anchor paragraph), which a
+    line-grouping read merges with the left-margin number. Nothing to chase. zh-4f70ee2d has no number on p1.
+  - ANSWERED, NOT BUILT: T129's heavy line (zh-e1b09977 719/729, zh-5251dd23 549/557, zh-cec9d337 815/821), see 5b.
+  - OPEN: zh-b8de3ae2's 0-margin first column, right side (659/726; most misses are its charts, claimed by macos-ios).
+    zh-1cfb652b's 9 misses are T229's (topLinePunct, lenovo-2; done since, not in this base).
+
+### T229. `w:topLinePunct` on every line, not just the first — DONE (Linux lenovo-2 01BR2wHn, 2026-10-29, macos's Mac-mode round)
+zh-1cfb652b (Mac 90.9): its body paragraphs carry `w:topLinePunct` under `characterSpacingControl doNotCompress`. Both
+Word prints start a line that opens with "《" or "（" 8pt left of the margin (仿宋_GB2312 16pt: the mark's blank half) and
+take one more character: Mac p2/p12/p14/p15, Windows p14/p15 ("《云南省城市市容…第二十三条进", "（构）筑物…周边环").
+Ours squeezes only a paragraph's first line, and only under compressPunctuation (`_topLineSqueeze`, zh-2b955411).
+Was next: squeeze an opener at any line's start under `w:topLinePunct`, whatever characterSpacingControl says; pair both modes.
+DONE: under `w:topLinePunct` a line's opening mark gives its blank half when the line needs it (first line too where
+the settings do not compress — Word's p6 "（一）包秩序…乱刻画、" starts 8.5pt left and takes "画、", the short "（一） 高空抛物；"
+keeps its indent), and only it gives where nothing else is compressed. Word takes the half from the mark's left, the line
+starting left of the margin; the engine can set nothing before a line's first glyph (a space there is given back by
+the justifier, a joiner is folded into the mark, which then overlaps the next character), so ours spreads the half over
+the line's characters: the same characters per line, lines ending where Word's do, the line's start at the margin.
+Same-base pair, validation engine (ICU + both engine vars pinned, bundled fonts), 756 docs: Windows zh-1cfb652b
+98.3 -> 99.4, zh-55087b5f 95.6 -> 100, zh-053f8706 99.2 -> 99.5, mean 97.927 -> 97.935; Mac zh-1cfb652b 90.9 -> 91.7,
+zh-55087b5f 97.5 -> 100, zh-053f8706 99.2 -> 99.5, mean 97.557 -> 97.562; nothing lower in either. office-layout gate
+(native/browser on the validation skwasm, all Word controls incl. the 12 opener controls) passes.
+Left in zh-1cfb652b (Mac): the footer page number box ~6pt low on every page — Mac Word's print puts it where Word for
+Windows does (788.4 vs 788.1), so fc321def's Windows-only East Asian charset line holds for the Mac too. DONE as a follow-up (Linux lenovo-2): an embedded face with an East Asian
+charset (86/88/80/81) takes the 1.3x line in Mac mode as well. Pair on a fresh base (88320dd12): Mac 97.587 -> 97.590,
+zh-1cfb652b 91.7 -> 94.3, nothing else moved; Windows 97.948 unchanged, no document moved.
+
+### T230. zh-57f1de0d: 93.6 against word-win (p28-p33) — DONE (Linux office1, 2026-10-29, macos's Windows-mode round)
+First mismatch p27/p28: an embedded subset's own letters and digits are not the stand-in's half em — 方正仿宋_GBK sets
+"1" 0.645 em and "4" 0.539 in both Word prints (the subset's hmtx), and "1） 应建立…培训，" then has no room for "有".
+Then p28's paragraph-final "…良好互动；": Word sends "动；" down in this face, ours hangs the "；".
+Fix: an embedded face's own ASCII letter/digit advances (read from its hmtx) replace the stand-in's, in both modes;
+and in a face Word compresses nothing in, the paragraph's last mark never hangs (no trailing space needed).
+Pair (bundled fonts, same checkout): Windows 93.6 -> 99.1, Mac 94.4 -> 99.8; no other document moved in either mode
+(Windows mean 97.927 -> 97.934, Mac 97.557 -> 97.564). Remaining Windows misses p33, p35-37 (landscape tables) are
+matcher artifacts: positions agree within ~0.5pt, only the digit glyph boxes (stand-in vs SimSun) differ.
+
+### T231. zh-f6886fbb: 94.7 against word-win (p7-p8) — DONE (Linux office1, 2026-10-29, macos's Windows-mode round)
+p7's "3、“重要程度”…★★★…" (方正楷体简体 bold, eastAsia hint → YaHei Bold): Word steps "★" 9.83 at 12pt and sets
+"“"/"”" a full em with no autospace; ours steps "★" 12.05 and sets the quotes half-width in the Latin face plus
+~5.4 autospace each side. Re-measured: the quotes were right (full width; the "gap" is the em's blank), the stars were not.
+Fix: Word for Windows sets a bold run's stars and triangles in a face it lacks in YaHei Bold, not SimSun (every regular one in
+word-win is SimSun's); YaHei Bold's "★" is 1678/2048. Pair (bundled fonts, same checkout): Windows 94.7 -> 100.0, nothing else
+moved (mean 97.934 -> 97.941); Mac unchanged (97.564).
+
+### zh-e329b438 border lab te32 — BUILT, for macos-ios to print when free (Mac 7bd18d8e, 2026-10-29)
+~/starling-word-check/lab/te32/ (MANIFEST.txt): the label cell "接聽速度30分" with only its own left line changed — sz 4 (0.5pt,
+control), 8, 12 (original), 24, and none. Read whether "30" breaks, the "3"'s x and centre, and the column's rules.
+
+### Lowest Mac-mode zh, round of 2026-10-29 — CLAIMED (Mac 7bd18d8e, routed by starling-bd)
+zh-d9b085b1 15.9 (Windows 100), zh-5c7787f5 79.5 (was 100 on n3: a regression?), zh-7eba7349 80.8, zh-b0401810 85.7.
+Skipped: zh-e8d4c046 33.3 — its fresh Mac reference's text layer differs from the document (49% CJK against 91%, text
+similarity 0.57): a reference artefact.
+
+### T232. zh-64044a1d: 95.3 against word-win (p35-p37, 66 lines) — CLAIMED (Linux office1, 2026-10-29, macos's Windows-mode 95-97 band)
+Left after T214: p35-p37's run (24 + 29 + 13 missed lines) and singles on p10, p11, p14, p34, p53.
+Cause: p34's one-line keepLines "資料來源：本計畫整理。" went to p35 because its space after did not fit; Word keeps it at the foot.
+Fix pushed as wip/keeplines-foot e52785b35; Linux pre-pair (Windows mode, 756): zh-64044a1d 95.3 -> 99.7, nothing else moved.
+AWAITING windows-1's Windows-box confirmation.
+
+### T233. zh-f2835e26: 95.7 against word-win (p5 "创新发展") — CLAIMED (Linux office1, 2026-10-29, band 95.0-95.9)
+A turned (tbRlV) cell centred across, in a row that parts at p5's foot, is set 92pt down its cell: the parted row's centring
+shift (meant for upright cells) moves it too. Word sets it at its indent from the cell's top (96.65pt), as in a whole row.
+Also seen in the band, not layout gaps: zh-c4f2be3b (33 misses, one a page) is its turned footer page number, whose line box
+in Word's print runs 7pt past its glyphs (the matcher reads a turned line by its box); zh-d0a207ac's misses are Wingdings 2
+boxes, which Word's text layer names U+F0A3 (dropped) and ours U+2610.

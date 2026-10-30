@@ -82,6 +82,13 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// **Dart Source:** `text.dart:3165-3166`
   double GetHeight() const;
 
+  // The glyphs' ink in paragraph coordinates, without whitespace/leading.
+  // False for an empty paragraph or one containing only spaces.
+  bool GetGlyphInkBounds(double* left,
+                         double* top,
+                         double* right,
+                         double* bottom) const;
+
   /// The distance from the left edge of the leftmost glyph to the right edge
   /// of the rightmost glyph in the paragraph.
   ///

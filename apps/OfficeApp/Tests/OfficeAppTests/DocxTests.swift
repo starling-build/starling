@@ -1528,6 +1528,59 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(read.isLandscape)
     }
 
+    /// Fresh Word controls: odd/even starts use the continued page number,
+    /// count an inserted blank, and round a stated restart to the right side.
+    /// The section can begin with a table (zh-291fcea7), not just a paragraph.
+    func testOddAndEvenSectionStarts() throws {
+        let geometry = "<w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\"/>"
+        func check(_ kind: String, previousPages: Int = 1, previousStart: Int = 1,
+                   restart: Int? = nil, evenHeaders: Bool = false, table: Bool = false, pages: Int) throws {
+            var entries = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+            let index = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+            var body = "<w:p><w:r><w:t>FIRST</w:t></w:r></w:p>"
+            if previousPages == 2 { body += "<w:p><w:pPr><w:pageBreakBefore/></w:pPr><w:r><w:t>CONTINUED</w:t></w:r></w:p>" }
+            body += "<w:p><w:pPr><w:sectPr>\(geometry)<w:pgNumType w:start=\"\(previousStart)\"/></w:sectPr></w:pPr></w:p>"
+            let second = "<w:p><w:r><w:t>SECOND</w:t></w:r></w:p>"
+            body += table ? "<w:tbl><w:tblPr><w:tblpPr w:vertAnchor=\"page\" w:horzAnchor=\"margin\" w:tblpY=\"2000\" w:tblpX=\"0\"/><w:tblW w:type=\"dxa\" w:w=\"4000\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid><w:tr><w:tc>\(second)</w:tc></w:tr></w:tbl><w:p/>" : second
+            body += "<w:sectPr><w:type w:val=\"\(kind)\"/>\(geometry)"
+            if let restart { body += "<w:pgNumType w:start=\"\(restart)\"/>" }
+            body += "</w:sectPr>"
+            entries[index] = ZipEntry(name: "word/document.xml", data: Data("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(body)</w:body></w:document>".utf8))
+            let loaded = try DocxFormat.read(Zip.write(entries))
+            var doc = loaded.document
+            doc.evenAndOddHeaders = evenHeaders
+            let setup = try XCTUnwrap(loaded.pageSetup)
+            XCTAssertEqual(setup.sectionStartParity, kind == "oddPage" ? .odd : .even)
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = setup
+            layout.width = setup.width * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            XCTAssertEqual(layout.pageCount, pages, "\(kind), previous \(previousPages) from \(previousStart), restart \(String(describing: restart)), table \(table)")
+            guard layout.pageCount == pages else { return }
+            let secondIndex = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "SECOND" })
+            XCTAssertTrue(layout.pieces[pages - 1].contains { $0.paragraph == secondIndex })
+            if pages > previousPages + 1 { XCTAssertTrue(layout.pieces[previousPages].isEmpty) }
+            let back = try DocxFormat.read(DocxFormat.write(doc, pageSetup: setup))
+            XCTAssertEqual(back.pageSetup?.sectionStartParity, setup.sectionStartParity)
+        }
+        for table in [false, true] {
+            try check("oddPage", table: table, pages: 3)
+            try check("evenPage", table: table, pages: 2)
+            try check("oddPage", previousPages: 2, table: table, pages: 3)
+            try check("evenPage", previousPages: 2, table: table, pages: 4)
+            try check("oddPage", previousStart: 2, table: table, pages: 2)
+            try check("evenPage", previousStart: 2, table: table, pages: 3)
+            for restart in [1, 2] {
+                try check("oddPage", restart: restart, table: table, pages: 2)
+                try check("evenPage", restart: restart, table: table, pages: 2)
+            }
+        }
+        try check("oddPage", restart: 1, evenHeaders: true, pages: 3)
+        try check("evenPage", restart: 2, evenHeaders: true, pages: 2)
+    }
+
     func testNoPageBreakBeforeAfterAPageStartingSection() throws {
         // bug65649: a kept next-page section break followed by a table whose
         // first paragraph also said pageBreakBefore gave Word an empty page.
@@ -3504,7 +3557,9 @@ final class DocxTests: XCTestCase {
         // 25 characters of 14pt (12 here: 300pt) and "維" 5 over.
         XCTAssertGreaterThan(try firstLineWidth(text, width: 307, language: "zh-TW"), 306, "taken, the colon giving")
         XCTAssertLessThan(try firstLineWidth(text, width: 307, language: "x-none"), 301, "left: under no language the colon gives nothing")
-        XCTAssertGreaterThan(try firstLineWidth(text, width: 307, language: "en-US"), 306, "en-US gives as before: zh-c5b5087b")
+        // (Nor under en-US, now in Word for Mac as in Windows: zh-c5b5087b's
+        // print from a fresh Mac Word sets its en-US body's marks whole.)
+        XCTAssertLessThan(try firstLineWidth(text, width: 307, language: "en-US"), 301, "en-US gives nothing either: zh-c5b5087b")
     }
 
     func testAHintedDegreeSignInSongTiIsAnEm() throws {
@@ -4150,9 +4205,12 @@ final class DocxTests: XCTestCase {
             let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
             layout.width = 300
             layout.ensureLaidOut(back)
-            let lines = layout.geometry(0).painter.computeLineMetrics()
+            // (The lift is the paragraph's ink shift: its lines keep the
+            // strut, zh-7773163d's "●案例" headings.)
+            let geometry = layout.geometry(0)
+            let lines = geometry.painter.computeLineMetrics()
             XCTAssertGreaterThan(lines.count, 2)
-            return (lines[0].baseline / theme.pixelsPerPoint, (lines[1].baseline - lines[0].baseline) / theme.pixelsPerPoint)
+            return ((lines[0].baseline + geometry.inkShift) / theme.pixelsPerPoint, (lines[1].baseline - lines[0].baseline) / theme.pixelsPerPoint)
         }
         let plain = try baselines(numberSize: nil)
         let larger = try baselines(numberSize: 14)
@@ -4262,6 +4320,25 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [], "under East Asian layout, parted where it stands")
     }
 
+    func testATabSeparatesAnOverlongWordAfterAFullWidthMark() throws {
+        // The tab in zh-6a4fc013 Q5 belongs with its heading. Inserting a
+        // hard break before it stranded its held space on a blank line.
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        let label = "标题："
+        let word = String(repeating: "_", count: 80)
+        let tabbed = RichParagraph(text: label + "\t" + word)
+        var doc = RichDocument(paragraphs: [tabbed])
+        doc.usesEastAsianLayout = true
+        XCTAssertEqual(layout.wideWordStarts(tabbed, doc, textWidth: 300), [],
+                       "the tab is a boundary, not the start of the overlong word")
+        let joined = RichParagraph(text: label + word)
+        doc.paragraphs = [joined]
+        XCTAssertEqual(layout.wideWordStarts(joined, doc, textWidth: 300), [label.utf16.count],
+                       "without a tab the word still starts after the full-width mark")
+    }
+
     func testACellWordWiderThanTheLineOpensALineAfterASpace() throws {
         // zh-15f60bac's 282pt cell "…研究院(網址: http://www.tri.org.tw/page/
         // consumer.php)及…" ends its first line at "(網址: " in Word's print,
@@ -4317,6 +4394,31 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(box.paragraphs[1].style.indentRight, (4333875 - 1447800 - 1209675) / 12700 + 7.2, accuracy: 0.01)
         XCTAssertEqual(box.parts[1].top, (3952875 - 3209925) / 12700 + 3.6, accuracy: 0.01)
         XCTAssertEqual(box.insetLeft, 0)
+
+        // A warped first shape is drawn with the group, not again as a
+        // plain overlay. The remaining box still keeps its own place;
+        // an unsupported warp must leave both ordinary boxes intact.
+        for preset in ["textSlantDown", "textNoShape"] {
+            var changed = xml
+            let body = try XCTUnwrap(changed.range(of: "<wps:bodyPr anchor=\"t\"/>"))
+            changed.replaceSubrange(body, with: "<wps:bodyPr fromWordArt=\"1\"><a:prstTxWarp prst=\"\(preset)\"><a:avLst><a:gd name=\"adj\" fmla=\"val 28569\"/></a:avLst></a:prstTxWarp></wps:bodyPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(changed.utf8))
+            let loaded = try DocxFormat.read(Zip.write(entries))
+            let image = try XCTUnwrap(loaded.document.paragraphs.lazy.compactMap { $0.image ?? $0.inlineImages.values.first }.first)
+            let remaining = try XCTUnwrap(image.textBox)
+            if preset == "textSlantDown" {
+                XCTAssertEqual(remaining.paragraphs.map(\.text), ["Where some contain text"])
+                XCTAssertEqual(remaining.parts.count, 1)
+                XCTAssertEqual(remaining.paragraphs[0].style.indentLeft, 1447800 / 12700 + 7.2, accuracy: 0.01)
+                XCTAssertEqual(remaining.parts[0].top, (3952875 - 3209925) / 12700 + 3.6, accuracy: 0.01)
+            } else {
+                XCTAssertEqual(remaining.paragraphs.map(\.text), box.paragraphs.map(\.text))
+            }
+            let saved = try Zip.read(DocxFormat.write(loaded.document, pageSetup: .letter))
+            let markup = String(decoding: try XCTUnwrap(saved.first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+            XCTAssertTrue(markup.contains("prst=\"\(preset)\""))
+            XCTAssertTrue(markup.contains("A group of shapes"), "warped text remains editable in the saved file")
+        }
     }
 
     func testALineOfALonePictureIsAsTallAsItsText() throws {

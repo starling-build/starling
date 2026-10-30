@@ -64,6 +64,7 @@ final class Metafile {
     /// Text in a symbol face (Wingdings, Webdings, Symbol) as the Unicode
     /// glyphs it shows.
     static func symbols(_ text: String, face: String) -> String { Player.symbols(text, face: face) }
+    static func symbolAdvance(_ face: String?, _ glyph: Character) -> Double? { Player.symbolAdvance(face, glyph) }
 
     private enum Kind { case wmf, emf }
 
@@ -432,10 +433,24 @@ private struct Player {
     /// Text in a symbol face as the Unicode glyphs it shows: the bullets,
     /// boxes, ticks and arrows that metafiles draw with Wingdings and
     /// Webdings. A code this does not know stays as it is.
+    /// The advance, in ems, a symbol face gives the glyph `symbols` drew,
+    /// where the stand-in's is otherwise: Wingdings 2's boxes and ticks.
+    static func symbolAdvance(_ face: String?, _ glyph: Character) -> Double? {
+        guard face?.lowercased() == "wingdings 2" else { return nil }
+        // (Its box: 10.68pt at 12pt in Word for Windows' print of zh-d0a207ac.)
+        return ["☐": 0.89, "☑": 0.89, "☒": 0.89][glyph]
+    }
+
     static func symbols(_ text: String, face: String) -> String {
         let name = face.lowercased()
         let map: [Character: Character]
-        if name.hasPrefix("wingdings") {
+        if name == "wingdings 2" {
+            // (Wingdings 2's boxes, ticks and crosses: forms tick "£" and "R"
+            // — zh-d0a207ac's 双龙杯 / 钱江杯 / 鲁班杯 boxes.)
+            map = ["£": "☐", "R": "☑", "S": "☒", "T": "☒", "P": "✓", "O": "✗", "Q": "☒"]
+        } else if name == "wingdings 3" {
+            return text
+        } else if name.hasPrefix("wingdings") {
             map = ["l": "●", "m": "❍", "n": "■", "o": "□", "q": "❑", "r": "❒", "s": "⬧", "t": "⧫", "u": "◆", "v": "❖",
                    "w": "⬥", "§": "▪", "¨": "◻", "ü": "✓", "û": "✗", "þ": "☑", "ý": "☒", "Ø": "➢", "à": "→", "ß": "←",
                    "á": "↑", "â": "↓", "è": "➔", "ð": "⇨", "J": "☺", "L": "☹", "(": "☎", "*": "✉", "F": "☞", "E": "☜"]

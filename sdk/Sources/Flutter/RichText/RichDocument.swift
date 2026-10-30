@@ -82,6 +82,7 @@ public struct CharSwitches: OptionSet, Hashable, Codable, Sendable {
     public static let strikethrough = CharSwitches(rawValue: 8)
     public static let caps = CharSwitches(rawValue: 16)
     public static let smallCaps = CharSwitches(rawValue: 32)
+    public static let hidden = CharSwitches(rawValue: 64)
 }
 
 /// A shadow cast by a run's letters (PowerPoint's `a:outerShdw` on a
@@ -341,6 +342,10 @@ public struct RichTextBox: Hashable, Codable, Sendable {
     /// text says is Latin (`w:hint` "default") is then set as Latin when
     /// the box is fitted, where a VML box's is not.
     public var fitsAsDrawing = false
+    /// DrawingML's explicit `noAutofit`: the saved frame is fixed.
+    /// Used to retain an overflowing first-line indent at its stated
+    /// position and clip that corrected line to the frame.
+    public var hasFixedFrame = false
     /// The tables among `paragraphs` (their cells' `CellRef.table`), with
     /// their looks and grids: a table nested in a cell is read as a box
     /// of its own, laid out as a document is.
@@ -458,6 +463,10 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var alignment: ParagraphAlignment = .left
     public var indentLeft: Double = 0
     public var indentRight: Double = 0
+    /// Where a group's text boxes are set in one text (`RichTextBox.parts`),
+    /// the right inset of the box this paragraph stands in, in points —
+    /// its indents hold its box's place and both insets. nil elsewhere.
+    public var boxInsetRight: Double? = nil
     public var firstLineIndent: Double = 0
     /// Points. What the paragraph says, and what the layout draws: 0 is
     /// no space, not "the default" — a file's Heading 1 that says 0 after
