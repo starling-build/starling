@@ -4389,7 +4389,12 @@ public final class RichLayout {
                     if !below { partHeight = part }
                     for (n, e) in extent {
                         let d0 = _cells[columns[n].members[0]]!
-                        guard d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
+                        // (Not a turned cell, whose centring is across it:
+                        // zh-f2835e26's tbRlV "创 新 发 展", centred in a row
+                        // that parts at p5's foot, starts its indent under the
+                        // cell's top in Word for Windows' print, as in a row
+                        // whole; ours moved it 92pt down, past the foot.)
+                        guard !d0.vertical, d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
                         let free = part - (e.bottom - e.top)
                         let want = max(0, free) * (d0.verticalAlign == "center" ? 0.5 : 1)
                         shift[n] = want - (e.top - columns[n].cut)
