@@ -9789,3 +9789,6 @@ control), 8, 12 (original), 24, and none. Read whether "30" breaks, the "3"'s x 
 zh-d9b085b1 15.9 (Windows 100), zh-5c7787f5 79.5 (was 100 on n3: a regression?), zh-7eba7349 80.8, zh-b0401810 85.7.
 Skipped: zh-e8d4c046 33.3 — its fresh Mac reference's text layer differs from the document (49% CJK against 91%, text
 similarity 0.57): a reference artefact.
+
+### T232. zh-64044a1d: 95.3 against word-win (p35-p37, 66 lines) — CLAIMED (Linux office1, 2026-10-29, macos's Windows-mode 95-97 band)
+Left after T214: p35-p37's run (24 + 29 + 13 missed lines) and singles on p10, p11, p14, p34, p53.
