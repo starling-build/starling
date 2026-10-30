@@ -344,14 +344,12 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
 - zh-424775e4 97.6 — CLAIMED. p1 "…research on the " | "China-sponsored…" (Calibri 12): Word leaves "China-" for the next
   line though it fits by ~6pt; ours breaks after the hyphen. Other prints do break after a Latin hyphen. Lab hyc asked.
 - zh-cd48112c 97.7, zh-147bdae0: T181's line fit / long URLs — not taken.
-- zh-6a4fc013 66.9 (v2, the official list's lowest; Thai) — CLAIMED windows-3 2026-10-30, starling-bd's assignment, after the
-  pairs above: page-by-page causes on this box (Windows-host Thai), starting from windows' parked p18 (_hanJoins lead).
-  Tip (8ac9be91, bin t1): 412/616 (66.9). Misses: p18 9, then 21-26 on every page p19-p26 — p18's heading
-  "คำถามที่ 4 ： บทลงโทษ…เป็นเท็จ?" takes two lines in ours and every line after runs one late, so p18 is worth ~200 lines.
-  Cause found (not yet built): `_spacesToHold` holds the space after "：" (a wide character beside it) as a no-break space
-  + U+200B, and with the long joined Thai stretch (`_thaiJoins`) after it the engine wraps at any width. windows' real
-  U+200B after "：" helped only because the next character is then not wide, so that space is no longer held. Candidate:
-  where Thai breaks at spaces, a space run followed by Thai is not held. Next after the restart.
+- zh-6a4fc013 66.9 (v2, the official list's lowest; Thai) — DONE windows-3 2026-10-30: a334f282 (a Thai word measured by its
+  shaped width for "wider than the line": a forced U+2028 before the question's stretch, found by dumping the span; 66.9 ->
+  93.7, 412 -> 577 of 616 lines) and 5300479c (lab thq, reprinted alone: the Thai stretch's closing "?" hangs, a mark before
+  a tab gives nothing: 93.7 -> 97.6, 601 of 616, 27/27 pages). The only document in the corpus with Thai text, in any
+  package part, so nothing else can move. Left (15 lines): the "คำถามที่" headings' text layer (sara am), a long Thai line
+  broken mid-word 3 characters apart on p23, p10 one line ending a character early. windows' p18 residual (15)(17) was this.
 - State at the restart (2026-10-30 01:30): all candidates on wip/windows3-candidates (eb223831, one commit each on 8ac9be91):
   em-space (clean pair, to land after the tip rescore), combine-width (clean pair, same prints: only zh-c591c1fa 97.7 ->
   100), hyphen-join (pair interrupted 674/756, resumable), dash-digit, opener-autos, merge-row1 (tip builds frozen, pairs
