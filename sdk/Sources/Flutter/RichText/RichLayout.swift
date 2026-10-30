@@ -14629,11 +14629,26 @@ public final class RichLayout {
                 var run = p.runs[0].style
                 for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
                 let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
-                let word = String(decoding: units[k ..< end], as: UTF16.self)
-                let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
-                painter.layout(minWidth: 0, maxWidth: 1_000_000)
-                if painter.width > textWidth { out.formUnion((k + 1) ..< end) }
-                painter.dispose()
+                // (A word with hyphens parts after them first, as Word does:
+                // only a piece wider than the line is parted anywhere, where
+                // the line ends. LibreOffice's tdf170672 has a 40-letter
+                // "(…S-…g)" in a 189pt cell; Word sets "(OOSOOSSOOS-" on a
+                // line of its own and the rest under it, and ours cut it
+                // after 7 letters on the line before — a line short in
+                // the cell, and the rows of 48 pages a line off.)
+                var pieces: [Range<Int>] = []
+                var from = k
+                for o in (k + 1) ..< end where units[o - 1] == 0x2D && units[o] != 0x2D {
+                    pieces.append(from ..< o); from = o
+                }
+                pieces.append(from ..< end)
+                for piece in pieces {
+                    let word = String(decoding: units[piece], as: UTF16.self)
+                    let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
+                    painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                    if painter.width > textWidth { out.formUnion((piece.lowerBound + 1) ..< piece.upperBound) }
+                    painter.dispose()
+                }
             }
             k = end
         }
