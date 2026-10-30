@@ -699,7 +699,12 @@ items, reference defects, lab-pending items and iOS. Same pinning as §4.
   - p49's rest: Word sets item (5)'s final "。" ALONE on the next line, ours hangs it. Lab spm/spm2 (windows, 2026-10-29):
     with no compatibilityMode or mode 12, Word for Windows keeps no line-start rule for a closing mark (<w:kinsoku/>, the
     language, characterSpacingControl change nothing); from mode 14 on "作）。" goes down together. zh-f47b8a74 (our rule
-    "a closing mark after spaces may not start a line") is mode 14. Next for lenovo-3.
+    "a closing mark after spaces may not start a line") is mode 14.
+    TRIED AND DROPPED (lenovo-3, ~/tmp/word/closers-attempt.patch): a break before every closing mark in old-mode Windows
+    documents. zh-7773163d fell to 1255 misses: lines ended before "，" where it fits ("…之事項" | "，如有…"), since our fitter
+    squeezes a mark only while it is glued to the character before it. Word sends the mark down only when it cannot fit,
+    and never hangs it here (no mode, mode 12 or 14 alike), where ours hangs "。". Needs the fitter to carry a mark that does
+    not fit to the next line alone instead of the character before it, and the hang question answered first. Open, 5 lines.
   "●案例" heading (ListParagraph, 細明體_HKSCS 18pt, line 280 auto, its bullet level sz 40) sets lines 2+ 29.1pt
   apart where Word sets 27.3 (= 18 x 1.3 x 280/240). The larger number's rise box (`_risesForNumber`) drops
   the paragraph's strut for EVERY line, so lines 2+ take the engine's own fallback-face metrics — taller on
