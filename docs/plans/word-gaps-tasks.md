@@ -10138,7 +10138,14 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
     (fresh: 貳、 at 55.32, the space dropped; the old refs had 65.28), so T238's mode-15 rule can be re-paired. zh-15ecc2c6 and
     zh-c2c92639 also moved; 10 unchanged.
   - Left: 388 references (~/starling-doc-check/audit2/chunk-00..07, 50 each). chunk-00 has 2 printed, then it was stopped for
-    the session restart. Score impact of 3122c6d4 not measured yet (11 of 40 scored against the old refs).
+    the session restart.
+  - SCORE IMPACT of e9b689b8 + 3122c6d4 (v1 line match, bin-wae2 = office 29b627ef + wordart-wae, Windows mode, bundled
+    fonts, WITHOUT lenovo's page-break rule): the 40 replaced documents go from a mean 99.87 against the old references to
+    72.97 against the new ones (page counts unchanged). Worst: zh-c5f59397 100 -> 20.8, zh-25381d22 99.3 -> 31.2,
+    zh-4f883dce 100 -> 39.9, zh-84377537 and zh-bd71a808 100 -> 44.3, zh-3ab01d90 and zh-d18c892e 100 -> 56.9. Each is the
+    same cause: ours keeps 貳、's 10pt space before on the new page and every line below sits 10pt low. The rule (mode >= 15
+    drops it) is what restores them; lenovo measured its patch before the swap at zh-604e21e5 98.2 -> 100 and
+    zh-ae2dd08d 95.2 -> 98.3, so landing it should turn this 72.97 back to ~100. Do not read the 72.97 as a regression.
   - In pairing: wip/wordart-wae 98cb1490 (lab wae; WordWithAttachments 31 -> 38/38), windows-1 round 4.
   Labs since (18): bsw (lenovo-2: zh-6c447317's narrow balanced spaces come from the missing 仿宋_GB2312, state-dependent;
   bsp's paragraph is justified), spm3 S0-S8 (nothing moves zh-7773163d), eec/eef/eeg (windows-3: merged header rows), bkt
