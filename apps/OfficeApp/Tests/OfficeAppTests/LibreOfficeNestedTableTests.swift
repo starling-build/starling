@@ -55,6 +55,13 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         XCTAssertEqual(try top("p79") - top("Table4:A1 p1"), 184.0, accuracy: 0.6)
     }
 
+    /// A table placed against the page in the right margin, beside the letter-head table above it
+    /// and not under it: LibreOffice's tdf92157 keeps the address block on page 1 with the letter,
+    /// and the body after it on that page (six pages in Word's print, seven without).
+    func testPageAnchoredTableBesideAnotherStaysOnItsPage() throws {
+        XCTAssertEqual(try pages("lo-6a5857f20e8eda1e"), 6)
+    }
+
     /// One column in a normal table, floating in name only: parts between its rows.
     func testSplitFloatTableInNormalTableTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-1e0077c34b69d826"), 2)

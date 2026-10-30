@@ -4612,7 +4612,14 @@ public final class RichLayout {
             if let back = tableReturn, _cells[i]?.table != back.table {
                 tableReturn = nil
                 if back.page == page, y > back.top {
-                    tableBands.append((top: back.top, bottom: y, owner: -1))
+                    // (No band for a table wholly outside the text's width — in
+                    // the margin beside it: tdf92157's address block, 467.9pt
+                    // from the page's edge against a text area ending at 454.4,
+                    // leaves the letter's table at its place in Word's print.)
+                    let left = _tableLeft(back.table, document)
+                    let beside = theme.wordRules && (left >= (_tableFlowWidth[back.table] ?? width) - 0.01
+                        || left + (_columnWidths[back.table] ?? []).reduce(0, +) <= 0.01)
+                    if !beside { tableBands.append((top: back.top, bottom: y, owner: -1)) }
                     y = back.y
                 }
             }
@@ -4899,6 +4906,18 @@ public final class RichLayout {
                         // title row's text at 67 in Word's print; ours
                         // stood at the margin, 15pt low.)
                         y = target
+                    } else if theme.wordRules, target < -0.01, target > -insetTop, y > 0.01, deferredUnder.isEmpty, {
+                        // (A table wholly in the top margin, above where the text
+                        // begins, takes no room from it, wherever in the file it
+                        // stands: tdf92157's 22.5pt letter-head tag, placed 0.05pt
+                        // down the page, follows a paragraph and has the address
+                        // table under it 20pt higher in Word's print than ours.)
+                        var bottom = c.rowTop + c.ownRowHeight, k = i
+                        while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                        return target + (bottom - c.rowTop) <= 0.01
+                    }() {
+                        tableReturn = (c.table, y, page, target)
+                        y = target
                     } else if theme.wordRules, target >= 0, target < y - 0.01, deferredUnder.isEmpty, {
                         // (Not where the text it would take under it does not
                         // fit under its first row: the table stands at its
@@ -4930,8 +4949,18 @@ public final class RichLayout {
                         // 102pt down its page after a table whose "附記" rows end
                         // 201pt down page 21, heads page 22 in Word's print; ours
                         // set it on page 21 under those rows, 105pt low.)
-                        let rowsInTheWay = _pages[page].contains { $0.paragraph < i && _cells[$0.paragraph] != nil && !$0.repeated
-                            && _cells[$0.paragraph]?.table != c.table && $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 }
+                        // (Unless they stand clear of it across the page: tdf92157's
+                        // address block, placed against the page at the right
+                        // margin, is beside the 375pt letter-head table above,
+                        // and Word's print has it on page 1 at its offset.)
+                        let myLeft = _tableLeft(c.table, document)
+                        let myRight = myLeft + (_columnWidths[c.table] ?? []).reduce(0, +)
+                        let rowsInTheWay = _pages[page].contains {
+                            guard $0.paragraph < i, let other = _cells[$0.paragraph], !$0.repeated, other.table != c.table,
+                                  $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 else { return false }
+                            let l = _tableLeft(other.table, document)
+                            return l < myRight - 0.01 && myLeft < l + (_columnWidths[other.table] ?? []).reduce(0, +) - 0.01
+                        }
                         return rowsInTheWay || target + c.ownRowHeight + line + under > contentH + 0.01
                     }() {
                         newPage()
@@ -4954,6 +4983,13 @@ public final class RichLayout {
                             deferredUnder = moved
                             deferredTable = c.table
                             reordered = true
+                            y = target
+                        } else if let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] != nil, !last.repeated,
+                                  _cells[last.paragraph]?.table != c.table {
+                            // (Beside the rows above, not over them — see above: it
+                            // stands at its offset and the flow goes on from where
+                            // it stood.)
+                            tableReturn = (c.table, y, page, target)
                             y = target
                         }
                     }
