@@ -4088,7 +4088,12 @@ enum DocxFormat {
                         box.parts = [RichTextBox.Part(first: 0, top: place.top, height: max(0, place.bottom - place.top), atFoot: false)]
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
                     } else if let textbox = node.descendant("v:textbox"), let inset = textbox["inset"] {
-                        let shapeStyle = (node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? ""
+                        // (A `v:rect` as well as a `v:shape`: zh-e02b0479's footer page
+                        // number is a 144pt rect, centred, wrap none and fitted to its
+                        // text, which Word for Windows centres as the "1" alone; ours
+                        // centred the 144pt and set the "1" at its left, 72pt off.)
+                        let shapeStyle = (node.name == "v:shape" || node.name == "v:rect" ? node
+                            : node.descendant("v:shape") ?? node.descendant("v:rect"))?["style"] ?? ""
                         box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")
                             && (textbox["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
                         box.fitsOnce = box.fitsText   // (lab `vf`: sized once, as DrawingML's)
