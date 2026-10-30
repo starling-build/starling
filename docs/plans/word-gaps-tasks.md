@@ -25,6 +25,11 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
 - Pick work from that list. A Linux or Mac session may develop and pre-pair on its own host, but before landing it
   pushes a wip branch and asks windows-1 for a Windows-box confirmation (candidate vs the rolling base, Windows mode):
   no document may drop there (the cancelling-errors exception still applies, logged).
+- NEVER STOP PROCESSES BY NAME (starling-bd, 2026-10-30). Three sessions share each machine and its user account, so
+  `pkill -f sweep`, `pkill -x swift-build` and `pkill -f "swift-build ... apps/OfficeApp"` each killed or could have killed
+  other sessions' builds and sweeps (three times on 2026-10-29/30). Stop only your own work: record the PID when you start a
+  job (`$!`, or the PID file your script writes) and `kill <pid>`; on Windows `Stop-Process -Id`. If you did kill by name,
+  tell every session on that machine at once.
 - NO MAC WORD (the user, 2026-10-29): do not sweep or score against Mac Word's prints (test/corpus/docx/word) any more,
   and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
   that says "both modes" now means Windows mode.
