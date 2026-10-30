@@ -974,6 +974,24 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.textDirection), [.up, .down, .horizontal])
     }
 
+    /// A section's line numbers (`w:lnNumType`) and vertical page alignment
+    /// (`w:vAlign`) are read into its page setup.
+    func testLineNumbersAndPageAlignmentAreReadFromTheSection() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let end = try XCTUnwrap(xml.range(of: "</w:sectPr>", options: .backwards))
+        xml.replaceSubrange(end, with: "<w:vAlign w:val=\"center\"/><w:lnNumType w:countBy=\"5\" w:start=\"3\" w:distance=\"283\" w:restart=\"continuous\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let setup = try XCTUnwrap(DocxFormat.read(try Zip.write(entries)).pageSetup)
+        XCTAssertEqual(setup.verticalAlign, "center")
+        let numbering = try XCTUnwrap(setup.lineNumbers)
+        XCTAssertEqual(numbering.countBy, 5)
+        XCTAssertEqual(numbering.start, 3)
+        XCTAssertEqual(try XCTUnwrap(numbering.distance), 14.15, accuracy: 0.01)
+        XCTAssertEqual(numbering.restart, .continuous)
+    }
+
     func testADisplayEquationWiderThanItsLineBreaksBeforeItsOperators() throws {
         // zh-db07d44e's cell "實績值=(…/…×1/3+…/…×1/3+…/…×1/3)×100%" is four
         // lines in Word's print, parted before "×" and "+" inside its
