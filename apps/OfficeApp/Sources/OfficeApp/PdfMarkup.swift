@@ -158,7 +158,11 @@ struct PdfMarkup {
                     out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Moved (insertion)", paragraphs: [""],
                                     author: run.style.revision?.author ?? ""))
                 }
-                if run.length > 0 { inMove = moved }
+                // (An insertion inside the moved range does not end it: Word
+                // gives "Moved (insertion) [1]" once for tdf104797's "Will this
+                // sentence be duplicated" and "?" with " ADDED STUFF" between.)
+                let inserted = run.length > 0 && !moved && run.style.revision?.kind == .inserted && run.style.revision?.moved != true
+                if run.length > 0, !inserted { inMove = moved }
             }
         }
         return out

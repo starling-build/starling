@@ -3591,9 +3591,16 @@ enum DocxFormat {
             _paragraphProps(pPr, into: &style, direct: true)
             if let g = pPr.first("w:snapToGrid") { style.ownGridOff = _isOff(g) }
             style.indentLeft += indent
-            if let rPr = pPr.first("w:rPr"), let rev = rPr.first("w:del") ?? rPr.first("w:ins") {
-                style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,
-                                                  author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
+            // (A moved paragraph's mark too: `w:moveFrom` is a deleted mark and
+            // `w:moveTo` an inserted one, a move's two ends. LibreOffice's
+            // tdf104797: the moved-from paragraph is gone from Word's print with
+            // markup and its balloon ends "…duplicated?¶"; ours kept it as an
+            // empty line and the body stood 17pt low.)
+            if let rPr = pPr.first("w:rPr"),
+               let rev = rPr.first("w:del") ?? rPr.first("w:moveFrom") ?? rPr.first("w:ins") ?? rPr.first("w:moveTo") {
+                let to = rev.name == "w:ins" || rev.name == "w:moveTo"
+                style.markRevision = RevisionMark(kind: to ? .inserted : .deleted, author: rev["w:author"] ?? "", date: rev["w:date"] ?? "",
+                                                  moved: rev.name.hasPrefix("w:move"))
             }
             if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
             if markStyle?.hidden == true { style.markHidden = true }
