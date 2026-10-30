@@ -9869,7 +9869,11 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) 
+                            // (Not inside Han text joined after a space, `_hanJoins`:
+                            // the fitter keeps that one piece, and a break the
+                            // engine takes there sets every later line apart from it.)
+                            || (lineRulesOff && !hanJoins.contains(offset) && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (And end one with an opening mark, where it is
                             // `w:kinsoku` 0 that turns them off in text of an
                             // East Asian language: zh-72da925e (zh-TW) ends

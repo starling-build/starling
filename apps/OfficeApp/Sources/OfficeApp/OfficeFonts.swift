@@ -2690,6 +2690,13 @@ enum OfficeFonts {
                 face.otherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
                 face.boldOtherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
             }
+            // (細明體_HKSCS's "§" is half an em, as a Latin one: all 43 of
+            // zh-7773163d's in Word for Windows' print, "（§9後段）" 9.0 at
+            // 18pt, where ours set it an em and the line's "）" went down.)
+            if family.lowercased().containsSubstring("hkscs"), face.otherAdvances?[0xA7] == nil {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging([0xA7: 0.5]) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0xA7: 0.5]) { $1 }
+            }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
             // eastAsia — is 10.50 at 10.5pt in its print of zh-cd8987db,
