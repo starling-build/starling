@@ -9828,6 +9828,14 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). Both built; v2 pre-pair running.
 
 
+### zh-9bcea239 (96.3) and zh-b24b396a (92.9): the remaining misses are CLIPPED glyphs, not layout — MEASURED, released (Mac 7bd18d8e, 2026-10-30)
+The first-character-past-its-cell rule (cf2997f8, 81d9f7bc) is right to the eye, but Word's PDF still carries the hidden word: the score cells
+("4", "6", "3", "2" — tcW 389, firstLine 632, jc center) and the "5" ending "…管理等5" are glyphs at their indent (x214 on p11),
+clipped by the cell (v2 reads clipped glyphs, as v1 did), so they score as lines Word has and ours lacks (ours hides the word: size 0.01,
+opacity 0). zh-9bcea239 436/423 lines, zh-b24b396a 394/373 (its p13 turned "30" glyphs, same family). To match the scorer one would
+keep the word as a full-size transparent glyph at the indent taking no room — a layout/paint change with only these two witnesses;
+not built. zh-b24b396a's p12 "（全宗名称）" (rot 302 box in a group) draws the same as Word's; only the reader's x/y of rotated glyphs differ.
+
 ### T240. zh-b5359de4 p12: a plain space beside East Asian text gives a fifth, not a quarter — CLAIMED (Mac 7bd18d8e, 2026-10-30, baseline #1 96.7)
 p12's left column "…宜选用 LED 灯或高压钠灯，并采用时间控制方式；" (mode 15, doNotCompress, justified, 12pt 宋体, ind right 85): Word wraps "式；"
 — the two spaces around LED would have to give 1.38 of 6 each; ours squeezes them to 4.62 (a quarter allowed: 1.5) and hangs "；".
