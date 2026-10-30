@@ -9700,6 +9700,10 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
     - half the right one.
   BUILT (cellin2, both modes): guard over 146 mode-15 table documents (Windows) 67673 -> 67765 matched lines,
   zh-8628cfbe 1498 -> 1594/1605. To push as wip/cellin on tab-opener, for lenovo's 756 pair in both modes.
+  PAIRED AND LANDED (Linux office1, 2026-10-29, against tab-opener on office; validation engine, bundled fonts, 756 docs):
+  Windows zh-8628cfbe 93.3 -> 99.3, zh-ab9cbe66 96.7 -> 97.8, zh-b13d0fb4 99.7 -> 100, no drop (mean 98.006 -> 98.016);
+  Mac zh-8628cfbe 88.4 -> 94.3, zh-7a16a243 95.3 -> 96.3, zh-ab9cbe66 97.0 -> 98.1, zh-ae2dd08d +0.1, zh-b13d0fb4 -> 100,
+  no drop (mean 97.793 -> 97.804).
 (10) Labs for others (Windows 01QbbApP):
   - dash (windows-2, zh-8d6f702e): an East Asian-hinted "—" after digits starts the next line ("…100" | "—150"). A Times
     (hint default) "—" joins "100—150" whole. doNotUseEastAsianBreakRules changes nothing.
