@@ -11127,3 +11127,9 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
   inside a `Requires="wpg"` Choice), fdo76098's bullet lines and DATE field (windows-3's: Word prints today's date, 30/10/26, where ours keeps the cached 3/13/14).
   DUPLICATE, lesson: starling-bd routed the charts-in-groups work to me while lenovo had it built; I read the board and wip branches first (nothing was there yet: lenovo's branch was local). Ask the owner before
   building a rerouted item.
+  CHART CLASS, WITNESSES AND CONFIDENCE (macos-ios, 2026-10-30): general, many witnesses — the `word` profile of a 2013-style chart in a Word document (plot 2.5pt left with its labels kept, 2.1 from the
+  right, foot 4.4 lower and its labels 1.9 nearer; the plot's left, right and bottom edges within 0.2pt of Word's over ten LO charts), the 80% wrap of a chart title and its axis titles (Word's own text in
+  lo-948cd424), the 15pt tick spacing (33 charts' ticks, closest 15.8), General-format ticks keeping their decimals, area labels mid-area (three documents), the 5/6 zero rule at >= (one document at exactly
+  5/6 plus the existing ones). SINGLE WITNESS, fitted from one document, trust less and re-check on the next LO batch: the 18% wrap and the +3pt past the block of a rot=0 value-axis title
+  (lo-6b6ece9c), the 10pt default title (fdo76098 and fdo78474 agree on the size; the baseline offset holds only for fdo76098), the ", " data-label separator (lo-f9b9a8fc, geometry only, score unchanged),
+  the foot's 4.4/1.9 not applying under a bottom legend or axis title (tdf130969 says legends, lo-948cd424 axis titles; nothing says what a LEGEND AT THE RIGHT does to the foot).
