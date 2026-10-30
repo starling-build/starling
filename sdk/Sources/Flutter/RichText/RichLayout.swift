@@ -2639,7 +2639,7 @@ public final class RichLayout {
                                 // lays out, not the 1pt its object says: LibreOffice's
                                 // tdf170477, a 3547-twip row with a floating table down to
                                 // 184.0pt, is 184.0 in Word's print and was 178.4 here.)
-                                if image.textBox?.growsToFit == true, k < _imageSize.count, let size = _imageSize[k] {
+                                if image.textBox?.growsToFit == true, f.againstText, k < _imageSize.count, let size = _imageSize[k] {
                                     h = size.height + _px(image.effectBottom + f.distanceBottom)
                                 }
                                 let top: Double

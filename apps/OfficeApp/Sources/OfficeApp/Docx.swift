@@ -1081,6 +1081,7 @@ enum DocxFormat {
                     if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
                     f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
                     f.wraps = true
+                    f.againstText = pos["w:vertAnchor"] == "text"
                     // (One that floats only in name — against the text, from the
                     // column's edge, a twip or so under its paragraph's top —
                     // stands where it is set, an inline block shifted by its x:
