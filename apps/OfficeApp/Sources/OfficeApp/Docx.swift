@@ -1029,6 +1029,16 @@ enum DocxFormat {
             // numbering and indents for both; ours set two, and page 2 ran
             // a line long.)
             if let i = joinInto, i == paragraphs.count - 1, paragraphs[i].cell == p.cell, p.image == nil, paragraphs[i].image == nil {
+                // (A plain hidden mark, no style separator: the joined paragraph
+                // is set as the second is — merge_hidden_redline's centred "abc"
+                // and the left "def" print as one line set left in Word's.)
+                // (Its alignment only: zh-621d8756's hidden mark and the empty
+                // paragraph after it differ in line spacing, where the first's
+                // stands.)
+                if !paragraphs[i].style.markSpecVanish, !p.style.markHidden, paragraphs[i].style.alignment != p.style.alignment {
+                    RuleTrace.hit("hidden-mark-joins-second")
+                    paragraphs[i].style.alignment = p.style.alignment
+                }
                 paragraphs[i].text += p.text
                 paragraphs[i].runs += p.runs
                 paragraphs[i].bookmarks += p.bookmarks
@@ -3580,12 +3590,17 @@ enum DocxFormat {
         var minor: String?
         var majorEastAsia: String?
         var minorEastAsia: String?
+        /// The complex-script face: the theme's `a:cs`, else its Arabic one
+        /// (merge_hidden_redline's `asciiTheme="minorBidi"` is Arial in
+        /// Word's print, where ours took Normal's Calibri).
+        var majorBidi: String?
+        var minorBidi: String?
         var isEmpty: Bool { major == nil && minor == nil && majorEastAsia == nil && minorEastAsia == nil }
         /// The face a reference (`minorHAnsi`, `majorEastAsia`, …) names.
         func face(_ ref: String) -> String? {
             let major = ref.hasPrefix("major")
             if ref.hasSuffix("EastAsia") { return major ? majorEastAsia : minorEastAsia }
-            if ref.hasSuffix("Bidi") { return nil }
+            if ref.hasSuffix("Bidi") { return major ? majorBidi : minorBidi }
             return major ? self.major : minor
         }
     }
@@ -3613,8 +3628,15 @@ enum DocxFormat {
             let f = font.all("a:font").first { $0["script"] == script }?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }
+        func complex(_ name: String) -> String? {
+            guard let font = scheme.first(name) else { return nil }
+            if let f = font.first("a:cs")?["typeface"], !f.isEmpty { return f }
+            let f = font.all("a:font").first { $0["script"] == "Arab" }?["typeface"] ?? ""
+            return f.isEmpty ? nil : f
+        }
         return ThemeFonts(major: latin("a:majorFont"), minor: latin("a:minorFont"),
-                          majorEastAsia: eastAsian("a:majorFont"), minorEastAsia: eastAsian("a:minorFont"))
+                          majorEastAsia: eastAsian("a:majorFont"), minorEastAsia: eastAsian("a:minorFont"),
+                          majorBidi: complex("a:majorFont"), minorBidi: complex("a:minorFont"))
     }
 
     /// Rewrites every `w:rFonts` under `node` whose ascii/hAnsi face is a
@@ -3736,6 +3758,7 @@ enum DocxFormat {
             }
             if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
             if markStyle?.hidden == true { style.markHidden = true }
+            if style.markHidden, pPr.first("w:rPr")?.first("w:specVanish") != nil { style.markSpecVanish = true }
             style.mark = markStyle
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").

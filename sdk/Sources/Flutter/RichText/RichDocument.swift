@@ -549,6 +549,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// included; without the mark's flag the line stays, empty, with its
     /// rules (bug59058's "Bottom of Form" paragraphs).
     public var markHidden = false
+    /// That hidden mark is a style separator (`w:specVanish` too): the
+    /// paragraph it runs on into keeps the first's properties; a plain
+    /// hidden mark leaves the joined paragraph the second's.
+    public var markSpecVanish = false
     /// The paragraph's own properties, not its style's, turn the
     /// document grid off (`w:snapToGrid` 0 on its `w:pPr`): Word then
     /// keeps its Latin text on the character grid all the same.
