@@ -9201,6 +9201,9 @@ Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two ma
 - Pairs on 608df332 (w97 -> w99, n24 -> n26, the space and box rules together): Windows zh-8f9b19f4 97.4 -> 98.7,
   zh-b24b396a 93.6 -> 94.2, zh-7773163d 97.2 -> 97.5, zh-b8de3ae2 91.6 -> 91.9; Mac zh-a7a889eb 97.0 -> 98.9,
   zh-8f9b19f4 95.5 -> 96.2, zh-b8de3ae2 81.2 -> 82.1, zh-13d11e99 99.5 -> 100; nothing lower in either.
+- zh-e51c31a7 (w99 95.9) CLAIMED by Mac 7bd18d8e (Windows-focus round): p5's text box 外框1 (511 x 395pt, wrapSquare, 14.35pt
+  under its anchor "治理主題應用模組版本…", 12.75pt left of the margin — wider than the column) holds the application form; Word
+  sets the next paragraph "以下欄位由交通部填寫" and its table under the box (y557), ours under the box's top (y159), drawn over.
 
 ### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
 zh-9bcea239 (92.7) p11: the score cells (tcW 389 = 19.45pt, firstLine 632 = 31.6pt, jc center, vAlign center, HTML autospacing)
