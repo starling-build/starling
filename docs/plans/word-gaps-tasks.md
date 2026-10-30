@@ -9567,7 +9567,8 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   under its title has its top past the 757 foot; Word sets its first row on p18 at 760.8-792.0 (over the footer) and the rest on
   p19; ours takes it all to p19. Sent to lenovo-2 as a witness for T222.
 - zh-e51c31a7 (95.9): p5's form tail (dashed separators, "收件日期 年 月 日…", check-box rows) a few points off.
-  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, macos's Windows-mode round: not a few points — the whole application
+  RELEASED by Linux lenovo-2 (starling-d6) to macOS-doc's b4d252cf (its claim, starling-bd's ruling); lenovo-2's
+  wip/e51-float-line (the grid-step branch) is to be re-checked on top of it. Was: not a few points — the whole application
   form is one text box ("外框1", 511.5 x 395.5pt, wrapSquare bothSides, from the margin -12.75), and Word sets the
   "以下欄位由交通部填寫" paragraph and its table under it; ours runs them under the box from the page's top.
 - zh-77079ee8 (96.5): p5's organisation chart (EAP 推動小組 / 工作圈 / 服務組 text boxes) placed differently.
@@ -9576,7 +9577,13 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   its XML for the save and draws nothing, so all its text is missing from ours. Plan: read the dsp:drawing part as a
   group (WriterGroups for the shapes, its a:p text as the group's text-box parts). Witnesses: zh-77079ee8 96.5,
   zh-bdae17c0 98.6, zh-06c46ba9 99.1 (the corpus's only three).
-  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, Windows mode (misses p1:8 p2:1 p3:6 p5:7).
+  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29 19:21, Windows mode (misses p1:8 p2:1 p3:6 p5:7). BUILT as planned
+  above, on wip/smartart-77079ee8 (dsp:drawing read as a wpg group, text boxes at dsp:txXfrm, anchor="ctr" group parts
+  centred): Windows-mode single-doc zh-77079ee8 96.5 -> 99.1, zh-bdae17c0 98.8 -> 99.0, zh-06c46ba9 99.2 -> 99.3; full
+  pre-pair running, then windows-1. p1's 8 misses are the scorer (trailing space glyphs; lenovo-3's v2 matcher).
+- zh-6c447317 (98.6, word-win): p16 and p20 first lines one ideograph short. CLAIMED Linux lenovo-2 (starling-d6),
+  2026-10-29: balanceSingleByteDoubleByteWidth, and "第二十七条" + 2 spaces in bold Times New Roman — Word for Windows
+  keeps Times' 4pt spaces (justified to 6.9) and "保" ends the line; ours made them half an em (8).
 
 
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-27, office1's witness)
