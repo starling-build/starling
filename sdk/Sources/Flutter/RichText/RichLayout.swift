@@ -8201,7 +8201,29 @@ public final class RichLayout {
         // under Word's.)
         let scriptsOnly = painter.strutStyle == nil && p.inlineImages.isEmpty && p.runs.contains { $0.style.script != .normal }
             && Set(painter.computeLineMetrics().map { ($0.height * 100).rounded() }).count == 1
-        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly,
+        // (… nor does one whose runs differ in size, which has no strut
+        // either: zh-31d580df's "(2)人員配置：…" — 10.5pt text and a 12pt
+        // "（★參考撰寫說明2、3）" at the end, 1.25 lines — stood its first
+        // line 5pt under Word's print.)
+        // (Only where its first line is of one size and a later run differs:
+        // a title whose first line mixes sizes — zh-454e2e29's 18pt, 14pt
+        // and 24pt "（機關名稱機關代號）" — keeps its own.)
+        var mixedSizes = false
+        if painter.strutStyle == nil, p.inlineImages.isEmpty, !p.text.isEmpty {
+            let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+            var start = 0
+            var onFirst = Set<Double>(), later = Set<Double>()
+            for run in p.runs where run.length > 0 {
+                defer { start += run.length }
+                let from = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(start, p.text.utf16.count))
+                let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
+                if p.text[from ..< to].allSatisfy(\.isWhitespace) { continue }
+                let size = run.style.fontSize ?? -1
+                if start < firstEnd { onFirst.insert(size) } else { later.insert(size) }
+            }
+            mixedSizes = onFirst.count == 1 && later.contains { !onFirst.contains($0) }
+        }
+        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
