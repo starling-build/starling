@@ -72,6 +72,11 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
   spaces 4.25 -> 6.45 instead). "稱：" has the same need/marks/stretch as "費、" with 3 spaces and is taken: lab gs asked of windows.
 - (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
+### Line fitter: (1) a closing mark that cannot fit carried to the next line alone (zh-7773163d p49); (2) zh-3c055c9b's per-mark give — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's assignment)
+Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt (zh-7773163d entry, T167 section): in old-mode
+documents Word sends a closing mark down alone only when it cannot fit, and does not hang it. (2) taken over from windows-2's
+item (3) above (decision table, lab gs). Labs through starling-bd to `windows`.
+
 ### Windows-mode 99.0–99.4 band — CLAIMED (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
 49 documents, mostly one or two lines a line break apart. Looking for rules that lift several:
 - "+" between ideographs: Word breaks after an ASCII "+" before an ideograph ("…互联网+" | "监管…"); the engine keeps
