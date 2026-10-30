@@ -199,3 +199,411 @@ lo-93dbabf897db0eaa	sw/qa/extras/ooxmlimport/data/text-copy.docx	c0ade982f09c
 lo-4729718d131f088e	sw/qa/extras/ooxmlimport/data/textbox-wps-only.docx	c0ade982f09c	
 lo-a07c5feb2f28fb6a	sw/qa/extras/ooxmlimport/data/unbalanced-columns-compat.docx	c0ade982f09c	
 lo-cef1adeff9c7d79b	sw/qa/extras/ooxmlimport/data/xml_space.docx	c0ade982f09c	
+lo-0551e29e7b4adbdd	sw/qa/extras/ooxmlexport/data/fdo53985.docx	c0ade982f09c	fdo53985
+lo-0627e9c1e5b4e7ba	sw/qa/extras/ooxmlimport/data/tdf111550.docx	c0ade982f09c	tdf111550
+lo-09a33253bfbeba5f	sw/qa/extras/ww8export/data/clearing-break-with-fly.docx	c0ade982f09c	
+lo-0b4c5e4d5539e0d8	sw/qa/core/header_footer/data/TestFirstFooterDisabled.docx	c0ade982f09c	
+lo-13d91f2d18e490eb	sw/qa/core/objectpositioning/data/floattable-nested-overlap.docx	c0ade982f09c	
+lo-152d87fe1861bed4	sw/qa/extras/ooxmlexport/data/tdf160077_layoutInCellB.docx	c0ade982f09c	tdf160077
+lo-158ec98675629e6e	sw/qa/writerfilter/dmapper/data/floattable-nested-layout.docx	c0ade982f09c	
+lo-1960d9dfd3ac1dda	sw/qa/writerfilter/ooxml/data/floattable-leak.docx	c0ade982f09c	
+lo-22a53e2b229752d3	sw/qa/writerfilter/ooxml/data/floattable-tables-lost.docx	c0ade982f09c	
+lo-2c55cb414a91205a	sw/qa/extras/ooxmlexport/data/textbox-table.docx	c0ade982f09c	
+lo-2dc13fbc28343484	sw/qa/extras/ooxmlexport/data/fdo77887.docx	c0ade982f09c	fdo77887
+lo-3685d1f70c143868	sw/qa/extras/ooxmlexport/data/sdt-company-multipara.docx	c0ade982f09c	
+lo-382401e902ed9090	sw/qa/core/data/ooxml/pass/tdf89088.docx	c0ade982f09c	tdf89088
+lo-43db5218741de0fa	sw/qa/extras/ooxmlexport/data/tdf79329.docx	c0ade982f09c	tdf79329
+lo-4b1a56d54f2d2876	sw/qa/extras/ooxmlexport/data/tdf153891.docx	c0ade982f09c	tdf153891
+lo-51b81ccd48bc4024	sw/qa/extras/ooxmlexport/data/tdf119760_tableInTablePosition.docx	c0ade982f09c	tdf119760
+lo-536b79cef636c664	sw/qa/writerfilter/dmapper/data/floattable-hidemark.docx	c0ade982f09c	
+lo-5a78fd37d46a2f88	sw/qa/extras/ooxmlexport/data/tdf103976.docx	c0ade982f09c	tdf103976
+lo-5c5eb1f7d326d221	sw/qa/core/layout/data/floattable-nested-rowspan.docx	c0ade982f09c	
+lo-5c656cf836e60b4c	sw/qa/core/layout/data/floattable-in-inlinetable.docx	c0ade982f09c	
+lo-5d16f81b2d6b412b	sw/qa/core/layout/data/floattable-in-inltbl-in-sect.docx	c0ade982f09c	
+lo-65650bf1d591ec5b	sw/qa/filter/ascii/data/tdf162180.docx	c0ade982f09c	tdf162180
+lo-660753a9df95b5c4	sw/qa/writerfilter/dmapper/data/floattable-nested-3tables.docx	c0ade982f09c	
+lo-6a5857f20e8eda1e	sw/qa/extras/ooxmlexport/data/tdf92157.docx	c0ade982f09c	tdf92157
+lo-6ccf0ac0fdc71958	sw/qa/writerfilter/ooxml/data/floattable-multi-nested.docx	c0ade982f09c	
+lo-6e3ed3e7cbc8a863	sw/qa/extras/uiwriter/data/tdf133982.docx	c0ade982f09c	tdf133982
+lo-72370bc44654bab1	sw/qa/extras/ooxmlexport/data/table-auto-nested.docx	c0ade982f09c	
+lo-8d6e26817fdac1a1	sw/qa/writerfilter/dmapper/data/nested-floating-table.docx	c0ade982f09c	
+lo-9ab859804c921621	sw/qa/extras/ooxmlexport/data/tdf134606.docx	c0ade982f09c	tdf134606
+lo-9fa3dedd1f1d716a	sw/qa/core/objectpositioning/data/floattable-overlap-cell.docx	c0ade982f09c	
+lo-a43588d5aa50e259	sw/qa/extras/ooxmlexport/data/n779642.docx	c0ade982f09c	n779642
+lo-abf1da4d897132a4	sw/qa/extras/ooxmlexport/data/table-style-conf-nested.docx	c0ade982f09c	
+lo-b35c1eb6460e91be	sw/qa/extras/ooxmlexport/data/tdf79272_strictDxa.docx	c0ade982f09c	tdf79272
+lo-bf5dabc8d4a97034	sw/qa/extras/ooxmlexport/data/fdo73389.docx	c0ade982f09c	fdo73389
+lo-c490d65bea7e0a64	sw/qa/core/unocore/data/floattable-outer-nonsplit-inner.docx	c0ade982f09c	
+lo-c5b5dcb9d9f44a06	sw/qa/extras/ooxmlexport/data/fdo80097.docx	c0ade982f09c	fdo80097
+lo-c7082c66bb5376d0	sw/qa/core/text/data/floattable-anchor-height.docx	c0ade982f09c	
+lo-ca9b51bc71acc608	sw/qa/extras/ooxmlexport/data/tdf149089.docx	c0ade982f09c	tdf149089
+lo-cccc9676753ee81a	sw/qa/extras/ooxmlexport/data/tdf134569_nestedTable.docx	c0ade982f09c	tdf134569
+lo-d096abe28eec7597	sw/qa/writerfilter/dmapper/data/floattable-nested-cellstart.docx	c0ade982f09c	
+lo-d9632b6eca5037a7	sw/qa/extras/ooxmlexport/data/tdf151704_thinColumnHeight.docx	c0ade982f09c	tdf151704
+lo-e069648915babb76	sw/qa/extras/ooxmlexport/data/tdf164500_framePrBeforeTable.docx	c0ade982f09c	tdf164500
+lo-e88ee54ee96f43a2	sw/qa/extras/ooxmlexport/data/fdo74357.docx	c0ade982f09c	fdo74357
+lo-ebb078d791b6deb4	sw/qa/extras/ooxmlexport/data/NumberedList.docx	c0ade982f09c	
+lo-f0be7488a5cbb93b	sw/qa/core/layout/data/floattable-wrapped-by-table-nested.docx	c0ade982f09c	
+lo-f1b9932413613f21	sw/qa/writerfilter/dmapper/data/floattable-nested.docx	c0ade982f09c	
+lo-f47abfe05a4a1d21	sw/qa/extras/ooxmlexport/data/tdf158349_SDTstreamStateStack.docx	c0ade982f09c	tdf158349
+lo-fae4a6625d83588e	sw/qa/extras/ooxmlexport/data/tdf131260.docx	c0ade982f09c	tdf131260
+lo-000463dfea864c26	sw/qa/core/text/data/floattable-heading-split-hyphen.docx	c0ade982f09c	
+lo-069707e4af375afa	sw/qa/core/text/data/floattable-heading-split-footer.docx	c0ade982f09c	
+lo-090b2205b2675957	sw/qa/core/text/data/floattable-wrap-empty-para-legacy.docx	c0ade982f09c	
+lo-09677d0b23b308ed	sw/qa/writerfilter/dmapper/data/table-negative-vertical-pos.docx	c0ade982f09c	
+lo-099d1f3b2085ed7b	sw/qa/extras/ooxmlimport/data/tdf97038.docx	c0ade982f09c	tdf97038
+lo-0dd5bc0ad5990710	sw/qa/core/exportdata/ooxml/pass/sdt-around-float-table.docx	c0ade982f09c	
+lo-13f6ca33ab26b539	sw/qa/extras/ooxmlexport/data/tdf125324.docx	c0ade982f09c	tdf125324
+lo-16d1ab43f5506741	sw/qa/core/layout/data/floattable-footer.docx	c0ade982f09c	
+lo-1709e65549f6a3f6	sw/qa/extras/ooxmlimport/data/tdf109053.docx	c0ade982f09c	tdf109053
+lo-17ef47ca2f60de2e	sw/qa/extras/ooxmlimport/data/tdf115094v2.docx	c0ade982f09c	tdf115094
+lo-1ad591e90f947284	sw/qa/extras/ooxmlexport/data/table-floating.docx	c0ade982f09c	
+lo-1e474d4faad0f4ad	sw/qa/extras/ooxmlexport/data/tdf170516_drawingBeforePlainText.docx	c0ade982f09c	tdf170516
+lo-20f5d5583017c5fa	sw/qa/core/layout/data/floattable-multi-col.docx	c0ade982f09c	
+lo-22161dc389cce1bd	sw/qa/extras/uiwriter/data/floattable-nosection-7in.docx	c0ade982f09c	
+lo-235e35618e7b881d	sw/qa/core/text/data/floattable-heading-split.docx	c0ade982f09c	
+lo-26604da86e9245c4	sw/qa/extras/ooxmlexport/data/fdo76741.docx	c0ade982f09c	fdo76741
+lo-2c85bb1477d36796	sw/qa/core/exportdata/ooxml/pass/textframe-in-shape.docx	c0ade982f09c	
+lo-32419eb1c66dc5ca	sw/qa/extras/ooxmlexport/data/TC-table-DnD-move.docx	c0ade982f09c	
+lo-395a42937e91a63f	sw/qa/extras/ooxmlexport/data/floattable-anchorpos.docx	c0ade982f09c	
+lo-425b63cbb4697507	sw/qa/writerfilter/dmapper/data/floattable-wrap-on-all-pages.docx	c0ade982f09c	
+lo-428f189fb7afbd60	sw/qa/extras/ooxmlexport/data/floating-tables-anchor.docx	c0ade982f09c	
+lo-462f70fc725461e5	sw/qa/extras/ooxmlimport/data/tdf115094.docx	c0ade982f09c	tdf115094
+lo-486e8e62d1d9861f	sw/qa/core/text/data/floattable-negative-vert-offset.docx	c0ade982f09c	
+lo-4aa628bda291091a	sw/qa/extras/ooxmlexport/data/floatingtbl_with_formula.docx	c0ade982f09c	
+lo-4aa850a112948a40	sw/qa/core/text/data/floattable-negative-vert-offset-empty.docx	c0ade982f09c	
+lo-4c2ac4f78f9dc280	sw/qa/extras/ooxmlexport/data/tdf115094v3.docx	c0ade982f09c	tdf115094
+lo-4c84a54132986bb0	sw/qa/core/objectpositioning/data/floattable-tbl-overlap.docx	c0ade982f09c	
+lo-5be8ca31e2cec284	sw/qa/extras/ooxmlexport/data/n816593.docx	c0ade982f09c	n816593
+lo-64d032bf136c881e	sw/qa/extras/ooxmlexport/data/tdf164901.docx	c0ade982f09c	tdf164901
+lo-67635bac0e7bcd64	sw/qa/core/layout/data/floattable-object-formatter.docx	c0ade982f09c	
+lo-69459b423466514a	sw/qa/core/layout/data/floattable-move-master.docx	c0ade982f09c	
+lo-6adfb44a95fc446e	sw/qa/writerfilter/dmapper/data/floattable-sectend.docx	c0ade982f09c	
+lo-6e4ea74b6c749d5d	sw/qa/extras/ooxmlexport/data/floating-table-position.docx	c0ade982f09c	
+lo-717ff9436b62dd61	sw/qa/extras/ooxmlexport/data/tdf97090.docx	c0ade982f09c	tdf97090
+lo-761d0b40a8fd2bec	sw/qa/core/layout/data/floattable-hori-pos.docx	c0ade982f09c	
+lo-79583fa0c8bed68b	sw/qa/core/text/data/floattable-anchor-next-page.docx	c0ade982f09c	
+lo-7a2c306339779157	sw/qa/uitest/data/tdf124675.docx	c0ade982f09c	tdf124675
+lo-7ab8dbc41b1f7a1c	sw/qa/extras/ooxmlexport/data/tdf8255.docx	c0ade982f09c	tdf8255
+lo-7afc560218d0f192	sw/qa/extras/ooxmlexport/data/tdf105688.docx	c0ade982f09c	tdf105688
+lo-82a030402e18814e	sw/qa/extras/ooxmlexport/data/missing-path.docx	c0ade982f09c	
+lo-8413c3eb9bdc8928	sw/qa/extras/ooxmlexport/data/tdf107889.docx	c0ade982f09c	tdf107889
+lo-84a48df2fbcb5ce1	sw/qa/writerfilter/dmapper/data/floating-table-section-break.docx	c0ade982f09c	
+lo-853c06a0a967c53f	sw/qa/writerfilter/dmapper/data/do-not-break-wrapped-tables.docx	c0ade982f09c	
+lo-8595affd8fd03e94	sw/qa/extras/ooxmlexport/data/FDO76248.docx	c0ade982f09c	fdo76248
+lo-88b299584c476bd2	sw/qa/extras/ooxmlexport/data/tdf164500_framePrBeforeTable2.docx	c0ade982f09c	tdf164500
+lo-89daf93dd3d7e0ba	sw/qa/core/layout/data/floattable-deleted-anchor.docx	c0ade982f09c	
+lo-8c97b9a26e274f19	sw/qa/extras/ooxmlexport/data/fdo79540.docx	c0ade982f09c	fdo79540
+lo-8ea0936246b32175	sw/qa/core/layout/data/floattable-3pages.docx	c0ade982f09c	
+lo-8ef061f80e3e8fc4	sw/qa/extras/ooxmlexport/data/tdf158661_blockSDT.docx	c0ade982f09c	tdf158661
+lo-8ffe63704dab9057	sw/qa/extras/ooxmlexport/data/tdf87460.docx	c0ade982f09c	tdf87460
+lo-9444eb35780f2b37	sw/qa/extras/uiwriter/data/tdf134227.docx	c0ade982f09c	tdf134227
+lo-960414e471abc426	sw/qa/writerfilter/dmapper/data/layout-in-cell-wrapnone-column.docx	c0ade982f09c	
+lo-9803e8f6c062175a	sw/qa/core/frmedt/data/floating-table-caption.docx	c0ade982f09c	
+lo-983ce30f49bdf3c4	sw/qa/extras/uiwriter/data/tdf78727.docx	c0ade982f09c	tdf78727
+lo-9cc5d6ef75160a4f	sw/qa/core/txtnode/data/floattable-anchor-split.docx	c0ade982f09c	
+lo-9cce1f791d3f2dec	sw/qa/writerfilter/dmapper/data/floattable-break-before.docx	c0ade982f09c	
+lo-9e08e4895c1b1cbf	sw/qa/extras/ooxmlexport/data/tdf132271.docx	c0ade982f09c	tdf132271
+lo-9eaf41a60433cdc7	sw/qa/core/layout/data/tdf157096.docx	c0ade982f09c	tdf157096
+lo-9eff85e50b6aa34d	sw/qa/extras/ooxmlexport/data/fdo78883.docx	c0ade982f09c	fdo78883
+lo-a2386f32fff01242	sw/qa/core/layout/data/floattable-from-bottom.docx	c0ade982f09c	
+lo-a3f538afec50b201	sw/qa/core/layout/data/floattable-table-join.docx	c0ade982f09c	
+lo-a43021ca3cdda324	sw/qa/core/layout/data/floattable-header.docx	c0ade982f09c	
+lo-a49ff75a19df298c	sw/qa/core/data/ooxml/pass/tdf92157-1-minimized.docx	c0ade982f09c	tdf92157
+lo-a64612b353fbfe2a	sw/qa/core/text/data/floattable-avoid-last-manip-ofst.docx	c0ade982f09c	
+lo-a66590bcad905b94	sw/qa/core/layout/data/floattable.docx	c0ade982f09c	
+lo-a87b38cefcdfc9ac	sw/qa/extras/ooxmlexport/data/tdf99140.docx	c0ade982f09c	tdf99140
+lo-a998eddac7ced1b3	sw/qa/extras/ooxmlimport/data/floating-table-section-columns.docx	c0ade982f09c	
+lo-ad478aff51820d92	sw/qa/extras/ooxmlimport/data/tdf114217.docx	c0ade982f09c	tdf114217
+lo-af0a4e65aca4ac32	sw/qa/core/layout/data/floattable-then-table.docx	c0ade982f09c	
+lo-b07592350110bfc8	sw/qa/extras/ooxmlexport/data/tblppr-shape.docx	c0ade982f09c	
+lo-b8885ba2c340b23e	sw/qa/core/text/data/floattable-avoid-manip-ofst.docx	c0ade982f09c	
+lo-bbc52bda4ba22d33	sw/qa/core/layout/data/floattable-next-row-invalidate-pos.docx	c0ade982f09c	
+lo-bbf610275199c237	sw/qa/core/layout/data/floattable-nomargins.docx	c0ade982f09c	
+lo-be51ab2ee8803575	sw/qa/extras/ooxmlexport/data/shape-in-floattable.docx	c0ade982f09c	
+lo-c16569997ca5e397	sw/qa/extras/ooxmlexport/data/tdf149388.docx	c0ade982f09c	tdf149388
+lo-c32650af4f0a0a37	sw/qa/core/layout/data/floattable-vertoffset.docx	c0ade982f09c	
+lo-c657ba7db71abe74	sw/qa/extras/uiwriter/data/tdf104492.docx	c0ade982f09c	tdf104492
+lo-c6d022b650e67cb5	sw/qa/extras/ooxmlexport/data/tdf38575_fullWidthLine.docx	c0ade982f09c	tdf38575
+lo-c9b8c5abfa6d7bef	sw/qa/core/doc/data/floating-table-dummy-text.docx	c0ade982f09c	
+lo-cbd6607d6c351bd4	sw/qa/writerfilter/dmapper/data/floattable-then-table.docx	c0ade982f09c	
+lo-cbee01029baa8deb	sw/qa/extras/uiwriter/data/tdf138482.docx	c0ade982f09c	tdf138482
+lo-cc084a84105fba99	sw/qa/extras/ooxmlimport/data/tdf115883.docx	c0ade982f09c	tdf115883
+lo-ce0d5e6dd7a14d49	sw/qa/core/layout/data/floattable-wrapped-by-table.docx	c0ade982f09c	
+lo-cefd47dab19442a4	sw/qa/core/text/data/floattable-anchor-left-margin.docx	c0ade982f09c	
+lo-d1e88d777011989c	sw/qa/extras/uiwriter/data/tdf170672.docx	c0ade982f09c	tdf170672
+lo-d2d20bdc8ff2d2c9	sw/qa/extras/ooxmlexport/data/fdo68607.docx	c0ade982f09c	fdo68607
+lo-d9ffd233d691f8ec	sw/qa/core/layout/data/floattable-not-wrapped-by-table.docx	c0ade982f09c	
+lo-db9bda6627275d10	sw/qa/core/data/ooxml/pass/tdf123001.docx	c0ade982f09c	tdf123001
+lo-deb8b1bf701ef5b4	sw/qa/core/txtnode/data/comment.docx	c0ade982f09c	
+lo-df863800102da088	sw/qa/core/layout/data/floattable-2cols.docx	c0ade982f09c	
+lo-e0bfbb26764afa0e	sw/qa/core/layout/data/floattable-tab-join.docx	c0ade982f09c	
+lo-e0dd265c2b239b52	sw/qa/core/layout/data/floattable-tab-join-legacy.docx	c0ade982f09c	
+lo-e3dca7be79f6487a	sw/qa/core/layout/data/floattable-compat14-nosplit.docx	c0ade982f09c	
+lo-e69b7cfcd42b5465	sw/qa/core/layout/data/floattable-compat14-body.docx	c0ade982f09c	
+lo-e998b55c4e7fd7a0	sw/qa/writerfilter/dmapper/data/floattable-redline.docx	c0ade982f09c	
+lo-e9f1e3697454d611	sw/qa/extras/ooxmlexport/data/frame_size_export.docx	c0ade982f09c	
+lo-eba386b0696abe87	sw/qa/core/layout/data/floattable-wrap-on-all-pages.docx	c0ade982f09c	
+lo-ed539d0e226f93bf	sw/qa/core/layout/data/floattable-in-section.docx	c0ade982f09c	
+lo-f2b254ac6887d82c	sw/qa/extras/ooxmlexport/data/tdf149388_fly.docx	c0ade982f09c	tdf149388
+lo-f2fd7e5975503f7c	sw/qa/extras/ooxmlexport/data/tdf136667.docx	c0ade982f09c	tdf136667
+lo-f48e444eac711e2e	sw/qa/extras/ooxmlexport/data/table-floating-margins.docx	c0ade982f09c	
+lo-f8963dddc8832505	sw/qa/writerfilter/dmapper/data/floattable-hidden-anchor.docx	c0ade982f09c	
+lo-fd0f09f962fb8cc5	sw/qa/extras/ooxmlexport/data/tdf109063.docx	c0ade982f09c	tdf109063
+lo-185f3a0eef1629c2	sw/qa/extras/ooxmlexport/data/Chart_Plot_BorderLine_Style.docx	c0ade982f09c	
+lo-1bd2003ef64e8e5f	sw/qa/extras/ooxmlexport/data/chart-dupe.docx	c0ade982f09c	
+lo-222628bcdb587c23	sw/qa/extras/ooxmlexport/data/chart.docx	c0ade982f09c	
+lo-3ff36705fd033b17	sw/qa/extras/ooxmlexport/data/chart-size.docx	c0ade982f09c	
+lo-4d273731897cb642	sw/qa/writerfilter/dmapper/data/layout-in-cell-2.docx	c0ade982f09c	
+lo-5afb220423472cb1	sw/qa/extras/ooxmlexport/data/tdf128207.docx	c0ade982f09c	tdf128207
+lo-6e71a4d554ea90df	sw/qa/extras/ooxmlexport/data/strict.docx	c0ade982f09c	
+lo-71ff07d7c589da6a	sw/qa/extras/ooxmlexport/data/tdf115557.docx	c0ade982f09c	tdf115557
+lo-72e7239635dee3b7	sw/qa/extras/ooxmlexport/data/fdo76098.docx	c0ade982f09c	fdo76098
+lo-76e8e9cd1e3471b6	sw/qa/extras/ooxmlexport/data/tdf131288.docx	c0ade982f09c	tdf131288
+lo-78f1428694542d19	sw/qa/extras/ooxmlexport/data/tdf143269_zeroSizeEmbeddings.docx	c0ade982f09c	tdf143269
+lo-79680f48b0365e48	sw/qa/extras/ooxmlexport/data/chart-in-footer.docx	c0ade982f09c	
+lo-7b8ccfbe20038fd5	sw/qa/writerfilter/dmapper/data/chart-zorder.docx	c0ade982f09c	
+lo-8743d336c0c6f999	sw/qa/extras/ooxmlexport/data/chart-prop.docx	c0ade982f09c	
+lo-9265c87ef4644515	sw/qa/extras/odfexport/data/tdf134987.docx	c0ade982f09c	tdf134987
+lo-a4a783e2c23b8da8	sw/qa/extras/ooxmlexport/data/Chart_BorderLine_Style.docx	c0ade982f09c	
+lo-aab5e6c5aeb50736	sw/qa/extras/uiwriter/data/tdf155685.docx	c0ade982f09c	tdf155685
+lo-b6cd0d9709aea416	sw/qa/extras/ooxmlexport/data/fdo78474.docx	c0ade982f09c	fdo78474
+lo-bf1e33f33c057150	sw/qa/core/docnode/data/tdf156267.docx	c0ade982f09c	tdf156267
+lo-c4c60fcb3248472d	sw/qa/extras/ooxmlexport/data/tdf124398_groupshapeChart.docx	c0ade982f09c	tdf124398
+lo-c996762f20bf4f32	sw/qa/extras/ooxmlimport/data/tdf82824.docx	c0ade982f09c	tdf82824
+lo-ccd9da4b76bda965	sw/qa/extras/ooxmlexport/data/tdf123873.docx	c0ade982f09c	tdf123873
+lo-0349db3a0944fbef	sw/qa/extras/ooxmlexport/data/tdf36117_verticalAdjustment.docx	c0ade982f09c	tdf36117
+lo-09f49b689534d9e6	sw/qa/extras/ooxmlexport/data/tdf157572_defaultVAnchor.docx	c0ade982f09c	tdf157572
+lo-144b33d26d6b5db8	sw/qa/extras/ooxmlexport/data/tdf154703_framePr.docx	c0ade982f09c	tdf154703
+lo-1ad81b178626f871	sw/qa/extras/ooxmlexport/data/n780853.docx	c0ade982f09c	n780853
+lo-1adf1d29fb8bc2e0	sw/qa/extras/ooxmlexport/data/frame-wrap-auto.docx	c0ade982f09c	
+lo-1f8f612fa797d2fe	sw/qa/extras/ooxmlexport/data/tdf90789.docx	c0ade982f09c	tdf90789
+lo-23180ba143507ab0	sw/qa/extras/ooxmlexport/data/special_styles.docx	c0ade982f09c	
+lo-25c072f70b05ae45	sw/qa/core/data/ooxml/pass/fdo81491.docx	c0ade982f09c	fdo81491
+lo-25cc9bdd4cc2e199	sw/qa/extras/ooxmlexport/data/tdf138027_pageBreakAfterShape.docx	c0ade982f09c	tdf138027
+lo-34a3d8a6c6b1c861	sw/qa/extras/ooxmlexport/data/tdf154129_framePr1.docx	c0ade982f09c	tdf154129
+lo-3bc15974bf529221	sw/qa/extras/ooxmlexport/data/tdf154703_framePrTextDirection.docx	c0ade982f09c	tdf154703
+lo-3cc0740ba256909a	sw/qa/extras/ooxmlexport/data/tdf133702.docx	c0ade982f09c	tdf133702
+lo-41f726efe22d6340	sw/qa/extras/ooxmlexport/data/fdo55381.docx	c0ade982f09c	fdo55381
+lo-54e24e50c8303422	sw/qa/extras/ooxmlexport/data/tdf127622_framePr.docx	c0ade982f09c	tdf127622
+lo-5700a8ed01b8f532	sw/qa/extras/ooxmlexport/data/tdf104394_lostTextbox.docx	c0ade982f09c	tdf104394
+lo-5b86f97659234931	sw/qa/extras/ooxmlexport/data/tdf157572_insidiousCombination.docx	c0ade982f09c	tdf157572
+lo-5dd4380f9e9c017e	sw/qa/extras/ooxmlexport/data/tdf100075.docx	c0ade982f09c	tdf100075
+lo-60fd93680f179e1e	sw/qa/extras/ooxmlexport/data/tdf154703_framePrWrapSpacing.docx	c0ade982f09c	tdf154703
+lo-62f37fcc5d467507	sw/qa/extras/ooxmlexport/data/fdo60957-2.docx	c0ade982f09c	fdo60957
+lo-67232137d9797699	sw/qa/extras/ooxmlexport/data/tdf133924.docx	c0ade982f09c	tdf133924
+lo-677416bef0488597	sw/qa/extras/ooxmlexport/data/Tdf147485.docx	c0ade982f09c	tdf147485
+lo-6b9b80a58b346efb	sw/qa/extras/ooxmlexport/data/tdf112287B.docx	c0ade982f09c	tdf112287
+lo-6ce19e9962e6ff82	sw/qa/extras/ooxmlexport/data/content-control-grab-bag.docx	c0ade982f09c	
+lo-7607206ea71b1f76	sw/qa/writerfilter/dmapper/data/framepr-pagebreak-style.docx	c0ade982f09c	
+lo-810cd0dffb0895d6	sw/qa/extras/ooxmlexport/data/CT-with-frame.docx	c0ade982f09c	
+lo-836b334c3ba07654	sw/qa/extras/ooxmlexport/data/tdf90789-2.docx	c0ade982f09c	tdf90789
+lo-8480280e5d212433	sw/qa/extras/ooxmlexport/data/tdf148671.docx	c0ade982f09c	tdf148671
+lo-851721897101226f	sw/qa/extras/ooxmlimport/data/tdf109316_dropCaps.docx	c0ade982f09c	tdf109316
+lo-91e56c047edfd702	sw/qa/extras/ooxmlexport/data/fdo78904.docx	c0ade982f09c	fdo78904
+lo-932b76a1c0747bb0	sw/qa/extras/ooxmlexport/data/tdf103544.docx	c0ade982f09c	tdf103544
+lo-9602a021beaa983e	sw/qa/extras/ooxmlexport/data/tdf112287.docx	c0ade982f09c	tdf112287
+lo-97d1c939cd54d138	sw/qa/extras/ooxmlexport/data/tdf157572_noVAlignAsText.docx	c0ade982f09c	tdf157572
+lo-9a2bcefef863a1da	sw/qa/extras/ooxmlexport/data/tdf109308_dropCapSdt.docx	c0ade982f09c	tdf109308
+lo-9c5dc9adeab5852b	sw/qa/extras/ooxmlexport/data/tdf133457.docx	c0ade982f09c	tdf133457
+lo-a197b7a87126ba68	sw/qa/core/data/ooxml/pass/fdo78904_fileHang.docx	c0ade982f09c	fdo78904
+lo-adac36736eb69fe4	sw/qa/extras/ooxmlexport/data/tdf125894.docx	c0ade982f09c	tdf125894
+lo-af81b53e196c72c4	sw/qa/extras/ooxmlimport/data/tdf75573_page1frame.docx	c0ade982f09c	tdf75573
+lo-c54199227c48a74d	sw/qa/extras/ooxmlexport/data/tdf105035_framePrB.docx	c0ade982f09c	tdf105035
+lo-c608a288462b67d5	sw/qa/extras/uiwriter/data/tdf149507.docx	c0ade982f09c	tdf149507
+lo-c678e48606fbcb06	sw/qa/extras/ooxmlexport/data/tdf105035_framePrC.docx	c0ade982f09c	tdf105035
+lo-d7fc61b769ef23f9	sw/qa/extras/ooxmlexport/data/tdf133701.docx	c0ade982f09c	tdf133701
+lo-dd3d953e15035265	sw/qa/extras/ooxmlexport/data/tdf131420.docx	c0ade982f09c	tdf131420
+lo-e27644fb12f7199c	sw/qa/extras/ooxmlimport/data/tdf113182.docx	c0ade982f09c	tdf113182
+lo-e2dfec336073da46	sw/qa/extras/ooxmlexport/data/FDO78590.docx	c0ade982f09c	fdo78590
+lo-ee0e461d0850301d	sw/qa/extras/ooxmlexport/data/tdf109308_dropCapNumbered.docx	c0ade982f09c	tdf109308
+lo-f21fc316c5726fc6	sw/qa/extras/ooxmlimport/data/tdf75573_lostTable.docx	c0ade982f09c	tdf75573
+lo-f3312cb174ed70a3	sw/qa/extras/ooxmlexport/data/tdf164474.docx	c0ade982f09c	tdf164474
+lo-f384af17b1799daf	sw/qa/writerfilter/dmapper/data/frame-direction.docx	c0ade982f09c	
+lo-f63fbb532875f9a0	sw/qa/extras/ooxmlexport/data/tdf123636_newlinePageBreak2.docx	c0ade982f09c	tdf123636
+lo-fc098a0f380c326f	sw/qa/extras/ooxmlexport/data/tdf107119.docx	c0ade982f09c	tdf107119
+lo-0622682cda1b279e	sw/qa/extras/ooxmlimport/data/n751077.docx	c0ade982f09c	n751077
+lo-06933f8e86b10092	sw/qa/extras/odfexport/data/tdf135144.docx	c0ade982f09c	tdf135144
+lo-09ae12a5e0abc0d8	sw/qa/extras/tiledrendering/data/comments-on-load.docx	c0ade982f09c	
+lo-198cd20047e25c50	sw/qa/core/data/ooxml/pass/tdf108272.docx	c0ade982f09c	tdf108272
+lo-1f0928b96bf78808	sw/qa/core/exportdata/ooxml/pass/sdt-sectpr.docx	c0ade982f09c	
+lo-25ea410e74e24c07	sw/qa/core/header_footer/data/bnc519228_odd-breaksB.docx	c0ade982f09c	bnc519228
+lo-26c6feb94e88727b	sw/qa/core/header_footer/data/tdf166205_first_page_header_footer_visible.docx	c0ade982f09c	tdf166205
+lo-297f6740fdaf3dd5	sw/qa/writerfilter/dmapper/data/page-break-footer-table.docx	c0ade982f09c	
+lo-33c1e410748f58d2	sw/qa/core/header_footer/data/tdf57155.docx	c0ade982f09c	tdf57155
+lo-373ee508c2db232e	sw/qa/extras/ooxmlimport/data/tdf48658_transparentOLEheader.docx	c0ade982f09c	tdf48658
+lo-42331045bd211f83	sw/qa/core/header_footer/data/headerfooter-link-to-prev.docx	c0ade982f09c	
+lo-4aa10ac2aefb1ba7	sw/qa/extras/ooxmlimport/data/tdf136952_pgBreak3.docx	c0ade982f09c	tdf136952
+lo-521a4e3ea7156fe6	sw/qa/extras/uiwriter/data/tdf129382.docx	c0ade982f09c	tdf129382
+lo-5a97a8eac20a2e36	sw/qa/core/data/ooxml/pass/tdf161139_orrick-org-min3.docx	c0ade982f09c	tdf161139
+lo-5c58126ba94295f8	sw/qa/core/layout/data/ignore-top-margin-page-style-change.docx	c0ade982f09c	
+lo-658e8a53b6bd69c0	sw/qa/core/data/ooxml/pass/fdo81380.docx	c0ade982f09c	fdo81380
+lo-6820b6a5e1258503	sw/qa/core/header_footer/data/cont-sect-break-header-footer.docx	c0ade982f09c	
+lo-6880a1aa1b619e87	sw/qa/extras/uiwriter/data/tdf131963.docx	c0ade982f09c	tdf131963
+lo-71890ab32a9fc3ae	sw/qa/extras/uiwriter/data/tdf157131.docx	c0ade982f09c	tdf157131
+lo-744a14ed044ece37	sw/qa/extras/uiwriter/data/tdf168157.docx	c0ade982f09c	tdf168157
+lo-782edaea6d7f343b	sw/qa/extras/uiwriter/data/tdf156560.docx	c0ade982f09c	tdf156560
+lo-8091c41139169284	sw/qa/extras/uiwriter/data/tdf120336.docx	c0ade982f09c	tdf120336
+lo-857cd132f82e754f	sw/qa/core/doc/data/header-footer-delete.docx	c0ade982f09c	
+lo-8928a1e941d09b77	sw/qa/writerfilter/dmapper/data/if-field.docx	c0ade982f09c	
+lo-8c9436cd38005566	sw/qa/core/header_footer/data/first-header-footer.docx	c0ade982f09c	
+lo-8d3622957fbdcdd1	sw/qa/core/doc/data/copy-bookmarks.docx	c0ade982f09c	
+lo-95de9983615d1dbc	sw/qa/core/header_footer/data/tdf129582.docx	c0ade982f09c	tdf129582
+lo-99590fe5ca083be1	sw/qa/writerfilter/dmapper/data/endnote-at-section-end.docx	c0ade982f09c	
+lo-9f46ceca1ee66638	sw/qa/extras/uiwriter/data/tdf146248.docx	c0ade982f09c	tdf146248
+lo-9fbe16469f493e5a	sw/qa/extras/uiwriter/data/tdf129805.docx	c0ade982f09c	tdf129805
+lo-a185cc8f8fc80ac2	sw/qa/extras/uiwriter/data/tdf92648.docx	c0ade982f09c	tdf92648
+lo-a7c1767341d8c161	sw/qa/core/header_footer/data/DoubleFirstLeftRight.docx	c0ade982f09c	
+lo-abef832121138674	sw/qa/core/unocore/data/tdf149555.docx	c0ade982f09c	tdf149555
+lo-add1862ea1850411	sw/qa/core/unocore/data/tdf108272-1-minimal.docx	c0ade982f09c	tdf108272
+lo-b40e97af61725d69	sw/qa/core/data/ooxml/pass/fdo80514.docx	c0ade982f09c	fdo80514
+lo-bb67a275a5114808	sw/qa/extras/ooxmlimport/data/tdf108849.docx	c0ade982f09c	tdf108849
+lo-c4ea9f984fd1afc2	sw/qa/extras/odfexport/data/tdf168980.docx	c0ade982f09c	tdf168980
+lo-c61dabb3561f4c35	sw/qa/writerfilter/dmapper/data/clearing-break-sect-end.docx	c0ade982f09c	
+lo-d22e1e2b62a19e45	sw/qa/extras/uiwriter/data/tdf131684.docx	c0ade982f09c	tdf131684
+lo-d5dbaac56f6b4110	sw/qa/writerfilter/dmapper/data/alt-chunk.docx	c0ade982f09c	
+lo-813a93ebdf82c477	sw/qa/extras/ooxmlexport/data/inheritFirstHeader.docx	c0ade982f09c	
+lo-297bc5cd7795570e	sw/qa/extras/ooxmlexport/data/tdf153592_columnBreaks.docx	c0ade982f09c	tdf153592
+lo-1e5630012d690911	sw/qa/extras/ooxmlexport/data/tdf118701.docx	c0ade982f09c	tdf118701
+lo-4dec07ec0a2d8236	sw/qa/extras/ooxmlexport/data/tdf78902.docx	c0ade982f09c	tdf78902
+lo-512aa398fedf4a98	sw/qa/extras/ooxmlexport/data/tdf127814.docx	c0ade982f09c	tdf127814
+lo-3a105ce5a9092e35	sw/qa/extras/ooxmlexport/data/tdf165047_consolidatedTopMargin.docx	c0ade982f09c	tdf165047
+lo-b18b4a701645ae20	sw/qa/extras/ooxmlexport/data/tdf126994_lostPageBreak.docx	c0ade982f09c	tdf126994
+lo-9f27ef4097b11c63	sw/qa/extras/ooxmlexport/data/n830205.docx	c0ade982f09c	n830205
+lo-70b5bc8711a9dc7e	sw/qa/extras/ooxmlexport/data/test77219.docx	c0ade982f09c	
+lo-554c03864d0ed014	sw/qa/extras/ooxmlexport/data/tdf96750_landscapeFollow.docx	c0ade982f09c	tdf96750
+lo-563123f360d60cb3	sw/qa/extras/ooxmlexport/data/fdo73596_AlphaSeparator.docx	c0ade982f09c	fdo73596
+lo-cbb7657ef8f20755	sw/qa/extras/ooxmlexport/data/tdf153964_topMarginAfterBreak14.docx	c0ade982f09c	tdf153964
+lo-ad468a7bb1056539	sw/qa/extras/ooxmlexport/data/tdf166510_sectPr_bottomSpacing.docx	c0ade982f09c	tdf166510
+lo-cf8cb3bbf7df2d70	sw/qa/extras/ooxmlexport/data/tdf136589_paraHadField.docx	c0ade982f09c	tdf136589
+lo-ab6b45a58769bd06	sw/qa/extras/ooxmlexport/data/fdo78882.docx	c0ade982f09c	fdo78882
+lo-22b9d6c36eb8ef14	sw/qa/extras/ooxmlexport/data/multi-column-separator-with-line.docx	c0ade982f09c	
+lo-e97858a46ab18f9b	sw/qa/extras/ooxmlexport/data/tdf92724_continuousBreaksComplex.docx	c0ade982f09c	tdf92724
+lo-0b140d34be7df1a4	sw/qa/extras/ooxmlexport/data/tdf153964_firstIndentAfterBreak14.docx	c0ade982f09c	tdf153964
+lo-11e501e093972b82	sw/qa/extras/ooxmlexport/data/tdf120511_eatenSection.docx	c0ade982f09c	tdf120511
+lo-085e8dbbb0674ac7	sw/qa/extras/ooxmlexport/data/090716_Studentische_Arbeit_VWS.docx	c0ade982f09c	
+lo-9bb072caba9e51e4	sw/qa/extras/ooxmlexport/data/IndexFieldFlagF.docx	c0ade982f09c	
+lo-027a2c2015af0624	sw/qa/extras/ooxmlexport/data/tdf130120.docx	c0ade982f09c	tdf130120
+lo-59877f0b300ca9a3	sw/qa/extras/ooxmlexport/data/tdf124637_sectionMargin.docx	c0ade982f09c	tdf124637
+lo-5d11d4a3aadae60f	sw/qa/extras/ooxmlexport/data/tdf115861.docx	c0ade982f09c	tdf115861
+lo-014848541f9eef19	sw/qa/extras/ooxmlexport/data/default-sect-break-cols.docx	c0ade982f09c	
+lo-569d1b680b3afd82	sw/qa/extras/ooxmlexport/data/unbalanced-columns.docx	c0ade982f09c	
+lo-b180ddc08ac607b8	sw/qa/extras/ooxmlexport/data/tdf64372_continuousBreaks.docx	c0ade982f09c	tdf64372
+lo-2d55573e3c78d2e9	sw/qa/extras/ooxmlexport/data/section_break_after_table.docx	c0ade982f09c	
+lo-a32dec1f63915103	sw/qa/extras/ooxmlexport/data/tdf167527_title_letters_cut_from_below.docx	c0ade982f09c	tdf167527
+lo-5e80809656b43f2b	sw/qa/extras/ooxmlexport/data/tdf129575-directAfter.docx	c0ade982f09c	tdf129575
+lo-7271065f4b39d2d6	sw/qa/extras/ooxmlexport/data/fdo75431.docx	c0ade982f09c	fdo75431
+lo-811b59753758a155	sw/qa/extras/ooxmlexport/data/tdf112118.docx	c0ade982f09c	tdf112118
+lo-4f5353c6f157801c	sw/qa/extras/ooxmlexport/data/n780843.docx	c0ade982f09c	n780843
+lo-c635ae3fcc16434f	sw/qa/extras/ooxmlexport/data/fdo76934.docx	c0ade982f09c	fdo76934
+lo-eae9bbb1202750ed	sw/qa/extras/ooxmlexport/data/fdo52208.docx	c0ade982f09c	fdo52208
+lo-03dc8c7cbabbb90d	sw/qa/extras/ooxmlexport/data/fdo77129.docx	c0ade982f09c	fdo77129
+lo-c4eed35188771f96	sw/qa/extras/ooxmlexport/data/fdo73596_RunInStyle.docx	c0ade982f09c	fdo73596
+lo-0ceaa0458d70d13c	sw/qa/extras/ooxmlexport/data/TCTagMisMatch.docx	c0ade982f09c	
+lo-998868b6b46febda	sw/qa/extras/ooxmlexport/data/tdf135343_columnSectionBreak_c12v3.docx	c0ade982f09c	tdf135343
+lo-e311acbade7c85b8	sw/qa/extras/ooxmlexport/data/tdf165492_atLeastWithBottomSpacing.docx	c0ade982f09c	tdf165492
+lo-c9244c0634e1c87b	sw/qa/extras/ooxmlexport/data/tdf95367_inheritFollowStyle.docx	c0ade982f09c	tdf95367
+lo-f5c618c500aa2b93	sw/qa/extras/ooxmlexport/data/tdf126287.docx	c0ade982f09c	tdf126287
+lo-1205239eddc815ab	sw/qa/extras/ooxmlexport/data/n780843b.docx	c0ade982f09c	n780843
+lo-cb0ad2588df2a27e	sw/qa/extras/ooxmlexport/data/tdf106492.docx	c0ade982f09c	tdf106492
+lo-88dbf98cd74204fe	sw/qa/extras/ooxmlexport/data/multi-page-toc.docx	c0ade982f09c	
+lo-bf4e996411020201	sw/qa/extras/ooxmlexport/data/tdf104354.docx	c0ade982f09c	tdf104354
+lo-7ec36a70d03c79fb	sw/qa/extras/odfexport/data/tdf163575.docx	c0ade982f09c	tdf163575
+lo-7a7b6f1b7da154c4	sw/qa/extras/ooxmlexport/data/fdo43093b.docx	c0ade982f09c	fdo43093
+lo-40ccdb654785bb1f	sw/qa/extras/ooxmlexport/data/line-break-in-ref.docx	c0ade982f09c	
+lo-75a4a49bfd25b3c2	sw/qa/extras/ooxmlexport/data/tdf118361_RTLfootnoteSeparator.docx	c0ade982f09c	tdf118361
+lo-eb31667f29134740	sw/qa/extras/ooxmlexport/data/fdo70812.docx	c0ade982f09c	fdo70812
+lo-97a7ead06b166a3d	sw/qa/core/text/data/redline.docx	c0ade982f09c	
+lo-885976a366ca8e0a	sw/qa/extras/ooxmlexport/data/tdf128245.docx	c0ade982f09c	tdf128245
+lo-af36644e14e94c0e	sw/qa/extras/ooxmlexport/data/tdf155707.docx	c0ade982f09c	tdf155707
+lo-02c5b89ddc2d9138	sw/qa/extras/ooxmlexport/data/tdf104565_ArrowPosition.docx	c0ade982f09c	tdf104565
+lo-48f9e0647ca80bb0	sw/qa/extras/ooxmlexport/data/tdf148956_directEndFormatting.docx	c0ade982f09c	tdf148956
+lo-aa64b13d1e923081	sw/qa/extras/ooxmlexport/data/theme-preservation.docx	c0ade982f09c	
+lo-be4cbc692b8236aa	sw/qa/extras/ooxmlexport/data/tdf169072_illegalDates.docx	c0ade982f09c	tdf169072
+lo-7d75ba197761c8f8	sw/qa/extras/ooxmlexport/data/tdf132766.docx	c0ade982f09c	tdf132766
+lo-8b6d9004bf99086b	sw/qa/extras/ooxmlexport/data/tdf171002.docx	c0ade982f09c	tdf171002
+lo-dee94b7e37cb0f84	sw/qa/extras/uiwriter/data/tdf145091.docx	c0ade982f09c	tdf145091
+lo-f15439a9f55a8689	sw/qa/extras/ooxmlexport/data/tdf135786.docx	c0ade982f09c	tdf135786
+lo-ff7512b6069a5e67	sw/qa/extras/ooxmlexport/data/tdf79738_footerLineNumbering.docx	c0ade982f09c	tdf79738
+lo-a640c5b9f004bd44	sw/qa/writerfilter/dmapper/data/sdt-run-dropdown.docx	c0ade982f09c	
+lo-9a272a5d08dce6e1	sw/qa/extras/ooxmlexport/data/tdf148380_modifiedField.docx	c0ade982f09c	tdf148380
+lo-486c3092e1dd726b	sw/qa/extras/ooxmlexport/data/tdf154369.docx	c0ade982f09c	tdf154369
+lo-c916a7ced785abe3	sw/qa/extras/ooxmlexport/data/indentation.docx	c0ade982f09c	
+lo-b4dca1d2ec9d5ba7	sw/qa/extras/uiwriter/data/tdf140828.docx	c0ade982f09c	tdf140828
+lo-c4927bf5740912f7	sw/qa/extras/ooxmlexport/data/tdf146984_anchorInShape.docx	c0ade982f09c	tdf146984
+lo-266e1df00d39053d	sw/qa/extras/ooxmlexport/data/tdf92335.docx	c0ade982f09c	tdf92335
+lo-349ce5e9ad7a7654	sw/qa/extras/odfexport/data/arabic-zero4-numbering.docx	c0ade982f09c	
+lo-83fd931af644db85	sw/qa/extras/ooxmlexport/data/tdf118169.docx	c0ade982f09c	tdf118169
+lo-b68c791a7143dec9	sw/qa/extras/ooxmlexport/data/fdo72560b.docx	c0ade982f09c	fdo72560
+lo-76c4f85653c42a6f	sw/qa/writerfilter/dmapper/data/sdt-run-checkbox.docx	c0ade982f09c	
+lo-6451fc26b66e03a3	sw/qa/extras/ooxmlexport/data/tdf67207.docx	c0ade982f09c	tdf67207
+lo-2a59c98f45bc7a64	sw/qa/extras/ooxmlexport/data/tdf153526_commentInNumbering.docx	c0ade982f09c	tdf153526
+lo-b60b72993a0bbbf0	sw/qa/extras/ooxmlexport/data/tdf160077_layoutInCellC.docx	c0ade982f09c	tdf160077
+lo-b47961e99eea700a	sw/qa/writerfilter/dmapper/data/floattable-footnote-redline.docx	c0ade982f09c	
+lo-2e7cb950326c1be4	sw/qa/core/header_footer/data/SimpleLeftRight.docx	c0ade982f09c	
+lo-6e93e16d16fbeed9	sw/qa/extras/ooxmlexport/data/tdf135665.docx	c0ade982f09c	tdf135665
+lo-e3fb31ada26797c7	sw/qa/extras/ooxmlexport/data/fdo72560e.docx	c0ade982f09c	fdo72560
+lo-32f641b3cc63f0ca	sw/qa/extras/ooxmlexport/data/rtl-gutter.docx	c0ade982f09c	
+lo-85c92eeeae6258e3	sw/qa/uitest/data/tdf141557.docx	c0ade982f09c	tdf141557
+lo-818c4607a96cde9f	sw/qa/extras/ooxmlexport/data/tdf82065_Ind_start_strict.docx	c0ade982f09c	tdf82065
+lo-4939a74c4a45c470	sw/qa/extras/ooxmlexport/data/image-comment-at-char.docx	c0ade982f09c	
+lo-9106c8eca7363cbc	sw/qa/extras/ooxmlexport/data/fdo67013.docx	c0ade982f09c	fdo67013
+lo-d8b25be3f49c35d2	sw/qa/extras/uiwriter/data/rhbz1810732.docx	c0ade982f09c	
+lo-7de905dc9ba165c1	sw/qa/extras/ooxmlexport/data/dml-gradientfill-theme.docx	c0ade982f09c	
+lo-170a2ec0a5960085	sw/qa/extras/ooxmlimport/data/tdf129237.docx	c0ade982f09c	tdf129237
+lo-fbabd36e57b48024	sw/qa/extras/ooxmlexport/data/tdf153104.docx	c0ade982f09c	tdf153104
+lo-5b9540e909559942	sw/qa/extras/ooxmlexport/data/mixednumberings.docx	c0ade982f09c	
+lo-72a4e3a9469266ac	sw/qa/extras/ooxmlexport/data/tdf105875_VmlShapeRotationWithFlip.docx	c0ade982f09c	tdf105875
+lo-3bb835278f493fb0	sw/qa/core/text/data/tdf153040.docx	c0ade982f09c	tdf153040
+lo-22765157a1ed404d	sw/qa/extras/ooxmlexport/data/TestVMLData.docx	c0ade982f09c	
+lo-be3ad9acb92bd54f	sw/qa/extras/ooxmlexport/data/tdf123324_testRelativeAnchorHeightFromTopMarginHasHeader.docx	c0ade982f09c	tdf123324
+lo-8ab9b90ffc9bf988	sw/qa/extras/ooxmlexport/data/fdo79822.docx	c0ade982f09c	fdo79822
+lo-cfc3a47bb7a51a20	sw/qa/extras/ooxmlexport/data/CommentReply.docx	c0ade982f09c	
+lo-6b7d4262fe2a39cb	sw/qa/uitest/data/tdf167956.docx	c0ade982f09c	tdf167956
+lo-258ce53be7efbe25	sw/qa/extras/ooxmlexport/data/position-and-rotation.docx	c0ade982f09c	
+lo-941766653f1fe799	sw/qa/extras/ooxmlexport/data/tdf106690-cell.docx	c0ade982f09c	tdf106690
+lo-73e847bec19bb523	sw/qa/core/data/ooxml/pass/tdf93284.docx	c0ade982f09c	tdf93284
+lo-b0f318a0f3d97681	sw/qa/extras/ooxmlexport/data/tdf146973_signatureBlock.docx	c0ade982f09c	tdf146973
+lo-836f4a95077fbb98	sw/qa/extras/ooxmlexport/data/tdf87924.docx	c0ade982f09c	tdf87924
+lo-8ed8394b9b0bb988	sw/qa/core/layout/data/table-missing-join.docx	c0ade982f09c	
+lo-fb57942dde62eda3	sw/qa/extras/ooxmlexport/data/tdf123262_textFootnoteSeparators.docx	c0ade982f09c	tdf123262
+lo-137891e5a5c4e1de	sw/qa/extras/ooxmlexport/data/tdf107033.docx	c0ade982f09c	tdf107033
+lo-015d52effed0a008	sw/qa/extras/ooxmlexport/data/tdf108505.docx	c0ade982f09c	tdf108505
+lo-454e14c2c6eb7cd5	sw/qa/extras/ooxmlexport/data/1_page.docx	c0ade982f09c	
+lo-3c0b22bb5d6bc8c6	sw/qa/core/layout/data/double-border-vertical.docx	c0ade982f09c	
+lo-e89f6520277fb021	sw/qa/extras/ooxmlexport/data/noDefault.docx	c0ade982f09c	
+lo-8a9500281582daa5	sw/qa/extras/ooxmlexport/data/image_data.docx	c0ade982f09c	
+lo-8ccd581d8f0ae102	sw/qa/extras/ooxmlexport/data/testGlossary.docx	c0ade982f09c	
+lo-80da0207dfb40cf0	sw/qa/core/doc/data/ins-then-format.docx	c0ade982f09c	
+lo-c4b6da8cc3245116	sw/qa/extras/ooxmlimport/data/groupshape-fontname.docx	c0ade982f09c	
+lo-38e0894c85041da4	sw/qa/extras/ooxmlexport/data/fdo77725.docx	c0ade982f09c	fdo77725
+lo-3f1a88bcf2e362ea	sw/qa/extras/ooxmlexport/data/FigureAsLabelPicture.docx	c0ade982f09c	
+lo-e25b58e6addf7ffc	sw/qa/extras/ooxmlexport/data/tdf137655.docx	c0ade982f09c	tdf137655
+lo-87d425e7e54cfacd	sw/qa/extras/htmlexport/data/tdf131728.docx	c0ade982f09c	tdf131728
+lo-67c1eac865b74b69	sw/qa/extras/odfexport/data/tdf151100.docx	c0ade982f09c	tdf151100
+lo-7d161ef7e9be8614	sw/qa/extras/ooxmlexport/data/PreserveWfieldTOC.docx	c0ade982f09c	
+lo-f17a56168c9e5414	sw/qa/extras/ooxmlexport/data/tdf57589_hashColor.docx	c0ade982f09c	tdf57589
+lo-5fb336437ffda10b	sw/qa/extras/ooxmlexport/data/custom-properties.docx	c0ade982f09c	
+lo-4885bf762fd1bb32	sw/qa/extras/ooxmlexport/data/tdf108973_foregroundTextbox.docx	c0ade982f09c	tdf108973
+lo-f0ceb78c9153b947	sw/qa/extras/ooxmlexport/data/tdf93919.docx	c0ade982f09c	tdf93919
+lo-47f8ee2116236633	sw/qa/extras/ooxmlexport/data/sdt-alias.docx	c0ade982f09c	
+lo-b297308a48522077	sw/qa/core/exportdata/ooxml/pass/sdt-before-table.docx	c0ade982f09c	
+lo-5718b6f2c8fa48ef	sw/qa/writerfilter/dmapper/data/textbox-textline.docx	c0ade982f09c	
+lo-b552cc3388f0cb0a	sw/qa/extras/ooxmlimport/data/tdf108350.docx	c0ade982f09c	tdf108350
+lo-afff8bfed68b98b0	sw/qa/extras/ooxmlexport/data/tdf66398_permissions.docx	c0ade982f09c	tdf66398
+lo-be1a88f4378b6b40	sw/qa/extras/ooxmlexport/data/tdf120344_FontTypes.docx	c0ade982f09c	tdf120344
+lo-57bc4e3fb814fd4b	sw/qa/extras/uiwriter/data/tdf151548_tabNavigation2.docx	c0ade982f09c	tdf151548
+lo-544f3da698a24b54	sw/qa/extras/ooxmlexport/data/tdf158597.docx	c0ade982f09c	tdf158597
+lo-029954d7cf0a8b8d	sw/qa/extras/ooxmlexport/data/tdf108496.docx	c0ade982f09c	tdf108496
+lo-63a91a193d91649d	sw/qa/extras/ooxmlexport/data/date_field_at_end_of_paragraph.docx	c0ade982f09c	
+lo-14656c7f7376ef1e	sw/qa/extras/ooxmlexport/data/tdf119201.docx	c0ade982f09c	tdf119201
+lo-6b28a6c418c96eb7	sw/qa/extras/ooxmlexport/data/num-parent-style.docx	c0ade982f09c	
+lo-9f8577e6f7d2df07	sw/qa/writerfilter/dmapper/data/alt-chunk-html.docx	c0ade982f09c	
+lo-ab823d151f4b0ca6	sw/qa/core/layout/data/inner-border.docx	c0ade982f09c	
+lo-61f8f967ad8633e0	sw/qa/core/text/data/para-upper-margin-fly-intersect.docx	c0ade982f09c	
+lo-f5d3f9ec3b4dd4fc	sw/qa/extras/ooxmlexport/data/tdf95775.docx	c0ade982f09c	tdf95775
+lo-469a5520f4da9a01	sw/qa/extras/ooxmlexport/data/picture-artistic-effects-preservation.docx	c0ade982f09c	
+lo-1dee05232c42b7b4	sw/qa/extras/ooxmlexport/data/tdf137850_compat15ZOrder.docx	c0ade982f09c	tdf137850
+lo-dc0529c3e356455f	sw/qa/extras/ooxmlexport/data/tdf159158_zOrder_zIndexDuplicate_compat15.docx	c0ade982f09c	tdf159158
+lo-587930f8e751cf55	sw/qa/extras/ooxmlexport/data/groupshape-picture.docx	c0ade982f09c	
+lo-8882730ac6bc0cb7	sw/qa/extras/ooxmlexport/data/tdf132752.docx	c0ade982f09c	tdf132752
