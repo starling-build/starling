@@ -9554,6 +9554,11 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   form is one text box ("外框1", 511.5 x 395.5pt, wrapSquare bothSides, from the margin -12.75), and Word sets the
   "以下欄位由交通部填寫" paragraph and its table under it; ours runs them under the box from the page's top.
 - zh-77079ee8 (96.5): p5's organisation chart (EAP 推動小組 / 工作圈 / 服務組 text boxes) placed differently.
+  CLAIMED Mac 7bd18d8e (2026-10-29): not placement — Writer draws no SmartArt at all. The chart is a dgm diagram
+  (word/diagrams/drawing1.xml: 22 dsp:sp, connector custGeoms and roundRects, 8 DrawingML text bodies); Docx.swift keeps
+  its XML for the save and draws nothing, so all its text is missing from ours. Plan: read the dsp:drawing part as a
+  group (WriterGroups for the shapes, its a:p text as the group's text-box parts). Witnesses: zh-77079ee8 96.5,
+  zh-bdae17c0 98.6, zh-06c46ba9 99.1 (the corpus's only three).
   CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, Windows mode (misses p1:8 p2:1 p3:6 p5:7).
 
 
