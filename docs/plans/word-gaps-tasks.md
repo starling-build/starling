@@ -174,6 +174,8 @@ item (3) above (decision table, lab gs). Labs through starling-bd to `windows`.
   automatic spaces, and the space between the line's end and the piece leaves with the piece. Built:
   wip/mac-01Xgpbk5-gridgap (f515dc49), zh-3c055c9b 93.2→96.9 Mac pre-pair, in windows-1's round 3. Open: "費、" (its
   opening "「" seems to weigh less than a full mark).
+  Witness (windows-2): zh-6b242483 (mode 14, lines-only grid, 仿宋_GB2312 16pt, hinted eastAsia) p6 "…共计36个工作日。9（家）" |
+  "×1": ours takes the lone "×" 5.1 over by the legacy test (4 marks, need/marks 1.3 under 10.9 of stretch); Word stretches instead.
 
 ### Line matcher v2 (test/docx-line-match.py, DOCX_LINE_MATCH=v2) — LANDED; v2 official from windows-1's next baseline (user-approved) (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
 Opt-in switch; the default (v1) is byte-identical to the old matcher over a 756-doc Windows base. Report v1 alongside for a
