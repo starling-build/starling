@@ -11507,11 +11507,18 @@ public final class RichLayout {
         for image in p.inlineImages.values {
             guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
                   float.horizontalFrom == "column", float.horizontalAlign == nil, float.wrapSide != "left" else { continue }
-            let w = _px(image.width), x = _px(float.x)
-            guard w > 0, x + w / 2 < column / 2, x < column / 4 else { continue }
+            // (A box that takes its text's width is that wide: a drop cap's.)
+            if image.textBox?.fitsText == true { _ = _textBox(image, document) }
+            let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity), x = _px(float.x)
+            // (Not with room at its left for text: that stands round it on both
+            // sides, which the engine does not set.)
+            let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+            guard w > 0, x + w / 2 < column / 2, x - _px(float.distanceLeft ?? 9) - _px(p.style.indentLeft) < size else { continue }
             let edge = x + w + _px(float.distanceRight ?? 9)
             let own = _px(p.style.indentLeft)
-            guard edge > own else { continue }
+            // (And room at its right for text: across the column it leaves none,
+            // and the paragraph goes under it as before.)
+            guard edge > own, column - edge - _px(p.style.indentRight) >= size * 3 else { continue }
             let band = (top: _px(float.y) - _px(float.distanceTop), bottom: _px(float.y) + _px(image.height + float.effectBottom) + _px(float.distanceBottom))
             if best == nil || edge - own > best!.indent { best = (edge - own, band) }
         }
