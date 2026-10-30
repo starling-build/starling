@@ -2835,7 +2835,18 @@ enum ChartPainter {
         // print, run 107,660 to 120,000, 410,306 to 450,000, 130.3M to 140M
         // and 383.3M to 400M — the last 450M with the 5% a flat chart takes.)
         let acrossSteps: Int? = horizontal ? max(2, min(10, Int(area0.width / (3 * labelSize * k)))) : nil
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? 10,
+        // (A short chart in a Word document keeps its ticks 15pt apart at least, as many steps as
+        // its plot has room for: chart-in-footer's 41pt plot goes 0, 5, 10 and tdf82824's 64pt one
+        // 0 to 40 by tens in Word's print, where ours ran 0 to 6 by ones and 0 to 35 by fives;
+        // the LO charts' 175pt plots keep ten.)
+        let writerSteps: Int? = {
+            guard !c.onSlide, !c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            let catLine = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k
+            var room = area0.height - (0.61 * labelSize * k + catLine + 3.2 * k)
+            if c.categoryAxisTitle != nil { room -= (1.22 * (c.axisTitleSize ?? 13.3) + 4) * k }
+            return max(2, min(10, Int(room / (15 * k))))
+        }()
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? 10,
                                                                           headroom: c.barView != nil ? 0 : 0.05)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
