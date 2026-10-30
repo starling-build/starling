@@ -9923,7 +9923,7 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   - BUILT, on wip/merged-cell-part b1e04bc7e for windows-1 (Linux lenovo-2, starling-d6, 2026-10-30), after windows' lab vmp:
     a merged-down top-aligned cell keeps the lines whose foot is inside its row's piece — the row's stated height or what
     its own cells keep, whichever is more (no tolerance; fine sweep 722-732). Pre-pair v2 Windows, 756, on 6d587a1a0:
-    zh-e6d54ae4 98.9 -> 100, nothing else moved. DONE, landed bca96ef3b (2026-10-30) after windows-1's round 4 (zh-e6d54ae4 98.9 -> 100). Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
+    zh-e6d54ae4 98.9 -> 100, nothing else moved. DONE, landed d980855bb (2026-10-30) after windows-1's round 4 (zh-e6d54ae4 98.9 -> 100). Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
@@ -9959,7 +9959,8 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   - NumberedList, tdf103976 (nested tables): our saved outer table has no style and no borders, so the reader takes it for an
     invisible wrapper and dissolves it; `tableXML` now names TableNormal on a table the reader's own predicate would dissolve.
   - OPEN: extras/layout/tdf123163-1 (201 -> 196): literal newlines inside <w:t> and kept-table text matching; tables turn into body paragraphs on re-read.
-  - docx-corpus.py takes OFFICE_APP (55bdd0a17). Layout pre-pair running before landing (the continuation flag could shift a floats-only paragraph's indent).
+  - docx-corpus.py takes OFFICE_APP (55bdd0a17). LANDED 302126c50 (2026-10-30): compile-checked, Office suite 530 green, Windows-mode
+    pre-pair of 756: nothing moved (96.832 both sides), so no windows-1 round needed.
 
 - Mixed-size paragraphs without a strut (starling-bd's assignment, 2026-10-30): SCOPING by Linux lenovo-2 (starling-d6), not
   built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
@@ -9988,7 +9989,7 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   section's start). Linux lenovo-2 (starling-d6), 2026-10-29, from starling-bd (v2 revision's misses):
   zh-ab1ea005 — a footer box aligned "outside" (margin) takes its side from the sheet, not the printed number (Word: "—1—"
   on sheet 2 at the left); zh-e02b0479 — a VML v:rect page-number box (144pt, centred, wrap none, fit to text) is fitted
-  as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). DONE, landed d7528a2b4 (2026-10-30) after windows-1's round 4.
+  as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). DONE, landed b75bec0eb (2026-10-30) after windows-1's round 4.
 
 
 ### zh-9bcea239 (96.3) and zh-b24b396a (92.9): the remaining misses are CLIPPED glyphs, not layout — MEASURED, released (Mac 7bd18d8e, 2026-10-30)
