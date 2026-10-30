@@ -364,7 +364,7 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
 - Closing curly quote where the language has no East Asian rules — DONE (landed after windows-1's round 3, nothing dropped,
   v1 and v2): zh-1cfb652b 99.4 -> 100. Not where w:kinsoku 0 is what turns the rules off (zh-b00fef0d drops).
   Linux pair: zh-1cfb652b 99.4 -> 100 (lab cq), nothing else.
-- zh-bbbb2e6a: a distributed line of one character is centred (wip/lenovo3-distribute, 60e741e5): in windows-1's round 4.
+- zh-bbbb2e6a: a distributed line of one character is centred — DONE (landed after windows-1's round 4, nothing dropped): v2 97.6 -> 99.1.
   Linux pair: v2 97.6 -> 99.1, nothing else.
 - zh-ab34d9cb "˙" (U+02D9 hinted eastAsia) in the East Asian face (wip/lenovo3-dotabove, UNPAIRED: patched sweep done,
   base not; also zh-633792eb, zh-c591c1fa). Next: pair, then windows-1.
