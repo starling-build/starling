@@ -9802,6 +9802,9 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
+- LibreOffice corpus, CLAIMED Linux lenovo-2 (starling-d6), 2026-10-30, starling-bd's task from the user: a second docx corpus from
+  LibreOffice core's own sw/qa documents, only if the license allows. Steps: license check (nothing committed before the OK),
+  sparse blobless clone to ~/.cache/starling/docx-lo, manifest, round-trip triage, a seeded 200-document sample for windows' prints.
 - Mixed-size paragraphs without a strut (starling-bd's assignment, 2026-10-30): SCOPING by Linux lenovo-2 (starling-d6), not
   built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
   24/21 — even its plain 14pt first line is 5pt tall. Runs already carry Word's height ratio, so the no-strut line's extra
