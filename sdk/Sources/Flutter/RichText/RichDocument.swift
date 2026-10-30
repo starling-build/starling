@@ -463,6 +463,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var alignment: ParagraphAlignment = .left
     public var indentLeft: Double = 0
     public var indentRight: Double = 0
+    /// Where a group's text boxes are set in one text (`RichTextBox.parts`),
+    /// the right inset of the box this paragraph stands in, in points —
+    /// its indents hold its box's place and both insets. nil elsewhere.
+    public var boxInsetRight: Double? = nil
     public var firstLineIndent: Double = 0
     /// Points. What the paragraph says, and what the layout draws: 0 is
     /// no space, not "the default" — a file's Heading 1 that says 0 after

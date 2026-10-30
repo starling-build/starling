@@ -9179,6 +9179,14 @@ ideographs at 7.20 of 9.28, the space 4.34 of 4.55, the run's ideographs 9.24 of
 legacy cell test (half an em, 4.74) refuses it, and every later line of the cell starts a character early. A Windows witness
 for the marks allowance (lab p13: ~2-2.5 a mark between ideographs).
 Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two marks; jc both).
+  Lab lc (`windows`): our squeeze test is right (half an em in all; ours gives the same 94 twips); our widths are 1.8pt long.
+  Two parts: (1) a balanced space took half the UNSCALED em under w:w — now the scaled one (4.55 -> 4.29, Word 4.32): landed,
+  next commit. (2) Word's advances here sit on 1/600in (行 9.24 of 9.275, 基 9.48 of 9.475). Rounding each scaled run's East
+  Asian advance to whole dots took zh-4e5fe46f 92.1 -> 95.4 (p9's five lines exact) but dropped zh-e2dc9dce 98.8 -> 98.7:
+  there (標楷體 10pt at w 90, spacing -0.4 doubled, 8.2 nominal) Word steps 8.16/8.28 alternately — positions on the dot grid,
+  advances unrounded; rounding each set 8.16 and took "樣". No one dot rule (scaled size, spacing, both) fits both prints.
+  NOT landed; kept at the scratchpad's rounding-block.swift. Open: what makes zh-4e5fe46f's FangSong 10.5pt at w 95 step
+  9.24 (and 9.12, never 9.36) — perhaps the face's hinted advance at that ppem. A lab there would say (sizes, w, faces).
 - zh-3c055c9b (w96 93.2) RELEASED by Mac 7bd18d8e, to windows-2 (grid squeeze owner) via macos: every one of its 39 misses is
   one grid behaviour (17pt character grid, mode 15, overflowPunct 0). To take a line's end Word gives back the grid's addition
   of a mark AND the character before it: p9 "…第10892號、" with "號、" 17.0 -> 12.7 each and "、" 3.7 past the margin; p11
@@ -9186,6 +9194,13 @@ Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two ma
   "費、" (lab tfe) is the same family. Not zh-4e5fe46f's (no grid, mode 14 cell, marks giving ~2 of their blank halves).
 - zh-b24b396a (w96 93.6, T210) CLAIMED by Mac 7bd18d8e: all 23 misses are p12-p13 text-box labels — the text-box half of
   the first-character-past-its-box rule (cells landed cf2997f8). Lab spec sent to macos for `windows`.
+  Lab tbi (`windows`): the edge is the box's width less its LEFT inset — at or past it the first line's word is left out,
+  short of it drawn at its indent, past the box; grouped or not. DONE (next commit, Windows mode): a fixed box's frame, and
+  a group's boxes set in one text, which now carry their right inset (RichParagraphStyle.boxInsetRight). Left: p13's
+  vert270 "30" boxes (lab (4) did not reproduce the document's layout outside its group).
+- Pairs on 608df332 (w97 -> w99, n24 -> n26, the space and box rules together): Windows zh-8f9b19f4 97.4 -> 98.7,
+  zh-b24b396a 93.6 -> 94.2, zh-7773163d 97.2 -> 97.5, zh-b8de3ae2 91.6 -> 91.9; Mac zh-a7a889eb 97.0 -> 98.9,
+  zh-8f9b19f4 95.5 -> 96.2, zh-b8de3ae2 81.2 -> 82.1, zh-13d11e99 99.5 -> 100; nothing lower in either.
 
 ### A first character its indent puts past its cell or box — MEASURED (Windows 01QbbApP, 2026-10-26), not claimed; with T210
 zh-9bcea239 (92.7) p11: the score cells (tcW 389 = 19.45pt, firstLine 632 = 31.6pt, jc center, vAlign center, HTML autospacing)

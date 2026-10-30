@@ -3822,6 +3822,7 @@ enum DocxFormat {
                             for q in first ..< inside.count {
                                 inside[q].style.indentLeft += x + l
                                 inside[q].style.indentRight += max(0, groupWidth - (x + w) + r)
+                                inside[q].style.boxInsetRight = r
                             }
                             parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b"))
                         }

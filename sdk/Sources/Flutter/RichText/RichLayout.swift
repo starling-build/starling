@@ -7286,11 +7286,24 @@ public final class RichLayout {
             // `ovi`: in a 40pt column at 5.4pt margins 31.6pt draws, 60 does
             // not, and "5 abc def" loses only the "5"; zh-08e95de4's 31.2pt in
             // a 33.75pt cell, 22.95 of text, draws its "基". zh-9bcea239's scores
-            // (31.6pt in 19.45) are in no line of Word's print. Not yet in a
-            // text box: zh-b24b396a's p13 "A" stands where p12's does not.
+            // (31.6pt in 19.45) are in no line of Word's print.
             // Word for Windows only: Word for Mac's print of zh-9bcea239
             // keeps lines that this leaves out, 95.9 -> 94.7 with it.)
             if RichTextTheme.wordWindowsPages, p.cell != nil, let c = _cells[i], lead >= textWidth + ownLeft + right + c.pad.left + c.pad.right - 0.01 {
+                p = Self._hidingFirstWord(p)
+            }
+            // (In a text box the same, from the box's width less its left
+            // inset: lab `tbi` (`windows`, zh-b24b396a's package, each a fresh
+            // Word for Windows print) — a 23.5pt box at insets 7.2 draws a
+            // first line's "A" at its indent, past the box, to 15pt and none
+            // from 18 (edge 16.3); at insets 0 to 21, none at 30 (edge 23.5);
+            // "A abc def" in a 60pt box loses only its "A" at 60 (edge 52.8),
+            // grouped or not. zh-b24b396a's Text Box 49, 21pt into 16.3, is in
+            // no line of Word's print.)
+            // (A group's boxes set in one text carry their right insets.)
+            else if RichTextTheme.wordWindowsPages, p.cell == nil,
+                    let frame = _fixedTextFrame.map({ $0.right - ownLeft }) ?? style.boxInsetRight.map({ textWidth + _px($0) }),
+                    lead >= frame - 0.01 {
                 p = Self._hidingFirstWord(p)
             }
             // (The first character's em: zh-70094a34's footer opens with
@@ -9237,6 +9250,8 @@ public final class RichLayout {
             let latinDash = theme.wordRules && (run.fontHint ?? named?.char.fontHint) != "eastAsia" && (latinFace?.isEastAsian ?? false)
                 && hAnsiFace.map { !$0.isEastAsian } == true
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+            // (The run's character scale, Word's `w:w`.)
+            let wScale = run.horizontalScale ?? named?.char.horizontalScale ?? 1
             let closes = _closesUpMarks(run, named, document)
             // (So may text whose East Asian language has no such rules —
             // its run's own, else the document's: `eastAsianLineRules`.)
@@ -9997,7 +10012,10 @@ public final class RichLayout {
                     // (The subset's spaces keep 3/8 em in bold too,
                     // while its ideographs widen: the 12/16/20pt lab.)
                     let fraction = missingSpace ? 0.375 : 0.5
-                    extra += em * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                    // (Half the run's em as scaled, `w:w`: zh-4e5fe46f's space
+                    // at w 95 is 4.32 in Word for Windows' print — 10.5 x 0.95
+                    // / 2 less the doubled spacing — where ours set 4.55.)
+                    extra += em * wScale * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
                         - 2 * spread * (latinFace?.boldSpread ?? 0) + (missingSpace ? 0 : spread * (eaFace?.boldSpread ?? 0) / 2)
                     // (A trailing space set in the ideographs' face (kind -2)
                     // has the stand-in's width in its spacing: that is not
