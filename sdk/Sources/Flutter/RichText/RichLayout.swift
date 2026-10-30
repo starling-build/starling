@@ -15813,6 +15813,18 @@ public final class RichLayout {
         }
         var box = RichTextBox(paragraphs: paragraphs)
         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+        // (As wide as its lines are set in the box, each run in its own
+        // face: measured in the East Asian one alone, zh-c591c1fa's
+        // "原訂2月28日發行之公報，因適" (7pt halves of 14pt 標楷體, its
+        // digits Times) came out narrower than the box then set it, and
+        // "適" wrapped to a third row Word's print does not have.)
+        var probe = ImageAttachment(data: Data(), width: 1e5, height: 1, name: "combine")
+        probe.textBox = box
+        if let open = _textBox(probe, document) {
+            for k in paragraphs.indices {
+                widest = max(widest, open.layout.geometry(k).painter.computeLineMetrics().map { $0.width }.max() ?? 0)
+            }
+        }
         var image = ImageAttachment(data: Data(), width: widest / _px(1) + 0.05, height: 1, name: "combine")
         image.textBox = box
         guard let laid = _textBox(image, document) else { return nil }
