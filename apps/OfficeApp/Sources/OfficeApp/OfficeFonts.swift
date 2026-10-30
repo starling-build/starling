@@ -2114,7 +2114,14 @@ enum OfficeFonts {
     /// uses Cambria for spaces/punctuation and Times New Roman for Arabic
     /// when the named face is absent (rtl.docx and missing-face labs).
     static func complexFace(_ family: String?) -> RichResolvedFace? {
-        let name = family ?? "Times New Roman"
+        // (A face neither embedded nor on the machine is the one Word sets
+        // the text in, Times New Roman, and not a name nothing answers to:
+        // rtl.docx's "Noto Sans Arabic UI" took the platform's default face
+        // for its lines' height — Segoe UI's 1.33 em on Windows, 15.96pt a
+        // 12pt line where Word's step 14 — and every line from the third
+        // stood over 3pt low.)
+        var name = family ?? "Times New Roman"
+        if embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil { name = "Times New Roman" }
         var face = RichResolvedFace(family: embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
         // (Word for Windows' Arabic in Arial and Times New Roman, which the
@@ -2500,7 +2507,12 @@ enum OfficeFonts {
                     face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
                 } else { face.classScales = [1, 1, 1, 1, 0.75] }
                 #elseif os(Windows)
-                face.classScales = [1, 1, 1, 1, 0.729]
+                // (On Windows the platform's Thai is Leelawadee UI, and
+                // Browallia's own widths set it, as Cordia's draw it on a
+                // Mac: at 0.729 of Leelawadee's, zh-6a4fc013's Thai ran
+                // 2.5% narrow of Word's for Windows over 11,356 letters.)
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(browalliaAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
                 #else
                 // (On Linux the fallback is Noto Sans Thai: shaped over
                 // zh-6a4fc013's Thai it is 1/0.70 of Cordia's widths, and
@@ -3161,6 +3173,14 @@ enum OfficeFonts {
         // Sans Thai at 0.66 its lines ran long — 91.7 -> 89.4, 638 lines
         // to Word's 614 (office1's check).)
         if wordOnWindows, _cordiaLoaded { RichTextTheme.thaiBreaksAtSpaces = true }
+        // (And on a Windows host, which has no Word for Mac's Cordia to
+        // load and so never came here: its Thai, Browallia's widths in
+        // Leelawadee UI, broke inside words where Word's breaks at spaces
+        // — zh-6a4fc013 48.5 -> 66.9 here, where a Mac host's run of the
+        // same Windows mode scores 93.5.)
+        #if os(Windows)
+        if wordOnWindows { RichTextTheme.thaiBreaksAtSpaces = true }
+        #endif
         // (On every platform: set inside the macOS branch, Linux and
         // Windows sweeps under OFFICE_WORD_FONTS=windows never had it, and
         // bug59058's page 28 still lost its last line there.)

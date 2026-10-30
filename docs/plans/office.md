@@ -8599,3 +8599,23 @@ with no other document changes; tab indentation remains a separate issue.
   sum falls short refuses it. Pair on the Windows box, 756 documents per
   mode: zh-f39e54b6 94.5→95.9 Windows (第十四條 sends "日" down, 第十五條
   keeps "查", as both Words' prints), every other document identical.
+- **Three Windows-host causes: Thai breaks, a missing cs face, WordArt's extent
+  (2026-10-29).** (1) Word for Windows breaks Thai only at spaces, but the
+  switch (`thaiBreaksAtSpaces`) was set only once Word for Mac's cordia.ttc
+  had loaded, which happens on macOS alone; a Windows host broke Thai at ICU's
+  dictionary boundaries. It is now set on Windows hosts too, and the Windows
+  Thai face takes Browallia New's advances (2.5% narrow over 11,356 letters)
+  in place of a class scale. zh-6a4fc013 48.5→66.9 Windows-hosted, the bulk of
+  the ~0.09 zh gap between Windows- and Mac-hosted Windows mode; residual: p18
+  keeps a bold heading on one line where ours breaks after "：". (2) A cs face
+  neither embedded nor installed ("Noto Sans Arabic UI" in POI `rtl`) fell to
+  the platform default; on Windows that is Segoe UI, 1.33em, 15.96pt lines
+  against Word's ~14. It now falls to Times New Roman: rtl 28.6→85.7 both
+  modes. (3) An inline VML WordArt shape (text path, spt 136–175) adds to its
+  line in Word for Windows' print 0.68 plus the larger of its outline's term
+  (lab wa4: 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, in proportion
+  between, past 4pt on the 3→4 step) and 2.28 for a shadow; within 0.02 of the
+  lab but for the text's own part ("ОООО"/"IIII" at 1pt: 42.95 against 41.52).
+  WordWithAttachments 73.7→81.6; its rest is p2's embedded document. Pair on
+  the Windows box, 756 documents, Windows mode: only those three move; Mac mode
+  (Thai+WordArt) only zh-6a4fc013 48.7→49.8.

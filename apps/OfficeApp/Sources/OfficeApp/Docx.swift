@@ -2427,6 +2427,36 @@ enum DocxFormat {
     /// it differs from Word for Mac (the background's header marks).
     static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
     static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
+
+    /// What a VML WordArt shape adds to its line's height in Word for
+    /// Windows' print, over its box (see `objectAttachment`'s note); nil
+    /// for a shape that is not WordArt. The outline's term between the
+    /// weights the lab measured is in proportion, and past 4pt goes on
+    /// as from 3 to 4.
+    static func _wordArtExtra(_ shape: XNode, types: [XNode]) -> Double? {
+        let ref = shape["type"] ?? ""
+        let id = ref.hasPrefix("#") ? String(ref.dropFirst()) : ref
+        let type = types.first { $0["id"] == id }
+        let spt = Int(shape["o:spt"] ?? type?["o:spt"] ?? "") ?? 0
+        guard (136 ... 175).contains(spt), let path = shape.first("v:textpath") ?? type?.first("v:textpath"),
+              !["f", "false", "0"].contains(path["on"] ?? type?.first("v:textpath")?["on"] ?? "f") else { return nil }
+        let stroke = shape.first("v:stroke")
+        let off = ["f", "false", "0"]
+        var weight = 0.0
+        if !off.contains(shape["stroked"] ?? "t"), !off.contains(stroke?["on"] ?? "t") {
+            weight = _length(shape["strokeweight"] ?? stroke?["weight"] ?? "") ?? 0.75
+        }
+        let table: [(Double, Double)] = [(0, 0), (0.5, 0.84), (1, 2.28), (2, 11.28), (3, 19.56), (4, 30.0)]
+        var outline = 0.0
+        if weight >= 4 {
+            outline = 30.0 + (weight - 4) * (30.0 - 19.56)
+        } else if let i = table.indices.dropFirst().first(where: { table[$0].0 >= weight }) {
+            let (w0, e0) = table[i - 1], (w1, e1) = table[i]
+            outline = e0 + (e1 - e0) * (weight - w0) / (w1 - w0)
+        }
+        let shadow = shape.first("v:shadow").map { !off.contains($0["on"] ?? "f") } ?? false
+        return 0.68 + max(outline, shadow ? 2.28 : 0)
+    }
     static let _keptSettingNames: [[String]] = [
         ["w:embedTrueTypeFonts", "w:embedSystemFonts", "w:saveSubsetFonts",
          "w:alignBordersAndEdges", "w:bordersDoNotSurroundHeader", "w:bordersDoNotSurroundFooter"],
@@ -3607,6 +3637,20 @@ enum DocxFormat {
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
+            // (WordArt — a VML textpath — in its line, under Word for
+            // Windows: the line holds more than the shape's box, by its
+            // outline's weight and its shadow, the larger of the two. Lab
+            // wa4 (Word for Windows, mode 14, a 187.5 by 28.5pt textpath
+            // between 10pt markers, each case a fresh Word): unstroked
+            // 0.68 over ours, and over that an outline of 0.5, 1, 2, 3 and
+            // 4pt 0.84, 2.28, 11.28, 19.56 and 30.0 — round joins the same
+            // — and a shadow, offset or perspective, 2.28. Each of
+            // WordWithAttachments' three, 1pt and a shadow or a shadow
+            // alone, then 2.96: 8.88 over the three, where its next line
+            // stood 8.47 high in ours.)
+            if Self.wordOnWindows, att.float == nil, let shape = Self._vmlTop(node), let extra = Self._wordArtExtra(shape, types: notes.shapeTypes) {
+                att.effectTop += extra
+            }
             // (A level line — no height — takes no room in the line whatever
             // its wrapping: zh-f47b8a74's red rules under its letterhead,
             // two lines wrapped top and bottom in an empty paragraph, are
