@@ -10184,3 +10184,8 @@ not the hang (taking the Latin quote out of the hang moved nothing there and cos
 from 346.15, and the trailing spaces in FangSong at 8.04; ours sets every space at the stand-in's half em, 8.0, and the name
 wraps after "嘉兴市". Lab spec (Word for Windows, the package's p5 paragraph): leading spaces only U+0020 / only U+00A0; hint
 default; ascii Times; the run split before the name. Wanted: which face Word sets a missing 仿宋_GB2312's spaces in, and when.
+
+### T238. zh-604e21e5: 98.2 (v2) against word-win (p30, 15 lines) — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4): building lab brk2
+p30's "附件2：報告書內容大綱" (Heading 2, mode 15) opens with <w:br w:type="page"/> and has 9pt before; Word's fresh print (reference
+replaced in c56dd6b9) drops the space on the new page, ours keeps it and the page stands 9pt low. Lab brk2 (18): mode 12 keeps, 15 drops.
+Building that (mode >= 15 only), unless macOS-doc already has it — asked macos.
