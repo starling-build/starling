@@ -3864,6 +3864,7 @@ enum DocxFormat {
         }
         /// A picture or object in the line, where the text has it.
         var runPropertiesXML: String? = nil   // of the run being walked, for a picture in it
+        var runRaised: Double? = nil          // its `w:position`, for a picture or object in it
         var runFrame: BorderLine? = nil   // ... and its character border, a line of one
         func addInline(_ att: ImageAttachment) {
             var att = att
@@ -3872,6 +3873,7 @@ enum DocxFormat {
             inlineImages[att.id] = att
             var cs = CharStyle()
             cs.inlineImage = att.id
+            cs.raised = runRaised
             addText(RichParagraph.inlineImageCharacter, cs)
         }
         /// A drawing that is not a picture (a chart, a shape, a diagram), an
@@ -4540,7 +4542,7 @@ enum DocxFormat {
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
             runFrame = r.first("w:rPr")?.first("w:bdr").flatMap(_borderLine).flatMap { $0.width > 0 ? $0 : nil }
-            defer { runPropertiesXML = nil; runFrame = nil }
+            defer { runPropertiesXML = nil; runFrame = nil; runRaised = nil }
             if let rPr = r.first("w:rPr") {
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
@@ -4557,6 +4559,7 @@ enum DocxFormat {
             // style again, so the run has to say "none" over it —
             // bug59058's green reference numbers came back underlined.
             if link != nil, !cs.underline { cs.off.insert(.underline) }
+            runRaised = cs.raised
             for child in r.children {
                 switch child.name {
                 case "w:t":
