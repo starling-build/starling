@@ -118,6 +118,19 @@ Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the de
   coloured extent) is 125.5-285.8 against ours 128.2-289.0, 3pt higher, with its labels lower; chart 2's is 418.2-580.0
   against ours 420.8-578.8 (4pt shorter). Both untitled auto plots with no legend — Word's 3-D pie auto plot moves with
   its labels (residual (ii) above). Next: a Word for Windows lab of that plot box, through `windows`.
+- DONE after windows-1's round 2 (Windows box, v2, 756 docs, nothing lower): zh-27a874b7 78.5→83.9, zh-d62da4dd 81.0→86.0,
+  zh-b8de3ae2 91.7→93.5 —
+  - a 3-D pie's moved label moves from its default as fitted into the frame, as a flat pie's (馬來西亞 14pt → 0.8);
+  - a 3-D pie Word lays out itself (no title, legend or layout) is DRAWN on the frame's middle, 1.5pt over it, its labels
+    where they were (lab p3dplot: moving the labels with it cost 4.4 a document — Word's labels keep the old geometry), and
+    ×1.16 where no label stands outside (lab p3dplot2: size depends only on outside labels, not their text or count);
+  - a combination chart's line labels with no dLblPos stand right of their points (zh-b8de3ae2, 8.45 right, baseline 3.03 under).
+- HELD: wip/mac-01Xgpbk5-p3dstack (63a2ef13): an unmoved outside label steps clear of earlier labels by 2.6pt (德國 15.5 → 3
+  off Word's), no v2 score yet. Lab p3dplot3 (rotY 0-330 by 30): inside labels of big slices stand near the slice's middle
+  angle, 0.03-0.04 of the radius nearer the centre than ours on front slices, angle drifts to ±15° fitting no rule tried
+  (furthest fit over the slice's angles, box margins, projected centroid); small outside labels crowd along the rim.
+  RELEASED there.
+
 
 ### zh-8d6f702e (Windows 90.8) and zh-3c055c9b (Windows 93.2) — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
 Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pairs on this box, base b82b195f.
@@ -152,6 +165,15 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
 Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt (zh-7773163d entry, T167 section): in old-mode
 documents Word sends a closing mark down alone only when it cannot fit, and does not hang it. (2) taken over from windows-2's
 item (3) above (decision table, lab gs). Labs through starling-bd to `windows`.
+- (1) BUILT, REVERTED: in Windows mode an old-mode doNotCompress document's closing mark started lines alone and never
+  hung (zh-7773163d 98.0→98.6, with 細明體_HKSCS's "§" at half an em, 43 of 43 in Word's print) — but ~60 such documents
+  fell (zh-4c5da793 mode 12 100→12.5): Word hangs their marks ("〔2019〕" 16pt past). Something zh-7773163d alone has
+  decides (no themeFontLang, ulTrailSpace + shapeLayoutLikeWW8, 細明體_HKSCS): lab spm3 (wip/lab-spm3) queued. Also: a
+  break inside `_hanJoins` stretches desyncs engine and fitter — skip them (lenovo-3's 1255-miss collapse).
+- (2) gs2 (wip/lab-gs2): mark TYPE and LANGUAGE change nothing, mark COUNT does; a refused line stretches only its
+  automatic spaces, and the space between the line's end and the piece leaves with the piece. Built:
+  wip/mac-01Xgpbk5-gridgap (f515dc49), zh-3c055c9b 93.2→96.9 Mac pre-pair, in windows-1's round 3. Open: "費、" (its
+  opening "「" seems to weigh less than a full mark).
 
 ### Line matcher v2 (test/docx-line-match.py, DOCX_LINE_MATCH=v2) — LANDED; v2 official from windows-1's next baseline (user-approved) (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
 Opt-in switch; the default (v1) is byte-identical to the old matcher over a 756-doc Windows base. Report v1 alongside for a
