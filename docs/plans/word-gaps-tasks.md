@@ -10058,6 +10058,58 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   | fields | 1 | 1 | 0% | btlr-frame-vml (1, 0%) |
   | text: line breaks, fonts and widths | 1 | 1 | 0% | tdf169843 (1, 0%) |
   Next: the full 200 once the prints are in; the first-mismatch read of the top of each class is the second cut.
+  FULL LO SET, SECOND CUT (lenovo-2, 2026-10-30; prints 9d933c5e: 197 of 200, 3 skipped (2 "corrupt", tdf123163-1 "error")). Windows mode, v2, my clean
+  renders at c81a756bc (before the nested-table steps), scored apart from the official mean. HEADLINE over the 181 documents whose Word print has
+  text lines: MEAN 69.4, MEDIAN 100.0, >= 95: 93 (51%), 100%: 91, half or more: 127 of 197 incl. the 16 without text; Word's page count: 176 of 197.
+  All 197 (16 score 0 for having no text in Word's print): mean 63.8, median 88.9. 17 documents WITH text score exactly 0.
+  Class table (one class per document under 95, rough; missed lines = Word's lines less the matched):
+  scored 197; below 95: 104; missed lines in them: 1873
+  | class | docs | missed lines | share | worst three (missed lines, score) |
+  |---|---|---|---|---|
+  | nested tables | 9 | 752 | 40% | fdo43573-2-min (390, 1%); tdf170381-split-float-table-in-float-table (96, 8%); floattable-del-empty (86, 62%) |
+  | tracked changes / comments / balloons | 9 | 242 | 13% | fdo63164-1 (207, 73%); merge_hidden_redline (17, 26%); redline-image-inline (10, 33%) |
+  | floating tables | 15 | 228 | 12% | floattable-next-leaf-in-section (53, 5%); floattable-negative-height (50, 74%); floattable-table-row-keep (46, 2%) |
+  | charts | 22 | 154 | 8% | xaxis-labelbreak (14, 0%); tdf134676 (13, 7%); tdf134146 (13, 7%) |
+  | sections and columns | 5 | 123 | 7% | shape-anchored-in-follow (67, 26%); tdf139336_ColumnsWithFootnoteDoNotOccupyEntirePage (26, 0%); tdf153136 (24, 42%) |
+  | text layer (Word print has no text lines) | 16 | 82 | 4% | tdf138773 (81, 0%); tdf137025 (1, 0%); tdf129054 (0, 0%) |
+  | tables (other) | 6 | 78 | 4% | tdf88496 (52, 10%); fdo78885 (11, 8%); tdf152298 (9, 85%) |
+  | frames | 4 | 65 | 3% | tdf147485-forcepoint (32, 0%); tdf150200 (20, 5%); tdf150438 (12, 0%) |
+  | fields | 3 | 45 | 2% | tdf164905 (43, 59%); tdf116486 (1, 50%); btlr-frame-vml (1, 0%) |
+  | bidi / Hebrew / Arabic | 4 | 43 | 2% | Cool16066_addRowsUnderOmittedHeading (28, 33%); tdf135216_evenOddFooter (7, 30%); tdf69647_text (6, 14%) |
+  | headers / footers / page count | 1 | 32 | 2% | tdf152983-1-min (32, 18%) |
+  | text: line breaks, fonts and widths | 5 | 15 | 1% | tdf122878 (5, 86%); Cool15691_headerTextWrapsAroundImage (4, 20%); Cool15691_headerTextWrapsAroundImageLargest (4, 20%) |
+  | images / shapes / text boxes | 5 | 14 | 1% | tdf106153 (6, 84%); tdf128198-1 (5, 44%); tdf124600 (1, 67%) |
+  FIRST-MISMATCH READS (what each class's top documents miss first):
+  - NESTED TABLES (lenovo-2): fdo43573-2-min (390, 0.8%): Word 393 lines on 15 pages, ours 265 on 20: the whole text sits in a nested table and is
+    set narrower than Word's (flatten indents; not read to the cause); fdo48718-1 (81): a many-row two-column nested table flattened (Word's rows 11pt
+    tight with borders); tdf170381 x2: see above (in-normal-table 37.5 -> 100 on wip/nested-nominal-float; in-float-table needs the keepNext
+    row-parting rule + a box for many-row multi-column nested tables, both 100 on Linux, pairing); floattable-del-empty (86) is floating-table text
+    wrapping; tdf170477 (83.6): Word keeps one more row (A3) on p3 at the foot, a row-cut.
+  - TRACKED/COMMENTS (small, dropped): fdo63164-1 (207 missed of 761, 73%): 29 pages, first miss p4's heading block (the text after it shifts); tdf170236:
+    Word's text carries "Commented [A1]:..." that ours does not draw; tdf104797/CT-formatted-deletion: move balloon texts.
+  - FLOATING TABLES (macOS-doc): floattable-next-leaf-in-section (53, 5%); floattable-negative-height (50); floattable-table-row-keep (46, 2.1%: Word 3 pages
+    for ours 2, text at x 236 all missing on page 1); floattable-footer-object (15: the table starts 66pt lower in ours); floattable-center-inline-overlap
+    (0%: "x" at y 120 / x 415 in Word, y 645 / x 57 in ours).
+  - CHARTS (macos-ios): xaxis-labelbreak 0, tdf134676 / tdf134146 7%, tdf134235 14%, tdf130969 23% (axis labels rounded), tdf137154 0 (data labels 8-12pt off),
+    tdf134866 0 (custom label 13pt high), outside_long_data_label 0.
+  - SECTIONS/COLUMNS: shape-anchored-in-follow (67 of 91, 26%: the second column's text at x 245 is missing); tdf139336_ColumnsWithFootnote... (0%: Word's
+    26 lines are numbers in columns, ours 47 stacked); tdf103931 (0%: a 3-column section with a table: Word "Testing Testing Testing" one line, ours one per line);
+    tdf153136 (special spaces, windows-2).
+  - FRAMES (lenovo): tdf147485-forcepoint (0%: Word draws 32 single glyph lines, ours none: a frame/text box not drawn); tdf150200 (5%: the first paragraph 40pt
+    lower in ours); tdf150438 (0%: a "“" line of its own); sdt+framePr (0%: a field "1" joins the text line in Word); btlr-frame-vml (0%: vertical text in a frame not drawn).
+  - FIELDS: tdf164905 (43 of 105): a table of contents with dot leaders and "ERROR! BOOKMARK NOT DEFINED" lines, 62 match.
+  - BIDI (windows-3): Cool16066_addRowsUnderOmittedHeading 28, tdf152983-1-min 32 (an extra first line "Learning l'Aliyas HaNeshama"), tdf69647_text,
+    tdf135216_evenOddFooter (5 pages for 4).
+  - IMAGES/SHAPES (lenovo): tdf135035 (0%: a text box 6pt right and 51pt low in ours), groupshape-sdt (0%: SDT in a group shape not drawn), tdf106153,
+    tdf128198-1; text-layer artefacts: tdf119200 (Word prints blanks for the symbol face, ours draws "∈∉⊂⊃"), tdf126426 (ours draws no text), tdf138773 (chart text).
+  - TEXT/FONTS: only 15 missed lines in 5 documents (tdf122878, Cool15691_* header text wrapping around an image): the usual text layout hardly appears in this set.
+  LOWEST 40 (documents with text; score, file):   0.0 extras/layout/data/tdf150438.docx;   0.0 extras/ooxmlimport/data/btlr-frame-vml.docx;   0.0 extras/layout/data/floattable-center-inline-overlap.docx;   0.0 extras/ooxmlimport/data/tdf126426.docx;   0.0 extras/layout/data/tdf134866.docx;   0.0 extras/ooxmlimport/data/tdf103931.docx;   0.0 extras/ooxmlimport/data/tdf169843.docx;   0.0 extras/layout/data/xaxis-labelbreak.docx;   0.0 extras/ooxmlimport/data/groupshape-sdt.docx;   0.0 extras/layout/data/tdf139336_ColumnsWithFootnoteDoNotOccupyEntirePage.docx;   0.0 extras/layout/data/tdf137154.docx;   0.0 extras/ooxmlimport/data/tdf170236.docx;   0.0 extras/layout/data/tdf147485-forcepoint.docx;   0.0 extras/layout/data/sdt+framePr.docx;   0.0 extras/ooxmlimport/data/tdf119200.docx;   0.0 extras/layout/data/outside_long_data_label.docx;   0.0 extras/layout/data/tdf135035.docx;   0.8 extras/layout/data/fdo43573-2-min.docx;   1.2 extras/layout/data/fdo48718-1.docx;   2.1 core/layout/data/floattable-table-row-keep.docx;   4.8 extras/layout/data/tdf150200.docx;   5.4 core/layout/data/floattable-next-leaf-in-section.docx;   6.2 extras/layout/data/floattable-footer-object.docx;   7.1 extras/layout/data/tdf134146.docx;   7.1 extras/layout/data/tdf134676.docx;   7.7 extras/layout/data/tdf170381-split-float-table-in-float-table.docx;   8.3 extras/layout/data/tdf130380.docx;   8.3 core/data/ooxml/pass/fdo78885.docx;  10.3 extras/layout/data/tdf88496.docx;  14.3 extras/layout/data/tdf134235.docx;  14.3 extras/layout/data/tdf69647_text.docx;  16.7 extras/ooxmlimport/data/tdf124398.docx;  17.9 extras/layout/data/tdf152983-1-min.docx;  20.0 extras/layout/data/Cool15691_headerTextWrapsAroundImageLargest.docx;  20.0 extras/layout/data/Cool15691_headerTextWrapsAroundImage.docx;  23.1 extras/layout/data/tdf130969.docx;  26.1 extras/layout/data/merge_hidden_redline.docx;  26.4 extras/layout/data/shape-anchored-in-follow.docx;  27.3 extras/layout/data/tdf128996.docx;  30.0 core/header_footer/data/tdf135216_evenOddFooter.docx
+  RECOMMENDED NEXT PRINTS (from the 1,889 eligible documents not yet printed; windows prints ~300 an hour): (1) ALL 173 with nested tables (48), floating
+  tables (130) or charts (23), i.e. the classes being fixed, so their fixes get witnesses (floating tables: extras/ooxmlexport 42, core/layout 29,
+  writerfilter/dmapper 16; nested: ooxmlexport 25, dmapper 6, core/layout 4; charts: ooxmlexport 16); (2) all 64 with frames (ooxmlexport 47); (3) of the 196
+  with sections/columns, the ~55 outside extras/ooxmlexport (uiwriter 11, core/header_footer 8, ...) plus a seeded 45 of ooxmlexport; (4) a seeded 40 of the 133
+  bidi ones (windows-3's class); (5) a seeded 60 of the 1,294 with none of these (ooxmlexport 956: export round trips, likely near 100), as a base. About 370
+  documents, a bit over an hour. Not worth printing now: the 122 tracked-change documents (dropped class) beyond a seeded 20.
   FIRST SCORES (Linux lenovo-2, 2026-10-30, office 8f2f2639 prints; Windows mode, v2, bundled fonts, the lo set scored apart from the official mean):
   batch 1, 50 documents (the first 50 ids): mean 67.2 (74.7 over the 45 where Word's print has text lines), median 99.5, >= 95: 26, 100%: 25,
   half or more: 33, Word's page count: 42. Five have no text lines in Word's print (bottom-margin-with-footer, tdf134277, tdf124423 — no text
