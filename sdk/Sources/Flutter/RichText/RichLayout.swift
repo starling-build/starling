@@ -7052,6 +7052,18 @@ public final class RichLayout {
 
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         var p = p
+        // A paragraph of hidden text alone, its mark not hidden, is one empty
+        // line in its mark's look: lab hiddenline (Word for Windows) gives it
+        // a full line at 10, 12 and 16pt, as a paragraph with an ordinary
+        // mark and no text has — text deleted as well, once a tracked deletion
+        // has gone to its balloon. (Ours set the hidden run a hair high and left
+        // the line nothing: merge_hidden_redline's "Abc" paragraph.)
+        if theme.wordRules, p.image == nil, p.inlineImages.isEmpty, !p.runs.isEmpty,
+           p.runs.allSatisfy({ $0.style.hidden }), !_vanishes(p, document) {
+            RuleTrace.hit("hidden-text-keeps-line")
+            p.text = ""
+            p.runs = [Run(length: 0, style: p.style.mark ?? CharStyle())]
+        }
         let style = p.style
         let wordList = _wordList(p, document)
         var sides = _sideIndents(p, at: i, document)

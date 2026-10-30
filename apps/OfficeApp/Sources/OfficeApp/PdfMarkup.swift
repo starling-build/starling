@@ -259,10 +259,19 @@ struct PdfMarkup {
         }
         var font: [String] = []
         var rest: [String] = []
+        // (The face when it is not the one it was — "(Default) Arial", as Word
+        // words it — before the style words, then the size and the highlight:
+        // n830205's "Font: (Default) Arial, 9 pt" and "Font: 9 pt, Highlight".)
+        let oldFace = attribute(old, "w:rFonts", "w:ascii")
+        if let face = style.fontFamily, !face.isEmpty, face != oldFace { font.append("(Default) " + face) }
         let oldBold = attribute(old, "w:b").map { $0 != "0" && $0 != "false" } ?? false
         if style.bold != oldBold { font.append(style.bold ? "Bold" : "Not Bold") }
         let oldItalic = attribute(old, "w:i").map { $0 != "0" && $0 != "false" } ?? false
         if style.italic != oldItalic { font.append(style.italic ? "Italic" : "Not Italic") }
+        if let size = style.fontSize, attribute(old, "w:sz").flatMap({ Double($0) }).map({ $0 / 2 != size }) ?? true {
+            font.append((size == size.rounded() ? String(Int(size)) : String(size)) + " pt")
+        }
+        if style.highlight != nil, attribute(old, "w:highlight") == nil { font.append("Highlight") }
         if let was = attribute(old, "w:color"), !was.isEmpty, style.color == nil { rest.append("Font color: Auto") }
         let now = attribute(style.keptXML ?? "", "w:lang")
         let then = attribute(old, "w:lang")
