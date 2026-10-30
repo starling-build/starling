@@ -9728,7 +9728,10 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
-- zh-6c447317 (98.6, word-win): p16 and p20 first lines one ideograph short. RELEASED by Linux lenovo-2 (starling-d6),
+- zh-6c447317 (98.6, word-win): PARKED (starling-bd, 2026-10-30): box- and state-specific. Labs bsp/bsw (windows): the line is a
+  plain fit; the print box lacks 仿宋_GB2312, and under its substitute a balanced Times space is 0.40 em (0.43 bold; Calibri bold
+  0.537) — but a half em (8.11 bold at 16pt) in any document with a 宋体 row before it, and a half em under any present face.
+  Not built. Was: RELEASED by Linux lenovo-2 (starling-d6),
   2026-10-29, nothing pushed — needs a Windows lab. Mode 14, balanceSingleByteDoubleByteWidth, 仿宋_GB2312 16pt:
   "第二十七条" + two bold Times New Roman spaces + "以上…社会保", 0.9pt over at half-em spaces; Word for Windows sets
   the spaces 6.9 each and keeps "保". Tried, all dropped: (a) Latin-face spaces not balanced: 13 documents down (zh-015abfaf
