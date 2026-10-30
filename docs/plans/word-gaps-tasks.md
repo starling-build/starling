@@ -10232,3 +10232,10 @@ default; ascii Times; the run split before the name. Wanted: which face Word set
 p30's "附件2：報告書內容大綱" (Heading 2, mode 15) opens with <w:br w:type="page"/> and has 9pt before; Word's fresh print (reference
 replaced in c56dd6b9) drops the space on the new page, ours keeps it and the page stands 9pt low. Lab brk2 (18): mode 12 keeps, 15 drops.
 Building that (mode >= 15 only), unless macOS-doc already has it — asked macos.
+BLOCKED (Linux office1, 2026-10-30): built (Windows mode, mode >= 15: a paragraph its own page break opens drops its space
+before on the new page) and pre-paired, 756, v2: zh-604e21e5 98.2 -> 100 and zh-ae2dd08d 95.2 -> 98.3, but 39 documents fall,
+98.13 -> 96.71 — zh-c5f59397 100 -> 22.0, zh-25381d22 99.3 -> 32.2, zh-4f883dce 100 -> 40.4, zh-84377537 and zh-bd71a808 -> 45.0 …
+All checked have brk2's exact shape: mode 15, a "貳、年度重要計畫" heading opened by <w:br w:type="page"/>, before 200. Their
+word-win references KEEP the space, as zh-c5f59397's does; brk2's fresh prints drop it. So either ~39 references are stale
+(brk2 already calls zh-c5f59397's so) or the fresh prints differ from the references' Word in some setting. A decision on the
+references (the user's) is needed before this rule can land. Reverted; patch kept at ~/tmp/office1/t238-v1.patch (Lenovo).
