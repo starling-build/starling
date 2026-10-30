@@ -13484,7 +13484,19 @@ public final class RichLayout {
                     // "：" with eight automatic spaces; zh-1b74ed91's "…作業，"
                     // is taken 1.0 over with three.)
                     let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes && hang == 0 ? em / 2 : em / 4)
-                    let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
+                    // (A word space beside East Asian text gives a fifth of
+                    // itself, not a quarter, in Word for Windows' print:
+                    // zh-b5359de4's "…宜选用 LED 灯或…控制方式；" (mode 15,
+                    // justified, 12pt 宋体) wraps "式；", the two spaces
+                    // needing 1.38 of 6 each; zh-f2ca3070's three, 1.2.
+                    // Between Latin words, lab `jg`'s quarter stands, and so
+                    // does it after a circled number: zh-1d2a7c35's
+                    // "① 計畫內容…" (a space in the text, not the label's
+                    // suffix) keeps 之 on its line in Word's print.)
+                    func spaceGive(_ k: Int) -> Double {
+                        RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && eastAsianAt(k - 1)) || (k + 1 < units.count && eastAsianAt(k + 1))) ? 0.2 : 0.25
+                    }
+                    let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w * spaceGive($1.k) } + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
                     // next line: lab `jg` (Word for Windows, Times New
@@ -13520,7 +13532,7 @@ public final class RichLayout {
                     if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
-                        for space in wordSpaces { adjust[space.k, default: 0] -= space.w / 4 * share }
+                        for space in wordSpaces { adjust[space.k, default: 0] -= space.w * spaceGive(space.k) * share }
                         let autoShare = roomAutos / max(0.001, autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
                         for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) * autoShare * share }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
