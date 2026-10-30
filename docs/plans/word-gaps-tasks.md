@@ -212,6 +212,14 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
 - "+" rule — DONE (landed after windows-1's round 2, nothing dropped): a line may break after "+" before an ideograph.
   v2: zh-22ecbdc8 96.8 -> 99.3, zh-26660336 99.1 -> 99.8, zh-41907c96 99.4 -> 100, zh-c0ac6f55 99.2 -> 100.
 - Closing curly quote where the language has no East Asian rules (wip/lenovo3-quote, ec878293): in windows-1's round 3.
+  Linux pair: zh-1cfb652b 99.4 -> 100 (lab cq), nothing else.
+- zh-bbbb2e6a: a distributed line of one character is centred (wip/lenovo3-distribute, 60e741e5): in windows-1's round 4.
+  Linux pair: v2 97.6 -> 99.1, nothing else.
+- zh-ab34d9cb "˙" (U+02D9 hinted eastAsia) in the East Asian face (wip/lenovo3-dotabove, UNPAIRED: patched sweep done,
+  base not; also zh-633792eb, zh-c591c1fa). Next: pair, then windows-1.
+- Band still open (v2 99.0-99.4): zh-6e6b9821, zh-a78d52e7, zh-25381d22, zh-92373179, zh-ea70c30e and others, mostly a
+  character per line more or fewer than Word; zh-12c4f07a left (known hard).
+(Session restarting on Sonnet 5.5, 2026-10-30; claims stand.)
 - zh-bbbb2e6a list numbers 17pt off (v2 revision's find, routed by starling-bd): a lone character in a jc=distribute cell is
   centred in Word's print ("一" at 74.3 = the cell's middle); ours sets it at the start. In progress.
 
