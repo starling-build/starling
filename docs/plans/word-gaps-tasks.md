@@ -169,16 +169,32 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "÷" set East Asian parts like "×" (538960d0): zh-427cb16c and zh-5f045fc1 -> 100, zh-b2e0f286 99.5 -> 99.8. "﹚﹜﹞" hang as
   closing marks (0df8587f): zh-ab1ea005 99.9 -> 100 (its page-number misses are lenovo-2's). zh-6b242483 "（家）|×1" is a mode-14
   squeeze (5.1 over, 4 marks, Word refuses), sent to macos-ios as a per-mark witness.
-### Census of every missed line under v2, Windows mode, by first cause — CLAIMED (Mac 01Xgpbk5, 2026-10-30, starling-bd's assignment)
-From the freshest Mac-hosted v2 sweep of the tip (zh-6a4fc013 and rtl left out: Windows-host fonts). Classes: line break, line
-height, table, float/text box, header/footer, chart/drawing, list numbering, pagination, font/width, reader artefact. Goal: the
-next 3-5 systemic fixes. Table to follow here.
-STATUS (paused for a session restart, 2026-10-30): scripts on wip/lab-census (b4dadd26, test/labs/census: census.py
-collects v2's unmatched Word lines per page and groups them into incidents with region/shift/page features; classify.py
-rolls them up by first cause). Tested on zh-3c055c9b and delins. NOT YET RUN corpus-wide: needs a fresh v2 Windows-mode sweep
-of the tip (sweep-win.sh with DOCX_LINE_MATCH=v2), then `python census.py REPO W WP > c.json; python classify.py c.json`, then
-hand-check the top classes. Also unswept: wip/mac-01Xgpbk5-hkscs-hanjoin (abbbc8fe: HKSCS "§" half an em; rules-off break
-skips Han joins).
+### Census of every missed line under v2, Windows mode, by first cause — DONE (Mac 01Xgpbk5, 2026-10-30, starling-bd's assignment)
+Setup: v2 sweep of office 5f124114, Windows mode, Mac-hosted (zh-6a4fc013 and rtl left out); scripts wip/lab-census
+(census.py: unmatched Word lines per page -> incidents; classify.py: first cause by region/shift/page). Totals match the
+scorer's per-document counts exactly.
+- BEFORE T238: 4,426 missed lines in 216 documents. ONE systemic cause was 1,770+ of them: a paragraph that opens with a page
+  break character keeps its space-before on the new page in mode 15 (Word gives it to the old page). 103 documents have the
+  construct, the 37 of mode 15 miss it (36 do), 2,068 lines; the 66 of earlier modes match. Fix = lenovo's T238 (mine,
+  duplicate, deleted); pair: 41 documents up (avg +26), none down, zh mean 97.9 -> 99.6.
+- AFTER T238 (sweep w75): 1,528 lines in 181 documents. By class (the region heuristic is crude: "chart/drawing" is mostly text
+  in shaded tables or framed boxes, not charts):
+  | class | lines | docs | note |
+  | chart/drawing (filled regions) | 459 | 86 | mostly shaded-table text; real charts ~14 (zh-b8de3ae2); zh-6d1afa56 37 = T239 (FangSong "·" "×" em, parked) |
+  | body shift (height/spacing above) | 369 | 48 | 113 incidents; the commonest offsets (±4pt) are 1-3 line cases in different documents (just past the 3pt window); the mass is single-document offsets: zh-8d6f702e 79, zh-505b9619 44, zh-34a6519a 32 (-63), zh-72da925e (-183), zh-f2ca3070 (+92), zh-8415d258 (+125) |
+  | line break / width | 362 | 83 | 172 incidents; zh-3c055c9b 39 (per-mark give, round 3), zh-6d402586 22, zh-7a16a243 17, zh-5be7e156 13, zh-12c4f07a 12, zh-e0ca7252 12 |
+  | header/footer | 150 | 15 | 115 = zh-ab1ea005 (page number "outside" side, be6eeb19, round 4) |
+  | pagination | 86 | 30 | |
+  | table/box break | 63 | 23 | |
+  | table/box shift | 22 | 9 | |
+  | short-piece x | 17 | 3 | |
+- Concentration: the top 5 documents hold 24% of the 1,528 lines, the top 10 36%, the top 20 51%, the top 40 70%. Incident sizes:
+  1 line 434, 2-3 lines 412, 4-9 lines 317, 10+ lines 365. Texts missing in 3+ documents are only page numbers ("—11—", round 4)
+  and the "⚫" bullet glyph (23 lines, 4 documents: a reader/glyph artefact).
+- So no second family like T238 is left; what remains is a long tail of single-document causes. Candidate levers, by size:
+  (1) the per-mark give / squeeze-vs-stretch model (line break class, ~362 lines, 83 docs; gs2's rule is the first step;
+  zh-6b242483 is a legacy-test witness); (2) sub-tolerance drift (±4pt incidents: check whether 1-2pt of accumulated
+  line-height difference in a few styles explains them); (3) the big single offsets above.
 
 ### Line fitter: (1) a closing mark that cannot fit carried to the next line alone (zh-7773163d p49); (2) zh-3c055c9b's per-mark give — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's assignment)
 Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt (zh-7773163d entry, T167 section): in old-mode
