@@ -9816,6 +9816,12 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). Both built; v2 pre-pair running.
 
 
+### T240. zh-b5359de4 p12: a plain space beside East Asian text gives a fifth, not a quarter — CLAIMED (Mac 7bd18d8e, 2026-10-30, baseline #1 96.7)
+p12's left column "…宜选用 LED 灯或高压钠灯，并采用时间控制方式；" (mode 15, doNotCompress, justified, 12pt 宋体, ind right 85): Word wraps "式；"
+— the two spaces around LED would have to give 1.38 of 6 each; ours squeezes them to 4.62 (a quarter allowed: 1.5) and hangs "；".
+zh-f2ca3070's three spaces ("…共同工作空間   席") set 4.80 of 6 = 1.2. Candidate: a word space with an East Asian neighbour gives
+0.2 of itself in Windows mode (Latin-between-Latin keeps lab jg's quarter). zh-b5359de4 505 -> 521 of 522 lines alone; pair running.
+
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED Mac 7bd18d8e 2026-10-30 (baseline #1 95.7; was lenovo-2's, released): at the offset placement, Windows mode
 - LANDED (Mac 7bd18d8e, 2026-10-30), after windows-1's round 2 on the Windows box (nothing dropped; zh-d0a207ac +3.6, zh-e51c31a7 +2.8,
   zh-76cb73e2 +2.1, zh-264d7516 +0.4): 521f747b (a line whose first line meets a wrapped float below its top goes under it,
