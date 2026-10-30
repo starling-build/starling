@@ -4669,8 +4669,9 @@ extension ChartPainter {
                     .replacingAll("\u{E000}s", with: c.series[0].name)
                     .replacingAll("\u{E000}p", with: "\(whole[s.index] ?? Int((s.value / sum * 100).rounded()))%")
             // (", " where the chart's text is Chinese, Japanese or Korean:
-            // zh-b8de3ae2's "其他收入, 16.39%" in Word's print.)
-            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (c.eastAsianText ? ", " : "; ") : ""))
+            // zh-b8de3ae2's "其他收入, 16.39%" in Word's print; and in a Word document's chart
+            // whatever its text: lo-f9b9a8fc47c97aa6's "datalabel1, 2".)
+            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (c.eastAsianText || (!c.onSlide && !c.onSheet) ? ", " : "; ") : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
