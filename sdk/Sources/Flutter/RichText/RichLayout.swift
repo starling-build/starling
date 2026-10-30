@@ -4888,6 +4888,29 @@ public final class RichLayout {
                     while last + 1 < count, _cells[last + 1]?.table == c.table { last += 1 }
                     if last < _tops.count, _tops[last] + _heights[last] - _tops[i] > contentH - y { newPage() }
                 }
+                // (So does one whose header rows, the ones marked, are
+                // taller together than a page, which nothing could part:
+                // tdf88496's eight, 702.5pt on a 700.2pt page, after a
+                // paragraph at the head of page 1, open page 2 in Word's
+                // print, the paragraph alone on 1; ours stood the table
+                // under it and ran a page long.)
+                if theme.wordRules, (document.compatibilityMode ?? 12) >= 15,
+                   c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, y > 0.01,
+                   let ts = document.tableStyles[c.table], ts.headerRow, ts.headerRowCount > 0,
+                   ts.headerRowCount <= (_tableRows[c.table] ?? 0), ts.floatX == nil {
+                    var last = i
+                    while last + 1 < count, let d = _cells[last + 1], d.table == c.table, d.row < ts.headerRowCount { last += 1 }
+                    // (The rows' own heights: a row's cells are paragraphs whose
+                    // text may be short of it.)
+                    var bottom = 0.0
+                    for k in i ... last { if let d = _cells[k] { bottom = max(bottom, d.rowTop + d.rowHeight) } }
+                    let block = bottom - c.rowTop
+                    if block > contentH - y { RuleTrace.hit("header-block-over-rest") }
+                    if block > contentH + 0.01 {
+                        RuleTrace.hit("header-block-over-page")
+                        newPage()
+                    }
+                }
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
                 // 4.35pt under the line before it in Word's print).
