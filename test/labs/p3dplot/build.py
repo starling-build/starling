@@ -25,7 +25,8 @@ def title(s):
 def legend(pos):
     return lambda s: s.replace("</c:plotArea>", f'</c:plotArea><c:legend><c:legendPos val="{pos}"/><c:overlay val="0"/></c:legend>', 1)
 def layout(target):
-    lay = (f'<c:layout><c:manualLayout>{"<c:layoutTarget val=\"inner\"/>" if target == "inner" else ""}'
+    inner = '<c:layoutTarget val="inner"/>' if target == "inner" else ""
+    lay = (f'<c:layout><c:manualLayout>{inner}'
            '<c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.2"/><c:y val="0.15"/><c:w val="0.6"/><c:h val="0.7"/>'
            '</c:manualLayout></c:layout>')
     return lambda s: s.replace("<c:plotArea><c:layout/>", "<c:plotArea>" + lay, 1)
