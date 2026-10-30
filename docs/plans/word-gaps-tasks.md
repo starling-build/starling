@@ -72,7 +72,7 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   "號、", "頁】，" (share test) refused by ours and taken by Word; "費、" taken by ours and refused (Word stretches its 5 automatic
   spaces 4.25 -> 6.45 instead). "稱：" has the same need/marks/stretch as "費、" with 3 spaces and is taken: lab gs asked of windows.
 - (4) Band 99.5-99.9, CLAIMED: "÷" set East Asian before a digit parts like "×" (zh-5f045fc1, zh-427cb16c, zh-b2e0f286). Building.
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
@@ -123,6 +123,21 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   297.65) and that wraps "— 10" | "—" on two-digit pages; ours fits each page's own text. zh-5be7e156 and zh-785e46f8 (wps
   wrap="none" + spAutoFit, the same text) wrap too; zh-08dc38da and zh-57f1de0d (same box, "— PAGE —" in Times hint default)
   keep "— 11 —" on one line. Lab pgb asked of `windows`.
+
+- zh-76cb73e2: lab pgb (`windows`): a wrap-none + fit-to-text page box is sized ONCE, for a one-digit line, and on two-digit
+  pages Word wraps inside it and clips the second line; the cached result and the mode change nothing; in Times "— 10 —"
+  still fits the one-digit width. Our `fitsOnce` already does this — what misses is that p10–11 use footer2 (third sectPr)
+  whose first page IS p10, so ours sizes it for "— 10 —"; Word still sizes it for one digit. Lab pgc asked.
+- zh-8415d258 97.8 — CLAIMED. Its paragraphs open with two U+2003 EM SPACEs in a 仿宋_GB2312 run: Word for Windows sets each
+  15pt at 15pt (in Cambria Math); ours 6.7 (the stand-in's fallback), and those first lines take a character more
+  ("…规范化" for Word's "…规范"). Candidate: an em space is an em and an en space half one. Pair on the current tip to come.
+- zh-27fc8f9d 97.7 — CLAIMED. p2 "第十条地面运行保障节点为《实施规范》中规定的22个节点：…": Word ends line 1 "…22个节" with 《》
+  whole; ours squeezes both 3.8 to take "点：" (the "：" hung). Lab f27 asked. (The 0.5 em gaps beside its "22" in Word's
+  print are justification; the corpus' balanced documents set the automatic space a quarter em, as ours.)
+- zh-202582e2 97.8: looked, released for now — p5's ¶3 lines stand 6–8pt low in ours: its first line mixes Times/仿宋 15.5
+  with 15pt runs (spaced 9/4/8, auto 322); ours 28.8pt for that line (Word's ~26). Not narrowed further.
+- zh-505b9619: the numbering candidate takes it 96.6 → 96.8; its remaining p59 misses are the mode-15 fit (ours squeezes
+  "：" and the spaces round "5" to take "員。", Word squeezes nothing) — T181's ground.
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
