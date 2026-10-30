@@ -4718,9 +4718,13 @@ extension ChartPainter {
                 // outside default reaches above the frame: moving it before
                 // clamping loses 9.7pt of the stated downward move. Fresh
                 // Word controls at 1%, 15.85% and 35% keep the same 14.16pt
-                // move from that fitted default. Other chart hosts and 3-D
-                // placement retain their separately measured paths.
-                if l.fitted, point == nil, c.type == .pie, c.ofPie == nil, !c.onSlide, !c.onSheet {
+                // move from that fitted default. A 3-D pie's too: Word for
+                // Windows' print of zh-27a874b7's chart 2 has "馬來西亞", moved
+                // up 27pt from under its 5.8% front slice, where its default
+                // box stood inside the frame's foot (ours 14pt low, the
+                // default past the frame). Other chart hosts retain their
+                // separately measured paths.
+                if l.fitted, c.type == .pie, c.ofPie == nil, !c.onSlide, !c.onSheet {
                     at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
                                 min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
                 }
