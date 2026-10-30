@@ -11137,3 +11137,39 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
   floattable-avoid-manip-ofst (156, 50.6; 7 pages for 6), floattable-header (94, 36.2; 10 pages for 8), fdo68607 (87.4), floattable-negative-height (74), floattable-next-leaf-in-section (5.4),
   floattable-footer-object (6.2; T247 has its compat14 relative). First read: avoid-last's page 1 agrees with Word to the pixel until the last three lines, which Word keeps on page 1 (536.9, 550.3, 563.7 on a
   landscape 612pt page, past the 540 margin) up to the footer's place (612 - 35.4 = 576.6): the compat14 branch's `edge` rule, for a row that splits by lines. Builds on wip/lo-floattable-compat14 fe941e01 as a separate commit.
+
+  T250 QUEUE-2 BATCH 3 SCORED — QUEUE 2 COMPLETE (Linux lo4, 2026-10-30; prints 00de45be: positions 274-408, rest of sections, bidi, base, 130 new). Queue 2 is 396 printed + 12 skipped
+  (15 distinct skipped over the whole LO set: 3 from round 1, 12 from queue 2). ONE release build of office 00de45be (it adds 61493a5e, tracked moves, to batch 2's build); all
+  593 printed re-scored on it, Windows mode, v2, bundled fonts, Linux validation engine. Renders ~/tmp/lo4/d3. Against the previous build (c2, same prints): 2 up, none down
+  (lo-2eb00a73 50 -> 100, lo-be40d67a 80 -> 100).
+  HEADLINE over the 546 documents whose Word print has text lines (593 printed): MEAN 68.4, MEDIAN 93.9, >= 95: 271, 100%: 266; Word's page count: 527 of 593.
+  First 197: 70.6 over 181 with text (96 >= 95). Queue 2 (396 printed): 67.3 over 365 with text (175 >= 95, 172 at 100).
+  By group (printed with text, mean, >= 95): base 49, 80.0, 35; bidi 37, 84.2, 29; sections 75, 72.3, 39; nested 44, 69.9, 18; charts 19, 67.7, 7; floating 94, 55.4, 28; frames 47, 54.4, 19.
+  Class table over all 593 (lo_triage.py, rough; below 95: 322, missed lines in them 5,919):
+  | class | docs | missed lines | share | worst three (missed lines, score) |
+  |---|---|---|---|---|
+  | floating tables | 81 | 2123 | 36% | tdf170672 (956, 28%); floattable-avoid-last-manip-ofst (131, 15%); floattable-heading-split-hyphen (89, 33%) |
+  | nested tables | 33 | 1346 | 23% | fdo43573-2-min (390, 1%); tdf92157 (194, 1%); floattable-anchor-height (104, 15%) |
+  | frames | 27 | 977 | 17% | fdo78904_fileHang (690, 14%); special_styles (48, 49%); tdf105035_framePrB (41, 9%) |
+  | sections and columns | 32 | 328 | 6% | shape-anchored-in-follow (67, 26%); fdo73596_RunInStyle (38, 3%); tdf135144 (34, 31%) |
+  | tracked changes / comments / balloons | 13 | 291 | 5% | fdo63164-1 (207, 73%); n830205 (32, 56%); merge_hidden_redline (17, 26%) |
+  | charts | 35 | 238 | 4% | tdf124398_groupshapeChart (15, 6%); tdf128207 (15, 40%); xaxis-labelbreak (14, 0%) |
+  | bidi / Hebrew / Arabic | 15 | 146 | 2% | tdf155707 (37, 42%); tdf163575 (30, 3%); Cool16066_addRowsUnderOmittedHeading (28, 33%) |
+  | text layer (Word print has no text lines) | 47 | 138 | 2% | tdf138773 (81, 0%); FDO78590 (32, 0%); fdo79540 (23, 0%) |
+  | tables (other) | 6 | 78 | 1% | tdf88496 (52, 10%); fdo78885 (11, 8%); tdf152298 (9, 85%) |
+  | headers / footers / page count | 6 | 78 | 1% | tdf152983-1-min (32, 18%); tdf149555 (17, 37%); tdf153964_topMarginAfterBreak14 (12, 25%) |
+  | lists / numbering | 5 | 64 | 1% | tdf167956 (24, 33%); tdf158597 (15, 6%); mixednumberings (14, 86%) |
+  | fields | 5 | 54 | 1% | tdf164905 (43, 59%); fdo79822 (8, 11%); tdf116486 (1, 50%) |
+  | text: line breaks, fonts and widths | 8 | 32 | 1% | tdf132752 (14, 7%); tdf122878 (5, 86%); Cool15691_headerTextWrapsAroundImage (4, 20%) |
+  | images / shapes / text boxes | 9 | 26 | 0% | groupshape-fontname (9, 10%); tdf106153 (6, 84%); tdf128198-1 (5, 44%) |
+  BATCH 3 READS (the base and bidi sets are mostly clean: base median 100, 35 of 49 at >= 95; bidi 29 of 37; the misses are few and small):
+  - LISTS (new class, 5): tdf158597 (15 of 16): Word's numbered lines "1. No style … 5. Para style" stand 19-29pt apart (y 83, 104, 123, 144, 173), ours 14pt (y 84, 98): the list items
+    take spacing in Word that ours does not (a style/paragraph-mark property; not read to the cause). tdf167956 (24 of 36) and mixednumberings (14 of 97, 86%: p2 "4x / 4.1 xxxx / 4.2 x" rows, Word 36pt apart): not read.
+  - GROUP SHAPES / FIELDS (small): groupshape-fontname (9 of 10; ours 1 line): Word draws the group's text ("AVANT L'OPERATION APRES L'OPERATION", "Mr. F Société X", "50%", "100% 50% 73% 27%", "SARL M"); ours draws only
+    the first line. fdo79822 (8 of 9; ours 1 line, the page number): Word's table-like text block ("Assessing", "non-vulnerability", "Getting climate of target Finalizing") is not drawn in ours. Both: content inside a group/anchored shape not reached by our text layer
+    (T249's family).
+  - TEXT (small): tdf132752 (14 of 15, 7%): the "Hinweis 1/2/3" paragraphs stand at x 123/105/72 in Word and at x 241/123 in ours — three different indents Word applies (tabs or a frame) that ours reads one way. tdf108496 (9 of 10): "11" "22" rows 25pt apart in Word, 22 in ours.
+  - SECTIONS: fdo73596_RunInStyle (38 of 39, 3%; 2 pages both): Word's lines "controls / bb / galleries / aa" (a run-in/character style): ours has the text but "bb"/"aa" are missing (the 12pt lines between) so every later line is 12-23pt off.
+  - BIDI: tdf155707 (37 of 64, 42%): LTR-Justify rows: Word wraps "…long long text" lines the ours does not, 60 lines for 64 (first mismatch p1 y 435). tdf163575 (30 of 31): Persian page: ours draws garbled glyphs ("اعǀ؝منمایهی") where Word draws
+    "اعالم نمایه ی" — a font/shaping fallback problem (missing Arabic-script face for the Persian text), 24 lines for 31. tdf135665 (6 of 10): an inline OLE object: Word prints the object's file name "OLE-example.xlsx" in the text, ours omits it (8 lines for 10).
+  RESIDUE NOTE: the three biggest documents (tdf170672 956, fdo78904_fileHang 690, fdo43573-2-min 390) hold 2,036 of the 5,919 missed lines (34%). Each is ONE drift/page-break, not independent errors; a fix to any of them is worth about 3-6 points of the set's missed-line count and ~0.1-0.2 of the mean (each is one document).
