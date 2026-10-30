@@ -1529,6 +1529,14 @@ public enum RichListNumbering {
             if c[lvl] == Int.min { c[lvl] = (f.start ?? 1) - 1 }
             c[lvl] += 1
             for deeper in (lvl + 1) ..< 9 { c[deeper] = Int.min }
+            // (And a shallower level not yet counted, where a deeper item
+            // comes first, is counted at its start, not only shown so: the
+            // next item there is the one after it. zh-505b9619's quality
+            // list opens at level 2 ("1.1下列檢驗項目…"), and its first
+            // two level-1 items are "2自主檢查與監造檢查（驗）" and
+            // "3品質管制" in Word's print; ours numbered them 1 and 2,
+            // and every "3.x" after read "2.x".)
+            for shallower in 0 ..< lvl where c[shallower] == Int.min { c[shallower] = formats[shallower]?.start ?? 1 }
             counters[key] = c
             var label = ""
             var chars = f.text.makeIterator()

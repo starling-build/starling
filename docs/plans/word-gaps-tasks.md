@@ -107,7 +107,7 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
 - zh-c2f6d17a: "…100" | "—150毫米" (a dash after digits opens the line; lab dash). Next.
 - zh-78d8bd98 exact last row's bottom line: wip/lenovo3-lastrow (cdefe320), 96.8 -> 98.9 on Linux, awaiting windows-1.
 
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-22ecbdc8, zh-505b9619, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-22ecbdc8, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
@@ -149,7 +149,8 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   "%1" / "%1.%2" / "%1.%2.%3") opens at level 2 ("1.1下列檢驗項目…"), and Word numbers its first two level-1 items 2 and 3 —
   the uncounted parent counted at its start when the deeper item showed it; ours only shows it (`RichListNumbering`, see
   office.md "A list level begins at its own start") and numbers them 1 and 2. Candidate: a shallower level not yet counted is
-  counted at its start. Pair on the current tip to come. (Its p4/p5 "○1"/"○2" eq \oc misses are the text layer: ours
+  counted at its start. DONE (next commit): pair d645363c, 756 Windows, only zh-505b9619 96.6 → 96.8 (v2 97.9 → 98.1).
+  Released; the rest is T181's. (Its p4/p5 "○1"/"○2" eq \oc misses are the text layer: ours
   sets ①, which the reader folds to "1".)
 
 - 97.0–97.9 band (starling-bd, 2026-10-29), top down. zh-d8247da5 97.9: looked, released — its one miss is the reader

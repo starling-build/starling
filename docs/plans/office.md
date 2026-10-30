@@ -2968,6 +2968,12 @@ fitter dropped the paragraph's tail).
   character longer. A level not yet counted (or reset by a higher one)
   now begins at its start; a parent level not yet counted shows its
   start too. zh-ac627439 99.5% -> 99.7; nothing else moved by 0.3.
+  (2026-10-29) And counts it so: a shallower level not yet counted when
+  a deeper item comes first is counted at its start, and the next item
+  there is the one after. zh-505b9619's list opens at level 2 ("1.1"),
+  and Word for Windows numbers its first level-1 items 2 and 3; ours
+  numbered them 1 and 2. Pair d645363c, 756 Windows mode: only
+  zh-505b9619 96.6 -> 96.8 (v2 matcher 97.9 -> 98.1).
 
 - **A flattened table's cells keep their room above and below
   (2026-10-15).** A nested table too big or too deep to be a block is
