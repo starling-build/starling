@@ -2961,7 +2961,7 @@ enum DocxFormat {
         return l
     }
 
-    private static func _paragraphProps(_ pPr: XNode, into style: inout RichParagraphStyle) {
+    private static func _paragraphProps(_ pPr: XNode, into style: inout RichParagraphStyle, direct: Bool = false) {
         // (A kind of justified the editor has one of — "distribute" spreads
         // the last line too, the Thai and kashida ones stretch otherwise —
         // is kept by name beside it.)
@@ -3042,6 +3042,17 @@ enum DocxFormat {
             if element == "w:ind", n["w:firstLineChars"] != nil || n["w:hangingChars"] != nil {
                 style.eastAsian["w:firstLineChars"] = nil
                 style.eastAsian["w:hangingChars"] = nil
+            }
+            // (Whether the paragraph's OWN indent writes the first line's twips and
+            // its count together: Word for Windows takes the twips then — all 145
+            // measured paragraphs — and takes the count where the twips stand alone
+            // over a style's count (zh-76700e5f's firstLine 31680 over its style's
+            // 200 characters starts the line 21pt in) or come from a style, which can
+            // be stale (zh-efd9229a's style says 836 for 200 characters, 14pt runs
+            // start 28pt in).)
+            if element == "w:ind", n["w:firstLine"] != nil || n["w:hanging"] != nil || n["w:firstLineChars"] != nil || n["w:hangingChars"] != nil {
+                let together = (n["w:firstLine"] != nil && n["w:firstLineChars"] != nil) || (n["w:hanging"] != nil && n["w:hangingChars"] != nil)
+                style.eastAsian["w:indentStored"] = together && direct ? "1" : nil
             }
             for a in attrs { if let v = n[a], Int(v) != nil { style.eastAsian[a] = v } }
         }
@@ -3563,7 +3574,7 @@ enum DocxFormat {
                 style.firstLineIndent = 0
                 for key in ["w:leftChars", "w:startChars", "w:hangingChars", "w:firstLineChars"] { style.eastAsian[key] = nil }
             }
-            _paragraphProps(pPr, into: &style)
+            _paragraphProps(pPr, into: &style, direct: true)
             if let g = pPr.first("w:snapToGrid") { style.ownGridOff = _isOff(g) }
             style.indentLeft += indent
             if let rPr = pPr.first("w:rPr"), let rev = rPr.first("w:del") ?? rPr.first("w:ins") {
