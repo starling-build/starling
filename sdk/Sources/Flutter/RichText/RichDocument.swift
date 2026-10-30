@@ -357,14 +357,15 @@ public struct RichTextBox: Hashable, Sendable {
     /// The boxes after the first in a group of them (`wpg:wgp`): where
     /// each one's paragraphs start in `paragraphs`, and its place in the
     /// group in points — its top, its height, and whether its text
-    /// stands at its foot (`anchor="b"`).
+    /// stands at its foot (`anchor="b"`) or in its middle (`anchor="ctr"`).
     public struct Part: Hashable, Sendable {
         public var first: Int
         public var top: Double
         public var height: Double
         public var atFoot: Bool
-        public init(first: Int, top: Double, height: Double, atFoot: Bool) {
-            self.first = first; self.top = top; self.height = height; self.atFoot = atFoot
+        public var inMiddle = false
+        public init(first: Int, top: Double, height: Double, atFoot: Bool, inMiddle: Bool = false) {
+            self.first = first; self.top = top; self.height = height; self.atFoot = atFoot; self.inMiddle = inMiddle
         }
     }
     public var parts: [Part] = []

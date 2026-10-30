@@ -2720,6 +2720,96 @@ enum DocxFormat {
     static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
     static let _eastAsianSpacing = ["w:beforeLines", "w:afterLines"]
 
+    /// A SmartArt diagram as the group of shapes Word drew it as: the
+    /// `dsp:drawing` part its data names (`dsp:dataModelExt`), each
+    /// `dsp:sp` a `wps:wsp` — its outline and fill as they are, and its
+    /// text, when it has any, a text box of its own at `dsp:txXfrm` whose
+    /// DrawingML paragraphs are read as Word ones. `cx` by `cy` (EMU) is
+    /// the frame's extent, the drawing's own space.
+    static func _diagramGroup(_ drawing: XNode, cx: Double, cy: Double) -> XNode? {
+        guard let tree = drawing.descendant("dsp:spTree") else { return nil }
+        func el(_ name: String, _ attrs: [String: String] = [:], _ children: [XNode] = []) -> XNode {
+            let n = XNode(name: name, attrs: attrs)
+            n.children = children
+            return n
+        }
+        func renamed(_ n: XNode, _ name: String) -> XNode { el(name, n.attrs, n.children) }
+        func xfrm(_ x: XNode?) -> XNode? {
+            guard let off = x?.first("a:off"), let ext = x?.first("a:ext") else { return nil }
+            return el("a:xfrm", x?.attrs ?? [:], [off, ext])
+        }
+        // A DrawingML paragraph as a Word one: its alignment, line and
+        // after spacing, and each run's face, size, weight and colour.
+        func paragraph(_ ap: XNode) -> XNode {
+            var pPr: [XNode] = []
+            let props = ap.first("a:pPr")
+            let sz: String? = ap.all("a:r").first?.first("a:rPr")?["sz"] ?? ap.first("a:endParaRPr")?["sz"]
+            let size: Double = (sz.flatMap { Double($0) } ?? 1800) / 100
+            var spacing: [String: String] = [:]
+            if let pct = props?.first("a:lnSpc")?.first("a:spcPct")?["val"].flatMap({ Double($0) }) {
+                spacing["w:line"] = String(Int((pct / 100000 * 240).rounded())); spacing["w:lineRule"] = "auto"
+            }
+            for (tag, key) in [("a:spcBef", "w:before"), ("a:spcAft", "w:after")] {
+                if let pct = props?.first(tag)?.first("a:spcPct")?["val"].flatMap({ Double($0) }) {
+                    spacing[key] = String(Int((pct / 100000 * size * 20).rounded()))
+                } else if let pts = props?.first(tag)?.first("a:spcPts")?["val"].flatMap({ Double($0) }) {
+                    spacing[key] = String(Int((pts / 100 * 20).rounded()))
+                }
+            }
+            if !spacing.isEmpty { pPr.append(el("w:spacing", spacing)) }
+            let jc = ["ctr": "center", "r": "right", "l": "left", "just": "both", "dist": "distribute"][props?["algn"] ?? "l"] ?? "left"
+            pPr.append(el("w:jc", ["w:val": jc]))
+            func runProps(_ rPr: XNode?) -> XNode {
+                var out: [XNode] = []
+                var fonts: [String: String] = [:]
+                if let f = rPr?.first("a:latin")?["typeface"], !f.hasPrefix("+") { fonts["w:ascii"] = f; fonts["w:hAnsi"] = f }
+                if let f = rPr?.first("a:ea")?["typeface"], !f.hasPrefix("+") { fonts["w:eastAsia"] = f }
+                if let f = rPr?.first("a:cs")?["typeface"], !f.hasPrefix("+") { fonts["w:cs"] = f }
+                if !fonts.isEmpty { out.append(el("w:rFonts", fonts)) }
+                if rPr?["b"] == "1" { out.append(el("w:b")) }
+                if rPr?["i"] == "1" { out.append(el("w:i")) }
+                if let hex = rPr?.first("a:solidFill")?.first("a:srgbClr")?["val"] { out.append(el("w:color", ["w:val": hex])) }
+                let points: Double = rPr?["sz"].flatMap { Double($0) }.map { $0 / 100 } ?? size
+                let half = String(Int((points * 2).rounded()))
+                out.append(el("w:sz", ["w:val": half]))
+                out.append(el("w:szCs", ["w:val": half]))
+                return el("w:rPr", [:], out)
+            }
+            pPr.append(runProps(ap.first("a:endParaRPr")))
+            var children = [el("w:pPr", [:], pPr)]
+            for r in ap.children {
+                if r.name == "a:r" || r.name == "a:fld" {
+                    let t = el("w:t", ["xml:space": "preserve"])
+                    t.text = r.first("a:t")?.text ?? ""
+                    children.append(el("w:r", [:], [runProps(r.first("a:rPr")), t]))
+                } else if r.name == "a:br" {
+                    children.append(el("w:r", [:], [runProps(r.first("a:rPr")), el("w:br")]))
+                }
+            }
+            return el("w:p", [:], children)
+        }
+        var shapes: [XNode] = []
+        for sp in tree.all("dsp:sp") {
+            guard let spPr = sp.first("dsp:spPr") else { continue }
+            var parts = [el("wps:cNvSpPr"), renamed(spPr, "wps:spPr")]
+            if let style = sp.first("dsp:style") { parts.append(renamed(style, "wps:style")) }
+            parts.append(el("wps:bodyPr"))
+            shapes.append(el("wps:wsp", [:], parts))
+            guard let body = sp.first("dsp:txBody"), body.all("a:p").contains(where: { !$0.descendants("a:t").isEmpty }),
+                  let place = xfrm(sp.first("dsp:txXfrm")) ?? xfrm(spPr.first("a:xfrm")) else { continue }
+            let bodyPr = body.first("a:bodyPr").map { renamed($0, "wps:bodyPr") } ?? el("wps:bodyPr")
+            let box = el("wps:spPr", [:], [place, el("a:prstGeom", ["prst": "rect"], [el("a:avLst")]), el("a:noFill"),
+                                           el("a:ln", [:], [el("a:noFill")])])
+            shapes.append(el("wps:wsp", [:], [el("wps:cNvSpPr", ["txBox": "1"]), box,
+                                              el("wps:txbx", [:], [el("w:txbxContent", [:], body.all("a:p").map(paragraph))]), bodyPr]))
+        }
+        guard !shapes.isEmpty else { return nil }
+        let e = String(Int(cx)), f = String(Int(cy))
+        let frame = el("a:xfrm", [:], [el("a:off", ["x": "0", "y": "0"]), el("a:ext", ["cx": e, "cy": f]),
+                                       el("a:chOff", ["x": "0", "y": "0"]), el("a:chExt", ["cx": e, "cy": f])])
+        return el("wpg:wgp", [:], [el("wpg:cNvGrpSpPr"), el("wpg:grpSpPr", [:], [frame])] + shapes)
+    }
+
     /// A group's text boxes (`wps:wsp` holding `w:txbxContent`), those of
     /// the groups nested in it too, in document order, each at its place
     /// in the group's own child space (EMU).
@@ -3636,6 +3726,19 @@ enum DocxFormat {
             }
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
+            // (A SmartArt diagram is read as the group of shapes Word drew
+            // it as, after its markup is kept for the save: zh-77079ee8's
+            // organisation chart — 22 boxes and connectors in its drawing
+            // part — printed nothing at all.)
+            if let ids = node.descendant("dgm:relIds"), let graphic = node.descendant("a:graphicData"),
+               let dm = ids["r:dm"].flatMap({ notes.rels[$0] }), !dm.external,
+               let model = notes.part(_resolvePath("word", dm.target)).flatMap(XNode.parse),
+               let rid = model.descendant("dsp:dataModelExt")?["relId"], let rel = notes.rels[rid], !rel.external,
+               let drawing = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse),
+               let group = Self._diagramGroup(drawing, cx: w * 12700, cy: h * 12700) {
+                graphic.children = [group]
+                graphic.attrs["uri"] = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+            }
             att.float = _float(node)
             // (WordArt — a VML textpath — in its line, under Word for
             // Windows: the line holds more than the shape's box, by its
@@ -3868,7 +3971,11 @@ enum DocxFormat {
                                 inside[q].style.indentRight += max(0, groupWidth - (x + w) + r)
                                 inside[q].style.boxInsetRight = r
                             }
-                            parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b"))
+                            // (Or in its middle: zh-77079ee8's organisation chart, a
+                            // SmartArt whose boxes centre "工作圈" and the
+                            // one-line "工作" over "服務組" in Word's print.)
+                            parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b",
+                                                          inMiddle: body?["anchor"] == "ctr"))
                         }
                     }
                 } else if let group = Self._vmlTop(node), group.name == "v:group",

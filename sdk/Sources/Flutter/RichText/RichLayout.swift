@@ -15828,6 +15828,7 @@ public final class RichLayout {
                 alone.ensureLaidOut(own)
                 var dy = _px(parts[n].top - box.insetTop)
                 if parts[n].atFoot { dy += _px(parts[n].height) - alone.totalHeight }
+                if parts[n].inMiddle { dy += max(0, _px(parts[n].height) - alone.totalHeight) / 2 }
                 beside.append((alone, own, dy))
             }
             sub.paragraphs = Array(all[0 ..< min(all.count, parts[1].first)])
@@ -15864,6 +15865,7 @@ public final class RichLayout {
                 let bottom = end < layout._tops.count ? layout._tops[end] : layout.totalHeight
                 var want = _px(part.top - box.insetTop)
                 if part.atFoot { want += _px(part.height) - (bottom - top) }
+                if part.inMiddle { want += max(0, _px(part.height) - (bottom - top)) / 2 }
                 let delta = want + own - (top + layout._spaceBefore[part.first])
                 guard delta > 0.01 else { break }
                 sub.paragraphs[part.first].style.spaceBefore += delta / _px(1)
