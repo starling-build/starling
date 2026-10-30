@@ -3241,6 +3241,9 @@ public final class RichLayout {
         // A floating table anchored to the text after it: where it began,
         // for that paragraph (see below).
         var textFloatTop: (table: String, page: Int, y: Double, down: Double, chained: Bool)? = nil
+        // (A floating table kept with its anchor whose offset takes it past
+        // the margin: its first row stands there.)
+        var keptPastFoot: String? = nil
         var deferredTable: String? = nil
         // A table placed against the page further down than the text has
         // come: where the text stood, to go on from there round it.
@@ -4831,7 +4834,21 @@ public final class RichLayout {
                     // has its top rule 10.3pt under page 10's margin in
                     // Word's print; ours parted its first row at page 9's
                     // foot and set the rest at page 10's margin.)
-                    if y > 0.01, y + _px(down) > contentH - 0.01 { newPage() }
+                    // (Word for Windows keeps it with its anchor, the
+                    // paragraph after the table, while that fits: zh-5a9a85c6's
+                    // roster, tblpY 881 under its title on page 18, has its
+                    // first row 3.9pt past the margin there in Word's print and
+                    // the rest on page 19; ours took it all over.)
+                    var anchorFits = false
+                    if RichTextTheme.wordWindowsPages {
+                        var k = i
+                        while k < count, _cells[k]?.table == c.table { k += 1 }
+                        anchorFits = k < count && k < _heights.count && _cells[k] == nil && !_pageBreak[k]
+                            && y + _heights[k] <= contentH + 0.01
+                    }
+                    if y > 0.01, y + _px(down) > contentH - 0.01 {
+                        if anchorFits { keptPastFoot = c.table } else { newPage() }
+                    }
                     textFloatTop = (c.table, page, y, _px(down), false)
                     y += _px(down)
                 }
@@ -5157,7 +5174,17 @@ public final class RichLayout {
                     FileHandle.standardError.write(Data(line.utf8))
                 }
                 wentOver = false
-                if theme.wordRules, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
+                // (Down to the footer's place: zh-5a9a85c6's first row ends
+                // at 792.0, the footer's place 792.4.)
+                var pastFoot = false
+                if keptPastFoot == c.table, c.row == 0 {
+                    let setup = pageSetup(forPage: page / _columns)
+                    let edge = _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top
+                    pastFoot = y + shown + ruleUnder(c) <= edge + 0.01
+                } else if keptPastFoot == c.table {
+                    keptPastFoot = nil
+                }
+                if theme.wordRules, !pastFoot, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
                     if y > contentH - 0.01 { newPage() }
                     i = j
                     continue
@@ -5172,7 +5199,7 @@ public final class RichLayout {
                         i = j
                         continue
                     }
-                } else if !atTop, shown + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
+                } else if !atTop, !pastFoot, shown + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
                     newPage()
                     // (A floating table's first row taken to the next page
                     // stands its offset down that page too: zh-0243e7fc's
