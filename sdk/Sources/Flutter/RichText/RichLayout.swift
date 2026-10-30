@@ -4011,6 +4011,14 @@ public final class RichLayout {
                 if theme.wordRules, first, document.tableStyles[c.table]?.pageAnchored == true {
                     var bottom = c.rowTop + c.ownRowHeight, k = i
                     while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                    // (A row alone, in Word for Windows: LibreOffice's
+                    // floattable-compat14, two rows of eight lines placed
+                    // 164pt down a 318pt page, has the first whole on page 1,
+                    // 272pt down — past the margin at 246, above the footer's
+                    // place at 283 — and the second on page 2.)
+                    // (The table's first row only: zh-3ab8a2fb's fifth row, 62pt
+                    // from the footer's place, goes over whole in Word's print.)
+                    if RichTextTheme.wordWindowsPages, c.row == 0 { bottom = c.rowTop + c.ownRowHeight; for m in i ..< j { if let d = _cells[m] { bottom = max(bottom, d.rowTop + d.ownRowHeight) } } }
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
                     if y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
