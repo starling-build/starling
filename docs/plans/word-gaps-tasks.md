@@ -9906,6 +9906,7 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   REPLACED in c56dd6b9 (with zh-cb56e605 in a9d43428): zh-202582e2 (Yu Gothic -> MS Mincho, 449 glyphs moved),
   zh-604e21e5 (p30, 161 glyphs 9pt up), zh-ab9cbe66 (p63, ~415 moved), zh-ae2dd08d (p18 on, 1129 moved, 6pt),
   zh-e1b09977 (one glyph MS Gothic -> MS PGothic). RE-BASE sweeps: these six documents' scores will move.
+  - zh-ae2dd08d (w104 95.0, 137 missed, p17 on 4-6pt) CLAIMED by Mac 7bd18d8e (2026-10-29): what the fresh print moves.
 (14) Labs since (12) (Windows 01QbbApP; the details went to the requesters):
   - hc2 (windows-2): a firstLineChars indent and its twips value are alike; Word's fit tolerance is under 0.0572pt
     (316 twips taken, 317 refused), as if summed in whole twips.
