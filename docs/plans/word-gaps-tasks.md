@@ -165,6 +165,12 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
 From the freshest Mac-hosted v2 sweep of the tip (zh-6a4fc013 and rtl left out: Windows-host fonts). Classes: line break, line
 height, table, float/text box, header/footer, chart/drawing, list numbering, pagination, font/width, reader artefact. Goal: the
 next 3-5 systemic fixes. Table to follow here.
+STATUS (paused for a session restart, 2026-10-30): scripts on wip/lab-census (b4dadd26, test/labs/census: census.py
+collects v2's unmatched Word lines per page and groups them into incidents with region/shift/page features; classify.py
+rolls them up by first cause). Tested on zh-3c055c9b and delins. NOT YET RUN corpus-wide: needs a fresh v2 Windows-mode sweep
+of the tip (sweep-win.sh with DOCX_LINE_MATCH=v2), then `python census.py REPO W WP > c.json; python classify.py c.json`, then
+hand-check the top classes. Also unswept: wip/mac-01Xgpbk5-hkscs-hanjoin (abbbc8fe: HKSCS "§" half an em; rules-off break
+skips Han joins).
 
 ### Line fitter: (1) a closing mark that cannot fit carried to the next line alone (zh-7773163d p49); (2) zh-3c055c9b's per-mark give — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's assignment)
 Windows mode. (1) from lenovo-3's labs spm/spm2 and its dropped closers-attempt (zh-7773163d entry, T167 section): in old-mode
