@@ -10916,3 +10916,9 @@ Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`; lenovo-2's list (588e3ae5),
 | tdf137154 (b9d70b44) | data labels 6-15pt off in y and 6pt in x | macos-ios (charts) |
 Not yet read to the cause (listed from lenovo-2's notes only): the four chart rows above beyond their offsets. Re-score after the wip lands.
 - T251 follow-up (Linux lo5, 2026-10-30, starling-bd's order): CLAIMED tdf119200's baselines (every glyph 6.6pt high: exact 18pt line with objects raised by w:position). Also running the one full pre-pair (756 + LO 197) for e0dbaf38c.
+
+T249 progress (Linux office1, 2026-10-30): wip/lo-groups 3e68e8851, awaiting windows-1. tdf126426 (a wpg group of a picture and a white text box at its foot) 0 -> 100: the group is a drawing, not
+the picture its first a:blip is (addImage), the group painter draws pic:pic, and a single text box lower in its group sets its text there. 756 pre-pair (Windows mode, v2): zh-b24b396a 92.6 -> 92.9,
+zh-e0ca7252 98.7 -> 98.9, nothing lower. LO set: tdf126426 0 -> 100, mean 64.15 -> 64.66.
+Looked at, not built: tdf135035 (text-anchored wrap=around frames beside text: the line narrowing macOS-doc owns), tdf128198-1 (text beside a wrapTight box: the same), groupshape-sdt (a VML group inside a group
+holding a layout-flow:vertical box with an SDT: not drawn), tdf106153 (rotated text at x -5 / 557), tdf124600 (a header shape's text 74pt off). From macos-ios: lo-40949e85 (16.7, a floating text box above a chart: Word's chart starts 130pt lower) and lo-3a0ca937 (42.9: the chart paragraph is ~15pt taller in Word; a wrapNone down arrow 283pt below its paragraph, effectExtent b 30480, keepNext) are next.
