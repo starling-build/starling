@@ -9721,7 +9721,8 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     and the writer naming its lowest code point; Word's reads "/", which NFKC matches. zh-4fac83de p4 — Word's text layer
     leaves out the "☐" boxes. zh-df9310bd p8 — Word keeps the lines an exact row clips as hidden text, ours leaves them out.
   - zh-ee2d19e6 p10-12: the footer's fitted "—10—" wraps to "—10" / "—" in ours: a witness for macOS-doc's zh-d0a207ac.
-  - REAL, needs a lab: zh-e6d54ae4 p2-3. Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
+  - CLAIMED Linux lenovo-2 (starling-d6), 2026-10-30, after windows' lab vmp (confirmed: a merged-down cell keeps no line
+    below its row's own cells' cut; finer sweep 722-732 asked for the comparison's exact edge). zh-e6d54ae4 p2-3. Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
