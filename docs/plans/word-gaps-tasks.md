@@ -39,6 +39,11 @@ names before editing; don't edit mine, and don't build in `starling-win-native` 
 - **Compare.** `python -I wn-mean.py NEW.match OLD.match`: zh/poi means, ≥95 and page-equal counts, movers ≥0.05.
 - Windows-host scores differ from Mac-hosted Windows mode (e.g. zh-6a4fc013, Thai); pair on one host only.
 
+### zh-27a874b7 Windows mode (73.9): chart label placement — CLAIMED (Mac 01Xgpbk5, 2026-10-29, starling-bd's queue item 1)
+Windows mode first, scored vs word-win; includes the "Mac line heights around a tight-wrapped chart" finding below. First lead: p3's
+香港 lands outside where Word-win and Word-mac put it inside at (401.7,476.7); our Windows label runs 36.7pt tall against
+Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the default fallback, not Mincho's 1.3em line.
+
 ### zh-8d6f702e (Windows mode 90.8, 42 pages): first cause of its misses — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
 Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows-mode scores only (word-win). Lab g2 says plain
 ideographs on its grid are exact, so the one-twip misses are looked for in the marks and Latin on those lines. Word labs via
