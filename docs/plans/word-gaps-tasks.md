@@ -10915,3 +10915,4 @@ Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`; lenovo-2's list (588e3ae5),
 | tdf134866 (73f1dccc) | custom data label 13pt high (y 266 vs 279; x within 1pt) | macos-ios (charts) |
 | tdf137154 (b9d70b44) | data labels 6-15pt off in y and 6pt in x | macos-ios (charts) |
 Not yet read to the cause (listed from lenovo-2's notes only): the four chart rows above beyond their offsets. Re-score after the wip lands.
+- T251 follow-up (Linux lo5, 2026-10-30, starling-bd's order): CLAIMED tdf119200's baselines (every glyph 6.6pt high: exact 18pt line with objects raised by w:position). Also running the one full pre-pair (756 + LO 197) for e0dbaf38c.
