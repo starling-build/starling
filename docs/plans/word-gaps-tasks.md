@@ -29,6 +29,72 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
   and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
   that says "both modes" now means Windows mode.
 
+### OFFICIAL BASELINE #2 (Windows box, Windows mode, v2) — office a334f282, the FULL-audit references (windows-1, 2026-10-30)
+Rolling base `base4` = release build of office a334f282 (no T238, none of round 4's stack), bundled fonts, 756 documents,
+word-win through 0e8ae25d (every reference now reprinted alone in a fresh Word). Official score is matcher v2.
+The ten documents with no text lines (0/0) score 0 in every sweep; means are given with and without them.
+```
+FINAL prints (through 0e8ae25d):
+ base4 = office a334f282 (the rolling base)
+   v2: all 756 mean 96.887; text-bearing 746 mean 98.186; >=95 697; 100% 530; zh 97.935; poi 90.795
+   v1: all 756 mean 96.782; text-bearing 746 mean 98.079; >=95 698; 100% 491; zh 97.814; poi 90.785
+ base4 + 7-commit stack (q4)
+   v2: all 756 mean 96.950; text-bearing 746 mean 98.249; >=95 700; 100% 538; zh 97.980; poi 90.960
+   v1: all 756 mean 96.822; text-bearing 746 mean 98.120; >=95 699; 100% 494; zh 97.833; poi 90.950
+ base4 + T238 b81b7fdb (s4)
+   v2: all 756 mean 98.315; text-bearing 746 mean 99.633; >=95 735; 100% 565; zh 99.609; poi 90.795
+   v1: all 756 mean 98.212; text-bearing 746 mean 99.528; >=95 736; 100% 526; zh 99.490; poi 90.785
+AUDIT effect, code held constant (base4 renders), v2 / v1:
+   pre-audit prints (baseline #1's, 48f2a382):  99.614; poi 90.795 |  99.495; poi 90.785
+   round-4 prints (c1a30d9f):                   97.938; poi 90.795 |  97.818; poi 90.785
+   final prints (0e8ae25d):                     97.935; poi 90.795 |  97.814; poi 90.785
+```
+**The audit's own effect, code held constant** (the same base4 renders against three sets of prints): zh mean 99.614 (baseline
+#1's prints) -> 97.938 (round 4's) -> 97.935 (final); 43 documents move by >=0.05, almost all by ONE cause (貳、's 10pt
+space before kept on a new page). Largest: zh-c5f59397 100->22.1, zh-25381d22 99.3->32.2, zh-4f883dce 100->40.4, zh-84377537 and
+zh-bd71a808 100->45.0 (list in ~/starling-doc-check/baseline2.txt).
+**T238's recovery** (b81b7fdb solo, same final prints, v2): zh 97.935 -> 99.609, 41 documents up, none down; the 40 above go back
+to 98.6-100 (zh-c5f59397 22.1->100, zh-25381d22 32.2->99.3, zh-ae2dd08d 95.8->99.0, zh-604e21e5 98.2->100). v1 the same 41.
+**Round 4 stack** (7 commits, solo against the same base, v2): zh 97.935 -> 97.980, poi 90.795 -> 90.960, 15 documents up, none down
+(v1: 11 up, none down). WordWithAttachments 81.6->100, zh-ab1ea005 92.1->99.9, zh-e02b0479 94.1->100, zh-5a9a85c6 95.7->100,
+zh-e51c31a7 97.2->99.6, zh-d45f16c4 98.2->100, zh-e6d54ae4 98.9->100, zh-bbbb2e6a 97.6->99.1, zh-72da925e 97.5->99.0, ...
+**Confirmation round 4 — PASS**: T238 b81b7fdb and f526efa8, be6eeb19, 60e741e5, c269eb8f, 98cb1490, b1e04bc7, 001e6183 (all
+picked cleanly on a334f282); nothing drops under v2 or v1. Authors land. Round 5 (queued): 7190a877, 9dd407f8, 8141e618,
+7e254b8d+7c31f4e7, T241; built on the office tip once round 4's commits are in.
+Lowest 30 of the rolling base (v2; pre-audit v2 in brackets) — 40 of them are T238's:
+```
+lowest 30 of the rolling base (v2; v1 and pre-audit v2 in brackets):
+   22.1 ( 20.8; pre-audit 100.0) zh-c5f59397
+   32.2 ( 31.2; pre-audit  99.3) zh-25381d22
+   40.4 ( 39.9; pre-audit 100.0) zh-4f883dce
+   45.0 ( 44.3; pre-audit 100.0) zh-84377537
+   45.0 ( 44.3; pre-audit 100.0) zh-bd71a808
+   56.7 ( 56.9; pre-audit 100.0) zh-3ab01d90
+   56.7 ( 56.9; pre-audit 100.0) zh-d18c892e
+   58.2 ( 58.3; pre-audit 100.0) zh-3c9bda5c
+   58.4 ( 58.3; pre-audit 100.0) zh-5d47a85c
+   58.4 ( 58.3; pre-audit 100.0) zh-cb3ddfec
+   64.9 ( 65.2; pre-audit 100.0) zh-38078fb3
+   64.9 ( 65.2; pre-audit 100.0) zh-7cf85f15
+   65.2 ( 65.4; pre-audit 100.0) zh-c2b13410
+   67.5 ( 67.2; pre-audit 100.0) zh-a5e2c3fa
+   69.7 ( 70.0; pre-audit 100.0) zh-c0e22afc
+   69.9 ( 70.2; pre-audit 100.0) zh-301618c5
+   71.2 ( 71.4; pre-audit 100.0) zh-4d09e08e
+   71.2 ( 71.4; pre-audit 100.0) zh-6c74f489
+   75.4 ( 75.5; pre-audit 100.0) zh-493e0fab
+   75.4 ( 75.5; pre-audit 100.0) zh-70ec2a03
+   76.1 ( 76.3; pre-audit 100.0) zh-b5c0aa73
+   76.7 ( 76.8; pre-audit 100.0) zh-ee7c2e9b
+   78.3 ( 78.5; pre-audit 100.0) zh-79d08edd
+   80.3 ( 80.3; pre-audit 100.0) zh-619982e0
+   80.4 ( 80.5; pre-audit 100.0) zh-5bfac68f
+   81.6 ( 81.6; pre-audit  81.6) WordWithAtt
+   85.9 ( 86.0; pre-audit 100.0) zh-b13d0fb4
+   86.3 ( 86.4; pre-audit 100.0) zh-3014f2e9
+   86.5 ( 86.6; pre-audit 100.0) zh-adfe24a7
+   87.4 ( 87.5; pre-audit 100.0) zh-89ced60f
+```
 ### OFFICIAL BASELINE (Windows box, Windows mode) — #1, office 48f2a382 (windows-1, 2026-10-29)
 Rolling base: release build of office 48f2a382's code on DESKTOP-URK35LH, OFFICE_FONT_SOURCE=bundled, 756 documents,
 references word-win with the audit (a9d43428, c56dd6b9). Official score is matcher v2 (be4c11b4); v1 alongside.
