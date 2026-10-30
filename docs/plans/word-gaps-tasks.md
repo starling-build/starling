@@ -542,10 +542,13 @@ point's own `c:dLbl/c:delete`, 3-line inside placement on crowded pies
 (`build.py`, `build_solo.py`, `classify.py`, `solo.py`, `model.py`) are in
 ~/starling-word-check/lab/p3dfit; c5b's in lab/c5bsq.
 
-### Chart residuals from 82771ef6 — (1) title line + (2) faces DONE; (3) in hand (Mac 01Xgpbk5, 2026-10-29, routed by starling-bd)
+### Chart residuals from 82771ef6 — (1) title line + (2) faces + (3) Mac table header DONE; (b) dropped (Mac 01Xgpbk5, 2026-10-29, routed by starling-bd)
 (1) zh-b8de3ae2 p9/p12: the plot area is 4pt higher than in Word's print; (2) a chart run's explicit East Asian face
 (PMingLiU titles, DengXian-Bold pie labels in zh-b8de3ae2) is ignored; (3) zh-61aaad09's data-table header "投诉举报总量"
 wraps 总|量 in Word's print, not in ours. Then (b), crowded outside labels, if tractable. Mac mode first, paired in both.
+- (3) DONE. Mac mode: with the theme's Hans face in charge, a data-table header row grows by its wrapped lines on
+  that face's East Asian line, and the header wraps at the slot minus 7.2·k (as the Windows Mincho path does). Pair
+  w63→w64 no changes; n234→n235 zh-61aaad09 94.6→98.6, nothing else moved. (b) dropped per bd: Mac-only.
 - (2) DONE. Labs in ~/starling-word-check/lab/ctitle, 15 prints in fresh Mac Word. Where the theme's `a:ea` is "", Word
   for Mac picks a chart run's CJK face from the theme's per-script list by the run's `lang`:
   - zh-TW/HK/MO → the Hant face (新細明體 → PMingLiU);

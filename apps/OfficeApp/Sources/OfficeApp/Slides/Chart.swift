@@ -2462,6 +2462,19 @@ enum ChartPainter {
     /// categories 36.8 (a JhengHei line and a Mincho one).
     static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
         let count = c.series.count + c.lineSeries.count + 1
+        // (Word for Mac wraps a category as Word for Windows does, each
+        // line past the first its face's East Asian line deeper: zh-
+        // 61aaad09's 11pt "投诉举报总" / "量" in SimSun, 14.4 apart in its print.)
+        if !c.windowsMinchoText, let face = c.macSimplifiedFace, let line = OfficeFonts.eastAsianLine(face) {
+            var rows = Array(repeating: 1.64 * size * k, count: count)
+            let lines = c.categories.map { s -> Int in
+                let tp = text(s, size, max(1, slot - 7.2 * k))
+                defer { tp.dispose() }
+                return tp.computeLineMetrics().count
+            }.max() ?? 1
+            rows[0] += Double(max(0, lines - 1)) * line.height * size * k
+            return rows
+        }
         guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers else {
             return Array(repeating: 1.64 * size * k, count: count)
         }
@@ -2511,12 +2524,12 @@ enum ChartPainter {
         // (Under Word for Windows' faces, a label of several lines
         // centred as a block: zh-61aaad09's wrapped categories.)
         func textTop(_ tp: TextPainter, _ j: Int) -> Double {
-            let lines = c.windowsMinchoText ? tp.computeLineMetrics().count : 1
+            let lines = c.windowsMinchoText || c.macSimplifiedFace != nil ? tp.computeLineMetrics().count : 1
             return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
                 - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
         func centred(_ s: String, _ cx: Double, _ j: Int) {
-            let tp = text(s, size, j == 0 && c.windowsMinchoText ? max(1, slot - 7.2 * k) : slot)
+            let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : slot)
             tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
         }
