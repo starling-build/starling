@@ -310,6 +310,10 @@ public struct ImageFloat: Hashable, Sendable {
     /// and `-bottom`), in points.
     public var distanceTop = 0.0
     public var distanceBottom = 0.0
+    /// … and from its sides (`distL`, `distR`), where the file says: nil for
+    /// the nine points the layout assumes.
+    public var distanceLeft: Double? = nil
+    public var distanceRight: Double? = nil
     /// A height that is a share of the page's or its margins' height
     /// (`wp14:sizeRelV`'s `pctHeight`, as a fraction), measured from
     /// `heightFrom` ("page" or "margin"): the box and its effects take

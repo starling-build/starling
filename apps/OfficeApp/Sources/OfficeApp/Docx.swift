@@ -265,13 +265,6 @@ enum DocxFormat {
                        let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init) { hostSize = sz / 2 }
                     let size = hostSize + (lines - 1) * pitch / capHeight
                     let capWidth = em(t.text) * size
-                    // (Word sets only the drop's lines narrower; this takes a
-                    // paragraph that is all of them, and leaves the rest as
-                    // they were: the engine does not set lines beside a box.)
-                    let hostText = host.descendants("w:t").map(\.text).joined()
-                    guard em(hostText) * hostSize <= (column - capWidth) * (lines - 0.35) else {
-                        out.append(p); i += 1; continue
-                    }
                     let halfPoints = Int((size * 2).rounded())
                     let baseline = height - 0.25 * pitch        // the last line's baseline, from the box's top
                     let exact = Int((baseline / 0.905 * 20).rounded())
@@ -280,14 +273,12 @@ enum DocxFormat {
                     let esc = t.text.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;")
                     let emu = Int(height * 12700)
                     let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
-                    let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"\(Int((Double(frame["w:hSpace"] ?? "") ?? 0) / 20 * 12700))\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(emu)\" cy=\"\(emu)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"Drop cap\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emu)\" cy=\"\(emu)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(exact)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:rPr>\(rPrInner)<w:sz w:val=\"\(halfPoints)\"/><w:szCs w:val=\"\(halfPoints)\"/></w:rPr><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                    let hSpacePoints: Double = (Double(frame["w:hSpace"] ?? "") ?? 0) / 20
+                    let distRight: Int = Int(hSpacePoints * 12700)
+                    let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"\(distRight)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(emu)\" cy=\"\(emu)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"Drop cap\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emu)\" cy=\"\(emu)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(exact)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:rPr>\(rPrInner)<w:sz w:val=\"\(halfPoints)\"/><w:szCs w:val=\"\(halfPoints)\"/></w:rPr><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
                     if let drawing = XNode.parse(Data(xml.utf8)) {
                         let at = host.children.firstIndex(where: { $0.name != "w:pPr" }) ?? host.children.count
                         host.children.insert(drawing, at: at)
-                        let left = Int((capWidth + (Double(frame["w:hSpace"] ?? "") ?? 0) / 20) * 20)
-                        let hostPr = host.first("w:pPr") ?? { let n = XNode(name: "w:pPr", attrs: [:]); host.children.insert(n, at: 0); return n }()
-                        if let ind = hostPr.first("w:ind") { ind.attrs["w:left"] = String((Int(ind["w:left"] ?? "") ?? 0) + left); ind.attrs["w:start"] = nil }
-                        else { hostPr.children.append(XNode(name: "w:ind", attrs: ["w:left": String(left)])) }
                         out.append(host)
                         i += 2
                         continue
@@ -1194,6 +1185,8 @@ enum DocxFormat {
                     if let spec = pos["w:tblpXSpec"] { f.horizontalAlign = spec } else { f.x = (Double(pos["w:tblpX"] ?? "") ?? 0) / 20 }
                     f.y = (Double(pos["w:tblpY"] ?? "") ?? 0) / 20
                     f.wraps = true
+                    if let l = Double(pos["w:leftFromText"] ?? "") { f.distanceLeft = l / 20 }
+                    if let r = Double(pos["w:rightFromText"] ?? "") { f.distanceRight = r / 20 }
                     // (One that floats only in name — against the text, from the
                     // column's edge, a twip or so under its paragraph's top —
                     // stands where it is set, an inline block shifted by its x:
@@ -2853,6 +2846,8 @@ enum DocxFormat {
             }
             if let t = Double(anchor["distT"] ?? "") { f.distanceTop = t / 12700 }
             if let b = Double(anchor["distB"] ?? "") { f.distanceBottom = b / 12700 }
+            if let l = Double(anchor["distL"] ?? "") { f.distanceLeft = l / 12700 }
+            if let r = Double(anchor["distR"] ?? "") { f.distanceRight = r / 12700 }
             return f
         }
         // (Not for a drawing the file puts in the line, `wp:inline`, whose
