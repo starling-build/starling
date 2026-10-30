@@ -11075,15 +11075,15 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
   | text: line breaks, fonts and widths | 5 | 15 | 0% | tdf122878 (5, 86%); Cool15691_headerTextWrapsAroundImage (4, 20%) |
   | images / shapes / text boxes | 5 | 14 | 0% | tdf106153 (6, 84%); tdf128198-1 (5, 44%); tdf124600 (1, 67%) |
   BATCH 2 FIRST-MISMATCH READS (new documents; missed lines of Word's, score):
-  - FRAMES (50 printed, mean 54.4, 31 under 95): fdo78904_fileHang (690 of 799, 14%; 21 pages both): 109 matched; from p2 (y 677-690) the frame-set table rows of ours are a
-    different row/column order from Word's (not read to the cause). tdf105035_framePrB (41 of 45, 9%): the IEEE title frame: Word breaks "…TRANSACTIONS | and JOURNALS", ours
+  - FRAMES (50 printed, mean 54.4, 31 under 95): fdo78904_fileHang (690 of 799, 14%; 21 pages both): 109 matched; from p2 (y 677-690) Word's text moves to p3 where ours keeps a table
+    row on p2 (ours "Data Access service account…" at p2 y 677; Word's row starts p3 y 113): a page-break difference in a frame-set table (cause not read). tdf105035_framePrB (41 of 45, 9%): the IEEE title frame: Word breaks "…TRANSACTIONS | and JOURNALS", ours
     "…TRANSACTIONS and | JOURNALS" — our frame is wider than Word's (title at x 56 in ours, 77 in Word), and the author and abstract lines shift (frame width/indent).
     Tdf147485 (32, 0%; ours draws NOTHING, 0 lines): Word draws 32 single glyph lines (rotated/vertical text, "m s i l" at y -36), the same class as tdf147485-forcepoint.
     tdf133924 (26, 0%): Word starts with the body text "Lorem ipsum…" at y 85; ours puts two lines of frame text ("Around", "not Beside") first, so the wrap order of a frame against
     the text differs. tdf109316_dropCaps (20, 0%): ours sets "L" on a line of its own then the text (drop cap not folded into the paragraph; T248 owns this).
     tdf154703_framePrWrapSpacing (12 of 13): 2 pages for 1. special_styles (48): Word's index/caption/envelope styles block sits at x 513; ours differs from p1 y 577 (not read).
   - SECTIONS (52 printed, mean 72.7, 29 under 95): tdf135144 (34 of 49, 31%): Word's p1 lines after y 264 move: a figure caption "Figure 1: Flow of page styles" (y 400) and the heading below it
-    are placed 150pt lower in ours (not read to the cause). n830205 (32 of 73; ours 140 lines on 2 pages): Word's tracked-change margin BALLOONS ("Deleted: XXX", "Formatted: Font: 9pt",
+    differ from ours after p1 y 264 (Word's caption at y 400, ours has other lines there: not read to the cause). n830205 (32 of 73; ours 140 lines on 2 pages): Word's tracked-change margin BALLOONS ("Deleted: XXX", "Formatted: Font: 9pt",
     "Deleted: Section Break (Continuous)", at x 437) are text lines in Word's print; ours does not print them the same way (tracked-changes class, now 13). tdf149555 (17): Word 4 pages,
     ours 3: the TOC and the page-number lines ("Seriously", "Footer 1", "HEADER 2") move; tdf146248 (16): a long TOC (Word p2 y 390 onward: a list of entries at x 97) is
     missing 5 lines in ours and ours has a third page. tdf108272 (15, 0%): the header is centred 47pt further left and 16pt lower in ours (x 232, y 53 against Word's x 279, y 37), the table below it
