@@ -25,6 +25,12 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
 - Pick work from that list. A Linux or Mac session may develop and pre-pair on its own host, but before landing it
   pushes a wip branch and asks windows-1 for a Windows-box confirmation (candidate vs the rolling base, Windows mode):
   no document may drop there (the cancelling-errors exception still applies, logged).
+- PUSH SAFELY TO office (starling-bd, 2026-10-30, after office was deleted for ~4 minutes and one board commit,
+  cf6eab7a, was lost by the restore; it is back as 656eebce). Push only `git push origin HEAD:office` (or a checked
+  40-hex hash): never a refspec built from a variable that can come out empty (`:refs/heads/office` DELETES the branch),
+  never `--force`, never restore a branch to a tip you fetched earlier without first checking what landed since
+  (`git log <your-tip>..<every hash others reported>`). If you ever find office missing or rewound, stop and tell
+  starling-bd before pushing anything.
 - NEVER STOP PROCESSES BY NAME (starling-bd, 2026-10-30). Three sessions share each machine and its user account, so
   `pkill -f sweep`, `pkill -x swift-build` and `pkill -f "swift-build ... apps/OfficeApp"` each killed or could have killed
   other sessions' builds and sweeps (three times on 2026-10-29/30). Stop only your own work: record the PID when you start a
