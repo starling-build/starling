@@ -16123,6 +16123,25 @@ public final class RichLayout {
         layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))
             : max(1, _px(image.height - box.insetTop - box.insetBottom))
         layout.ensureLaidOut(sub)
+        // (A box of a fixed frame whose text is anchored in its middle or at
+        // its foot stands there in Word for Windows' print: zh-291fcea7's
+        // flowchart "4.人力資源管理資訊系統WebHR線上報送敘薪…" in its
+        // multi-document shape, and "6.製發敘薪通知書" in its document
+        // shape, stand 8 and 7.7pt lower than the top their text rectangle
+        // gives; ours set them at the top.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let anchor = box.anchor, box.textDirection == .horizontal, box.parts.isEmpty,
+           box.hasFixedFrame, !box.fitsText, !box.fitsHeight, !box.growsToFit, !sub.paragraphs.isEmpty {
+            let room = _px(image.height - box.insetTop - box.insetBottom)
+            let slack = room - layout.totalHeight
+            if slack > 0.01 {
+                sub.paragraphs[0].style.spaceBefore += (anchor == "ctr" ? slack / 2 : slack) / _px(1)
+                let width = layout.width
+                layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
+                layout.scale = scale
+                layout.width = width
+                layout.ensureLaidOut(sub)
+            }
+        }
         // (The later boxes of a group, each from its own place in it:
         // its first paragraph set down to where the box stands, or to
         // where its text reaches the box's foot.)

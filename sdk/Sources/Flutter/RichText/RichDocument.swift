@@ -369,6 +369,9 @@ public struct RichTextBox: Hashable, Sendable {
         }
     }
     public var parts: [Part] = []
+    /// Where the text of a box with a fixed frame stands in it, when not at
+    /// its top (`wps:bodyPr anchor`): "ctr" in its middle, "b" at its foot.
+    public var anchor: String? = nil
     /// Which way the box's text runs (`wps:bodyPr vert`): across, or
     /// turned a quarter — `vert270` reads up from the box's foot, its
     /// lines stacking rightwards from its left; `vert` reads down from
