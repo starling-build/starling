@@ -9982,6 +9982,38 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   - docx-corpus.py takes OFFICE_APP (55bdd0a17). LANDED 302126c50 (2026-10-30): compile-checked, Office suite 530 green, Windows-mode
     pre-pair of 756: nothing moved (96.832 both sides), so no windows-1 round needed.
 
+  FIRST SCORES (Linux lenovo-2, 2026-10-30, office 8f2f2639 prints; Windows mode, v2, bundled fonts, the lo set scored apart from the official mean):
+  batch 1, 50 documents (the first 50 ids): mean 67.2 (74.7 over the 45 where Word's print has text lines), median 99.5, >= 95: 26, 100%: 25,
+  half or more: 33, Word's page count: 42. Five have no text lines in Word's print (bottom-margin-with-footer, tdf134277, tdf124423 — no text
+  anywhere; tdf137025's shape text and tdf138773's chart text are not in Word's text layer, scorer-side), they score 0.
+  Lowest, and the first cause (not built; classes reported to starling-bd):
+  A. FLOATING TABLES (7): floattable-footer-object 6.2 (Word's table starts at the page top y 20, ours 86: Row1..Row6 all +66);
+     tdf170381-split-float-table-in-float-table 7.7 and ...-in-normal-table 37.5 (Word 104 and 32 lines on 2 pages, ours 33 and 20 on 1: a
+     split floating table's rows after the first page are not set); floattable-compat14 37.5 (the table's page break); floattable-del-empty
+     62.3 (p4: a section of text and a table "Honorio, Santo Abad" in Word, one line in ours); n775899 50 (text beside a floating table
+     joins the table's line in Word: "This is a floating table. This is some text" one line, ours breaks after "table."); tdf88496 10.3
+     (Word 4 pages, ours 3: the first page holds one row in Word, ours three).
+  A-cause (tdf170381 x2, read by lenovo-2; corrected after a width partial changed nothing): NOT missing rows, all the text is drawn.
+     Each has a floating table inside another table's cell. (a) in-normal-table 37.5: the nested table (one column of 1497 twips, 13
+     paragraphs) IS read as a real box (`w:tbl where currentCell != nil && nesting 1 && rows <= 15 && text <= 600`), 74.85pt wide, 11.35pt
+     in, and looks like Word's on page 1; but that box is a block that does not part across pages: ours runs off the page's foot, Word
+     splits the nested floating table over two pages. (b) in-float-table 7.7: its nested table has TWO columns (1406 + 5792 twips) and about
+     28 rows of long text, past the 15-row / 600-character limits, so it is FLATTENED into paragraphs and each row's text is set across the
+     whole cell (33 lines on one page for Word's 104 on two): a real nested table with its own columns would fix it. Nested-table counts:
+     main 775: 17 docs / 67 tables (16 scored ones all 97.7-100); LO 200: 13 docs / 29 tables; LO 2,121: 61 docs / 114 tables
+     (~/tmp/wz/nested_scan.py). Not built.
+  B. CHART AXES (3): tdf130969 23.1 (value axis "0.3579 0.35789 ..." in Word, ours rounds every label to "0.36": axis number format
+     not applied, `c:numFmt`/`sourceLinked`); tdf122014 78.6 and tdf132956 90 (the axis scale starts 0.5 / 1 lower: ours 3.5,3,... for
+     Word's 3,2.5,...: major unit or max). macos-ios's chart code.
+  C. TRACKED MOVES (2): tdf104797 50 and CT-formatted-deletion 90: Word's margin balloon says "Moved (insertion)[1]", ours "Moved down[1]:
+     Will this sentence be duplicated?" (the balloon text of a move; each move has two balloons, Word's labels differ).
+  D. QUOTED TEXT (2): tdf150438 0.0 and tdf123651 42.9: paragraphs with “ ” marks: ours set the opening “ on a line of its own and
+     the text 5pt lower, Word keeps "“magna eros quis urna.”" on one line (a frame or a first-line indent trait; not yet read).
+  E. one each: tdf153136 41.5 (U+2000..U+202F space characters: ours puts U+202F on an extra line at x 315); tdf135216_evenOddFooter 30
+     (5 pages for Word's 4: an even/odd footer rule adds a page); tdf152983-1-min 17.9 (Hebrew: ours has a first line "Learning l'Aliyas
+     HaNeshama" Word does not print, one page for two); tdf106153 83.8 (text at x -5 and 557: rotated or off-page text, Word's lines
+     one fewer); fdo48718-1 1.2 (Spanish form: a table row wraps one line ahead, then 3 pages for Word's 2).
+  Reproduce: DOCX_CORPUS=test/corpus/docx/lo docx-line-sweep.sh WORK (or my ~/tmp/wz/lo1 renders).
 - Mixed-size paragraphs without a strut (starling-bd's assignment, 2026-10-30): SCOPING by Linux lenovo-2 (starling-d6), not
   built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
   24/21 — even its plain 14pt first line is 5pt tall. Runs already carry Word's height ratio, so the no-strut line's extra
