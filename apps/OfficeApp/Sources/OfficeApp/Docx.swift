@@ -1041,7 +1041,10 @@ enum DocxFormat {
                 }
             case "w:tbl" where currentCell != nil && depth < maxNesting && _nestingDepth(node) == 1
                                 && ((unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600)
-                                    || (unwrapped(node, "w:tr").count > 15 && (node.first("w:tblGrid")?.all("w:gridCol").count ?? 1) >= 2)):
+                                    || (unwrapped(node, "w:tr").count > 15 && (node.first("w:tblGrid")?.all("w:gridCol").count ?? 1) >= 2)
+                                    // (Or a list of short rows, one column: LibreOffice's tdf170620, 56 rows
+                                    // of 14 characters, parts between its rows as Word's does.)
+                                    || (unwrapped(node, "w:tr").count > 15 && textLength(node) <= 40 * unwrapped(node, "w:tr").count)):
                 // A small table in a cell, with none in it, is a table of
                 // its own: read as a document is, and set in its cell as a
                 // block as tall as it lays out (`RichTextBox.growsToFit`).

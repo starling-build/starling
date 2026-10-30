@@ -62,6 +62,12 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         XCTAssertEqual(try pages("lo-6a5857f20e8eda1e"), 6)
     }
 
+    /// A 56-row list of short rows in a cell is a table of its own and parts between its rows:
+    /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
+    func testLongListOfShortRowsInACellTakesTwoPages() throws {
+        XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
+    }
+
     /// One column in a normal table, floating in name only: parts between its rows.
     func testSplitFloatTableInNormalTableTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-1e0077c34b69d826"), 2)
