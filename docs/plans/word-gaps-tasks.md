@@ -56,11 +56,18 @@ Windows mode first, scored vs word-win; includes the "Mac line heights around a 
 香港 lands outside where Word-win and Word-mac put it inside at (401.7,476.7); our Windows label runs 36.7pt tall against
 Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the default fallback, not Mincho's 1.3em line.
 
-### zh-8d6f702e (Windows mode 90.8, 42 pages): first cause of its misses — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
-Owner: Claude windows-2, `starling-office-3`, branch office-3 -> office. Windows-mode scores only (word-win). Lab g2 says plain
-ideographs on its grid are exact, so the one-twip misses are looked for in the marks and Latin on those lines. Word labs via
-`windows`. Pair in both modes, 756 docs, same base and host, before landing.
-
+### zh-8d6f702e (Windows 90.8) and zh-3c055c9b (Windows 93.2) — CLAIMED (Claude windows-2, office-3 checkout, Windows box DESKTOP-URK35LH, 2026-10-29, starling-bd's assignment)
+Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pairs on this box, base b82b195f.
+- (1) Dash, PAIR RUNNING: zh-8d6f702e p21/p22 (and zh-c2f6d17a p19/p20) "…达100" | "—150": RichLayout's em-dash-between-digits
+  joiner (zh-b378d8c4) now only where the dash is set in the Latin face. Lab dash (windows): a hint="eastAsia" "—" breaks
+  before itself, the same dash in Times takes "100—150" down whole; doNotUseEastAsianBreakRules changes nothing.
+  windows-3 builds the "（含）|—5000" joiner (zh-22ecbdc8, lab dsh) on top of this. 5 docs: 8d6f 90.8 -> 91.0, c2f6 99.4 -> 99.8.
+- (2) p38 tie, BUILT, pair queued after (1): "（3）…结束：" and "…影响情" are 0.0072pt over by ours — the 316-twip indent
+  (15.80) a hair past one cell (15.7927). Lab hc2 (windows): Word takes it at 316 twips with or without firstLineChars, in
+  mode 12 and 14, and refuses at 317 (0.0572 over) or the right indent a twip in. Candidate: on a character grid in Word for
+  Windows, legacy modes, not in a cell, the marks' give and the half-before test are weighed to half a twip (0.025pt).
+  5 docs: 8d6f 90.8 -> 99.6, 5be7e156 97.8 -> 98.3 (its p2 "冷" witness matched; in cells it moved 专栏 lines off Word's, so cells are out).
+- (3) zh-3c055c9b (mode 15, 17pt grid, overflowPunct 0) grid squeeze: started, released to me by macOS-doc.
 ### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619 (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
