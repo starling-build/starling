@@ -1240,6 +1240,11 @@ public final class RichLayout {
     /// on a page Word mirrors), by index; recomputed after paging.
     private var _mirrored: Set<Int> = []
     private var _mirrorPassing = false
+    private var _besidePassing = false
+    /// The stretch of a float that a paragraph set beside it really shares,
+    /// from the paragraph's own top, as the page it fell on made it
+    /// (`_besideBand` takes it over the whole float's).
+    private var _besideBandUse: [Int: (top: Double, bottom: Double)] = [:]
     /// How far a paragraph's text is set down to clear an object that
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
@@ -1251,6 +1256,12 @@ public final class RichLayout {
     /// How far a paragraph's first line is held in beside a floating table
     /// it follows (`_besideIndent`), in layout pixels; 0 for none.
     private var _besideLead: [Double] = []
+    /// The boxes that hold a paragraph's later lines in beside that float, by
+    /// the offset each line starts at, in layout pixels.
+    private var _besideBoxes: [[Int: Double]] = []
+    /// Paragraphs laid out before the rows of the table they sit beside were
+    /// measured: laid out again once those are.
+    private var _besidePending: Set<Int> = []
     /// A fixed box still puts the first glyph at its stated indent when
     /// it overflows. Its painter reserves room for that glyph on line one;
     /// painting restores the difference before clipping to the frame.
@@ -1394,6 +1405,7 @@ public final class RichLayout {
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
         _besideLead = Array(repeating: 0, count: n)
+        _besideBoxes = Array(repeating: [:], count: n)
         _boxFirstLineShift = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
@@ -1470,6 +1482,7 @@ public final class RichLayout {
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _besideLead.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _besideBoxes.insert(contentsOf: Array(repeating: [:], count: n), at: at)
                 _boxFirstLineShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -1510,6 +1523,7 @@ public final class RichLayout {
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
                 _besideLead.removeSubrange(at ..< end)
+                _besideBoxes.removeSubrange(at ..< end)
                 _boxFirstLineShift.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
@@ -1630,6 +1644,33 @@ public final class RichLayout {
         // lines short on pages 17 and 19, not 18).
         // Laid out again where a paragraph's page says otherwise than
         // last time, until nothing moves (a few passes at most).
+        // The paragraphs set beside a table floating by the text: the stretch of
+        // it they share is the part of it on their page (zh: LibreOffice's
+        // floattable-leftover-para-portion has only the last row of its table
+        // on page 2, and two lines beside it). Laid out again where the page
+        // says otherwise than the last layout did.
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, !_besidePassing, _besideLead.contains(where: { $0 > 0 }) {
+            _besidePassing = true
+            defer { _besidePassing = false }
+            for _ in 0 ..< 3 {
+                var changes: [RichChange] = []
+                for k in _besideLead.indices where _besideLead[k] > 0 {
+                    guard k < _pieceStart.count, _pieceStart[k] < _allPieces.count, k > 0, let table = _cells[k - 1]?.table else { continue }
+                    let first = _allPieces[_pieceStart[k]]
+                    let mine = _pages[first.page].filter { _cells[$0.paragraph]?.table == table && !$0.repeated }
+                    guard let floor = mine.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max(),
+                          let ceiling = mine.map({ $0.pageY }).min() else { continue }
+                    let band = (top: max(0, ceiling - first.pageY), bottom: max(0, floor - first.pageY))
+                    if let old = _besideBandUse[k], abs(old.top - band.top) < 0.5, abs(old.bottom - band.bottom) < 0.5 { continue }
+                    if _besideBandUse[k] == nil, let was = _besideBand(k, document), abs(was.top - band.top) < 0.5, abs(was.bottom - band.bottom) < 0.5 { continue }
+                    _besideBandUse[k] = band
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
         if theme.wordRules, pageSetup != nil, !_mirrorPassing {
             _mirrorPassing = true
             defer { _mirrorPassing = false }
@@ -2548,6 +2589,12 @@ public final class RichLayout {
             guard let c = _cells[i] else {
                 // The space before it lies over the space after the
                 // paragraph above (`theme.collapsesParagraphSpacing`).
+                // (Beside a float whose rows are measured by now: laid out again
+                // with its lines held in — see `_besideBoxes`.)
+                if _besidePending.contains(i) {
+                    _besidePending.remove(i)
+                    _layoutParagraph(i, document.paragraphs[i], document)
+                }
                 let top = y - _sharedSpace(i, document)
                 if i > settled, _rowTops[i] == top { return }
                 _tops[i] = top
@@ -7910,6 +7957,40 @@ public final class RichLayout {
                 _leadWidth[i] = lead
             }
         }
+        // (Beside a float: the lines that stand level with it are held in too.
+        // Laid out once as they fall, the lines the float reaches get a box
+        // each at their start, and laid again until they settle.)
+        _besideBoxes[i] = [:]
+        if _besideLead[i] > 0, _besideBand(i, document) == nil { _besidePending.insert(i) }
+        if _besideLead[i] > 0, let band = _besideBand(i, document) {
+            let original = _px(firstLineIndent(p, at: i, document))
+            var boxes: [Int: Double] = [:]
+            var firstBeside = true
+            for _ in 0 ..< 8 {
+                _besideBoxes[i] = boxes
+                let (trialSpan, trialInline, trialInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside ? max(original, _besideLead[i]) : original,
+                                                                   adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
+                let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: .ltr)
+                if !trialInline.isEmpty { trial.setPlaceholderDimensions(trialInline.map { $0.dimensions }) }
+                trial.layout(minWidth: 0, maxWidth: textWidth)
+                let starts = _lineStarts(trial, _OffsetMap(lead: (firstBeside ? max(original, _besideLead[i]) : original) != 0 ? 1 : 0, inserts: trialInserts), count: p.text.utf16.count)
+                let bottoms = Self._lineBottoms(trial)
+                trial.dispose()
+                var next: [Int: Double] = [:]
+                var first = false
+                for (k, start) in starts.enumerated() where k < bottoms.count {
+                    let top = k == 0 ? 0 : bottoms[k - 1]
+                    guard bottoms[k] > band.top + 0.01, top < band.bottom - 0.01 else { continue }
+                    if k == 0 { first = true } else { next[start] = _besideLead[i] }
+                }
+                        if next == boxes, first == firstBeside { break }
+                boxes = next
+                firstBeside = first
+            }
+            _besideBoxes[i] = boxes
+            if !firstBeside { lead = original; _leadWidth[i] = lead }
+            else if lead < _besideLead[i] { lead = _besideLead[i]; _leadWidth[i] = lead }
+        }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
@@ -10936,7 +11017,30 @@ public final class RichLayout {
                 }
                 continue
             }
-            children.append(contentsOf: styled(p.text[a ..< b], run.style, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
+            // (A box at the start of a line the paragraph's float holds in: see
+            // `_besideBoxes`.)
+            let runStart = pos - run.length
+            let besideHeld = index.map { $0 < _besideBoxes.count ? _besideBoxes[$0] : [:] } ?? [:]
+            let cuts = besideHeld.keys.filter { $0 > 0 && $0 >= runStart && $0 < pos }.sorted()
+            if cuts.isEmpty {
+                children.append(contentsOf: styled(p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
+            } else {
+                let boxStyle = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                var from = runStart
+                for o in cuts {
+                    if from < o {
+                        let x = utf16.index(a, offsetBy: from - runStart), y = utf16.index(a, offsetBy: o - runStart)
+                        children.append(contentsOf: styled(p.text[x ..< y], run.style, at: from, next: p.text[y]))
+                    }
+                    children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: boxStyle))
+                    inline.append((nil, PlaceholderDimensions(size: Size(besideHeld[o] ?? 0, 0.01), alignment: PlaceholderAlignment.baseline,
+                                                              baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
+                    inserts.append(o)
+                    from = o
+                }
+                let x = utf16.index(a, offsetBy: from - runStart)
+                children.append(contentsOf: styled(p.text[x ..< b], run.style, at: from, next: b < utf16.endIndex ? p.text[b] : nil))
+            }
             // (The half share after a ruby's base: a word joiner that wide.)
             if let tail = rubyTails[pos], tail > 0, run.style.ruby != nil {
                 rubyTails[pos] = nil
@@ -11418,6 +11522,21 @@ public final class RichLayout {
         guard left < column / 2, right < column / 2 + _px(100), column - edge - _px(p.style.indentRight) >= size * 3 else { return nil }
         let own = _px(p.style.indentLeft)
         return edge > own ? edge - own : nil
+    }
+
+    /// The vertical stretch, from paragraph `i`'s top, that the table floating
+    /// by the text it follows takes: its offset down to its foot.
+    private func _besideBand(_ i: Int, _ document: RichDocument) -> (top: Double, bottom: Double)? {
+        if let used = _besideBandUse[i] { return used }
+        guard i > 0, i - 1 < _cells.count, let before = _cells[i - 1], let down = document.tableStyles[before.table]?.floatOffsetY else { return nil }
+        var k = i - 1, top = Double.infinity, bottom = 0.0
+        while k >= 0, let d = _cells[k], d.table == before.table {
+            top = min(top, d.rowTop)
+            bottom = max(bottom, d.rowTop + d.ownRowHeight)
+            k -= 1
+        }
+        guard bottom > top else { return nil }
+        return (_px(down), _px(down) + bottom - top)
     }
 
     private func _sideIndents(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> (left: Double, right: Double) {
