@@ -157,7 +157,11 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
 - "+" between ideographs: Word breaks after an ASCII "+" before an ideograph ("…互联网+" | "监管…"); the engine keeps
   "+" with the ideograph (UAX14 PR × ID). zh-26660336 (3 lines), zh-c0ac6f55 (1), zh-41907c96 (4). In progress.
 - zh-c2f6d17a: "…100" | "—150毫米" (a dash after digits opens the line; lab dash). Next.
-- zh-78d8bd98 exact last row's bottom line: wip/lenovo3-lastrow (cdefe320), 96.8 -> 98.9 on Linux, awaiting windows-1.
+- zh-78d8bd98 exact last row's bottom line — DONE (landed after windows-1's round 1: nothing dropped, 96.8 -> 98.9 on v1;
+  v2 already matched those lines). The table's own bottom line hangs under an exact last row even where the cells state it.
+- "+" rule (wip/lenovo3-plus, aab8a7ed): in windows-1's round 2.
+- zh-bbbb2e6a list numbers 17pt off (v2 revision's find, routed by starling-bd): a lone character in a jc=distribute cell is
+  centred in Word's print ("一" at 74.3 = the cell's middle); ours sets it at the start. In progress.
 
 ### Windows-mode 95–97 band, from the top down — CLAIMED zh-22ecbdc8, zh-76cb73e2, zh-8415d258, zh-27fc8f9d, zh-c591c1fa, zh-424775e4; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
