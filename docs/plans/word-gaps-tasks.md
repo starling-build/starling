@@ -10891,3 +10891,27 @@ Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. Order: the 0% ones first (t
 Owner: this session. Scores each batch of queue-2 prints as `windows` commits them to lo/word-win (Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`),
 runs lenovo-2's class table (~/tmp/lo-tools/lo_triage.py), extends the class table here and reports new classes and the worst documents to starling-bd.
 No layout fixes: this entry is scores and triage only. Waiting for the first queue-2 batch (none of the 408 is printed on origin/office yet).
+
+### T251. LO DOCUMENTS WITH TEXT IN WORD'S PRINT THAT SCORE 0 (17): FIRST CAUSES AND OWNERS — Linux lo5 (starling-bd's order, 2026-10-30)
+Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`; lenovo-2's list (588e3ae5), re-read on office 9acac6d94 with my build. Three fixed on wip/lo-zero-text e0dbaf38c
+(awaiting windows-1; pre-pair of the 13 official+LO documents holding the two patterns, plus the canaries, 62 documents: zh-31d580df 98.9 -> 99.1, nothing lower).
+| document (lo-id) | first cause | owner / state |
+|---|---|---|
+| tdf169843 (7e788bd7) | a paragraph holding only a bare `m:oMath` is a display equation to Word, centred (ℝ at x 289; ours at the left margin) | FIXED 0 -> 100, wip/lo-zero-text |
+| btlr-frame-vml (520b5689) | VML textbox `layout-flow:vertical;mso-layout-flow-alt:bottom-to-top` was not read: ours set "Vertical Text" across in 2 lines, Word reads it upward | FIXED 0 -> 100, wip/lo-zero-text |
+| groupshape-sdt (83c47ec6) | the same VML flow: its "placeholder text" box is vertical | FIXED 0 -> 100 by the same commit (T249 office1: drop it from your list) |
+| tdf150438 (1c56bb13) | drop cap (cap paragraph set on its own line) | T248 office1, wip/lo-dropcap 0ad7be37c: 0 -> 100 there |
+| tdf147485-forcepoint (e8c1ae37) | ours draws none of the 32 single-glyph WordArt lines; Word's frame group 27pt higher / 9pt left | T248 office1 (frames) |
+| tdf126426 (6a997675) | a group of a picture and a white text box is read as one picture, the text is not drawn | T249 office1 (images) |
+| tdf135035 (f8601326) | text box 6pt right and 51pt low in ours (4 lines, all offset) | T249 office1 (images) |
+| sdt+framePr (f1cc2329) | body paragraph framed `wrap=none, vAnchor=text, y=1, xAlign=right`, no width: Word sets "1" at the right margin ON the next paragraph's line ("…elit.1" one line); ours sets it at the left on a line of its own and pushes the text down. Same without the sdt wrapper. Only body frame with wrap none in the 1,383 documents | lenovo (frames); a rule for a width-less aligned body frame would be like the header's (zero height, text stays) |
+| tdf119200 (f225432f) | TWO causes: (1) the equation objects are WMFs of Symbol-face glyphs; Word's text layer holds U+F0CE.. (SymbolMT) which the matcher blanks, ours draws ∈∉⊂⊃ (x matches within 0.5pt); (2) every glyph baseline is 6.6pt high (Word 71.5, ours 64.9: exact 18pt line with objects raised/lowered by w:position) | unowned; (1) is a text-layer artefact, (2) is real and small: left open |
+| tdf170236 (d04a7466) | Word's print carries "Commented [A1]: …" balloon text lines that ours does not draw | lenovo-3 (tracked changes / comments) |
+| tdf103931 (74bd0b2f) | continuous 3-column section holding Testing/Column 1/Testing/Column 2/Testing/Column 3 (an empty paragraph with the section mark before it): Word sets the three columns across ("Testing Testing Testing" y 110, "Column 1 Column 2 Column 3" y 144), ours one column, six lines | windows-2 (sections/columns) |
+| tdf139336_ColumnsWithFootnote… (9749f2b5) | Word 26 lines (numbers across columns), ours 47 stacked: columns with footnotes | windows-2 |
+| floattable-center-inline-overlap (5e49366b) | "x" at x 415, y 120 in Word; x 57, y 645 in ours: a floating table | macOS-doc |
+| xaxis-labelbreak (817b02d4) | Word 14 lines of chart text, ours 0 | macos-ios (charts) |
+| outside_long_data_label (f391267c) | Word 9 lines, ours 3 | macos-ios (charts) |
+| tdf134866 (73f1dccc) | custom data label 13pt high (y 266 vs 279; x within 1pt) | macos-ios (charts) |
+| tdf137154 (b9d70b44) | data labels 6-15pt off in y and 6pt in x | macos-ios (charts) |
+Not yet read to the cause (listed from lenovo-2's notes only): the four chart rows above beyond their offsets. Re-score after the wip lands.
