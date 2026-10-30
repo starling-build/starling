@@ -389,6 +389,31 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
   Linux pair: v2 97.6 -> 99.1, nothing else.
 - zh-ab34d9cb "˙" (U+02D9 hinted eastAsia) in the East Asian face (wip/lenovo3-dotabove, UNPAIRED: patched sweep done,
   base not; also zh-633792eb, zh-c591c1fa). Next: pair, then windows-1.
+### Per-mark squeeze model — OWNER lenovo-3 (Linux 01F2SWc8, starling-bd's routing 2026-10-30); findings so far
+Tools (Lenovo ~/tmp/word/tools): givecensus2.py (every mark in every line that is identical in Word's print and ours: Word's
+step vs ours by font, mark, next and previous class; output give-census2.tsv), marksq.py/markhist.py (step histograms by font),
+gapcensus.py/spacegap.py (ideograph-digit gaps). macos-ios's tables: wip/lab-census (markgive-all-756.tsv, sqz-results.tsv).
+1. FLOORS (Word, step after a mark before an ideograph, lowest seen): SimSun/FangSong/YaHei , 0.50; 標楷體 ，、。；： 0.73-0.75;
+   新細明體 ， 0.76, 。 0.83. A mark followed by a mark goes much lower (， 0.32 ... ), a line's last mark never squeezes (1.000).
+2. CAPS ARE NOT THE LEVER. Capping a centred mark's give at a quarter em (off a grid, not the last mark) breaks 90 documents
+   that match now (zh-457a8d62 100->6): ~/tmp/word/quarter-v2.patch. Making an opening mark inside a line give nothing
+   (the census: Word keeps 《 99.3%, 「 99.4%, “ 99.7%, （ 92-96% whole; ours squeezes 14-26%), in the body only, makes 169
+   documents lower and 1 higher (mean 98.1 -> 96.2): ~/tmp/word/opener2.patch. Why: Word's CAPACITY includes the openers; it
+   fills closers first, so openers rarely end up squeezed. The census measures the distribution of the drawn squeeze, which a
+   line break does not depend on. Do not use per-mark census percentages to set a capacity.
+3. Lab cap (windows; zh-bdae17c0 p9, one-cell table, 14pt 標楷體 mode 15): Word squeezes only what the line needs, a comma
+   gives 2.04 at most there (3.1 when it must), the CJK-digit gaps give 6.1 -> 3.5 (2.55 each); it took "富" at 9.25 over and
+   refused at 9.65: 2/3 of 14.04 = 9.36, the mode-15 two-marks rule already in the code (this section's `mm` labs). So the
+   threshold fits; the fault is our overrun (8.7 where Word's is about 9.9 at w:right 0): not the gaps (gapcensus, spacegap:
+   ours = Word for 標楷體/FangSong, 0.1 em short only for 新細明體 digits), not the commas (14.04 vs 14.0 an advance).
+   Open: where the 1.2pt goes.
+4. Lab trail (windows; spaces): in a wordWrap=1 paragraph trailing spaces never wrap by count, they hang, and text after them
+   wraps only if it does not fit; wordWrap=0 breaks per character (51 a line). So ours (hang) is right, and zh-621d8756's
+   word-win p21 (spaces wrapped 51/51) is probably a STALE REFERENCE: reprint asked.
+5. Witnesses waiting: zh-72da925e (a closing 」 halved to take 月 on a spreading grid, a leading "，" kept, a kinsoku-0 "（"
+   ending a line), zh-27fc8f9d p2 (《 》 whole where ours squeezes 3.8 each), sqz3's line G (Word holds the squeeze back until
+   the line has 5-6pt more room). macos-ios's stored-twips indent fix (52db52eb) may be part of what the half cap covers: re-run
+   the quarter cap on top of it when it lands.
 - **OPEN, Taiwan fonts: a centred mark gives a quarter em, ours half (Linux 01F2SWc8 lenovo-3, 2026-10-30; lab sent to windows).**
   Word's prints, all 756, step after a mid-line mark before an ideograph, lowest seen: 標楷體 (DFKaiShu) ，、。；： 0.73-0.75 em
   (66149 commas, 10751 squeezed), 新細明體 ， 0.76, SimSun/FangSong/YaHei ， 0.50 (macos-ios's per-face tables agree: DFKai
