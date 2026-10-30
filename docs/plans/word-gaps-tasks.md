@@ -68,7 +68,7 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   Windows, legacy modes, not in a cell, the marks' give and the half-before test are weighed to half a twip (0.025pt).
   5 docs: 8d6f 90.8 -> 99.6, 5be7e156 97.8 -> 98.3 (its p2 "冷" witness matched; in cells it moved 专栏 lines off Word's, so cells are out).
 - (3) zh-3c055c9b (mode 15, 17pt grid, overflowPunct 0) grid squeeze: started, released to me by macOS-doc.
-### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619 (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
+### Windows-mode 95–97 band, from the top down — CLAIMED zh-e5eb092a, zh-22ecbdc8, zh-505b9619, zh-76cb73e2; now the 97.0–97.9 band top down (Claude windows-3, Windows box DESKTOP-URK35LH, starling-office-4, 2026-10-29, starling-bd's assignment)
 Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One document at a time, claimed here first.
 - zh-dc9e54ca 96.9 — looked, nothing to build: its 3 misses (p3's "附 …估價單", "…其他", "件 …") are a text-layer
   difference only, every line at Word's height. The boxes are `<w:t>U+F0A3</w:t>` in a Wingdings 2 run with
@@ -111,6 +111,14 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   office.md "A list level begins at its own start") and numbers them 1 and 2. Candidate: a shallower level not yet counted is
   counted at its start. Pair on the current tip to come. (Its p4/p5 "○1"/"○2" eq \oc misses are the text layer: ours
   sets ①, which the reader folds to "1".)
+
+- 97.0–97.9 band (starling-bd, 2026-10-29), top down. zh-d8247da5 97.9: looked, released — its one miss is the reader
+  grouping a dense landscape form cell ("面私人醫"), lines at Word's heights.
+- zh-76cb73e2 97.9 — CLAIMED. All 4 misses are p10/p11's footers: a VML page box (mode 11, mso-wrap-style:none,
+  mso-fit-shape-to-text, "— PAGE —" in 宋体 14pt hinted East Asian, cached "2") that Word sizes for "— 2 —" (49pt, centred at
+  297.65) and that wraps "— 10" | "—" on two-digit pages; ours fits each page's own text. zh-5be7e156 and zh-785e46f8 (wps
+  wrap="none" + spAutoFit, the same text) wrap too; zh-08dc38da and zh-57f1de0d (same box, "— PAGE —" in Times hint default)
+  keep "— 11 —" on one line. Lab pgb asked of `windows`.
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
