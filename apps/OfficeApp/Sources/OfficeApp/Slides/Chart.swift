@@ -4872,7 +4872,7 @@ extension ChartPainter {
             // chart 2: 德國's text (3.8% at eight o'clock) 2.6 left of
             // 新加坡's, which it overlapped by 16 x 13 in ours where it stood
             // 15.5 right of Word's.)
-            if point != nil, l.outside, !fitsInside, moved == nil {
+            if point != nil, l.outside, !fitsInside, moved == nil, !c.onSlide, !c.onSheet {
                 let gap = 2.6 * k, tw = tp.width, th = tp.height
                 for _ in 0 ..< 4 {
                     guard let hit = taken.first(where: { $0.left - gap < at.dx + tw / 2 && at.dx - tw / 2 < $0.right + gap
