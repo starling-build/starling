@@ -36,6 +36,11 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/lo/docs/lo-5a78fd37d46a2f88.docx")
+    /// whose text after it starts 184.0pt under the table's first line in Word's print.
+    func testRowGrowsToHoldANestedFloatingTable() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-496593e53af2b979.docx")
         guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
         let parsed = try DocxFormat.read(data)
         let doc = parsed.document
@@ -46,6 +51,7 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         layout.pageSetup = setup
         layout.width = setup.width * 96.0 / 72.0
         layout.ensureLaidOut(doc)
+<<<<<<< HEAD
         func left(_ text: String) throws -> Double {
             let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix(text) })
             return layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).left / theme.pixelsPerPoint
@@ -109,6 +115,13 @@ final class LibreOfficeNestedTableTests: XCTestCase {
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
+=======
+        func top(_ text: String) throws -> Double {
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+            return layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).top / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try top("p79") - top("Table4:A1 p1"), 184.0, accuracy: 0.6)
+>>>>>>> cbcbf4188 (A floating table nested in a cell counts its real height in the row (LibreOffice's tdf170477))
     }
 
     /// One column in a normal table, floating in name only: parts between its rows.
