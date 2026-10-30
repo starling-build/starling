@@ -9681,6 +9681,22 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - e5q/e5r/e5s (windows-3, zh-e5eb092a): Word decides a line with each character's w:spacing counted TWICE, 37 x (12 + 2s),
     and lets a final "，" hang its whole advance. Thresholds: +0.2 446.4, +0.4 460.8, +0.8 ~490.1; "，" -> "甲" (no hang)
     473.6 = 37 x 12.8 exactly.
+(11) More labs (Windows 01QbbApP):
+  - lc (macOS-doc, zh-4e5fe46f p9, legacy cell, mode 14). The squeeze to take "的" is about half an em IN ALL, whatever the
+    count of marks: two marks 4.7, one 4.6. The space gives nothing (removing it gains only its own width). Ours gives the same,
+    but its line is 1.8pt wider at every threshold: ideographs 9.275 vs Word's 9.24 (77 dots at 1/600in), the space 4.55 vs
+    4.32. jc both adds an unexplained refused window at -189..-163.
+  - tbi (macOS-doc, zh-b24b396a). A text box's first line is drawn AT its indent, even past the box, while the indent is short
+    of the box width less its left inset, and left out from there on (the rest wraps from line 2): the cell rule of ovi2.
+    Grouping doesn't change it (only the exact edge, by rounding). A vert270 box 11.9 x 7.8 draws "3" at its indent and never
+    the "0". Trap: zh-b24b396a's Normal has firstLineChars 200, which overrides a box paragraph's own w:firstLine.
+  - e5t (windows-3, zh-e5eb092a). Curly quotes "“ ”" and an opening "《" give nothing; a closing "》" gives up to about half an em.
+  - exl2 (lenovo-3). The exact-line baseline is 4/5 of the line at 10 and 10.5pt too, for SimSun, TNR and PMingLiU. In exact
+    vAlign-center cells the line plus its space before centres as a block: (row - line - before)/2 + before + 0.8 line.
+(12) zh-cb56e605's word-win reference replaced by a fresh solo print (a9d43428, user-approved via macos): its nbsp runs were
+  Ebrima (substitute trap), now Calibri; p5's lines after them 3.5pt lower. zh-c399c91a reprints identically, kept. The audit of
+  the 327 other missing-face references (word-win-missing-faces.txt, less db46d815's and today's) is RUNNING in chunks
+  between labs; the list of replaced references will follow here.
 (3) TRIAGE DONE (Windows 01QbbApP, bin-hang = office 3994962b + wip/grid-hang, Windows mode, bundled fonts). Older
 Windows-mode "needs a lab" notes against the tip:
   - STALE, close: zh-1563bd74 (footer right-aligned line, "Needs a lab in a footer"): 621/621 lines matched.
