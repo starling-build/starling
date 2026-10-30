@@ -210,8 +210,10 @@ def mupdf_glyphs(pdf):
                         if g2[2] - prev[4] > 0.8 * max(prev[5], g2[5]):
                             pieces.append([])
                         pieces[-1].append(g2)
-                    parts = "\x1e".join(f"{round(q[0][2])}\x1f{''.join(r[3] for r in q)}" for q in pieces) if len(pieces) > 1 else ""
-                    out.append(f"p{i + 1}\t{round(-max(r[1] for r in row))}\t{round(row[0][2])}\t{''.join(r[3] for r in row)}\t{parts}")
+                    parts = "\x1e".join(f"{round(q[0][2])}\x1f{round(max(r[4] for r in q))}\x1f{''.join(r[3] for r in q)}"
+                                         for q in pieces) if len(pieces) > 1 else ""
+                    out.append(f"p{i + 1}\t{round(-max(r[1] for r in row))}\t{round(row[0][2])}\t{''.join(r[3] for r in row)}"
+                               f"\t{parts}\t{round(max(r[4] for r in row))}")
                 row = [g] if g is not None else []
             # (Turned text by its own baseline too — a column of glyphs,
             # one origin across — parted where a glyph's size stands empty
@@ -227,7 +229,8 @@ def mupdf_glyphs(pdf):
                     continue
                 if run:
                     text = "".join(r[4] for r in (run if run[0][0][1] > 0 else reversed(run)))
-                    out.append(f"p{i + 1}\t{round(-max(r[3][3] for r in run))}\t{round(min(r[3][0] for r in run))}\t{text}\t")
+                    out.append(f"p{i + 1}\t{round(-max(r[3][3] for r in run))}\t{round(min(r[3][0] for r in run))}\t{text}"
+                               f"\t\t{round(max(r[3][2] for r in run))}")
                 run = [g] if g is not None else []
     return out
 
@@ -247,9 +250,10 @@ def lines(tool, pdf):
         # (Without the object character a print may carry for an inline box.)
         t = unicodedata.normalize("NFKC", p[3]).replace("\ufffc", "").strip()
         if t and V2:
-            parts = tuple((float(x), unicodedata.normalize("NFKC", q)) for x, q in
+            # (Each piece its start, end and text; the line its end too.)
+            parts = tuple((float(x), float(x1), unicodedata.normalize("NFKC", q)) for x, x1, q in
                           (piece.split("\x1f") for piece in p[4].split("\x1e"))) if len(p) > 4 and p[4] else ()
-            rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t, parts))
+            rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t, parts, float(p[5]) if len(p) > 5 and p[5] else float(p[2])))
         elif t:
             rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t))
     # PDFKit cuts a line where its fonts change: the pieces of one line
@@ -328,30 +332,69 @@ def matches(o, r):
 
 
 def found(r, ours):
-    """Whether Word's line `r` is matched among `ours` (the page's lines):
-    by a line of ours (`matches`) — or, under v2, piece by piece. A line
-    read by its baseline may be things set apart that only share it, and
-    ours need not share it to the tenth: zh-27a874b7's 3-D pie labels
-    "德國" and, 15.8 ems along, another slice's "24" at one height, where
-    ours has each in its place on baselines 0.3pt apart. So a line that
-    parts so is matched where
-    every piece is, by a line or a piece of ours within 3pt of the line's
-    height. (Where four fifths of a glyph's size stand empty — a
-    cell's margins: a piece may only find what ours has at that height.)
-    (By pieces only as well as whole: where the empty run is a
-    print's spaces — zh-dc9e54ca's "☐…同意書" and, 4 ems along, "☐其他" —
-    the other print may not part there.)"""
-    if any(matches(o, r) for o in ours):
-        return True
+    """Whether Word's line `r` is matched among `ours` (the page's lines),
+    as `unmatched` judges it, for one line alone."""
+    return r not in unmatched([r], ours)
+
+
+def unmatched(words, ours):
+    """Word's lines of one page (`words`) that ours do not match.
+
+    A line is matched by a line of ours (`matches`) — or, under v2, piece
+    by piece. A line read by its baseline may be things set apart that
+    only share it, and ours need not share it to the tenth: zh-27a874b7's
+    3-D pie labels "德國" and, 15.8 ems along, another slice's "24" at one
+    height, where ours has each in its place on baselines 0.3pt apart. So
+    a line that parts where four fifths of a glyph's size stand empty — a
+    cell's margins — is matched where every piece is, by a line or a piece
+    of ours within 3pt of the line's height; and a line of one piece by a
+    piece of ours. (By pieces only as well as whole: where the empty run is
+    a print's spaces — zh-dc9e54ca's "☐…同意書" and, 4 ems along, "☐其他" —
+    the other print may not part there.)
+
+    (Under v2 a short line or piece — under four characters, which only
+    its whole text tells apart — pairs with one of ours alone, each of
+    ours taken once, nearest pairs first, and only where the two stand
+    within the wider one's width along the baseline — where their ink
+    would overlap, moved over: read by their glyphs a chart's labels are
+    lines of their own, and zh-27a874b7's pie labels "84" and "15",
+    10pt wide, stood 13-16pt from Word's and still matched. How far along
+    is not scored beyond that, as it is not for a long line: zh-a4e8599d's
+    column of "人数", "合计", 21pt and more wide, stands 17pt right of
+    Word's and is a column of the same lines.)"""
     if not V2:
-        return False
-    def piece_found(x, t):
-        q = (r[0], r[1], x, t)
-        for o in ours:
-            if matches(o, q) or any(matches((o[0], o[1], px, pt), q) for px, pt in o[4]):
-                return True
-        return False
-    return all(piece_found(x, t) for x, t in (r[4] or ((r[2], r[3]),)))
+        return [r for r in words if not any(matches(o, r) for o in ours)]
+    units = [(o[0], o[1], o[2], o[3], o[5]) for o in ours] + \
+            [(o[0], o[1], px, pt, px1) for o in ours for px, px1, pt in o[4]]
+    short = []     # (Word line index, the piece asked for)
+    done = {}
+    for n, r in enumerate(words):
+        whole = (r[0], r[1], r[2], r[3], r[5])
+        if len(r[3]) >= 4 and any(matches(o, whole) for o in ours):
+            done[n] = True
+            continue
+        asks = [(r[0], r[1], x, t, x1) for x, x1, t in (r[4] or ((r[2], r[5], r[3]),))]
+        if len(r[3]) < 4:
+            asks = [whole]
+        ok = True
+        for q in asks:
+            if len(q[3]) >= 4:
+                ok = ok and any(matches(u, q) for u in units)
+            else:
+                short.append((n, q))
+        done[n] = ok
+    # (The short ones, nearest pairs first.)
+    pairs = sorted((abs(u[2] - q[2]), k, m) for k, (_, q) in enumerate(short)
+                   for m, u in enumerate(units) if abs(u[2] - q[2]) <= max(q[4] - q[2], u[4] - u[2], 1) and matches(u, q))
+    taken, given = set(), set()
+    for _, k, m in pairs:
+        if k not in given and m not in taken:
+            given.add(k)
+            taken.add(m)
+    for k, (n, _) in enumerate(short):
+        if k not in given:
+            done[n] = False
+    return [r for n, r in enumerate(words) if not done[n]]
 
 
 def main():
@@ -382,7 +425,12 @@ def main():
         by_page = {}
         for r in b:
             by_page.setdefault(r[0], []).append(r)
-        missed = [r for r in a if not found(r, by_page.get(r[0], []))]
+        by_word = {}
+        for r in a:
+            by_word.setdefault(r[0], []).append(r)
+        missed_rows = [r for page in sorted(by_word) for r in unmatched(by_word[page], by_page.get(page, []))]
+        missed_set = set(map(id, missed_rows))
+        missed = [r for r in a if id(r) in missed_set]
         pages = (max((r[0] for r in a), default=0), max((r[0] for r in b), default=0))
         results.append(((len(a) - len(missed)) / max(1, len(a)), f[:-4], len(a), len(b), pages))
         if key:
