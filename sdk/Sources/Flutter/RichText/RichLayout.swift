@@ -5900,7 +5900,16 @@ public final class RichLayout {
                     }
                     y = max(y, t - lead)
                 } else {
-                    while let below = noRoom(at: y, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                    // (In Word for Windows, over any of the first line: zh-e51c31a7's
+                    // "以下欄位由交通部填寫" starts 1.3pt above the foot-wide
+                    // form box (外框1, 511pt, wrapped square, 14.35pt under its
+                    // anchor's top) and stands under the box in Word's print,
+                    // its table after it; ours set it under the box's top, the
+                    // two drawn over each other. Word for Mac sets it there, as
+                    // ours did.)
+                    let reach = RichTextTheme.wordWindowsPages
+                        ? (Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? 0) : 0
+                    while let below = noRoom(at: y, height: reach, []), guardSteps < 20 { y = below; guardSteps += 1 }
                 }
                 // (A table placed down the page keeps the whole of a line
                 // off it, not only the line's top: zh-10eab555's contents
