@@ -10746,8 +10746,10 @@ Built (Docx.swift, beside the existing text-anchored framed-table case): such a 
 its logo table and foot line still 11pt off. Also tried and dropped: label of an empty numbered paragraph (zh-cd8987db p10 "附录A", Word's baseline
 3.7pt under ours on a 20pt exact line): _baselineShift is 0 there (exactLineDescentShare nil) and giving the marker a strut of its own face moved nothing.
 
-### T246. zh-6e7ff836 (98.2) and zh-f47b8a74 (98.4) against word-win — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4)
+### T246. zh-6e7ff836 (98.2) and zh-f47b8a74 (98.4) against word-win — WIP PUSHED wip/t246-canvas b83fcb9b8 (zh-f47b8a74), awaiting windows-1 (Linux office1, 2026-10-30, band 98.0-98.4)
 Looking at both on the current base (Linux Windows-mode v2); measured before anything is built.
 
 ### T247. LO floating tables (floattable-footer-object 6.2, floattable-compat14 37.5, floattable-del-empty 62.3, n775899 50, tdf88496 10.3) — CLAIMED (Mac 7bd18d8e, 2026-10-30, starling-bd's order: the LibreOffice set, class A)
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`; the table's start position, text beside a floating table joining its line, a floating table's page break. Not claimed: the two tdf170381 nested ones (lenovo-2, nested tables). T240 is finishing in parallel (zh-1d2a7c35 back to 100.0 with the fifth kept off a space after a circled number; full 756 pair running).
+zh-6e7ff836: its p19/p26 misses are row heights 0.6pt apart where a row's cells mix Latin and 標楷體 (the logged mixed-face line-height gap, engine side): RELEASED (parked).
+zh-f47b8a74 (98.4): p58's flowchart is a Word drawing canvas (mc:Choice Requires wpc, wpc:wpc), whose groups and shapes sit side by side in the canvas's units; only its first group was read, and the canvas stood 31pt off the page because "from the character" took the paragraph's edge in a centred line. Built: the canvas's groups and shapes read as one group of its extent, and a character-anchored float in a centred or right line starts at the line's first box. 756 pre-pair (Windows mode, v2): zh-f47b8a74 98.4 -> 99.7, nothing else moved. Remaining p17/p33 (5 lines) not looked at.
