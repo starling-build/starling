@@ -10009,6 +10009,14 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
     Needs (8515)'s stroke lab. ~/starling-doc-check/lab/wwa.
   Labs since (16): gs2 (macos-ios, results sent), cq (lenovo-3: no East Asian language, so closing marks start lines),
   p3dplot3.
+(18) Lab brk2 DONE (macOS-doc via macos, Windows 01QbbApP): a paragraph that opens with a page break keeps its space
+  before on the new page in compatibilityMode 12 and drops it in mode 15. On zh-ae2dd08d's heading (mode 15, 71.04):
+  mode 12 alone gives 77.04 (+6.0, the whole 120 twips), and so does zh-a498e874's whole legacy <w:compat>.
+  splitPgBreakAndParaMark alone does nothing. The break run's rPr, titlePg, docGrid, tabs/ind, preceding content,
+  styles.xml, settings minus the mode, and section geometry all change nothing either.
+  - zh-c5f59397's REFERENCE IS STALE. Mode 15, ref 貳、 at 65.28 (kept), but fresh whole prints give 55.32 (dropped),
+    3 of 3. Its mode-12 sibling zh-a498e874 keeps 65.28 fresh, 3 of 3, as its ref does. Needs the user's OK to reprint.
+    Any other mode-15 "keeper" is a reference suspect. ~/starling-doc-check/lab/brk2 (mk*.py; re/ = reprints).
 (13) MISSING-FACE REFERENCE AUDIT DONE (Windows 01QbbApP; user-approved via macos). All 327 word-win references whose
   document names a face this box lacks (word-win-missing-faces.txt), less db46d815's 14 and today's two, were reprinted alone
   in a fresh Word and compared glyph by glyph (face and position to 0.3pt, order-free, code points ignored). 322 identical.
