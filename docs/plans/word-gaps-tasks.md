@@ -9609,9 +9609,18 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
-- zh-6c447317 (98.6, word-win): p16 and p20 first lines one ideograph short. CLAIMED Linux lenovo-2 (starling-d6),
-  2026-10-29: balanceSingleByteDoubleByteWidth, and "第二十七条" + 2 spaces in bold Times New Roman — Word for Windows
-  keeps Times' 4pt spaces (justified to 6.9) and "保" ends the line; ours made them half an em (8).
+- zh-6c447317 (98.6, word-win): p16 and p20 first lines one ideograph short. RELEASED by Linux lenovo-2 (starling-d6),
+  2026-10-29, nothing pushed — needs a Windows lab. Mode 14, balanceSingleByteDoubleByteWidth, 仿宋_GB2312 16pt:
+  "第二十七条" + two bold Times New Roman spaces + "以上…社会保", 0.9pt over at half-em spaces; Word for Windows sets
+  the spaces 6.9 each and keeps "保". Tried, all dropped: (a) Latin-face spaces not balanced: 13 documents down (zh-015abfaf
+  100 -> 62.7, zh-db07d44e, zh-f47b8a74 ...). (b) legacy balanced spaces give a quarter (as mode 15's): zh-6c447317 -> 99.3,
+  but zh-015abfaf -> 62.7 (its "17.手工嵌线技能竞赛" + 17 spaces + "（文登区开发区）" wraps "区）" in Word), zh-06c46ba9,
+  zh-5313b71d down. (c) an eighth: the same. Lab question: what lets two balanced spaces give 1.1pt each on this line and
+  seventeen give nothing on zh-015abfaf's (the run's face? the space run's length? the overflow's size?).
+- Page numbers, CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, from starling-bd (v2 revision's misses):
+  zh-ab1ea005 — a footer box aligned "outside" (margin) takes its side from the sheet, not the printed number (Word: "—1—"
+  on sheet 2 at the left); zh-e02b0479 — a VML v:rect page-number box (144pt, centred, wrap none, fit to text) is fitted
+  as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). Both built; v2 pre-pair running.
 
 
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED (Linux lenovo-2, starling-d6, 2026-10-27, office1's witness)
