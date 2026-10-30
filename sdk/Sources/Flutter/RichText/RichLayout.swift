@@ -13334,12 +13334,18 @@ public final class RichLayout {
                     // four, each set at 1.62 of 3.0 in Word's print, where
                     // zh-c5f59397's "…噸級巡" leaves a plain "緝" 3.8 over.)
                     let closes = last > a && Self._closingUnits.contains(units[last - 1])
+                    // (And for what opens with an opening mark, which no line
+                    // may end with: zh-4ea36aa8's cell line "二、校舍…國小部32班（含"
+                    // (mode 15, doNotCompress, justified, PMingLiU 12) takes
+                    // "（含" 5.7pt over with four, each set at 1.58 of 3.0 in
+                    // Word's print, where ours left "（含" for the next line.)
+                    let opens = last > a + 1 && Self._openingUnits.contains(units[a])
                     // (A quarter, not half, where the closing mark hangs, and
                     // nothing by the share test with no mark to give: zh-6d402586's
                     // "…(以下稱1人1室房" leaves "間)：" 5.4pt over past its hung
                     // "：" with eight automatic spaces; zh-1b74ed91's "…作業，"
                     // is taken 1.0 over with three.)
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes && hang == 0 ? em / 2 : em / 4)
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, (closes && hang == 0) || opens ? em / 2 : em / 4)
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
