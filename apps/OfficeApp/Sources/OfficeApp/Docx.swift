@@ -4327,6 +4327,17 @@ enum DocxFormat {
                         if parts.count > 2, let v = parts[2] { box.insetRight = v }
                         if parts.count > 3, let v = parts[3] { box.insetBottom = v }
                     }
+                    // (Turned text in VML: the textbox's `layout-flow:vertical` reads
+                    // down, as DrawingML's `vert`, and with `mso-layout-flow-alt:
+                    // bottom-to-top` upward, as `vert270`; `vertical-ideographic`
+                    // is `eaVert`. LibreOffice's btlr-frame-vml reads "Vertical
+                    // Text" upward in Word's print; ours set it across, two lines.)
+                    if !perPart, node.descendant("wps:bodyPr") == nil, let flow = node.descendant("v:textbox")?["style"] {
+                        if flow.containsSubstring("layout-flow:vertical-ideographic") { box.textDirection = .down; box.uprightIdeographs = true }
+                        else if flow.containsSubstring("layout-flow:vertical") {
+                            box.textDirection = flow.containsSubstring("mso-layout-flow-alt:bottom-to-top") ? .up : .down
+                        }
+                    }
                     // (A lone VML shape that is not a rectangle sets its text
                     // in its type's text rectangle, as one in a group does —
                     // the file's `v:shapetype`, else VML's own: zh-60c80728
@@ -4851,6 +4862,14 @@ enum DocxFormat {
             case "right": style.alignment = .right
             default: style.alignment = .center
             }
+        }
+        else if p.children.contains(where: { $0.name == "m:oMath" }),
+                p.children.allSatisfy({ ["w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd", "m:oMath"].contains($0.name) }) {
+            // (A paragraph that holds nothing but a bare `m:oMath` is a
+            // display equation to Word too, centred like an `m:oMathPara`:
+            // LibreOffice's tdf169843, whose ℝ stands at the page's middle
+            // in Word's print and at the left margin in ours.)
+            style.alignment = .center
         }
         if leadingBreak {
             // (A break followed by floating objects alone is a break too:

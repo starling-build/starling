@@ -936,6 +936,44 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<m:t>L=99−</m:t>"), saved)
     }
 
+    /// A paragraph that holds a bare `m:oMath` and nothing else is a display
+    /// equation to Word, centred: LibreOffice's tdf169843 (its ℝ at the page's
+    /// middle in Word's print, at the left margin in ours). With text beside
+    /// it, it is inline and the paragraph's alignment stands.
+    func testALoneBareEquationParagraphIsCentred() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        let eq = "<m:oMath \(m)><m:r><m:t>R</m:t></m:r></m:oMath>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p>\(eq)</w:p><w:p><w:r><w:t>x </w:t></w:r>\(eq)</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].style.alignment, .center)
+        XCTAssertNotEqual(doc.paragraphs[1].style.alignment, .center)
+    }
+
+    /// A VML textbox's `layout-flow:vertical` reads down; with
+    /// `mso-layout-flow-alt:bottom-to-top`, up (btlr-frame-vml).
+    func testAVmlTextboxFlowsVertically() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        func box(_ flow: String) -> String {
+            "<w:p><w:r><w:pict><v:rect xmlns:v=\"urn:schemas-microsoft-com:vml\" style=\"position:absolute;margin-top:0pt;height:144pt;width:57pt\" filled=\"f\" stroked=\"f\">"
+            + "<v:textbox style=\"\(flow)\" inset=\".72pt,7.2pt,.72pt,7.2pt\"><w:txbxContent><w:p><w:r><w:t>Vertical Text</w:t></w:r></w:p></w:txbxContent></v:textbox></v:rect></w:pict></w:r></w:p>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            box("layout-flow:vertical;mso-layout-flow-alt:bottom-to-top") + box("layout-flow:vertical") + box(""))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
+        XCTAssertEqual(boxes.map(\.textDirection), [.up, .down, .horizontal])
+    }
+
     func testADisplayEquationWiderThanItsLineBreaksBeforeItsOperators() throws {
         // zh-db07d44e's cell "實績值=(…/…×1/3+…/…×1/3+…/…×1/3)×100%" is four
         // lines in Word's print, parted before "×" and "+" inside its
