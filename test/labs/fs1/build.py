@@ -44,7 +44,16 @@ variants['v3-no-table1'] = head + mid + T2 + tail
 variants['v4-t2-lower'] = head + T1 + mid + T2.replace('w:tblpY="-2"', 'w:tblpY="500"', 1) + tail
 variants['v5-t1-shorter'] = head + T1.replace('w:val="1830"', 'w:val="1000"', 1) + mid + T2 + tail
 variants['v6-no-inner-t2-short'] = head + T1 + mid + (T2[:a] + T2[b:]).replace('w:val="2355"', 'w:val="600"', 1) + tail
-variants['v7-t1-not-floating'] = head + re.sub(r'<w:tblpPr[^>]*/>', '', T1, 1) + mid + T2 + tail
+variants['v7-t1-not-floating'] = head + re.sub(r'<w:tblpPr[^>]*/>', '', T1, count=1) + mid + T2 + tail
+
+# second round (the first read-out: Outer table 2 stands at its own offset + Table 1's row + 20.58pt; ours +1.0)
+variants['v8-t1-tblpY-0'] = head + T1.replace('w:tblpY="-67"', 'w:tblpY="0"', 1) + mid + T2 + tail
+variants['v9-t1-tblpY--400'] = head + T1.replace('w:tblpY="-67"', 'w:tblpY="-400"', 1) + mid + T2 + tail
+variants['v10-t1-tblpY-400'] = head + T1.replace('w:tblpY="-67"', 'w:tblpY="400"', 1) + mid + T2 + tail
+variants['v11-last-para-big-font'] = head + T1 + mid + T2 + re.sub(r'<w:p\b[^>]*/>', '<w:p><w:r><w:rPr><w:sz w:val="48"/></w:rPr><w:t>Anchor</w:t></w:r></w:p>', tail, count=1)
+variants['v12-t1-two-rows'] = head + re.sub(r'</w:tr>\s*</w:tbl>$', '</w:tr><w:tr><w:trPr><w:trHeight w:val="600"/></w:trPr><w:tc><w:tcPr><w:tcW w:w="13068" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>Row two</w:t></w:r></w:p></w:tc></w:tr></w:tbl>', T1.rstrip(), count=1) + mid + T2 + tail
+variants['v13-t2-tblOverlap-always'] = head + T1 + mid + T2.replace('<w:tblOverlap w:val="never"/>', '', 1) + tail
+variants['v14-no-first-empty-para'] = (head.replace('<w:p w:rsidR="0072252C" w:rsidRDefault="0072252C" w:rsidP="008531A6"> <w:pPr> </w:pPr> </w:p>', '', 1) if False else head) + T1 + mid + T2 + tail
 
 for name, d in variants.items():
     fn = os.path.join(out, 'fs1-%s.docx' % name)
