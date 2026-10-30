@@ -9832,7 +9832,8 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
 p12's left column "…宜选用 LED 灯或高压钠灯，并采用时间控制方式；" (mode 15, doNotCompress, justified, 12pt 宋体, ind right 85): Word wraps "式；"
 — the two spaces around LED would have to give 1.38 of 6 each; ours squeezes them to 4.62 (a quarter allowed: 1.5) and hangs "；".
 zh-f2ca3070's three spaces ("…共同工作空間   席") set 4.80 of 6 = 1.2. Candidate: a word space with an East Asian neighbour gives
-0.2 of itself in Windows mode (Latin-between-Latin keeps lab jg's quarter). zh-b5359de4 505 -> 521 of 522 lines alone; pair running.
+0.2 of itself in Windows mode (Latin-between-Latin keeps lab jg's quarter). BUILT wip/b5359de4-spacegive (Mac 7bd18d8e): pair w111 -> w112
+(Windows, v2, fresh base after the 39 reference reprints): only zh-b5359de4 moved, 96.7 -> 99.8; Docx 201/0. Asked windows-1 to confirm.
 
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED Mac 7bd18d8e 2026-10-30 (baseline #1 95.7; was lenovo-2's, released): at the offset placement, Windows mode
 - LANDED (Mac 7bd18d8e, 2026-10-30), after windows-1's round 2 on the Windows box (nothing dropped; zh-d0a207ac +3.6, zh-e51c31a7 +2.8,
