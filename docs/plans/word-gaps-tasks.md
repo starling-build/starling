@@ -9255,6 +9255,11 @@ Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two ma
   advances unrounded; rounding each set 8.16 and took "樣". No one dot rule (scaled size, spacing, both) fits both prints.
   NOT landed; kept at the scratchpad's rounding-block.swift. Open: what makes zh-4e5fe46f's FangSong 10.5pt at w 95 step
   9.24 (and 9.12, never 9.36) — perhaps the face's hinted advance at that ppem. A lab there would say (sizes, w, faces).
+  Lab fw (`windows`, 30 ideographs, grid off, jc left, 10.5pt; mean step against 10.5·w + 2·spacing): w 100 nominal in both
+  faces (10.508, steps 10.44/10.56); w 90 both 0.024 under (78.55 dots of 78.75); w 95 face-dependent — 仿宋 9.918 (82.65 dots
+  of 83.125), 標楷體 9.968. No whole-dot rule (scaled size, spacing, half-width advance) gives these; it reads as the faces'
+  own hinted advances at the scaled size, which the Mac cannot reproduce without the faces' hinting. PARKED (Mac 7bd18d8e)
+  with these numbers: a per-face table would be fitting one document.
 - zh-3c055c9b (w96 93.2) RELEASED by Mac 7bd18d8e, to windows-2 (grid squeeze owner) via macos: every one of its 39 misses is
   one grid behaviour (17pt character grid, mode 15, overflowPunct 0). To take a line's end Word gives back the grid's addition
   of a mark AND the character before it: p9 "…第10892號、" with "號、" 17.0 -> 12.7 each and "、" 3.7 past the margin; p11
@@ -9266,6 +9271,11 @@ Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two ma
   short of it drawn at its indent, past the box; grouped or not. DONE (next commit, Windows mode): a fixed box's frame, and
   a group's boxes set in one text, which now carry their right inset (RichParagraphStyle.boxInsetRight). Left: p13's
   vert270 "30" boxes (lab (4) did not reproduce the document's layout outside its group).
+  Lab tbi4g (the document's own 文本框 576): the same rule along a turned box's 7.8pt line — "3" drawn at its indent to 6pt,
+  none from 9, "0" on the next line either way. But Word's print of zh-b24b396a draws every "3" and "0" where ours does (31
+  glyphs, x and y within 0.2pt): its resolved indent is under the line. p13's misses are the reader grouping turned glyphs,
+  not layout. RELEASED at 94.2 (Windows). The turned-box rule is written (scratchpad turnedbox-tbi4g.patch) but has no
+  corpus witness, so not landed.
 - Pairs on 608df332 (w97 -> w99, n24 -> n26, the space and box rules together): Windows zh-8f9b19f4 97.4 -> 98.7,
   zh-b24b396a 93.6 -> 94.2, zh-7773163d 97.2 -> 97.5, zh-b8de3ae2 91.6 -> 91.9; Mac zh-a7a889eb 97.0 -> 98.9,
   zh-8f9b19f4 95.5 -> 96.2, zh-b8de3ae2 81.2 -> 82.1, zh-13d11e99 99.5 -> 100; nothing lower in either.
