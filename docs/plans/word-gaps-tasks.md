@@ -9871,6 +9871,12 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
 (15) CLAIMED (Windows 01QbbApP, 2026-10-29, routed by macos; windows-1's residuals, asked to confirm the release):
   - zh-6a4fc013 p18: Word keeps the bold "คำถามที่ 4 ： …" heading on one line; ours breaks after "：" though 1.4pt narrower.
   - WordWithAttachments: the remaining misses, p2's embedded document.
+(16) Lab tie14 (macOS-doc via macos, zh-f39e54b6 p2, Windows 01QbbApP): mode 14 legacy half-em squeeze. The paragraph sits in a
+  table cell, so the lab is its row in its table; rightChars -45 removed, w:right -150..-90 by 1 twip. Word takes "日" through
+  -109 and refuses at -108, the document's own value (which prints as the corpus does). The exact 7.0 tie is refused; 1 twip
+  more room takes it. With hc2 (a plain fit taken 0.0072pt over, refused at 0.0572): compare in whole twips; an overrun under
+  half a twip fits, and a squeeze must stay strictly under its limit. ~/starling-doc-check/lab/tie14.
+  Also p3dplot3 (macos-ios): 12 rotations of zh-27a874b7 chart 1, label centres and pie extents, sent to macos-ios.
 (13) MISSING-FACE REFERENCE AUDIT DONE (Windows 01QbbApP; user-approved via macos). All 327 word-win references whose
   document names a face this box lacks (word-win-missing-faces.txt), less db46d815's 14 and today's two, were reprinted alone
   in a fresh Word and compared glyph by glyph (face and position to 0.3pt, order-free, code points ignored). 322 identical.
