@@ -11150,7 +11150,22 @@ public final class RichLayout {
             // (In whole twips, as Word keeps an indent: 2 characters of
             // 14.6465pt are 586 twips, 29.3pt — lab `hc` sets the line as
             // it does `w:firstLine="586"`, not as 29.293.)
-            return (chars / 100 * (size * wide + spacing + grid) * 20).rounded() / 20 - _topLineSqueeze(p, document)
+            let counted = (chars / 100 * (size * wide + spacing + grid) * 20).rounded() / 20
+            // (In Word for Windows the file's own twips, written with the count in the
+            // paragraph's own indent, where they stand within 1.5pt of it: Word's print
+            // of the corpus, against ours — of 142 paragraphs with `w:firstLineChars`,
+            // 105 start where we count them and 37 where the file says, ours 0.2 to
+            // 1.1pt off: 23.10 for 200 characters of 12pt YaHei (counted 23.43), 643
+            // twips for 16pt FangSong (640). A stored value far from the count is
+            // stale, and Word counts: zh-f784cc40's firstLine 640 on 14pt runs
+            // starts 28pt in, zh-76700e5f's style-borne 836 and 31680 likewise.
+            // zh-360c1df1's first line started 0.15pt early and took the "展" Word
+            // refuses.)
+            if RichTextTheme.wordWindowsPages, p.style.eastAsian["w:indentStored"] == "1", p.style.firstLineIndent != 0,
+               (chars > 0) == (p.style.firstLineIndent > 0), abs(abs(p.style.firstLineIndent) - abs(counted)) <= 1.5 {
+                return p.style.firstLineIndent - _topLineSqueeze(p, document)
+            }
+            return counted - _topLineSqueeze(p, document)
         }
         return p.style.firstLineIndent - _topLineSqueeze(p, document)
     }
