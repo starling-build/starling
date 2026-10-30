@@ -9581,6 +9581,18 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   above, on wip/smartart-77079ee8 (dsp:drawing read as a wpg group, text boxes at dsp:txXfrm, anchor="ctr" group parts
   centred): Windows-mode single-doc zh-77079ee8 96.5 -> 99.1, zh-bdae17c0 98.8 -> 99.0, zh-06c46ba9 99.2 -> 99.3; full
   pre-pair running, then windows-1. p1's 8 misses are the scorer (trailing space glyphs; lenovo-3's v2 matcher).
+- Windows 98.5-98.9 band, read by Linux lenovo-2 (starling-d6), 2026-10-29, on dde457cff — nothing to build in these:
+  - Scorer only (Word's trailing space glyph groups a number cell with the cell beside it; our glyphs at Word's
+    origins, for lenovo-3's v2 matcher): zh-69bbcc3c p13-14 ("6 " + "负责人…"), zh-ec6158d0 p1/p4/p6 (row numbers + names),
+    zh-ae655121 p10 (header cells, the same picture in both prints).
+  - Text layer only: zh-34c5b0c3 p5 — "／" (U+FF0F) reads back as "∕" (U+2215) from our PDF, the face sharing one glyph
+    and the writer naming its lowest code point; Word's reads "/", which NFKC matches. zh-4fac83de p4 — Word's text layer
+    leaves out the "☐" boxes. zh-df9310bd p8 — Word keeps the lines an exact row clips as hidden text, ours leaves them out.
+  - zh-ee2d19e6 p10-12: the footer's fitted "—10—" wraps to "—10" / "—" in ours: a witness for macOS-doc's zh-d0a207ac.
+  - REAL, needs a lab: zh-e6d54ae4 p2-3. Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
+    Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
+    (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
+    (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
 - zh-6c447317 (98.6, word-win): p16 and p20 first lines one ideograph short. CLAIMED Linux lenovo-2 (starling-d6),
   2026-10-29: balanceSingleByteDoubleByteWidth, and "第二十七条" + 2 spaces in bold Times New Roman — Word for Windows
   keeps Times' 4pt spaces (justified to 6.9) and "保" ends the line; ours made them half an em (8).
