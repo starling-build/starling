@@ -10112,9 +10112,10 @@ Cause: p34's one-line keepLines "資料來源：本計畫整理。" went to p35 
 Fix pushed as wip/keeplines-foot e52785b35; Linux pre-pair (Windows mode, 756): zh-64044a1d 95.3 -> 99.7, nothing else moved.
 CONFIRMED by windows-1 round 1 (Windows box, v2, 756 docs, base office 48f2a382): zh-64044a1d 95.4 -> 99.7, nothing dropped. Landed.
 
-### T233. zh-f2835e26: 95.7 against word-win (p5 "创新发展") — CLAIMED (Linux office1, 2026-10-29, band 95.0-95.9)
+### T233. zh-f2835e26: 95.7 against word-win (p5 "创新发展") — DONE (Linux office1, 2026-10-29, band 95.0-95.9)
 A turned (tbRlV) cell centred across, in a row that parts at p5's foot, is set 92pt down its cell: the parted row's centring
 shift (meant for upright cells) moves it too. Word sets it at its indent from the cell's top (96.65pt), as in a whole row.
+Fix: the parted row's centring skips turned cells. CONFIRMED by windows-1 round 2 (Windows box, v2, 756, office a40ad5dc): zh-f2835e26 98.4 -> 100 (v1 96.7 -> 98.4), nothing dropped. Landed.
 Also seen in the band, not layout gaps: zh-c4f2be3b (33 misses, one a page) is its turned footer page number, whose line box
 in Word's print runs 7pt past its glyphs (the matcher reads a turned line by its box); zh-d0a207ac's misses are Wingdings 2
 boxes, which Word's text layer names U+F0A3 (dropped) and ours U+2610.
