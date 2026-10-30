@@ -10686,7 +10686,7 @@ em: zh-e653f583's bold "12·4宪法" is 16.2 at 16pt and its line sends "传" do
 98.2, zh-b84fecff 100 -> 99.0, zh-3fe252ff 99.5 -> 99.3. Not yet looked at why. Patch at ~/tmp/office1/t239-v1.patch (Lenovo).
 (The "×" entry matters: with "·" alone zh-22ecbdc8's "㎜×700㎜", which the stand-in set as 8 + an 8pt gap, lost its gap.)
 
-### T241. zh-291fcea7: 98.0 (v2) against word-win (p4 flowchart labels) — WIP PUSHED, awaiting windows-1 (Linux office1, 2026-10-30, band 98.0-98.4)
+### T241. zh-291fcea7: 98.0 (v2) against word-win (p4 flowchart labels) — DONE (Linux office1, 2026-10-30; windows-1 round 5 passed: zh-291fcea7 98.0 -> 99.7, zh-e2dc9dce 98.9 -> 99.4, zh-77bd4900 -> 100; landed)
 A single wps shape with anchor="ctr" (flowChartMultidocument, flowChartDocument) sets its text at the top of its text rectangle in ours;
 Word centres it in that rectangle (8 and 7.7pt lower). Only boxes inside groups (Part.inMiddle) were centred. Built (Windows mode, fixed
 frames only): RichTextBox.anchor, ctr/b, via the first paragraph's space before. Alone over the 10 corpus documents with such shapes:
