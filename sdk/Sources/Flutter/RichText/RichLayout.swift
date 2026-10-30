@@ -16453,6 +16453,15 @@ public final class RichLayout {
         default: x = bandLeft + _px(float.x)
         }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
+        // (From the character's own place: in a line set centred or right the
+        // line's first box, not the paragraph's edge — zh-f47b8a74 p58's
+        // canvas, 111pt left of the "重大行政执法…" title's first character,
+        // stood 31pt off the page.)
+        if theme.wordRules, float.horizontalAlign == nil, float.horizontalFrom == "character",
+           g.painter.textAlign == .center || g.painter.textAlign == .right,
+           let first = g.painter.computeLineMetrics().first {
+            x = g.textLeft + first.left + _px(float.x)
+        }
         let pushed = i < _floatPush.count ? _floatPush[i] : 0
         var y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
         // (From the paragraph's top, its space before and all: Word's

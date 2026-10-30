@@ -3767,6 +3767,32 @@ enum DocxFormat {
         /// names is missing.
         func objectAttachment(_ node: XNode) -> ImageAttachment? {
             notes.shapeTypes += node.descendants("v:shapetype")
+            // (A Word drawing canvas, `wpc:wpc`, holds its groups and shapes
+            // side by side, in the canvas's own units; only the first group
+            // was read. They are one group of the canvas's size: zh-f47b8a74
+            // p58's flowchart printed one box of its twenty.)
+            if let canvas = node.descendant("wpc:wpc"), canvas.descendant("wpg:wgp") != nil || canvas.descendant("wps:wsp") != nil,
+               !canvas.children.contains(where: { $0.name == "wpg:wgp" && $0.attrs["synthetic"] != nil }),
+               let extent = node.descendant("wp:extent"), let cx = extent["cx"], let cy = extent["cy"] {
+                // (Its groups are nested ones in the group they make: `wpg:grpSp`.)
+                let kept: [XNode] = canvas.children.filter { ["wpg:wgp", "wps:wsp"].contains($0.name) }.map { child in
+                    guard child.name == "wpg:wgp" else { return child }
+                    let nested = XNode(name: "wpg:grpSp", attrs: child.attrs)
+                    nested.children = child.children
+                    return nested
+                }
+                if !kept.isEmpty {
+                    func el(_ name: String, _ attrs: [String: String] = [:], _ children: [XNode] = []) -> XNode {
+                        let n = XNode(name: name, attrs: attrs)
+                        n.children = children
+                        return n
+                    }
+                    let frame = el("a:xfrm", [:], [el("a:off", ["x": "0", "y": "0"]), el("a:ext", ["cx": cx, "cy": cy]),
+                                                   el("a:chOff", ["x": "0", "y": "0"]), el("a:chExt", ["cx": cx, "cy": cy])])
+                    let group = el("wpg:wgp", ["synthetic": "1"], [el("wpg:cNvGrpSpPr"), el("wpg:grpSpPr", [:], [frame])] + kept)
+                    canvas.children = canvas.children.filter { !["wpg:wgp", "wps:wsp"].contains($0.name) } + [group]
+                }
+            }
             var w = 300.0, h = 200.0
             var isRule = false
             if let extent = node.descendant("wp:extent"),
