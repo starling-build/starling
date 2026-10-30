@@ -9948,8 +9948,10 @@ public final class RichLayout {
                     inserts.append(offset)
                 } else if theme.wordRules, document.usesEastAsianLayout, (document.compatibilityMode ?? 12) < 15,
                           document.characterSpacingControl?.hasPrefix("compress") == true,
-                          before == "-", ch.isLetter, beforeBefore?.isLetter == true {
-                    // (Nor after a hyphen between letters, before mode 15 where
+                          before == "-", ch.isLetter, (ch.unicodeScalars.first?.value ?? 0x3000) < 0x250,
+                          beforeBefore?.isLetter == true, (beforeBefore?.unicodeScalars.first?.value ?? 0x3000) < 0x250 {
+                    // (Latin letters only: zh-c8eb6e92's "评标-定标" parts after the
+                    // hyphen. Nor after a hyphen between letters, before mode 15 where
                     // punctuation is compressed: labs hyc/hyd (Word for Windows,
                     // zh-424775e4's package, mode 12, compressPunctuation) send
                     // "China-sponsored" down whole with 25pt to spare, and
@@ -13803,12 +13805,18 @@ public final class RichLayout {
                     // four, each set at 1.62 of 3.0 in Word's print, where
                     // zh-c5f59397's "…噸級巡" leaves a plain "緝" 3.8 over.)
                     let closes = last > a && Self._closingUnits.contains(units[last - 1])
+                    // (And for what opens with an opening mark, which no line
+                    // may end with: zh-4ea36aa8's cell line "二、校舍…國小部32班（含"
+                    // (mode 15, doNotCompress, justified, PMingLiU 12) takes
+                    // "（含" 5.7pt over with four, each set at 1.58 of 3.0 in
+                    // Word's print, where ours left "（含" for the next line.)
+                    let opens = last > a + 1 && Self._openingUnits.contains(units[a])
                     // (A quarter, not half, where the closing mark hangs, and
                     // nothing by the share test with no mark to give: zh-6d402586's
                     // "…(以下稱1人1室房" leaves "間)：" 5.4pt over past its hung
                     // "：" with eight automatic spaces; zh-1b74ed91's "…作業，"
                     // is taken 1.0 over with three.)
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes && hang == 0 ? em / 2 : em / 4)
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, (closes && hang == 0) || opens ? em / 2 : em / 4)
                     // (A word space beside East Asian text gives a fifth of
                     // itself, not a quarter, in Word for Windows' print:
                     // zh-b5359de4's "…宜选用 LED 灯或…控制方式；" (mode 15,
