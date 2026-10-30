@@ -199,6 +199,10 @@ stays under the licence and copyright it came with:
 | no prefix (130) | Apache POI, `test-data/document` | Apache License 2.0 |
 | `zh-*` (645) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
 
+A second, separate set sits in `lo/`: 200 of LibreOffice core's own Writer test
+documents (`sw/qa`), MPL-2.0, attributed in `lo/LICENSE.md`. It has its own
+manifest and checksums and is scored on its own, never in the means above.
+
 The POI files are what `test/docx-corpus.py` fetches: real documents from
 that project's bug reports, plus fuzzer cases that are deliberately
 broken.
