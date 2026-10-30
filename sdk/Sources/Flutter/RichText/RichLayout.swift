@@ -13894,7 +13894,7 @@ public final class RichLayout {
     private static let _pauseMarks = Set("，。、；：！？".utf16)
     /// The signs a line may end after only where they are set East Asian
     /// (`_breaksBetween`): "×", "°" and the primes.
-    private static let _eastAsianSigns: Set<UInt16> = [0xD7, 0xB0, 0x2032, 0x2033]
+    private static let _eastAsianSigns: Set<UInt16> = [0xD7, 0xB0, 0x2032, 0x2033, 0x2264, 0x2265]
     private static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
     private static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)
@@ -14461,6 +14461,10 @@ public final class RichLayout {
         // line "…）÷" in Word for Windows' print and open the next "2", and
         // zh-b2e0f286's "…之資訊項數÷" the next "8】"; ours carried "÷2" over.)
         if a == "\u{00D7}" || a == "\u{00F7}" { return timesEastAsian && b != " " }
+        // (And after "≥" or "≤" set East Asian, the same way: zh-cd8987db's
+        // "…每a≥3次。" (hinted, 宋体) ends a line "…每a≥" in Word's print and
+        // opens the next "3次。".)
+        if a == "\u{2264}" || a == "\u{2265}" { return timesEastAsian && b != " " }
         // (And after a degree sign or a prime, the same way: zh-bfe04e2f's
         // "31°10′48″N/122°10′43.2″E" in FangSong ends one line of Word's
         // print "…43.2″" and starts the next "E；", and another "…31°"
