@@ -14360,7 +14360,11 @@ public final class RichLayout {
         // Latin face an East Asian one: zh-8628cfbe's unhinted "用人費用×100%"
         // ends a line "…用人費用" and opens the next "×100%" in Word's
         // print, the sign a letter of the number there.)
-        if a == "\u{00D7}" { return timesEastAsian && b != " " }
+        // (A division sign too: zh-5f045fc1's and zh-427cb16c's cells
+        // "（被救援民眾滿意度＋一般民眾滿意度）÷2", hinted East Asian, end a
+        // line "…）÷" in Word for Windows' print and open the next "2", and
+        // zh-b2e0f286's "…之資訊項數÷" the next "8】"; ours carried "÷2" over.)
+        if a == "\u{00D7}" || a == "\u{00F7}" { return timesEastAsian && b != " " }
         // (And after a degree sign or a prime, the same way: zh-bfe04e2f's
         // "31°10′48″N/122°10′43.2″E" in FangSong ends one line of Word's
         // print "…43.2″" and starts the next "E；", and another "…31°"
