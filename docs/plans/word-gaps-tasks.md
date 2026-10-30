@@ -10866,3 +10866,15 @@ zh-f47b8a74 (98.4): p58's flowchart is a Word drawing canvas (mc:Choice Requires
   Still to do: tdf122014 and tdf132956 (a Word 2016 column chart's plot is taller and starts nearer its labels: label-to-plot gap 8.3, ours 11.0; the legend of a manual-layout
   legend spreads its entries 120pt apart), lo-6b6ece9c (a rot=0 value-axis title wraps in three lines at the left), lo-40949e85 is NOT a chart (a text box above it
   moves the chart down in Word). Also owed before landing: the Slides and Sheets gates (tickLabel and the 5/6 rule are Office-wide).
+
+### T248. LibreOffice FRAMES: drop caps (tdf150438, tdf150200) and the frame that drew nothing (tdf147485) — WIP PUSHED wip/lo-dropcap 0ad7be37c, awaiting windows-1 (Linux office1, 2026-10-30)
+Drop caps were not implemented: the cap's own paragraph (framePr dropCap=drop lines=N, an exact line of N lines) was set on a line of its own and the
+text under it. Word sets the cap at (N-1) text lines over the cap height + the text's size (53pt for 11pt text, 3 lines), its baseline on the Nth line's, the
+first N lines of the paragraph beside it at the cap's advance. Built (reader, Docx.swift ): the cap becomes an anchored box (wrapSquare) at the
+head of the paragraph after it, and that paragraph takes the cap's width as a left indent — but ONLY when its text fits N lines by an estimate (the engine
+does not narrow just the first lines beside a box; wrapping text beside a float is not implemented anywhere, lines are pushed below or not at all). Longer
+paragraphs (tdf150200: 5-line paragraphs, dash caps) keep the old setting. NEEDED, bigger: line-by-line narrowing beside a left float (also floattable text,
+n775899, square-wrapped pictures). Also found: a Word 2010 inline drawing ( in mc:Choice) whose VML fallback says position:absolute was read as a
+floating object (Docx  took the VML) and drawn one height above its line — tdf147485's logo; now the line's. tdf147485 still scores 0: Word sets the
+frame's group 27pt higher (its y 22.8 for frame y 49.8, the page's top margin 27) and 9pt left of ours, and its WordArt glyph lines are 32.
+756 pre-pair (Windows mode, v2): nothing moved. LO set (197 printed): tdf150438 0 -> 100, mean 63.79 -> 64.29, nothing lower.
