@@ -284,7 +284,25 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
   "適" wraps to a third row, and the page below stands 10pt low. Candidate: measure the rows as the box sets them.
 - zh-424775e4 97.6 — CLAIMED. p1 "…research on the " | "China-sponsored…" (Calibri 12): Word leaves "China-" for the next
   line though it fits by ~6pt; ours breaks after the hyphen. Other prints do break after a Latin hyphen. Lab hyc asked.
-- zh-cd48112c 97.7, zh-147bdae0: T181's line fit / long URLs — not taken. zh-eec0747a: p21's form cells, not looked at yet.
+- zh-cd48112c 97.7, zh-147bdae0: T181's line fit / long URLs — not taken.
+- zh-eec0747a 97.5 — CLAIMED. p21's form header (rows 630/624 atLeast, every cell vMerge over both, 微软雅黑 12, linePitch 312,
+  adjustLineHeightInTable) is 72.7 in Word, 80.2 in ours. Labs eec/eef/eeg (`windows`): row 2 is its continued cells' empty
+  YaHei line, 39.2 (as unmerged, eefH, where ours matches Word row for row); row 1's restart text — two 22pt exact lines,
+  one YaHei line or none — never moves the header (eeg A–F, 71.3 each with row 1's trHeight gone). Ours holds row 1 at ~38
+  by "职称"'s first line. Candidate tmr: in Word for Windows a restart cell never holds its first row by its first line.
+  Pair queued.
+- zh-4ea36aa8 97.1 — CLAIMED. p13's cell "…國小部32班（含" (mode 15, doNotCompress, PMingLiU 12, justified): Word takes "（含"
+  5.7pt over with its four automatic spaces at 1.58 of 3.0; ours caps their give at a quarter em and wraps. Candidate top:
+  the half-em cap that a closing mark at the piece's end gets (zh-7cf85f15) also for a piece that opens with an opening
+  mark. Pair queued.
+- zh-22ecbdc8: candidate tdd — after windows-2's 29b627ef, an East Asian "—" keeps the ASCII digits after it whatever is
+  before it. Pair queued.
+- zh-8415d258: em-space candidate paired on d645363c, 756 Windows: zh-8415d258 97.8 → 99.6 (v2 96.2 → 98.0), zh-b62c9e11
+  98.0 → 100, nothing else; rescoring on the tip before landing.
+- Looked, not taken: zh-8f9b19f4 (a "号" 2pt low grouped into its neighbour's line — reader), zh-31d580df (p8: a paragraph
+  mixing 14 and 12pt runs gets no strut, its lines stacked from the 標楷體 stand-in's boxes, 5pt tall), zh-12db188f (p3 cell:
+  ours takes "釋，" at need 21.0 = room 21.0; lab bkt: Word wants 3.5pt more, both brackets then squeezing equally —
+  a zero-margin tie, parked), zh-61aaad09 (chart/table cell misses), zh-ec6158d0 (a name cell 2pt low; not looked into).
 
 ### Windows-host non-lab items: WordArt stroke model (wa4), POI `rtl` on Windows, the ~0.09 zh Windows/Mac-hosted gap — CLAIMED (Claude windows-1 / office-2 session, Windows box DESKTOP-URK35LH, 2026-10-29, macos's assignment)
 Owner: Claude, Windows box, office-2 checkout. (1) WordWithAttachments: the WordArt height model from wa4's table
