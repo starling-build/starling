@@ -528,6 +528,7 @@ enum DocxFormat {
                             if cond.headerFill == nil { cond.headerFill = fill }
                             if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
                             if cond.headerBorders == nil { cond.headerBorders = part.first("w:tcPr")?.first("w:tcBorders") }
+                            if let h = part.first("w:trPr")?.first("w:tblHeader"), !_isOff(h) { cond.headerRepeats = true }
                         case "firstCol":
                             if cond.firstColChar == nil, let rPr = part.first("w:rPr") { cond.firstColChar = _charStyle(rPr, base: CharStyle()) }
                         case "band1Horz": if cond.band1 == nil { cond.band1 = fill }
@@ -1298,8 +1299,7 @@ enum DocxFormat {
                     if !e.isEmpty { style.edges = e }
                 }
                 // Leading rows that repeat on every page: all of them.
-                let repeating = unwrapped(node, "w:tr").prefix { $0.first("w:trPr")?.first("w:tblHeader") != nil }.count
-                if repeating > 0 { style.headerRow = true; style.headerRowCount = repeating }
+                var repeating = unwrapped(node, "w:tr").prefix { $0.first("w:trPr")?.first("w:tblHeader") != nil }.count
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
                 let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
@@ -1307,6 +1307,13 @@ enum DocxFormat {
                 let look = node.first("w:tblPr")?.first("w:tblLook")
                 let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
+                // (A style whose first row repeats does so in every table of
+                // it that has a header row on: LibreOffice's fdo78904_fileHang,
+                // 12 tables of "Table with Header", repeats "Account /
+                // Description / Permissions" at the head of its next page in
+                // Word's print, with no tblHeader in the file's rows.)
+                if repeating == 0, firstRowOn, cond.headerRepeats { repeating = 1 }
+                if repeating > 0 { style.headerRow = true; style.headerRowCount = repeating }
                 let bandsOn = !(look?["w:noHBand"].map { $0 != "0" } ?? (lookVal & 0x0200 != 0))
                 let firstColOn = look?["w:firstColumn"].map { $0 != "0" } ?? (lookVal & 0x0080 != 0)
                 // Where the table sits in the column (w:jc on the table).
@@ -3299,6 +3306,9 @@ enum DocxFormat {
         var band2: Color? = nil
         /// The header row's cell borders (`firstRow`'s `w:tcBorders`).
         var headerBorders: XNode? = nil
+        /// Whether the style's first row repeats on every page
+        /// (`firstRow`'s `w:trPr` `w:tblHeader`).
+        var headerRepeats = false
     }
 
     /// Whether `data` is a picture the image codec reads: PNG, JPEG,
