@@ -10920,7 +10920,7 @@ Built (Docx.swift, beside the existing text-anchored framed-table case): such a 
 its logo table and foot line still 11pt off. Also tried and dropped: label of an empty numbered paragraph (zh-cd8987db p10 "附录A", Word's baseline
 3.7pt under ours on a 20pt exact line): _baselineShift is 0 there (exactLineDescentShare nil) and giving the marker a strut of its own face moved nothing.
 
-### T246. zh-6e7ff836 (98.2) and zh-f47b8a74 (98.4) against word-win — WIP PUSHED wip/t246-canvas b83fcb9b8 (zh-f47b8a74), awaiting windows-1 (Linux office1, 2026-10-30, band 98.0-98.4)
+### T246. zh-6e7ff836 (98.2) and zh-f47b8a74 (98.4) against word-win — DONE (windows-1 round 7 passed: zh-f47b8a74 98.4 -> 99.7 on v2; landed) (zh-f47b8a74), awaiting windows-1 (Linux office1, 2026-10-30, band 98.0-98.4)
 Looking at both on the current base (Linux Windows-mode v2); measured before anything is built.
 
 ### T247. LO floating tables (floattable-footer-object 6.2, floattable-compat14 37.5, floattable-del-empty 62.3, n775899 50, tdf88496 10.3) — CLAIMED (Mac 7bd18d8e, 2026-10-30, starling-bd's order: the LibreOffice set, class A)
