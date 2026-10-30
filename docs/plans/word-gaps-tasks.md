@@ -10597,5 +10597,16 @@ wip/t241-shape-anchor 4f0b145d (Windows mode, v2, 756 pre-pair): zh-291fcea7 98.
 ### T242. zh-b62c9e11 (98.0, p2:2 p5:1 p8:2 p15:1) and zh-cd8987db (98.3, p1:3 p7:1 p10:1) against word-win — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4)
 Looking at both on the new base; each is measured before any fix is built.
 
-### T243. zh-8415d258 (96.2, 21 of 553 lines) against word-win — CLAIMED (Mac 7bd18d8e, 2026-10-30, Windows mode)
-Body paragraphs open with two plain spaces ("  根据…", 仿宋_GB2312 15pt, balanceSingleByteDoubleByteWidth, grid lines 312): Word's text starts at x=120 (each space advances 15pt); ours starts at x=91 (spaces collapse). Also p1's right-aligned "水利部办公厅" wraps 办|公厅 in Word, 办公|厅 in ours. Tracing the space width.
+### T243. zh-8415d258 (96.2 -> 98.0 on the office tip, 11 of 553 lines) against word-win — RELEASED, measured (Mac 7bd18d8e, 2026-10-30, Windows mode)
+The 21 misses of baseline #1 are down to 11 on origin/office 9beb8ba2 with no change of mine: Linux office1's 4e1a1a12 (an em space is an em, the
+paragraphs' two leading U+2003) took the first lines. What is left, all on p1-p2, is not a break rule but where the glyphs stand:
+- the justified line "化工作的指导意见》（国办发〔2019〕54号），结合水利领域" (p1): Word's line is 412.5 natural + 2.9 spread; it stretches the
+  automatic space after "54" by 3.9 (7.62 wide) and the ideographs by 0.12 apiece; ours gives every gap 0.33 (the space 4.08), so the glyphs
+  stand up to 2pt off (+0.4 after "化" ... -1.7 after the space) and the line is missed. A justified line with an automatic space: Word's share
+  to the space is some 30 times a character's. One witness only; "2022 年9 月29 日" (right-aligned) and "16 个一级" (exact fit, space 3.78,
+  ideograph gaps 0) show no such stretch. Not built.
+- the signature "<46 spaces>水利部办公厅" (right-aligned, 15pt): Word breaks 水利部办|公厅 (46 spaces + 4 ideographs = 405, the fifth 420 > 415.3); ours
+  takes "公" 4.7 over (the legacy half-em take, `x + min(lead, w) - width <= before / 2` in the fitter, with nothing on the line to give).
+  Tried guarding that clause for a line of ideographs with no mark and no space (RuleTrace t243-ideographs-alone: 163 documents reach it): the
+  214-document pair (reached + canaries) moved nothing, zh-8415d258 included, so the signature line takes the take another way; dropped.
+  The trace of that line was not isolated (the fit key "水利部办公厅" also names the cover table's cells).
