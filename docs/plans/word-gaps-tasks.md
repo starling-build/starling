@@ -10363,3 +10363,10 @@ documents the rule drops (their word-win references keep the space), full names:
   zh-ee7c2e9b64a6559a045dd89e2c4d946ae74999430d54d2eff993d90c23a09608
   zh-f01f268a9a7627f7d1911f1026f54e8a6431e354d1d6f76149a41ec764f588e6
 Once replaced, office1 re-pairs the patch against the new references and sends it to windows-1.
+
+### T239. FangSong's "·" and "×" an em in Word for Windows (zh-e653f583, zh-6d1afa56) — PARKED (Linux office1, 2026-10-30, band 98.0-98.4)
+Word for Windows draws "·" 0.9-1.0 em in FangSong (17 + 12 in its prints) and "×" 1.0 em (270), where our stand-in sets "·" half an
+em: zh-e653f583's bold "12·4宪法" is 16.2 at 16pt and its line sends "传" down. Patch (Windows mode, FangSong otherAdvances 0xB7 and
+0xD7 = 1 em): pre-pair 756, v2: zh-e653f583 98.4 -> 100, zh-6d1afa56 97.8 -> 100, but zh-bfe04e2f 99.1 -> 93.4, zh-cc7a08e8 100 ->
+98.2, zh-b84fecff 100 -> 99.0, zh-3fe252ff 99.5 -> 99.3. Not yet looked at why. Patch at ~/tmp/office1/t239-v1.patch (Lenovo).
+(The "×" entry matters: with "·" alone zh-22ecbdc8's "㎜×700㎜", which the stand-in set as 8 + an 8pt gap, lost its gap.)
