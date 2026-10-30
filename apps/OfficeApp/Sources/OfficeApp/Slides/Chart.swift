@@ -4689,6 +4689,8 @@ extension ChartPainter {
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return }
         let whole = Self.wholePercents(slices.map { (key: $0.index, value: $0.value) })
+        // The labels' text so far, for an outside label to stand clear of.
+        var taken: [Rect] = []
         for s in slices {
             let size = max(3, (l.sizes[s.index] ?? c.series[0].labelSize ?? c.baseTextSize) * k)
             var parts: [String] = []
@@ -4864,6 +4866,21 @@ extension ChartPainter {
                 at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
                             min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
             }
+            // (A 3-D pie's outside label the file leaves in place stands clear
+            // of the labels before it: on across, away from the pie, its text
+            // 2.6pt from theirs. Word for Windows' print of zh-27a874b7's
+            // chart 2: 德國's text (3.8% at eight o'clock) 2.6 left of
+            // 新加坡's, which it overlapped by 16 x 13 in ours where it stood
+            // 15.5 right of Word's.)
+            if point != nil, l.outside, !fitsInside, moved == nil {
+                let gap = 2.6 * k, tw = tp.width, th = tp.height
+                for _ in 0 ..< 4 {
+                    guard let hit = taken.first(where: { $0.left - gap < at.dx + tw / 2 && at.dx - tw / 2 < $0.right + gap
+                        && $0.top < at.dy + th / 2 && at.dy - th / 2 < $0.bottom }) else { break }
+                    at = Offset(at.dx < centre.dx ? hit.left - gap - tw / 2 : hit.right + gap + tw / 2, at.dy)
+                }
+            }
+            taken.append(Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))
             let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
             let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
