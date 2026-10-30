@@ -10488,7 +10488,7 @@ next line with "，". Word starts lines with a mark elsewhere in this document (
 And our fitting trace (STARLING_RICHTEXT_FIT) reads those other paragraphs' pieces as 0 wide — their breaks are the engine's alone,
 which agree with Word's. Left for whoever takes squeeze under kinsoku off.
 
-### T237. zh-d45f16c4: 98.2 against word-win (numbered items' first lines) — CLAIMED (Linux office1, 2026-10-29, band 98.0-98.4)
+### T237. zh-d45f16c4: 98.2 against word-win (numbered items' first lines) — DONE (Linux office1, 2026-10-30; windows-1 round 4 passed; landed)
 Its "1." levels say w:suff space; the number is 14pt 標楷體, and Word for Windows sets the space in Arial (0.278 em, 3.84pt), not the
 face's half em: 45 such lines in its print, and zh-753cd6a8's SimSun numbers the same. Ours took 7pt and each item's first line held
 a character fewer. Built (Windows mode): a space suffix after a number in an East Asian face is Arial's. Alone: zh-d45f16c4 98.2 ->
@@ -10503,7 +10503,7 @@ from 346.15, and the trailing spaces in FangSong at 8.04; ours sets every space 
 wraps after "嘉兴市". Lab spec (Word for Windows, the package's p5 paragraph): leading spaces only U+0020 / only U+00A0; hint
 default; ascii Times; the run split before the name. Wanted: which face Word sets a missing 仿宋_GB2312's spaces in, and when.
 
-### T238. zh-604e21e5: 98.2 (v2) against word-win (p30, 15 lines) — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4): building lab brk2
+### T238. zh-604e21e5: 98.2 (v2) against word-win (p30, 15 lines) — DONE (Linux office1, 2026-10-30; windows-1 round 4: 41 up, none down, zh 97.935 -> 99.609; landed)
 p30's "附件2：報告書內容大綱" (Heading 2, mode 15) opens with <w:br w:type="page"/> and has 9pt before; Word's fresh print (reference
 replaced in c56dd6b9) drops the space on the new page, ours keeps it and the page stands 9pt low. Lab brk2 (18): mode 12 keeps, 15 drops.
 Building that (mode >= 15 only), unless macOS-doc already has it — asked macos.
