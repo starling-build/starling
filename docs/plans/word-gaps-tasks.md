@@ -11133,3 +11133,7 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
   5/6 plus the existing ones). SINGLE WITNESS, fitted from one document, trust less and re-check on the next LO batch: the 18% wrap and the +3pt past the block of a rot=0 value-axis title
   (lo-6b6ece9c), the 10pt default title (fdo76098 and fdo78474 agree on the size; the baseline offset holds only for fdo76098), the ", " data-label separator (lo-f9b9a8fc, geometry only, score unchanged),
   the foot's 4.4/1.9 not applying under a bottom legend or axis title (tdf130969 says legends, lo-948cd424 axis titles; nothing says what a LEGEND AT THE RIGHT does to the foot).
+- LO FLOATING TABLES, PLACEMENT AND PAGINATION (macos-ios Sonnet 5.5, 2026-10-30 night, starling-bd's order; the text BESIDE a floating table stays macOS-doc's, T247 beside/beside2): CLAIMED floattable-avoid-last-manip-ofst (154 lines, 14.9),
+  floattable-avoid-manip-ofst (156, 50.6; 7 pages for 6), floattable-header (94, 36.2; 10 pages for 8), fdo68607 (87.4), floattable-negative-height (74), floattable-next-leaf-in-section (5.4),
+  floattable-footer-object (6.2; T247 has its compat14 relative). First read: avoid-last's page 1 agrees with Word to the pixel until the last three lines, which Word keeps on page 1 (536.9, 550.3, 563.7 on a
+  landscape 612pt page, past the 540 margin) up to the footer's place (612 - 35.4 = 576.6): the compat14 branch's `edge` rule, for a row that splits by lines. Builds on wip/lo-floattable-compat14 fe941e01 as a separate commit.
