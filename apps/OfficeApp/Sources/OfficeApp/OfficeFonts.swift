@@ -1085,6 +1085,34 @@ enum OfficeFonts {
                                              latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns, fakeBold: false, baseline: 1.26,
                                              boldHeight: 1.73, boldBaseline: 1.2675)
 
+    // Segoe UI's own widths, U+0020 to U+007E, in its Regular and Bold:
+    // read from the subsets Word for Windows' prints embed (30 and 45 of
+    // them, 2026-10-30; every glyph they hold agrees across prints). The
+    // glyphs no print used (Regular: # $ % ' * + < = > ? G U Y Z [ \ ] ^ _
+    // ` { | } ~; Bold: 36 more) are estimates from Liberation Sans's
+    // by the median ratio of the known ones of their kind, the digits at
+    // the others' tabular width. fdo78885's 9pt Segoe UI body, 12.0pt lines
+    // in Word's print, ours 10.4 in the sans stand-in.
+    static let segoeUIAdvances: [Double] = [
+        0.2739, 0.2842, 0.3921, 0.5232, 0.5232, 0.8366, 0.8003, 0.1796, 0.3018, 0.3018, 0.3661, 0.5494, 0.2168, 0.3999, 0.2168,
+        0.3896, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.2168, 0.2168, 0.5494, 0.5494,
+        0.5494, 0.5232, 0.9551, 0.6450, 0.5732, 0.6191, 0.7012, 0.5059, 0.4883, 0.6822, 0.7100, 0.2661, 0.3569, 0.5801, 0.4707,
+        0.8979, 0.7480, 0.7539, 0.5601, 0.7539, 0.5981, 0.5312, 0.5239, 0.6334, 0.6211, 0.9341, 0.5898, 0.5850, 0.5357, 0.2614,
+        0.2614, 0.2614, 0.4415, 0.5232, 0.3133, 0.5088, 0.5879, 0.4619, 0.5889, 0.5229, 0.3130, 0.5889, 0.5659, 0.2422, 0.2422,
+        0.4971, 0.2422, 0.8613, 0.5659, 0.5859, 0.5879, 0.5889, 0.3477, 0.4243, 0.3389, 0.5659, 0.4790, 0.7227, 0.4590, 0.4839,
+        0.4521, 0.3142, 0.2444, 0.3142, 0.5494,
+    ]
+
+    static let segoeUIBoldAdvances: [Double] = [
+        0.2759, 0.3271, 0.4932, 0.5785, 0.5785, 0.9249, 0.7512, 0.2473, 0.3691, 0.3691, 0.4048, 0.6074, 0.2890, 0.3464, 0.2710,
+        0.2890, 0.5752, 0.5752, 0.5752, 0.5752, 0.5752, 0.5752, 0.5752, 0.5752, 0.5752, 0.5752, 0.2710, 0.3464, 0.6074, 0.6074,
+        0.6074, 0.6354, 1.0143, 0.7031, 0.6411, 0.6240, 0.7373, 0.5322, 0.5200, 0.6989, 0.6489, 0.2497, 0.4453, 0.6489, 0.5489,
+        0.9570, 0.6489, 0.6989, 0.5993, 0.6989, 0.6528, 0.5993, 0.5489, 0.6489, 0.6670, 0.8481, 0.5993, 0.5993, 0.5489, 0.3691,
+        0.2890, 0.3691, 0.6074, 0.5785, 0.3464, 0.5381, 0.6201, 0.4800, 0.6191, 0.5410, 0.3833, 0.6191, 0.6191, 0.2842, 0.2816,
+        0.5591, 0.2842, 0.9160, 0.6050, 0.6113, 0.6191, 0.6191, 0.3979, 0.4399, 0.3892, 0.6191, 0.5420, 0.7974, 0.5637, 0.5637,
+        0.5068, 0.4048, 0.2910, 0.4048, 0.6074,
+    ]
+
     // Lucida Sans Unicode's own widths, U+0020 to U+007E: its lower case
     // is 5-37% wider than Arial's, its digits all 0.632, and the sans
     // stand-in set bug59058's "SEER 9 Incidence…" note on one line where
@@ -2380,9 +2408,13 @@ enum OfficeFonts {
             // steps 15.96pt, where the Arial stand-in gave 13.8. Keep
             // these metrics when it shares a line with MS Gothic or
             // JhengHei (zh-8d72961c), without imposing one paragraph strut.
-            if wordOnMac, family.trimmingWhitespace().lowercased() == "segoe ui" {
+            if wordOnMac || wordOnWindows, family.trimmingWhitespace().lowercased() == "segoe ui" {
                 face.naturalHeight = 2724.0 / 2048
                 face.baseline = 2210.0 / 2048
+                // (And its own widths, from Word's prints: see `segoeUIAdvances`.)
+                face.advances = segoeUIAdvances
+                face.boldAdvances = segoeUIBoldAdvances
+                RuleTrace.hit("segoe-ui-own-widths")
             }
             // (Ebrima, drawn as the sans clone at its own widths, on its
             // own line: 2210 over and 514 under of 2048, its OS/2 win
