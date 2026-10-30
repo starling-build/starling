@@ -175,7 +175,9 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
 - zh-c2f6d17a: "…100" | "—150毫米" (a dash after digits opens the line; lab dash). Next.
 - zh-78d8bd98 exact last row's bottom line — DONE (landed after windows-1's round 1: nothing dropped, 96.8 -> 98.9 on v1;
   v2 already matched those lines). The table's own bottom line hangs under an exact last row even where the cells state it.
-- "+" rule (wip/lenovo3-plus, aab8a7ed): in windows-1's round 2.
+- "+" rule — DONE (landed after windows-1's round 2, nothing dropped): a line may break after "+" before an ideograph.
+  v2: zh-22ecbdc8 96.8 -> 99.3, zh-26660336 99.1 -> 99.8, zh-41907c96 99.4 -> 100, zh-c0ac6f55 99.2 -> 100.
+- Closing curly quote where the language has no East Asian rules (wip/lenovo3-quote, ec878293): in windows-1's round 3.
 - zh-bbbb2e6a list numbers 17pt off (v2 revision's find, routed by starling-bd): a lone character in a jc=distribute cell is
   centred in Word's print ("一" at 74.3 = the cell's middle); ours sets it at the start. In progress.
 
