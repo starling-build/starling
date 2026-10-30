@@ -11697,6 +11697,29 @@ public final class RichLayout {
                     : TextSpan(text: String(ch), style: spaced(advanced(ch, latin), document.balancesSpaceWidth ? _px(g) / 2 : _px(g)))
             })
         }
+        // (At its level's character scale, each character's advance that
+        // much of its own, the spacing after it not: zh-7773163d's
+        // "（%1）" level says `<w:w w:val="94"/>` and 0.9pt spacing at
+        // 18pt, and Word's "（3）" ends at 160.8, under the stop at 161.9
+        // where the text begins; at full width ours ended at 163.7, the
+        // text went on to the next stop, and each item's first line held
+        // two characters fewer.)
+        if theme.wordRules, let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+           let r = xml.rangeOfSubstring("<w:w w:val=\""), let v = Double(xml[r.upperBound...].prefix { $0 != "\"" }), v > 0, abs(v - 100) > 0.5 {
+            let k = v / 100
+            func narrowed(_ span: InlineSpan, _ inherited: TextStyle?) -> InlineSpan {
+                guard let t = span as? TextSpan else { return span }
+                let style = t.style.map { inherited?.merge($0) ?? $0 } ?? inherited
+                if let text = t.text, !text.isEmpty, let st = style {
+                    return TextSpan(children: text.map { ch in
+                        TextSpan(text: String(ch), style: st.copyWith(letterSpacing: (st.letterSpacing ?? 0) - (1 - k) * _glyphWidth(st.copyWith(letterSpacing: 0), ch)))
+                    } + (t.children ?? []).map { narrowed($0, style) })
+                }
+                guard let kids = t.children else { return span }
+                return TextSpan(text: t.text, children: kids.map { narrowed($0, style) }, style: t.style)
+            }
+            span = narrowed(span, nil) as? TextSpan ?? span
+        }
         // (A spacing that takes a character back past its own start takes
         // it back to it: zh-7773163d's "（%2）" level is spaced -17.3pt at
         // 17pt, and Word's print stacks "（", "1" and "）" at the indent;
