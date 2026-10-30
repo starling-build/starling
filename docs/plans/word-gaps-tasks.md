@@ -9665,7 +9665,9 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   its XML for the save and draws nothing, so all its text is missing from ours. Plan: read the dsp:drawing part as a
   group (WriterGroups for the shapes, its a:p text as the group's text-box parts). Witnesses: zh-77079ee8 96.5,
   zh-bdae17c0 98.6, zh-06c46ba9 99.1 (the corpus's only three).
-  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29 19:21, Windows mode (misses p1:8 p2:1 p3:6 p5:7). BUILT as planned
+  DONE Linux lenovo-2 (starling-d6), 2026-10-30, released: landed after windows-1's round 2 (v2, Windows mode, office
+  a40ad5dc, nothing dropped): zh-77079ee8 97.0 -> 100, zh-61b62a40 98.5 -> 100, zh-bdae17c0 98.9 -> 99.1, zh-06c46ba9 99.2
+  -> 99.5. Was: CLAIMED 2026-10-29 19:21, Windows mode (misses p1:8 p2:1 p3:6 p5:7). BUILT as planned
   above, on wip/smartart-77079ee8 (dsp:drawing read as a wpg group, text boxes at dsp:txXfrm, anchor="ctr" group parts
   centred): Windows-mode single-doc zh-77079ee8 96.5 -> 99.1, zh-bdae17c0 98.8 -> 99.0, zh-06c46ba9 99.2 -> 99.3; full
   pre-pair running, then windows-1. p1's 8 misses are the scorer (trailing space glyphs; lenovo-3's v2 matcher).
