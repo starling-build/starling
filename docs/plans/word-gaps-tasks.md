@@ -292,6 +292,8 @@ Owner: windows-3 (lenovo / lenovo-2 take the band from the bottom up). One docum
 - zh-424775e4 97.6 — CLAIMED. p1 "…research on the " | "China-sponsored…" (Calibri 12): Word leaves "China-" for the next
   line though it fits by ~6pt; ours breaks after the hyphen. Other prints do break after a Latin hyphen. Lab hyc asked.
 - zh-cd48112c 97.7, zh-147bdae0: T181's line fit / long URLs — not taken.
+- zh-6a4fc013 66.9 (v2, the official list's lowest; Thai) — CLAIMED windows-3 2026-10-30, starling-bd's assignment, after the
+  pairs above: page-by-page causes on this box (Windows-host Thai), starting from windows' parked p18 (_hanJoins lead).
 - zh-eec0747a 97.5 — CLAIMED. p21's form header (rows 630/624 atLeast, every cell vMerge over both, 微软雅黑 12, linePitch 312,
   adjustLineHeightInTable) is 72.7 in Word, 80.2 in ours. Labs eec/eef/eeg (`windows`): row 2 is its continued cells' empty
   YaHei line, 39.2 (as unmerged, eefH, where ours matches Word row for row); row 1's restart text — two 22pt exact lines,
