@@ -110,7 +110,9 @@ Word-win's 35.7, because chart-label CJK in Windows mode is drawn through the de
 - DONE (this commit): Windows-mode pie labels set their Chinese on Mincho's 1.3em line (JhengHei's 1.729 where Mincho
   lacks a character), `ChartPainter.labelSpan`. Word-win's label pitch 12.48/12.12 at 9.96pt, ours now 12.65/12.2 at 10
   (was 12.9); 香港's label 38.4 → 37.4pt, inside its 11% slice at 0.84, within 1.5pt of Word's (was 37/45 off). Pair w65→w66:
-  zh-d62da4dd 75.8→76.8, zh-27a874b7 73.9→72.8; Mac n236→n237 no changes. The drop is CANCELLING ERRORS, logged: chart 1's
+  zh-d62da4dd 75.8→76.8, zh-27a874b7 73.9→72.8 (Mac-hosted). LANDED after windows-1's round 1 (Windows box, v2, 756 docs,
+  nothing lower): zh-27a874b7 78.5→81.7, zh-d62da4dd 81.0→84.0, zh-b8de3ae2 91.7→91.9 — no drop there, so no cancelling-error
+  exception needed. The Mac-hosted drop was: chart 1's
   top labels (教育 金融 建築) stand clamped to the frame's top in ours, and the shorter line lifts their baselines 0.75pt
   (2.1 → 2.9pt over Word's; their merged line "2723" leaves the 3pt window). Word's are not clamped: its pie (bitmap,
   coloured extent) is 125.5-285.8 against ours 128.2-289.0, 3pt higher, with its labels lower; chart 2's is 418.2-580.0
