@@ -10159,3 +10159,11 @@ the margin, the "”" squeezed 16 -> 12 (12.05 over, four marks able to give 32)
 next line with "，". Word starts lines with a mark elsewhere in this document (p2, p5, p8), so the rule is not "always squeeze".
 And our fitting trace (STARLING_RICHTEXT_FIT) reads those other paragraphs' pieces as 0 wide — their breaks are the engine's alone,
 which agree with Word's. Left for whoever takes squeeze under kinsoku off.
+
+### T237. zh-d45f16c4: 98.2 against word-win (numbered items' first lines) — CLAIMED (Linux office1, 2026-10-29, band 98.0-98.4)
+Its "1." levels say w:suff space; the number is 14pt 標楷體, and Word for Windows sets the space in Arial (0.278 em, 3.84pt), not the
+face's half em: 45 such lines in its print, and zh-753cd6a8's SimSun numbers the same. Ours took 7pt and each item's first line held
+a character fewer. Built (Windows mode): a space suffix after a number in an East Asian face is Arial's. Alone: zh-d45f16c4 98.2 ->
+100; zh-1b74ed91, zh-33aa9899, zh-753cd6a8, zh-90e0cea8, zh-c399c91a unchanged. 756 pre-pair running.
+Also measured, not fixed: zh-360c1df1 p7 takes "…金山银山”" (Times "”", mode 14) 1.7pt past the margin where Word sends "山”" down;
+not the hang (taking the Latin quote out of the hang moved nothing there and cost p27). zh-cf8b03a5 is T164 (600-dpi grid, dropped).
