@@ -152,6 +152,9 @@ struct Chart: Equatable {
     /// print. nil takes a band beside the plot.
     var categoryAxisTitleAt: PlacedAxisTitle? = nil
     var valueAxisTitleAt: PlacedAxisTitle? = nil
+    /// A value axis' title the file sets across (`a:bodyPr rot="0"`) and does not place: a block of centred
+    /// lines at the left, where it is usually turned.
+    var valueAxisTitleAcross = false
     /// The value axis's labels' size in points where the file gives one
     /// (`c:valAx/c:txPr`); nil is the default, 12. It also decides how
     /// many marks the axis has room for.
@@ -1593,6 +1596,7 @@ enum ChartXML {
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 18 }
         c.categoryAxisTitleAt = c.categoryAxisTitle == nil ? nil : placed(titledCategory)
         c.valueAxisTitleAt = c.valueAxisTitle == nil ? nil : placed(titledValue)
+        c.valueAxisTitleAcross = c.valueAxisTitle != nil && c.valueAxisTitleAt == nil && titledValue?.first("c:title")?.descendant("a:bodyPr")?["rot"] == "0"
         let valueAxis = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
             : axes.first { $0.name == "c:valAx" }
         if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
@@ -2910,6 +2914,20 @@ enum ChartPainter {
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
+            } else if c.valueAxisTitleAcross, writerChart {
+                // (Across, in a Word document: lines centred in a block the widest line and ten points wide,
+                // from the area's left, its middle over the plot's; they break at 18% of the chart — lo-6b6ece9c's
+                // "Horizontal, long axis title which breaks" in three lines, 66.7pt the widest, the plot starting
+                // 93.8 from the area's left in Word's print.)
+                let across = text(t, titleSize, 0.18 * frame.width)
+                let widest = across.computeLineMetrics().map(\.width).max() ?? across.width
+                let block = widest + 10 * k
+                // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
+                // its foot a label line and 3.2 over it. And the plot starts 3pt past the block.)
+                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
+                across.paint(canvas, Offset(area.left + block / 2 - across.width / 2, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
+                area = Rect.fromLTRB(area.left + block + 3 * k, area.top, area.right, area.bottom)
+                across.dispose()
             } else {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
