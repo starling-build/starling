@@ -10889,7 +10889,7 @@ the spaces at 3.5, so it takes "釋，" Word sends down (the first line differs 
 with wide-body, narrow-body and cell blocks, with and without the brackets. Read-out: space widths, bracket pitch, first three line ends.
 Control: as-15-on-a block C1 must print Word's original. Per starling-bd the per-mark squeeze model has one owner, lenovo-3; the spaces are a separate question.
 
-### T245. Standards' cover: a table set in a page-anchored frame (zh-cd8987db, zh-90e0cea8, zh-9db183d5) — WIP PUSHED wip/t245-page-frame-table 942f299d0, awaiting windows-1 (Linux office1, 2026-10-30)
+### T245. Standards' cover: a table set in a page-anchored frame (zh-cd8987db, zh-90e0cea8, zh-9db183d5) — DONE (Linux office1, windows-1 round 6 passed; landed) (Linux office1, 2026-10-30)
 The ICS/CCS table of a GB/DB standard cover has every cell paragraph carrying one w:framePr (vAnchor page, hAnchor page, x 1372, y 568,
 wrap notBeside). Word's print stands it at x 68.6, y 28.4 from the page's edge; ours flowed it from the margin, 9pt high and 2.4 right.
 Built (Docx.swift, beside the existing text-anchored framed-table case): such a table is page-anchored at the frame's x and y.
@@ -11045,3 +11045,5 @@ T249, the two from macos-ios (Linux office1, 2026-10-30), read not built:
     So these two are not floating-table failures: the line-number gutter is missing (or placed) first, and the rest of each page follows. Not claimed.
   - Skipped by Word: 9 of this batch's 173 per windows (word-win/skipped.tsv lists 12 distinct ids over all rounds, with repeats; 3 were round 1's). Not matched id-by-id here.
 - LO CHARTS, queue 2 (macos-ios Sonnet 5.5, 2026-10-30, starling-bd's order): CLAIMED the chart witnesses of T250 — tdf128207 (value-axis ticks and title), fdo76098 (the "Sales 1st Qtr" block on p2), xaxis-labelbreak, chart-dupe, tdf123873, tdf82824 (axis labels) and the other queue-2 chart documents that have prints (19). tdf124398_groupshapeChart and the chart-in-a-group-shape work are lenovo's. Built on wip/mac-01Xgpbk5-lochart (rebased on beb8679b).
+
+T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing dropped on the 756 or the LO prints: zh-cd8987db 98.3 -> 99.3, zh-90e0cea8 99.1 -> 100, zh-26660336 99.8 -> 100; zh-0060058e's expected dip did not appear on the box). Conflict with the ÷ rule merged by hand (Linux office1).
