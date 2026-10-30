@@ -10177,3 +10177,10 @@ a character fewer. Built (Windows mode): a space suffix after a number in an Eas
 100; zh-1b74ed91, zh-33aa9899, zh-753cd6a8, zh-90e0cea8, zh-c399c91a unchanged. 756 pre-pair running.
 Also measured, not fixed: zh-360c1df1 p7 takes "…金山银山”" (Times "”", mode 14) 1.7pt past the margin where Word sends "山”" down;
 not the hang (taking the Latin quote out of the hang moved nothing there and cost p27). zh-cf8b03a5 is T164 (600-dpi grid, dropped).
+
+### zh-ea43dd6d p5: a signature's leading spaces are Calibri's in Word for Windows — MEASURED, Lab spec (Linux office1, 2026-10-30, band 98.0-98.4)
+"                                 嘉兴市财政局         " (mode 12; one run, hint eastAsia, ascii/eastAsia 仿宋_GB2312, 16pt;
+8 U+00A0 then 25 U+0020 before the name): Word's print draws the 33 leading spaces in Calibri, 3.6pt each, the name in FangSong
+from 346.15, and the trailing spaces in FangSong at 8.04; ours sets every space at the stand-in's half em, 8.0, and the name
+wraps after "嘉兴市". Lab spec (Word for Windows, the package's p5 paragraph): leading spaces only U+0020 / only U+00A0; hint
+default; ascii Times; the run split before the name. Wanted: which face Word sets a missing 仿宋_GB2312's spaces in, and when.
