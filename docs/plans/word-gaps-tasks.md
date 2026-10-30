@@ -10922,3 +10922,11 @@ the picture its first a:blip is (addImage), the group painter draws pic:pic, and
 zh-e0ca7252 98.7 -> 98.9, nothing lower. LO set: tdf126426 0 -> 100, mean 64.15 -> 64.66.
 Looked at, not built: tdf135035 (text-anchored wrap=around frames beside text: the line narrowing macOS-doc owns), tdf128198-1 (text beside a wrapTight box: the same), groupshape-sdt (a VML group inside a group
 holding a layout-flow:vertical box with an SDT: not drawn), tdf106153 (rotated text at x -5 / 557), tdf124600 (a header shape's text 74pt off). From macos-ios: lo-40949e85 (16.7, a floating text box above a chart: Word's chart starts 130pt lower) and lo-3a0ca937 (42.9: the chart paragraph is ~15pt taller in Word; a wrapNone down arrow 283pt below its paragraph, effectExtent b 30480, keepNext) are next.
+
+T249, the two from macos-ios (Linux office1, 2026-10-30), read not built:
+- lo-40949e85 (16.7, tdf-chart in a group): the drawing is a wpg group of a text box ("asdf", 0,0, 188x33pt) and a chart as `wpg:graphicFrame` at y 1743075 EMU (137pt) in the group, 5486400x3200400.
+  Ours treats the whole drawing as the chart (its object path keys on the graphicData uri "chart" anywhere in it), so the chart stands at the group's top over the box. Needed: a chart that is a child of a
+  group is drawn in its own `wpg:xfrm` place in the group (and the group's boxes and lines around it). Chart painter is macos-ios's; the group placement is `WriterGroups`' map (WriterCharts.swift `register`).
+- lo-3a0ca937 (42.9): ours already pushes the anchor paragraph's line under the 262pt wrapTopAndBottom chart (its block 380.7px, text@363.1px: line under) and the text after the six empty paragraphs
+  is still 15pt above Word's (Word 468, ours 453, same breaks). So the 15pt is not that line; candidates: the six empty "Képaláírás" (Caption) paragraphs line 240 auto, space after 0 (ours 18.4px = 13.8pt each; Word's
+  height unknown) or the wrapNone arrow 283pt below. Needs a lab (an anchor paragraph with a topAndBottom chart 8.3pt down, then N empty caption paragraphs: the y of a final text line).
