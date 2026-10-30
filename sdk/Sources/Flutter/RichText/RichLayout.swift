@@ -11836,6 +11836,18 @@ public final class RichLayout {
             guard let r = xml.rangeOfSubstring(name + "=\"") else { return nil }
             return String(xml[r.upperBound...].prefix { $0 != "\"" })
         }
+        // (A number of ASCII characters alone is set in the ASCII slot, which
+        // a level naming only a high ANSI face leaves to the paragraph's:
+        // zh-57f1de0d's "%1." under `w:hAnsi` "Arial Unicode MS" is NSimSun
+        // like its text in Word's print, 11.04 wide; ours drew Liberation Sans'
+        // 9.2 and its taller line made every numbered row 3pt too deep. A
+        // bullet is no ASCII, and keeps the high ANSI face.)
+        let level = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)] }
+        let asciiLabel = level.map { $0.format != .bullet && !$0.text.isEmpty && $0.text.unicodeScalars.allSatisfy { $0.isASCII } } ?? false
+        if theme.wordRules, asciiLabel, attr("w:ascii") == nil, attr("w:hAnsi") != nil {
+            RuleTrace.hit("level-hansi-only-ascii-label")
+            return (nil, attr("w:eastAsia"))
+        }
         return (attr("w:ascii") ?? attr("w:hAnsi"), attr("w:eastAsia"))
     }
 
