@@ -9915,6 +9915,10 @@ Lab spec: zh-6d402586's package, that paragraph alone; sweep w:right in 2-twip s
 and read each step's comma widths, automatic-space widths and where the hung "，" starts. Variants: (a) as is; (b) "COVID-19" and "PCR"
 replaced by ideographs (no automatic spaces); (c) one comma replaced by an ideograph. Wanted: the largest over Word takes with a
 mid-paragraph hang, as marks + spaces + hang.
+RESULT lab p6d (Windows 01QbbApP, ~/starling-doc-check/lab/p6d): Word never hangs this line's mid-paragraph "，" (w:right 0..-600 by
+2 twips). It takes "工，" only inside the margin, from -198 twips, the two commas squeezed 2.6 each (or one comma 3.4 and the
+automatic spaces ~0.8 each). That differs from t175 (zh-021b8feb, same mode, face and size, a "、" hung at 21-23 over), so a
+condition separates the two, not yet known (t175's marks gave 6.7 each, these 2.6-3.4). Not built; open for whoever takes squeeze.
 
 ### zh-3da9d7f2 p1: a level rule's own empty paragraph goes under it — Lab spec (Word for Windows) (Linux office1, 2026-10-29, band 98.0-98.4)
 Measured (Windows mode, 98.0, 9 misses, all p1). Two causes:
