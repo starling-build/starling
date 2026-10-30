@@ -10956,15 +10956,15 @@ T249, the two from macos-ios (Linux office1, 2026-10-30), read not built:
   BATCH 1 FIRST-MISMATCH READS (worst new documents by class; missed lines, score):
   - FLOATING TABLES: tdf170672 (956 of 1326, 28%, 49 pages for 48): the text matches, but from p2 on ours is shifted ~25pt (two lines) against Word's, so
     nearly every later line misses — one position drift in a floating table, not 956 independent errors. floattable-avoid-last-manip-ofst (131, 15%) and
-    floattable-avoid-manip-ofst (77, 51%, 7 pages for 6): the same text, Word breaks the page FOUR lines later (p1 ends at y 566 for ours 526): the table that
-    "avoids" the last paragraph is moved to the next page by us and not by Word. floattable-heading-split-hyphen (89) / -footer (57): see LINE NUMBERS below.
-    floattable-header (60, 36%): 8 pages for ours 10. tdf38575_fullWidthLine (60, 1.6%): Word 4 pages, ours 2 — Word pushes the floating pieces onto
-    p3 (a text box / table at x 109 / 274), ours keeps them on p1. tdf97090 (53, Russian): Word breaks "«Echoes» — музыкальная композиция" after
+    floattable-avoid-manip-ofst (77, 51%, 7 pages for 6): the same text, Word breaks the page FOUR lines later (p1 ends at y 566 for ours 526): the test name suggests the table that
+    avoids the last paragraph moves page in ours and not in Word's (a guess, not read). floattable-heading-split-hyphen (89) / -footer (57): see LINE NUMBERS below.
+    floattable-header (60, 36%): 8 pages for ours 10. tdf38575_fullWidthLine (60, 1.6%): Word 4 pages, ours 2 — Word's text is on p1 and p3 with p2 empty of text,
+    ours keeps it all on p1 (cause not read). tdf97090 (53, Russian): Word breaks "«Echoes» — музыкальная композиция" after
     "композиция", ours adds "британской рок-группы" to the same line (our line is wider than Word's, a floating table's wrap). floattable-deleted-anchor (46):
     the first line "Talking Points" is missing in ours at x 236. fdo68607 (40 of 317, 87%): 317 lines for 317, the table starts 24pt higher in ours (y 27, Word 51).
   - NESTED TABLES: tdf92157 (194 of 196, 1%): Word's top-right block (Ministerie van Veiligheid en Justitie, x 468) is on p1; ours puts it on p2 and drops
-    the Word line order (7 pages for 6): a nested/floating address block pushed past the page break. floattable-anchor-height (104 of 123, 15%): Word 123 lines on
-    4 pages, ours 31 on 2 — the page-anchored table's height is read as one page. fdo77887 (81 of 82, 1%, 3 pages for 2): first mismatch the title at x 113 (ours 143),
+    the Word line order (7 pages for 6): the address block lands on the next page (cause not read). floattable-anchor-height (104 of 123, 15%): Word 123 lines on
+    4 pages, ours 31 on 2 — ours lays out a quarter of the lines (cause not read; the page-anchored table's height is a guess). fdo77887 (81 of 82, 1%, 3 pages for 2): first mismatch the title at x 113 (ours 143),
     then every row drifts by 8-13pt: a nested table's cell margins. tdf158349_SDTstreamStateStack (60 of 92): Word has "Operative words" block rows ours lacks, four pages for three.
     tdf149089 (56 of 60, 3/3): not read. fdo80097 (36): 2 pages for 1.
   - CHARTS: tdf128207 (15 of 25, 40%): Word draws the value axis ticks 6,5,4 and a "Bar chart" title at x 404; ours the category labels at x 559 instead (labels on
@@ -10974,4 +10974,4 @@ T249, the two from macos-ios (Linux office1, 2026-10-30), read not built:
     <w:lnNumType w:countBy="1" w:restart="continuous"/>. Word's text layer prints the line number joined to the line ("1L01, page 1 start" at x 47), ours prints
     "L01, page 1 start" at x 71 with no number. 7 documents in the LO set carry lnNumType (2 are the worst floating-table misses above, 2 score 100, 2 not yet printed).
     So these two are not floating-table failures: the line-number gutter is missing (or placed) first, and the rest of each page follows. Not claimed.
-  - Skipped by Word (corrupt): 9 (word-win/skipped.tsv), among them lo-09a33253 clearing-break-with-fly, lo-0b4c5e4d TestFirstFooterDisabled (both were in this batch's nested group).
+  - Skipped by Word: 9 of this batch's 173 per windows (word-win/skipped.tsv lists 12 distinct ids over all rounds, with repeats; 3 were round 1's). Not matched id-by-id here.
