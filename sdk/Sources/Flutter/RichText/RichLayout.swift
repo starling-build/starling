@@ -8483,6 +8483,26 @@ public final class RichLayout {
                 push = max(push, under)
             }
         }
+        // (A paragraph of nothing but an object that bands the page from
+        // it, placed some way down, sets its own line under the object:
+        // lab `rul` (Word for Windows, zh-3da9d7f2's package) — its red
+        // rule, a level line wrapped top and bottom 21.9pt down an empty
+        // exact 27pt paragraph with a 1.25pt bottom effect, puts that
+        // paragraph's line 23.15 lower, the offset, the height and the
+        // effect, at every offset from 3 to 27pt and under "at least"
+        // too. At no offset, or with no height and no effect, nothing:
+        // zh-f47b8a74's first rule is drawn over its line. Nor where the
+        // line ends above the object: zh-7773163d's cover picture, 367pt
+        // wrapped top and bottom 16.65pt down an empty paragraph whose
+        // 7.5pt mark's line ends near 11, has that line over it in Word's
+        // print and the next paragraph under it.)
+        if theme.wordRules, p.cell == nil, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
+            for image in (p.image.map { [$0] } ?? []) + Array(p.inlineImages.values) {
+                guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y > 0,
+                      image.height + f.effectBottom > 0, before + painter.height >= _px(f.y) - 0.01 else { continue }
+                push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
+            }
+        }
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height + _px(segoeLift)
