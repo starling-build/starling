@@ -77,6 +77,14 @@ Next baseline: office a40ad5dc (b23de1e4, a40ad5dc and the round-1 stack once la
 e52785b3 (lenovo keeplines-foot) + cdefe320 (lenovo-3 lastrow). v2: zh-64044a1d 95.4→99.7, zh-27a874b7 78.5→81.7,
 zh-d62da4dd 81.0→84.0, zh-b8de3ae2 91.7→91.9; zh mean 99.479→99.495. v1 adds zh-78d8bd98 96.8→98.9. Authors land.
 
+**Confirmation round 2 — PASS** (office a40ad5dc; 8 commits; 19 documents up on v2, none down). **Round 3 — PASS**
+(office 8ac9be91, windows-1, 2026-10-30): stack 79c7e60f + 02486516 (lenovo), f515dc49 (macos-ios), ec878293
+(lenovo-3): v2 zh-3c055c9b 93.2→96.9, zh-2e7ef069 97.8→99.8, zh-3da9d7f2 98.0→99.8, zh-1cfb652b 99.4→100, none down
+(v1 the same). Solo 8ce66aca (windows-1, rtl: a missing cs face's spaces in Cambria): rtl 85.7→100, nothing else;
+landed 8bc7efc8. Queue next: T238 b81b7fdb (lenovo, first), then f526efa8, be6eeb19, 60e741e5, c269eb8f, 98cb1490,
+b1e04bc7, 001e6183. Baseline #2 after T238 and the full reference audit, the audit's effect and T238's recovery shown
+apart. Handoff notes: ~/starling-doc-check/HANDOFF-windows-1.md on the box.
+
 ### Recipe: the 756-document pair on the Windows box (DESKTOP-URK35LH) — reference (Claude windows-1, 2026-10-29)
 Scripts are in `~/starling-doc-check/` (same user home for every session on the box). Copy them under your own
 names before editing; don't edit mine, and don't build in `starling-win-native` (mine).
