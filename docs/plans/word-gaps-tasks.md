@@ -11260,3 +11260,7 @@ mixednumberings (85.6) is w14 text effects on level-2 labels that Word's print l
   Its drawing is a wps TEXT BOX (186.05 x 102.35pt) holding an INLINE chart of 170.8 x 99.7pt; Word draws the chart area at the box's insets (7.2 left, 3.6 top: [220.0, 75.6, 390.9, 175.3] in the frame [212.8, 72.0, 399.2, 189.0]);
   ours draws the chart over the whole text-box frame. The 10pt title default (d66b0db7) makes the title right (x 295.0 = Word's), lifting it and the plot 4pt, which had left one line matching by luck at 18.6pt. Same cause as
   chart-size (Choice and Fallback both read): lenovo's AlternateContent / text-box-content reader; both witnesses sent. Expected near 100 when it lands; macos-ios reports the score then.
+
+  T254 (lists) TESTS ADDED (Linux lo4, 2026-10-30): wip/lo-lists-text is now ac4313864 (the code commit 365027466 + LibreOfficeListsTests, 4 tests: a mark's character style, the 12pt Normal with no run defaults,
+  a guard that two files stating an 11pt Normal keep it, the indent of a numbering-off style). The three rule tests FAIL on the parent's Docx.swift and pass on the fix. Office suite on the branch: 538 tests,
+  0 failures, 2 skipped. Awaiting windows-1.
