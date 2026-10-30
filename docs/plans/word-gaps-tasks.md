@@ -9873,3 +9873,13 @@ similarity 0.57): a reference artefact.
 
 ### T232. zh-64044a1d: 95.3 against word-win (p35-p37, 66 lines) — CLAIMED (Linux office1, 2026-10-29, macos's Windows-mode 95-97 band)
 Left after T214: p35-p37's run (24 + 29 + 13 missed lines) and singles on p10, p11, p14, p34, p53.
+Cause: p34's one-line keepLines "資料來源：本計畫整理。" went to p35 because its space after did not fit; Word keeps it at the foot.
+Fix pushed as wip/keeplines-foot e52785b35; Linux pre-pair (Windows mode, 756): zh-64044a1d 95.3 -> 99.7, nothing else moved.
+AWAITING windows-1's Windows-box confirmation.
+
+### T233. zh-f2835e26: 95.7 against word-win (p5 "创新发展") — CLAIMED (Linux office1, 2026-10-29, band 95.0-95.9)
+A turned (tbRlV) cell centred across, in a row that parts at p5's foot, is set 92pt down its cell: the parted row's centring
+shift (meant for upright cells) moves it too. Word sets it at its indent from the cell's top (96.65pt), as in a whole row.
+Also seen in the band, not layout gaps: zh-c4f2be3b (33 misses, one a page) is its turned footer page number, whose line box
+in Word's print runs 7pt past its glyphs (the matcher reads a turned line by its box); zh-d0a207ac's misses are Wingdings 2
+boxes, which Word's text layer names U+F0A3 (dropped) and ours U+2610.
