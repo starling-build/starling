@@ -415,8 +415,8 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
   Linux pair: zh-1cfb652b 99.4 -> 100 (lab cq), nothing else.
 - zh-bbbb2e6a: a distributed line of one character is centred — DONE (landed after windows-1's round 4, nothing dropped): v2 97.6 -> 99.1.
   Linux pair: v2 97.6 -> 99.1, nothing else.
-- zh-ab34d9cb "˙" (U+02D9 hinted eastAsia) in the East Asian face (wip/lenovo3-dotabove, UNPAIRED: patched sweep done,
-  base not; also zh-633792eb, zh-c591c1fa). Next: pair, then windows-1.
+- zh-ab34d9cb "˙" (U+02D9 hinted eastAsia) a full cell — DONE (landed after windows-1's round 5, nothing dropped): zh-ab34d9cb 99.4 -> 100,
+  zh-633792eb 99.6 -> 100 (v1 and v2); zh-c591c1fa, the third with it, holds at 97.7.
 ### Per-mark squeeze model — OWNER lenovo-3 (Linux 01F2SWc8, starling-bd's routing 2026-10-30); findings so far
 Tools (Lenovo ~/tmp/word/tools): givecensus2.py (every mark in every line that is identical in Word's print and ours: Word's
 step vs ours by font, mark, next and previous class; output give-census2.tsv), marksq.py/markhist.py (step histograms by font),
