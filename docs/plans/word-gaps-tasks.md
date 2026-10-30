@@ -24,8 +24,10 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
   lowest list here after each landing.
 - Pick work from that list. A Linux or Mac session may develop and pre-pair on its own host, but before landing it
   pushes a wip branch and asks windows-1 for a Windows-box confirmation (candidate vs the rolling base, Windows mode):
-  no document may drop there (the cancelling-errors exception still applies, logged). Mac mode stays a guard (<= 1
-  point per document), run wherever is convenient.
+  no document may drop there (the cancelling-errors exception still applies, logged).
+- NO MAC WORD (the user, 2026-10-29): do not sweep or score against Mac Word's prints (test/corpus/docx/word) any more,
+  and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
+  that says "both modes" now means Windows mode.
 
 ### Recipe: the 756-document pair on the Windows box (DESKTOP-URK35LH) — reference (Claude windows-1, 2026-10-29)
 Scripts are in `~/starling-doc-check/` (same user home for every session on the box). Copy them under your own
