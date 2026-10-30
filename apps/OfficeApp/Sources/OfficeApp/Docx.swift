@@ -2702,6 +2702,8 @@ enum DocxFormat {
             }
             if let t = Double(anchor["distT"] ?? "") { f.distanceTop = t / 12700 }
             if let b = Double(anchor["distB"] ?? "") { f.distanceBottom = b / 12700 }
+            if let l = Double(anchor["distL"] ?? "") { f.distanceLeft = l / 12700 }
+            if let r = Double(anchor["distR"] ?? "") { f.distanceRight = r / 12700 }
             return f
         }
         if let shape = _vmlTop(node), let st = shape["style"], st.containsSubstring("position:absolute") {

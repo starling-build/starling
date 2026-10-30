@@ -7961,19 +7961,22 @@ public final class RichLayout {
         // Laid out once as they fall, the lines the float reaches get a box
         // each at their start, and laid again until they settle.)
         _besideBoxes[i] = [:]
-        if _besideLead[i] > 0, _besideBand(i, document) == nil { _besidePending.insert(i) }
-        if _besideLead[i] > 0, let band = _besideBand(i, document) {
+        var besideIndent = _besideLead[i]
+        var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
+        if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
+        else if besideIndent == 0, let own = _besideOwn(p, document) { besideIndent = own.indent; besideBand = own.band }
+        if besideIndent > 0, let band = besideBand {
             let original = _px(firstLineIndent(p, at: i, document))
             var boxes: [Int: Double] = [:]
             var firstBeside = true
             for _ in 0 ..< 8 {
                 _besideBoxes[i] = boxes
-                let (trialSpan, trialInline, trialInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside ? max(original, _besideLead[i]) : original,
+                let (trialSpan, trialInline, trialInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside ? max(original, besideIndent) : original,
                                                                    adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
                 let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: .ltr)
                 if !trialInline.isEmpty { trial.setPlaceholderDimensions(trialInline.map { $0.dimensions }) }
                 trial.layout(minWidth: 0, maxWidth: textWidth)
-                let starts = _lineStarts(trial, _OffsetMap(lead: (firstBeside ? max(original, _besideLead[i]) : original) != 0 ? 1 : 0, inserts: trialInserts), count: p.text.utf16.count)
+                let starts = _lineStarts(trial, _OffsetMap(lead: (firstBeside ? max(original, besideIndent) : original) != 0 ? 1 : 0, inserts: trialInserts), count: p.text.utf16.count)
                 let bottoms = Self._lineBottoms(trial)
                 trial.dispose()
                 var next: [Int: Double] = [:]
@@ -7981,7 +7984,7 @@ public final class RichLayout {
                 for (k, start) in starts.enumerated() where k < bottoms.count {
                     let top = k == 0 ? 0 : bottoms[k - 1]
                     guard bottoms[k] > band.top + 0.01, top < band.bottom - 0.01 else { continue }
-                    if k == 0 { first = true } else { next[start] = _besideLead[i] }
+                    if k == 0 { first = true } else { next[start] = besideIndent }
                 }
                         if next == boxes, first == firstBeside { break }
                 boxes = next
@@ -7989,7 +7992,7 @@ public final class RichLayout {
             }
             _besideBoxes[i] = boxes
             if !firstBeside { lead = original; _leadWidth[i] = lead }
-            else if lead < _besideLead[i] { lead = _besideLead[i]; _leadWidth[i] = lead }
+            else if lead < besideIndent { lead = besideIndent; _leadWidth[i] = lead }
         }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
@@ -11490,6 +11493,29 @@ public final class RichLayout {
         guard left < column / 2, right < column / 2 + _px(100), column - edge - _px(p.style.indentRight) >= size * 3 else { return nil }
         let own = _px(p.style.indentLeft)
         return edge > own ? edge - own : nil
+    }
+
+    /// The square-wrapped float at the left of paragraph `i`'s own text — a
+    /// drop cap's box, a picture at the margin — as how far the lines level
+    /// with it start in from the paragraph's left, and the stretch of the
+    /// paragraph's height it takes; nil for none.
+    private func _besideOwn(_ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double))? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, p.style.alignment != .right, p.style.alignment != .center,
+              !p.style.rightToLeft else { return nil }
+        let column = _flowWidth(0)
+        var best: (indent: Double, band: (top: Double, bottom: Double))?
+        for image in p.inlineImages.values {
+            guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
+                  float.horizontalFrom == "column", float.horizontalAlign == nil, float.wrapSide != "left" else { continue }
+            let w = _px(image.width), x = _px(float.x)
+            guard w > 0, x + w / 2 < column / 2, x < column / 4 else { continue }
+            let edge = x + w + _px(float.distanceRight ?? 9)
+            let own = _px(p.style.indentLeft)
+            guard edge > own else { continue }
+            let band = (top: _px(float.y) - _px(float.distanceTop), bottom: _px(float.y) + _px(image.height + float.effectBottom) + _px(float.distanceBottom))
+            if best == nil || edge - own > best!.indent { best = (edge - own, band) }
+        }
+        return best
     }
 
     /// The vertical stretch, from paragraph `i`'s top, that the table floating
