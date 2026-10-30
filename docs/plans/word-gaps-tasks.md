@@ -9770,11 +9770,17 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
     and the writer naming its lowest code point; Word's reads "/", which NFKC matches. zh-4fac83de p4 — Word's text layer
     leaves out the "☐" boxes. zh-df9310bd p8 — Word keeps the lines an exact row clips as hidden text, ours leaves them out.
   - zh-ee2d19e6 p10-12: the footer's fitted "—10—" wraps to "—10" / "—" in ours: a witness for macOS-doc's zh-d0a207ac.
-  - CLAIMED Linux lenovo-2 (starling-d6), 2026-10-30, after windows' lab vmp (confirmed: a merged-down cell keeps no line
-    below its row's own cells' cut; finer sweep 722-732 asked for the comparison's exact edge). zh-e6d54ae4 p2-3. Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
+  - BUILT, on wip/merged-cell-part b1e04bc7e for windows-1 (Linux lenovo-2, starling-d6, 2026-10-30), after windows' lab vmp:
+    a merged-down top-aligned cell keeps the lines whose foot is inside its row's piece — the row's stated height or what
+    its own cells keep, whichever is more (no tolerance; fine sweep 722-732). Pre-pair v2 Windows, 756, on 6d587a1a0:
+    zh-e6d54ae4 98.9 -> 100, nothing else moved. zh-e6d54ae4 p2-3. Row "（二）提供民眾易…", its first cell merged down (vMerge), parts at page 2's foot;
     Word keeps two lines of that cell on p2 (its lastRenderedPageBreak is before "易用的服務"), ours three, the third
     (baseline ~757.6, an 18pt grid line) above the foot but below the last line kept by the row's own unmerged cell
     (754). Guess: a merged-down cell's lines in a parted row stop at the row's part, the unmerged cells' kept lines.
+- Mixed-size paragraphs without a strut (starling-bd's assignment, 2026-10-30): SCOPING by Linux lenovo-2 (starling-d6), not
+  built. zh-31d580df p8 "(2)人員配置…" (標楷體 14pt + a 12pt tail, 1.25 lines): Word steps 23/23/20, ours 28 into it then
+  24/21 — even its plain 14pt first line is 5pt tall. Runs already carry Word's height ratio, so the no-strut line's extra
+  comes from elsewhere; a debug build of `_strut`'s caller is next.
 - zh-6c447317 (98.6, word-win): PARKED (starling-bd, 2026-10-30): box- and state-specific. Labs bsp/bsw (windows): the line is a
   plain fit; the print box lacks 仿宋_GB2312, and under its substitute a balanced Times space is 0.40 em (0.43 bold; Calibri bold
   0.537) — but a half em (8.11 bold at 16pt) in any document with a 宋体 row before it, and a half em under any present face.
@@ -9786,7 +9792,9 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   but zh-015abfaf -> 62.7 (its "17.手工嵌线技能竞赛" + 17 spaces + "（文登区开发区）" wraps "区）" in Word), zh-06c46ba9,
   zh-5313b71d down. (c) an eighth: the same. Lab question: what lets two balanced spaces give 1.1pt each on this line and
   seventeen give nothing on zh-015abfaf's (the run's face? the space run's length? the overflow's size?).
-- Page numbers, CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, from starling-bd (v2 revision's misses):
+- Page numbers, BUILT on wip/pagenum-outside be6eeb19f, in windows-1's round 4 (pre-pair v2: zh-ab1ea005 92.1 -> 99.9,
+  zh-e02b0479 94.1 -> 100, zh-f1f73836 99.3 -> 100, nothing lower; rule from five prints: the sheet counted from the first
+  section's start). Linux lenovo-2 (starling-d6), 2026-10-29, from starling-bd (v2 revision's misses):
   zh-ab1ea005 — a footer box aligned "outside" (margin) takes its side from the sheet, not the printed number (Word: "—1—"
   on sheet 2 at the left); zh-e02b0479 — a VML v:rect page-number box (144pt, centred, wrap none, fit to text) is fitted
   as a v:shape is (Word centres the "1"; ours the 144pt, the "1" 70pt left). Both built; v2 pre-pair running.
