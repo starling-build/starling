@@ -11173,3 +11173,7 @@ T243 (wip/t243-ge-break) and T245 landed after windows-1's round 6 (nothing drop
   - BIDI: tdf155707 (37 of 64, 42%): LTR-Justify rows: from p1 y 435 Word's lines no longer match ours; 60 lines for Word's 64 (cause not read). tdf163575 (30 of 31): Persian page: ours draws garbled glyphs ("اعǀ؝منمایهی") where Word draws
     "اعالم نمایه ی" — garbled glyphs in ours, so probably a font or shaping fallback problem (a guess, not checked), 24 lines for 31. tdf135665 (6 of 10): an inline OLE object: Word prints the object's file name "OLE-example.xlsx" in the text, ours omits it (8 lines for 10).
   RESIDUE NOTE: the three biggest documents (tdf170672 956, fdo78904_fileHang 690, fdo43573-2-min 390) hold 2,036 of the 5,919 missed lines (34%). Each is read as ONE drift or page break (not independent errors); that is a reading of the first mismatch, not a proven cause.
+
+### T251. LO LISTS AND TEXT: tdf158597, tdf167956, mixednumberings, tdf132752, tdf108496 — CLAIMED (Linux lo4, 2026-10-30, starling-bd's order)
+Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. Scores at office 00de45be: tdf158597 6.2 (Word's numbered lines 19-29pt apart, ours 14), tdf167956 33.3, mixednumberings 85.6 (p2 "4x / 4.1 xxxx" rows),
+tdf132752 6.7 (the "Hinweis" paragraphs' x: Word 123/105/72, ours 241/123), tdf108496 10.0 (rows 25pt apart in Word, 22 in ours). Order as listed. T250 (scoring) stays open for re-scores.
