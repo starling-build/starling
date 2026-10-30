@@ -891,6 +891,26 @@ enum DocxFormat {
                 let isDefault = style["w:default"] == "1" || id == "Normal"
                 var r = style.first("w:basedOn")?["w:val"].map { resolve($0, seen.union([id])) }
                     ?? (isDefault ? (paragraph: base, char: CharStyle()) : (paragraph: docBase, char: rootChar))
+                // A style that turns the list OFF (numId 0) over a parent that
+                // carries one does not take the left indent and hanging the parent
+                // wrote beside its numbering: tdf132752's "Hinweis3" (numId 0, no
+                // w:ind) stands at the margin in Word's print, though "Anleitung"
+                // under it says left 2697, and "Hinweis1" (numId 0, its own left
+                // and right) takes no hanging from it. The right indent stays
+                // (Hinweis3 wraps in 284pt, Anleitung's 3340 twips from the right).
+                if style.first("w:pPr")?.first("w:numPr")?.first("w:numId")?["w:val"] == "0",
+                   let parent = style.first("w:basedOn")?["w:val"] {
+                    var seenUp = Set<String>(), up: String? = parent, numbered = false
+                    while let c = up, !seenUp.contains(c), let node = paragraphStyles[c] {
+                        seenUp.insert(c)
+                        if let v = node.first("w:pPr")?.first("w:numPr")?.first("w:numId")?["w:val"] { numbered = v != "0"; break }
+                        up = node.first("w:basedOn")?["w:val"]
+                    }
+                    if numbered {
+                        r.paragraph.indentLeft = docBase.indentLeft
+                        r.paragraph.firstLineIndent = docBase.firstLineIndent
+                    }
+                }
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &r.paragraph) }
                 if let rPr = style.first("w:rPr") { r.char = _charStyle(rPr, base: r.char) }
                 resolved[id] = r
@@ -966,8 +986,17 @@ enum DocxFormat {
                     if let rPr = style.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
                 }
                 // A file that states no size anywhere is 10pt in Word (the
-                // 2003-era default), not the 11pt of a fresh document.
-                if cs.fontSize == nil { cs.fontSize = 10 }
+                // 2003-era default), not the 11pt of a fresh document. One
+                // whose styles part has no run defaults at all (LibreOffice's
+                // empty w:styles: tdf108496, tdf132752, four more) is Word's own
+                // Normal, as with no styles part: 12pt.
+                if cs.fontSize == nil {
+                    if styles.first("w:docDefaults")?.first("w:rPrDefault") == nil {
+                        cs.fontSize = 12
+                    } else {
+                        cs.fontSize = 10
+                    }
+                }
                 // A file whose styles carry no document defaults at all
                 // (LibreOffice's older export) kerns every pair, as one
                 // without styles does: fdo63164-1's "Wasserschöpfe" is
@@ -4059,7 +4088,16 @@ enum DocxFormat {
                 style.markRevision = RevisionMark(kind: to ? .inserted : .deleted, author: rev["w:author"] ?? "", date: rev["w:date"] ?? "",
                                                   moved: rev.name.hasPrefix("w:move"))
             }
-            if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
+            if let rPr = pPr.first("w:rPr") {
+                // (The mark's character style first, then its own properties, as a run's:
+                // tdf158597's "Char style mark" is plain text over an Emphasis 16pt mark,
+                // and Word's line stands as tall as the mark.)
+                var mark = cellChar
+                if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
+                    for styled in chain { mark = _charStyle(styled, base: mark) }
+                }
+                markStyle = _charStyle(rPr, base: mark)
+            }
             if markStyle?.hidden == true { style.markHidden = true }
             if style.markHidden, pPr.first("w:rPr")?.first("w:specVanish") != nil { style.markSpecVanish = true }
             style.mark = markStyle
@@ -4178,7 +4216,10 @@ enum DocxFormat {
                 // (bib-chernigovka's title box sat in a 16pt paragraph).
                 if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true { para.runs[0].style = mark }
             } else {
-                if text.isEmpty, inlineImages.isEmpty, markStyle != nil || !notes.openComments.isEmpty {
+                // (An empty cell paragraph under a table style that sets the size is as tall as that
+                // size, not Normal's: lo-7c394e05's 8pt cells under a 12pt Normal.)
+                let emptyInStyledCell = markStyle == nil && notes.cellSizeFromTable && cellChar.fontSize != nil
+                if text.isEmpty, inlineImages.isEmpty, markStyle != nil || emptyInStyledCell || !notes.openComments.isEmpty {
                     // An empty paragraph takes its mark's look as its one
                     // run's style (its height); one inside a comment range
                     // carries the range too, or the writer would close
