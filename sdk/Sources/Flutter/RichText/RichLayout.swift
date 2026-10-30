@@ -9810,6 +9810,19 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, document.usesEastAsianLayout, (document.compatibilityMode ?? 12) < 15,
+                          document.characterSpacingControl?.hasPrefix("compress") == true,
+                          before == "-", ch.isLetter, beforeBefore?.isLetter == true {
+                    // (Nor after a hyphen between letters, before mode 15 where
+                    // punctuation is compressed: labs hyc/hyd (Word for Windows,
+                    // zh-424775e4's package, mode 12, compressPunctuation) send
+                    // "China-sponsored" down whole with 25pt to spare, and
+                    // "langkah-langkah" too; in mode 15, or under doNotCompress,
+                    // it parts after the hyphen — as every other Word-win print
+                    // that breaks there does.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, !document.usesEastAsianLayout, let b = before, Self._breaksAfterHyphen(beforeBefore, b, ch) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
