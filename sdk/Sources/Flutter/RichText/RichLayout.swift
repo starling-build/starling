@@ -10775,8 +10775,19 @@ public final class RichLayout {
                     let u = units[units.index(units.startIndex, offsetBy: k)]
                     return u == 0x0A || u == 0x2028 || u == 0x0B
                 }
+                // (Or the first of the pictures that are all a line of an exact
+                // height holds: Word sets the baseline of such a line where
+                // text's would stand, 4/5 down; with nothing but pictures
+                // in it ours put it at the tallest picture's foot, 10pt down
+                // an 18pt line — LibreOffice's tdf119200, seven equation
+                // objects, each 6.6pt high of Word's print.)
+                let exactPictures: Bool = {
+                    guard theme.wordRules, at == 0, image.float == nil, let exact = p.style.lineHeightPoints, exact > 0,
+                          !p.style.lineHeightIsMinimum, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }) else { return false }
+                    return p.inlineImages.values.allSatisfy { $0.float == nil }
+                }()
                 if theme.wordRules, image.float == nil, w < textWidth - 1,
-                   at == 0 || breaks(at - 1), pos >= units.count || breaks(pos) {
+                   exactPictures || (at == 0 || breaks(at - 1)) && (pos >= units.count || breaks(pos)) {
                     // (In the text's own style: the picture's run keeps no
                     // look of its own, the break beside it does — the
                     // masthead's 8.5pt Arial, where the paragraph's is
@@ -10800,8 +10811,12 @@ public final class RichLayout {
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
-                                                             baselineOffset: middle.map { size.height / 2 + _px($0) }
-                                                                ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)))
+                                                             baselineOffset: (middle.map { size.height / 2 + _px($0) }
+                                                                ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)
+                                                                // (Raised or lowered as its run's `w:position` says: Word
+                                                                // sets a MathType object that far under the baseline
+                                                                // — tdf119200's equations, lowered 2 to 4pt.)
+                                                                + (theme.wordRules && image.float == nil ? _px(run.style.raised ?? named?.char.raised ?? 0) : 0))))
                 // (Before 2013's layout a space after a picture wider than
                 // the line goes to a line of its own: lab `ps` (Word 16, a
                 // cell of 74.35pt) sets the paragraph under a 76 or 80pt
