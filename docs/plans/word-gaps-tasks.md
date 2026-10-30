@@ -9967,3 +9967,8 @@ Lab spec: zh-3da9d7f2's package, p1. Sweep the rule's positionV offset 0 to 27pt
 stands. Variants: (a) as is; (b) effectExtent 0; (c) the paragraph's line at least 27 instead of exact; (d) the rule 1pt tall.
 Wanted: when a top-and-bottom object pushes its own paragraph's line under it, and by how much.
 For (1), lab not needed yet: a corpus check of page-placed wrapNone boxes in layoutInCell cells comes first.
+RESULT lab rul (Windows 01QbbApP): such a rule pushes its own paragraph's line down by offset + height + effectExtent b, at
+every offset from 3 to 27pt and under "at least" too; at offset 0, or with no height and no extent, it pushes nothing.
+Built (Linux office1): a paragraph of nothing but a page-banding object placed down from it sets its line under it so.
+zh-3da9d7f2 98.0 -> 99.8 alone (zh-f47b8a74 unchanged); 756 pre-pair running. (1)'s corpus check: only zh-5313b71d has others,
+nine undrawn shapes, so nothing to learn there; left open.
