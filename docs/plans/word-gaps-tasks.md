@@ -368,6 +368,16 @@ zh-340d52e9, zh-167ee06c). Witnesses fixed: zh-c4f2be3b, zh-dc9e54ca, zh-d8247da
   Linux pair: v2 97.6 -> 99.1, nothing else.
 - zh-ab34d9cb "˙" (U+02D9 hinted eastAsia) in the East Asian face (wip/lenovo3-dotabove, UNPAIRED: patched sweep done,
   base not; also zh-633792eb, zh-c591c1fa). Next: pair, then windows-1.
+- **OPEN, Taiwan fonts: a centred mark gives a quarter em, ours half (Linux 01F2SWc8 lenovo-3, 2026-10-30; lab sent to windows).**
+  Word's prints, all 756, step after a mid-line mark before an ideograph, lowest seen: 標楷體 (DFKaiShu) ，、。；： 0.73-0.75 em
+  (66149 commas, 10751 squeezed), 新細明體 ， 0.76, SimSun/FangSong/YaHei ， 0.50 (macos-ios's per-face tables agree: DFKai
+  、 12-16pt 0.750-0.769). zh-bdae17c0 p9 "…制度，招募65歲以下兼具豐|富": Word leaves "富", both commas whole, ours squeezes
+  both to 9.6 and the digit gaps and takes it (30 characters; need 8.7, room 14.0 of 2 marks). Same shape in zh-073c9234 p9,
+  zh-c15af02e p24 (reverse), zh-12c4f07a. A quarter-em cap on centred mid-line marks (not the line's last, off a grid;
+  ~/tmp/word/quarter-v2.patch, trace hit centred-mark-quarter, 94 documents reached) breaks 90 that match now
+  (zh-457a8d62 100->6, zh-021b8feb 99.5->28.4, zh-5b7ae054 100->4.1): the half is covering for something. macos-ios thinks the
+  first-line start (stored w:firstLine twips win over firstLineChars, 0.15pt per line) may be part of it: re-run the cap once
+  that lands. Lab: windows, zh-bdae17c0 p9 w:right sweep with comma and digit variants.
 - Band still open (v2 99.0-99.4): zh-6e6b9821, zh-a78d52e7, zh-25381d22, zh-92373179, zh-ea70c30e and others, mostly a
   character per line more or fewer than Word; zh-12c4f07a left (known hard).
 (Session restarting on Sonnet 5.5, 2026-10-30; claims stand.)
