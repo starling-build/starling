@@ -5087,10 +5087,10 @@ public final class RichLayout {
                     && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
                     && (y > 0.01 || !_pages[page].isEmpty)
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
-                   let off = document.tableStyles[c.table]?.pageOffsetY {
+                   case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                    let target = _px(off) - insetTop
+                    let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
                     if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
@@ -5139,7 +5139,7 @@ public final class RichLayout {
                         newPage()
                         let physical = page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                        let target = _px(off) - insetTop
+                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target
@@ -5180,10 +5180,10 @@ public final class RichLayout {
                     // (A table placed against the page, at its offset on the
                     // page the break opened.)
                     if theme.wordRules, c.row == 0, i == 0 || _cells[i - 1]?.table != c.table,
-                       let off = document.tableStyles[c.table]?.pageOffsetY {
+                       case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil {
                         let physical = page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                        let target = _px(off) - insetTop
+                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target
@@ -5428,10 +5428,10 @@ public final class RichLayout {
                     // margin after the cover that fills p8, has its top line
                     // at 66.0 in Word's print; ours stood it at the margin.)
                     if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
-                       let off = document.tableStyles[c.table]?.pageOffsetY, _pages[page].isEmpty {
+                       case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil, _pages[page].isEmpty {
                         let physical = page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                        let target = _px(off) - insetTop
+                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target

@@ -1766,11 +1766,14 @@ enum DocxFormat {
                     if pos["w:vertAnchor"] == "page", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? "") { style.pageOffsetY = v / 20 }
                     style.keptPosition = PptxXML.serialize(pos)
                         + (node.first("w:tblPr")?.first("w:tblOverlap").map { PptxXML.serialize($0) } ?? "")
-                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
-                        style.floatOffsetY = v / 20
+                    // (No `w:vertAnchor` is the text's, the schema's default: LibreOffice's fdo68607, `w:tblpY` 495
+                    // and none, stands 24.75pt under the margin in Word for Windows' print, where ours stood at it.)
+                    let vertText = (pos["w:vertAnchor"] ?? "text") == "text"
+                    if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
+                        if pos["w:vertAnchor"] == nil { style.marginOffsetY = v / 20 } else { style.floatOffsetY = v / 20 }
                     }
-                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
-                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
+                    if vertText, pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
                         style.floatRaiseY = -v / 20
                     }
                     if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
