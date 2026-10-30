@@ -4129,7 +4129,15 @@ public final class RichLayout {
                     if RichTextTheme.wordWindowsPages, c.row == 0 { bottom = c.rowTop + c.ownRowHeight; for m in i ..< j { if let d = _cells[m] { bottom = max(bottom, d.rowTop + d.ownRowHeight) } } }
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
-                    if y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
+                    // (And a row that parts by lines goes on to the footer's place as well, where the table
+                    // starts on this page: LibreOffice's floattable-avoid-last-manip-ofst, a landscape 612pt page,
+                    // margin at 540 and footer at 576.6, keeps three more lines of a row on page 1 in Word for
+                    // Windows' print, at 536.9, 550.3 and 563.7; its pages 2 to 5 stop at 515, whole rows.)
+                    let startsHere = c.row == 0 || _pages[page].contains { piece in
+                        !piece.repeated && _cells[piece.paragraph].map { $0.table == c.table && $0.row == 0 } == true }
+                    // (Not from 2013's layout on: LibreOffice's floattable-avoid-last-manip-ofst has no compatibility
+                    // mode and goes past the margin; its two like tables in mode 15 stop at the margin in Word's print.)
+                    if (RichTextTheme.wordWindowsPages && startsHere && (document.compatibilityMode ?? 12) < 15) || y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
