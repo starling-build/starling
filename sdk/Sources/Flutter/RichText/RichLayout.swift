@@ -9781,11 +9781,20 @@ public final class RichLayout {
                     inserts.append(offset)
                     afterHeld = false
                 } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber } == true)
-                            || (ch == "\u{2014}" && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true) {
+                            || (ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true) {
                     // (Nor on either side of an em dash between digits — a span
                     // of years: zh-b378d8c4's "（2021—2030年）" goes down whole
                     // in Word's print, its "（" unable to end a line; the
                     // engine parted it at the dash.)
+                    // (Before the dash, a Latin dash only, as that one is, in
+                    // Times: one set in the East Asian face, hinted so, may open
+                    // a line, the digits after it kept with it — zh-8d6f702e's
+                    // and zh-c2f6d17a's "…面雨量达100" / "—150毫米" in Word's
+                    // print, where ours took "100—150" down whole, and
+                    // zh-81a32de0's "…以上。（1" / "—5分）". Lab `dash` (Word for
+                    // Windows, zh-8d6f702e's package): the same "—" hinted
+                    // default in Times goes down with "100—150", with or without
+                    // `doNotUseEastAsianBreakRules`; the face decides.)
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
