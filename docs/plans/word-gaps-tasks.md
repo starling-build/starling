@@ -10644,3 +10644,11 @@ lines (p8 x2, p9 x3, p19 x2, p26 x4, p33 x1), every one a line fit where Word ta
 - p19 "…新橋兩個方案（" : Word ends the line on the opening "（" (kinsoku 0); ours sends the "（" down with "工期".
 All three are the per-mark give / squeeze model (Mac 01Xgpbk5's T-line-fitter claim, zh-3c055c9b); not mine to fix separately. Witness lines are in
 ~/starling-doc-check-starling-office-zh/w113 (zh-72da925e); Word's glyph rows: p9 line 306.9 above.
+
+### Lab as12 (asked of `windows` by starling-bd, spec by Mac 7bd18d8e, 2026-10-30): the automatic space between digits and an ideograph, and "（一）" — kit on wip/lab-as12 8cdfe702
+zh-12db188f p3 (mode 15, balance on, compressPunctuation, 14pt, TNR digits + 標楷體, cell 4320 twips, list item hanging 624): Word's line 2
+"社（一）字第89067628 號函" sets （ 一 ） whole (14.04 each) and both automatic spaces at 7.0 (half an em); ours squeezes （ and ） to 7.0 and sets
+the spaces at 3.5, so it takes "釋，" Word sends down (the first line differs by a whole piece). zh-8415d258 (mode 12, same balance flag, 15pt
+仿宋_GB2312 digits) is a plain quarter, 3.75. The kit: 18 documents, mode 12/14/15 x balance on/off x face (TNR+標楷體, TNR+宋体, 標楷體 both), each
+with wide-body, narrow-body and cell blocks, with and without the brackets. Read-out: space widths, bracket pitch, first three line ends.
+Control: as-15-on-a block C1 must print Word's original. Per starling-bd the per-mark squeeze model has one owner, lenovo-3; the spaces are a separate question.
