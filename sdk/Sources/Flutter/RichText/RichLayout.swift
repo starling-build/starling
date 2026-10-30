@@ -9901,6 +9901,7 @@ public final class RichLayout {
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                            || (theme.wordRules && Self._closingQuote(ch) && !Self._eastAsianLineRules(run, document, named: named))
                             // (And end one with an opening mark, where it is
                             // `w:kinsoku` 0 that turns them off in text of an
                             // East Asian language: zh-72da925e (zh-TW) ends
@@ -12084,6 +12085,7 @@ public final class RichLayout {
             // defaults' East Asian language en-US and kinsoku off, has
             // "…负责承储" / "（以下简称…" where ours ended the line on it.)
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
+            if runRulesOff(o), Self._closingQuote(Character(b)) { return true }
             // (… and an opening one end it, under `w:kinsoku` 0 in text of
             // an East Asian language — zh-72da925e's "…（下稱「": see `_span`.)
             if kinsokuOff, !runRulesOff(o - 1), Self._openingMarks.contains(Character(a)) || Self._latinOpener(Character(a), Character(b)) { return true }
@@ -13721,6 +13723,18 @@ public final class RichLayout {
     #endif
     private static let _closingMarks: Set<Character> = ["，", "。", "、", "；", "：", "！", "）", "》", "」", "』", "】", "〕", "〉", "｝", "］", "．"]
     private static let _openingMarks: Set<Character> = ["（", "《", "「", "『", "【", "〔", "〈", "｛", "［"]
+    /// A closing curly quote, which the engine keeps with what it closes
+    /// (Unicode's quotation class): where the East Asian line rules are
+    /// off it may start a line as a closing mark may. Lab `cq` (windows,
+    /// zh-1cfb652b's package): its p6, no `w:lang` under
+    /// `w:doNotUseEastAsianBreakRules`, ends a line "…四包" and opens the
+    /// next "”责任制" in Word's print wherever "包" fits and "”" does not,
+    /// with the quote in Times or in 仿宋, hanging allowed or not, in mode
+    /// 14 or 15, and so does "’"; ours carried "包”" down. (Not where
+    /// `w:kinsoku` 0 is what turns them off in text of an East Asian
+    /// language: zh-b00fef0d's "…条抓块统”" ends its line, the quote
+    /// squeezed in, in Word's print; let go, ours sent it down.)
+    static func _closingQuote(_ ch: Character) -> Bool { ch == "\u{201D}" || ch == "\u{2019}" }
     /// A Latin closing bracket after an East Asian character: where the
     /// East Asian line rules are off it may start a line — zh-51af781b's
     /// "Table Text" style says `w:eastAsia` en-US, and Word's print ends
