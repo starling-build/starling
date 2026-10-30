@@ -6301,7 +6301,18 @@ public final class RichLayout {
                 // (A frame on the margin from the text's top: the cover's
                 // "山东省市场监督管理局 发布", 751pt under the margin, stood
                 // in the flow at the page's head.)
-                let target = f.verticalAnchor == "margin" ? _px(f.y) : _px(f.y) - insetTop
+                var target = f.verticalAnchor == "margin" ? _px(f.y) : _px(f.y) - insetTop
+                // (A page-anchored frame that holds one drawing in its line
+                // and nothing else stands its drawing at the frame's y less
+                // the page's top margin — lab frame, Word for Windows, 20
+                // prints: lo tdf147485's logo, frame y 49.8, margin 27,
+                // drawn from 22.8, whatever the frame's or drawing's height.)
+                let framed = document.paragraphs[i]
+                if theme.wordRules, f.verticalAnchor == "page",
+                   framed.image.map({ $0.float == nil }) ?? (!framed.inlineImages.isEmpty && framed.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })
+                                                            && framed.inlineImages.values.allSatisfy({ $0.float == nil })) {
+                    target -= insetTop
+                }
                 if target > -insetTop, target < contentH - 0.01 {
                     if frameReturn == nil || frameReturn!.page != page { frameReturn = (y, page) }
                     y = target
@@ -8945,7 +8956,10 @@ public final class RichLayout {
             let room = theme.wordRules && image.float == nil ? _pictureRoom(image) : (top: 0.0, bottom: 0.0, left: 0.0, right: 0.0)
             _imageDrop[i] = room.top
             let spare = theme.wordRules ? max(0, textWidth - w.rounded() - room.left - room.right) : 0
-            _imageShift[i] = (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + room.left
+            // (Not its effect extent's left, in a frame placed on the page: the
+            // drawing stands at the frame's x — lab frame.)
+            let atFrameX = style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
+            _imageShift[i] = (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + (atFrameX ? 0 : room.left)
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = (h + room.top + room.bottom).rounded() }
@@ -16011,7 +16025,10 @@ public final class RichLayout {
                 let paint = Paint()
                 if theme.wordRules, image.float == nil {
                     let room = _pictureRoom(image)
-                    rect = Rect.fromLTRB(rect.left + room.left, rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
+                    // (Not its left, in a frame placed on the page: the drawing stands at
+                    // the frame's x, effect extent or none — lab frame.)
+                    let framedOnPage = document.paragraphs[i].style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
+                    rect = Rect.fromLTRB(rect.left + (framedOnPage ? 0 : room.left), rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
                 }
                 if let decoded = _decoded[image.id] {
                     let clipped = _clipToCell(i, image, rect, canvas)
