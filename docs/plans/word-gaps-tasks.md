@@ -10315,12 +10315,14 @@ every offset from 3 to 27pt and under "at least" too; at offset 0, or with no he
 Built (Linux office1): a paragraph of nothing but a page-banding object placed down from it sets its line under it so.
 zh-3da9d7f2 98.0 -> 99.8 alone (zh-f47b8a74 unchanged); 756 pre-pair running. (1)'s corpus check: only zh-5313b71d has others,
 nine undrawn shapes, so nothing to learn there; left open.
+CONFIRMED by windows-1 round 3 (Windows box, v2, 756): zh-3da9d7f2 98.0 -> 99.8, nothing dropped. Landed (wip/rule-own-line).
 
-### T235. zh-2e7ef069: 98.0 against word-win (p9 flowchart boxes) — CLAIMED (Linux office1, 2026-10-29, band 98.0-98.4)
+### T235. zh-2e7ef069: 98.0 against word-win (p9 flowchart boxes) — DONE (Linux office1, 2026-10-29, band 98.0-98.4)
 Mode 14, compressPunctuation, zh-CN. In the 76pt text boxes (insets 7.2, 12pt SimSun, centred) Word never hangs a line-end mark:
 "化前期设计，" (10.05 over, one mark) goes down as "设" | "计，", while "工图、能评、" (10.05 over, two marks giving half each)
 is taken — as in a mode-14 cell, where the line's marks give and none hangs. Ours hangs in a text box. Building: a text box's
 paragraphs fitted as a cell's.
+CONFIRMED by windows-1 round 3 (Windows box, v2, 756, office 8ac9be91): zh-2e7ef069 97.8 -> 99.8, nothing dropped. Landed (wip/box-no-hang).
 
 ### zh-b00fef0d p6: a comma squeezed in under kinsoku off — MEASURED, released (Linux office1, 2026-10-29, band 98.0-98.4)
 Mode 12, compressPunctuation, Normal kinsoku 0. p6 "…“线上执法+联合执法”的模式，": Word ends the line with the comma whole inside
