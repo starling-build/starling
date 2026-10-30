@@ -1,0 +1,11 @@
+lab	line	doc	face	size	mark/context	mode,grid	what Word did
+sqz	A	zh-18cb2079	FangSong?	-	piece 山 (+分 and 公 in F3/F4/F5), marks 、 x2	12, lines/linesAndChars	takes at every form incl. other marks made ideographs (F7) and piece made ideograph (F8): width of the isolated paragraph differs from in-document one; set aside
+sqz	B	zh-18cb2079	-	-	piece 电、	12, lines	F0 refuses (control does NOT repeat Word's in-document take); takes in F3 (mode 15), F4 (no grid), F5 (lines grid); refuses F6 (doNotCompress), F7, F8
+sqz	C	zh-4e5fe46f	FangSong	16	piece 况。 hanging 。; comma 11.4 (gives 4.6)	14, lines	takes F0,F1,F3,F5,F9,F10; refuses doNotCompress (F6) and when other marks made ideographs (F7) or piece made ideograph (F8)
+sqz	D	zh-e0ca7252	DFKaiShu	14	piece 定。; 者12.7 ，12.8 定12.6 (steps)	15, none	takes F0,F5,F9,F10 (mode 15 or lines grid); refuses F1,F2 (modes 12/14), F6, F7, F8
+sqz	E	zh-5be7e156	-	-	piece 冷	14, linesAndChars	takes F0,F1,F3,F8,F9; refuses F4 (no grid), F5 (lines), F6, F7, F10 (+2pt): the take needs the character grid and the line's marks
+sqz	F	zh-360c1df1	FangSong	16	piece 展; quotes TNR Bold natural 8.0; 。 gave 6.0 in F9	14, lines	refuses F0..F8, F10; takes F9 (-2pt margin = 2pt more room): see sqz2
+sqz	G	zh-6b242483	FangSong	16	piece × (lone), marks ，。（） stay 16.0	14, lines, left-aligned	refuses every form incl. F8 (× made ideograph) and F9 (+2pt); sqz3 sweep pending
+sqz2	F width sweep	zh-360c1df1	FangSong	16	。 ， 、 ； before 积极开	14, lines	refused at 0 and 1 twip more room; TAKEN from 2 twips (0.1pt) on, identical for all four marks; line end x 510.3 (0,1) then 510.5 (2,3), 510.6 (4,5), 510.8 (10), 511.1 (15) ... 512.4 (40)
+sqz2	F9 print	zh-360c1df1	FangSong	16	。 before 积	14, lines	taken: “ 8.1 ” 8.1 (TNR Bold natural), 。 steps 10.0 (gave 6.0), 1.04pt left to stretch (others 16.1)
+sqz3	G width sweep	zh-6b242483	FangSong	16	lone ×	14, lines, left	queued with windows (0 .. -240 twips)
