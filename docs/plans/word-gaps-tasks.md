@@ -10652,3 +10652,11 @@ the spaces at 3.5, so it takes "釋，" Word sends down (the first line differs 
 仿宋_GB2312 digits) is a plain quarter, 3.75. The kit: 18 documents, mode 12/14/15 x balance on/off x face (TNR+標楷體, TNR+宋体, 標楷體 both), each
 with wide-body, narrow-body and cell blocks, with and without the brackets. Read-out: space widths, bracket pitch, first three line ends.
 Control: as-15-on-a block C1 must print Word's original. Per starling-bd the per-mark squeeze model has one owner, lenovo-3; the spaces are a separate question.
+
+### T245. Standards' cover: a table set in a page-anchored frame (zh-cd8987db, zh-90e0cea8, zh-9db183d5) — WIP PUSHED wip/t245-page-frame-table 942f299d0, awaiting windows-1 (Linux office1, 2026-10-30)
+The ICS/CCS table of a GB/DB standard cover has every cell paragraph carrying one w:framePr (vAnchor page, hAnchor page, x 1372, y 568,
+wrap notBeside). Word's print stands it at x 68.6, y 28.4 from the page's edge; ours flowed it from the margin, 9pt high and 2.4 right.
+Built (Docx.swift, beside the existing text-anchored framed-table case): such a table is page-anchored at the frame's x and y.
+756 pre-pair (Windows mode, v2): zh-90e0cea8 99.1 -> 100, zh-cd8987db 98.3 -> 99.3, nothing lower. zh-9db183d5 (a variant cover) unchanged,
+its logo table and foot line still 11pt off. Also tried and dropped: label of an empty numbered paragraph (zh-cd8987db p10 "附录A", Word's baseline
+3.7pt under ours on a 20pt exact line): _baselineShift is 0 there (exactLineDescentShare nil) and giving the marker a strut of its own face moved nothing.
