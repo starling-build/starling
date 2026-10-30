@@ -4450,7 +4450,15 @@ enum DocxFormat {
             }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.
-            if let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
+            // (A chart in a group's `wpg:graphicFrame` is the group's, drawn in
+            // its place there, registered by its part: `WriterGroups`.)
+            for frame in node.descendants("wpg:graphicFrame") {
+                guard let rid = frame.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
+                      let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data) else { continue }
+                let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
+                WriterCharts.register(space, for: att.id + "#" + rid, themePart: notes.part(_resolvePath("word", themeTarget)))
+            }
+            if node.descendant("wpg:graphicFrame") == nil, let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
                let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 // (With the chart part's own theme override, for its faces.)

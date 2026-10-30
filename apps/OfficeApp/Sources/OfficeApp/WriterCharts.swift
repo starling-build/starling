@@ -108,8 +108,14 @@ enum WriterCharts {
     /// Draws the chart registered for `attachment` into `rect`; false
     /// where none is.
     static func paint(_ attachment: ImageAttachment, _ canvas: any Canvas, _ rect: Rect, _ pxPerPt: Double) -> Bool {
+        paint(id: attachment.id, canvas, rect, pxPerPt)
+    }
+
+    /// … by the id it was registered under (a chart in a group: its
+    /// attachment's id and its part's).
+    static func paint(id: String, _ canvas: any Canvas, _ rect: Rect, _ pxPerPt: Double) -> Bool {
         lock.lock()
-        let entry = entries[attachment.id]
+        let entry = entries[id]
         lock.unlock()
         guard let entry else { return false }
         if let fill = entry.fill {
@@ -247,6 +253,8 @@ enum WriterGroups {
         var dash: String? = nil
         /// A picture's bytes and its decode key: drawn over its box.
         var picture: (key: String, data: Data)? = nil
+        /// A chart in the group (`WriterCharts`, by this id), drawn in its box.
+        var chartID: String? = nil
         /// WordArt (a VML textpath): its text fitted to the box.
         var wordArt: WordArtText? = nil
         var drawingWordArt: DrawingWordArt? = nil
@@ -399,6 +407,16 @@ enum WriterGroups {
                                         fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
                                         rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil,
                                         picture: (id + "#" + String(shapes.count), data)))
+                case "wpg:graphicFrame":
+                    // (A chart in the group, at its own place in it: lo
+                    // tdf124398 and tdf-chart-in-group drew it at the group's top, as the
+                    // whole drawing.)
+                    guard let rid = child.descendant("c:chart")?["r:id"], let xfrm = child.first("wpg:xfrm") else { continue }
+                    let at = place(Rect.fromLTWH(number(xfrm.first("a:off"), "x"), number(xfrm.first("a:off"), "y"),
+                                                 number(xfrm.first("a:ext"), "cx"), number(xfrm.first("a:ext"), "cy")))
+                    shapes.append(Shape(rect: Rect.fromLTWH(at.left / 12700, at.top / 12700, at.width / 12700, at.height / 12700),
+                                        fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
+                                        rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil, chartID: id + "#" + rid))
                 case "wps:wsp":
                     // (A freeform too, `a:custGeom`: zh-ae2dd08d's flowcharts
                     // draw their boxes and diamonds so, Word's print each with
@@ -891,6 +909,10 @@ enum WriterGroups {
         let sx = entry.width > 0 ? rect.width / entry.width : 1, sy = entry.height > 0 ? rect.height / entry.height : 1
         for s in entry.shapes {
             let r = Rect.fromLTWH(rect.left + s.rect.left * sx, rect.top + s.rect.top * sy, s.rect.width * sx, s.rect.height * sy)
+            if let cid = s.chartID {
+                _ = WriterCharts.paint(id: cid, canvas, r, pxPerPt)
+                continue
+            }
             if let pic = s.picture {
                 if let img = image(pic.key, pic.data) {
                     canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(img.width), Double(img.height)), r, Paint())
