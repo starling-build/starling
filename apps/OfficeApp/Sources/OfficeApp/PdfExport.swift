@@ -11,7 +11,7 @@ import Foundation
 /// (96/in); the canvas is scaled to PDF points (72/in) first.
 enum PdfExport {
     static func write(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
-                      to path: String, title: String) -> Bool {
+                      to path: String, title: String, layoutOnly: Bool = false) -> Bool {
         // A document with comments or tracked changes prints with its
         // markup, as Word prints it by default: the page smaller, its
         // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
@@ -48,6 +48,10 @@ enum PdfExport {
             RunLoop.main.run(until: Date().addingTimeInterval(0.005))
         }
         #endif
+
+        // (`--trace-rules`: laid out, and every header and text box with it,
+        // as a PDF is written from them; no page of it is.)
+        if layoutOnly { return true }
 
         var pages: [PdfDocument.Page] = []
         for p in 0 ..< layout.pageCount {

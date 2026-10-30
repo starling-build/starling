@@ -412,10 +412,39 @@ if let i = CommandLine.arguments.firstIndex(of: "--read-bench"), i + 1 < Command
     exit(ReadBench.run(Array(CommandLine.arguments[(i + 1)...])))
 }
 
+// `--trace-rules <in>`: the document laid out as `--convert in out.pdf` lays
+// it out, without the PDF; with OFFICE_RULE_TRACE=<file> set, the rules it
+// reaches (`RuleTrace.hit`) are appended there. Several times faster than
+// a conversion, for finding which documents a change can move.
+if let i = CommandLine.arguments.firstIndex(of: "--trace-rules"), i + 1 < CommandLine.arguments.count {
+    let src = CommandLine.arguments[i + 1]
+    initializeHeadlessText()
+    RuleTrace.document = src.lastPathComponent.deletingPathExtension
+    do {
+        let opened = try OfficeFormats.read(src)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.drawn
+        theme.faceResolver = OfficeFonts.face
+        theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+        theme.symbolAdvance = Metafile.symbolAdvance
+        theme.wordRules = true
+        theme.disablesLigatures = true
+        _ = PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
+                            to: "", title: src.lastPathComponent, layoutOnly: true)
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("trace failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
     let src = CommandLine.arguments[i + 1]
     let dst = CommandLine.arguments[i + 2]
     initializeHeadlessText()
+    RuleTrace.document = src.lastPathComponent.deletingPathExtension
     do {
         let opened = try src == "welcome"
             ? OpenedDocument(document: WelcomeDocument.make(), pageSetup: .letter)
