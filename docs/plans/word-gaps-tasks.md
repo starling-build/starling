@@ -10963,7 +10963,7 @@ zh-f47b8a74 (98.4): p58's flowchart is a Word drawing canvas (mc:Choice Requires
   Left: lo-6b6ece9c (a rot=0 value-axis title wraps in three lines at the left), lo-a994ad5c (multi-level categories), pie labels' bestFit placement (lo-f9b9a8fc), the rest score 0
   (no chart text in Word's print); lo-40949e85 (a text box above the chart) and lo-3a0ca937 (anchored shapes under it) are NOT chart matters.
 
-### T248. LibreOffice FRAMES: drop caps (tdf150438, tdf150200) and the frame that drew nothing (tdf147485) — WIP PUSHED wip/lo-dropcap 0ad7be37c, awaiting windows-1 (Linux office1, 2026-10-30)
+### T248. LibreOffice FRAMES: drop caps (tdf150438, tdf150200) and the frame that drew nothing (tdf147485) — WIP PUSHED wip/lo-dropcap 0ad7be37c, awaiting windows-1 (Linux office1, 2026-10-30) — LANDED lo-dropcap reader (round 8 passed; windows-1: tdf150438 0 -> 100); lo-dropcap3, lo-frame in round 9
 Drop caps were not implemented: the cap's own paragraph (framePr dropCap=drop lines=N, an exact line of N lines) was set on a line of its own and the
 text under it. Word sets the cap at (N-1) text lines over the cap height + the text's size (53pt for 11pt text, 3 lines), its baseline on the Nth line's, the
 first N lines of the paragraph beside it at the cap's advance. Built (reader, Docx.swift _foldDropCaps): the cap becomes an anchored box (wrapSquare) at the
@@ -10975,7 +10975,7 @@ floating object (Docx _float took the VML) and drawn one height above its line �
 frame's group 27pt higher (its y 22.8 for frame y 49.8, the page's top margin 27) and 9pt left of ours, and its WordArt glyph lines are 32.
 756 pre-pair (Windows mode, v2): nothing moved. LO set (197 printed): tdf150438 0 -> 100, mean 63.79 -> 64.29, nothing lower.
 
-### T249. LO IMAGES / SHAPES / TEXT BOXES (tdf126426, tdf135035, groupshape-sdt, tdf106153, tdf128198-1, tdf124600) — CLAIMED (Linux office1, 2026-10-30, starling-bd's order)
+### T249. LO IMAGES / SHAPES / TEXT BOXES (tdf126426, tdf135035, groupshape-sdt, tdf106153, tdf128198-1, tdf124600) — CLAIMED (Linux office1, 2026-10-30, starling-bd's order) — lo-groups LANDED (round 8 passed: tdf126426 0 -> 100)
 Windows mode, v2, `DOCX_CORPUS=test/corpus/docx/lo`. Order: the 0% ones first (tdf126426: a group of a picture and a white text box read as one picture; tdf135035: a text box 6pt right and
 51pt low; groupshape-sdt: an SDT in a group shape not drawn), then tdf106153 (84%), tdf128198-1 (44%), tdf124600. Lab kit for the frame logo is T248's (wip/lab-frame).
 
