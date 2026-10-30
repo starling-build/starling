@@ -12805,10 +12805,17 @@ public final class RichLayout {
                             && [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o])
                             && (p.runs[runOf[o]].style.fontHint ?? lineStyle?.char.fontHint) != "eastAsia"
                     }
+                    // (Nor a mark before a tab, in a paragraph of Thai: lab `thq`
+                    // (Windows, zh-6a4fc013's p26 question, "…ที่ 6 ：" and a tab) sets
+                    // the "：" at its full 15.96 at every width, the line's overrun
+                    // taken from the spaces.)
+                    let thaiParagraph = theme.wordRules && RichTextTheme.thaiBreaksAtSpaces
+                        && units.contains(where: { (0x0E01 ... 0x0E5B).contains($0) })
                     let windowsMuted: (Int) -> Bool = { o in
                         runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
                             || latinSlotQuote(o)
+                            || thaiParagraph && o + 1 < units.count && units[o + 1] == 0x09
                     }
                     // (Nor, in Word for Windows, an opening mark right after a
                     // space on a line a tab stands on: lab p10 (zh-015abfaf's
@@ -13421,6 +13428,21 @@ public final class RichLayout {
                         for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) * autoShare * share }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
+                        fits = true
+                    }
+                }
+                // (A Thai stretch's closing "?" hangs past the margin, its whole
+                // advance: lab `thq` (Windows, zh-6a4fc013's questions, reprinted
+                // alone) — "…อย่างไร?" is taken with the "?" 3.85pt past the limit
+                // and the rest of it fitting within 0.6-0.8 of the limit, the line
+                // not stretched; the p26 question 7.7 over, 3.9 beyond the hang,
+                // is left for the next line. Ours measures the Thai a hair wider
+                // than Word's face does, so two points are allowed past the hang.)
+                if !fits, theme.wordRules, RichTextTheme.thaiBreaksAtSpaces, last > a + 1, units[last - 1] == 0x3F,
+                   (a ..< last).contains(where: { (0x0E01 ... 0x0E5B).contains(units[$0]) }) {
+                    let over = x + w - width
+                    if over - boxes(last - 1, last) <= _px(2) + hair {
+                        adjust[last - 1, default: 0] -= over + 0.02
                         fits = true
                     }
                 }

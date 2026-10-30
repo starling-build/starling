@@ -1340,8 +1340,11 @@ line that does it):
   after the colon's space; an ASCII colon avoids the check, which is why Latin "：" fit). Thai words now use
   `_thaiJoins`'s width (0.42 em a base letter, none for marks). zh-6a4fc013 412 -> 577 of 616 lines (v2 66.9 -> 93.7);
   it is the only document in the corpus with Thai text (every package part checked), so nothing else can move.
-  Left: p26's questions (lab thq: the closing "?" hangs its whole 3.85pt, the "：" before the tab is not squeezed,
-  the Thai within ~0.7 of the limit), and a text-layer difference in the "คำถามที่" headings (sara am).
+  Then p26's questions (lab thq, reprinted alone): the closing "?" hangs its whole 3.85pt past the margin, the fit is
+  tested on the stretch without it (taken to ~0.7 over, refused at 0.8), the "：" before the tab is not squeezed.
+  Thai paragraphs only: a "?" ending a Thai stretch hangs and the rest may be 2pt over (ours is a hair wider than Word's
+  face); a mark before a tab gives nothing. zh-6a4fc013 577 -> 601 of 616 lines (v2 93.7 -> 97.6), 27 of 27 pages.
+  Left: a text-layer difference in the "คำถามที่" headings (sara am) and a line broken mid-word 3 characters apart.
 
 - **An unhinted curly quote gives nothing, in Word for Windows (2026-10-29).**
   A “ ” ‘ ’ whose run is not hinted `eastAsia` is set in the Latin slot,
