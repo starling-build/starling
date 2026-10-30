@@ -10078,11 +10078,11 @@ zh-d9b085b1 15.9 (Windows 100), zh-5c7787f5 79.5 (was 100 on n3: a regression?),
 Skipped: zh-e8d4c046 33.3 — its fresh Mac reference's text layer differs from the document (49% CJK against 91%, text
 similarity 0.57): a reference artefact.
 
-### T232. zh-64044a1d: 95.3 against word-win (p35-p37, 66 lines) — CLAIMED (Linux office1, 2026-10-29, macos's Windows-mode 95-97 band)
+### T232. zh-64044a1d: 95.3 against word-win (p35-p37, 66 lines) — DONE (Linux office1, 2026-10-29, macos's Windows-mode 95-97 band)
 Left after T214: p35-p37's run (24 + 29 + 13 missed lines) and singles on p10, p11, p14, p34, p53.
 Cause: p34's one-line keepLines "資料來源：本計畫整理。" went to p35 because its space after did not fit; Word keeps it at the foot.
 Fix pushed as wip/keeplines-foot e52785b35; Linux pre-pair (Windows mode, 756): zh-64044a1d 95.3 -> 99.7, nothing else moved.
-AWAITING windows-1's Windows-box confirmation.
+CONFIRMED by windows-1 round 1 (Windows box, v2, 756 docs, base office 48f2a382): zh-64044a1d 95.4 -> 99.7, nothing dropped. Landed.
 
 ### T233. zh-f2835e26: 95.7 against word-win (p5 "创新发展") — CLAIMED (Linux office1, 2026-10-29, band 95.0-95.9)
 A turned (tbRlV) cell centred across, in a row that parts at p5's foot, is set 92pt down its cell: the parted row's centring
