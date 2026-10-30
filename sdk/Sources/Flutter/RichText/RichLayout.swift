@@ -952,6 +952,10 @@ public struct PageSetup: Hashable, Sendable {
     public var pageNumberFormat: String? = nil
     /// The section's line numbers (`w:lnNumType`), nil where it has none.
     public var lineNumbers: LineNumbering? = nil
+    /// The section's vertical alignment of a page's text (`w:vAlign`):
+    /// "center", "bottom" or "both" (spread between the paragraphs); nil is
+    /// the top.
+    public var verticalAlign: String? = nil
     /// An explicit odd/even section start (`w:type`). Its page numbers,
     /// rather than physical sheet indices, determine the requested side.
     public enum PageParity: Int, Hashable, Sendable { case even = 0, odd = 1 }
@@ -17192,6 +17196,44 @@ public final class RichLayout {
         }
     }
 
+    /// Page `p`'s pieces moved down by the section's `w:vAlign` (keyed as
+    /// `_lineNumberOrdinals`), nil where the page keeps to the top: the
+    /// text's block centred between the margins, set on their foot, or
+    /// (`both`) its paragraphs spread so the first stands at the top and
+    /// the last at the foot.
+    private func _verticalAlignShifts(_ p: Int, _ document: RichDocument) -> [Int: Double]? {
+        guard theme.wordRules, p >= 0, p < pageCount else { return nil }
+        var members: [(key: Int, piece: PagePiece)] = []
+        var extent = 0.0
+        for column in 0 ..< _columns {
+            let slot = p * _columns + column
+            guard _pages.indices.contains(slot) else { continue }
+            for (index, piece) in _pages[slot].enumerated() where piece.part != .rules && !piece.repeated {
+                members.append((slot * 1_000_000 + index, piece))
+                extent = max(extent, piece.pageY + piece.height)
+            }
+        }
+        guard let first = members.first?.piece.paragraph, first < document.paragraphs.count,
+              let align = _setup(ofParagraph: first).verticalAlign, align != "top" else { return nil }
+        let setup = pageSetup(forPage: p)
+        let room = _pxPageH(p) - _pxMarginTop(p) - _px(setup.marginBottom)
+        let spare = room - extent
+        guard spare > 0.5 else { return nil }
+        var out: [Int: Double] = [:]
+        switch align {
+        case "center": for m in members { out[m.key] = spare / 2 }
+        case "bottom": for m in members { out[m.key] = spare }
+        case "both":
+            // (By paragraph: a paragraph's pieces move together.)
+            var order: [Int] = []
+            for m in members where !order.contains(m.piece.paragraph) { order.append(m.piece.paragraph) }
+            guard order.count > 1 else { return nil }
+            for m in members { out[m.key] = spare * Double(order.firstIndex(of: m.piece.paragraph) ?? 0) / Double(order.count - 1) }
+        default: return nil
+        }
+        return out
+    }
+
     /// The lines of `piece` that Word numbers: those of a body paragraph
     /// (not a table's, a frame's or one that suppresses them) whose tops
     /// stand in the piece. Positions are the paragraph painter's own.
@@ -17270,6 +17312,7 @@ public final class RichLayout {
             let ordinals = numbered ? _lineNumberOrdinals(document) : [:]
             for p in firstPage ... lastPage {
                 let pageTop = pageRect(p).top + _pxMarginTop(p)
+                let verticalShifts = _verticalAlignShifts(p, document)
                 for column in 0 ..< _columns {
                     let slot = p * _columns + column
                     guard _pages.indices.contains(slot) else { continue }
@@ -17284,7 +17327,7 @@ public final class RichLayout {
                         let across = _fullWidthCover.contains(piece.paragraph)
                         let clipL = across ? 0 : columnClipL
                         let clipR = across ? _pxPageW(p) : columnClipR
-                        let top = pageTop + piece.pageY
+                        let top = pageTop + piece.pageY + (verticalShifts?[slot * 1_000_000 + pieceIndex] ?? 0)
                         let bottom = top + piece.height
                         if bottom < visible.top || top > visible.bottom { continue }
                         canvas.save()
