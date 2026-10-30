@@ -10594,7 +10594,7 @@ frames only): RichTextBox.anchor, ctr/b, via the first paragraph's space before.
 zh-291fcea7 98.0 -> 99.7, zh-77bd4900 99.5 -> 99.9, zh-e2dc9dce 98.9 -> 99.4, zh-bdae17c0 99.1 -> 99.2, none down. 756 pre-pair running.
 wip/t241-shape-anchor 4f0b145d (Windows mode, v2, 756 pre-pair): zh-291fcea7 98.0 -> 99.7, zh-77bd4900 99.5 -> 99.9, zh-e2dc9dce 98.9 -> 99.4, zh-bdae17c0 99.1 -> 99.2; none down. Asked windows-1 for a candidate sweep.
 
-### T242. zh-b62c9e11 (98.0, p2:2 p5:1 p8:2 p15:1) and zh-cd8987db (98.3, p1:3 p7:1 p10:1) against word-win — CLAIMED (Linux office1, 2026-10-30, band 98.0-98.4)
+### T242. zh-b62c9e11 (98.0, p2:2 p5:1 p8:2 p15:1) and zh-cd8987db (98.3, p1:3 p7:1 p10:1) against word-win — WIP PUSHED (T243 wip/t243-ge-break 97aa86b3), awaiting windows-1 (Linux office1, 2026-10-30, band 98.0-98.4)
 Looking at both on the new base; each is measured before any fix is built.
 
 ### T243. zh-8415d258 (96.2 -> 98.0 on the office tip, 11 of 553 lines) against word-win — RELEASED, measured (Mac 7bd18d8e, 2026-10-30, Windows mode)
@@ -10610,3 +10610,5 @@ paragraphs' two leading U+2003) took the first lines. What is left, all on p1-p2
   Tried guarding that clause for a line of ideographs with no mark and no space (RuleTrace t243-ideographs-alone: 163 documents reach it): the
   214-document pair (reached + canaries) moved nothing, zh-8415d258 included, so the signature line takes the take another way; dropped.
   The trace of that line was not isolated (the fit key "水利部办公厅" also names the cover table's cells).
+zh-b62c9e11 is already 100 on the current base. zh-cd8987db (98.3): p7 "5.6.2 … 每a≥3次。" — Word ends the line "…每a≥" (breaks after the East Asian ≥, squeezing three marks); ours kept "a≥3" whole. Built: a line may end after a ≥ or ≤ set East Asian (hinted run), before a non-space. 756 pre-pair (Windows mode, v2, wip/t243-ge-break 97aa86b3): zh-cd8987db 98.3 -> 98.6, zh-447f1d5c 99.4 -> 99.5, ONE dip: zh-0060058e 99.9 -> 99.8 (same 1709/1718 lines; its "≤" paragraph on p41: line 1 now agrees with Word, but ours fits 均 on line 2 where Word's justified line, 0.9pt short, cannot — digits of the stand-in FangSong are 8.00 where Word's are 8.04 (10 digits = 0.4pt) — the old lines matched only because the misplaced ≤ cancelled that). Left for windows-1 to judge; not a layout regression in the rule.
+Not done in zh-cd8987db: p1 cover (floating ICS/CCS frame table 9pt/2pt off; the logo table's "5308" 32pt/14pt off), p10 "附录A" label 4pt high (exact 20pt line, numbered empty paragraph).
