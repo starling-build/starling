@@ -10240,24 +10240,20 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - zh-c5f59397's REFERENCE IS STALE. Mode 15, ref 貳、 at 65.28 (kept), but fresh whole prints give 55.32 (dropped),
     3 of 3. Its mode-12 sibling zh-a498e874 keeps 65.28 fresh, 3 of 3, as its ref does. Needs the user's OK to reprint.
     Any other mode-15 "keeper" is a reference suspect. ~/starling-doc-check/lab/brk2 (mk*.py; re/ = reprints).
-(19) FULL REFERENCE AUDIT, IN PROGRESS (Windows 01QbbApP; user-approved via macos/starling-bd, 2026-10-30): every
-  word-win reference not yet reprinted alone in a fresh Word gets reprinted that way, compared glyph by glyph, and replaced
-  if it changed.
-  - Done: zh-c5f59397 (e9b689b8), then the page-break set (3122c6d4, 39 replaced). That set is the code's predicate: mode >= 15,
-    a paragraph opened by its own page break, before > 0; 50 docs. All 37 年度重要計畫 references (T238's list) were stale
-    (fresh: 貳、 at 55.32, the space dropped; the old refs had 65.28), so T238's mode-15 rule can be re-paired. zh-15ecc2c6 and
-    zh-c2c92639 also moved; 10 unchanged.
-  - Left: 388 references (~/starling-doc-check/audit2/chunk-00..07, 50 each). chunk-00 has 2 printed, then it was stopped for
-    the session restart.
-  - SCORE IMPACT of e9b689b8 + 3122c6d4 (v1 line match, bin-wae2 = office 29b627ef + wordart-wae, Windows mode, bundled
-    fonts, WITHOUT lenovo's page-break rule): the 40 replaced documents go from a mean 99.87 against the old references to
-    72.97 against the new ones (page counts unchanged). Worst: zh-c5f59397 100 -> 20.8, zh-25381d22 99.3 -> 31.2,
-    zh-4f883dce 100 -> 39.9, zh-84377537 and zh-bd71a808 100 -> 44.3, zh-3ab01d90 and zh-d18c892e 100 -> 56.9. Each is the
-    same cause: ours keeps 貳、's 10pt space before on the new page and every line below sits 10pt low. The rule (mode >= 15
-    drops it) is what restores them; lenovo measured its patch before the swap at zh-604e21e5 98.2 -> 100 and
-    zh-ae2dd08d 95.2 -> 98.3, so landing it should turn this 72.97 back to ~100. Do not read the 72.97 as a regression.
-  - In pairing: wip/wordart-wae 98cb1490 (lab wae; WordWithAttachments 31 -> 38/38), windows-1 round 4.
-  Labs since (18): bsw (lenovo-2: zh-6c447317's narrow balanced spaces come from the missing 仿宋_GB2312, state-dependent;
+(19) FULL REFERENCE AUDIT, DONE (Windows 01QbbApP; user-approved via macos/starling-bd, 2026-10-30): every word-win reference
+  was reprinted alone in a fresh Word and compared glyph by glyph (positions to 0.01pt, characters, pages).
+  - c5f59397 (e9b689b8); the page-break set, 39 replaced (3122c6d4); then the other 338: 316 identical, 22 differ, each
+    reproducing exactly on a solo reprint. 17 differ only in the character code of an identical glyph at the same position
+    (CJK compatibility forms such as U+F92F for U+52DE, private-use/surrogate codes); the scorer folds NFKC, so they were
+    LEFT. 5 moved on the page and were replaced (0e8ae25d): rtl, zh-33aa9899, zh-81aa310b, zh-b8de3ae2, zh-d97c5474.
+  - Score impact: the 40 page-break replacements take their mean line match from 99.87 to 72.97 until the mode-15 rule lands
+    (ours keeps 貳、's space; worst c5f59397 100 -> 20.8, 25381d22 99.3 -> 31.2); the 5 above: zh-b8de3ae2 660 -> 644 of 726,
+    the other four unchanged (v1, wordart-wae build).
+  - Process: for a stretch, several of my print loops ran at once (the stop killed print.sh and Word but not the runall.sh
+    parent). The 15+7 differing documents were reprinted one at a time and came out identical, and lab thq's five were
+    re-verified solo, so no result moved. print.sh now holds an atomic lock and refuses a second print or a running Word.
+  - In pairing: wip/wordart-wae 98cb1490 (lab wae), windows-1 round 4. Next: the 200 LibreOffice documents (test/corpus/docx/lo).
+  Labs since (18): sqz (66) and sqz2 (52; refuse at 0-1 twip, take from 2, the same for 。，、；), thq (hang of "?"), bsw (lenovo-2: zh-6c447317's narrow balanced spaces come from the missing 仿宋_GB2312, state-dependent;
   bsp's paragraph is justified), spm3 S0-S8 (nothing moves zh-7773163d), eec/eef/eeg (windows-3: merged header rows), bkt
   (windows-3, parked), vmp + fine sweep (lenovo-2: a merged-down cell keeps the lines whose box ends inside the row's piece,
   the piece = max(trHeight, unmerged cells' kept lines)).
