@@ -225,6 +225,33 @@ item (3) above (decision table, lab gs). Labs through starling-bd to `windows`.
   Witness (windows-2): zh-6b242483 (mode 14, lines-only grid, 仿宋_GB2312 16pt, hinted eastAsia) p6 "…共计36个工作日。9（家）" |
   "×1": ours takes the lone "×" 5.1 over by the legacy test (4 marks, need/marks 1.3 under 10.9 of stretch); Word stretches instead.
 
+### Faster pairs: feature index, rule trace, subset sweeps (test/tools/) — LANDED (Linux 01F2SWc8 lenovo-3, 2026-10-30, starling-bd's assignment)
+While developing a fix, sweep only the documents it can reach (103 documents: 176 s a sweep, against 18-50 min for 756). The full Windows-box
+confirmation (windows-1) stays before landing: it is where already-perfect documents catch regressions.
+1. SELECT by feature. `test/tools/docx-select.py 'EXPR' [--keyfile F] [--show A,B] [--count] [--canaries]`. EXPR is Python
+   over the features of `test/tools/docx-features.py` (one pass over the packages, ~15 s, cached in ~/.cache/starling;
+   `--list` names all ~100: mode, grid, kinsoku_off, langs_ea, tables_merged, textboxes, vml, wordart, charts, smartart,
+   header_types, hf_page_field, pagebreak_first, pagebreak_first_before, line_exact, lists, ...). Example, T238's rule:
+   `docx-select.py 'mode >= 15 and pagebreak_first_before > 0'` -> 51 documents, every one of the 39 its first cut dropped.
+2. TRACE by rule. Put `RuleTrace.hit("name")` (sdk, RichText/RuleTrace.swift) on the branch you changed. With
+   `OFFICE_RULE_TRACE=<file>` set it appends "document<TAB>name" once per document that reaches it; unset it does nothing, so
+   no score can move (checked: cmp on a full sweep, trace off). `OfficeApp --trace-rules doc.docx` lays a document out as a PDF
+   would be written, without writing it. `docx-sweep.sh WORK -t -k SUPERSET` runs it over a superset and leaves
+   WORK/trace.keys. It is NOT faster than a conversion (measured: same time, the layout is the cost), so trace a feature-
+   selected superset (195 mode-15 documents: 206 s), not all 756.
+3. SWEEP the subset. `test/tools/docx-sweep.sh WORK [-k KEYFILE] [-c] [-j 4]`: converts those documents (Windows fonts,
+   bundled faces), scores v1 -> match.txt and v2 -> match-v2.txt. `-c` adds the canary set (test/corpus/docx/canaries.txt, 54
+   small documents, one or two of each of ~35 feature classes: modes, grids, kinsoku, languages, tables, text boxes, VML,
+   charts, SmartArt, footers, page breaks, exact lines, lists, embedded fonts ...). Rebuild it with `--make-canaries`.
+   A cheap pair = candidate and base each on `-k keys -c`, then compare match-v2.txt as usual.
+Windows-box scripts: any sweep script that reads a list of names can take the key files as they are (one key a line; a key
+may be a prefix; a tab ends it).
+PROOF, T238 (Linux, office aee18a94 + tools): select 'mode >= 15 and pagebreak_first_before > 0' -> 51 documents (all 39 its first
+cut dropped). Trace of the 195 mode-15 documents with t238's hit -> 44 reach it. Candidate pair on those + canaries (98 docs,
+185 s a sweep): against the old references 38 of the 39 drops show; against the audited references 41 documents rise, none drop.
+Trace off changes nothing: a full sweep with the tools in vs a build without: v1 and v2 score files identical, 755/756 PDFs
+byte-identical (zh-b8de3ae2's page 9 differs between ANY two runs; a late-decoded picture).
+
 ### Line matcher v2 (test/docx-line-match.py, DOCX_LINE_MATCH=v2) — LANDED; v2 official from windows-1's next baseline (user-approved) (Linux 01F2SWc8 lenovo-3, 2026-10-29, starling-bd's assignment)
 Opt-in switch; the default (v1) is byte-identical to the old matcher over a 756-doc Windows base. Report v1 alongside for a
 while. v2 reads lines from the page's glyphs: whitespace takes no part; a line is the glyphs on one baseline (origins,
