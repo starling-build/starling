@@ -9801,9 +9801,13 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
 
 
 ### T223. zh-5a9a85c6 p18-19: a text-floating table's first row past the margin, above the footer — CLAIMED Mac 7bd18d8e 2026-10-30 (baseline #1 95.7; was lenovo-2's, released): at the offset placement, Windows mode
+- LANDED (Mac 7bd18d8e, 2026-10-30), after windows-1's round 2 on the Windows box (nothing dropped; zh-d0a207ac +3.6, zh-e51c31a7 +2.8,
+  zh-76cb73e2 +2.1, zh-264d7516 +0.4): 521f747b (a line whose first line meets a wrapped float below its top goes under it,
+  zh-e51c31a7's text-box wrap) and a178cb8f (a linked header's or footer's fit-to-text box keeps the width from the first
+  page that part is on, in any section, zh-d0a207ac). zh-d0a207ac 391/391; zh-e51c31a7 241/248 (the rest: p17's flowchart box text 1.3-3.5pt high, a lab; superscript c269eb8f is in round 4).
 - BUILT, wip/5a9a85c6-floattable 001e6183 (Mac 7bd18d8e, 2026-10-30), Windows mode only: the table stays with its anchor
   (the paragraph after it) while that fits, and its first row stands past the margin down to the footer's place.
-  zh-5a9a85c6 95.7 -> 100 (372/372). Same-base pair NOT yet run (stopped for the session's restart): next is w109 base / w110.
+  zh-5a9a85c6 95.7 -> 100 (372/372). Pair run (Mac, Windows mode, v2, same base): only zh-5a9a85c6 moved, 95.7 -> 100 (372/372), 645+105 documents, nothing lower, Docx 201/0; queued with windows-1 after T238.
 "全县增援武警力量梯次名额分配表" (tblpPr vertAnchor text, tblpY 881) falls 760.8pt down p18, past the 757 foot (bottom margin 1701, footer 992). Word for Windows sets its first row there, 760.8-792.0, just above the footer's place at 792.4, and the rest on p19; ours takes it all to p19, a row late. The same footer-edge room as T222 (e70bd5d3), here row by row for a table floating by the text. Pairing in both modes.
 Tried and dropped (lenovo-2): (1) every text-floating table's rows using the room down to the footer's place: a dozen documents down in Windows mode (zh-c97500b6 100 -> 30, zh-588ee9e3 100 -> 53, zh-9ba2ead7 99 -> 58). (2) That only for a first row that starts past the foot: no change at all, zh-5a9a85c6 included. Such a table is sent over before the row loop sees it (its offset placement, `textFloatTop` / `raiseAtHead`), and that is where a fix belongs. RELEASED with that.
 
