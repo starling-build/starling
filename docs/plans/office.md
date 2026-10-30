@@ -1332,6 +1332,17 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **A Thai word is measured by its shaped width, not letter by letter, for "wider than the line" (2026-10-30).**
+  `_wideWordStarts` sends a word wider than the line to a line of its own, and summed each character's advance alone;
+  for Thai (a base letter alone is wider than in a word) that put zh-6a4fc013's 392.7pt stretch over a 467.8 column
+  ("คำถามที่ 4 ： บทลง…เป็นเท็จ?", after an ideograph and a space) and forced a U+2028 before it, so p18's headings
+  took two lines and every page after ran one late. Found by dumping the span the engine laid out (a U+2028 sat
+  after the colon's space; an ASCII colon avoids the check, which is why Latin "：" fit). Thai words now use
+  `_thaiJoins`'s width (0.42 em a base letter, none for marks). zh-6a4fc013 412 -> 577 of 616 lines (v2 66.9 -> 93.7);
+  it is the only document in the corpus with Thai text (every package part checked), so nothing else can move.
+  Left: p26's questions (lab thq: the closing "?" hangs its whole 3.85pt, the "：" before the tab is not squeezed,
+  the Thai within ~0.7 of the limit), and a text-layer difference in the "คำถามที่" headings (sara am).
+
 - **An unhinted curly quote gives nothing, in Word for Windows (2026-10-29).**
   A “ ” ‘ ’ whose run is not hinted `eastAsia` is set in the Latin slot,
   full-width or not by the face there, and no line-end squeeze takes room

@@ -13980,6 +13980,21 @@ public final class RichLayout {
                         return sum + table[Int(u) - 0x20] * px / face.sizeScale + (style.letterSpacing ?? 0)
                     }
                 }
+                // (Thai by the width it is set at, as `_thaiJoins` has it, not
+                // letter by letter: each base letter alone is wider than it
+                // stands in a word, and zh-6a4fc013's "คำถามที่ 4 ： บทลง…เป็นเท็จ?"
+                // (392.7 of a 467.8 column, after an ideograph and a space)
+                // was sent to a line of its own, and the lines of every page
+                // after it ran one late, p18 on.)
+                if RichTextTheme.thaiBreaksAtSpaces, let px = style.fontSize, px > 0.5,
+                   word.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
+                    width = word.utf16.reduce(0.0) { sum, u in
+                        if (0x0E01 ... 0x0E5B).contains(u) {
+                            return sum + ([0x0E31, 0x0E34, 0x0E35, 0x0E36, 0x0E37, 0x0E38, 0x0E39, 0x0E3A, 0x0E47, 0x0E48, 0x0E49, 0x0E4A, 0x0E4B, 0x0E4C, 0x0E4D, 0x0E4E].contains(u) ? 0 : 0.42 * px)
+                        }
+                        return sum + 0.5 * px
+                    }
+                }
                 if width > textWidth { out.insert(k) }
                 painter.dispose()
             }
