@@ -1259,6 +1259,11 @@ public final class RichLayout {
     /// The boxes that hold a paragraph's later lines in beside that float, by
     /// the offset each line starts at, in layout pixels.
     private var _besideBoxes: [[Int: Double]] = []
+    /// Where a paragraph set beside a float at its right has its lines end
+    /// (paragraph offsets): a line break there in the painter's text, never the
+    /// document's, after a box of the float's width (`_besideBoxes`) so that a
+    /// centred or right-aligned line stands in what the float leaves.
+    private var _besideBreaks: [Set<Int>] = []
     /// Paragraphs laid out before the rows of the table they sit beside were
     /// measured: laid out again once those are.
     private var _besidePending: Set<Int> = []
@@ -1406,6 +1411,7 @@ public final class RichLayout {
         _leadWidth = Array(repeating: 0, count: n)
         _besideLead = Array(repeating: 0, count: n)
         _besideBoxes = Array(repeating: [:], count: n)
+        _besideBreaks = Array(repeating: [], count: n)
         _boxFirstLineShift = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
@@ -1483,6 +1489,7 @@ public final class RichLayout {
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _besideLead.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _besideBoxes.insert(contentsOf: Array(repeating: [:], count: n), at: at)
+                _besideBreaks.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _boxFirstLineShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -1524,6 +1531,7 @@ public final class RichLayout {
                 _leadWidth.removeSubrange(at ..< end)
                 _besideLead.removeSubrange(at ..< end)
                 _besideBoxes.removeSubrange(at ..< end)
+                _besideBreaks.removeSubrange(at ..< end)
                 _boxFirstLineShift.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
@@ -7965,14 +7973,17 @@ public final class RichLayout {
         // Laid out once as they fall, the lines the float reaches get a box
         // each at their start, and laid again until they settle.)
         _besideBoxes[i] = [:]
+        _besideBreaks[i] = []
+        var besideRight = false
         var besideIndent = _besideLead[i]
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
-        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band }
+        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
         if besideIndent > 0, let band = besideBand {
             let original = _px(firstLineIndent(p, at: i, document))
             var boxes: [Int: Double] = [:]
             var firstBeside = true
+            var settledStarts: [Int] = [], settledBeside: [Bool] = []
             for _ in 0 ..< 8 {
                 _besideBoxes[i] = boxes
                 let (trialSpan, trialInline, trialInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside ? max(original, besideIndent) : original,
@@ -7985,17 +7996,39 @@ public final class RichLayout {
                 trial.dispose()
                 var next: [Int: Double] = [:]
                 var first = false
+                var flags: [Bool] = []
                 for (k, start) in starts.enumerated() where k < bottoms.count {
                     let top = k == 0 ? 0 : bottoms[k - 1]
-                    guard bottoms[k] > band.top + 0.01, top < band.bottom - 0.01 else { continue }
+                    let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
+                    flags.append(beside)
+                    guard beside else { continue }
                     if k == 0 { first = true } else { next[start] = besideIndent }
                 }
-                        if next == boxes, first == firstBeside { break }
+                settledStarts = starts; settledBeside = flags
+                if next == boxes, first == firstBeside { break }
                 boxes = next
                 firstBeside = first
             }
             _besideBoxes[i] = boxes
-            if !firstBeside { lead = original; _leadWidth[i] = lead }
+            if besideRight {
+                // (At the right: no box at a line's start. Each beside line ends
+                // where the next begins, with a box of the float's width after
+                // its text (not its trailing spaces) and a forced line end.)
+                var ends: Set<Int> = []
+                var trailing: [Int: Double] = [:]
+                let units = Array(p.text.utf16)
+                for (k, beside) in settledBeside.enumerated() where beside && k + 1 < settledStarts.count {
+                    let end = settledStarts[k + 1]
+                    guard end > 0, end <= units.count else { continue }
+                    var before = end
+                    while before > 0, units[before - 1] == 0x20 { before -= 1 }
+                    ends.insert(end)
+                    trailing[before] = besideIndent
+                }
+                _besideBreaks[i] = ends
+                _besideBoxes[i] = trailing
+                lead = original; _leadWidth[i] = lead
+            } else if !firstBeside { lead = original; _leadWidth[i] = lead }
             else if lead < besideIndent { lead = besideIndent; _leadWidth[i] = lead }
         }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
@@ -11028,7 +11061,8 @@ public final class RichLayout {
             // `_besideBoxes`.)
             let runStart = pos - run.length
             let besideHeld = index.map { $0 < _besideBoxes.count ? _besideBoxes[$0] : [:] } ?? [:]
-            let cuts = besideHeld.keys.filter { $0 > 0 && $0 >= runStart && $0 < pos }.sorted()
+            let besideEnds = index.map { $0 < _besideBreaks.count ? _besideBreaks[$0] : [] } ?? []
+            let cuts = Set(besideHeld.keys).union(besideEnds).filter { $0 > 0 && $0 >= runStart && $0 < pos }.sorted()
             if cuts.isEmpty {
                 children.append(contentsOf: styled(p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
             } else {
@@ -11039,10 +11073,16 @@ public final class RichLayout {
                         let x = utf16.index(a, offsetBy: from - runStart), y = utf16.index(a, offsetBy: o - runStart)
                         children.append(contentsOf: styled(p.text[x ..< y], run.style, at: from, next: p.text[y]))
                     }
-                    children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: boxStyle))
-                    inline.append((nil, PlaceholderDimensions(size: Size(besideHeld[o] ?? 0, 0.01), alignment: PlaceholderAlignment.baseline,
-                                                              baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
-                    inserts.append(o)
+                    if let width = besideHeld[o] {
+                        children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: boxStyle))
+                        inline.append((nil, PlaceholderDimensions(size: Size(width, 0.01), alignment: PlaceholderAlignment.baseline,
+                                                                  baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
+                        inserts.append(o)
+                    }
+                    if besideEnds.contains(o) {
+                        children.append(TextSpan(text: "\n", style: boxStyle))
+                        inserts.append(o)
+                    }
                     from = o
                 }
                 let x = utf16.index(a, offsetBy: from - runStart)
@@ -11552,14 +11592,14 @@ public final class RichLayout {
     /// the stretch of the paragraph's height it takes; nil for none. It is
     /// anchored in the paragraph itself or in one of the few before it in the
     /// same cell (or the body), the paragraphs between standing under it.
-    private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double))? {
+    private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !p.style.rightToLeft else { return nil }
         // (A cell's text is as wide as the cell less its margins, not the page's
         // column.)
         let cell = p.cell != nil && i < _cells.count ? _cells[i] : nil
         let inner = cell.map { max(0, $0.colWidth - $0.pad.left - $0.pad.right) } ?? _flowWidth(i)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-        var best: (indent: Double, band: (top: Double, bottom: Double))?
+        var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool)?
         var offset = 0.0
         var k = i
         while k >= 0, k >= i - 6 {
@@ -11575,29 +11615,50 @@ public final class RichLayout {
             if k < i, p.cell != nil, let image = q.image, image.name == "table", k < _imageSize.count { candidates.append((image, _imageSize[k])) }
             for (image, laid) in candidates {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
-                      float.horizontalAlign == nil, float.wrapSide != "left" else { continue }
+                      float.horizontalAlign == nil || float.horizontalAlign == "left" || float.horizontalAlign == "right" else { continue }
                 let inCell = float.horizontalFrom == "cell" && cell != nil
-                guard inCell || float.horizontalFrom == "column" else { continue }
+                guard inCell || float.horizontalFrom == "column" || (float.horizontalFrom == "margin" && p.cell == nil) else { continue }
                 let column = inCell ? (cell?.colWidth ?? 0) : inner
                 // (A box that takes its text's width is that wide: a drop cap's.)
                 if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                 let w = laid.map { $0.width }
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _px(image.height)
-                let x = _px(float.x)
+                let x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
                 let own = _px(p.style.indentLeft) + (inCell ? (cell?.pad.left ?? 0) : 0)
+                let rightGap = _px(p.style.indentRight) + (inCell ? (cell?.pad.right ?? 0) : 0)
+                guard w > 0 else { continue }
+                let toRight = x + w / 2 >= column / 2
+                if toRight {
+                    // (At the right, with room at its left for three ems and none
+                    // at its right: the lines end short of it. A left-, centre- or
+                    // right-aligned paragraph only — a justified one fills the
+                    // narrowed measure, which waits for the engine's per-line
+                    // width; and one wrapped on its left alone is left to the
+                    // paragraph-by-paragraph push, as before.)
+                    guard p.style.alignment != .justify, float.wrapSide != "right",
+                          column - (x + w) - _px(float.distanceRight ?? 9) < size,
+                          x - _px(float.distanceLeft ?? 9) - own >= size * 3 else { continue }
+                    let narrow = column - rightGap - (x - _px(float.distanceLeft ?? 9))
+                    guard narrow > 0 else { continue }
+                    let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
+                                bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                    guard band.bottom > 0.01 else { continue }
+                    if best == nil || narrow > best!.indent { best = (narrow, band, true) }
+                    continue
+                }
                 // (Not with room at its left for text: that stands round it on
                 // both sides, which the engine does not set.)
-                guard w > 0, x + w / 2 < column / 2, x - _px(float.distanceLeft ?? 9) - own < size else { continue }
+                guard float.wrapSide != "left", x + w / 2 < column / 2, x - _px(float.distanceLeft ?? 9) - own < size else { continue }
                 let edge = x + w + _px(float.distanceRight ?? 9)
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
-                guard edge > own, column - edge - _px(p.style.indentRight) - (inCell ? (cell?.pad.right ?? 0) : 0) >= size * 3 else { continue }
+                guard edge > own, column - edge - rightGap >= size * 3 else { continue }
                 let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                             bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }
-                if best == nil || edge - own > best!.indent { best = (edge - own, band) }
+                if best == nil || edge - own > best!.indent { best = (edge - own, band, false) }
             }
             if k > 0 { offset += _heights[k - 1] }
             k -= 1
