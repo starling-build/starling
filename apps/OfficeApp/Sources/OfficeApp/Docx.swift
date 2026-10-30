@@ -613,6 +613,8 @@ enum DocxFormat {
         // Whether a table style draws borders (Table Grid does, Normal Table
         // does not): a table that says nothing itself takes its style's word.
         var tableBorders: [String: _Borders] = [:]
+        // A table style's own indent (twips), down its w:basedOn chain.
+        var tableIndents: [String: Double] = [:]
         var tableEdges: [String: BorderEdges?] = [:]
         var tableSides: [String: XNode] = [:]
         var defaultBorders: _Borders? = nil
@@ -707,6 +709,17 @@ enum DocxFormat {
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
                     if let b = _borders(node.first("w:tblPr"), "w:tblBorders") { tableBorders[id] = b; break }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
+            }
+            for id in tableNodes.keys {
+                var seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa", let w = Double(ind["w:w"] ?? "") {
+                        tableIndents[id] = w
+                        break
+                    }
                     cur = node.first("w:basedOn")?["w:val"]
                 }
             }
@@ -1611,6 +1624,12 @@ enum DocxFormat {
                 }
                 if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa",
                    let w = Double(ind["w:w"] ?? "") {
+                    style.indent = w / 20
+                } else if node.first("w:tblPr")?.first("w:tblInd") == nil,
+                          let w = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap({ tableIndents[$0] }) {
+                    // (Or its style's: LibreOffice's NumberedList, a table style that
+                    // indents by 360 twips for a list, stands 41pt in from the margin
+                    // in Word's print and stood at it.)
                     style.indent = w / 20
                 }
                 if let own = node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] {

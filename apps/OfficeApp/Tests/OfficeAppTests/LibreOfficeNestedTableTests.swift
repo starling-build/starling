@@ -31,6 +31,29 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         return layout.pageCount
     }
 
+    /// 90pt margin).
+    func testTableStyleIndentIsKept() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-5a78fd37d46a2f88.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let parsed = try DocxFormat.read(data)
+        let doc = parsed.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = parsed.pageSetup ?? .letter
+        layout.pageSetup = setup
+        layout.width = setup.width * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        func left(_ text: String) throws -> Double {
+            let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix(text) })
+            return layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).left / theme.pixelsPerPoint
+        }
+        // (The caret at the paragraph's start stands at its left indent, 18pt, on the table's 18pt.)
+        XCTAssertEqual(try left("."), 36.0, accuracy: 1.5)
+    }
+
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
