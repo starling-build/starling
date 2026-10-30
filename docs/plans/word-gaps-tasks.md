@@ -10337,7 +10337,10 @@ that rule is the next row's top and the table's last bottom rule is drawn below 
   - Process: for a stretch, several of my print loops ran at once (the stop killed print.sh and Word but not the runall.sh
     parent). The 15+7 differing documents were reprinted one at a time and came out identical, and lab thq's five were
     re-verified solo, so no result moved. print.sh now holds an atomic lock and refuses a second print or a running Word.
-  - In pairing: wip/wordart-wae 98cb1490 (lab wae), windows-1 round 4. Next: the 200 LibreOffice documents (test/corpus/docx/lo).
+  - WordArt (lab wae) LANDED: round 4 passed (WordWithAttachments 81.6 -> 100, nothing dropped), 5e18e905. That push was merged onto a
+    Docx.swift from before b75bec0e and dropped its hunk; 57b631c3 restores it (verified: tip == the 3-way merge of both). Lesson:
+    re-fetch and re-merge right before the push, not once at the start.
+  - Next: the 200 LibreOffice documents (test/corpus/docx/lo), printing now.
   Labs since (18): sqz (66) and sqz2 (52; refuse at 0-1 twip, take from 2, the same for 。，、；), thq (hang of "?"), bsw (lenovo-2: zh-6c447317's narrow balanced spaces come from the missing 仿宋_GB2312, state-dependent;
   bsp's paragraph is justified), spm3 S0-S8 (nothing moves zh-7773163d), eec/eef/eeg (windows-3: merged header rows), bkt
   (windows-3, parked), vmp + fine sweep (lenovo-2: a merged-down cell keeps the lines whose box ends inside the row's piece,
