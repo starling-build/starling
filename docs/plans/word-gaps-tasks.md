@@ -58,6 +58,75 @@ zh-f2ca3070 98.7→99.9, zh-31d580df 97.6→98.4, zh-ab34d9cb/zh-633792eb/zh-77b
 zh-15f60bac 98.7→99.0, zh-bdae17c0, zh-7773163d +0.1. Authors land those five. Queue next (round 6): 65b1ce5a, 97aa86b3, 942f299d,
 5da0347a, 52db52eb; probe 66e9f5ee (6 documents, real FangSong).
 
+### OFFICIAL LO BASELINE #1 (Windows box, Windows mode, v2) — office 385c6117 (windows-1, 2026-10-30)
+Rolling base of round 6 (`base6` = release build of office 385c6117, bundled fonts), scored on this checkout's LibreOffice prints
+(DOCX_CORPUS=test/corpus/docx/lo): the ORIGINAL set (the 200 of f4b8e9845, 197 printed) and the FULL printed set (361 of the 608 now in
+the folder). v2 is official; the mean over documents WITH TEXT is the headline, the all-documents mean beside it. Zeros with text are
+real misses (layout absent), not empty prints. The official 756 are unchanged by this entry (baseline #2 above).
+```
+v2 (official):
+  original set (197 printed of 200): 197 documents; mean over documents WITH TEXT 69.476 (180); all-documents mean 63.481; >=95 93; 100% 91; page count equal 176
+  full printed set (361): 361 documents; mean over documents WITH TEXT 64.636 (338); all-documents mean 60.518; >=95 142; 100% 139; page count equal 308
+v1:
+  original set (197 printed of 200): 197 documents; mean over documents WITH TEXT 70.121 (180); all-documents mean 64.070; >=95 94; 100% 92; page count equal 176
+  full printed set (361): 361 documents; mean over documents WITH TEXT 65.199 (338); all-documents mean 61.045; >=95 141; 100% 138; page count equal 308
+lowest 30 of the ORIGINAL set, documents with text (v2; v1 in brackets):
+    0.0 (  0.0) tdf134866                                  lo-73f1dccc
+    0.0 (  0.0) tdf103931                                  lo-74bd0b2f
+    0.0 (  0.0) groupshape-sdt                             lo-83c47ec6
+    0.0 (100.0) tdf169843                                  lo-7e788bd7
+    0.0 (  0.0) btlr-frame-vml                             lo-520b5689
+    0.0 (  0.0) tdf139336_ColumnsWithFootnoteDoNotOccupyEn lo-9749f2b5
+    0.0 (  0.0) outside_long_data_label                    lo-f391267c
+    0.0 (  0.0) tdf129659                                  lo-ccca8bf3
+    0.0 (  0.0) tdf137154                                  lo-b9d70b44
+    0.0 (  0.0) tdf137025                                  lo-0a475ed1
+    0.0 (  0.0) tdf170236                                  lo-d04a7466
+    0.0 (  0.0) tdf138773                                  lo-1e6077df
+    0.0 (  0.0) floattable-center-inline-overlap           lo-5e49366b
+    0.0 (  6.2) tdf150438                                  lo-1c56bb13
+    0.0 (  0.0) tdf135035                                  lo-f8601326
+    0.0 (  0.0) tdf119200                                  lo-f225432f
+    0.0 (  0.0) sdt+framePr                                lo-f1cc2329
+    0.8 (  0.8) fdo43573-2-min                             lo-eb12e7d4
+    1.2 (  1.2) fdo48718-1                                 lo-158005c9
+    2.1 (  2.1) floattable-table-row-keep                  lo-c8e4ecd8
+    4.8 (  4.3) tdf150200                                  lo-e6dce9d6
+    5.4 (  5.3) floattable-next-leaf-in-section            lo-3b33e295
+    6.2 (  6.2) floattable-footer-object                   lo-2d0cbd06
+    7.1 (  7.1) tdf134676                                  lo-948cd424
+    7.1 ( 64.3) tdf134146                                  lo-6b6ece9c
+    7.7 (  7.7) tdf170381-split-float-table-in-float-table lo-148591d5
+    8.3 (  8.3) fdo78885                                   lo-e8e5db45
+    8.3 ( 16.7) tdf130380                                  lo-60124a3f
+   10.3 ( 10.3) tdf88496                                   lo-28f9b886
+   14.3 ( 14.3) tdf69647_text                              lo-52da6bc6
+lowest 20 of the FULL printed set outside the original 197:
+    0.0 textframe-in-shape                         lo-2c85bb14
+    0.0 table-negative-vertical-pos                lo-09677d0b
+    0.0 tdf78727                                   lo-983ce30f
+    0.0 do-not-break-wrapped-tables                lo-853c06a0
+    0.0 tdf115883                                  lo-cc084a84
+    0.0 layout-in-cell-wrapnone-column             lo-960414e4
+    0.0 floattable-anchorpos                       lo-395a4293
+    0.0 floattable-negative-vert-offset            lo-486e8e62
+    0.0 floattable-multi-col                       lo-20f5d558
+    0.0 missing-path                               lo-82a03040
+    0.0 fdo79540                                   lo-8c97b9a2
+    0.0 shape-in-floattable                        lo-be51ab2e
+    0.0 sdt-around-float-table                     lo-0dd5bc0a
+    0.0 tdf79272_strictDxa                         lo-b35c1eb6
+    0.0 floating-table-section-break               lo-84a48df2
+    0.0 floating-table-section-columns             lo-a998edda
+    0.0 floattable-redline                         lo-e998b55c
+    1.0 tdf92157                                   lo-6a5857f2
+    1.2 fdo77887                                   lo-2dc13fbc
+    1.6 tdf38575_fullWidthLine                     lo-c6d022b6
+```
+Where v1 and v2 disagree on the original set: tdf169843 v2 0.0 / v1 100.0; tdf134146 v2 7.1 / v1 64.3; tdf130380 v2 8.3 / v1 16.7 (the v2 reading
+of those lines is worth a look by lenovo-3). Round 6 (65b1ce5a 97aa86b3 942f299d 5da0347a 52db52eb) on the first 107 prints: lo-1e0077c3
+37.5→100, nothing else, none down. Round 7 (queued) scores all 361 LO prints and the 756. Files: ~/starling-doc-check/lo-baseline.txt, r6-base6-lo*.
+
 ### OFFICIAL BASELINE #2 (Windows box, Windows mode, v2) — office a334f282, the FULL-audit references (windows-1, 2026-10-30)
 Rolling base `base4` = release build of office a334f282 (no T238, none of round 4's stack), bundled fonts, 756 documents,
 word-win through 0e8ae25d (every reference now reprinted alone in a fresh Word). Official score is matcher v2.
