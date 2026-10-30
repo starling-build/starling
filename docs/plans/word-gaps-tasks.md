@@ -17,6 +17,16 @@ prints (test/corpus/docx/word-win) are the only target. From now on:
   accepted and noted; more than 1 point blocks the landing until it is explained.
 - Word for Windows labs go to `windows` (the box's only Word driver). Other sessions build and pair.
 
+**BASELINE (the user, 2026-10-29, later): the Windows box's sweep is the official score.** Scores taken on the Mac
+or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: zh-6a4fc013 48.5 there vs 90.7 on a Mac).
+- The official numbers are Windows mode, swept ON the Windows box (DESKTOP-URK35LH), its native engine, per the pair
+  recipe on this board (8d52c101). windows-1 keeps a rolling base sweep of the office tip there and posts its mean and
+  lowest list here after each landing.
+- Pick work from that list. A Linux or Mac session may develop and pre-pair on its own host, but before landing it
+  pushes a wip branch and asks windows-1 for a Windows-box confirmation (candidate vs the rolling base, Windows mode):
+  no document may drop there (the cancelling-errors exception still applies, logged). Mac mode stays a guard (<= 1
+  point per document), run wherever is convenient.
+
 ### Recipe: the 756-document pair on the Windows box (DESKTOP-URK35LH) — reference (Claude windows-1, 2026-10-29)
 Scripts are in `~/starling-doc-check/` (same user home for every session on the box). Copy them under your own
 names before editing; don't edit mine, and don't build in `starling-win-native` (mine).
