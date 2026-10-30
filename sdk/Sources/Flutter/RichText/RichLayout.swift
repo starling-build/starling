@@ -16547,10 +16547,23 @@ public final class RichLayout {
         layout.width = _px(setup.contentWidth)
         // (Its fit-to-text boxes as wide as on the first page this one is
         // on: see `inheritedFitWidths`.)
-        if let first = (0 ..< p).first(where: { q in
-            !_blankPages.contains(q) && _headerFooterSection(q).index == section.index
-                && (_titlePage(q, document) ? "first" : document.evenAndOddHeaders && _pageNumberOf(q, document) % 2 == 0 ? "even" : "default") == type
-        }), let earlier = _headerFooter(kind, page: first, document, pageCount: pageCount) {
+        // (In Word for Windows, the first page the same part is on, in any
+        // section: zh-d0a207ac's sections after the first link to its
+        // footer, a VML "— PAGE —" fit to its text, and the one starting on
+        // page 10 wraps its closing dash under "— 10" there and on, in a box
+        // sized by page 1's "— 1 —"; ours sized it afresh on page 10.)
+        func sameSource(_ q: Int) -> Bool {
+            let own = _titlePage(q, document) ? "first" : document.evenAndOddHeaders && _pageNumberOf(q, document) % 2 == 0 ? "even" : "default"
+            guard own == type else { return false }
+            let theirs = _headerFooterSection(q)
+            if theirs.index == section.index { return true }
+            guard RichTextTheme.wordWindowsPages, let other = document.headerFooters.first(where: {
+                $0.kind == kind && $0.type == type && ($0.section == nil || $0.section == theirs.index)
+            }) else { return false }
+            return other.paragraphs == source.paragraphs
+        }
+        if let first = (0 ..< p).first(where: { q in !_blankPages.contains(q) && sameSource(q) }),
+           let earlier = _headerFooter(kind, page: first, document, pageCount: pageCount) {
             for (k, w) in earlier.layout._fitWidths {
                 guard let bar = k.firstIndex(of: "|") else { continue }
                 layout.inheritedFitWidths[String(k[..<bar])] = w
