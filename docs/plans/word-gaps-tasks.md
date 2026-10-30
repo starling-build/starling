@@ -10859,13 +10859,17 @@ zh-f47b8a74 (98.4): p58's flowchart is a Word drawing canvas (mc:Choice Requires
   Labs: wip/lab-sqz4 dac40997, wip/lab-sqz5 d4b65edc (kits), prints in ~/starling-doc-check/lab/sqz4/OUT and sqz5/OUT on the Windows box.
 - PARKED, the (face, size) first-line indent unit table: not needed — Word follows the file's stored w:firstLine/w:hanging twips when the paragraph's own w:ind writes them with
   the Chars count and they are within 1.5pt of the count (wip-storedindent 52db52eb, filler in windows-1's round 6, zero documents move; zh-360c1df1 F's first line starts at Word's 117.2).
-- CLAIMED, LO CHARTS (starling-bd's order, 2026-10-30; Mac, Sonnet 5.5): first slice on wip/mac-01Xgpbk5-lochart 4071cdfd (3 commits on office ef4e56b0; windows-1 queued):
-  tickLabel (General-format ticks keep their decimals: tdf130969 23.1 -> 100), a Writer chart's title and its axis titles wrap at 80% of the chart (lo-413892fe 14.3 -> 78.6,
-  lo-948cd424 7.1 -> 85.7; Word's own text in lo-948cd424: "the default length of the axis title box is about to 80% of the length of the chart area"), the automatic axis drops
-  zero at exactly 5/6 (lo-60124a3f 8.3 -> 58.3). The 29 LO documents with a chart and a print: mean 45.2 -> 54.5, none lower; the 10 chart documents of the 756 identical.
-  Still to do: tdf122014 and tdf132956 (a Word 2016 column chart's plot is taller and starts nearer its labels: label-to-plot gap 8.3, ours 11.0; the legend of a manual-layout
-  legend spreads its entries 120pt apart), lo-6b6ece9c (a rot=0 value-axis title wraps in three lines at the left), lo-40949e85 is NOT a chart (a text box above it
-  moves the chart down in Word). Also owed before landing: the Slides and Sheets gates (tickLabel and the 5/6 rule are Office-wide).
+- CLAIMED, LO CHARTS (starling-bd's order, 2026-10-30; Mac, Sonnet 5.5): wip/mac-01Xgpbk5-lochart 678b95b4 (7 commits on office ef4e56b0; windows-1 owes the 756 and LO set).
+  (1) tickLabel: General-format ticks keep their decimals (tdf130969 23.1 -> 100). (2) A Writer chart's title and axis titles wrap at 80% of the chart (lo-413892fe,
+  lo-948cd424; Word's own text in lo-948cd424: "the default length of the axis title box is about to 80% of the length of the chart area"). (3) The automatic axis drops zero at exactly
+  5/6 (lo-60124a3f; Word runs 4.4 to 6.2). (4) A 2013-style chart in a Word document (not slide, sheet, chartex) has Word's insets: the plot 2.5pt further left with its labels kept,
+  2.1pt from the frame's right edge, the foot 4.4pt lower and its category labels 1.9pt nearer — unless a legend or axis title sits below the plot. The plot's left, right and bottom
+  edges are within 0.2pt of Word's over ten LO charts (tdf122014 and tdf132956 -> 100, lo-452c2f0f -> 100). (5) An area's data labels stand mid-area under the point (lo-90484c01 58 -> 100,
+  lo-60124a3f -> 83). (6) A Word chart's data-label parts are joined with ", " (lo-f9b9a8fc; geometry only). The 29 LO documents with a chart and a print: mean 45.2 -> 59.5, none lower.
+  Gates run against the tip with a base built from the same tree: Slides painter gate (18 chart decks) 0 changed, Sheets painter gate (168 chart workbooks) 0 changed, the 10 chart
+  documents of the 756 identical (96.6), ChartTests + SheetsChartTests 24 pass.
+  Left: lo-6b6ece9c (a rot=0 value-axis title wraps in three lines at the left), lo-a994ad5c (multi-level categories), pie labels' bestFit placement (lo-f9b9a8fc), the rest score 0
+  (no chart text in Word's print); lo-40949e85 (a text box above the chart) and lo-3a0ca937 (anchored shapes under it) are NOT chart matters.
 
 ### T248. LibreOffice FRAMES: drop caps (tdf150438, tdf150200) and the frame that drew nothing (tdf147485) — WIP PUSHED wip/lo-dropcap 0ad7be37c, awaiting windows-1 (Linux office1, 2026-10-30)
 Drop caps were not implemented: the cap's own paragraph (framePr dropCap=drop lines=N, an exact line of N lines) was set on a line of its own and the
