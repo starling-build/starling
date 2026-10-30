@@ -9260,6 +9260,10 @@ Lab asked of `windows` via macos (the cell alone, w:right stepped; no/one/two ma
   of 83.125), 標楷體 9.968. No whole-dot rule (scaled size, spacing, half-width advance) gives these; it reads as the faces'
   own hinted advances at the scaled size, which the Mac cannot reproduce without the faces' hinting. PARKED (Mac 7bd18d8e)
   with these numbers: a per-face table would be fitting one document.
+  For a Windows-box session (offered via macos): read the faces' own advances at the scaled size there — GDI
+  GetCharABCWidths / DirectWrite glyph metrics, or FangSong's hdmx — at (10.5·w)pt x 600dpi for w 90/95/100, and see
+  whether they give fw's means (仿宋 9.918 at w 95, 標楷體 9.968, both 9.426 at w 90). The rounding block (9.24-dot
+  advances) is in the Mac 7bd18d8e scratchpad as rounding-block.swift if it helps; it took zh-4e5fe46f 92.1 -> 95.4.
 - zh-3c055c9b (w96 93.2) RELEASED by Mac 7bd18d8e, to windows-2 (grid squeeze owner) via macos: every one of its 39 misses is
   one grid behaviour (17pt character grid, mode 15, overflowPunct 0). To take a line's end Word gives back the grid's addition
   of a mark AND the character before it: p9 "…第10892號、" with "號、" 17.0 -> 12.7 each and "、" 3.7 past the margin; p11
