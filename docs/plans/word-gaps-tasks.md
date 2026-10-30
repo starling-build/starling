@@ -9401,6 +9401,9 @@ DONE e70bd5d3: word-win 96.8 -> 98.7, word/ 97.4 -> 100, nothing lower in either
   under its title has its top past the 757 foot; Word sets its first row on p18 at 760.8-792.0 (over the footer) and the rest on
   p19; ours takes it all to p19. Sent to lenovo-2 as a witness for T222.
 - zh-e51c31a7 (95.9): p5's form tail (dashed separators, "收件日期 年 月 日…", check-box rows) a few points off.
+  CLAIMED Linux lenovo-2 (starling-d6), 2026-10-29, macos's Windows-mode round: not a few points — the whole application
+  form is one text box ("外框1", 511.5 x 395.5pt, wrapSquare bothSides, from the margin -12.75), and Word sets the
+  "以下欄位由交通部填寫" paragraph and its table under it; ours runs them under the box from the page's top.
 - zh-77079ee8 (96.5): p5's organisation chart (EAP 推動小組 / 工作圈 / 服務組 text boxes) placed differently.
 
 
