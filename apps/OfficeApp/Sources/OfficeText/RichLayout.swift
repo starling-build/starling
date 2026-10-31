@@ -5103,11 +5103,17 @@ public final class RichLayout {
                 // it above the table.)
                 if theme.wordRules, c.row == 0, c.firstInRow, i > 0, _cells[i - 1]?.table != c.table, y > 0.01, deferredUnder.isEmpty,
                    let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.floatOffsetY == nil, let up = ts.floatRaiseY {
+                    // (A line a point above the table's top is under it too:
+                    // floattable-anchor-next-page's third table, tblpY -269 twips,
+                    // has the line before it 0.55pt short of its top, and that
+                    // line stands under it, 481.4, in Word's print.)
                     let target = y - _px(up)
                     if target >= 0 {
                         var moved: [PagePiece] = []
+                        var edge = y
                         while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
-                              last.pageY >= target - 0.01 {
+                              last.pageY >= target - _px(1) || edge - _px(document.paragraphs[last.paragraph].style.spaceAfter) > target + 0.01 {
+                            edge = last.pageY
                             moved.insert(_pages[page].removeLast(), at: 0)
                             if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
                         }
