@@ -819,11 +819,11 @@ struct PptxReader {
     static func tile(_ tile: XNode?, image: Data?, into f: inout SlideFill) {
         f.tiled = true
         // At the picture's own resolution (its declared dpi) times `sx` and
-        // `sy`. One that declares none comes out at 144 dpi — as measured
-        // against PowerPoint's (for Mac) export of
-        // lo-page_transparent_bitmap, a 94 px PNG drawn 47 pt wide; its
-        // pixels taken as a Retina screen's, it seems.
-        let dpi = image.flatMap(imageDPI) ?? 144
+        // `sy`. One that declares none comes out at 96 dpi in PowerPoint for
+        // Windows — lo-page_transparent_bitmap, a 94 px PNG, tiles at 70.5 pt
+        // in its export (PowerPoint for Mac drew it 47 pt wide, as at 144 dpi:
+        // its pixels taken as a Retina screen's, it seems).
+        let dpi = image.flatMap(imageDPI) ?? 96
         f.tileScale = (tile?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
         f.tileScaleY = (tile?["sy"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
         // `tx`/`ty` in EMU, after the alignment (tdf152070: the grid starts
