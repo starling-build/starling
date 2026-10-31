@@ -12038,3 +12038,13 @@ None is a quick fix; each needs a lab or an engine round. Notes, so nobody re-de
 - **tdf136061** (lo-9e88222d00168d79, 88.9): chart labels.
 - Landed on office: wip/lo-pagebreak-anchor (tdf92724) and wip/lo-batch-d (fdo67013), both confirmed by windows round 13b. tdf99140 is on wip/lo-page-edge-table dc194b917, with confirmation (now mac-confirm).
 - wip/office-text check on Linux: layout identical on 756 + 593, build-all passes; the 12 Office test failures are test-order pollution from the second test target (the failing test passes alone; wip/office-text-b runs 602 tests with 0 failures).
+
+### T260 — official 756, the five lowest from starling-bd's list: triage (Linux lo4, 2026-10-31, refreshed engine 6c38bc62936, tip + fdo67013)
+
+My scores in Windows mode, v2: zh-6a4fc013 91.7 (the box has 97.6: this machine does not reproduce the Thai fit, so nothing to pair on here), zh-147bdae0 97.6, zh-785e46f8 97.8, zh-d97c5474 97.8, zh-202582e2 97.8. Nothing changed; what each first parts at:
+- **zh-d97c5474** (46 lines, 45 match): the one miss is an Arabic paragraph whose text Word's PDF stores in logical order and ours in visual order (and ours reads "ا" + a hamza as "ǂ") — a print/extract artefact; parked for its drawing as before. Not a layout gap.
+- **zh-785e46f8** (312 lines, 305 match): p1 line "链”形势研究,统筹做好疫情防控和工业经济运行,保障重点产" — Word holds one more character on the line than ours (ours breaks before "产"); every line after it shifts by a character through the paragraph. Punctuation compression at 、，”, not yet looked at.
+- **zh-202582e2** (139 lines, 136 match): p5, the gap before item "3.消防设施…" is 35pt in Word and 41pt ours (item 2's last line "已经完成。" to item 3's first; both lines 1.354 auto at 15.5pt, spacing before 52/46 twips, no spacing after). 6pt too much in ours; not found where it comes from — a lab on "auto 325 line, runs mixing sz 31 and a paragraph mark at sz 30" would say.
+- **zh-147bdae0** (2221 lines, 5 miss): what T219 left — p19/p27 hyphenation, p64's one cell. Nothing new.
+- **zh-6a4fc013**: Thai, see T-history above; needs the Thai fit on the box.
+Each is worth under 0.003 on the official mean. I take no further task from this list unless starling-bd wants one of them dug out.
