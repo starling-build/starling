@@ -5101,7 +5101,11 @@ public final class RichLayout {
                 // paragraph would stand and the paragraph before it, which
                 // would reach into it, under it, 483.7 on the page; ours set
                 // it above the table.)
+                // (Not across a section break that starts a page: zh-cfb32050's
+                // "附件一", tblpY -6 twips, opens the section after a paragraph
+                // that ends one, and that paragraph stays on its own page.)
                 if theme.wordRules, c.row == 0, c.firstInRow, i > 0, _cells[i - 1]?.table != c.table, y > 0.01, deferredUnder.isEmpty,
+                   !(document.paragraphs[i - 1].style.sectionXML != nil && document.paragraphs[i - 1].style.sectionBreaksPage != false),
                    let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.floatOffsetY == nil, let up = ts.floatRaiseY {
                     // (A line a point above the table's top is under it too:
                     // floattable-anchor-next-page's third table, tblpY -269 twips,
