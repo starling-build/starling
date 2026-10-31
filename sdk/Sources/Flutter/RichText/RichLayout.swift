@@ -1785,8 +1785,12 @@ public final class RichLayout {
             let setup = _setup(ofParagraph: first)
             let from: Double
             switch style?.floatXAnchor {
-            case "page": from = x - setup.marginLeft - setup.gutter
-            case "margin": from = x - setup.gutter
+            // (A header's or footer's own layout knows no section: the page's margin
+            // is what `frameMargins` carries. lo-198cd200's header table, tblpX 500
+            // against the page, stands at 25pt in Word's print, not 47 left of the
+            // margin of 25 as the default setup's 72 put it.)
+            case "page": from = floatsFrames ? x - frameMargins.left : x - setup.marginLeft - setup.gutter
+            case "margin": from = floatsFrames ? x : x - setup.gutter
             default: from = x
             }
             return _px(from) - left
@@ -7772,7 +7776,14 @@ public final class RichLayout {
                 ordinal += 1
                 // (A line break since the last tab: the line starts over.)
                 if units[lastTab ..< t].contains(where: { $0 == 0x0A || $0 == 0x2028 }) { shift = 0 }
-                if let w = wraps.last(where: { $0 > lastTab && $0 <= t }) { shift = 0; base = edge(w) }
+                // (A wrap offset on a line-break character is that line's end: the next
+                // line starts after it, at its left edge: tdf146248's contents entries
+                // "Record Types<tab>10" after a <w:br/> had their right tab measured
+                // from the end of the line before and "10" went to a line of its own.)
+                if let w = wraps.last(where: { $0 > lastTab && $0 <= t }) {
+                    shift = 0
+                    base = edge(units[w] == 0x0A || units[w] == 0x2028 ? min(w + 1, t) : w)
+                }
                 lastTab = t
                 let at = edge(t), after = edge(t + 1)
                 // from the column's left
@@ -16174,6 +16185,14 @@ public final class RichLayout {
         /// top (pixels).
         var beside: [(layout: RichLayout, document: RichDocument, dy: Double)] = []
         var height: Double { layout.totalHeight }
+        /// Where a table placed against the PAGE opens the header stands below the paper's
+        /// top (points), if it does: Word sets it there, not at the header distance
+        /// (LibreOffice's tdf108272, tblpY 400 twips against a header of 720).
+        var pageAnchoredTop: Double? {
+            guard let first = document.paragraphs.first, let cell = first.cell,
+                  let ts = document.tableStyles[cell.table], ts.pageAnchored, let off = ts.pageOffsetY else { return nil }
+            return off
+        }
         /// How far its floating frames stand above its first line
         /// (pixels, 0 where none does): they take no room in its flow.
         var frameRise: Double {
@@ -17389,7 +17408,7 @@ public final class RichLayout {
         let setup = pageSetup(forPage: p)
         var top = _px(setup.marginTop), bottom = _px(setup.marginBottom)
         if let header = _headerFooter(.header, page: p, document, pageCount: 1) {
-            top = max(top, _px(setup.headerDistance) + header.height)
+            top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height)
         }
         if let footer = _headerFooter(.footer, page: p, document, pageCount: 1) {
             // (Its frames too, where they stand above it — a page number
@@ -17426,7 +17445,8 @@ public final class RichLayout {
                    _titlePage(p, document) || !_headerFooterSection(p).last { drawn.insert(kind) }
                 continue
             }
-            let top = kind == .header ? rect.top + _px(setup.headerDistance) : rect.bottom - _px(setup.footerDistance) - hf.height
+            let headerAt = hf.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)
+            let top = kind == .header ? rect.top + headerAt : rect.bottom - _px(setup.footerDistance) - hf.height
             hf.layout.regionTopOnPage = top - rect.top
             hf.layout.regionMarginTop = _px(setup.marginTop)
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
