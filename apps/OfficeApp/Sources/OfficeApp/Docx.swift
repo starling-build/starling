@@ -352,7 +352,20 @@ enum DocxFormat {
     /// "notBeside" 273pt under the text's top, the text round the one and over
     /// and under the other; ours set both frames before the text.)
     static func _foldFrames(_ root: XNode) {
+        // (A frame whose text runs turned, `w:textDirection` btLr or tbRl, on
+        // the page or margin: a box of the size it says, the text in it
+        // turned, where the layout set it across a narrow column — lo
+        // frame-direction's two 44pt-wide frames, 820pt tall, and
+        // tdf154703_framePrTextDirection's 21.6 by 116 one centred on the page.)
+        func turned(_ p: XNode) -> String? {
+            guard let d = p.first("w:pPr")?.first("w:textDirection")?["w:val"] else { return nil }
+            return ["btLr": "vert270", "tbRl": "vert"][d]
+        }
         func frameOf(_ p: XNode) -> XNode? {
+            if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, turned(p) != nil,
+               ["page", "margin"].contains(f["w:vAnchor"] ?? ""), Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
+               Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil || f["w:yAlign"] != nil,
+               f["w:wrap"] == "around", p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
                   f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
@@ -393,6 +406,10 @@ enum DocxFormat {
             for (frame, range) in runs {
                 let w = Int((Double(frame["w:w"] ?? "") ?? 0) * 635), h = Int((Double(frame["w:h"] ?? "") ?? 0) * 635)
                 let y = Int((Double(frame["w:y"] ?? "") ?? 0) * 635)
+                let direction = turned(kids[range.lowerBound])
+                let relV = direction != nil ? (frame["w:vAnchor"] ?? "page") : "paragraph"
+                let vertical = direction != nil && frame["w:yAlign"] != nil && frame["w:yAlign"] != "inline"
+                    ? "<wp:align>\(frame["w:yAlign"]!)</wp:align>" : "<wp:posOffset>\(y)</wp:posOffset>"
                 let hSpace = Int((Double(frame["w:hSpace"] ?? "") ?? 0) * 635), vSpace = Int((Double(frame["w:vSpace"] ?? "") ?? 0) * 635)
                 let relH = ["page": "page", "margin": "margin"][frame["w:hAnchor"] ?? ""] ?? "column"
                 let horizontal: String
@@ -400,13 +417,13 @@ enum DocxFormat {
                 else { horizontal = "<wp:posOffset>\(Int((Double(frame["w:x"] ?? "") ?? 0) * 635))</wp:posOffset>" }
                 let wrap = frame["w:wrap"] == "notBeside" ? "<wp:wrapTopAndBottom/>" : "<wp:wrapSquare wrapText=\"bothSides\"/>"
                 let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
-                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpace)\" distR=\"\(hSpace)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(y)</wp:posOffset></wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpace)\" distR=\"\(hSpace)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"\(relV)\">\(vertical)</wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\"\(direction.map { " vert=\"\($0)\"" } ?? "") lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
                 guard let drawing = XNode.parse(Data(xml.utf8)), let content = drawing.descendant("w:txbxContent") else {
                     kept.append(contentsOf: kids[range]); continue
                 }
                 for k in range {
                     let p = kids[k]
-                    p.first("w:pPr")?.children.removeAll { $0.name == "w:framePr" }
+                    p.first("w:pPr")?.children.removeAll { $0.name == "w:framePr" || (direction != nil && $0.name == "w:textDirection") }
                     content.children.append(p)
                 }
                 drawings.append(drawing)
