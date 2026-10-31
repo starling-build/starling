@@ -16,3 +16,18 @@ no PDF here.
 
 The Mac set in ../powerpoint/ (553 files, from PowerPoint for Mac) is separate
 and unchanged.
+
+## Reprinting faster: one PowerPoint for several decks
+
+`test/pptx-powerpoint-pdf.ps1` attaches to a running PowerPoint and leaves it
+running, so a reprint need not restart PowerPoint between decks. Checked
+2026-10-31: 22 decks (plain, "pdf repaired", multi-page and font/image-heavy,
+including the 28-page and two 23-page ones) printed back to back in ONE
+instance, then compared page by page at 100 dpi with the fresh-instance PDFs
+here: all 22 identical, every page, same page counts. So batches of at least 22
+decks per instance carry no state that changes the output. A deck that hangs
+PowerPoint still needs the timeout and a kill. Time: about 7 s a deck in one
+instance (the 89 s one is lo-animation-sound-external), against about 8 s a
+deck in this run (it killed and restarted PowerPoint each deck, plus a 1 s
+pause), so the gain is small -- most of the cost is Open and SaveAs, not the
+restart.
