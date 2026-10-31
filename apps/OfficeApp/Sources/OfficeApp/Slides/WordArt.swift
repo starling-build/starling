@@ -17,6 +17,8 @@ import Foundation
 /// against the curve — a wave's letters lean and ride it, they do not
 /// themselves curve.
 enum WordArt {
+    // EXPERIMENT KNOBS (not for landing)
+    static func knob(_ k: String) -> Double? { ProcessInfo.processInfo.environment[k].flatMap(Double.init) }
     /// The top and bottom of the band the text is stretched into, as
     /// fractions of the area's height at `u` across it — or nil for a
     /// preset this does not draw (the text is then laid out as usual).
@@ -26,7 +28,7 @@ enum WordArt {
         func arc(_ u: Double) -> Double { 1 - (max(0, 1 - bow(u))).squareRoot() }   // the same, round
         switch warp.preset {
         case "textPlain": return { _ in (0, 1) }
-        case "textInflate": let a = adj(18750); return { (a * bow($0), 1 - a * bow($0)) }
+        case "textInflate": let a = knob("WA_A") ?? adj(18750); let useArc = knob("WA_ARC") == 1; return { let b = useArc ? arc($0) : bow($0); return (a * b, 1 - a * b) }
         case "textDeflate": let a = adj(18750); return { (a * (1 - bow($0)), 1 - a * (1 - bow($0))) }
         case "textInflateTop": let a = adj(40000); return { (a * bow($0), 1) }
         case "textInflateBottom": let a = adj(60000); return { (0, 1 - (1 - a) * bow($0)) }
@@ -70,7 +72,7 @@ enum WordArt {
     /// the best fit over the corpus's multi-line WordArt (1.0 to 1.6
     /// tried; 1.3 best in sum, ImportWordArtGradient's own best, the
     /// tdf155327 and tdf125085 ones a little further apart).
-    static let linePitch = 1.3
+    static let linePitch = knob("WA_LP") ?? 1.3
 
     /// The presets whose text follows the area's ellipse.
     static let followsPath: Set<String> = ["textArchUp", "textArchDown", "textCircle", "textButton"]
@@ -141,7 +143,8 @@ enum WordArt {
         let area = followsPath.contains(warp.preset)
             ? Rect.fromLTRB(r.left + shape.drawInsets.left * px, r.top + shape.drawInsets.top * px,
                             r.right - shape.drawInsets.right * px, r.bottom - shape.drawInsets.bottom * px)
-            : r
+            : (knob("WA_INSET") == 1 ? Rect.fromLTRB(r.left + shape.drawInsets.left * px, r.top + shape.drawInsets.top * px,
+                            r.right - shape.drawInsets.right * px, r.bottom - shape.drawInsets.bottom * px) : r)
         guard area.width > 1, area.height > 1 else { return false }
         let scale = px / theme.pixelsPerPoint
         let keepLooks = shape.runLooks.count == doc.paragraphs.count
@@ -176,7 +179,7 @@ enum WordArt {
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
         guard !lines.isEmpty else { return true }
-        _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil)
+        _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil, fitsInk: knob("WA_INK") == 1)
         return true
     }
 
