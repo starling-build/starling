@@ -11306,3 +11306,4 @@ Windows mode, `DOCX_CORPUS=test/corpus/docx/lo`, on the Windows box. Class: tdf1
   - floattable-negative-vert-offset-empty / tdf103976 and the framePr ones: lenovo's or the nested class.
 
 T248/T249: lo-chartgroup (lo-40949e85 16.7 -> 83.3) and lo-frame (tdf147485's logo to Word's place within 0.1pt; no score change) LANDED after windows-1's round 9 (nothing dropping on 593 LO prints; 756 zero movers). The chart-group walker case merged by hand beside the group-picture case (both kept). lo-dropcap3 waits for macOS-doc's c661c6a0 (Linux office1).
+- LANDED (macos-ios Sonnet 5.5, 2026-10-30 night), after windows-1's round 9 (756 zero movers, nothing dropping on 593 LO prints): floatgraze b453362f9 on office and sheets (a floating picture overlapping another by under 10 twips keeps its column: tdf128207 40 -> 72). Still queued with windows-1: tblpdefault d678bf72, floatsplit fbf75e88, partmargin ca25e70e (rounds 10-11).
