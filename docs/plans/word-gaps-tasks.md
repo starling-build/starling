@@ -12026,3 +12026,15 @@ Both are the open items already above; no new rule found worth a build.
 - lo5 (Linux lo5, 2026-10-31, starling-bd's order: lowest of the 756): zh-d62da4dd (90.0) and zh-f39e54b6 (95.9) looked at, nothing pushed.
   zh-d62da4dd: all 10 missed lines are page 4's two 3-D pies; most labels are within 1-4pt of Word's and the matcher merges neighbours (德國24, 156%) into one line. Biggest gap 德國 15pt in x (Word 127.2, ours 142.7), the unmoved-outside-label stepping already on the board (63a2ef13a, held). Left to that chain.
   zh-f39e54b6: six missed lines, two paragraphs where ours takes one character too many on an exact 441.0pt tie: 第二十四條 (left 1312 hanging 1420; ours 縣) and 三、受款人… (left 2160 hanging 2268; ours 止). The landed float-sum rule (4a0a70597) fits L 1000..1029 but says "takes" for both (sum 441.0), where Word refuses. No arithmetic variant (float32, other association) fits lab and both. Lab spec sent to windows (sweep L 1290..1330 and 2140..2180, R, chars attributes, swap ind). Rule fit and pair follow the lab.
+
+### T259 — the six small documents: where they stand (Linux lo4, 2026-10-31)
+
+None is a quick fix; each needs a lab or an engine round. Notes, so nobody re-derives them:
+- **tdf148671** (lo-8480280e5d212433, 75.0): the footer's one line ("--") is 4pt lower in Word (806) than ours (802), x 51 vs 52. The footer paragraph is a page-anchored frame (`framePr w=9136 h=285 hRule=exact wrap=notBeside vAnchor=page hAnchor=page x=747 y=15925`, 8.5pt Microsoft Sans Serif, line auto). y 15925 twips = 796.25pt, so Word's line sits 9.75pt under the frame's top, ours 5.75. Needs a Word lab: an exact-height frame (14.25pt) with 8.5pt text at a page y, the line's place against y (and with h=auto, and with a 10pt/12pt font to see whether the 4pt is the frame's height, the font's leading or a fixed offset).
+- **bnc779620** (lo-796c371e29f0b36d, 66.7): "Last para." 9pt lower in ours; a floating table (tblpY 162) followed by 11 empty paragraphs. Floating-table class, engine round.
+- **tdf124675** (lo-7a2c306339779157, 70.0): Word has a line at y152 x318 that ours puts at y517. Not examined past that.
+- **fdo60957-2** (lo-62f37fcc5d467507, 83.3): ours has an extra "s" line at y40, and "G" at x65 where Word has x317. Not examined.
+- **tdf134606** (lo-9ab859804c921621, 88.0): nested tables (Word 25 lines, ours 31) — lenovo-2 / lo5's nested-table work.
+- **tdf136061** (lo-9e88222d00168d79, 88.9): chart labels.
+- Landed on office: wip/lo-pagebreak-anchor (tdf92724) and wip/lo-batch-d (fdo67013), both confirmed by windows round 13b. tdf99140 is on wip/lo-page-edge-table dc194b917, with confirmation (now mac-confirm).
+- wip/office-text check on Linux: layout identical on 756 + 593, build-all passes; the 12 Office test failures are test-order pollution from the second test target (the failing test passes alone; wip/office-text-b runs 602 tests with 0 failures).
