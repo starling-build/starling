@@ -10996,7 +10996,15 @@ public final class RichLayout {
             && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
         let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox }
         if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
-            let spans = styled(p.text[...], p.runs[0].style)
+            var spans = styled(p.text[...], p.runs[0].style)
+            // (A right-to-left paragraph of one plain run is the
+            // left-to-right stretch whole: see the embeddings below.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, !p.runs[0].style.rightToLeft, !(named?.char.rightToLeft ?? false) {
+                let look = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                           gridPitch: pitch, scriptHidden: true)
+                spans = [TextSpan(text: "\u{202A}", style: look)] + spans + [TextSpan(text: "\u{202C}", style: look)]
+                return (TextSpan(children: spans), [], [0, p.text.utf16.count])
+            }
             if spans.count == 1 { return (spans[0], [], inserts) }
             return (TextSpan(children: spans), [], inserts)
         }
@@ -11086,10 +11094,30 @@ public final class RichLayout {
         // the first placeholder shifts the entire line by half that gap
         // in the engine; it also adds text descent below the pictures.
         let pictureTabs = theme.wordRules && !adjust.isEmpty && Self._picturesAndTabs(p)
+        // (In a right-to-left paragraph each run takes the direction its own
+        // `w:rtl` gives it: a stretch of runs without it is laid out left to
+        // right as one piece, set among the rest as a whole. Word for
+        // Windows, lab rtl1: "Right and RTL in M$" keeps its "$" after the
+        // M, a Hebrew word and Latin text in one plain run stand in the order
+        // they are written, left to right, and a "$" in a run of its own
+        // marked `w:rtl` stands at the far left. A left-to-right embedding
+        // round each such stretch does that.)
+        let embeds = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.rightToLeft
+        var isolated = false
         for run in p.runs where run.length > 0 {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
             pos += run.length
+            if embeds, run.style.inlineImage == nil {
+                let plain = !(run.style.rightToLeft || (named?.char.rightToLeft ?? false))
+                if plain != isolated {
+                    let look = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                               gridPitch: pitch, scriptHidden: true)
+                    children.append(TextSpan(text: plain ? "\u{202A}" : "\u{202C}", style: look))
+                    inserts.append(pos - run.length)
+                    isolated = plain
+                }
+            }
             if let id = run.style.inlineImage, let image = p.inlineImages[id] {
                 let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
                 // A picture in the line, sitting on the baseline as Word
@@ -11295,6 +11323,12 @@ public final class RichLayout {
                 children.append(TextSpan(text: "\u{2060}", style: style.copyWith(letterSpacing: tail)))
                 inserts.append(pos)
             }
+        }
+        if isolated, let last = p.runs.last {
+            let look = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                       gridPitch: pitch, scriptHidden: true)
+            children.append(TextSpan(text: "\u{202C}", style: look))
+            inserts.append(p.text.utf16.count)
         }
         if roomyTrail, let last = p.runs.last {
             // (In a style that adds nothing to the text's line, tried
