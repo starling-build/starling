@@ -11706,7 +11706,7 @@ public final class RichLayout {
                     // One wrapped on its left alone is left to the paragraph-by-
                     // paragraph push, as before.)
                     guard float.wrapSide != "right",
-                          column - (x + w) - _px(float.distanceRight ?? 9) < size,
+                          float.wrapSide == "largest" || column - (x + w) - _px(float.distanceRight ?? 9) < size,
                           x - _px(float.distanceLeft ?? 9) - own >= size * 3 else { continue }
                     let narrow = column - rightGap - (x - _px(float.distanceLeft ?? 9))
                     guard narrow > 0 else { continue }
@@ -11718,7 +11718,7 @@ public final class RichLayout {
                 }
                 // (Not with room at its left for text: that stands round it on
                 // both sides, which the engine does not set.)
-                guard float.wrapSide != "left", x - _px(float.distanceLeft ?? 9) - own < size else { continue }
+                guard float.wrapSide != "left", float.wrapSide == "largest" || x - _px(float.distanceLeft ?? 9) - own < size else { continue }
                 let edge = x + w + _px(float.distanceRight ?? 9)
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
@@ -17144,8 +17144,10 @@ public final class RichLayout {
             // line and the "制作指引：" after it under the box; ours ran
             // them past its left.)
             var r = _floatRect(float, image, g, i)
-            if float.wrapSide == "right" { r = Rect.fromLTRB(-1_000_000, r.top, r.right, r.bottom) }
-            if float.wrapSide == "left" { r = Rect.fromLTRB(r.left, r.top, 1_000_000, r.bottom) }
+            // ("largest": the side with more room, whichever that is.)
+            let side = float.wrapSide == "largest" ? ((r.left + r.right) / 2 >= g.textLeft - _textLeftInColumn(i) + _flowWidth(i) / 2 ? "left" : "right") : float.wrapSide
+            if side == "right" { r = Rect.fromLTRB(-1_000_000, r.top, r.right, r.bottom) }
+            if side == "left" { r = Rect.fromLTRB(r.left, r.top, 1_000_000, r.bottom) }
             // (Its drawn effects' reach below its box is part of what the
             // text clears: zh-8e8d4c40's 【附件五】 box, wrapped square
             // with b 11430 EMU, has the title under it 0.9pt lower in Word

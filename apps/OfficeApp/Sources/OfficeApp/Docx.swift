@@ -2936,7 +2936,7 @@ enum DocxFormat {
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
             if let w = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].lazy.compactMap({ anchor.first($0) }).first,
-               let side = w["wrapText"], side == "left" || side == "right" { f.wrapSide = side }
+               let side = w["wrapText"], side == "left" || side == "right" || side == "largest" { f.wrapSide = side }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             // (A height that is a share of the page's or margins': 60316's
