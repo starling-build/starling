@@ -4659,7 +4659,13 @@ enum DocxFormat {
                         addText("\u{200B}", point)
                     }
                 case "w:delText": addText(child.text, cs)
-                case "w:tab": addText("\t", cs)
+                case "w:tab":
+                    // (A tab in a field's code, between its begin and
+                    // separate, is part of the instruction and shows
+                    // nowhere: LibreOffice's fdo73596_RunInStyle INDEX field
+                    // has `\e "<tab>"` there, and the tab took a line of its
+                    // own in the paragraph that opens the field.)
+                    if let f = notes.fields.last, !f.result { notes.fields[notes.fields.count - 1].instr += "\t" } else { addText("\t", cs) }
                 // A positional tab (a header's or footer's "right of the
                 // margin"): a tab the layout sends to its place on the
                 // margins, whatever stops lie before it (bug57031's "Page
