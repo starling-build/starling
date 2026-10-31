@@ -72,6 +72,31 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
   and print nothing on Mac Word. Pairs are Windows mode only; the Mac-mode guard above is withdrawn. Everything below
   that says "both modes" now means Windows mode.
 
+**BUILD MODES FOR PAIRS — measured identical (mac-confirm, 2026-10-31; tip a2bad17d1 = the OfficeText move; Mac, 10 cores, loaded by other sessions;
+Windows mode, bundled fonts, v2 + v1, all 756 and all 593 LO).** Three builds of the same tree swept at 4 jobs: release WMO (the default), release
+non-WMO (`-Xswiftc -no-whole-module-optimization`) and debug. ZERO movers between any of them in v2, LO or 756, and in v1 (the one flicker, zh-b8de3ae2
+87.7/87.5 in v1, is run-to-run noise: the same binary writes different PDF bytes twice — two documents, zh-b8de3ae2 and zh-e68a2f57, differ by a few bytes
+between runs of one binary). So authors' pairs MAY use the non-WMO release incremental build:
+
+      EO=$PWD/engine/src/out/host_release_arm64      # your host's engine out dir (e837b7634c9+ with the 6c38bc62936 guard)
+      STARLING_ENGINE_OUT=$EO FLUTTER_SWIFT_ENGINE_OUT=$EO swift build -c release --package-path apps/OfficeApp \
+          --scratch-path $PWD/.build-pair --product OfficeApp -Xswiftc -no-whole-module-optimization
+
+Keep the scratch between builds (one per checkout). Times (Mac, loaded; touching one `OfficeText/RichLayout.swift` line):
+| build | cold | warm, one OfficeText file | sweep 756 @4 jobs | sweep LO 593 @4 | warm build + both sweeps |
+| release WMO | 589 s | 88 s | 454 s | 77 s | ~620 s |
+| release non-WMO | 390 s | 81 s | 447 s | 76 s | ~605 s |
+| debug (host_debug_arm64 engine) | 141 s | 43 s | 888 s | 109 s | ~1040 s |
+Debug builds fastest but converts twice as slowly, so end to end release non-WMO wins by a little; the real gain is the cold build (-200 s) and the
+sdk/ catch-up builds (WMO 259-484 s on the Mac when a commit touches the shared files). Warm WMO vs non-WMO barely differ for an OfficeText edit because
+the module is rebuilt either way. Scoring: run v2 and v1 at once (two processes); `xargs -d` and `timeout` do not exist on macOS (use `xargs -0`, and a
+perl alarm). Mac vs Windows box: Mac base eb51a6060 scored 756: 99.762 (with text) / 98.442 (all); LO 593: 80.927 / 75.059 — within 0.01 of the box's
+52a9efe08 base (99.755 / 98.436; LO 80.381 / 74.552) apart from the four LO documents the newer commits raised.
+
+**Tip watch (mac-confirm).** a2bad17d1 vs d7a90027a: the move — 756 v2 zero movers, LO zero movers (identity). d7a90027a vs eb51a6060: only lenovo-3's
+claimed gains (zh-27a874b7 88.2 -> 89.2, zh-d62da4dd 90.0 -> 91.0), no drops. Headline at a2bad17d1 (v2): 756 mean with text 99.764 (all 98.445), 741 >= 95,
+588 at 100, 755 pages equal; LO 593 mean with text 80.927 (all 75.059), 358 >= 95, 348 at 100, 555 pages equal. Drops: none.
+
 **Confirmation round 5 — PASS for 5 of 6** (windows-1, 2026-10-30; base office 64f26dce; Windows mode, 756, final prints; v2 official).
 Stack of 6 (7190a877 lenovo-3 dotabove, 9dd407f8 macOS-doc spacegive T240, 8141e618 lenovo-2 mixed-size-baseline,
 7e254b8d + 7c31f4e7 macos-ios keepfloat, 4f0b145d lenovo T241): 14 up, ONE drop, zh-1d2a7c35 100.0→99.7 (v1 99.7→99.5; p6's ①②③
