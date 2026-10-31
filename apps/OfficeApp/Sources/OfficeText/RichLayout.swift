@@ -1268,6 +1268,8 @@ public final class RichLayout {
     private var _mirrored: Set<Int> = []
     private var _mirrorPassing = false
     private var _besidePassing = false
+    /// Set by `_besideOwn`: the float it found is a picture at the margin, which a line starting above it does not stand beside.
+    private var _besideOwnStrict = false
     /// The stretch of a float that a paragraph set beside it really shares,
     /// from the paragraph's own top, as the page it fell on made it
     /// (`_besideBand` takes it over the whole float's).
@@ -8190,9 +8192,10 @@ public final class RichLayout {
         // indent each, and laid again until they settle.)
         var besideLineIndents: [LineIndent] = []
         var besideIndent = _besideLead[i]
+        var strictTop = false
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
-        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band }
+        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; strictTop = _besideOwnStrict }
         if besideIndent > 0, let band = besideBand {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
@@ -8212,7 +8215,7 @@ public final class RichLayout {
                 var next: [LineIndent] = []
                 for k in 0 ..< bottoms.count {
                     let top = k == 0 ? 0 : bottoms[k - 1]
-                    let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
+                    let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01 && !(strictTop && top < band.top - 0.01)
                     next.append(LineIndent(left: beside ? besideIndent : 0, right: 0))
                 }
                 while let last = next.last, last.left == 0, next.count > 1, next[next.count - 2].left == 0 { next.removeLast() }
@@ -11845,6 +11848,7 @@ public final class RichLayout {
         let inner = cell.map { max(0, $0.colWidth - $0.pad.left - $0.pad.right) } ?? _flowWidth(i)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         var best: (indent: Double, band: (top: Double, bottom: Double))?
+        _besideOwnStrict = false
         var offset = 0.0
         var k = i
         while k >= 0, k >= i - 6 {
@@ -11889,7 +11893,7 @@ public final class RichLayout {
                             bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }
-                if best == nil || edge - own > best!.indent { best = (edge - own, band) }
+                if best == nil || edge - own > best!.indent { best = (edge - own, band); _besideOwnStrict = float.horizontalAlign == "left" }
             }
             if k > 0 { offset += _heights[k - 1] }
             k -= 1
