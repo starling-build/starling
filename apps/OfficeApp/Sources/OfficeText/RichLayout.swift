@@ -4403,7 +4403,11 @@ public final class RichLayout {
                         // where ours put lines to 3.8pt from it. Not the cell's own `pad.bottom`, which holds more than
                         // the margin: it cost 33 government documents; the stated one moves none of the 34 that state one.)
                         let bottomMargin = RichTextTheme.wordWindowsPages && theme.wordRules && document.tableStyles[c.table]?.keptPosition != nil ? _px(document.tableStyles[c.table]?.cellMarginBottom.map { $0 > 0 ? $0 + 1 : $0 } ?? 0) : 0
-                        let limit = column.cut + avail - ruleUnder(c, parted: true) - bottomMargin + 0.01
+                        // (A part that goes on from the page before draws the cell's top margin again above its
+                        // first line, and the room it is cut by never counted it: tdf170672's p9 kept a line 1.5pt
+                        // under the last Word's print keeps, cut slack 94 against 178 for the lines it keeps.)
+                        let contTop = RichTextTheme.wordWindowsPages && theme.wordRules && document.tableStyles[c.table]?.keptPosition != nil && column.cut > c.rowTop + 0.01 ? _cells[column.members[0]]!.pad.top : 0
+                        let limit = column.cut + avail - ruleUnder(c, parted: true) - bottomMargin - contTop + 0.01
                         // (A cut, under the line the part is closed with —
                         // where the cell ends here, its own bottom has it.)
                         // (To Word for Windows' raster: it sets rows on a 1/600in grid
@@ -4411,7 +4415,7 @@ public final class RichLayout {
                         // foot's dot is on the page — zh-4c5da793 p15's row "对抚恤优待对象
                         // 冒领…" keeps its second line in Word's print, 0.09pt past ours,
                         // its row standing 0.11 high.)
-                        let closed = column.cut + avail - ruleClosing(c) - bottomMargin + 0.01
+                        let closed = column.cut + avail - ruleClosing(c) - bottomMargin - contTop + 0.01
                         // (The foot's dot, to which a cut that rounds is on the page —
                         // to carry a cell's cut a line further in the same paragraph
                         // only: a cell's whole bottom is measured as before, a cell with
