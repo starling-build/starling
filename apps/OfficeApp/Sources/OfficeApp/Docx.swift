@@ -522,6 +522,7 @@ enum DocxFormat {
         }
         _reuseInlinePlaceholders(body)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
+        notes.bookmarkNames = Set(body.descendants("w:bookmarkStart").compactMap { $0["w:name"]?.lowercased() })
         // How note marks are numbered: Word's endnotes count "i, ii, iii"
         // unless the settings say otherwise, its footnotes "1, 2, 3"
         // (endnotes.docx and Bug54849 show "i" in Word's print).
@@ -3680,6 +3681,11 @@ enum DocxFormat {
         /// Bookmarks started since the last paragraph was built: they go
         /// to the next one.
         var pendingBookmarks: [String] = []
+        /// The names (lower-cased) of the bookmarks the body defines, and the
+        /// page references already answered "Error! Bookmark not defined."
+        /// (one answer per field, however many runs its old result was in).
+        var bookmarkNames: Set<String> = []
+        var missingReferenceShown: Set<Int> = []
         /// The fields open at this point of the walk, innermost last (a
         /// contents field spans paragraphs and holds a page reference per
         /// line): each one's instruction, whether its result has begun,
@@ -4932,6 +4938,7 @@ enum DocxFormat {
             cs.revision = revision
             cs.comments = notes.openComments
             notes.anchoredComments.formUnion(notes.openComments)
+            var missingReference: Int? = nil
             // Text that is a page reference's result stays one: Word
             // brings these up to date when it prints, and a contents page
             // of plain numbers kept the ones the file was saved with (a
@@ -4940,7 +4947,19 @@ enum DocxFormat {
             if let f = notes.fields.last, f.result {
                 cs.fieldResult = f.id
                 let instr = f.instr.trimmingWhitespace(newlines: true)
-                if instr.uppercased().hasPrefix("PAGEREF ") { cs.field = instr }
+                if instr.uppercased().hasPrefix("PAGEREF ") {
+                    cs.field = instr
+                    // (A page reference to a bookmark the file does not have:
+                    // Word brings the field up to date as it prints and shows
+                    // its error where the number was. lo tdf164905's contents
+                    // page has 39 such lines, "ERROR! BOOKMARK NOT DEFINED."
+                    // in Word's print, 39 of 54 references.)
+                    let target = instr.split(separator: " ", omittingEmptySubsequences: true).dropFirst().first
+                        .map { String($0.filter { $0 != "\"" }).lowercased() }
+                    if let target, !target.isEmpty, !target.hasPrefix("\\"), !notes.bookmarkNames.isEmpty, !notes.bookmarkNames.contains(target) {
+                        missingReference = f.id
+                    }
+                }
                 else if notes.inHeaderFooter, DocxFormat._isPageField(instr) {
                     // (A page number Word works out again as it prints, in
                     // its code's look unless the code keeps the result's
@@ -4997,7 +5016,12 @@ enum DocxFormat {
                         }
                         break
                     }
-                    if notes.fieldCodeChanged, notes.fields.last?.result == true {
+                    if let id = missingReference {
+                        if notes.missingReferenceShown.insert(id).inserted {
+                            RuleTrace.hit("pageref-bookmark-not-defined")
+                            addText("Error! Bookmark not defined.", cs)
+                        }
+                    } else if notes.fieldCodeChanged, notes.fields.last?.result == true {
                         var first = cs
                         first.fieldCodeChanged = true
                         addText(_runText(child), first)
@@ -5322,6 +5346,19 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
+        // (A run of tabs that opens the paragraph, in a size of its own: the
+        // line takes the text's, not the tab's. lo tdf164905's contents
+        // entries open with a tab run of Calibri 11 and set their text in
+        // 9pt Arial; Word's lines stand 16.35pt apart, the 9pt line and the
+        // 6pt between, where ours took the 11pt tab's taller line and ran
+        // 0.2pt a paragraph long.)
+        if runs.count > 1, runs[0].style.fontSize != nil, runs[0].style.fontSize != runs[1].style.fontSize,
+           runs[1].style.inlineImage == nil, text.utf16.prefix(runs[0].length).allSatisfy({ $0 == 0x09 }),
+           !text.utf16.dropFirst(runs[0].length).prefix(runs[1].length).contains(0x09) {
+            RuleTrace.hit("leading-tab-takes-text-size")
+            runs[0].style.fontSize = runs[1].style.fontSize
+            runs[0].style.fontFamily = runs[1].style.fontFamily
+        }
         // (A display equation stands centred — Word's `m:jc` centerGroup,
         // its default — whatever its paragraph's own alignment.)
         if let display = p.first("m:oMathPara") {
