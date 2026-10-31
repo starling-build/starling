@@ -1463,12 +1463,12 @@ private struct SlideContext {
                 outline = stops.first { $0.alpha > 0 }
             }
             else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" { outline = colors.lineColor(in: ref) }
-            // A line at alpha 0 is no line, and so is one of no width
-            // (`w="0"`, as LibreOffice writes a hairline: PowerPoint shows
-            // ThemeColorTransparency's red box and vert_and_padding's blue
-            // arrows with none).
+            // A line at alpha 0 is no line. One of no width (`w="0"`, as
+            // LibreOffice writes a hairline) is drawn as one in PowerPoint
+            // for Windows, 0.14 pt in its PDF (ThemeColorTransparency's red
+            // box, vert_and_padding's blue arrows); Mac's showed none.
             if let o = outline, o.alpha == 0 { outline = nil }
-            if ln["w"] == "0" { outline = nil }
+            if ln["w"] == "0" { outlineWidth = 0.14 }
         } else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" {
             outline = colors.lineColor(in: ref)
         }
