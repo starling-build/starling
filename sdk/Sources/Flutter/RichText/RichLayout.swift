@@ -4985,6 +4985,13 @@ public final class RichLayout {
                 y = max(-insetTop, -_px(up))
             }
             if let c = _cells[i] {
+                // (Where the row opens the page, a break it states is no
+                // break, whatever offset the table is then set down by:
+                // LibreOffice's tdf115883, a table placed 0.05pt under its
+                // page's margin with w:pageBreakBefore in its first cell,
+                // is the document's first page in Word's print; ours began
+                // with a blank one.)
+                let rowOpensThePage = y < 0.01 && _pages[page].isEmpty
                 // A table every row of which is marked a header (see
                 // `headerRows`) starts on a page of its own where it does
                 // not fit the rest of this one: zh-8628cfbe's annex 3, 28
@@ -5063,7 +5070,20 @@ public final class RichLayout {
                     }
                     floatRunBase = (c.table, page, y)
                     textFloatTop = (c.table, page, y, _px(down), false)
-                    y += _px(down)
+                    // (A table that is the document's first block and holds a
+                    // drawing outside its cell is measured from the page's top
+                    // edge: LibreOffice's missing-path and tdf78727, tblpY 416
+                    // twips, have their drawing 20.8pt down the paper in Word's
+                    // print, 70pt over the margin where ours put it. One with
+                    // text only, do-not-break-wrapped-tables, stands at the
+                    // margin.)
+                    if RichTextTheme.wordWindowsPages, i == 0, page == 0, y < 0.01, _pages[page].isEmpty,
+                       document.tableStyles[c.table]?.shapesLeaveCell == true {
+                        let insetTop = _pageInsetTop.isEmpty ? 0 : _pageInsetTop[0]
+                        y = _px(down) - insetTop
+                    } else {
+                        y += _px(down)
+                    }
                 }
                 // (And one placed above the text's place, at a page's head,
                 // that much up into the top margin: zh-76700e5f's cover table,
@@ -5175,7 +5195,7 @@ public final class RichLayout {
                 // package: the test record's table on its own page.)
                 if !sectionBreakHandled, c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
-                   y > 0.01 || !_pages[page].isEmpty {
+                   !rowOpensThePage, y > 0.01 || !_pages[page].isEmpty {
                     newPage()
                     // (A table placed against the page, at its offset on the
                     // page the break opened.)
@@ -5189,6 +5209,11 @@ public final class RichLayout {
                             y = target
                         }
                     }
+                    // (And one placed above the text's place stands up in the
+                    // margin on the page the break opened: LibreOffice's
+                    // floating-table-section-break, a table 9.85pt up under
+                    // the section break, has its text at 58 in Word's print.)
+                    raiseAtHead(c)
                 }
                 // (At a page's top the table goes on: its header row
                 // again, and the cells merged down from above.)
@@ -5346,6 +5371,19 @@ public final class RichLayout {
                         }
                     }
                 }
+                // (A floating table in a file that says so is not parted over
+                // pages: it goes whole to the next one where that holds it,
+                // and stays whole where nothing does. LibreOffice's
+                // do-not-break-wrapped-tables, two 90pt rows from the head of
+                // a 166pt page, has both on the first page in Word's print.)
+                let keepsWhole = theme.wordRules && document.doNotBreakWrappedTables
+                    && document.tableStyles[c.table]?.keptPosition != nil
+                if keepsWhole, c.firstInRow, c.row == 0, y > 0.01 {
+                    var bottom = rowBottom, k = j
+                    while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                    let whole = bottom - c.rowTop
+                    if y + whole > contentH + 0.01, whole <= contentH - 0.01 { newPage() }
+                }
                 let atTop = y < 0.01
                 if atTop { goOn() }
                 // A row made taller in the flow for a cell merged down
@@ -5389,7 +5427,7 @@ public final class RichLayout {
                 wentOver = false
                 // (Down to the footer's place: zh-5a9a85c6's first row ends
                 // at 792.0, the footer's place 792.4.)
-                var pastFoot = false
+                var pastFoot = keepsWhole && c.row > 0 && y > 0.01
                 if keptPastFoot == c.table, c.row == 0 {
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top

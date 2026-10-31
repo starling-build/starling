@@ -1790,6 +1790,8 @@ enum DocxFormat {
                         if pos["w:vertAnchor"] == nil { style.marginOffsetY = v / 20 } else { style.floatOffsetY = v / 20 }
                     }
                     if vertText, pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    // (A drawing the table holds that is not laid out in its cell.)
+                    if node.descendants("wp:anchor").contains(where: { $0["layoutInCell"] == "0" }) { style.shapesLeaveCell = true }
                     if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
                         style.floatRaiseY = -v / 20
                     }
@@ -2682,6 +2684,7 @@ enum DocxFormat {
             document.adjustsLineHeightInTable = settings.first("w:compat")?.first("w:adjustLineHeightInTable").map { !_isOff($0) } ?? false
             document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
             document.breakRulesOnlyForEastAsian = settings.first("w:compat")?.first("w:doNotUseEastAsianBreakRules").map { !_isOff($0) } ?? false
+            document.doNotBreakWrappedTables = settings.first("w:compat")?.first("w:doNotBreakWrappedTables").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
                 .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
             // (A file that names no compatibility mode — with a w:compat block
