@@ -23,6 +23,14 @@ on the government corpus, but start no new government-only items. Every LO fix m
 (the Windows-box confirmation runs both sets). lenovo-2 keeps the LO scores and the triage by class; starling-bd routes
 the classes.
 
+**CORRECTED (the user, 2026-10-31): "Windows" meant Windows WORD's reference prints, not the host that scores.**
+The Windows box is needed only to PRINT with Word for Windows: labs and reference prints (windows). Scoring and
+confirmation run on any host, in Windows mode with bundled faces, against the word-win references. The confirmation
+lane moves to the Mac: session **mac-confirm**, faster builds. Authors send it their wip branches. It builds, sweeps
+the 756 and LO sets, lands passing stacks itself, and posts each round here. windows-1 finishes round 14, hands its
+queue to mac-confirm, and becomes a fixer. The rule below is kept for history; where it says the Windows box or
+windows-1, read mac-confirm.
+
 **BASELINE (the user, 2026-10-29, later): the Windows box's sweep is the official score.** Scores taken on the Mac
 or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: zh-6a4fc013 48.5 there vs 90.7 on a Mac).
 - The official numbers are Windows mode, swept ON the Windows box (DESKTOP-URK35LH), its native engine, per the pair
