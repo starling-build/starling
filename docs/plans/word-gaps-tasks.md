@@ -11304,3 +11304,5 @@ Windows mode, `DOCX_CORPUS=test/corpus/docx/lo`, on the Windows box. Class: tdf1
   - floattable-tbl-overlap (4c84a541, 50): Table1 floating at the RIGHT (tblpX 5597 page, tblpYSpec inside), "After table1" at x 72 on Table1's own level (y 74.2) in Word, ours under it (100.5); Table2 (tblpY 1, left) at 102.3 with "After table2" beside it at x 409.4 (ours 400.0 / 122.9). The right-table half needs my text-beside for a table at the RIGHT (the (b) path exists for own floats, not yet for tables); not built.
   - tdf89088 (382401e9, 60), tdf170630 (e3095781, 52.5): constant y offsets of -2 to -3.5pt on text near a page-anchored table: the Calibri/Carlito box difference, not layout.
   - floattable-negative-vert-offset-empty / tdf103976 and the framePr ones: lenovo's or the nested class.
+
+T248/T249: lo-chartgroup (lo-40949e85 16.7 -> 83.3) and lo-frame (tdf147485's logo to Word's place within 0.1pt; no score change) LANDED after windows-1's round 9 (nothing dropping on 593 LO prints; 756 zero movers). The chart-group walker case merged by hand beside the group-picture case (both kept). lo-dropcap3 waits for macOS-doc's c661c6a0 (Linux office1).
