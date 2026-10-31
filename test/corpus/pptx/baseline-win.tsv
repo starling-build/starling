@@ -167,7 +167,7 @@ lo-ole.pptx	summary pages=1 worst=0.19% mean=0.19%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-ooxtheme.pptx	summary pages=1 worst=0.59% mean=0.59%
 lo-open-as-read-only.pptx	summary pages=1 worst=0.93% mean=0.93%
-lo-page_transparent_bitmap.pptx	summary pages=1 worst=43.71% mean=43.71%
+lo-page_transparent_bitmap.pptx	summary pages=1 worst=4.02% mean=4.02%
 lo-paraMarginAndIndentation.pptx	summary pages=1 worst=0.13% mean=0.13%
 lo-pic-placeholder-with-text.pptx	summary pages=1 worst=0.35% mean=0.35%
 lo-picture-placeholder-custom-prompt.pptx	summary pages=1 worst=0.00% mean=0.00%
