@@ -11442,3 +11442,9 @@ T250 LO RE-SCORE AFTER WINDOWS-1'S ROUND 9 (Linux lo4, 2026-10-30). One build of
 ### Linux lo5 — Noto Sans bundle sent to windows-1 (2026-10-30)
 
 `wip/lo-noto` (eb1aff4a2) = lo-fieldtab + lo-brtab + Noto Sans (Regular/Bold/Italic/BoldItalic, OFL beside them; "Noto Sans" resolves to the bundled face) on office 64a34251c. Linux pair vs lo-brtab: 756 identical; LO 593 has 22 changes, all up (lo-95de9983 66.7→100, lo-89daf93d 4.2→27.1, lo-27918bf0 17.9→25.6, lo-e6dce9d6 4.8→19.0, others). Some of the ups come from fieldtab or the columns commit, not Noto. Sent to windows-1 for the Windows-box confirmation. Not landed until it confirms.
+
+### Linux lo5 — what is left in the Noto Sans documents (2026-10-30, noto2 pair)
+
+- Replaced `wip/lo-noto` with f9ac59956 (lo-fieldtab + Noto Sans, on office 976676eaa). lo-brtab dropped: lenovo-4's 7237f4ca fixes the same bug, and mine moved only tdf146248 (756 identical, one LO document). Noto-only gains (Linux, all up): fdo48718-1 0 -> 58.5, fdo77887 1.2 -> 58.5, tdf157096 28.6 -> 47.6, floattable-deleted-anchor 4.2 -> 27.1.
+- fdo77887 and fdo48718-1 stop at 58.5 for the same reason, and it is not the font any more. Every text line is within 1-2pt of Word's, but rows of the attendance table run to the page's foot, where Word puts 44 rows on page 1 and ours puts 42 (page 1 is 936pt tall, bottom margin 70.9, so the limit is 865.2 and Word's rows 43 and 44 stand at 865 and 878, past it). Each paragraph in the table carries the same `framePr` (page-anchored, y 2266): a frame in every row. FRAME class, not a row-fit rule; unclaimed.
+- tdf157096: page 1 sits 56pt too high (ours 57, Word 113) because its floating table has no `vertAnchor` and ours drops `tblpY`. That is macOS's wip/mac-01Xgpbk5-tblpdefault (d678bf72); nothing to do here once it lands.
