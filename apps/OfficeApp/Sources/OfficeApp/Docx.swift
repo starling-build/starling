@@ -548,6 +548,15 @@ enum DocxFormat {
         _bindCoreProperties(body, part: part)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
         notes.bookmarkNames = Set(body.descendants("w:bookmarkStart").compactMap { $0["w:name"]?.lowercased() })
+        // (Those of the other parts too, by their text: a reference into a
+        // note or a header finds its name there.)
+        var otherParts = ""
+        for (name, data) in kept where name.hasPrefix("word/") && name.hasSuffix(".xml") && name != "word/document.xml" && !name.containsSubstring("/_rels/") {
+            if name.containsSubstring("header") || name.containsSubstring("footer") || name.containsSubstring("notes") {
+                otherParts += String(decoding: data, as: UTF8.self)
+            }
+        }
+        notes.keptBookmarkText = otherParts
         // How note marks are numbered: Word's endnotes count "i, ii, iii"
         // unless the settings say otherwise, its footnotes "1, 2, 3"
         // (endnotes.docx and Bug54849 show "i" in Word's print).
@@ -2915,6 +2924,16 @@ enum DocxFormat {
         return word.isEmpty || word.hasPrefix("\\") || (word.count == 1 && "123456789".containsSubstring(word)) ? nil : word
     }
 
+    /// The name a `REF` field points at when the document defines no such
+    /// bookmark, else nil.
+    static func _missingReference(_ instr: String, _ names: Set<String>, _ otherText: String) -> String? {
+        let words = instr.trimmingWhitespace(newlines: true).split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+        guard words.count >= 2, words[0].uppercased() == "REF" else { return nil }
+        let name = words[1].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        guard !name.isEmpty, !name.hasPrefix("\\"), !names.contains(name.lowercased()),
+              !otherText.lowercased().containsSubstring("w:name=\"\(name.lowercased())\"") else { return nil }
+        return name
+    }
     static func _isPageField(_ instr: String) -> Bool {
         let word = instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
         return word == "PAGE" || word == "NUMPAGES" || word == "SECTIONPAGES"
@@ -3821,6 +3840,9 @@ enum DocxFormat {
         /// error, not the result it was saved with.
         var styleNames = Set<String>()
         var styleRefShown = Set<Int>()
+        /// The reference fields whose result is already Word's error text (`REF` to a name not in the file).
+        var referenceErrors = Set<Int>()
+        var keptBookmarkText = ""
         /// Whether the code of the field being read was reformatted under
         /// change tracking: its result's first run says so
         /// (`CharStyle.fieldCodeChanged`).
@@ -5138,6 +5160,17 @@ enum DocxFormat {
                             addText("Error! Use the Home tab to apply \(name) to the text that you want to appear here.", bold)
                         }
                         break
+                    }
+                    // A reference to a bookmark the document lacks: Word brings
+                    // it up to date as it prints, and the result is its error
+                    // (tdf170672's two REF fields over a missing _Ref name stand
+                    // as "Error! Reference source not found." twice, two lines
+                    // in the cell where the file's cached "4.1" and heading took
+                    // four).
+                    if let f = notes.fields.last, f.result, let name = DocxFormat._missingReference(f.instr, notes.bookmarkNames, notes.keptBookmarkText) {
+                        _ = name
+                        if notes.referenceErrors.insert(f.id).inserted { addText("Error! Reference source not found.", cs) }
+                        continue
                     }
                     if let id = missingReference {
                         if notes.missingReferenceShown.insert(id).inserted {
