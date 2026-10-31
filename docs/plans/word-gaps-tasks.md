@@ -11382,3 +11382,9 @@ Tools: scores/pairs in ~/tmp/lo5 (full-<tag>, lo-<tag>); probe pattern = a tempo
 - NEXT: tdf105035_framePrB (IEEE title frame too wide), tdf133924's notBeside frame (a frame mid-paragraph, y 273pt; the flow's offset is wrong there), score special_styles/tdf105035/tdf133924 on macOS-doc's beside branches (c661c6a0, 26c63514, 768aa34a) and send starling-bd the numbers,
   fdo79822 via DiagramLayout.
 - Rules I keep: stage nothing from `git checkout <ref> -- dir` (check `git show --stat` before a wip push); resolve every `git apply --3way` conflict before commit; stop my own jobs by PID.
+
+  T253 WIP PUSHED (Linux lo4, 2026-10-30), wip/lo-sections-2 7237f4cad (one commit on office 3f6908900), sent to windows-1 for confirmation (supersedes the "STATE" note above: the pre-pair is done).
+  Pre-pair (Windows mode, v2 and v1, validation engine, bundled fonts, release builds; base and candidate each from their own copy of binary + libs + resources): official 756: 1 up (zh-95d4dde0 99.9 -> 100), none down,
+  mean 98.35 both (v1 98.161 both); LO set (593): 4 up, none down, mean 65.843 -> 66.256: tdf108272 (lo-198cd200) 0 -> 73.3, tdf146248 (lo-9f46ceca) 71.4 -> 100, tdf149555 (lo-abef8321) 37.0 -> 100, lo-add1862e 20 -> 100.
+  Office suite 539 tests, 0 failures, 3 skipped (standard env); under OFFICE_WORD_FONTS=windows six DocxTests/PdfMarkupTests fail the same on the unfixed code (not this branch). Tab fix (tdf146248) has no unit test
+  (it passed unfixed in the harness); the page-break test needs OFFICE_WORD_FONTS=windows to bite. Process note for sweeps from a copied binary: copy libFlutterShared.so AND the *.resources folders beside it, or the fonts are missing.
