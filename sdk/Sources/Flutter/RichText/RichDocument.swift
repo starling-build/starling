@@ -405,6 +405,9 @@ public struct ParagraphFrame: Hashable, Sendable {
     public var verticalAnchor = "text"
     public var horizontalAlign: String? = nil
     public var verticalAlign: String? = nil
+    /// The frame's stated height (points): what a vertical alignment on the
+    /// margins sets it by.
+    public var height: Double? = nil
     public init() {}
 }
 

@@ -6330,13 +6330,19 @@ public final class RichLayout {
             let ownFrame = document.paragraphs[i].style.frameXML
             let frameStarts = theme.wordRules && _cells[i] == nil && ownFrame != nil
                 && !(i > 0 && document.paragraphs[i - 1].style.frameXML == ownFrame)
-            if frameStarts, let f = document.paragraphs[i].style.frame, f.verticalAlign == nil, Self._onThePage(document.paragraphs[i].style) {
+            if frameStarts, let f = document.paragraphs[i].style.frame, Self._framePlaced(f), Self._onThePage(document.paragraphs[i].style) {
                 let physical = page / _columns
                 let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                 // (A frame on the margin from the text's top: the cover's
                 // "山东省市场监督管理局 发布", 751pt under the margin, stood
                 // in the flow at the page's head.)
                 var target = f.verticalAnchor == "margin" ? _px(f.y) : _px(f.y) - insetTop
+                // (Aligned on the margins, by the height it states: the
+                // frame of LibreOffice's tdf112287 has yAlign bottom and
+                // stands at the foot of the text area in Word's print.)
+                if let a = f.verticalAlign, let h = f.height {
+                    target = a == "top" ? 0 : a == "center" ? (contentH - _px(h)) / 2 : contentH - _px(h)
+                }
                 // (A page-anchored frame that holds one drawing in its line
                 // and nothing else stands its drawing at the frame's y less
                 // the page's top margin — lab frame, Word for Windows, 20
@@ -7193,7 +7199,7 @@ public final class RichLayout {
         // 482pt title frame of zh-90e0cea8's cover holds its 18-character
         // title on one line, where the 420pt column parted it.)
         if frameLeft == nil, theme.wordRules, p.cell == nil, let frame = style.frame, let w = frame.width,
-           frame.verticalAlign == nil, Self._onThePage(style) {
+           Self._framePlaced(frame), Self._onThePage(style) {
             let column = width
             width = _px(w) + left
             // (Centred between the margins where its chain says so and
@@ -16238,6 +16244,13 @@ public final class RichLayout {
     /// names a height and no anchor is read as on the margin, the schema's
     /// default: zh-90e0cea8's "发布" frame, which says only its y, prints
     /// 784.9pt down the page, 751 under a 16.9pt margin.)
+    /// A frame the layout places on the page: one with no alignment, or
+    /// aligned on the margins by a height it states.
+    static func _framePlaced(_ f: ParagraphFrame) -> Bool {
+        guard let a = f.verticalAlign else { return true }
+        return f.verticalAnchor == "margin" && f.height != nil && (a == "top" || a == "center" || a == "bottom")
+    }
+
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
         return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").containsSubstring("w:vAnchor=")
