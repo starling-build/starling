@@ -250,11 +250,16 @@ enum DocxFormat {
             while i < kids.count {
                 let p = kids[i]
                 if p.name == "w:p", i + 1 < kids.count, kids[i + 1].name == "w:p",
-                   let pPr = p.first("w:pPr"), let frame = pPr.first("w:framePr"), frame["w:dropCap"] == "drop",
+                   let pPr = p.first("w:pPr"), let frame = pPr.first("w:framePr"), ["drop", "margin"].contains(frame["w:dropCap"] ?? ""),
                    let lines = Double(frame["w:lines"] ?? ""), lines >= 2,
                    let spacing = pPr.first("w:spacing"), spacing["w:lineRule"] == "exact", let line = Double(spacing["w:line"] ?? ""), line > 0,
-                   p.children.filter({ $0.name == "w:r" }).count == 1, p.children.filter({ $0.name != "w:pPr" && $0.name != "w:r" }).isEmpty,
-                   let run = p.first("w:r"), let t = run.first("w:t"), !t.text.isEmpty,
+                   // (More than one run is one cap word where they are all of one look:
+                   // tdf109316_dropCaps' "L" and "liquam", 77pt.)
+                   p.children.filter({ $0.name != "w:pPr" && $0.name != "w:r" }).isEmpty,
+                   case let capRuns = p.children.filter({ $0.name == "w:r" }), !capRuns.isEmpty,
+                   capRuns.allSatisfy({ r in r.children.filter { $0.name != "w:rPr" && $0.name != "w:t" }.isEmpty && r.all("w:t").count == 1
+                       && r.first("w:rPr").map(PptxXML.serialize) == capRuns[0].first("w:rPr").map(PptxXML.serialize) }),
+                   let run = capRuns.first, case let capText = capRuns.compactMap({ $0.first("w:t")?.text }).joined(), !capText.isEmpty,
                    case let host = kids[i + 1], host.first("w:pPr")?.first("w:framePr") == nil {
                     let height = line / 20                      // points: the lines' height
                     let pitch = height / lines
@@ -269,19 +274,25 @@ enum DocxFormat {
                     // size is for a cap that names none.)
                     let ownSize = run.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init).map { $0 / 2 }
                     let size = ownSize ?? hostSize + (lines - 1) * pitch / capHeight
-                    let capWidth = em(t.text) * size
+                    let capWidth = em(capText) * size
                     let halfPoints = Int((size * 2).rounded())
                     let baseline = height - 0.25 * pitch        // the last line's baseline, from the box's top
                     let exact = Int((baseline / 0.8 * 20).rounded())
                     let rPrInner = (run.first("w:rPr")?.children ?? []).filter { $0.name != "w:sz" && $0.name != "w:szCs" && !(ownSize != nil && $0.name == "w:position") }
                         .map { PptxXML.serialize($0) }.joined()
-                    let esc = t.text.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;")
+                    let esc = capText.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;")
+                    // (A drop "in the margin" hangs outside the column, its right
+                    // edge a space short of it, no text beside it: lo
+                    // tdf109316_dropCaps' "I", 3 lines of 41pt, stands at x 23
+                    // in a column from 57 in Word's print.)
+                    let inMargin = frame["w:dropCap"] == "margin"
+                    let marginWidth = capText.unicodeScalars.reduce(0.0) { $0 + ($1.value == 0x49 ? 0.333 : em(String($1))) } * size
                     let emu = Int(height * 12700)
-                    let emuW = max(emu, Int(capWidth * 1.5 * 12700))   // (room for the cap's own width: the box takes the text's, no more than its extent)
+                    let emuW = max(emu, Int(capWidth * (capText.count > 1 ? 1.05 : 1.5) * 12700))   // (room for the cap's own width: the box takes the text's, no more than its extent)
                     let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
                     let hSpacePoints: Double = (Double(frame["w:hSpace"] ?? "") ?? 0) / 20
                     let distRight: Int = Int(hSpacePoints * 12700)
-                    let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"\(distRight)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(emuW)\" cy=\"\(emu)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"Drop cap\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emuW)\" cy=\"\(emu)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(exact)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:rPr>\(rPrInner)<w:sz w:val=\"\(halfPoints)\"/><w:szCs w:val=\"\(halfPoints)\"/></w:rPr><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                    let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"\(distRight)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>\(inMargin ? -Int((marginWidth + hSpacePoints) * 12700) : 0)</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"\(emuW)\" cy=\"\(emu)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/><wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"1\" name=\"Drop cap\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emuW)\" cy=\"\(emu)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(exact)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:rPr>\(rPrInner)<w:sz w:val=\"\(halfPoints)\"/><w:szCs w:val=\"\(halfPoints)\"/></w:rPr><w:t xml:space=\"preserve\">\(esc)</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
                     if let drawing = XNode.parse(Data(xml.utf8)) {
                         let at = host.children.firstIndex(where: { $0.name != "w:pPr" }) ?? host.children.count
                         host.children.insert(drawing, at: at)
