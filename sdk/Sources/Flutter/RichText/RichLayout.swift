@@ -5855,7 +5855,14 @@ public final class RichLayout {
                     }
                 }
             }
-            if _pageBreak[i] && !sectionBreakHandled && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
+            // (A page break that opens the document's first paragraph is a
+            // blank first page in Word: LibreOffice's
+            // tdf153964_topMarginAfterBreak14 prints six pages for four of
+            // ours. The paragraph property of the same name does nothing
+            // there, which is why only the break inside the paragraph counts.)
+            let opensTheDocument = theme.wordRules && RichTextTheme.wordWindowsPages && i == 0 && page == 0
+                && document.paragraphs[i].style.pageBreakInline && !document.paragraphs[i].style.columnBreak
+            if _pageBreak[i] && !sectionBreakHandled && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage || opensTheDocument) && resumeCursor == nil {
                 // (A page the line before hung past the foot of has no
                 // room for the break's own line: that line takes a page
                 // of its own, and the break ends that one too — a blank
