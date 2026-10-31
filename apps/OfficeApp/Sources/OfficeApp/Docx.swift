@@ -4501,6 +4501,21 @@ enum DocxFormat {
                 addObject(drawing)
                 return
             }
+            // (A text box's own picture is not the box's: tdf48658's header is
+            // a transparent VML box holding a table, whose first cell has a
+            // small inline picture; read as that picture, the box drew the
+            // picture alone and none of its table.)
+            func blipOutsideBoxes(_ n: XNode) -> XNode? {
+                if n.name == "w:txbxContent" { return nil }
+                if n.name == "a:blip" { return n }
+                for child in n.children { if let hit = blipOutsideBoxes(child) { return hit } }
+                return nil
+            }
+            if drawing.descendant("w:txbxContent") != nil, blipOutsideBoxes(drawing) == nil {
+                RuleTrace.hit("box-picture-is-the-boxs-content")
+                addObject(drawing)
+                return
+            }
             guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
                   let target = rels[rid], let data = media(target) else { addObject(drawing); return }
             var w = 300.0, h = 200.0
