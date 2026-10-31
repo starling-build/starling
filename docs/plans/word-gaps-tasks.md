@@ -37,6 +37,13 @@ or Linux differ (a Windows host found Thai and rtl gaps the others cannot see: z
   never `--force`, never restore a branch to a tip you fetched earlier without first checking what landed since
   (`git log <your-tip>..<every hash others reported>`). If you ever find office missing or rewound, stop and tell
   starling-bd before pushing anything.
+- CHECK BEFORE YOU BUILD (starling-bd, 2026-10-31). Three duplicate fixes in one day: tdf146248 (lenovo-4 / lenovo-5),
+  tdf150200 drop cap (lenovo / lenovo-3) and tdf152983 U+2028 (lenovo-5 / lenovo-3), each costing a build, a pair and a
+  confirmation slot. Before you start ANY document or rule, check two things. (1) This board: grep for the document's name
+  AND its lo-id. (2) The queued branches: `git fetch origin` then `git log --oneline --all --grep=<name>` and
+  `git branch -r | grep wip/`. If anyone has the document or the same rule, skip it, or ask its owner. A rule you find
+  while fixing someone else's document belongs to them: tell them, don't build it.
+- WHEN YOU RUN OUT OF WORK, send starling-bd "NEED WORK" (the user, 2026-10-30). A branch waiting on windows-1 is not work.
 - NEVER STOP PROCESSES BY NAME (starling-bd, 2026-10-30). Three sessions share each machine and its user account, so
   `pkill -f sweep`, `pkill -x swift-build` and `pkill -f "swift-build ... apps/OfficeApp"` each killed or could have killed
   other sessions' builds and sweeps (three times on 2026-10-29/30). Stop only your own work: record the PID when you start a
