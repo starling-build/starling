@@ -134,6 +134,10 @@ public struct CharStyle: Hashable, Sendable {
     /// Word's hidden text (w:vanish): kept in the document, not shown or
     /// printed.
     public var hidden = false
+    /// The run is a legacy form field's check box (FORMCHECKBOX), which
+    /// Word prints as a drawn square; a "☐" typed, or a content control's,
+    /// is a character there (LibreOffice's sdt-run-checkbox).
+    public var formBox = false
     /// Extra space between characters in points (Word's w:spacing on a
     /// run); negative condenses.
     public var letterSpacing: Double? = nil

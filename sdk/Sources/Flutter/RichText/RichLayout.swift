@@ -10864,7 +10864,7 @@ public final class RichLayout {
         // margin in Word's print — counted, 87 figures moved 3.5pt left.)
         let roomyTrail = theme.wordRules && p.style.alignment == .right && p.text.hasSuffix(" ")
             && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
-        let checkboxes = theme.wordRules && p.text.contains { $0 == "\u{2610}" || $0 == "\u{2612}" }
+        let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox }
         if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
             let spans = styled(p.text[...], p.runs[0].style)
             if spans.count == 1 { return (spans[0], [], inserts) }
@@ -11120,7 +11120,7 @@ public final class RichLayout {
             // form_footnotes' "☐ Yes ☐ No", whose "Yes" stood 2.5pt left
             // of Word's behind the glyph's 8.96. A box in the line before
             // the character, which is kept and hidden, as a combined run's.
-            if theme.wordRules, p.text[a ..< b].contains(where: { $0 == "\u{2610}" || $0 == "\u{2612}" }) {
+            if theme.wordRules, run.style.formBox, p.text[a ..< b].contains(where: { $0 == "\u{2610}" || $0 == "\u{2612}" }) {
                 let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
                 let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                 var hidden = run.style

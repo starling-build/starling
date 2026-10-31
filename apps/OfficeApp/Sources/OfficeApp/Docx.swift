@@ -107,9 +107,41 @@ final class XNode {
         #else
         if _systemOnly { return parseSystem(data) }
         let bytes = [UInt8](data)
-        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { return root }
-        return parseSystem(data)
+        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { return _strictMeasures(root, data) }
+        return parseSystem(data).map { _strictMeasures($0, data) }
         #endif
+    }
+
+    /// A strict (ISO) WordprocessingML part gives its measures with a unit
+    /// ("419.60pt", "2.5cm") where the transitional one gives twips (or
+    /// half-points for a size): LibreOffice's tdf82065_Ind_start_strict has
+    /// its page, margins and indents so, and they were read as nothing —
+    /// the paragraph on a letter page with no indent. Put into twips here,
+    /// once, where the part is read.
+    private static let _strictTwipAttributes: Set<String> = [
+        "w:w", "w:h", "w:top", "w:bottom", "w:left", "w:right", "w:start", "w:end", "w:header", "w:footer", "w:gutter",
+        "w:hanging", "w:firstLine", "w:before", "w:after", "w:pos", "w:space", "w:firstLine", "w:tblpX", "w:tblpY",
+    ]
+    private static func _strictMeasures(_ root: XNode, _ data: Data) -> XNode {
+        guard data.prefix(4096).range(of: Data("ooxml/wordprocessingml/main".utf8)) != nil,
+              data.prefix(4096).range(of: Data("purl.oclc.org".utf8)) != nil else { return root }
+        func convert(_ raw: String, per: Double) -> String? {
+            let units: [(String, Double)] = [("pt", 1), ("pc", 12), ("pi", 12), ("in", 72), ("cm", 72 / 2.54), ("mm", 72 / 25.4)]
+            for (u, k) in units where raw.hasSuffix(u) {
+                guard let v = Double(raw.dropLast(u.count)) else { return nil }
+                return String(Int((v * k * per).rounded()))
+            }
+            return nil
+        }
+        func walk(_ n: XNode) {
+            for (key, value) in n.attrs where value.count > 2 {
+                if _strictTwipAttributes.contains(key), let t = convert(value, per: 20) { n.attrs[key] = t }
+                else if key == "w:sz" || key == "w:szCs", let t = convert(value, per: 2) { n.attrs[key] = t }
+            }
+            for c in n.children { walk(c) }
+        }
+        walk(root)
+        return root
     }
 
     /// A part whose bulk is one long list under its root — a sheet's rows:
@@ -3507,6 +3539,9 @@ enum DocxFormat {
         /// Every comment id whose range has been opened (a reference run
         /// for one of these ends a range; any other is a point comment).
         var seenComments = Set<String>()
+        /// Comments some text of the body carries: a range that covers an
+        /// anchored picture alone carries none, and is anchored at its end.
+        var carriedComments = Set<String>()
         /// The comment ids some run carries (a range with text in it).
         var anchoredComments = Set<String>()
         /// Character styles (w:rStyle on a run), each as its chain of run
@@ -4658,6 +4693,7 @@ enum DocxFormat {
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
             text += s
+            for id in cs.comments { notes.carriedComments.insert(id) }
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
@@ -4784,7 +4820,8 @@ enum DocxFormat {
                     }
                     if cs.formatChange != nil { notes.fieldCodeChanged = true }
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
-                        addText(on ? "\u{2612}" : "\u{2610}", cs)
+                        var box = cs; box.formBox = true
+                        addText(on ? "\u{2612}" : "\u{2610}", box)
                         pendingCheckbox = nil
                     }
                     if let entry = pendingDropdown, child.text.uppercased().containsSubstring("FORMDROPDOWN") {
@@ -4795,7 +4832,7 @@ enum DocxFormat {
                     // A comment with no range (comment.docx's LibreOffice
                     // comment) anchors at a point: a zero-width run carries
                     // it, so the balloon survives the save.
-                    if notes.kept["word/comments.xml"] != nil, let id = child["w:id"], !notes.seenComments.contains(id) {
+                    if notes.kept["word/comments.xml"] != nil, let id = child["w:id"], !notes.seenComments.contains(id) || !notes.carriedComments.contains(id) {
                         notes.seenComments.insert(id)
                         var point = cs
                         point.comments = cs.comments + [id]
