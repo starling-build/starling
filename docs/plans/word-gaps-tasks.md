@@ -23,6 +23,12 @@ on the government corpus, but start no new government-only items. Every LO fix m
 (the Windows-box confirmation runs both sets). lenovo-2 keeps the LO scores and the triage by class; starling-bd routes
 the classes.
 
+**SCALED DOWN (the user, 2026-10-31 afternoon): Word and Slides are near their ceilings.**
+- Six sessions stay: lenovo-5 (Word line-end punctuation), windows-2 (Slides one-pixel text lines), lenovo-3 (Slides gradients), windows-1 (Slides tiles, then open S2 items), windows (Word and PowerPoint prints and labs, on request), mac-confirm (tip watcher).
+- The rest stop after landing what they have in flight: macOS-doc, macos-ios, lenovo, lenovo-2, lenovo-4, windows-3, and starling-bd last.
+- With no coordinator, take the next open item yourself from S2 (Slides) or T250/T260 (Word). Claim it here first, check before you build, pair on your own host with the guard, and land.
+- Open items left by the stopped sessions are noted under their own entries.
+
 **LANDING IS DECENTRALISED (the user, 2026-10-31, later): authors confirm on their own machine and land.**
 1. Fetch origin/office and rebase your fix onto the tip.
 2. Build the tip AND your fix on your own host, with the current engine: e837b7634c9+ with the 6c38bc62936 guard. On the Lenovo, use the refreshed validation snapshot.
