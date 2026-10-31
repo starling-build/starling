@@ -1,0 +1,8 @@
+ours (this tree's binary, Windows mode): per document - page count, R01 y, last row on page 1 (text, y)
+nt1-b00 pages 2 R01 [81] last (847, 'R75')
+nt1-b05-frame pages 2 R01 [82] last (852, 'R72')
+nt1-b05-short pages 2 R01 [82] last (852, 'R72')
+nt1-b05-top pages 2 R01 [82] last (852, 'R72')
+nt1-b05 pages 2 R01 [82] last (852, 'R72')
+nt1-b30 pages 2 R01 [84] last (845, 'R58')
+nt1-flat-b05 pages 2 R01 [71] last (853, 'R73')
