@@ -1482,7 +1482,7 @@ enum DocxFormat {
                    (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto" {
                     var widest = cols
                     var wider = false
-                    // (Only where a row is far wider than the grid — a grid Word wrote is its own
+                    // (Only where a row is far wider than the grid — nearly twice: lo-a197b7a8's three 4428-twip cells under an 8812 grid, 1.5 times, keep the grid in Word's print; a grid Word wrote is its own
                     // layout of the columns, and cells wider than it are preferences it overruled.)
                     let gridTotal = cols.reduce(0, +)
                     for tr in unwrapped(node, "w:tr") where tr.first("w:trPr")?.first("w:gridBefore") == nil {
@@ -1492,7 +1492,7 @@ enum DocxFormat {
                             let w = tc.first("w:tcPr")?.first("w:tcW")
                             if w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? "") { rowTotal += v / 20 }
                         }
-                        guard rowTotal > gridTotal * 1.25 else { continue }
+                        guard rowTotal > gridTotal * 1.75 else { continue }
                         for tc in unwrapped(tr, "w:tc") {
                             let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
                             let w = tc.first("w:tcPr")?.first("w:tcW")
