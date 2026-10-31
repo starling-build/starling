@@ -233,6 +233,7 @@ enum DocxFormat {
         func part(_ name: String) -> Data? { entries.first { $0.name == name }?.data }
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
+        _hoistTablesOutOfParagraphs(root)
         let kept = _keptParts(entries, part)
         // Relationships: hyperlink targets and media parts.
         var rels: [String: String] = [:]
@@ -3532,6 +3533,41 @@ enum DocxFormat {
     /// type) is what every empty cell's paragraph wears; skipping it set
     /// those cells in Normal's 10pt + 10pt after, grew every table, and
     /// cost the copy a fourth page.
+    /// A table written inside a paragraph (LibreOffice's tdf111550 has one in a cell's
+    /// paragraph, after a line break) is read by Word as standing after it.
+    private static func _hoistTablesOutOfParagraphs(_ root: XNode) {
+        var stack = [root]
+        while let node = ref(&stack) {
+            var i = 0
+            while i < node.children.count {
+                let child = node.children[i]
+                if child.name == "w:p", child.children.contains(where: { $0.name == "w:tbl" }) {
+                    let tables = child.children.filter { $0.name == "w:tbl" }
+                    // (A line break just before it ends the line the table follows: no
+                    // empty line is left between, as Word's print has it.)
+                    if let at = child.children.firstIndex(where: { $0.name == "w:tbl" }), at > 0,
+                       case let run = child.children[at - 1], run.name == "w:r",
+                       let last = run.children.last, last.name == "w:br", (last["w:type"] ?? "textWrapping") == "textWrapping" {
+                        run.children.removeLast()
+                    }
+                    child.children.removeAll { $0.name == "w:tbl" }
+                    // (And the paragraph's own space after goes: the table was inside it.)
+                    let pPr: XNode
+                    if let have = child.first("w:pPr") { pPr = have } else {
+                        pPr = XNode(name: "w:pPr", attrs: [:])
+                        child.children.insert(pPr, at: 0)
+                    }
+                    if let spacing = pPr.first("w:spacing") { spacing.attrs["w:after"] = "0" }
+                    else { pPr.children.append(XNode(name: "w:spacing", attrs: ["w:after": "0"])) }
+                    node.children.insert(contentsOf: tables, at: i + 1)
+                }
+                i += 1
+            }
+            stack.append(contentsOf: node.children)
+        }
+        func ref(_ s: inout [XNode]) -> XNode? { s.popLast() }
+    }
+
     private static func _normaliseStyleIds(_ styles: XNode) {
         for style in styles.all("w:style") {
             if style.attrs["w:type"] == nil { style.attrs["w:type"] = "paragraph" }

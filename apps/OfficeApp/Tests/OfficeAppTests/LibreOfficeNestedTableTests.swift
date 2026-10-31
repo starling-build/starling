@@ -109,6 +109,18 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         XCTAssertGreaterThan(last, first + 1)
     }
 
+    /// A table written inside a paragraph, after a line break, stands after the paragraph:
+    /// LibreOffice's tdf111550 has "[inner:A1]" straight under "[outer:A2]" in Word's print.
+    func testTableInsideAParagraphStandsAfterIt() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-0627e9c1e5b4e7ba.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let parsed = try DocxFormat.read(data)
+        XCTAssertTrue(parsed.document.paragraphs.contains { p in
+            p.image?.textBox?.paragraphs.contains { $0.text.contains("[inner:A1]") } == true })
+    }
+
     /// A 56-row list of short rows in a cell is a table of its own and parts between its rows:
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
