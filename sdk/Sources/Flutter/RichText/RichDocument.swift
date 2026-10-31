@@ -1191,6 +1191,8 @@ public struct TableStyle: Hashable, Sendable {
     /// header or footer it takes no room, and stands over the paragraph
     /// after it (`RichLayout.floatsFrames`).
     public var floatsOverText = false
+    /// The table holds a drawing anchored with `layoutInCell="0"`.
+    public var shapesLeaveCell = false
     /// The table's own `w:tblCellMar` when the editor's margins were
     /// taken from the cells instead (most of them stating a `w:tcMar`),
     /// with the margins that were current when it was read: written
@@ -2245,6 +2247,9 @@ public struct RichDocument: Hashable, Sendable {
     /// 15 a line's punctuation hangs and gives in a paragraph set any
     /// way; from 15 on only in a justified one.
     public var compatibilityMode: Int? = nil
+    /// `w:doNotBreakWrappedTables`: a table the text wraps round (a floating
+    /// one) is not parted over pages, whatever its height.
+    public var doNotBreakWrappedTables = false
     /// Word for Windows, in the legacy mode (no `compatibilityMode`) and
     /// with the defaults' East Asian face a Latin theme one
     /// (`w:eastAsiaTheme` minorHAnsi): Han text after a space is one

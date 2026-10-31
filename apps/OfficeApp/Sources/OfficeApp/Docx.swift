@@ -1766,11 +1766,17 @@ enum DocxFormat {
                     if pos["w:vertAnchor"] == "page", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? "") { style.pageOffsetY = v / 20 }
                     style.keptPosition = PptxXML.serialize(pos)
                         + (node.first("w:tblPr")?.first("w:tblOverlap").map { PptxXML.serialize($0) } ?? "")
-                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
+                    // (A table that states no w:vertAnchor is anchored to the
+                    // text, the schema's default: floating-table-section-break's
+                    // tblpY -200 stands 10pt up into the margin in Word's print.)
+                    let anchoredToText = (pos["w:vertAnchor"] ?? "text") == "text"
+                    if anchoredToText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         style.floatOffsetY = v / 20
                     }
-                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
-                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
+                    if anchoredToText, pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    // (A drawing the table holds that is not laid out in its cell.)
+                    if node.descendants("wp:anchor").contains(where: { $0["layoutInCell"] == "0" }) { style.shapesLeaveCell = true }
+                    if anchoredToText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {
                         style.floatRaiseY = -v / 20
                     }
                     if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
@@ -2662,6 +2668,7 @@ enum DocxFormat {
             document.adjustsLineHeightInTable = settings.first("w:compat")?.first("w:adjustLineHeightInTable").map { !_isOff($0) } ?? false
             document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
             document.breakRulesOnlyForEastAsian = settings.first("w:compat")?.first("w:doNotUseEastAsianBreakRules").map { !_isOff($0) } ?? false
+            document.doNotBreakWrappedTables = settings.first("w:compat")?.first("w:doNotBreakWrappedTables").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
                 .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
             // (A file that names no compatibility mode — with a w:compat block
