@@ -135,4 +135,34 @@ final class CorpusFixTests: XCTestCase {
         }
         XCTAssertNil(SlidesPdf.smoothPictures(Data("%PDF-1.4\nno pictures".utf8)))
     }
+
+    /// lo tdf48658's header is a transparent VML box (`w:pict`) holding a
+    /// table whose first cell has a small inline picture. The picture the
+    /// box's text holds is not the box's own: read as the pict's picture,
+    /// the box drew that picture alone and none of its table.
+    func testAPictureInsideATextBoxDoesNotMakeTheBoxThePicture() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let embed = try XCTUnwrap(xml.range(of: #"r:embed="[^"]+""#, options: .regularExpression))
+        let rid = String(xml[embed])
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let picture = "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"238125\" cy=\"171450\"/>"
+            + "<wp:docPr id=\"14\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:blipFill><a:blip \(rid)/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\" type=\"#_x0000_t202\" "
+            + "style=\"position:absolute;margin-left:58pt;margin-top:45pt;width:500pt;height:80pt\" stroked=\"f\">"
+            + "<v:textbox><w:txbxContent><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid>"
+            + "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p>\(picture)</w:p></w:tc>"
+            + "<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>Title</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            + "<w:p/></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let image = try XCTUnwrap(doc.paragraphs.compactMap { $0.image ?? $0.inlineImages.values.first }.first)
+        let box = try XCTUnwrap(image.textBox, "the box, not the picture in its table")
+        XCTAssertTrue(box.paragraphs.contains { $0.text.contains("Title") })
+    }
 }
