@@ -8203,7 +8203,7 @@ public final class RichLayout {
                 let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside ? max(original - besideIndent, 0) : original,
                                               adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
                 let trialInline = _span(for: p, at: i, document, textWidth: textWidth, lead: original, adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld).1
-                let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: .ltr)
+                let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: style.rightToLeft ? .rtl : .ltr)
                 if !trialInline.isEmpty { trial.setPlaceholderDimensions(trialInline.map { $0.dimensions }) }
                 trial.lineIndents = indents
                 trial.layout(minWidth: 0, maxWidth: textWidth)
@@ -11834,7 +11834,11 @@ public final class RichLayout {
     /// anchored in the paragraph itself or in one of the few before it in the
     /// same cell (or the body), the paragraphs between standing under it.
     private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double))? {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !p.style.rightToLeft else { return nil }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return nil }
+        // (A right-to-left paragraph: only one with no indents of its own,
+        // whose start and end are not in question — a picture at the
+        // margin's left, text at its right: lo tdf163575.)
+        guard !p.style.rightToLeft || (p.style.indentLeft == 0 && p.style.indentRight == 0 && p.style.firstLineIndent == 0) else { return nil }
         // (A cell's text is as wide as the cell less its margins, not the page's
         // column.)
         let cell = p.cell != nil && i < _cells.count ? _cells[i] : nil
@@ -11849,6 +11853,13 @@ public final class RichLayout {
                 guard q.cell == p.cell, k < _heights.count else { break }
             }
             var candidates: [(image: ImageAttachment, size: Size?)] = k == i ? q.inlineImages.values.map { ($0, nil) } : []
+            // (A picture at the margin's left, anchored in an earlier paragraph,
+            // holds the text of the ones after it as well, down to its foot —
+            // lo tdf163575's "Undo", "Redo" and the rest, round a 181pt picture
+            // anchored in the paragraph above them.)
+            if k < i, p.cell == nil, q.cell == nil {
+                for image in q.inlineImages.values where image.float?.horizontalAlign == "left" { candidates.append((image, nil)) }
+            }
             // (A table floating in the cell, in a paragraph of its own above: the
             // text that follows stands beside it. A picture anchored in an earlier
             // paragraph is left to the paragraph-by-paragraph push, as before:
@@ -11856,16 +11867,16 @@ public final class RichLayout {
             if k < i, p.cell != nil, let image = q.image, image.name == "table", k < _imageSize.count { candidates.append((image, _imageSize[k])) }
             for (image, laid) in candidates {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
-                      float.horizontalAlign == nil, float.wrapSide != "left" else { continue }
+                      float.horizontalAlign == nil || (float.horizontalAlign == "left" && float.horizontalFrom != "page"), float.wrapSide != "left" else { continue }
                 let inCell = float.horizontalFrom == "cell" && cell != nil
-                guard inCell || float.horizontalFrom == "column" else { continue }
+                guard inCell || float.horizontalFrom == "column" || (float.horizontalAlign == "left" && float.horizontalFrom == "margin") else { continue }
                 let column = inCell ? (cell?.colWidth ?? 0) : inner
                 // (A box that takes its text's width is that wide: a drop cap's.)
                 if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                 let w = laid.map { $0.width }
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _px(image.height)
-                let x = _px(float.x)
+                let x = float.horizontalAlign == "left" ? 0 : _px(float.x)
                 let own = _px(p.style.indentLeft) + (inCell ? (cell?.pad.left ?? 0) : 0)
                 // (Not with room at its left for text: that stands round it on
                 // both sides, which the engine does not set.)
