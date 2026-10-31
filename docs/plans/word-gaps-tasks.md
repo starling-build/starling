@@ -11433,7 +11433,7 @@ T250 LO RE-SCORE AFTER WINDOWS-1'S ROUND 9 (Linux lo4, 2026-10-30). One build of
   25 shape-anchored-in-follow 37 (59.3%): unclaimed.
   26 tdf155707 37 (42.2%): unclaimed (bidi).
   27 floating-table-dummy-text 33 (42.1%): unclaimed.
-  28 floattable-nested-rowspan 32 (53.6%): unclaimed.
+  28 floattable-nested-rowspan 32 (53.6%): CLAIMED: Linux lenovo-2 (2026-10-30); stack r11 already lifts it to 56.5.
   29 tdf152983-1-min 32 (17.9%): unclaimed (header/footer).
   30 tdf147485-forcepoint 32 (0.0%) and 31 Tdf147485 32 (0.0%): unclaimed (logo is in Word's place now; the lines are not).
   32 n830205 30 (58.9%): leftover of the balloon work, no owner.
