@@ -3034,8 +3034,22 @@ public class PlatformDispatcher {
   /// **Original:** `void scheduleFrame() => _scheduleFrame();`
   public func scheduleFrame() {
     frameRequested = true
+    // The bridge reaches the engine through the registry, which the
+    // *executable* provides (libswift_bridge leaves it undefined). A process
+    // without an engine — the sdk's own tests — leaves it unbound, and the
+    // call then jumps to address 0 rather than failing.
+    guard Self.engineRegistryPresent else { return }
     bridge.ScheduleFrame()
   }
+
+  private static let engineRegistryPresent: Bool = {
+    #if canImport(Darwin) || canImport(Glibc)
+    return dlsym(dlopen(nil, RTLD_NOW),
+                 "_ZN7flutter12swift_bridge25SwiftBridgeEngineRegistry24GetScheduleFrameCallbackEv") != nil
+    #else
+    return true
+    #endif
+  }()
 
   /// Whether the framework asked for the frame the engine is about to
   /// begin. The engine also begins frames of its own accord — after it
