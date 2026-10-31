@@ -3421,6 +3421,8 @@ public final class RichLayout {
         // Where the flow stood before a frame placed on the page (see
         // below), and the page it is on.
         var frameReturn: (y: Double, page: Int)? = nil
+        // (Where a frame text does not go beside ends on its page: the flow goes on from there.)
+        var frameFoot: (y: Double, page: Int)? = nil
         var resumeCursor: Double? = nil
         // The previous result, to splice back in once the flow past the
         // change lands where it did before.
@@ -6407,6 +6409,12 @@ public final class RichLayout {
             let ownFrame = document.paragraphs[i].style.frameXML
             let frameStarts = theme.wordRules && _cells[i] == nil && ownFrame != nil
                 && !(i > 0 && document.paragraphs[i - 1].style.frameXML == ownFrame)
+            // (The first paragraph of the flow after such a frame — not another
+            // frame, not a table's — stands under it, or on the next page.)
+            if let foot = frameFoot, ownFrame == nil, _cells[i] == nil {
+                if foot.page == page { y = max(y, foot.y) }
+                frameFoot = nil
+            }
             if frameStarts, let f = document.paragraphs[i].style.frame, Self._framePlaced(f), Self._onThePage(document.paragraphs[i].style) {
                 let physical = page / _columns
                 let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
@@ -6434,6 +6442,19 @@ public final class RichLayout {
                 if target > -insetTop, target < contentH - 0.01 {
                     if frameReturn == nil || frameReturn!.page != page { frameReturn = (y, page) }
                     y = target
+                    // (A frame text is not set beside, of a height it states
+                    // exactly: the flow after it starts under it — lo
+                    // tdf104394_lostTextbox's 237pt box on a 298pt page
+                    // sends "Pushed to page 2 by the framed text." to page 2
+                    // in Word's print; ours set it at the top of page 1.)
+                    let xml = document.paragraphs[i].style.frameXML ?? ""
+                    func number(_ key: String) -> Double? {
+                        guard let r = xml.range(of: key + "=\"") else { return nil }
+                        return Double(xml[r.upperBound...].prefix { $0 != "\"" })
+                    }
+                    if xml.containsSubstring("w:wrap=\"notBeside\""), xml.containsSubstring("w:hRule=\"exact\""), let h = number("w:h"), h > 0 {
+                        frameFoot = (target + _px(h / 20 + 2 * (number("w:vSpace") ?? 0) / 20), page)
+                    }
                 }
             }
             // The paragraph a floating table is anchored to stands where the
