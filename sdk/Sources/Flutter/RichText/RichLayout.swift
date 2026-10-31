@@ -17327,6 +17327,17 @@ public final class RichLayout {
     private func _titlePage(_ p: Int, _ document: RichDocument) -> Bool {
         let section = _headerFooterSection(p)
         guard p == 0 || _headerFooterSection(p - 1).index != section.index || _blankPages.contains(p - 1) else { return false }
+        // (A section that began on an earlier page, as a continuous one does
+        // under the page its predecessor ends on, has its first page there:
+        // lo 090716_Studentische_Arbeit_VWS's second section opens on page 1
+        // and breaks to page 2, which Word's print gives the section's
+        // default header, not the first-page one the title page has.)
+        if theme.wordRules, p > 0, let first = _sectionOf.firstIndex(of: section.index),
+           first < _pieceStart.count, _pieceStart[first] < _allPieces.count,
+           _allPieces[_pieceStart[first]].page / _columns < p, !_blankPages.contains(p - 1) {
+            RuleTrace.hit("title-page-of-a-section-begun-earlier")
+            return false
+        }
         return section.last ? document.titlePage : pageSetup(forPage: p).titlePage
     }
 
