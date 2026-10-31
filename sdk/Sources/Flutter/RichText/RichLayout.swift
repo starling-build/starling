@@ -5177,6 +5177,12 @@ public final class RichLayout {
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
                    y > 0.01 || !_pages[page].isEmpty {
                     newPage()
+                    // (In columns a page break goes on to the next page, not
+                    // the next column, for a table's first row as for a
+                    // paragraph's: tdf153136's second copy, a table after a
+                    // page-break paragraph in a two-column section, opens
+                    // Word's page 2; ours set it in page 1's second column.)
+                    if theme.wordRules, _columns > 1 { while page % _columns != 0 { newPage() } }
                     // (A table placed against the page, at its offset on the
                     // page the break opened.)
                     if theme.wordRules, c.row == 0, i == 0 || _cells[i - 1]?.table != c.table,
