@@ -4459,7 +4459,7 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     var encodedStyle: [Int32] = [Int32](repeating: 0, count: 7)
     // (Starling: per-line indents ride after slot 7 — the count, then each
     // pair's floats' bits — under bit 14; an older engine ignores both.)
-    if !style.lineIndents.isEmpty {
+    if !style.lineIndents.isEmpty, engineKnowsLineIndents {
       encodedStyle.append(Int32(style.lineIndents.count))
       for indent in style.lineIndents {
         encodedStyle.append(Int32(bitPattern: Float(indent.left).bitPattern))
@@ -4502,7 +4502,7 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     if style.fractionalLineHeights {
       mask |= (1 << 13)
     }
-    if !style.lineIndents.isEmpty {
+    if !style.lineIndents.isEmpty, engineKnowsLineIndents {
       mask |= (1 << 14)
     }
 
@@ -4744,7 +4744,7 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // Starling: ascent and descent overrides, their floats' bits in slots 9
     // and 10 under mask bit 21 (the array is 11 long so an engine that
     // knows the bit can read them; an older one ignores both).
-    if let ascent = style.ascentOverride, let descent = style.descentOverride {
+    if let ascent = style.ascentOverride, let descent = style.descentOverride, engineKnowsLineIndents {
       mask |= (1 << 21)
       encodedStyle[9] = Int32(bitPattern: Float(ascent).bitPattern)
       encodedStyle[10] = Int32(bitPattern: Float(descent).bitPattern)
@@ -5230,3 +5230,19 @@ public func loadFontFromList(_ list: Data, fontFamily: String? = nil) async thro
   // Notify the framework that fonts have changed
   sendFontChangeMessage()
 }
+
+#if !os(Windows)
+/// Whether the engine in this process knows per-line indents and metrics
+/// overrides (it exports `StarlingTextLineIndentsSupported`). One that does
+/// not ignores both silently and lays the text out wrong, so the first use
+/// against it says so, once.
+private let engineKnowsLineIndents: Bool = {
+  let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextLineIndentsSupported") != nil } ?? false
+  if !known {
+    fputs("warning: this engine predates per-line indents and metrics overrides (starling-engine e837b7634c9); text beside floats is laid out wrong. Rebuild the engine.\n", stderr)
+  }
+  return known
+}()
+#else
+private let engineKnowsLineIndents = true
+#endif
