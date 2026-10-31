@@ -2076,11 +2076,11 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(c.font ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback(c))),
-                textAlign: align, textDirection: .ltr)   // (a label broken in two centres each line)
+                textAlign: align, textDirection: .ltr, maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
         }
@@ -2264,7 +2264,16 @@ enum ChartPainter {
                 entries = entries.map { e in
                     guard lead + e.tp.width > box.width + 0.01 else { return e }
                     e.tp.dispose()
-                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left))
+                    // (Word's box holds the lines its height allows, the last ending in an
+                    // ellipsis: lo long_legendentry's name, in a box two lines tall, is
+                    // "Data series" over "with a…".)
+                    let wrapped = styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left)
+                    let each = wrapped.height / Double(max(1, wrapped.computeLineMetrics().count))
+                    let room = Int((box.height / each).rounded(.down))
+                    guard !c.onSlide, !c.onSheet, room >= 1, wrapped.computeLineMetrics().count > room else { return (i: e.i, tp: wrapped) }
+                    wrapped.dispose()
+                    RuleTrace.hit("word-legend-name-ends-in-an-ellipsis-where-its-box-is-full")
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left, maxLines: room))
                 }
             }
             // A column beside stacked columns (or areas) reads as the stack
