@@ -11625,3 +11625,5 @@ ENGINE ROUND STEP 3 CLAIMED (Mac macOS-doc, 2026-10-31, from starling-bd): per-l
 
 ### T257 update — tdf92724 (Linux lo4)
 lo-e97858a46ab18f9b 23.1 -> 46.2, pages 3/3: the rule that stands an anchor-only paragraph at the foot of the previous page (a break opening a paragraph with text) fired for "Contents" and pulled the text box's paragraph off page 2. It now skips a paragraph that was itself opened by a break. Branch `wip/lo-pagebreak-anchor` (a17a20f41), pre-paired (official 756 identical, LO only this document), with windows-1. `wip/lo-sections-2` landed on office (9e8dd1ab4) after round 11b.
+
+### T258 claim — batch D (Linux lo4): tdf99140, tdf126287, tdf117982, fdo43093b, fdo52208, fdo67013, default-sect-break-cols (one wip branch)
