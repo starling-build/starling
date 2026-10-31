@@ -381,6 +381,9 @@ lo-ccd9da4b | Times New Roman | - | ArialMT | Times (altName)
   fdo73596 is already 42/42, nothing to do. tdf97090 is a wrapTight picture anchor that does not wrap text, not width: handed to macOS-doc.
   tdf149555, tdf146248, tdf108272 went to lenovo-4.
 
+- (9) CLAIMED (windows-2, 2026-10-31, starling-bd): columns step 2 on fdo43573-2-min (lo-eb12e7d4ce90ffa6, 55.5%, 175 lines missed; nested-table text after p7)
+  and then tdf139336_ColumnsWithFootnoteDoNotOccupyEntirePage (26 lines, 0%). Builds of font / spaces / table splits running; pairs follow.
+
 ### zh-c2c92639 (95.8, 54 pages) against word-win v2 — looked at, two clusters (Mac 01Xgpbk5, 2026-10-30; RELEASED as a lead)
 - p41 "引用标准名录" and its 25-line list stand 10pt low in ours: the heading opens with a page-break character and has space before 360 —
   T238's construct (compatibilityMode 15 case); expected to be fixed when T238 lands.
