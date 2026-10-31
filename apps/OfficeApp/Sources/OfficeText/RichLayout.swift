@@ -8462,7 +8462,12 @@ public final class RichLayout {
                     painter.dispose()
                     return free
                 }
-                if let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
+                // (Not by a bullet in Word for Windows, whose first baseline is the text's
+                // own ascent under the line's top whatever the label: lab
+                // `baseln`, and zh-7773163d's "●案例" headings, whose Wingdings
+                // bullet raised it 2.4pt and stood every line after it 3pt
+                // under Word's print.)
+                if !(RichTextTheme.wordWindowsPages && p.style.list == .bullet), let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
                 free.dispose()
             }
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
