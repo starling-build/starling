@@ -885,6 +885,14 @@ public final class TextPainter {
         didSet { if fractionalLineHeights != oldValue { markNeedsLayout() } }
     }
 
+    /// Starling: a (left, right) inset per line, in layout pixels, the last
+    /// entry repeating for every line after it; empty is none. The breaker and
+    /// justification work in `width - left - right`, and each line's metrics
+    /// report the shifted `left`. (`ParagraphStyle.lineIndents`.)
+    public var lineIndents: [LineIndent] = [] {
+        didSet { if lineIndents != oldValue { markNeedsLayout() } }
+    }
+
     public var strutStyle: StrutStyle? {
         get { _strutStyle }
         set {
@@ -974,6 +982,7 @@ public final class TextPainter {
             strutStyle: _strutStyle
         )
         style.fractionalLineHeights = fractionalLineHeights
+        style.lineIndents = lineIndents
         return style
     }
 

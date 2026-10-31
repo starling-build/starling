@@ -259,7 +259,7 @@ if [ "$OWN" != published ]; then
         echo "no skwasm built at $OWN — build it (docs/BUILDING.md §1.7), or set STARLING_SKWASM_DIR" >&2
         exit 1
     fi
-    for export in pdf_write paragraphStyle_setFractionalLineHeights textStyle_setScaleX textStyle_setBaselineShift paragraph_getGlyphInkBounds; do
+    for export in pdf_write paragraphStyle_setFractionalLineHeights textStyle_setScaleX textStyle_setBaselineShift paragraphStyle_addLineIndent textStyle_setMetricsOverride paragraph_getGlyphInkBounds; do
         grep -q "$export" "$OWN/skwasm.js" || { echo "skwasm at $OWN predates $export — rebuild it (docs/BUILDING.md §1.7)" >&2; exit 1; }
     done
     CACHE="$OWN"

@@ -422,7 +422,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // bound to a function that answers 0 — what the export itself returns
   // when it fails — so the app still starts and only that feature is off.
   const skImports = { ...sk };
-  for (const name of ['pdf_write', 'paragraphStyle_setFractionalLineHeights', 'textStyle_setScaleX', 'textStyle_setBaselineShift', 'paragraph_getGlyphInkBounds']) {
+  for (const name of ['pdf_write', 'paragraphStyle_setFractionalLineHeights', 'textStyle_setScaleX', 'textStyle_setBaselineShift', 'paragraphStyle_addLineIndent', 'textStyle_setMetricsOverride', 'paragraph_getGlyphInkBounds']) {
     if (typeof skImports[name] !== 'function') skImports[name] = () => 0;
   }
   const instance = await WebAssembly.instantiate(await appModule, {

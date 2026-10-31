@@ -2240,6 +2240,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     wordSpacing: Double? = nil,
     baselineShift: Double? = nil,
     scaleX: Double? = nil,
+    ascentOverride: Double? = nil,
+    descentOverride: Double? = nil,
     height: Double? = nil,
     leadingDistribution: TextLeadingDistribution? = nil,
     locale: Locale? = nil,
@@ -2269,6 +2271,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     self.wordSpacing = wordSpacing
     self.baselineShift = baselineShift
     self.scaleX = scaleX
+    self.ascentOverride = ascentOverride
+    self.descentOverride = descentOverride
     self.height = height
     self.leadingDistribution = leadingDistribution
     self.locale = locale
@@ -2355,6 +2359,12 @@ public struct TextStyle: Hashable, CustomStringConvertible {
   /// or wider — SkFont::setScaleX, through the engine's
   /// patches/skia-scale-x.patch; nil or 1 for none. (No Dart counterpart.)
   public let scaleX: Double?
+  /// Starling: this run's ascent and descent, positive layout-pixel
+  /// distances from its baseline, in place of its face's — the run's box and
+  /// the line it sits on take them. Both or neither: nil on either leaves
+  /// the face. Through the engine's patches/skia-style-line-indents-metrics.patch.
+  public let ascentOverride: Double?
+  public let descentOverride: Double?
 
   /// The height of this text span, as a multiplier of the font size.
   ///
@@ -2434,6 +2444,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
       && lhs.wordSpacing == rhs.wordSpacing
       && lhs.baselineShift == rhs.baselineShift
       && lhs.scaleX == rhs.scaleX
+      && lhs.ascentOverride == rhs.ascentOverride
+      && lhs.descentOverride == rhs.descentOverride
       && lhs.height == rhs.height
       && lhs.leadingDistribution == rhs.leadingDistribution
       && lhs.locale == rhs.locale
@@ -2471,6 +2483,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     hasher.combine(wordSpacing)
     hasher.combine(baselineShift)
     hasher.combine(scaleX)
+    hasher.combine(ascentOverride)
+    hasher.combine(descentOverride)
     hasher.combine(height)
     hasher.combine(decorationThickness)
     hasher.combine(locale)
@@ -2893,6 +2907,17 @@ public struct StrutStyle: Hashable, CustomStringConvertible {
 /// REASON: Encoding is moved to C++ bridge. The C++ bridge will extract
 /// all fields and encode them internally when NativeParagraphBuilder is
 /// initialized.
+/// Starling: one line's inset from the paragraph's width, in layout pixels —
+/// `ParagraphStyle.lineIndents`. (No Dart counterpart.)
+public struct LineIndent: Hashable {
+  public var left: Double
+  public var right: Double
+  public init(left: Double = 0, right: Double = 0) {
+    self.left = left
+    self.right = right
+  }
+}
+
 public struct ParagraphStyle: Hashable, CustomStringConvertible {
 
   /// Creates a new ParagraphStyle object.
@@ -3039,6 +3064,13 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
   /// counterpart; the bridge passes it as bit 13 of the encoded style.
   public var fractionalLineHeights = false
 
+  /// Starling: a (left, right) inset per line, in layout pixels, the last
+  /// entry repeating for every line after it; empty is no inset. The line
+  /// breaker and justification both work in `width - left - right`, and a
+  /// line's reported `left` carries the left half. (No Dart counterpart; the
+  /// bridge passes the pairs after slot 7 of the encoded style, under bit 14.)
+  public var lineIndents: [LineIndent] = []
+
   // MARK: - Equatable
 
   /// **Dart Source:** `text.dart:2081-2098`
@@ -3064,6 +3096,7 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
       && lhs.locale == rhs.locale
       && lhs._leadingDistribution == rhs._leadingDistribution
       && lhs.fractionalLineHeights == rhs.fractionalLineHeights
+      && lhs.lineIndents == rhs.lineIndents
   }
 
   // MARK: - Hashable
@@ -3089,6 +3122,7 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
     hasher.combine(locale)
     hasher.combine(_leadingDistribution)
     hasher.combine(fractionalLineHeights)
+    hasher.combine(lineIndents)
   }
 
   // MARK: - CustomStringConvertible
@@ -4423,6 +4457,15 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // [5]: maxLines (if mask & (1<<5))
     // [6]: textHeightBehavior encoded (if mask & (1<<6))
     var encodedStyle: [Int32] = [Int32](repeating: 0, count: 7)
+    // (Starling: per-line indents ride after slot 7 — the count, then each
+    // pair's floats' bits — under bit 14; an older engine ignores both.)
+    if !style.lineIndents.isEmpty {
+      encodedStyle.append(Int32(style.lineIndents.count))
+      for indent in style.lineIndents {
+        encodedStyle.append(Int32(bitPattern: Float(indent.left).bitPattern))
+        encodedStyle.append(Int32(bitPattern: Float(indent.right).bitPattern))
+      }
+    }
     var mask: Int32 = 0
 
     if let textAlign = style.textAlign {
@@ -4458,6 +4501,9 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // (Starling: a flag alone, no value of its own.)
     if style.fractionalLineHeights {
       mask |= (1 << 13)
+    }
+    if !style.lineIndents.isEmpty {
+      mask |= (1 << 14)
     }
 
     encodedStyle[0] = mask
@@ -4587,7 +4633,7 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // [6]: fontStyle index (if mask & (1<<6))
     // [7]: textBaseline index (if mask & (1<<7))
     // [8]: (unused)
-    var encodedStyle: [Int32] = [Int32](repeating: 0, count: 9)
+    var encodedStyle: [Int32] = [Int32](repeating: 0, count: 11)
     var mask: Int32 = 0
 
     // Use the leading distribution from style, or default from paragraph style
@@ -4693,6 +4739,15 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     if let scaleX = style.scaleX, scaleX != 1 {
       mask |= (1 << 20)
       encodedStyle[8] = Int32(bitPattern: Float(scaleX).bitPattern)
+    }
+
+    // Starling: ascent and descent overrides, their floats' bits in slots 9
+    // and 10 under mask bit 21 (the array is 11 long so an engine that
+    // knows the bit can read them; an older one ignores both).
+    if let ascent = style.ascentOverride, let descent = style.descentOverride {
+      mask |= (1 << 21)
+      encodedStyle[9] = Int32(bitPattern: Float(ascent).bitPattern)
+      encodedStyle[10] = Int32(bitPattern: Float(descent).bitPattern)
     }
 
     // Update the mask in encodedStyle after all bits are set

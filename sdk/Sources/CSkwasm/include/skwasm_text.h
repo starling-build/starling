@@ -68,6 +68,9 @@ void textStyle_setLetterSpacing(sk_ptr style, float letterSpacing);
 // the run's glyphs drawn and advanced this much narrower or wider. Absent
 // from Google's published skwasm; the host binds it to nothing there.
 SKWASM(textStyle_setScaleX) void textStyle_setScaleX(sk_ptr style, float scaleX);
+// Starling's, like setScaleX: the run's ascent and descent (positive pixels).
+SKWASM(textStyle_setMetricsOverride)
+void textStyle_setMetricsOverride(sk_ptr style, float ascent, float descent);
 SKWASM(textStyle_setBaselineShift) void textStyle_setBaselineShift(sk_ptr style, float shift);
 SKWASM(textStyle_setWordSpacing)
 void textStyle_setWordSpacing(sk_ptr style, float wordSpacing);
@@ -135,6 +138,9 @@ void paragraphStyle_setApplyRoundingHack(sk_ptr style, bool applyRoundingHack);
 // (web/host/starling.js) binds it to nothing there.
 SKWASM(paragraphStyle_setFractionalLineHeights)
 void paragraphStyle_setFractionalLineHeights(sk_ptr style, bool value);
+// Starling's, likewise: one more line's (left, right) inset, in line order.
+SKWASM(paragraphStyle_addLineIndent)
+void paragraphStyle_addLineIndent(sk_ptr style, float left, float right);
 
 // --- text/paragraph_builder*.cpp --------------------------------------------
 SKWASM(paragraphBuilder_create)

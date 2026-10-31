@@ -71,6 +71,8 @@ private struct ResolvedTextStyle {
     var letterSpacing: Float?
     /// Starling's horizontal scale (skwasm's textStyle_setScaleX).
     var scaleX: Float?
+    /// Starling's ascent and descent overrides (skwasm's textStyle_setMetricsOverride).
+    var metricsOverride: (ascent: Float, descent: Float)?
     /// Starling's baseline shift (skwasm's textStyle_setBaselineShift).
     var baselineShift: Float?
     var wordSpacing: Float?
@@ -104,6 +106,7 @@ private struct ResolvedTextStyle {
         if let fontSize { textStyle_setFontSize(style, fontSize) }
         if let letterSpacing { textStyle_setLetterSpacing(style, letterSpacing) }
         if let scaleX { textStyle_setScaleX(style, scaleX) }
+        if let m = metricsOverride { textStyle_setMetricsOverride(style, m.ascent, m.descent) }
         if let baselineShift { textStyle_setBaselineShift(style, baselineShift) }
         if let wordSpacing { textStyle_setWordSpacing(style, wordSpacing) }
         if let height { textStyle_setHeight(style, height) }
@@ -208,6 +211,9 @@ extension flutter.swift_bridge {
         private static let psTextHeightBehavior: Int32 = 1 << 6
         /// Starling's: the lines keep their heights' fractions (Word's layout).
         private static let psFractionalLineHeights: Int32 = 1 << 13
+        /// Starling's: per-line (left, right) indents — the pair count in slot 7,
+        /// each pair's floats' bits from slot 8.
+        private static let psLineIndents: Int32 = 1 << 14
 
         public init(
             _ encoded_style: UnsafePointer<Int32>?,
@@ -250,6 +256,16 @@ extension flutter.swift_bridge {
                 if mask & Self.psFractionalLineHeights != 0 {
                     paragraphStyle_setFractionalLineHeights(paragraphStyle, true)
                     fractionalLineHeights = true
+                }
+                if mask & Self.psLineIndents != 0, encoded_style_length > 7, encoded[7] > 0,
+                    encoded_style_length >= 8 + 2 * Int(encoded[7])
+                {
+                    for i in 0..<Int(encoded[7]) {
+                        paragraphStyle_addLineIndent(
+                            paragraphStyle,
+                            Float(bitPattern: UInt32(bitPattern: encoded[8 + 2 * i])),
+                            Float(bitPattern: UInt32(bitPattern: encoded[9 + 2 * i])))
+                    }
                 }
             }
 
@@ -361,6 +377,8 @@ extension flutter.swift_bridge {
         private static let tsFontVariations: Int32 = 1 << 19
         /// Starling: a horizontal scale, its float's bits in slot 8.
         private static let tsScaleX: Int32 = 1 << 20
+        /// Starling: ascent and descent overrides, floats' bits in slots 9 and 10.
+        private static let tsMetricsOverride: Int32 = 1 << 21
 
         public func PushStyle(
             _ encoded_style: UnsafePointer<Int32>?,
@@ -416,6 +434,11 @@ extension flutter.swift_bridge {
             if mask & Self.tsFontSize != 0 { style.fontSize = Float(font_size) }
             if mask & Self.tsLetterSpacing != 0 { style.letterSpacing = Float(letter_spacing) }
             if mask & Self.tsScaleX != 0 { style.scaleX = Float(bitPattern: UInt32(bitPattern: encoded[8])) }
+            if mask & Self.tsMetricsOverride != 0, encoded_style_length >= 11 {
+                style.metricsOverride = (
+                    Float(bitPattern: UInt32(bitPattern: encoded[9])),
+                    Float(bitPattern: UInt32(bitPattern: encoded[10])))
+            }
             // (The shift SetBaselineShift left for this push, as the native bridge takes it.)
             if let shift = pendingShift { style.baselineShift = shift; pendingShift = nil }
             if mask & Self.tsWordSpacing != 0 { style.wordSpacing = Float(word_spacing) }
