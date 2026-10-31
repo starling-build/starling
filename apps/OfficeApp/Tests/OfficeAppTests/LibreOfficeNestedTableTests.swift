@@ -86,6 +86,26 @@ final class LibreOfficeNestedTableTests: XCTestCase {
             p.image?.textBox?.paragraphs.contains { $0.text.contains("[inner:A1]") } == true })
     }
 
+    /// text at the margin in Word's print (57pt on a 56.7pt margin), not centred at 144.
+    func testCellsFarWiderThanTheGridMakeTheTableFlushLeft() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-43db5218741de0fa.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let parsed = try DocxFormat.read(data)
+        let doc = parsed.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = parsed.pageSetup ?? .letter
+        layout.pageSetup = setup
+        layout.width = setup.width * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "A1" })
+        let left = layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).left / theme.pixelsPerPoint
+        XCTAssertLessThan(left, 12.0)
+    }
+
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
