@@ -753,6 +753,9 @@ enum DocxFormat {
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 if let id = style["w:styleId"] { paragraphStyles[id] = style }
             }
+            for style in styles.all("w:style") {
+                if let name = style.first("w:name")?["w:val"] { notes.styleNames.insert(name.lowercased()) }
+            }
             var charNodes: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "character" {
                 if let id = style["w:styleId"] { charNodes[id] = style }
@@ -2614,6 +2617,21 @@ enum DocxFormat {
         return String(Character(u))
     }
 
+    /// The style a STYLEREF instruction names, quoted or not.
+    static func _styleRefName(_ instr: String) -> String? {
+        let text = instr.trimmingWhitespace(newlines: true)
+        guard text.uppercased().hasPrefix("STYLEREF") else { return nil }
+        let rest = String(text.dropFirst("STYLEREF".count)).trimmingWhitespace(newlines: true)
+        if rest.hasPrefix("\""), let end = rest.dropFirst().firstIndex(of: "\"") {
+            let name = String(rest[rest.index(after: rest.startIndex) ..< end]).trimmingWhitespace(newlines: true)
+            return name.isEmpty ? nil : name
+        }
+        let word = rest.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
+        // (A bare 1 to 9 is a heading level, not a name: LibreOffice's
+        // 06933f8e footer "STYLEREF 1" keeps its text.)
+        return word.isEmpty || word.hasPrefix("\\") || (word.count == 1 && "123456789".contains(word)) ? nil : word
+    }
+
     static func _isPageField(_ instr: String) -> Bool {
         let word = instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
         return word == "PAGE" || word == "NUMPAGES" || word == "SECTIONPAGES"
@@ -3500,6 +3518,11 @@ enum DocxFormat {
         /// The look of each field's code (its first instruction run), by id.
         var fieldCodeStyle: [Int: CharStyle] = [:]
         var fieldCount = 0
+        /// Every style's name, lowercased, and the fields whose STYLEREF
+        /// error has been written: a STYLEREF naming no style prints Word's
+        /// error, not the result it was saved with.
+        var styleNames = Set<String>()
+        var styleRefShown = Set<Int>()
         /// Whether the code of the field being read was reformatted under
         /// change tracking: its result's first run says so
         /// (`CharStyle.fieldCodeChanged`).
@@ -4719,6 +4742,20 @@ enum DocxFormat {
             for child in r.children {
                 switch child.name {
                 case "w:t":
+                    // (A STYLEREF that names no style of the file — lo
+                    // tdf149089's "标题 1" over a style called "heading 1" —
+                    // is Word's error in bold, 9pt in its header, where
+                    // the result saved with it was the heading's text.)
+                    if let f = notes.fields.last, f.result, f.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("STYLEREF"),
+                       let name = Self._styleRefName(f.instr), !notes.styleNames.contains(name.lowercased()) {
+                        if notes.styleRefShown.insert(f.id).inserted {
+                            var bold = cs
+                            bold.bold = true
+                            bold.off.remove(.bold)
+                            addText("Error! Use the Home tab to apply \(name) to the text that you want to appear here.", bold)
+                        }
+                        break
+                    }
                     if notes.fieldCodeChanged, notes.fields.last?.result == true {
                         var first = cs
                         first.fieldCodeChanged = true
