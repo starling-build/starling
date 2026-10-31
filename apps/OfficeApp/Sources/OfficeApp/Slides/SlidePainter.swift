@@ -1333,9 +1333,10 @@ final class SlidePainter: CustomPainter {
             let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
-            // A tile larger than the area in both directions is a photo
-            // marked "tile": PowerPoint shows it fitted, not cropped.
-            if fill.tiled, tw < r.width || th < r.height || fill.tileAnchored {
+            // A tile larger than the area is cropped, not fitted: Windows
+            // PowerPoint lays ececapstonespring2012's 1600x1200 px background
+            // at 96/in, 1200 pt wide on a 794 pt slide.
+            if fill.tiled {
                 // At the picture's own size (96/in) times the tile scale,
                 // from the one tile the alignment and offset place, back
                 // to the area's top left edge and on past its bottom right.
