@@ -76,7 +76,9 @@ final class PictureTabLayoutTests: XCTestCase {
         // square with 1.06 before and 1.08 after it at 10pt — an 11.5pt
         // advance — standing 8.4 above the baseline.
         var p = RichParagraph(text: "x\u{2610} Yes")
-        p.runs = [Run(length: p.text.utf16.count, style: CharStyle(fontSize: 10))]
+        var formStyle = CharStyle(fontSize: 10)
+        formStyle.formBox = true            // (a FORMCHECKBOX field's: a typed "☐" is a character)
+        p.runs = [Run(length: p.text.utf16.count, style: formStyle)]
         p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
         let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
         theme.wordRules = true
