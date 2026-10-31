@@ -281,6 +281,13 @@ enum DocxFormat {
             let kids = parent.children
             while i < kids.count {
                 let p = kids[i]
+                // (A drop cap held in a content control, tdf109308: the control
+                // is Word's own bracket round the letter, and the paragraph is
+                // a drop cap all the same.)
+                if p.name == "w:p", p.first("w:pPr")?.first("w:framePr")?["w:dropCap"] == "drop", p.children.contains(where: { $0.name == "w:sdt" }) {
+                    RuleTrace.hit("dropcap-in-content-control")
+                    p.children = p.children.flatMap { $0.name == "w:sdt" ? ($0.first("w:sdtContent")?.children ?? []) : [$0] }
+                }
                 if p.name == "w:p", i + 1 < kids.count, kids[i + 1].name == "w:p",
                    let pPr = p.first("w:pPr"), let frame = pPr.first("w:framePr"), ["drop", "margin"].contains(frame["w:dropCap"] ?? ""),
                    let lines = Double(frame["w:lines"] ?? ""), lines >= 2,
@@ -5386,7 +5393,15 @@ enum DocxFormat {
             // the box on p15 over a line of the mark, 20.7pt, and the
             // table after it ran onto a 19th page.)
             let floatsOnly = !inlineImages.isEmpty && inlineImages.values.allSatisfy { $0.float.map { !$0.takesRoom } ?? false }
-            if built.isEmpty, text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }), inlineImages.isEmpty || floatsOnly {
+            // (Not after a COLUMN break with objects: the paragraph's own line opens the
+            // next column, its objects with it — lo tdf153592's three columns
+            // each open with the break and a text box's anchor, and Word's
+            // print gives the 2nd and 3rd a line before their text, and draws
+            // the boxes, which ours dropped.)
+            let pageBreakAlone = built.isEmpty && text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }) && (inlineImages.isEmpty || floatsOnly)
+            let columnWithObjects = leadingColumnBreak && !inlineImages.isEmpty
+            if pageBreakAlone, columnWithObjects { RuleTrace.hit("column-break-keeps-its-paragraph-line") }
+            if pageBreakAlone, !columnWithObjects {
                 flush(pageBreakAfter: true)
                 built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = leadingBreakRPr
                 built[built.count - 1].breakColumn = leadingColumnBreak
