@@ -11438,3 +11438,7 @@ T250 LO RE-SCORE AFTER WINDOWS-1'S ROUND 9 (Linux lo4, 2026-10-30). One build of
   40 tdf133924 26 (0.0%): unclaimed (text around a frame).
 - NOT YET IN THIS NUMBER: my wip/lo-lists-text (T254) and wip/lo-sections-2 (T253), both with windows-1; the pre-pair on them was 6 up and 4 up, none down. The no-text group (47 documents, 138 lines) cannot score above 0 by design.
 - WHERE THE POINTS ARE: floating tables plus nested tables are 69% of the missed lines. Unclaimed single documents of 40-60 lines: tdf38575_fullWidthLine, floattable-next-leaf-in-section, floattable-negative-height, floattable-heading-split-hyphen, special_styles, floattable-deleted-anchor, floattable-table-row-keep, tdf164905.
+
+### Linux lo5 — Noto Sans bundle sent to windows-1 (2026-10-30)
+
+`wip/lo-noto` (eb1aff4a2) = lo-fieldtab + lo-brtab + Noto Sans (Regular/Bold/Italic/BoldItalic, OFL beside them; "Noto Sans" resolves to the bundled face) on office 64a34251c. Linux pair vs lo-brtab: 756 identical; LO 593 has 22 changes, all up (lo-95de9983 66.7→100, lo-89daf93d 4.2→27.1, lo-27918bf0 17.9→25.6, lo-e6dce9d6 4.8→19.0, others). Some of the ups come from fieldtab or the columns commit, not Noto. Sent to windows-1 for the Windows-box confirmation. Not landed until it confirms.
