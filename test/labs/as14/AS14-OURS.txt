@@ -1,0 +1,14 @@
+as14-f0-none last ('L52', 775.8) F1 797.2 pages 2
+as14-f1-s10 last ('L52', 775.8) F1 795.0 pages 2
+as14-f1-s12 last ('L52', 775.8) F1 792.6 pages 2
+as14-f1-s8 last ('L52', 775.8) F1 797.2 pages 2
+as14-f2-s10 last ('L51', 762.0) F1 783.5 pages 2
+as14-f2-s12 last ('L51', 762.0) F1 778.8 pages 2
+as14-f2-s8-bottom1440 last ('L50', 748.2) F1 788.0 pages 2
+as14-f2-s8-dist1000 last ('L50', 748.2) F1 773.5 pages 2
+as14-f2-s8-dist400 last ('L53', 789.6) F1 803.5 pages 2
+as14-f2-s8-spaced last ('L50', 748.2) F1 770.6 pages 2
+as14-f2-s8 last ('L51', 762.0) F1 788.0 pages 2
+as14-f3-s10 last ('L50', 748.2) F1 772.0 pages 2
+as14-f3-s12 last ('L50', 748.2) F1 765.0 pages 2
+as14-f3-s8 last ('L51', 762.0) F1 778.8 pages 2
