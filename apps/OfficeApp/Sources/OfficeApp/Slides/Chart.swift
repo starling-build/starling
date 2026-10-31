@@ -3017,7 +3017,11 @@ enum ChartPainter {
             let beside = horizontal || (placed != nil && c.plotLayoutInner) ? 0
                 : (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
             let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
+            // (A bar chart's category names in a Word document wrap at a fifth of the
+            // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
+            // print, "A very long category" over "name 4", ours one line a third wide.)
+            let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? barNameWidth : max(slot - 2 * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -3363,7 +3367,10 @@ enum ChartPainter {
                 // (A 2007-style chart's stand 1.45 pt above their bands'
                 // middles, as its value labels above their lines.)
                 let cy = plot.bottom - (Double(i) + 0.5) * slot - (c.plainText && !c.styled2013 && c.officeStyled ? 1.45 * k : 0)
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
+                // (In a Word document a bar chart's names stand beside the axis, at its
+                // zero where the bars run both ways: lo tdf128996's end 8.5 pt before it.)
+                let side = word && sc.lo < 0 && !c.categoryLabelsLow && !c.categoryAxisDeleted ? zero : plot.left
+                tp.paint(canvas, Offset(side - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
             }
         } else {
             if !c.categoryAxisDeleted { canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint) }
