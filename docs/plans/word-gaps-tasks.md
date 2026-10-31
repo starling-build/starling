@@ -12004,3 +12004,12 @@ The first re-score ran on the old validation snapshot (it ignored lineIndents). 
 
 On `wip/lo-page-edge-table` (dc194b917). A page-anchored table whose first row does not fit below its place is set up to end at the page's bottom edge, as lab lh2 showed. Pre-pair on the refreshed engine: official 756 zero movers; LO 593 one up (this document), none down; Office suite 539 tests, 0 failures. A first, wider version (lifting a table whose first row fits but whose whole does not) dropped two documents (lo-00253c627e5adbdf, lo-931c88e9c1b4d0eb) — Word leaves those alone, so lab lh2's "rows of 100 pt, all three lifted" case holds only for that file's shape; cause not known.
 - lo5 (Linux lo5): wip/lo-float13b (1bf17fb9c) sent to windows-1; supersedes wip/lo-float13. Reworked on top of tblpmargin (default-vertAnchor and empty-paragraph items dropped). Pre-pair on the refreshed engine: 756 zero movers; LO 5 up, none down (lo-82a03040, lo-983ce30f, lo-cc084a84 to 100, lo-84a48df2 50 to 100, lo-853c06a0 0 to 50).
+
+### zh-27a874b7 / zh-4e5fe46f — lenovo-2 look (2026-10-31, round 13 base, Windows mode)
+Both are the open items already above; no new rule found worth a build.
+- zh-27a874b7 (88.2): everything but p3 matches. p3's pie labels stand 2-6pt off (經濟 Word 349,182.2 vs ours 345,186.3; 金融 and
+  文化 stacks 1-2pt in x). That is the held 3-D label-stack work (wip/mac-01Xgpbk5-p3dstack) and needs a Word lab, not a layout rule.
+- zh-4e5fe46f (93.3): besides the known p6/p8/p9/p11 table drift and the 1/600in advance question, p10's footer wraps: the
+  14pt text box "— 10 —" is 51.1pt wide; Word fits it by squeezing the leading space (the "— " is 17.7 wide, not 21: "10"
+  starts at 494.0, last dash at 512.5, ends 526.6), ours needs 53.2 and drops the last "—" to a second line (y 789.8). One
+  line, a text-box case of the squeeze that cells already have (the lc lab). Not built.
