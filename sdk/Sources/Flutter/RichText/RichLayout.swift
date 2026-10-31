@@ -6628,7 +6628,13 @@ public final class RichLayout {
                     // lines after it a page down.)
                     if st.keepLines, bottom - top <= contentH + 0.01 {
                         if last < all.count - 1 { keep = 0 }
-                    } else if st.widowControl, !document.widowControlSuspended {
+                    } else if st.widowControl, !document.widowControlSuspended,
+                              // (A wrapper table's text is a cell's, set as the body is: before
+                              // Word's 2013 layout a cell keeps no widow or orphan —
+                              // floattable-del-empty's last paragraph of page 5, two lines,
+                              // parts after its first in Word's print.)
+                              !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 15
+                                && document.paragraphs[i].keptTable?.hasPrefix("kc") == true) {
                         if all.count - 1 - last == 1 { keep -= 1 }
                         // (An orphan only where lines go on: the whole of
                         // a one-line paragraph fits, though its space

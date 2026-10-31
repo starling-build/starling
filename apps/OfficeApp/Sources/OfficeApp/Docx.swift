@@ -1534,7 +1534,41 @@ enum DocxFormat {
                             paragraphs[first].style.lineHeightIsMinimum = true
                         }
                         let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
-                        paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
+                        // (Over the first paragraph that takes room in the flow: a table
+                        // floating by the text opening the cell has none, and its rows
+                        // would give the space away — floattable-del-empty's heading
+                        // stands 2.25pt over where Word's does.)
+                        var lead = first
+                        while lead < paragraphs.count - 1, let c = paragraphs[lead].cell,
+                              tableStyles[c.table]?.floatsOverText == true, tableStyles[c.table]?.pageAnchored == false { lead += 1 }
+                        if paragraphs[lead].cell != nil, let c = paragraphs[lead].cell, tableStyles[c.table]?.floatsOverText == true { lead = first }
+                        // (And its automatic space before is the cell's top, none:
+                        // the heading under the table stands at the cell's head.)
+                        // (Word sets that table a second margin down, from the cell's
+                        // content: the 69pt table of floattable-del-empty stands 4.5pt
+                        // under where the flow reached, twice the wrapper's 2.25.)
+                        if lead != first {
+                            var moved = Set<String>()
+                            for k in first ..< lead {
+                                if let c = paragraphs[k].cell, var st = tableStyles[c.table], st.floatsOverText, !st.pageAnchored, moved.insert(c.table).inserted {
+                                    st.floatOffsetY = (st.floatOffsetY ?? 0) + 2 * (m.top ?? 0)
+                                    tableStyles[c.table] = st
+                                }
+                            }
+                        }
+                        if lead != first, paragraphs[lead].style.spaceBeforeAuto {
+                            paragraphs[lead].style.spaceBeforeAuto = false
+                            paragraphs[lead].style.spaceBefore = 0
+                        }
+                        paragraphs[lead].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
+                        // (Its automatic space after is the cell's foot, none, as in any
+                        // cell: floattable-del-empty's last "NormalWeb" paragraph of a
+                        // wrapper stands 17pt over the rule under it in Word's print,
+                        // ours 28.7.)
+                        if paragraphs[paragraphs.count - 1].style.spaceAfterAuto, paragraphs[paragraphs.count - 1].style.list == nil {
+                            paragraphs[paragraphs.count - 1].style.spaceAfterAuto = false
+                            paragraphs[paragraphs.count - 1].style.spaceAfter = 0
+                        }
                         paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
                         // (And on each page the row goes on to — see
                         // `RichParagraphStyle.frameInsetTop`.)
