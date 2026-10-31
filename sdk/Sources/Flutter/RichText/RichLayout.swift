@@ -4329,11 +4329,11 @@ public final class RichLayout {
                     // On a page of its own it takes what it can.)
                     var moved = false, stuck = false
                     for (n, column) in columns.enumerated() {
-                        // (Under the table's STATED bottom cell margin too, in Word for Windows: tdf170672's one 18-row table,
+                        // (Under the table's STATED bottom cell margin too, in a FLOATING table in Word for Windows — zh-15f60bac's ordinary one stands to the foot: tdf170672's one 18-row table,
                         // 5.4pt from its style, ends each page's part of a row 9.9pt or more over the foot, 129 samples,
                         // where ours put lines to 3.8pt from it. Not the cell's own `pad.bottom`, which holds more than
                         // the margin: it cost 33 government documents; the stated one moves none of the 34 that state one.)
-                        let bottomMargin = RichTextTheme.wordWindowsPages && theme.wordRules ? _px(document.tableStyles[c.table]?.cellMarginBottom ?? 0) : 0
+                        let bottomMargin = RichTextTheme.wordWindowsPages && theme.wordRules && document.tableStyles[c.table]?.keptPosition != nil ? _px(document.tableStyles[c.table]?.cellMarginBottom ?? 0) : 0
                         let limit = column.cut + avail - ruleUnder(c, parted: true) - bottomMargin + 0.01
                         // (A cut, under the line the part is closed with —
                         // where the cell ends here, its own bottom has it.)
