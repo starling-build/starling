@@ -17863,6 +17863,21 @@ public final class RichLayout {
               let align = _setup(ofParagraph: first).verticalAlign, align != "top" else { return nil }
         let setup = pageSetup(forPage: p)
         let room = _pxPageH(p) - _pxMarginTop(p) - _px(setup.marginBottom)
+        // (The block runs down to the foot of a box the text goes round that
+        // is placed from the page or margin: lo tdf36117's centred page, text
+        // from the top margin to its 450pt frame's foot, 549pt, stands 50pt
+        // down in Word's print, the frame where it is placed.)
+        if theme.wordRules, let first = members.first?.piece.paragraph, first < document.paragraphs.count {
+            for m in members where m.piece.part == .all {
+                let i = m.piece.paragraph
+                guard i < _inline.count, i < _tops.count, m.piece.flowTop <= _tops[i] + 0.5 else { continue }
+                for image in _inline[i] {
+                    guard let float = image.float, !float.takesRoom, float.wraps, float.verticalFrom == "page" || float.verticalFrom == "margin" else { continue }
+                    let r = _floatRect(float, image, geometry(i), i)
+                    extent = max(extent, m.piece.pageY - m.piece.flowTop + r.bottom)
+                }
+            }
+        }
         let spare = room - extent
         guard spare > 0.5 else { return nil }
         var out: [Int: Double] = [:]
