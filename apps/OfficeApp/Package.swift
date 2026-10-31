@@ -300,12 +300,6 @@ let package = Package(
             resources: [.copy("Fixtures")],
             swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
         ),
-        // The layout's own tests (they lived in sdk/Tests/FlutterTests/RichText).
-        .testTarget(
-            name: "OfficeTextTests",
-            dependencies: ["OfficeText"],
-            swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
-        ),
     ],
     cxxLanguageStandard: .cxx20
 )
