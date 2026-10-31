@@ -1391,7 +1391,7 @@ final class DeckController: ChangeNotifier {
         theme.scriptSizeWholeUp = true      // and sets a raised run at 65% rounded up to a whole point
         theme.measuresShownCaps = true      // and fits a run in capitals by its capitals
         theme.kernsByRun = true             // and kerns a run only from its `kern` size up
-        theme.cellLineShift = { $0.rounded() - 0.02 - $0 }   // and sets a cell's lines on whole points from its text's top
+        // (No `cellLineShift`: PowerPoint for Windows keeps a cell's lines at their pitch, as it does a box's.)
         theme.cellLinesPastCorners = true   // and runs a cell's own lines half their width past its corners
         theme.exactLineDescentShare = 0.22  // and sets a line of so many points' baseline 0.78 down it, whatever the face
         theme.exactLineDescentOfSize = 0.25 // but no less than a quarter of its text's size above its foot

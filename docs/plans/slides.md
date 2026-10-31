@@ -2330,6 +2330,21 @@ tdf149206 fits neither: its one bitmap prints 563.5 by 451 units for
 a frame of 562.95 by 450.35 (and a window mapped onto a viewport of
 its own), half a unit either side; left.
 
+**Lines on whole points — Mac's rule, switched off against Windows, 2026-10-31**
+(555 decks vs powerpoint-win: 1.0874 → 1.0361, 70 better, 16 worse by at
+most 0.31, the 93 exact decks still exact; lo-tdf154858 4.39 → 0,
+lo-tdf93830 4.09 → 0.95, lo-tdf157635 2.26 → 0, lo-tdf157793 2.55 → 0.35).
+PowerPoint for Mac sets every line on a whole point (below); PowerPoint
+for Windows keeps the true pitch — the AES deck's 16.8 pt lines print
+16.80 apart, every one — so snapping gave a sawtooth of ±0.4 pt down a
+box (+0.24, −0.58, −0.38, −0.18, 0, +0.20, −0.58 …). Boxes
+(`SlidePainter.snapsLinesToPoints`) and table cells (`cellLineShift`)
+are laid at their pitch now; `paintOnWholePoints` stays for a Mac style.
+Lines at least half a point off in the survey (`pptx-line-survey.py` on
+powerpoint-win): Calibri 264 → 124 of 2029, Verdana 37 → 2, Cambria
+47 → 0. Left: Lucida Sans Unicode (25 of 90), Courier New (15 of 62),
+Aptos Display (6 of 21).
+
 **Lines on whole points, 2026-10-17** (sweep 180: 1.0145 → 1.0016;
 55 decks better, 25 worse; smartart-simple 3.24 → 1.63, pptx2svg 5.00
 → 3.69, tdf93868 1.25 → 0.62, 60810 −0.44, the AES deck −0.36, cooper
