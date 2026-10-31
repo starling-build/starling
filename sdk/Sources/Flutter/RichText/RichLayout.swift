@@ -7220,8 +7220,14 @@ public final class RichLayout {
         // (A frame on the page in the body is as wide as it says: the
         // 482pt title frame of zh-90e0cea8's cover holds its 18-character
         // title on one line, where the 420pt column parted it.)
+        // (A frame set in the text, with no text beside it, is as wide as it
+        // says, centred on the page where it says that: tdf105035_framePrB's
+        // IEEE title, w 9360 over the style's page anchor and xAlign
+        // centre, is 468pt wide and parts "…TRANSACTIONS | and JOURNALS" in
+        // Word's print, where ours set it across the 518pt column.)
+        let notBesideInText = style.frame?.verticalAnchor == "text" && (style.frameXML ?? "").containsSubstring("w:wrap=\"notBeside\"")
         if frameLeft == nil, theme.wordRules, p.cell == nil, let frame = style.frame, let w = frame.width,
-           frame.verticalAlign == nil, Self._onThePage(style) {
+           frame.verticalAlign == nil, Self._onThePage(style) || notBesideInText {
             let column = width
             width = _px(w) + left
             // (Centred between the margins where its chain says so and
@@ -7238,7 +7244,13 @@ public final class RichLayout {
             // (An x the style chain states wins over an alignment from
             // further down it: the date's own style puts it at 354pt, its
             // parent's says right, and Word's print has it at 354.)
-            if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").containsSubstring("w:x=\"") {
+            if notBesideInText, frame.horizontalAnchor == "page", frame.horizontalAlign == "center",
+               !(style.frameXML ?? "").containsSubstring("w:x=\"") {
+                let setup = _setup(ofParagraph: i)
+                let shift = _px((setup.width - w) / 2 - setup.marginLeft - setup.gutter)
+                left += shift
+                width += shift
+            } else if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").containsSubstring("w:x=\"") {
                 let setup = _setup(ofParagraph: i)
                 let shift = _px(frame.x - setup.marginLeft - setup.gutter)
                 left += shift
@@ -8448,7 +8460,20 @@ public final class RichLayout {
         // (Exact under Word's rules, whose lines keep their fractions
         // too: 14pt is 18.67px on a screen, and a whole pixel more under
         // every web-spaced paragraph stood Word's 14pt gap at 14.75.)
-        let before = theme.wordRules ? spacing.before + bTop : (spacing.before + bTop).rounded()
+        // (A text frame with no text beside it, over its vSpace, leaves the
+        // text after it 2 x that and 2.7pt more below it: tdf105035_framePrB's
+        // title and authors frames, vSpace 187 twips, put the authors line
+        // 21.0pt and the abstract 21.8pt lower than ours, with a "notBeside"
+        // frame's own spacing after counted. One witness's constant.)
+        var frameGap = 0.0
+        if theme.wordRules, p.cell == nil, i > 0, case let above = document.paragraphs[i - 1], above.cell == nil,
+           let aboveXML = above.style.frameXML, aboveXML != style.frameXML,
+           above.style.frame?.verticalAnchor == "text", aboveXML.containsSubstring("w:wrap=\"notBeside\""), !aboveXML.containsSubstring("w:h=\""),
+           let at = aboveXML.range(of: "w:vSpace=\""),
+           let v = Double(aboveXML[at.upperBound...].prefix { $0 != "\"" }), v > 0 {
+            frameGap = 2 * v / 20 + 2.7
+        }
+        let before = (theme.wordRules ? spacing.before + bTop : (spacing.before + bTop).rounded()) + _px(frameGap)
         let after = spacing.after + bBottom
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
