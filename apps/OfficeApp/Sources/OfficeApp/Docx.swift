@@ -1246,6 +1246,21 @@ enum DocxFormat {
                     let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
                     if !widths.isEmpty { tableColumns[id] = widths }
                 }
+                // (A table with no grid at all has its first row's cells for one:
+                // LibreOffice's floattable-nested-3tables, tables of 2000-twip
+                // cells, wraps "before the middle table:" in them in Word's print.)
+                if tableColumns[id] == nil, node.first("w:tblGrid") == nil, let first = unwrapped(node, "w:tr").first,
+                   first.first("w:trPr")?.first("w:gridBefore") == nil {
+                    var widths: [Double] = []
+                    var ok = true
+                    for tc in unwrapped(first, "w:tc") {
+                        let w = tc.first("w:tcPr")?.first("w:tcW")
+                        let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                        guard w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? ""), v > 0 else { ok = false; break }
+                        widths += Array(repeating: v / 20 / Double(span), count: span)
+                    }
+                    if ok, !widths.isEmpty { tableColumns[id] = widths }
+                }
                 var style = TableStyle()
                 // The table's own borders, else its style's, else none —
                 // 64 of the corpus's 109 tables say nothing and have none.
