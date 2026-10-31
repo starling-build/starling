@@ -8542,7 +8542,7 @@ public final class RichLayout {
         if theme.wordRules, p.cell == nil, i > 0, case let above = document.paragraphs[i - 1], above.cell == nil,
            let aboveXML = above.style.frameXML, aboveXML != style.frameXML,
            above.style.frame?.verticalAnchor == "text", aboveXML.containsSubstring("w:wrap=\"notBeside\""), !aboveXML.containsSubstring("w:h=\""),
-           let at = aboveXML.range(of: "w:vSpace=\""),
+           let at = aboveXML.firstRange(of: "w:vSpace=\""),
            let v = Double(aboveXML[at.upperBound...].prefix { $0 != "\"" }), v > 0 {
             frameGap = 2 * v / 20 + 2.7
         }
