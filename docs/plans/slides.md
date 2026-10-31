@@ -164,6 +164,19 @@ In order:
    on the repaint that `onImageDecoded` asks for; a metafile as a shape
    or background *fill* (not a picture) is not drawn. `test/slides-drive.py`
    is the way in.
+   **Done 2026-10-31 (macos-ios, c8c4eea1b):** all three seen on screen
+   and settled. A turned table cell's caret, selection and click now map
+   through the cell's turn (`RichLayout._turnedFrame`; the click used to
+   find the end of the text wherever it fell); a metafile as a shape's or
+   background's picture fill is played over the area (`paintFill`,
+   stretched or into its `a:fillRect`, not tiled — no corpus deck has
+   one, a test deck is a rect/ellipse with `a:blipFill` on a WMF/EMF part);
+   a metafile's own bitmaps were already fine on screen (lo-tdf149206's
+   WMF and its thumbnail). Painter gate, 553 decks: no movers. To drive a
+   deck by hand: `Driver.launch(args=[path])` with a COPY of the deck (the
+   app writes a `~` backup and restores unsaved edits per file), and a
+   debug build needs `apps/OfficeApp/.build/debug/data` (copy it from a
+   checkout that has one) or the engine's ICU data check aborts at launch.
 2. **Triage the 2–20% band.** Sample it (every fifth deck by rank, say),
    put a cause on each from its pair image, and fix what recurs.
    Suspects, unmeasured: wrapping that differs by a word (font
