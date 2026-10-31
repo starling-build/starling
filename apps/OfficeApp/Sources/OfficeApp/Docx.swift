@@ -3394,7 +3394,17 @@ enum DocxFormat {
                 // was in the flow under the title here.)
                 f.verticalAnchor = node["w:vAnchor"] ?? (node["w:y"] != nil || node["w:yAlign"] != nil ? "margin" : "text")
                 f.horizontalAlign = node["w:xAlign"]
-                f.verticalAlign = node["w:yAlign"]
+                // (An y beside the alignment is the place: LibreOffice's
+                // tdf157572_defaultVAnchor says "center" and y 10, and Word
+                // sets its frame at the margin's top, 0.5pt down.)
+                // (Zero is no place: tdf112287B's "bottom" with y 0 stays where
+                // its text is, 97pt, and an alignment is set by the height
+                // only where no y is given and the text goes round the frame —
+                // the one shape seen; a style's wrap-auto frame, special_styles',
+                // kept its old place.)
+                let placed = (Double(node["w:y"] ?? "") ?? 0) != 0
+                f.verticalAlign = placed ? nil : node["w:yAlign"]
+                if node["w:y"] == nil, node["w:wrap"] == "around", let h = Double(node["w:h"] ?? ""), h > 0 { f.height = h / 20 }
                 // (A frame set "inline" vertically, of no width or height of
                 // its own, stays in the flow as a paragraph: zh-fe536967's
                 // footer, over a style's framed 29pt box, is one, and Word
