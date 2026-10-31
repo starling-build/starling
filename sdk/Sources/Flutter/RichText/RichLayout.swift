@@ -4168,7 +4168,12 @@ public final class RichLayout {
                     if RichTextTheme.wordWindowsPages, c.row == 0 { bottom = c.rowTop + c.ownRowHeight; for m in i ..< j { if let d = _cells[m] { bottom = max(bottom, d.rowTop + d.ownRowHeight) } } }
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
-                    if y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
+                    // (Not far past the margin: LibreOffice's floattable-then-table, a
+                    // page-anchored table of two 200pt rows on a page whose margin is
+                    // 123pt, has its second row 70pt over the margin and above the
+                    // footer's place, and Word's print parts it onto page 2; the 26pt
+                    // of floattable-compat14 stays.)
+                    if y + (bottom - c.rowTop) <= edge + 0.01, c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40) { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
