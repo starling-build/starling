@@ -3380,6 +3380,8 @@ public final class RichLayout {
         // A table placed against the page further down than the text has
         // come: where the text stood, to go on from there round it.
         var tableReturn: (table: String, y: Double, page: Int, top: Double)? = nil
+        // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
+        var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
         // A page whose columns were balanced at a continuous section break:
         // its physical page and where the next section's columns start.
@@ -4187,7 +4189,7 @@ public final class RichLayout {
                     // from the footer's place, goes over whole in Word's print.)
                     if RichTextTheme.wordWindowsPages, c.row == 0 { bottom = c.rowTop + c.ownRowHeight; for m in i ..< j { if let d = _cells[m] { bottom = max(bottom, d.rowTop + d.ownRowHeight) } } }
                     let setup = pageSetup(forPage: page / _columns)
-                    let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
+                    let edge = pageEdgeClamp?.table == c.table ? pageEdgeClamp!.edge : max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
                     // (Not far past the margin: LibreOffice's floattable-then-table, a
                     // page-anchored table of two 200pt rows on a page whose margin is
                     // 123pt, has its second row 70pt over the margin and above the
@@ -5099,6 +5101,28 @@ public final class RichLayout {
                     if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
+                        // (A table placed against the page whose first row, or
+                        // the whole of it, would pass the page's bottom EDGE is
+                        // set up so that it ends there — not at the margin, not
+                        // at the footer's place. Lab lh2 (windows, 2026-10-31,
+                        // LibreOffice's tdf99140): tblpY 640.85pt, rows of
+                        // 283.5pt on a 792pt page: row 1 at 508.03 to 791.64 on
+                        // page 1, rows 2 and 3 on page 2 at the margin; rows of
+                        // 100pt: all three on page 1 ending at 791.64. A row
+                        // that fits below its place is not moved.)
+                        if RichTextTheme.wordWindowsPages {
+                            let pageBottom = _px(pageSetup(forPage: physical).height) - insetTop
+                            var whole = c.rowTop + c.ownRowHeight, k = i
+                            while k < count, let d = _cells[k], d.table == c.table { whole = max(whole, d.rowTop + d.ownRowHeight); k += 1 }
+                            let total = whole - c.rowTop
+                            let height = total <= pageBottom + 0.01 ? total : c.ownRowHeight
+                            if y + c.ownRowHeight > pageBottom + 0.01, height <= pageBottom + 0.01 {
+                                RuleTrace.hit("page-anchored-table-set-up-to-the-page-edge")
+                                y = pageBottom - height - max(c.ruleBelow, ruleUnder(c))
+                                pageEdgeClamp = (c.table, pageBottom)
+                                keptPastFoot = c.table
+                            }
+                        }
                     } else if target < -0.01, y < 0.01, _pages[page].isEmpty, target > -insetTop {
                         // (Over the top margin too, where the page opens
                         // with it: zh-19dde9e7's report, a table placed
@@ -5397,7 +5421,7 @@ public final class RichLayout {
                 var pastFoot = false
                 if keptPastFoot == c.table, c.row == 0 {
                     let setup = pageSetup(forPage: page / _columns)
-                    let edge = _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top
+                    let edge = pageEdgeClamp?.table == c.table ? pageEdgeClamp!.edge : _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top
                     pastFoot = y + shown + ruleUnder(c) <= edge + 0.01
                 } else if keptPastFoot == c.table {
                     keptPastFoot = nil
