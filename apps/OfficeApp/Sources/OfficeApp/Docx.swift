@@ -5499,9 +5499,15 @@ enum DocxFormat {
     }
 
     private static func _runText(_ t: XNode) -> String {
-        if t["xml:space"] == "preserve" { return t.text }
+        // (A line separator typed into the text is no break to Word: it
+        // prints a blank half an em wide and the line runs on —
+        // LibreOffice's tdf152983-1-min, two of them in a 12pt paragraph,
+        // 6pt each in Word's print. The layout's own breaks are U+2028, so
+        // it is set as the en space, which is that wide.)
+        let raw = t.text.contains("\u{2028}") ? t.text.replacingOccurrences(of: "\u{2028}", with: "\u{2002}") : t.text
+        if t["xml:space"] == "preserve" { return raw }
         let ws: Set<Character> = [" ", "\t", "\n", "\r", "\r\n"]
-        var text = Substring(t.text)
+        var text = Substring(raw)
         while let f = text.first, ws.contains(f) { text.removeFirst() }
         while let l = text.last, ws.contains(l) { text.removeLast() }
         return String(text)
