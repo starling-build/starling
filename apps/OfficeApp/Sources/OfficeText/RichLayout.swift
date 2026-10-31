@@ -15442,6 +15442,35 @@ public final class RichLayout {
         return first ..< min(_tops.count, last + 1)
     }
 
+    /// A turned cell's paragraph, laid out in its own horizontal space and
+    /// painted turned a quarter about the corner it reads from (see
+    /// `_paintParagraph`): where the painter's origin lies in that space,
+    /// and the maps between that space and the page's.
+    private func _turnedFrame(_ i: Int, _ document: RichDocument) -> (origin: Offset, toPage: (Rect) -> Rect, toLocal: (Offset) -> Offset)? {
+        guard i >= 0, i < _cells.count, let c = _cells[i], c.vertical, i < document.paragraphs.count else { return nil }
+        let height = c.rowSpan > 1 ? c.turnedPart ?? c.rowHeight : c.ownRowHeight
+        let short = c.rowSpan > 1 ? c.rowHeight - height : 0
+        let aligned = document.paragraphs[i].style.alignment
+        let indent = _px(document.paragraphs[i].style.indentLeft)
+        let fromStart = document.paragraphs[i].style.eastAsian["w:jc"] == nil && (aligned == .left || aligned == .justify)
+        let along = c.alongStart + indent
+            - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
+            - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 ? min(indent, _px(2.25)) : 0)
+        let origin = Offset(along, c.across + _spaceBefore[i])
+        if c.direction == .up {
+            // (x, y) -> (colLeft + y, rowTop + height - x)
+            let ox = c.colLeft, oy = c.rowTop + height
+            return (origin,
+                    { r in Rect.fromLTRB(ox + r.top, oy - r.right, ox + r.bottom, oy - r.left) },
+                    { p in Offset(oy - p.dy, p.dx - ox) })
+        }
+        // (x, y) -> (colLeft + colWidth - y, rowTop + x)
+        let ox = c.colLeft + c.colWidth, oy = c.rowTop
+        return (origin,
+                { r in Rect.fromLTRB(ox - r.bottom, oy + r.left, ox - r.top, oy + r.right) },
+                { p in Offset(p.dy - oy, ox - p.dx) })
+    }
+
     /// Caret rectangle in document space.
     public func caretRect(_ pos: RichPosition, _ document: RichDocument) -> Rect {
         let i = max(0, min(pos.paragraph, count - 1))
@@ -15456,6 +15485,10 @@ public final class RichLayout {
         let map = _map(i)
         let o = g.painter.getOffsetForCaret(TextPosition(offset: map.painter(offset)), proto)
         let h = g.painter.getFullHeightForCaret(TextPosition(offset: map.painter(offset)), proto)
+        if let t = _turnedFrame(i, document) {
+            // (A turned cell's caret is a line across its text's run.)
+            return t.toPage(Rect.fromLTWH(t.origin.dx + o.dx, t.origin.dy + o.dy, 2, h > 0 ? h : lineH))
+        }
         return Rect.fromLTWH(g.textLeft + o.dx, g.inkTop + o.dy, 2, h > 0 ? h : lineH)
     }
 
@@ -15520,9 +15553,15 @@ public final class RichLayout {
                 let top = max(0, box.top)
                 let bottom = min(bodyHeight, box.bottom)
                 guard bottom > top else { continue }
+                if let t = _turnedFrame(i, document) {
+                    rects.append(t.toPage(Rect.fromLTRB(t.origin.dx + box.left, t.origin.dy + top,
+                                                        t.origin.dx + box.right, t.origin.dy + bottom)))
+                    continue
+                }
                 rects.append(Rect.fromLTRB(g.textLeft + box.left, g.inkTop + top,
                                            g.textLeft + box.right, g.inkTop + bottom))
             }
+            if _turnedFrame(i, document) != nil { continue }
             if i != b.paragraph, let last = rects.last {
                 // Extend past the line end to show the newline is included.
                 rects[rects.count - 1] = Rect.fromLTRB(last.left, last.top, last.right + 6, last.bottom)
@@ -15538,7 +15577,11 @@ public final class RichLayout {
         let g = geometry(i)
         let para = document.paragraphs[i]
         if para.text.isEmpty { return RichPosition(paragraph: i, offset: 0) }
-        let local = Offset(point.dx - g.textLeft, min(max(point.dy - g.inkTop, 0), g.painter.height - 0.01))
+        var local = Offset(point.dx - g.textLeft, min(max(point.dy - g.inkTop, 0), g.painter.height - 0.01))
+        if let t = _turnedFrame(i, document) {
+            let q = t.toLocal(point)
+            local = Offset(q.dx - t.origin.dx, min(max(q.dy - t.origin.dy, 0), g.painter.height - 0.01))
+        }
         let tp = g.painter.getPositionForOffset(local)
         return RichPosition(paragraph: i, offset: para.alignedOffset(max(0, min(_map(i).paragraph(tp.offset), para.length))))
     }

@@ -1301,6 +1301,15 @@ final class SlidePainter: CustomPainter {
         // A picture fill has nothing under it: one drawn half transparent
         // shows what lies behind, not white (the Concourse theme's corner).
         if fill.image == nil || fill.color != nil || p.shader != nil { canvas.drawRect(r, p) }
+        if let image = fill.image, let metafile = cache.metafile(image) {
+            // A WMF or EMF as the fill: its drawing played over the area
+            // (stretched, or into its `a:fillRect`), as vectors; not tiled —
+            // a metafile has no pixel size to tile at.
+            let recoloured = fill.imageAlpha < 1 || fill.duotone != nil || fill.imageLevels != nil
+            if recoloured { canvas.saveLayer(r, imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)) }
+            metafile.paint(canvas, in: Self.inset(r, fill.imageInset), image: { cache.image($0) }, font: OfficeFonts.substitute)
+            if recoloured { canvas.restore() }
+        }
         if let image = fill.image, let decoded = cache.image(image) {
             let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
             let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)

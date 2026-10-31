@@ -480,6 +480,51 @@ final class TableCellTests: XCTestCase {
         XCTAssertEqual(long.geometry(1).top, 0, accuracy: 0.01)
         XCTAssertEqual(try XCTUnwrap(long.rowRect(1)).height, long.totalHeight, accuracy: 0.01)
     }
+
+    /// The caret, the selection and a click in a turned cell follow its
+    /// text: the caret is a bar across the run, the selection lies in the
+    /// cell's column, and a click on the start caret finds the start (Slides' table
+    /// cells, seen on screen 2026-10-31: the caret and selection were drawn
+    /// as for across text, and a click always found the text's end).
+    func testATurnedCellsCaretSelectionAndClickAreTurned() throws {
+        _ = OfficeFonts.register()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)
+        for direction in [CellRef.CellTextDirection.up, .down] {
+            var a = RichParagraph(text: "x")
+            a.cell = CellRef(table: "t", row: 0, column: 0)
+            var b = RichParagraph(text: "Wednesday")
+            b.cell = CellRef(table: "t", row: 0, column: 1)
+            b.cell?.textDirection = direction
+            var doc = RichDocument(paragraphs: [a, b])
+            doc.tableColumns["t"] = [100, 100]
+            let l = RichLayout(theme: theme, paragraphCount: 2)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            let row = try XCTUnwrap(l.rowRect(1))
+            let left = 100 * 96.0 / 72.0, right = 200 * 96.0 / 72.0
+            func inCell(_ r: Rect, _ what: String) {
+                XCTAssertGreaterThanOrEqual(r.left, left - 0.5, "\(what) \(r) \(direction)")
+                XCTAssertLessThanOrEqual(r.right, right + 0.5, "\(what) \(r) \(direction)")
+                XCTAssertGreaterThanOrEqual(r.top, row.top - 0.5, "\(what) \(r) \(direction)")
+                XCTAssertLessThanOrEqual(r.bottom, row.bottom + 0.5, "\(what) \(r) \(direction)")
+            }
+            let start = l.caretRect(RichPosition(paragraph: 1, offset: 0), doc)
+            let end = l.caretRect(RichPosition(paragraph: 1, offset: 9), doc)
+            inCell(start, "caret at the start"); inCell(end, "caret at the end")
+            XCTAssertGreaterThan(start.width, start.height, "a bar across the run, not along it")
+            // Reading up starts at the foot of the row, reading down at its top.
+            if direction == .up { XCTAssertGreaterThan(start.top, end.top) } else { XCTAssertLessThan(start.top, end.top) }
+            let sel = RichSelection(anchor: RichPosition(paragraph: 1, offset: 0), focus: RichPosition(paragraph: 1, offset: 9))
+            let rects = l.selectionRects(sel, doc)
+            XCTAssertFalse(rects.isEmpty)
+            for r in rects { inCell(r, "selection") }
+            // A click on the start caret finds the start (it found the
+            // text's end wherever it fell).
+            let found = l.position(at: Offset(start.center.dx, start.center.dy), doc)
+            XCTAssertEqual(found.paragraph, 1)
+            XCTAssertEqual(found.offset, 0, "\(direction)")
+        }
+    }
 }
 
 /// Line spacing as a multiple of the face's natural line height
