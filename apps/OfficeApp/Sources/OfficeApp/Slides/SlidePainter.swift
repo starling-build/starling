@@ -1065,8 +1065,14 @@ final class SlidePainter: CustomPainter {
             for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
             return m
         }
+        // (A path gradient blends evenly in sRGB, as Windows PowerPoint prints
+        // it: lo-tdf154858's green / yellow / green ellipse has a yellow ring at
+        // half the corner radius and green again beyond it, where the linear-
+        // light blend of the Mac prints held a yellow plateau. Linear gradients
+        // keep the linear-light blend — tdf105739's red to green is 91% off
+        // blended evenly.)
         let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
-            : fill.even || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
+            : fill.even || fill.undirected || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
                                             : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the focus out to the circle through the area's four
@@ -1270,7 +1276,7 @@ final class SlidePainter: CustomPainter {
         // toward every edge, where a circle round the middle had it).
         if fill.path == .rect || fill.path == .shape, fill.stops.count >= 2, r.width > 0, r.height > 0 {
             let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
-                : fill.even ? (fill.stops.map(\.color), fill.stops.map(\.position))
+                : fill.even || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
                                                 : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
             func at(_ u: Double) -> Color {
                 guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
