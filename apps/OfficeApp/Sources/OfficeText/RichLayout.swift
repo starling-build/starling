@@ -5093,6 +5093,32 @@ public final class RichLayout {
                 // 67.080.20" at 34.5 in Word's print, 36.65pt over the
                 // margin; ours stood it at the margin — and 177pt down.)
                 raiseAtHead(c)
+                // (And one placed above the text's place in the middle of a
+                // page, up over the paragraphs before it: they stand under it,
+                // as the text before a table placed against the page does,
+                // below. LibreOffice's floattable-in-section, tblpY -921 under
+                // the paragraph after it, has its table 46pt over where that
+                // paragraph would stand and the paragraph before it, which
+                // would reach into it, under it, 483.7 on the page; ours set
+                // it above the table.)
+                if theme.wordRules, c.row == 0, c.firstInRow, i > 0, _cells[i - 1]?.table != c.table, y > 0.01, deferredUnder.isEmpty,
+                   let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.floatOffsetY == nil, let up = ts.floatRaiseY {
+                    let target = y - _px(up)
+                    if target >= 0 {
+                        var moved: [PagePiece] = []
+                        while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
+                              last.pageY >= target - 0.01 {
+                            moved.insert(_pages[page].removeLast(), at: 0)
+                            if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
+                        }
+                        if !moved.isEmpty {
+                            deferredUnder = moved
+                            deferredTable = c.table
+                            reordered = true
+                            y = target
+                        }
+                    }
+                }
                 // A floating table placed against the page stands at its
                 // offset there, and the text before it on that page that
                 // would reach into it is set under it: lab `fc` (Word 16, a
