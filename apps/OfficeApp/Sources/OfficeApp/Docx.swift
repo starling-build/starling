@@ -2794,7 +2794,7 @@ enum DocxFormat {
         let word = rest.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
         // (A bare 1 to 9 is a heading level, not a name: LibreOffice's
         // 06933f8e footer "STYLEREF 1" keeps its text.)
-        return word.isEmpty || word.hasPrefix("\\") || (word.count == 1 && "123456789".contains(word)) ? nil : word
+        return word.isEmpty || word.hasPrefix("\\") || (word.count == 1 && "123456789".containsSubstring(word)) ? nil : word
     }
 
     static func _isPageField(_ instr: String) -> Bool {
@@ -5671,7 +5671,7 @@ enum DocxFormat {
         // LibreOffice's tdf152983-1-min, two of them in a 12pt paragraph,
         // 6pt each in Word's print. The layout's own breaks are U+2028, so
         // it is set as the en space, which is that wide.)
-        let raw = t.text.contains("\u{2028}") ? t.text.replacingOccurrences(of: "\u{2028}", with: "\u{2002}") : t.text
+        let raw = t.text.containsSubstring("\u{2028}") ? t.text.replacingAll("\u{2028}", with: "\u{2002}") : t.text
         if t["xml:space"] == "preserve" { return raw }
         let ws: Set<Character> = [" ", "\t", "\n", "\r", "\r\n"]
         var text = Substring(raw)
@@ -6435,7 +6435,7 @@ enum DocxFormat {
                 // added one — LibreOffice's tdf123636_newlinePageBreak,
                 // two paragraphs, then three.)
                 if doc.paragraphs[i].style.continuesParagraph, breakRidesOnPrevious(i), body.hasSuffix("</w:p>"),
-                   xml.hasPrefix("<w:p><w:pPr>"), let end = xml.range(of: "</w:pPr>") {
+                   xml.hasPrefix("<w:p><w:pPr>"), let end = xml.firstRange(of: "</w:pPr>") {
                     body.removeLast(6)
                     body += xml[end.upperBound...]
                 } else {
