@@ -462,6 +462,8 @@ enum DocxFormat {
                 let next = sects[i + 1]
                 let breaks = (next.first("w:type")?["w:val"] ?? "nextPage") != "continuous" || paper(next) != paper(sect)
                 sect.attrs["x-next-breaks"] = breaks ? "1" : "0"
+                func vertical(_ s: XNode) -> String { "\(s.first("w:pgMar")?["w:top"] ?? "")/\(s.first("w:pgMar")?["w:bottom"] ?? "")" }
+                if !breaks, vertical(next) != vertical(sect) { sect.attrs["x-next-vmargins"] = "1" }
             }
         }
         for extra in root.all("w:body").dropFirst() {
@@ -1194,9 +1196,14 @@ enum DocxFormat {
                     // the contents page, the body from page 3; ours gave
                     // the picture a page and ran a page long to the end.
                     // Only there: Mac Word keeps the break, and its print of
-                    // the same document has a page 3 of the picture alone.)
+                    // the same document has a page 3 of the picture alone.
+                    // And only where the margins stay: a continuous section with
+                    // other top or bottom margins keeps the break — LibreOffice's
+                    // tdf149555, "Seriously" and a page break before a contents
+                    // section of 1422 twips on top for 5982, has the contents
+                    // on Word's page 2; ours ran them on under it.)
                     let sectionsOwn = Self.wordOnWindows && currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
-                        && p.paragraph.style.sectionBreaksPage == false
+                        && p.paragraph.style.sectionBreaksPage == false && !p.sectionMarginsChange
                     if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
                 if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
@@ -3425,6 +3432,9 @@ enum DocxFormat {
         var breakCharacter = false
         var breakRPr: String? = nil
         var breakColumn = false   // ... and a column break
+        /// The section this paragraph ends is followed by a continuous one with other top or
+        /// bottom margins: a page break ending the paragraph stays (see `sectionsOwn`).
+        var sectionMarginsChange = false
     }
 
     /// One w:p can become several paragraphs (a page break inside it).
@@ -3796,6 +3806,7 @@ enum DocxFormat {
                                     _ cellResolve: ((String) -> RichParagraphStyle?)? = nil) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
+        var sectionMarginsChange = false
         // (The table style's size stands under the paragraph's own style:
         // zh-e2dc9dce's flow table, styled at 10pt, sets its "01 標題壹"
         // headings at that style's 14pt in Word's print.)
@@ -3926,6 +3937,7 @@ enum DocxFormat {
                 let breaks = sect.attrs.removeValue(forKey: "x-next-breaks").map { $0 == "1" }
                     ?? ((sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous")
                 if breaks { sectionBreakAfter = true }
+                sectionMarginsChange = sect.attrs.removeValue(forKey: "x-next-vmargins") == "1"
                 style.sectionBreaksPage = breaks
                 // The section's own page size, margins and columns, kept
                 // for the file (bug65649: 15 sections, some landscape);
@@ -5077,6 +5089,7 @@ enum DocxFormat {
         } else {
             flush(pageBreakAfter: sectionBreakAfter)
         }
+        if sectionMarginsChange, !built.isEmpty { built[built.count - 1].sectionMarginsChange = true }
         return built
     }
 
