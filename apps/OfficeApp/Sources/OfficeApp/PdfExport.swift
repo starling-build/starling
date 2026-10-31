@@ -94,8 +94,23 @@ extension PdfExport {
             // (A deleted paragraph mark is a tracked change too, with its
             // "Deleted: ¶" balloon: tdf120336's one empty paragraph.)
             p.style.markRevision?.kind == .deleted ||
-            p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision != nil || $0.style.formatChange != nil }
+            (p.style.markRevision != nil && p.style.sectionXML != nil) ||
+            p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision.map(Self.hasBalloon) == true || $0.style.formatChange != nil }
         }
+    }
+
+    /// Whether a tracked change has a balloon in Word's print: a deletion
+    /// and a move do; an insertion is only underlined where it stands, and
+    /// a document whose changes are all insertions prints as any other
+    /// page, at full size, with no markup area (lo CT-with-frame: its two
+    /// insertions print at 72pt, the margin, in Word's PDF; ours scaled the
+    /// page for balloons that were not there). An inserted section
+    /// break has one ("Inserted: Section Break"): lo-512aa398's prints with
+    /// the frame, where zh-25381d22's and zh-86547e97's inserted paragraph
+    /// marks, and a run inserted in a table cell (lo-e998b55c), do not.
+    static func hasBalloon(_ revision: RevisionMark) -> Bool {
+        if revision.kind == .inserted, !revision.moved { RuleTrace.hit("insertion-has-no-balloon"); return false }
+        return true
     }
 
     /// Where a page printed with its markup stands on the paper, as Word
