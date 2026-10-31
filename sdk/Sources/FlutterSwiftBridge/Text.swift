@@ -5239,7 +5239,9 @@ public func loadFontFromList(_ list: Data, fontFamily: String? = nil) async thro
 private let engineKnowsLineIndents: Bool = {
   let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextLineIndentsSupported") != nil } ?? false
   if !known {
-    fputs("warning: this engine predates per-line indents and metrics overrides (starling-engine e837b7634c9); text beside floats is laid out wrong. Rebuild the engine.\n", stderr)
+    // write(2) rather than fputs(_, stderr): Glibc's `stderr` is a mutable global that Swift 6 rejects as not concurrency-safe.
+    let warning = "warning: this engine predates per-line indents and metrics overrides (starling-engine e837b7634c9); text beside floats is laid out wrong. Rebuild the engine.\n"
+    warning.withCString { _ = write(2, $0, strlen($0)) }
   }
   return known
 }()
