@@ -4017,6 +4017,18 @@ public final class RichLayout {
         }
         var wentOver = false   // `splitRow` moved its row to a new page and left it to the caller
         func splitRow(_ i: Int, _ j: Int, _ c: _CellGeo, atTop: Bool) -> Bool {
+            // (A floating table placed above the text's place stands that much up
+            // into the top margin at the head of the page its first row goes over
+            // to, as at any head: floattable-next-leaf-in-section's second table,
+            // tblpY -289 after a section's end, has its first line at 32.5 in
+            // Word's print, 14.6pt over ours.)
+            func raiseOverFirst() {
+                guard theme.wordRules, c.row == 0, y < 0.01, i == 0 || _cells[i - 1]?.table != c.table,
+                      let up = document.tableStyles[c.table]?.floatRaiseY else { return }
+                let physical = page / _columns
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                y = max(-insetTop, -_px(up))
+            }
             let ts = document.tableStyles[c.table]
             // (A row marked as a header never parts, repeated or not:
             // zh-e37f8d40's form marks every row, so none repeats, and
@@ -4236,6 +4248,7 @@ public final class RichLayout {
                     newPage()
                     if repeats { repeatHeader(of: c.table, before: i) }
                     if c.row > 0 { continueSpans(into: i, c) }
+                    raiseOverFirst()
                     wentOver = true
                     return false
                 }
@@ -4505,6 +4518,7 @@ public final class RichLayout {
                             fresh = true
                             if repeats { repeatHeader(of: c.table, before: i) }
                             if c.row > 0 { continueSpans(into: i, c) }
+                            raiseOverFirst()
                             // (Under the table's top line there: see `headLift`.)
                             if y < 0.01 { y += headLift(i, j, c) }
                             continue
