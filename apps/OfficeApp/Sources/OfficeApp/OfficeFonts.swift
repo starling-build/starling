@@ -76,6 +76,9 @@ enum OfficeFonts {
             return verdana
         case "liberation serif", "times new roman", "times", "georgia", "book antiqua",
              "garamond", "palatino", "palatino linotype", "tinos":
+            // (Windows has no Liberation Serif: Word takes the font table's
+            // alternate, else its signature's face — `windowsSigFace`.)
+            if wordOnWindows, n == "liberation serif", let by = windowsSigFace(family) { return substitute(by) }
             return serif
         case "liberation mono", "courier new", "courier", "consolas", "menlo", "monaco",
              "lucida console", "cousine":
@@ -2081,6 +2084,12 @@ enum OfficeFonts {
         case (0x0000_0003, 0): return "times new roman"
         case (0x0000_0287, 0x0000_0800): return "calibri"
         case (0x0000_7A87, 0x8000_0000): return "ebrima"
+        // (LibreOffice's "Liberation Serif" entry with no alternate: a name
+        // Windows lacks, set in Cambria in Word's print of tdf153136 —
+        // 56.7pt for a line of 48pt, Liberation Serif's 55.7 — where the
+        // 13 files whose entry names Times New Roman as its alternate
+        // print Times.)
+        case (0xE000_0AFF, 0x5000_78FF): return "cambria"
         default: return nil
         }
     }
