@@ -4,9 +4,10 @@
 """test/pptx-corpus-groups.py — the corpus in two groups, from its baselines.
 
 For each baseline in test/corpus/pptx (baseline.tsv, the Mac's page diff;
-baseline-mupdf.tsv, MuPDF's) writes two lists of deck names beside it:
+baseline-mupdf.tsv, MuPDF's; baseline-win.tsv, MuPDF's against PowerPoint for
+Windows' prints in powerpoint-win/) writes two lists of deck names beside it:
 
-    matched[-mupdf].txt   every page 0.00% different from PowerPoint's
+    matched[-mupdf|-win].txt   every page 0.00% different from PowerPoint's
     others[-mupdf].txt    the rest of the decks that have a PowerPoint PDF
 
 "Matched" is exact: worst page 0.00%, not "small". A deck in that list that
@@ -49,7 +50,7 @@ def main():
     global CORPUS
     if len(sys.argv) > 1:
         CORPUS = os.path.join(HERE, "corpus", sys.argv[1])
-    for baseline, suffix in (("baseline.tsv", ""), ("baseline-mupdf.tsv", "-mupdf")):
+    for baseline, suffix in (("baseline.tsv", ""), ("baseline-mupdf.tsv", "-mupdf"), ("baseline-win.tsv", "-win")):
         if not os.path.exists(os.path.join(CORPUS, baseline)):
             continue
         m, o = split(baseline, suffix)

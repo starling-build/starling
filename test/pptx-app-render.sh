@@ -36,12 +36,12 @@ mkdir -p "$WORK/pdf" "$WORK/pairs"
 # (test/pdf-diff.py: the same lines and threshold, another rasteriser — so
 # a sweep is comparable with sweeps from the same kind of machine). Under
 # Git Bash the app is SwiftPM's Windows build, or OFFICE_APP.
-if [ "$(uname)" = Darwin ]; then
+if [ "$(uname)" = Darwin ] && [ -z "$PPTX_DIFF" ]; then
   DIFF=("$WORK/pdf-diff")
   if [ ! -x "$DIFF" ]; then
     swiftc -O -o "$DIFF" "$HERE/pdf-diff.swift" 2>&1 | grep -E 'error:' && exit 1
   fi
-elif [ "$(uname)" = Linux ]; then
+elif [ "$(uname)" = Linux ] || [ -n "$PPTX_DIFF" ]; then
   # What build/build-all.sh makes, and its own RUNPATH picking the engine:
   # an inherited LD_LIBRARY_PATH outranks it (the packaged terminal exports
   # one to every shell inside it, and with it an older engine). PYTHON names
@@ -59,6 +59,9 @@ fi
 # this machine's page diff. A matched deck that no longer scores 0.00 has
 # regressed: the sweep says which and exits 1.
 LISTS="$ROOT/test/corpus/pptx"; SUFFIX=-mupdf; [ "$(uname)" = Darwin ] && SUFFIX=
+# GROUP_SUFFIX=-win: the list of the decks at 0.00 against PowerPoint for Windows (baseline-win.tsv, MuPDF's page diff; sweep with
+# PPT_DIR=test/corpus/pptx/powerpoint-win and, on a Mac, PPTX_DIFF=mupdf PYTHON=<python with pymupdf> so the diff is the baseline's).
+SUFFIX="${GROUP_SUFFIX:-$SUFFIX}"
 names=("$@")
 if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
   [ -f "$LISTS/$CORPUS_GROUP$SUFFIX.txt" ] || { echo "no list $LISTS/$CORPUS_GROUP$SUFFIX.txt" >&2; exit 2; }
