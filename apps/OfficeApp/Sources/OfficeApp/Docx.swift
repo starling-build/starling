@@ -385,6 +385,7 @@ enum DocxFormat {
             if let f = settings.first("w:endnotePr")?.first("w:numFmt")?["w:val"] { notes.endnoteFormat = f }
             if let f = settings.first("w:footnotePr")?.first("w:numFmt")?["w:val"] { notes.footnoteFormat = f }
         }
+        notes.hasColumns = body.descendants("w:cols").contains { (Int($0["w:num"] ?? "") ?? 1) > 1 }
         if let compat = part("word/settings.xml").flatMap(XNode.parse)?.first("w:compat") {
             let mode = compat.all("w:compatSetting").first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") } ?? 12
             notes.marksFollowBreaks = mode < 15 && (compat.first("w:splitPgBreakAndParaMark").map { !_isOff($0) } ?? false)
@@ -3415,6 +3416,9 @@ enum DocxFormat {
         /// `w:splitPgBreakAndParaMark` before 2013's layout: the mark of a
         /// paragraph that ends in a page break goes to the next page.
         var marksFollowBreaks = false
+        /// Some section of the body sets its text in two columns or more:
+        /// there a column break in the middle of a paragraph is a break.
+        var hasColumns = false
         init(kept: [String: Data], rels: [String: KeptRel], rootNS: [String: String],
              part: @escaping (String) -> Data?, contentType: @escaping (String) -> String?) {
             self.kept = kept
@@ -4740,6 +4744,15 @@ enum DocxFormat {
                             built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = runPropertiesXML
                             splitBefore = true
                         }
+                    } else if child["w:type"] == "column", notes.hasColumns, !(text.isEmpty && inlineImages.isEmpty && built.isEmpty) {
+                        // (In the middle of a paragraph, on a page of columns,
+                        // a column break takes the rest of the paragraph to
+                        // the next column — the next page from the last:
+                        // LibreOffice's tdf153964_topMarginAfterBreak14.)
+                        flush(pageBreakAfter: true)
+                        built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = runPropertiesXML
+                        built[built.count - 1].breakColumn = true
+                        splitBefore = true
                     } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
