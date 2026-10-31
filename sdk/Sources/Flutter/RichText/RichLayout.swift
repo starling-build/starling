@@ -5331,6 +5331,13 @@ public final class RichLayout {
                 if wentOver {
                     // (The row went to a new page whole: there it is laid
                     // out again, and parted if the page cannot hold it.)
+                    // (A floating table placed up over the text, taken to the
+                    // new page whole, stands that much up there too:
+                    // floattable-next-leaf-in-section's second table, tblpY
+                    // -289 under a table that fills page 1, has its first
+                    // line 12pt over the margin on page 2 in Word's print;
+                    // ours stood it at the margin.)
+                    raiseAtHead(c)
                     underPins(c.ownRowHeight)
                     shown = pageHeight()
                     if shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: true) {
