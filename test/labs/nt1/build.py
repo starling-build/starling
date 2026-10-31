@@ -25,14 +25,15 @@ def borders(sz):
 def nested(sz, frame):
     rows = ''.join('<w:tr><w:tc><w:tcPr><w:tcW w:w="5000" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>%s</w:tc></w:tr>' % para('R%02d' % n, frame) for n in range(1, 91))
     return '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="dxa"/><w:jc w:val="center"/>%s</w:tblPr><w:tblGrid><w:gridCol w:w="5000"/></w:tblGrid>%s</w:tbl>' % (borders(sz), rows)
-def outer(inner, short, valign):
+FLOAT = '<w:tblpPr w:leftFromText="141" w:rightFromText="141" w:vertAnchor="page" w:horzAnchor="margin" w:tblpXSpec="center" w:tblpY="2266"/>'
+def outer(inner, short, valign, floating=False):
     h = '' if short else '<w:trHeight w:val="9016"/>'
-    return ('<w:tbl><w:tblPr><w:tblW w:w="10081" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="10081"/></w:tblGrid>'
+    return ('<w:tbl><w:tblPr>' + (FLOAT if floating else '') + '<w:tblW w:w="10081" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="10081"/></w:tblGrid>'
             '<w:tr><w:trPr>%s</w:trPr><w:tc><w:tcPr><w:tcW w:w="10081" w:type="dxa"/><w:vAlign w:val="%s"/></w:tcPr>%s%s%s</w:tc></w:tr></w:tbl>'
             % (h, valign, para('TITLE'), inner, para('END')))
-def doc(body):
+def doc(body, bottom=1418, footer=709):
     return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document %s><w:body>%s<w:p/>'
-            '<w:sectPr><w:pgSz w:w="12242" w:h="18722"/><w:pgMar w:top="1418" w:right="1701" w:bottom="1418" w:left="1701" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>' % (W, body))
+            '<w:sectPr><w:pgSz w:w="12242" w:h="18722"/><w:pgMar w:top="1418" w:right="1701" w:bottom="%d" w:left="1701" w:header="709" w:footer="%d" w:gutter="0"/></w:sectPr></w:body></w:document>' % (W, body, bottom, footer))
 CT = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
       '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
       '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
@@ -45,6 +46,14 @@ SET = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings %s><w
        'w:uri="http://schemas.microsoft.com/office/word" w:val="14"/></w:compat></w:settings>' % W)
 V = [('b05', 4, False, 'center', False), ('b00', 0, False, 'center', False), ('b30', 24, False, 'center', False),
      ('b05-short', 4, True, 'center', False), ('b05-top', 4, False, 'top', False), ('b05-frame', 4, False, 'center', True)]
+FV = [('fl-b05', 4, 1418, 709), ('fl-b05-bot567', 4, 567, 709), ('fl-b05-bot2500', 4, 2500, 709), ('fl-b05-foot300', 4, 1418, 300), ('fl-b05-foot1200', 4, 1418, 1200)]
+for name, sz, bottom, foot in FV:
+    fn = os.path.join(out, 'nt1-%s.docx' % name)
+    with zipfile.ZipFile(fn, 'w', zipfile.ZIP_DEFLATED) as z:
+        z.writestr('[Content_Types].xml', CT); z.writestr('_rels/.rels', RELS)
+        z.writestr('word/_rels/document.xml.rels', DRELS); z.writestr('word/settings.xml', SET)
+        z.writestr('word/document.xml', doc(outer(nested(sz, False), False, 'center', True), bottom, foot))
+    print(fn)
 for name, sz, short, va, fr in V:
     body = outer(nested(sz, fr), short, va)
     docs = [(name, body)]
