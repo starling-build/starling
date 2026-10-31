@@ -3109,7 +3109,26 @@ public final class RichLayout {
 
     // MARK: Pagination
 
-    private var _columns: Int { _oneColumn ? 1 : max(1, _bodyColumns ?? pageSetup?.columns ?? 1) }
+    private var _columns: Int { _perSection ? _maxSectionColumns : _oneColumn ? 1 : max(1, _bodyColumns ?? pageSetup?.columns ?? 1) }
+    /// Each section keeps its own columns (see `_resolveSections`): the
+    /// slots of a page are the largest count's, a section of fewer fills
+    /// the first of them, and the next column after its last is the next
+    /// page's.
+    private var _perSection = false
+    private var _maxSectionColumns = 1
+    private var _sectionColumnCounts: [Int] = []
+    /// The columns of paragraph `i`'s section.
+    private func _columnsOf(paragraph i: Int) -> Int {
+        guard _perSection, i >= 0, i < _sectionOf.count, _sectionOf[i] < _sectionColumnCounts.count else { return _columns }
+        return _sectionColumnCounts[_sectionOf[i]]
+    }
+    /// A column's left edge on page `page` for a piece of paragraph `i`
+    /// in column `column`.
+    private func _pxColumnLeft(_ page: Int, column: Int, paragraph i: Int) -> Double {
+        guard _perSection else { return _pxMarginLeft(page) + Double(column) * _pxColumnStride(page) }
+        let s = _setup(ofParagraph: i)
+        return _pxMarginLeft(page) + Double(column) * _px(s.columnWidth + s.columnGap)
+    }
     /// The columns of a body of sections that all have them, closed by a
     /// section of one with nothing in it (see `_resolveSections`); nil
     /// elsewhere.
@@ -3293,8 +3312,39 @@ public final class RichLayout {
         // (… but its one-column section is set across the page: zh-b5359de4's
         // title "龙泉市城镇老旧小区改造十四五规划" is one line centred on the
         // page in Word's print, where ours wrapped it in a half-page column.)
+        // (Sections that disagree on their columns, each with its own: the
+        // continuous ones start where the section before them ends, and
+        // that one's columns are balanced above them. Word's print of
+        // LibreOffice's tdf139336, a page of nine sections of two and three
+        // columns and one.)
+        _perSection = false
+        _sectionColumnCounts = []
+        _maxSectionColumns = 1
+        if theme.wordRules {
+            // (A section whose columns the importer made a table of, the
+            // one before its closing paragraph, is one column here: the
+            // table's cells are the columns, `TableStyle.sectionColumns`.)
+            func tableMakesColumns(_ i: Int) -> Bool {
+                i > 0 && document.paragraphs[i - 1].cell.map { document.tableStyles[$0.table]?.sectionColumns == true } == true
+            }
+            var counts: [Int] = []
+            for (i, p) in document.paragraphs.enumerated() where p.cell == nil && i < document.paragraphs.count - 1 {
+                if let own = p.style.sectionPage { counts.append(tableMakesColumns(i) ? 1 : max(1, own.columns)) }
+            }
+            counts.append(document.paragraphs.last.map { $0.cell.map { document.tableStyles[$0.table]?.sectionColumns == true } == true } == true ? 1 : max(1, last.columns))
+            // (Not yet where a section's columns are unequal: they would be set
+            // equal.)
+            func unequal(_ xml: String?) -> Bool { xml.map { $0.containsSubstring("w:equalWidth=\"0\"") || $0.containsSubstring("w:equalWidth=\"false\"") } ?? false }
+            let anyUnequal = unequal(document.columnsXML) || document.paragraphs.contains { $0.cell == nil && unequal($0.style.sectionXML) }
+            if Set(counts).count > 1, counts.contains(where: { $0 > 1 }), !anyUnequal {
+                _perSection = true
+                _sectionColumnCounts = counts
+                _maxSectionColumns = counts.max() ?? 1
+                _oneColumn = false
+            }
+        }
         _fullWidthCover = []
-        if theme.wordRules, !_oneColumn, last.columns > 1, cover > 0 {
+        if theme.wordRules, !_oneColumn, !_perSection, last.columns > 1, cover > 0 {
             var from = 0
             for (i, p) in document.paragraphs.enumerated() where p.cell == nil && i <= cover {
                 guard let own = p.style.sectionPage else { continue }
@@ -3313,7 +3363,7 @@ public final class RichLayout {
         // closing paragraph across the page under two short columns.)
         _bodyColumns = nil
         var bodyGap: Double? = nil
-        if theme.wordRules, last.columns == 1, !_oneColumn {
+        if theme.wordRules, last.columns == 1, !_oneColumn, !_perSection {
             let owns = document.paragraphs.enumerated().filter { i, p in
                 p.cell == nil && i < document.paragraphs.count - 1 && p.style.sectionPage != nil
             }
@@ -3327,8 +3377,11 @@ public final class RichLayout {
         }
         for (i, p) in document.paragraphs.enumerated() where p.cell == nil {
             guard var setup = p.style.sectionPage, i < document.paragraphs.count - 1 else { continue }
-            setup.columns = _oneColumn ? 1 : _bodyColumns ?? last.columns
-            setup.columnGap = bodyGap ?? last.columnGap
+            if !_perSection {
+                setup.columns = _oneColumn ? 1 : _bodyColumns ?? last.columns
+                setup.columnGap = bodyGap ?? last.columnGap
+            }
+            if _perSection, i > 0, document.paragraphs[i - 1].cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { setup.columns = 1 }
             setup.gap = last.gap
             for k in start ... i { of[k] = setups.count }
             setups.append(setup)
@@ -3337,6 +3390,7 @@ public final class RichLayout {
         if start < of.count { for k in start ..< of.count { of[k] = setups.count } }
         var final = last
         if _oneColumn { final.columns = 1 }
+        if _perSection, let tail = document.paragraphs.last, tail.cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { final.columns = 1 }
         if let body = _bodyColumns { final.columns = body; final.columnGap = bodyGap ?? final.columnGap }
         setups.append(final)
         let changed = setups != _sectionSetups || (setups.count > 1 && of != _sectionOf)
@@ -3583,6 +3637,13 @@ public final class RichLayout {
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
             if page + 1 < _pages.count { page += 1 } else { _pages.append(fresh); page += 1 }
+            // (A section of fewer columns than the most has none past its
+            // last: the next page's first.)
+            if _perSection, case let here = _columnsOf(paragraph: min(i, max(0, count - 1))), here < _columns {
+                while page % _columns >= here {
+                    if page + 1 < _pages.count { page += 1 } else { _pages.append([]); page += 1 }
+                }
+            }
             prevY = y
             y = 0
             // (A column of a page whose columns were balanced at a
@@ -5819,7 +5880,9 @@ public final class RichLayout {
             // Word's print, its contents under them, 44.3pt higher than
             // ours, which filled the first column and went on in the second.
             // (Plain paragraphs only: no table rows, no notes on the page.)
-            if theme.wordRules, _columns > 1, !_pageBreak[i], i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
+            let nb = _perSection && i > 0 ? _columnsOf(paragraph: i - 1) : _columns
+            var balancedHere = false
+            if theme.wordRules, nb > 1, !(_perSection && document.leavesColumnsUnbalanced), !_pageBreak[i], i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
                _cells[i] == nil, resumeCursor == nil, !notesOn || pageNotes.isEmpty {
                 let first = (page / _columns) * _columns
                 var seq: [PagePiece] = []
@@ -5828,8 +5891,8 @@ public final class RichLayout {
                 if !seq.isEmpty, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
                    seq.allSatisfy({ _cells[$0.paragraph] == nil && !$0.repeated && $0.part == .all }) {
                     let total = (first ... page).reduce(0.0) { acc, s in acc + (_pages[s].map { $0.pageY + $0.height }.max() ?? 0) }
-                    let target = total / Double(_columns)
-                    var out: [[PagePiece]] = Array(repeating: [], count: _columns)
+                    let target = total / Double(nb)
+                    var out: [[PagePiece]] = Array(repeating: [], count: nb)
                     var c = 0, cy = 0.0
                     var lastBottom: [Int: Double] = [:]
                     for piece in seq {
@@ -5843,11 +5906,11 @@ public final class RichLayout {
                             // lines in two columns, one in each in Word's print —
                             // its title one line down; ours cut the second at its
                             // own line and stood the title two down.)
-                            if c < _columns - 1, top > 0.01, top >= target - 0.5 {
+                            if c < nb - 1, top > 0.01, top >= target - 0.5 {
                                 c += 1; top = 0; cy = 0
                                 continue
                             }
-                            if c == _columns - 1 || top + (rest.to - rest.from) <= target + 0.5 {
+                            if c == nb - 1 || top + (rest.to - rest.from) <= target + 0.5 {
                                 out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
                                 cy = top + (rest.to - rest.from)
                                 break
@@ -5888,13 +5951,21 @@ public final class RichLayout {
                     if blockBottom <= contentH + 0.01 {
                         _allPieces.removeLast(seq.count)
                         while _pages.count < first + _columns { _pages.append([]) }
-                        for k in 0 ..< _columns where first + k <= max(page, first + _columns - 1) { _pages[first + k] = out[k] }
+                        for k in 0 ..< nb where first + k <= max(page, first + _columns - 1) { _pages[first + k] = out[k] }
                         _allPieces.append(contentsOf: out.flatMap { $0 }.sorted { ($0.paragraph, $0.flowTop) < ($1.paragraph, $1.flowTop) })
                         page = first
                         y = blockBottom
                         columnFloor = (first / _columns, blockBottom)
+                        balancedHere = true
                     }
                 }
+            }
+            // (A section of columns that starts partway down a page: its
+            // columns start there, the second under the first's top, not
+            // at the page's.)
+            if _perSection, theme.wordRules, !balancedHere, !_pageBreak[i], i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
+               _columnsOf(paragraph: i) > 1, y > 0.01, resumeCursor == nil, page % _columns == 0 {
+                columnFloor = (page / _columns, y)
             }
             // (A page break that opens the document's first paragraph is a
             // blank first page in Word: LibreOffice's
@@ -6880,7 +6951,7 @@ public final class RichLayout {
             if !inside { continue }
             let page = piece.page / _columns
             let dy = pageRect(page).top + _pxMarginTop(page) + piece.pageY - piece.flowTop
-            let dx = _pxMarginLeft(page) + Double(piece.page % _columns) * _pxColumnStride(page)
+            let dx = _pxColumnLeft(page, column: piece.page % _columns, paragraph: piece.paragraph)
             out.append(Rect.fromLTRB(r.left + dx, lo + dy, r.right + dx, max(hi, lo) + dy))
         }
         if out.isEmpty, let piece = pieces.last ?? _pages.last?.last {
@@ -6888,7 +6959,7 @@ public final class RichLayout {
             // piece's page.
             let page = piece.page / _columns
             let dy = pageRect(page).top + _pxMarginTop(page) + piece.pageY - piece.flowTop
-            let dx = _pxMarginLeft(page) + Double(piece.page % _columns) * _pxColumnStride(page)
+            let dx = _pxColumnLeft(page, column: piece.page % _columns, paragraph: piece.paragraph)
             out.append(Rect.fromLTRB(r.left + dx, r.top + dy, r.right + dx, r.bottom + dy))
         }
         return out
@@ -17950,12 +18021,16 @@ public final class RichLayout {
                 for column in 0 ..< _columns {
                     let slot = p * _columns + column
                     guard _pages.indices.contains(slot) else { continue }
-                    let left = _pxMarginLeft(p) + Double(column) * _pxColumnStride(p)
-                    // One column clips to its own width; a lone column keeps
-                    // the page, so a table wider than the text can still show.
-                    let columnClipL = _columns > 1 ? left - 1 : 0
-                    let columnClipR = _columns > 1 ? left + _pxColumnW(p) + 1 : _pxPageW(p)
+                    let pageLeft = _pxMarginLeft(p) + Double(column) * _pxColumnStride(p)
                     for (pieceIndex, piece) in _pages[slot].enumerated() {
+                        // (Each section's columns are its own: `_perSection`.)
+                        let left = _perSection ? _pxColumnLeft(p, column: column, paragraph: piece.paragraph) : pageLeft
+                        let columnW = _perSection ? _px(_setup(ofParagraph: piece.paragraph).columnWidth) : _pxColumnW(p)
+                        let manyColumns = _perSection ? _columnsOf(paragraph: piece.paragraph) > 1 : _columns > 1
+                        // One column clips to its own width; a lone column keeps
+                        // the page, so a table wider than the text can still show.
+                        let columnClipL = manyColumns ? left - 1 : 0
+                        let columnClipR = manyColumns ? left + columnW + 1 : _pxPageW(p)
                         // (A cover's one-column section, set across the page:
                         // `_fullWidthCover`.)
                         let across = _fullWidthCover.contains(piece.paragraph)
