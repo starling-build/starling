@@ -4105,12 +4105,38 @@ enum DocxFormat {
             // part — printed nothing at all.)
             if let ids = node.descendant("dgm:relIds"), let graphic = node.descendant("a:graphicData"),
                let dm = ids["r:dm"].flatMap({ notes.rels[$0] }), !dm.external,
-               let model = notes.part(_resolvePath("word", dm.target)).flatMap(XNode.parse),
-               let rid = model.descendant("dsp:dataModelExt")?["relId"], let rel = notes.rels[rid], !rel.external,
-               let drawing = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse),
-               let group = Self._diagramGroup(drawing, cx: w * 12700, cy: h * 12700) {
-                graphic.children = [group]
-                graphic.attrs["uri"] = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+               let model = notes.part(_resolvePath("word", dm.target)).flatMap(XNode.parse) {
+                var group: XNode? = nil
+                if let rid = model.descendant("dsp:dataModelExt")?["relId"], let rel = notes.rels[rid], !rel.external,
+                   let drawing = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse) {
+                    group = Self._diagramGroup(drawing, cx: w * 12700, cy: h * 12700)
+                }
+                // (No drawing part, as in a file LibreOffice wrote: laid out
+                // here from the data and the layout definition, as the deck
+                // reader does, and read as the same group of shapes —
+                // fdo79822's process diagram printed nothing.)
+                if group == nil, let lo = ids["r:lo"].flatMap({ notes.rels[$0] }), !lo.external,
+                   let layoutDef = notes.part(_resolvePath("word", lo.target)).flatMap(XNode.parse) {
+                    func part(_ key: String) -> XNode? {
+                        ids[key].flatMap { notes.rels[$0] }.flatMap { $0.external ? nil : notes.part(_resolvePath("word", $0.target)) }.flatMap(XNode.parse)
+                    }
+                    if let tree = DiagramLayout.render(data: model, layout: layoutDef, colors: part("r:cs"), style: part("r:qs"),
+                                                       frame: Rect.fromLTWH(0, 0, w, h)) {
+                        func renamed(_ n: XNode) -> XNode {
+                            let c = XNode(name: n.name.hasPrefix("p:") ? "dsp:" + n.name.dropFirst(2) : n.name, attrs: n.attrs)
+                            c.text = n.text
+                            c.children = n.children.map(renamed)
+                            return c
+                        }
+                        let drawing = XNode(name: "dsp:drawing", attrs: [:])
+                        drawing.children = [renamed(tree)]
+                        group = Self._diagramGroup(drawing, cx: w * 12700, cy: h * 12700)
+                    }
+                }
+                if let group {
+                    graphic.children = [group]
+                    graphic.attrs["uri"] = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+                }
             }
             att.float = _float(node)
             // (WordArt — a VML textpath — in its line, under Word for
