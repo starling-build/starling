@@ -4943,9 +4943,16 @@ public final class RichLayout {
                 // the page that break opens. zh-2b21a9d4's form, 48.8pt down
                 // its page after a page-break paragraph, took page 2's last
                 // four lines under it onto page 3 and left page 2 blank.)
+                // (A table floating by the text stands its offset down already:
+                // that is not content above it on the page, or the break would
+                // open a second page for it — LibreOffice's floattable-header,
+                // a page-break paragraph and then a table of tblpY 1 twip, has
+                // its table on page 2 in Word's print, ours on page 3.)
+                let floatDrop = theme.wordRules && c.row == 0 && (i == 0 || _cells[i - 1]?.table != c.table)
+                    ? _px(document.tableStyles[c.table]?.floatOffsetY ?? 0) : 0
                 let rowBreaksPage = !sectionBreakHandled && c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
                     && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
-                    && (y > 0.01 || !_pages[page].isEmpty)
+                    && (y - floatDrop > 0.01 || !_pages[page].isEmpty)
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
                    let off = document.tableStyles[c.table]?.pageOffsetY {
                     let physical = page / _columns
@@ -5035,7 +5042,7 @@ public final class RichLayout {
                 // package: the test record's table on its own page.)
                 if !sectionBreakHandled, c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
-                   y > 0.01 || !_pages[page].isEmpty {
+                   y - floatDrop > 0.01 || !_pages[page].isEmpty {
                     newPage()
                     // (A table placed against the page, at its offset on the
                     // page the break opened.)
