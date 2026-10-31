@@ -11685,3 +11685,248 @@ CLAIM (Linux 01F2SWc8 lenovo-3, 2026-10-31): n830205 (lo-9f27ef4097b11c63, 58.9)
 - fdo43093b (lo-7a7b6f1b7da154c4): bidi, `$` placement in RTL runs. Not looked at.
 
 #### T258 hand-over (windows-3, 2026-10-31): fdo43093b (lo-7a7b6f1b7da154c4) moves from lenovo-4's batch D to windows-3 (bidi class); lo4 finished batch D without reading it (per starling-bd).
+
+T250 LO RE-SCORE ON THE OFFICE TIP (Linux lo4, 2026-10-31, starling-bd's order). One build of office 1066e5568 plus fdo67013's wip/lo-batch-d (1293bdef4), Windows mode, bundled faces, matcher v2, validation engine snapshot (not the e837b7634c9 rebuild).
+- HEADLINE: LO set mean 75.1% over the 546 documents whose Word print has text (69.2% over all 593, counting the 47 with no text as 0). 308 documents at 95 or more, 299 at exactly 100; 543 of 593 have Word's page count. Official 756: v2 mean 98.4% (739 at 95 or more, 754 with Word's page count) — unchanged.
+- 238 documents with text are under 95, missing about 3,900 lines in all. RANKED BY GAP FROM 100 (the headline is a mean over documents), then by Word's line count. Format: rank name (score, Word's lines, lines missing): STATUS.
+- STATUS IS AUTOMATIC and only as good as the board's text: it is the most recent board line that names the document and carries a status word (wip/ branch, CLAIM, witness, lab, font, WordArt...). "queued on a wip branch" can be a branch that has landed since; "unclaimed" means the board does not name it at all; "cause unknown" means named with neither owner nor cause. Read before relying on any single line.
+- CENSUS (docs, lines missing): queued on a wip branch 79 (2,139); cause unknown 53 (584); feature (WordArt, hyphenation, SmartArt, equations) 14 (473); unclaimed 60 (167); font (Noto, Segoe, substitution) 8 (166); claimed 9 (134); engine-round witness 10 (127); print artefact 3 (28); needs a Word lab 2 (7). The "witness" and "lab" counts are floors: many witnesses are recorded in prose without those words. Known from this session: tdf126287 and tdf99140 had labs run (windows, 2026-10-31) — tdf126287 is NOT an overhang allowance (Word has none), tdf99140 is a clamp of a page-anchored table to the page's bottom edge (792) — see the lab entry below.
+  1 tdf147485 (0.0, Word 32 lines, missing 32): parked: feature
+  2 tdf147485 (0.0, Word 32 lines, missing 32): parked: feature
+  3 tdf133924 (0.0, Word 26 lines, missing 26): parked: feature
+  4 tdf139336 (0.0, Word 26 lines, missing 26): parked: font
+  5 xaxis-labelbreak (0.0, Word 14 lines, missing 14): queued on wip/mac-01Xgpbk5-lochart
+  6 outside_long_data_label (0.0, Word 9 lines, missing 9): named on the board, no owner or cause
+  7 floattable-multi-col (0.0, Word 8 lines, missing 8): named on the board, no owner or cause
+  8 CT-with-frame (0.0, Word 8 lines, missing 8): named on the board, no owner or cause
+  9 tdf79272 (0.0, Word 7 lines, missing 7): queued on wip/lo-batch10
+  10 n751077 (0.0, Word 6 lines, missing 6): named on the board, no owner or cause
+  11 tdf107119 (0.0, Word 6 lines, missing 6): parked: engine-round witness
+  12 fdo78474 (0.0, Word 5 lines, missing 5): queued on wip/lo-frame-turned
+  13 tdf115883 (0.0, Word 5 lines, missing 5): unclaimed
+  14 floattable-redline (0.0, Word 5 lines, missing 5): queued on wip/lenovo3-tracked
+  15 tdf137154 (0.0, Word 4 lines, missing 4): named on the board, no owner or cause
+  16 tdf135035 (0.0, Word 4 lines, missing 4): claimed
+  17 floattable-negative-vert-offset (0.0, Word 3 lines, missing 3): unclaimed
+  18 floating-table-section-columns (0.0, Word 3 lines, missing 3): unclaimed
+  19 floattable-anchorpos (0.0, Word 2 lines, missing 2): unclaimed
+  20 tdf134866 (0.0, Word 2 lines, missing 2): named on the board, no owner or cause
+  21 tdf103931 (0.0, Word 2 lines, missing 2): parked: font
+  22 floating-table-section-break (0.0, Word 2 lines, missing 2): unclaimed
+  23 do-not-break-wrapped-tables (0.0, Word 2 lines, missing 2): unclaimed
+  24 tdf164474 (0.0, Word 2 lines, missing 2): named on the board, no owner or cause
+  25 tdf130120 (0.0, Word 1 lines, missing 1): named on the board, no owner or cause
+  26 table-negative-vertical-pos (0.0, Word 1 lines, missing 1): unclaimed
+  27 tdf157572 (0.0, Word 1 lines, missing 1): unclaimed
+  28 sdt-around-float-table (0.0, Word 1 lines, missing 1): unclaimed
+  29 tdf137850 (0.0, Word 1 lines, missing 1): unclaimed
+  30 tdf154703 (0.0, Word 1 lines, missing 1): parked: feature
+  31 image-comment-at-char (0.0, Word 1 lines, missing 1): queued on wip/lo-batch10
+  32 floattable-center-inline-overlap (0.0, Word 1 lines, missing 1): named on the board, no owner or cause
+  33 sdt-run-checkbox (0.0, Word 1 lines, missing 1): queued on wip/lo-batch10
+  34 tdf82065 (0.0, Word 1 lines, missing 1): queued on wip/lo-batch10
+  35 missing-path (0.0, Word 1 lines, missing 1): unclaimed
+  36 tdf87924 (0.0, Word 1 lines, missing 1): parked: font
+  37 fdo78904 (0.0, Word 1 lines, missing 1): unclaimed
+  38 tdf112287 (0.0, Word 1 lines, missing 1): queued on wip/lo-batch10
+  39 layout-in-cell-wrapnone-column (0.0, Word 1 lines, missing 1): unclaimed
+  40 tdf78727 (0.0, Word 1 lines, missing 1): unclaimed
+  41 shape-in-floattable (0.0, Word 1 lines, missing 1): unclaimed
+  42 sdt+framePr (0.0, Word 1 lines, missing 1): named on the board, no owner or cause
+  43 tdf92157 (1.0, Word 196 lines, missing 194): queued on wip/lab-tw1
+  44 tdf38575 (1.6, Word 61 lines, missing 60): parked: engine-round witness
+  45 floattable-table-row-keep (2.1, Word 47 lines, missing 46): parked: font
+  46 tdf97090 (3.6, Word 55 lines, missing 53): parked: feature
+  47 floattable-next-leaf-in-section (5.4, Word 56 lines, missing 53): queued on wip/mac-01Xgpbk5-raisefirst.
+  48 floattable-footer-object (6.2, Word 16 lines, missing 15): named on the board, no owner or cause
+  49 tdf158597 (6.2, Word 16 lines, missing 15): claimed
+  50 tdf124398 (6.2, Word 16 lines, missing 15): queued on wip/lo-chartgroup
+  51 tdf132752 (6.7, Word 15 lines, missing 14): claimed
+  52 floattable-wrap-on-all-pages (7.7, Word 13 lines, missing 12): queued on wip/wide-float-beside
+  53 tdf154703 (7.7, Word 13 lines, missing 12): parked: feature
+  54 tdf105035 (8.9, Word 45 lines, missing 41): queued on wip/lo-frame-turned
+  55 tdf163575 (9.7, Word 31 lines, missing 28): parked: font
+  56 tdf109316 (10.0, Word 20 lines, missing 18): queued on wip/lo-frame-turned
+  57 tdf108496 (10.0, Word 10 lines, missing 9): claimed
+  58 fdo79822 (11.1, Word 9 lines, missing 8): queued on wip/lo-smartart-layout
+  59 tdf164500 (12.5, Word 8 lines, missing 7): named on the board, no owner or cause
+  60 tdf150200 (14.3, Word 21 lines, missing 18): queued on wip/lenovo3-batchb
+  61 floattable-wrap-on-all-pages (14.3, Word 7 lines, missing 6): queued on wip/wide-float-beside
+  62 floattable-in-section (14.8, Word 27 lines, missing 23): queued on wip/float-raise-under
+  63 floattable-avoid-last-manip-ofst (14.9, Word 154 lines, missing 131): queued on wip/lo-noto
+  64 floattable-anchor-height (15.4, Word 123 lines, missing 104): queued on wip/nested-float-height
+  65 table-floating-margins (20.0, Word 10 lines, missing 8): named on the board, no owner or cause
+  66 tdf153592 (20.0, Word 5 lines, missing 4): queued on wip/lenovo3-batchb
+  67 Cool15691_headerTextWrapsAroundImageLargest (20.0, Word 5 lines, missing 4): claimed
+  68 tdf109308 (20.0, Word 5 lines, missing 4): queued on wip/lenovo3-batchb
+  69 Cool15691_headerTextWrapsAroundImage (20.0, Word 5 lines, missing 4): claimed
+  70 tdf48658 (22.2, Word 9 lines, missing 7): queued on wip/lo-box-picture
+  71 tdf92724 (23.1, Word 13 lines, missing 10): queued on wip/lo-sections-2
+  72 tdf153964 (25.0, Word 16 lines, missing 12): queued on wip/lo-first
+  73 IndexFieldFlagF (25.0, Word 12 lines, missing 9): parked: engine-round witness
+  74 TC-table-DnD-move (25.0, Word 4 lines, missing 3): queued on wip/lenovo3-compat-lab
+  75 unbalanced-columns (25.0, Word 4 lines, missing 3): parked: engine-round witness
+  76 floattable-object-formatter (25.0, Word 4 lines, missing 3): named on the board, no owner or cause
+  77 alt-chunk (25.0, Word 4 lines, missing 3): named on the board, no owner or cause
+  78 floattable-tab-join (25.0, Word 4 lines, missing 3): named on the board, no owner or cause
+  79 floattable-tab-join-legacy (25.0, Word 4 lines, missing 3): named on the board, no owner or cause
+  80 tdf152983 (25.6, Word 39 lines, missing 29): named on the board, no owner or cause
+  81 floattable-deleted-anchor (27.1, Word 48 lines, missing 35): parked: font
+  82 090716_Studentische_Arbeit_VWS (27.3, Word 11 lines, missing 8): named on the board, no owner or cause
+  83 tdf128996 (27.3, Word 11 lines, missing 8): named on the board, no owner or cause
+  84 tdf170672 (28.4, Word 1326 lines, missing 949): queued on wip/mac-01Xgpbk5-footfit
+  85 chart-dupe (28.6, Word 14 lines, missing 10): parked: engine-round witness
+  86 tdf79329 (28.6, Word 7 lines, missing 5): queued on wip/lo-beside-r9
+  87 tdf126244 (30.0, Word 10 lines, missing 7): named on the board, no owner or cause
+  88 tdf133701 (30.0, Word 10 lines, missing 7): named on the board, no owner or cause
+  89 tdf167956 (33.3, Word 36 lines, missing 24): parked: font
+  90 redline-image-inline (33.3, Word 15 lines, missing 10): queued on wip/lenovo3-tracked
+  91 tdf150438 (33.3, Word 12 lines, missing 8): queued on wip/lo-dropcap
+  92 tdf135343 (33.3, Word 9 lines, missing 6): parked: engine-round witness
+  93 floattable-outer-nonsplit-inner (33.3, Word 9 lines, missing 6): queued on wip/lo-beside-right
+  94 floattable-tables-lost (33.3, Word 3 lines, missing 2): queued on wip/lab-tw1
+  95 page-break-footer-table (33.3, Word 3 lines, missing 2): unclaimed
+  96 floating-tables-anchor (33.3, Word 3 lines, missing 2): queued on wip/float-batch2
+  97 tdf172156 (33.3, Word 3 lines, missing 2): queued on wip/float-batch2
+  98 alt-chunk-html (33.3, Word 3 lines, missing 2): unclaimed
+  99 tdf120344 (33.3, Word 3 lines, missing 2): queued on wip/float-batch2
+  100 floattable-then-table (33.3, Word 3 lines, missing 2): queued on wip/float-batch2
+  101 frame-direction (33.3, Word 3 lines, missing 2): queued on wip/lo-frame-turned
+  102 tdf36117 (34.2, Word 38 lines, missing 25): parked: feature
+  103 tdf158349 (34.8, Word 92 lines, missing 60): named on the board, no owner or cause
+  104 floattable-header (36.2, Word 94 lines, missing 60): queued on wip/lo-t252b
+  105 tdf137116 (37.5, Word 8 lines, missing 5): unclaimed
+  106 tdf125324 (38.1, Word 21 lines, missing 13): named on the board, no owner or cause
+  107 tdf135665 (40.0, Word 10 lines, missing 6): parked: feature
+  108 tdf99140 (40.0, Word 5 lines, missing 3): parked: needs a Word lab
+  109 tdf109053 (40.6, Word 64 lines, missing 38): named on the board, no owner or cause
+  110 floating-table-caption (40.9, Word 44 lines, missing 26): unclaimed
+  111 floattable-split (41.0, Word 39 lines, missing 23): queued on wip/lo-dropcap
+  112 tdf153136 (41.5, Word 41 lines, missing 24): named on the board, no owner or cause
+  113 floating-table-dummy-text (42.1, Word 57 lines, missing 33): queued on wip/lo-cut
+  114 tdf155707 (42.2, Word 64 lines, missing 37): unclaimed
+  115 floattable-nested-3tables (42.9, Word 14 lines, missing 8): named on the board, no owner or cause
+  116 tdf123651 (42.9, Word 7 lines, missing 4): parked: needs a Word lab
+  117 tdf126287 (42.9, Word 7 lines, missing 4): parked: feature
+  118 bnc519228 (44.4, Word 9 lines, missing 5): unclaimed
+  119 tdf128198 (44.4, Word 9 lines, missing 5): named on the board, no owner or cause
+  120 legend-itemorder-min (46.7, Word 15 lines, missing 8): queued on wip/lenovo3-legendrow
+  121 tdf157096 (47.6, Word 42 lines, missing 22): queued on wip/mac-01Xgpbk5-tblpdefault
+  122 tdf170620 (48.3, Word 58 lines, missing 30): queued on wip/lo-noto
+  123 floattable-leftover-para-portion (48.6, Word 37 lines, missing 19): parked: engine-round witness
+  124 special_styles (48.9, Word 94 lines, missing 48): parked: feature
+  125 tdf96750 (50.0, Word 24 lines, missing 12): parked: engine-round witness
+  126 floattable-model-position-for-view-point-correction (50.0, Word 20 lines, missing 10): named on the board, no owner or cause
+  127 tdf117982 (50.0, Word 6 lines, missing 3): parked: print artefact
+  128 tdf165492 (50.0, Word 6 lines, missing 3): queued on wip/lenovo3-batchb
+  129 layout-in-cell-2 (50.0, Word 4 lines, missing 2): unclaimed
+  130 fdo43093 (50.0, Word 4 lines, missing 2): unclaimed
+  131 endnote-at-section-end (50.0, Word 4 lines, missing 2): named on the board, no owner or cause
+  132 tdf123001 (50.0, Word 4 lines, missing 2): queued on wip/lenovo3-tracked
+  133 default-sect-break-cols (50.0, Word 2 lines, missing 1): parked: engine-round witness
+  134 floattable-leak (50.0, Word 2 lines, missing 1): queued on wip/lo-t252b
+  135 textframe-in-shape (50.0, Word 2 lines, missing 1): unclaimed
+  136 sdt-company-multipara (50.0, Word 2 lines, missing 1): queued on wip/lo-t252b
+  137 floattable-tbl-overlap (50.0, Word 2 lines, missing 1): queued on wip/lo-t252b
+  138 liststyle-gridbefore (50.0, Word 2 lines, missing 1): unclaimed
+  139 para-upper-margin-fly-intersect (50.0, Word 2 lines, missing 1): named on the board, no owner or cause
+  140 tdf8255 (50.0, Word 2 lines, missing 1): unclaimed
+  141 floattable-break-before (50.0, Word 2 lines, missing 1): unclaimed
+  142 floattable-vertoffset (50.0, Word 2 lines, missing 1): unclaimed
+  143 tdf116486 (50.0, Word 2 lines, missing 1): unclaimed
+  144 fdo52208 (50.0, Word 2 lines, missing 1): parked: engine-round witness
+  145 tdf170630 (52.5, Word 59 lines, missing 28): queued on wip/table-cells-over-grid
+  146 floattable-nested-rowspan (53.6, Word 69 lines, missing 32): named on the board, no owner or cause
+  147 fdo43573 (55.5, Word 393 lines, missing 175): parked: feature
+  148 floattable-overlap-cell (55.6, Word 9 lines, missing 4): queued on wip/float-batch2
+  149 table-floating (57.1, Word 7 lines, missing 3): named on the board, no owner or cause
+  150 floattable-anchor-next-page (57.1, Word 7 lines, missing 3): unclaimed
+  151 fdo48718 (58.5, Word 82 lines, missing 34): queued on wip/lo-noto
+  152 fdo77887 (58.5, Word 82 lines, missing 34): queued on wip/lo-noto
+  153 n830205 (58.9, Word 73 lines, missing 30): named on the board, no owner or cause
+  154 tdf164905 (59.0, Word 105 lines, missing 43): claimed
+  155 shape-anchored-in-follow (59.3, Word 91 lines, missing 37): named on the board, no owner or cause
+  156 tdf89088 (60.0, Word 5 lines, missing 2): unclaimed
+  157 tdf129659 (60.0, Word 5 lines, missing 2): unclaimed
+  158 tdf109308 (60.0, Word 5 lines, missing 2): unclaimed
+  159 tdf105688 (61.5, Word 13 lines, missing 5): named on the board, no owner or cause
+  160 floattable-del-empty (62.3, Word 228 lines, missing 86): named on the board, no owner or cause
+  161 tdf153964 (62.5, Word 16 lines, missing 6): queued on wip/lo-first
+  162 tdf123873 (62.5, Word 16 lines, missing 6): named on the board, no owner or cause
+  163 tdf82824 (62.5, Word 8 lines, missing 3): queued on wip/mac-01Xgpbk5-lochart-steps
+  164 floattable-heading-split-hyphen (62.9, Word 132 lines, missing 49): parked: feature
+  165 tdf149089 (63.3, Word 60 lines, missing 22): queued on wip/lab-tw1
+  166 tdf103976 (66.7, Word 6 lines, missing 2): queued on wip/table-cells-over-grid
+  167 tdf129805 (66.7, Word 6 lines, missing 2): unclaimed
+  168 tdf156267 (66.7, Word 6 lines, missing 2): unclaimed
+  169 NumberedList (66.7, Word 6 lines, missing 2): queued on wip/table-cells-over-grid
+  170 tdf111550 (66.7, Word 3 lines, missing 1): queued on wip/table-cells-over-grid
+  171 floattable-nosection-7in (66.7, Word 3 lines, missing 1): unclaimed
+  172 floattable-negative-vert-offset-empty (66.7, Word 3 lines, missing 1): unclaimed
+  173 bnc779620 (66.7, Word 3 lines, missing 1): unclaimed
+  174 floattable-3pages (66.7, Word 3 lines, missing 1): unclaimed
+  175 floattable-anchor-split (66.7, Word 3 lines, missing 1): unclaimed
+  176 floattable-in-text-section (66.7, Word 3 lines, missing 1): queued on wip/float-batch2
+  177 floattable (66.7, Word 3 lines, missing 1): queued on wip/float-batch2
+  178 tdf125894 (66.7, Word 3 lines, missing 1): queued on wip/lenovo3-compat-lab
+  179 floattable-nomargins (66.7, Word 3 lines, missing 1): queued on wip/wide-float-beside
+  180 floattable-not-wrapped-by-table (66.7, Word 3 lines, missing 1): queued on wip/float-batch2
+  181 tdf124600 (66.7, Word 3 lines, missing 1): claimed
+  182 floattable-nested (66.7, Word 3 lines, missing 1): named on the board, no owner or cause
+  183 tdf124675 (70.0, Word 10 lines, missing 3): unclaimed
+  184 tdf167540 (71.4, Word 7 lines, missing 2): queued on wip/lo-objbase
+  185 tdf128207 (72.0, Word 25 lines, missing 7): named on the board, no owner or cause
+  186 tdf108272 (73.3, Word 15 lines, missing 4): parked: font
+  187 floattable-negative-height (74.0, Word 192 lines, missing 50): queued on wip/mac-01Xgpbk5-referr
+  188 fdo76098 (74.4, Word 43 lines, missing 11): parked: print artefact
+  189 floattable-move-master (75.0, Word 28 lines, missing 7): queued on wip/wide-float-beside
+  190 floattable-nested-layout (75.0, Word 4 lines, missing 1): named on the board, no owner or cause
+  191 n780843 (75.0, Word 4 lines, missing 1): unclaimed
+  192 tdf104394 (75.0, Word 4 lines, missing 1): queued on wip/lo-smartart-layout
+  193 tdf148671 (75.0, Word 4 lines, missing 1): unclaimed
+  194 floattable-next-row-invalidate-pos (75.0, Word 4 lines, missing 1): unclaimed
+  195 floatingtbl_with_formula (77.8, Word 9 lines, missing 2): unclaimed
+  196 floattable-wrap-empty-para-legacy (78.6, Word 28 lines, missing 6): named on the board, no owner or cause
+  197 floattable-wrap-empty-para (78.6, Word 28 lines, missing 6): named on the board, no owner or cause
+  198 long_legendentry (78.6, Word 14 lines, missing 3): unclaimed
+  199 tdf160077 (80.0, Word 5 lines, missing 1): queued on wip/lo-smartart-layout
+  200 tdf151704 (81.2, Word 16 lines, missing 3): unclaimed
+  201 floattable-footer (81.8, Word 11 lines, missing 2): named on the board, no owner or cause
+  202 floattable-bad-fly-pos (81.8, Word 11 lines, missing 2): unclaimed
+  203 tdf130031 (81.8, Word 11 lines, missing 2): unclaimed
+  204 floattable-from-bottom (82.1, Word 39 lines, missing 7): parked: feature
+  205 floattable-avoid-manip-ofst (82.7, Word 156 lines, missing 27): named on the board, no owner or cause
+  206 strict (83.3, Word 18 lines, missing 3): queued on wip/lo-batch10
+  207 tdf124398 (83.3, Word 12 lines, missing 2): named on the board, no owner or cause
+  208 tdf130380 (83.3, Word 12 lines, missing 2): named on the board, no owner or cause
+  209 fdo60957 (83.3, Word 6 lines, missing 1): unclaimed
+  210 tdf170477 (83.6, Word 116 lines, missing 19): queued on wip/nested-float-height
+  211 tdf106153 (83.8, Word 37 lines, missing 6): named on the board, no owner or cause
+  212 tdf152298 (85.2, Word 61 lines, missing 9): queued on wip/lenovo3-compat-lab
+  213 mixednumberings (85.6, Word 97 lines, missing 14): parked: print artefact
+  214 tdf122878 (85.7, Word 35 lines, missing 5): named on the board, no owner or cause
+  215 tdf134146 (85.7, Word 14 lines, missing 2): queued on wip/mac-01Xgpbk5-floatgraze
+  216 tdf134676 (85.7, Word 14 lines, missing 2): named on the board, no owner or cause
+  217 tdf69647 (85.7, Word 7 lines, missing 1): unclaimed
+  218 chart-in-footer (85.7, Word 7 lines, missing 1): queued on wip/mac-01Xgpbk5-lochart-steps
+  219 tdf105035 (87.2, Word 47 lines, missing 6): named on the board, no owner or cause
+  220 fdo68607 (87.4, Word 317 lines, missing 40): claimed
+  221 tdf75573 (87.5, Word 8 lines, missing 1): queued on wip/lo-smar
+  222 tdf134606 (88.0, Word 25 lines, missing 3): unclaimed
+  223 fdo76248 (88.5, Word 157 lines, missing 18): queued on wip/lo-n
+  224 tdf160077 (88.9, Word 27 lines, missing 3): queued on wip/lo-smartart-layout
+  225 tdf136061 (88.9, Word 18 lines, missing 2): unclaimed
+  226 del-then-format-own (88.9, Word 9 lines, missing 1): unclaimed
+  227 cont-sect-break-header-footer (88.9, Word 9 lines, missing 1): unclaimed
+  228 tdf123262 (88.9, Word 9 lines, missing 1): queued on wip/lo-smartart-layout
+  229 tdf161139 (89.8, Word 59 lines, missing 6): named on the board, no owner or cause
+  230 CT-formatted-deletion (90.0, Word 10 lines, missing 1): unclaimed
+  231 floattable-in-inlinetable (90.0, Word 10 lines, missing 1): unclaimed
+  232 floattable-in-inltbl-in-sect (90.0, Word 10 lines, missing 1): unclaimed
+  233 tdf96749 (90.5, Word 21 lines, missing 2): queued on wip/lenovo3-compat-lab
+  234 floattable-heading-split (90.6, Word 32 lines, missing 3): parked: feature
+  235 merge_hidden_redline (91.3, Word 23 lines, missing 2): named on the board, no owner or cause
+  236 floattable-heading-split-footer (91.7, Word 72 lines, missing 6): queued on wip/lo-objbase
+  237 tdf136952 (92.9, Word 56 lines, missing 4): unclaimed
+  238 floattable-hidemark (93.9, Word 33 lines, missing 2): unclaimed
+- LABS ANSWERED (windows, lab/lh1 and lab/lh2 in ~/starling-doc-check): (1) the last exact- or auto-height line of a paragraph has NO overhang allowance past the foot: 0 pt fits, +0.5 pt moves it to the next page (exact 13, exact 24 and auto alike). tdf126287's 0.8pt must come from its docGrid, its text box in the first paragraph, or margin 3174 vs 3175 — not tested. (2) A page-anchored table whose first row does not fit below tblpY is CLAMPED UP so the row ends at the page's bottom EDGE (792, not the margin 721 and not the footer's place), whole table too when all rows fit that way; otherwise rows split between rows with the later rows at the top margin of the next page. Unexplained: a later row that would fit still goes to page 2 when tblpY is small (1000). Fix for tdf99140 (lo4) next.
