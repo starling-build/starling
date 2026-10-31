@@ -955,6 +955,20 @@ final class DocxTests: XCTestCase {
         XCTAssertNotEqual(doc.paragraphs[1].style.alignment, .center)
     }
 
+    /// A line separator typed into a `w:t` is no break to Word: it prints a
+    /// blank half an em wide and the line runs on (tdf152983-1-min).
+    func testALineSeparatorInTextIsNotABreak() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:t>one\u{2028}two</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].text, "one\u{2002}two")
+    }
+
     /// A VML textbox's `layout-flow:vertical` reads down; with
     /// `mso-layout-flow-alt:bottom-to-top`, up (btlr-frame-vml).
     func testAVmlTextboxFlowsVertically() throws {
