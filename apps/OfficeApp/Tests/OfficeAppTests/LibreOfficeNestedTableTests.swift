@@ -54,6 +54,27 @@ final class LibreOfficeNestedTableTests: XCTestCase {
         XCTAssertEqual(try left("."), 36.0, accuracy: 1.5)
     }
 
+    /// sets "before the middle table:" in a 2000-twip cell, which wraps after "before the" in Word's print.
+    func testTableWithoutGridTakesItsCellWidths() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-660753a9df95b5c4.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let parsed = try DocxFormat.read(data)
+        let doc = parsed.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = parsed.pageSetup ?? .letter
+        layout.pageSetup = setup
+        layout.width = setup.width * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "before the middle table:" })
+        let first = layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).top
+        let last = layout.caretRect(RichPosition(paragraph: k, offset: doc.paragraphs[k].text.count), doc).top
+        XCTAssertGreaterThan(last, first + 1)
+    }
+
     /// LibreOffice's tdf170630 takes two pages in Word's print, one flattened.
     func testLongListOfShortRowsInACellTakesTwoPages() throws {
         XCTAssertEqual(try pages("lo-e30957810e467cc8"), 2)
