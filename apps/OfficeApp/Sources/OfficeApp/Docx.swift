@@ -362,7 +362,7 @@ enum DocxFormat {
             return ["btLr": "vert270", "tbRl": "vert"][d]
         }
         func frameOf(_ p: XNode) -> XNode? {
-            if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, turned(p) != nil,
+            if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, turned(p) != nil || f["w:yAlign"] != nil,
                ["page", "margin"].contains(f["w:vAnchor"] ?? ""), Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil || f["w:yAlign"] != nil,
                f["w:wrap"] == "around", p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
@@ -407,8 +407,12 @@ enum DocxFormat {
                 let w = Int((Double(frame["w:w"] ?? "") ?? 0) * 635), h = Int((Double(frame["w:h"] ?? "") ?? 0) * 635)
                 let y = Int((Double(frame["w:y"] ?? "") ?? 0) * 635)
                 let direction = turned(kids[range.lowerBound])
-                let relV = direction != nil ? (frame["w:vAnchor"] ?? "page") : "paragraph"
-                let vertical = direction != nil && frame["w:yAlign"] != nil && frame["w:yAlign"] != "inline"
+                // (Or aligned on the page, text not turned: lo tdf36117_verticalAdjustment's
+                // 116pt by 450pt frame, centred on the page at x 360, which the
+                // body goes round in Word's print and the layout sets in the flow.)
+                let onPage = ["page", "margin"].contains(frame["w:vAnchor"] ?? "")
+                let relV = onPage ? (frame["w:vAnchor"] ?? "page") : "paragraph"
+                let vertical = onPage && frame["w:yAlign"] != nil && frame["w:yAlign"] != "inline"
                     ? "<wp:align>\(frame["w:yAlign"]!)</wp:align>" : "<wp:posOffset>\(y)</wp:posOffset>"
                 let hSpace = Int((Double(frame["w:hSpace"] ?? "") ?? 0) * 635), vSpace = Int((Double(frame["w:vSpace"] ?? "") ?? 0) * 635)
                 let relH = ["page": "page", "margin": "margin"][frame["w:hAnchor"] ?? ""] ?? "column"
