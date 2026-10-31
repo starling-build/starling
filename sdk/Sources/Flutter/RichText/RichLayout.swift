@@ -5715,8 +5715,12 @@ public final class RichLayout {
             // paragraph is a page-placed note, a page break and the next
             // notice: Word keeps the note on p28 and opens p29 with the
             // notice; ours gave the note's empty line page 29 alone.)
+            // (Not where that paragraph was itself opened by a break:
+            // tdf92724's text box stands in an empty paragraph after a page
+            // break and "Contents" has a break of its own — the box keeps
+            // page 2, and "Contents" has page 3.)
             if theme.wordRules, _pageBreak[i], document.paragraphs[i].style.breakEndsPrevious, !document.paragraphs[i].style.pageBreakInline,
-               resumeCursor == nil, page > 0, i > 0, case let before = document.paragraphs[i - 1], before.cell == nil,
+               resumeCursor == nil, page > 0, i > 0, !_pageBreak[i - 1], case let before = document.paragraphs[i - 1], before.cell == nil,
                before.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }),
                before.image.map({ $0.float != nil }) ?? !before.inlineImages.isEmpty,
                before.inlineImages.values.allSatisfy({ $0.float != nil }),
