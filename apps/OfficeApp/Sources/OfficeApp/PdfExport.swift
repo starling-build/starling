@@ -17,8 +17,8 @@ enum PdfExport {
         // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
         // text gone into them.
         let markup = hasMarkup(document) ? PdfMarkup(document) : nil
-        let document = markup?.document ?? document
-        let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+        var document = markup?.document ?? document
+        var layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
         // Laid out fifteen times finer than the screen's pixel — twenty
         // steps to the point, Word's own twip: the engine rounds every
         // line's height to a whole pixel, which at 96 to the inch is
@@ -28,6 +28,16 @@ enum PdfExport {
         layout.pageSetup = pageSetup
         layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
         layout.ensureLaidOut(document)
+        // (Word brings the page references up to date as it prints: the
+        // document set again with the numbers its first setting gave.)
+        if theme.wordRules, let updated = updatedPageReferences(document, layout: layout) {
+            document = updated
+            layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+            layout.scale = zoom
+            layout.pageSetup = pageSetup
+            layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
+            layout.ensureLaidOut(document)
+        }
         // The pictures are decoded off to the side and painted as grey
         // boxes until they are: wait for them (the decoding runs on the
         // main queue, which nothing is turning here), but not for ever.
@@ -84,6 +94,64 @@ enum PdfExport {
 }
 
 extension PdfExport {
+    /// The document with each `PAGEREF` field's result the page its
+    /// bookmark stands on in `layout`, and "Error! Bookmark not defined."
+    /// for a bookmark the file does not have (lo tdf164905's contents page:
+    /// Word's print has the page where the file kept an older number, and
+    /// the error where its bookmarks are gone); nil when no result changes.
+    static func updatedPageReferences(_ document: RichDocument, layout: RichLayout) -> RichDocument? {
+        func target(_ field: String) -> String? {
+            let words = field.trimmingWhitespace(newlines: true).split(whereSeparator: { $0.isWhitespace })
+            guard words.count >= 2, words[0].uppercased() == "PAGEREF" else { return nil }
+            return String(words[1])
+        }
+        guard document.paragraphs.contains(where: { $0.runs.contains { $0.style.field.flatMap(target) != nil } }) else { return nil }
+        var owner: [String: Int] = [:]
+        var elsewhere = Set<String>()
+        func gather(_ paragraphs: [RichParagraph]) {
+            for p in paragraphs {
+                for name in p.bookmarks { elsewhere.insert(name) }
+                if let box = p.image?.textBox { gather(box.paragraphs) }
+                for image in p.inlineImages.values { if let box = image.textBox { gather(box.paragraphs) } }
+            }
+        }
+        gather(document.paragraphs)
+        for (i, p) in document.paragraphs.enumerated() {
+            for name in p.bookmarks where owner[name] == nil { owner[name] = i }
+        }
+        var out = document
+        var changed = false
+        for (i, p) in document.paragraphs.enumerated() where p.runs.contains(where: { $0.style.field.flatMap(target) != nil }) {
+            var text = ""
+            var runs: [Run] = []
+            var at = p.text.utf16.startIndex
+            var lastField: String? = nil
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length)
+                var piece = String(p.text[at ..< end])
+                at = end
+                if let field = run.style.field, let name = target(field) {
+                    if lastField == field { piece = "" }
+                    else if let k = owner[name], let shown = layout.printedPageNumber(ofParagraph: k, document) { piece = shown }
+                    else if !elsewhere.contains(name) { piece = "Error! Bookmark not defined." }
+                }
+                lastField = run.style.field
+                guard !piece.isEmpty else { continue }
+                text += piece
+                runs.append(Run(length: piece.utf16.count, style: run.style))
+            }
+            if text != p.text {
+                var fresh = p
+                fresh.text = text
+                fresh.runs = runs.isEmpty ? [Run(length: 0)] : runs
+                fresh.normalize()
+                out.paragraphs[i] = fresh
+                changed = true
+            }
+        }
+        return changed ? out : nil
+    }
+
     /// Whether Word prints the document with its markup: it carries a
     /// comment or a tracked change (inserted, deleted or reformatted text).
     /// (A comment Word prints no balloon for is no markup: comment.docx's,

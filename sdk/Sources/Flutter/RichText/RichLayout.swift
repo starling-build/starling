@@ -15020,6 +15020,15 @@ public final class RichLayout {
                           textLeft: _textLeft[i], textWidth: _textWidth[i])
     }
 
+    /// The page number Word prints for the page paragraph `i` starts on
+    /// (in its section's format): what a `PAGEREF` to a bookmark in it
+    /// shows once the fields are brought up to date.
+    public func printedPageNumber(ofParagraph i: Int, _ document: RichDocument) -> String? {
+        guard let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }) else { return nil }
+        let physical = piece.page / _columns
+        return _pageNumber(_pageNumberOf(physical, document), document, format: _pageNumberFormat(physical, document))
+    }
+
     public func listLabel(_ i: Int, _ document: RichDocument) -> String? {
         if !_listValid || _listLabels.count != document.paragraphs.count { _renumberLists(document) }
         return _listLabels[i]
