@@ -11472,3 +11472,8 @@ CLAIMED by lenovo-3 instead: tdf164905 (lo-9c6cc479ac7525b8, 59.0%, fields: the 
 
 floattable-negative-height (lo-7fd81082) — Mac 7bd18d8e, 2026-10-30, PARKED, claim released. Still 74.0 (192/192 lines, 10/10 pages) on bf754c848, so round 10 did NOT fix it. Not a negative tblpY at all (tblpY=9). One floating table, header row repeated, row 6 splits over p5-p9; the 4 rows before it each take a page whole. Word breaks row 6's cell early on p5 (after "Page 5 end", bottom 495, a line would still fit to 518.8) and p6 (after "Page 6 end", bottom 477, 41 pt free) but fills p7 and p8 to 513/508. Ours breaks 1-2 lines late on p6 and then every later page is shifted. Paragraph there = [..."Page 6 end", br, "Page 7 start", br, "voosoosss"] (ends), next paragraph 1 line. Widow/orphan alone does not explain p6 (41 pt free). Open: what stops Word filling p6.
 CLAIM (Mac 7bd18d8e): floattable-next-leaf-in-section, then floattable-heading-split-hyphen, then floating-table-dummy-text (starling-bd's order).
+
+#### windows-3 state (2026-10-30, before restart)
+- Uncommitted in starling-office-4 (base af7b404d8): first-section evenPage numbering from 2; cantSplit header-repeat skip; szCs (complexFontSize) for RTL; B2 charset -> Arial; STYLEREF "Error! Use the Home tab..." ; PAGEREF recompute at export (lk build).
+- Word-win 756 pair lj (edits 1-7) vs clean base lb: 0 movers (v1). LO: tdf135216 30->100, Cool16066 33->97.6, tdf149089 6.7->21.7, tdf164905 57->59 (lk).
+- TODO: lk full pair (756 + 608 LO), commit per cause, push with safe-push guard, send to windows-1. Then tdf149089 (body starts 12pt low: header floating table + empty bordered para), tdf164905, tdf155707, tdf163575, Cool16066 page 3.
