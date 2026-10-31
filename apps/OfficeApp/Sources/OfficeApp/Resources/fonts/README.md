@@ -39,6 +39,14 @@ word more on a line than Word gives it. It was bundled here until
 2026-10-13. Check a replacement against Word's own Cambria before
 trusting the name.
 
+## Noto Sans (2026-10-30)
+
+A document that names "Noto Sans" (LibreOffice's test files do) is drawn with Noto Sans itself, not a
+stand-in: the clone table above has nothing close to its widths, and Word's print of those files
+sets it in the real face. Regular, Bold, Italic and Bold Italic, the hinted 2.x release from
+github.com/notofonts/notofonts.github.io (fonts/NotoSans/hinted/ttf), OFL: NotoSans-LICENSE.txt.
+Loaded with the extra faces below under the family "Noto Sans"; `OfficeFonts.substitute` maps the name.
+
 ## Slides' free faces (2026-10-17)
 
 Families PowerPoint decks name that none of the six clones draws well,

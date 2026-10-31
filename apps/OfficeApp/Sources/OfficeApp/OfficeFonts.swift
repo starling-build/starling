@@ -34,6 +34,8 @@ enum OfficeFonts {
     static let serif = "Liberation Serif"
     static let mono = "Liberation Mono"
     static let calibri = "Carlito"
+    /// Noto Sans, the face a document names when it names it (bundled; OFL).
+    static let notoSans = "Noto Sans"
     static let cambria = "Caladea"
     /// DejaVu Sans, for Verdana: not a metric clone, but of the same
     /// family (both grew out of Bitstream Vera's design) and within a
@@ -82,6 +84,11 @@ enum OfficeFonts {
             return calibri
         case "caladea", "cambria":
             return cambria
+        case "noto sans":
+            // (Noto Sans itself, bundled: a document that names it — LibreOffice's
+            // fdo77887, fdo48718-1 — was set in Carlito, and every line stood
+            // elsewhere in Word's print, which has the real face.)
+            return notoSans
         default:
             // ("code" as in Source Code Pro — not as in Lucida Sans Unicode,
             // which came up monospace for a while.)
@@ -3084,6 +3091,7 @@ enum OfficeFonts {
         }
         faces += [("LibreFranklin-Medium.ttf", "Libre Franklin Medium"), ("LibreFranklin-MediumItalic.ttf", "Libre Franklin Medium")]
         faces += [("ArchivoBlack-Regular.ttf", "Archivo Black")]
+        faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("NotoSans-\($0).ttf", "Noto Sans") }
         // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
         // bold with no italic: the face has none, and PowerPoint's print
         // slants its regular — the engine does the same for a family with
