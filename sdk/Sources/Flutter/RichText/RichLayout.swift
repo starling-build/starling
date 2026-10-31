@@ -659,6 +659,22 @@ public final class RichTextTheme {
             px = 0.01
             color = color.withOpacity(0)
         }
+        // A run's box takes the ascent and descent of the face Word sets
+        // it in, not of the stand-in the engine draws it with: a line of
+        // two faces is as tall, and stands on the baseline, the taller of
+        // the two makes (Word's, for each run). Only where the layout
+        // knows the face's line and its baseline, and the run sits in its
+        // line (a raised one takes none, nor hidden text).
+        var boxAscent: Double? = nil, boxDescent: Double? = nil
+        if wordRules, !shifted, px > 0.01, size > 0, let face,
+           let t = (ownScale != 1 ? face.scaledBaseline : nil) ?? (bold ? face.boldBaseline : nil) ?? face.baseline,
+           let h = (ownScale != 1 ? face.scaledHeight : nil) ?? (bold ? face.boldHeight : nil) ?? face.naturalHeight,
+           h > t, t > 0 {
+            RuleTrace.hit("run-box-takes-its-face-ascent-and-descent")
+            let k = size * pixelsPerPoint * scale
+            boxAscent = t * k
+            boxDescent = (h - t) * k
+        }
         return TextStyle(
             color: color,
             // Commented text carries Word's balloon tint.
@@ -696,6 +712,8 @@ public final class RichTextTheme {
                 let shift = script - raised * pixelsPerPoint * scale
                 return shift != 0 ? shift : nil
             }(),
+            ascentOverride: boxAscent,
+            descentOverride: boxDescent,
             // An exact line height is the same multiple of every run's own
             // size: points over size ("at least" that, or the multiple when
             // it is more). A multiple is of the face's natural line height
