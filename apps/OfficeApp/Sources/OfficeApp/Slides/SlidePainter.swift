@@ -1073,7 +1073,7 @@ final class SlidePainter: CustomPainter {
         // blended evenly.)
         let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
             : fill.even || fill.undirected || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
-                                            : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
+                                            : Self.linearLight(fill.stops, eased: fill.eased, shifted: false)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the focus out to the circle through the area's four
             // corners: a two-point gradient, its focus placed by the
@@ -1277,7 +1277,7 @@ final class SlidePainter: CustomPainter {
         if fill.path == .rect || fill.path == .shape, fill.stops.count >= 2, r.width > 0, r.height > 0 {
             let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
                 : fill.even || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
-                                                : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
+                                                : Self.linearLight(fill.stops, eased: fill.eased, shifted: false)
             func at(_ u: Double) -> Color {
                 guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
                 if j == 0 { return colors[0] }
@@ -1453,7 +1453,10 @@ final class SlidePainter: CustomPainter {
     /// shader blends in sRGB; these are the stops with linear-light
     /// in-betweens spelled out, so it lands where PowerPoint does.
     ///
-    /// `shifted`: as PowerPoint's export shows it. It writes such a
+    /// `shifted` (no longer asked for): as PowerPoint for MAC's export shows
+    /// it — Windows PowerPoint's prints are plain sRGB, with no such shift
+    /// (aascu 5864's blue band 0,0,121 .. 0,0,252, not 9,48,254), so none
+    /// of the corpus' references want it now. The Mac export writes such a
     /// gradient's blend as linear values tagged "Generic RGB Linear", whose
     /// primaries are not sRGB's, so every colour of it — the stops too —
     /// prints a little off: pure blue as 9,48,254, red as 255,39,0
