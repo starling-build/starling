@@ -2243,6 +2243,10 @@ public struct RichDocument: Hashable, Sendable {
     /// cell's lines off the grid (zh-117cf7c6's 12pt rows on an 18.25pt
     /// grid are 26.65pt in Word's print, ours two pitches).
     public var adjustsLineHeightInTable = true
+    /// Word's `w:noColumnBalance`: the columns of a section a continuous
+    /// break ends are not made even; the next section starts under the
+    /// longest (LibreOffice's unbalanced-columns-compat).
+    public var leavesColumnsUnbalanced = false
     /// The settings' `compatibilityMode` (15 for Word 2013 on; nil
     /// where they name none, which Word takes for an older one). Below
     /// 15 a line's punctuation hangs and gives in a paragraph set any
