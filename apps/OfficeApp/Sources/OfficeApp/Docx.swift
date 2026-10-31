@@ -738,6 +738,16 @@ enum DocxFormat {
                     defaultBorders = _borders(style.first("w:tblPr"), "w:tblBorders")
                 }
             }
+            // (A styles part with no default table style leaves a table no cell
+            // margin: Word's 5.4pt is Normal Table's, which a file saved by
+            // Word carries and some exporters' do not. Lab tableorigin (Word
+            // for Windows): with no table style at all the letters stand
+            // 0.5pt from the rule and the left rule on the margin, in every
+            // mode — a table is set out by its left cell margin, here 0.)
+            if !tableNodes.values.contains(where: { $0["w:default"] == "1" }) {
+                RuleTrace.hit("no-default-table-style-no-margin")
+                defaultMargins = _Margins(top: 0, left: 0, bottom: 0, right: 0)
+            }
             for id in tableNodes.keys {
                 var seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
