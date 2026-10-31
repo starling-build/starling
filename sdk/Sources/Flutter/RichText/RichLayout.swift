@@ -11676,7 +11676,10 @@ public final class RichLayout {
             if k < i {
                 guard q.cell == p.cell, k < _heights.count else { break }
             }
-            var candidates: [(image: ImageAttachment, size: Size?)] = k == i ? q.inlineImages.values.map { ($0, nil) } : []
+            // (One anchored in a paragraph above is wrapped round too, for a paragraph that is no
+            // list item: a list item's label asks its own room beside a tight picture, see
+            // zh-f2ca3070.)
+            var candidates: [(image: ImageAttachment, size: Size?)] = k == i || p.style.list == nil ? q.inlineImages.values.map { ($0, nil) } : []
             // (A table floating in the cell, in a paragraph of its own above: the
             // text that follows stands beside it. A picture anchored in an earlier
             // paragraph is left to the paragraph-by-paragraph push, as before:
