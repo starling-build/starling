@@ -3684,6 +3684,7 @@ public final class RichLayout {
             let n = theme.wordRules ? max(1, ts.headerRowCount) : 1
             return theme.wordRules && n > (_tableRows[table] ?? 0) ? 0 : n
         }
+        var omittedHeadHeight: [String: Double] = [:]
         func repeatHeader(of table: String, before i: Int) {
             // (Nothing where the page breaks inside the header: its rows
             // go on as rows. bug57031's "Test of Equality over Strata",
@@ -3706,7 +3707,10 @@ public final class RichLayout {
                     head = max(head, d.rowTop + d.ownRowHeight - h.rowTop)
                     n += 1
                 }
-                if head + next.ownRowHeight > contentH + 0.01, next.ownRowHeight <= contentH + 0.01 { return }
+                if head + next.ownRowHeight > contentH + 0.01, next.ownRowHeight <= contentH + 0.01 {
+                    omittedHeadHeight[table] = head
+                    return
+                }
             }
             // (Every row the file marks as a header, where Word's rules
             // are followed: a heading of two rows is repeated whole.)
@@ -5977,7 +5981,16 @@ public final class RichLayout {
                 newPage()
             }
             if endsSection { markOnPage = true }
-            // Kept with what follows (Word's `w:keepNext`, a heading's):
+            // (A paragraph under a table whose header was left off a page
+            // for want of room stands as if it were there: its height still
+            // counts, and the paragraph goes to the next page when it would
+            // not fit under it — lo Cool16066: "END OF DOCUMENT" under the
+            // 40-line row at page 2's top, 14pt of text with 169pt left, is
+            // page 3's only line in Word's print.)
+            if theme.wordRules, i > 0, _cells[i] == nil, resumeCursor == nil, y > 0.01, let before = _cells[i - 1],
+               let head = omittedHeadHeight[before.table], y + head > contentH + 0.01 {
+                newPage()
+            }
             // this paragraph, any kept run after it, and the start of
             // what follows them go to the next page together when this
             // page has no room for all of it.
