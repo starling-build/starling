@@ -109,6 +109,11 @@ LO 593: mean with text 83.044 (all 77.022), 374 >= 95, 363 at 100, 560 pages equ
 logged exception): OPEN ITEMS lo-e998b55c 60 -> 40 and lo-000463df 62.9 -> 62.1 (same in v1). Biggest LO ups: lo-b9d70b44, lo-486e8e62, lo-ed539d0e, lo-a64612b3, lo-9a2bcefe,
 lo-bb46946d, lo-9f8577e6, lo-25ea410e, lo-79583fa0, lo-2dc13fbc, lo-158005c9 -> 100; lo-d1e88d77 37.5 -> 92.3. No other drops. Round times: build 455 s (WMO, 28 commits), LO 76 s, 756 438 s.
 
+**Office web build fixed on current office (mac-confirm, 2026-10-31, the user's job via starling-bd).** `build/web-app.sh OfficeApp --package apps/OfficeApp` failed on WASI
+(Text.swift's old-engine probe uses dlopen/dlsym; guard is now `!os(Windows) && !os(WASI)`; PlatformDispatcher's scheduleFrame guard was already fine) and then at the link
+(legacy Foundation: `trimmingCharacters(in:)` x2 in Docx.swift, `range(of:)` in RichLayout.swift — replaced). Built, staged, and `test/office-layout.sh` (with PyMuPDF) passes: browser = native on
+welcome, textedit.docx, word-boringcrypto.docx (24 pages, 1071 lines) and the PDF checks. Native macOS release builds; Linux not built here (the changes are WASI-conditional or portable helpers). Nothing deployed.
+
 **Confirmation round 5 — PASS for 5 of 6** (windows-1, 2026-10-30; base office 64f26dce; Windows mode, 756, final prints; v2 official).
 Stack of 6 (7190a877 lenovo-3 dotabove, 9dd407f8 macOS-doc spacegive T240, 8141e618 lenovo-2 mixed-size-baseline,
 7e254b8d + 7c31f4e7 macos-ios keepfloat, 4f0b145d lenovo T241): 14 up, ONE drop, zh-1d2a7c35 100.0→99.7 (v1 99.7→99.5; p6's ①②③
