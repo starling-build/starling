@@ -3080,7 +3080,24 @@ public final class RichLayout {
     /// its footer's line, the line where it would be with no table and
     /// the table's second row under the footer's bottom.
     private func _floatsOver(_ table: String, _ document: RichDocument) -> Bool {
-        floatsFrames && theme.wordRules && document.tableStyles[table]?.floatsOverText == true
+        guard floatsFrames && theme.wordRules, let ts = document.tableStyles[table], ts.floatsOverText else { return false }
+        // (One that leaves no room beside it, wider than the text with the
+        // clear on its sides, takes its place in the flow: the text that
+        // follows goes under it. LibreOffice's tdf149089 header: a 509pt
+        // table at tblpY -27 over a 499pt column, and the body starts at
+        // 84 in Word's print, 12pt under ours.)
+        if let kept = ts.keptPosition, let widths = _columnWidths[table], !kept.containsSubstring("w:tblpXSpec") {
+            func twips(_ name: String) -> Double {
+                guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
+                return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
+            }
+            let room = (_tableFlowWidth[table] ?? width) - _px(twips("w:tblpX") / 20) - widths.reduce(0, +)
+                - _px(twips("w:rightFromText") / 20)
+            // (Not one placed down from its anchor, a tblpY of 1 as lab
+            // PageSpecificHeadFoot's page-number table has: that one lies over.)
+            if room < 0, twips("w:tblpY") < 0 { return false }
+        }
+        return true
     }
 
     // MARK: Pagination
