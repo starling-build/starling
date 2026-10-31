@@ -11661,7 +11661,14 @@ public final class RichLayout {
         // The text's edge: the table's right side and the clear it asks.
         let edge = right + _px(twips("w:rightFromText") / 20)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-        guard left < column / 2, right < column / 2 + _px(100), column - edge - _px(p.style.indentRight) >= size * 3 else { return nil }
+        // (A table in the left half, or one that fills most of the column, whose
+        // text beside it in the strip left at its right is a few words wide:
+        // LibreOffice's floattable-move-master, a 8075-twip table in a 9362
+        // column, has "He tried to nervously tap his way" in the 1100 twips
+        // beside it in Word's print. One two-thirds of a wide column leaves
+        // the text under it: zh-ae2dd08d90a's 9801-twip table on a landscape
+        // page.)
+        guard left < column / 2, right < column / 2 + _px(100) || right > column * 0.8, column - edge - _px(p.style.indentRight) >= size * 3 else { return nil }
         let own = _px(p.style.indentLeft)
         return edge > own ? edge - own : nil
     }
