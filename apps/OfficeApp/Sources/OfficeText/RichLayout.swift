@@ -12804,6 +12804,13 @@ public final class RichLayout {
         let squeezesSpaces = !legacy && p.style.alignment == .justify
             || legacy && fitted && units.contains(0x2060)
                 && !units.contains(where: { $0 >= 0x2E80 })
+        // (A page number set apart by dashes in a text box, its field result
+        // unmarked, gives them too, up to two fifths: zh-4e5fe46f's "— 10 —", 14pt
+        // SimSun in 51.1pt, is one line in Word's print, the space after its
+        // first dash 3.7 for 7, about a third of the line's 10.5 of spaces; zh-e8bf8b42's
+        // "— 3 —" needing half of them keeps its line broken, as in Word's print.)
+        let pageBox = legacy && fitted && _inTextBox && units.contains(where: { $0 >= 0x30 && $0 <= 0x39 })
+            && units.allSatisfy { $0 == 0x20 || $0 == 0x2014 || $0 == 0x2D || ($0 >= 0x30 && $0 <= 0x39) }
         // (Where nothing else is compressed, `w:topLinePunct` still lets a
         // line's opening mark give: see `leadOpeners` below.)
         let topLinePunct = fitted && !turned && p.style.eastAsian["w:topLinePunct"] == "1"
@@ -12822,7 +12829,7 @@ public final class RichLayout {
         // end on past the margin: `RichDocument.hangsLatinStops`.)
         let stops = document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
             && units.contains(where: { $0 == 0x2E || $0 == 0x2C })
-        guard marked || stops || !gaps.isEmpty || (squeezesSpaces && units.contains(0x20)) else { return [:] }
+        guard marked || stops || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
@@ -14143,7 +14150,7 @@ public final class RichLayout {
                 // Without the balance they give after a space too: zh-f2ca3070's
                 // "…共同工作空間   席", 4.80 of 6. A Latin word after them keeps
                 // lab `jg`'s rule: zh-4b8e0abc's Indonesian, balanced, mode 15.)
-                if !fits, !opening, squeezesSpaces,
+                if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
@@ -14193,7 +14200,7 @@ public final class RichLayout {
                     // "① 計畫內容…" (a space in the text, not the label's
                     // suffix) keeps 之 on its line in Word's print.)
                     func spaceGive(_ k: Int) -> Double {
-                        RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && eastAsianAt(k - 1)) || (k + 1 < units.count && eastAsianAt(k + 1))) ? 0.2 : 0.25
+                        pageBox ? 0.4 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && eastAsianAt(k - 1)) || (k + 1 < units.count && eastAsianAt(k + 1))) ? 0.2 : 0.25
                     }
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w * spaceGive($1.k) } + roomAutos
                     // (And only where each space gives at most half of
@@ -14383,7 +14390,7 @@ public final class RichLayout {
             // with them gone — Windows mode keeps the old weighing.)
             let flanked = theme.wordRules && !RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && last > a && piece.b < units.count
                 && units[last - 1] >= 0x2E80 && units[piece.b] >= 0x2E80
-            if squeezesSpaces, piece.trail > 0, last < piece.b, !flanked {
+            if squeezesSpaces || pageBox, piece.trail > 0, last < piece.b, !flanked {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
