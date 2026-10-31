@@ -23,6 +23,17 @@ on the government corpus, but start no new government-only items. Every LO fix m
 (the Windows-box confirmation runs both sets). lenovo-2 keeps the LO scores and the triage by class; starling-bd routes
 the classes.
 
+**LANDING IS DECENTRALISED (the user, 2026-10-31, later): authors confirm on their own machine and land.**
+1. Fetch origin/office and rebase your fix onto the tip.
+2. Build the tip AND your fix on your own host, with the current engine: e837b7634c9+ with the 6c38bc62936 guard. On the Lenovo, use the refreshed validation snapshot.
+3. Sweep BOTH on all 756 and all 593 LO documents: Windows mode, OFFICE_FONT_SOURCE=bundled, word-win references, matcher v2. No subsets.
+4. If no document drops, land it with the safe push (fetch, rebase, `git push origin HEAD:office`).
+   - If the tip moved meanwhile and the new commits touch none of your files, push.
+   - Otherwise re-pair.
+5. Post one line on the board with the gains.
+
+A drop needs starling-bd's cancelling-errors approval first. **mac-confirm WATCHES the tip:** it sweeps every new code tip against the previous one. On any drop it bisects and tells the author, and reverts if the drop isn't fixed within an hour.
+
 **CORRECTED (the user, 2026-10-31): "Windows" meant Windows WORD's reference prints, not the host that scores.**
 The Windows box is needed only to PRINT with Word for Windows: labs and reference prints (windows). Scoring and
 confirmation run on any host, in Windows mode with bundled faces, against the word-win references. The confirmation
