@@ -392,6 +392,19 @@ lo-ccd9da4b | Times New Roman | - | ArialMT | Times (altName)
 - (9) CLAIMED (windows-2, 2026-10-31, starling-bd): columns step 2 on fdo43573-2-min (lo-eb12e7d4ce90ffa6, 55.5%, 175 lines missed; nested-table text after p7)
   and then tdf139336_ColumnsWithFootnoteDoNotOccupyEntirePage (26 lines, 0%). Builds of font / spaces / table splits running; pairs follow.
 
+- (10) windows-2 findings, 2026-10-31. wip/w2-fs (3 commits on 64a34251c: Cambria for Liberation Serif by signature, U+2002/3/5 spaces, table page break in columns)
+  sent to windows-1; subset pre-pair (125 LO + 81 main + canaries) 0 drops: tdf153136 41.5 -> 87.8, lo-e6dce9d6 19.0 -> 33.3.
+  fdo43573-2-min (lo-eb12e7d4): pages 1-7 match Word to 0.1pt; the rest is page 8 on. Page 8: Word's column 2 ends at 497.6 and the 3-line
+  paragraph "De kleur u (rood)..." goes to page 9; ours sets it at the bottom of column 2 (481-512). That paragraph holds a wrapTopAndBottom picture
+  anchored 2.1pt below the TOP margin (87x35pt), so on page 8 it takes the top of column 2 and pushes the text of column 2 (and "L (links)" into
+  column 1) down; Word does not show that picture on page 8 at all (its anchor paragraph is on page 9). A fixpoint question (anchor paragraph vs. the
+  space its own picture takes from the column above it), not a width one; page 8 on is ~175 lines.
+  tdf139336 (lo-9749f2b5, 0%): ONE page, a chain of continuous sections 3/1/3/1/2/1/3/1/2 columns (equal widths, one with a separator) and footnotes
+  set in 3 columns at the foot. This is the true per-section columns case: ours folds it to one column. Needs the slot model (`page * _columns + column`,
+  70 sites) to give each section its own count: plan = stride `_columns` = the document's largest, a section with n < stride fills slots 0..n-1 of its
+  pages and `newPage` skips to the next page's slot 0 after slot n-1; geometry (`_pxColumnW`, stride, dx, flowWidth) by the section of the piece;
+  the existing balancing at a section change (columnFloor) carries the next section down the same page. Starting it now.
+
 ### zh-c2c92639 (95.8, 54 pages) against word-win v2 — looked at, two clusters (Mac 01Xgpbk5, 2026-10-30; RELEASED as a lead)
 - p41 "引用标准名录" and its 25-line list stand 10pt low in ours: the heading opens with a page-break character and has space before 360 —
   T238's construct (compatibilityMode 15 case); expected to be fixed when T238 lands.
