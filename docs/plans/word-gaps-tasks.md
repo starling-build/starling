@@ -11557,3 +11557,5 @@ T257 CLAIMED (Linux lo4, 2026-10-30, from starling-bd): five LO documents, in or
 
 SENT to windows-1: `wip/lenovo3-insballoon` (19b3de5c9, PdfExport.swift; items 1) and `wip/lenovo3-titlepage` (7037451ff, RichLayout.swift; item 4), each one commit on office c8ebb8bf2. Linux pair: LO 593 and official trace set, no document drops; 537 tests, 0 failures.
 5. tdf126244 (lo-a994ad5cb89686b4): the lines that differ are the chart's multi-level category axis labels. Chart class: skipped.
+
+CLAIMED by lenovo-3 (Linux 01F2SWc8, starling-bd's order via macos 2026-10-30): tdf161139_orrick-org-min3 (lo-5a97a8eac20a2e36, 89.8%) first, then legend-itemorder-min (lo-a14e916b96437b8e, 46.7%, chart legend order). Item 2's layout hook (each run's box takes the real face's ascent/descent, RichResolvedFace.baseline/naturalHeight) is mine, to start when macOS-doc says the bridge has landed.
