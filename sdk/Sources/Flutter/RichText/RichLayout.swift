@@ -8071,9 +8071,10 @@ public final class RichLayout {
         // indent each, and laid again until they settle.)
         var besideLineIndents: [LineIndent] = []
         var besideIndent = _besideLead[i]
+        var besideRight = false
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
-        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band }
+        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
         if besideIndent > 0, let band = besideBand {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
@@ -8081,7 +8082,7 @@ public final class RichLayout {
             var indents: [LineIndent] = []
             var firstBeside = true
             for _ in 0 ..< 8 {
-                let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside ? max(original - besideIndent, 0) : original,
+                let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside && !besideRight ? max(original - besideIndent, 0) : original,
                                               adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
                 let trialInline = _span(for: p, at: i, document, textWidth: textWidth, lead: original, adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld).1
                 let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: .ltr)
@@ -8094,17 +8095,17 @@ public final class RichLayout {
                 for k in 0 ..< bottoms.count {
                     let top = k == 0 ? 0 : bottoms[k - 1]
                     let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
-                    next.append(LineIndent(left: beside ? besideIndent : 0, right: 0))
+                    next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent : 0, right: 0))
                 }
-                while let last = next.last, last.left == 0, next.count > 1, next[next.count - 2].left == 0 { next.removeLast() }
-                let first = next.first.map { $0.left > 0 } ?? false
+                while let last = next.last, last.left == 0, last.right == 0, next.count > 1, next[next.count - 2].left == 0, next[next.count - 2].right == 0 { next.removeLast() }
+                let first = next.first.map { $0.left > 0 || $0.right > 0 } ?? false
                 if next == indents, first == firstBeside { break }
                 indents = next
                 firstBeside = first
             }
-            if !indents.isEmpty, indents.contains(where: { $0.left > 0 }), indents.last?.left != 0 { indents.append(LineIndent()) }
+            if indents.contains(where: { $0.left > 0 || $0.right > 0 }), indents.last.map({ $0.left != 0 || $0.right != 0 }) == true { indents.append(LineIndent()) }
             besideLineIndents = indents
-                if !firstBeside { lead = original; _leadWidth[i] = lead }
+                if !firstBeside || besideRight { lead = original; _leadWidth[i] = lead }
             else { lead = max(lead - besideIndent, 0); _leadWidth[i] = lead }
         }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
@@ -11660,14 +11661,14 @@ public final class RichLayout {
     /// the stretch of the paragraph's height it takes; nil for none. It is
     /// anchored in the paragraph itself or in one of the few before it in the
     /// same cell (or the body), the paragraphs between standing under it.
-    private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double))? {
+    private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !p.style.rightToLeft else { return nil }
         // (A cell's text is as wide as the cell less its margins, not the page's
         // column.)
         let cell = p.cell != nil && i < _cells.count ? _cells[i] : nil
         let inner = cell.map { max(0, $0.colWidth - $0.pad.left - $0.pad.right) } ?? _flowWidth(i)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-        var best: (indent: Double, band: (top: Double, bottom: Double))?
+        var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool)?
         var offset = 0.0
         var k = i
         while k >= 0, k >= i - 6 {
@@ -11683,29 +11684,47 @@ public final class RichLayout {
             if k < i, p.cell != nil, let image = q.image, image.name == "table", k < _imageSize.count { candidates.append((image, _imageSize[k])) }
             for (image, laid) in candidates {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
-                      float.horizontalAlign == nil, float.wrapSide != "left" else { continue }
+                      float.horizontalAlign == nil || float.horizontalAlign == "left" || float.horizontalAlign == "right" else { continue }
                 let inCell = float.horizontalFrom == "cell" && cell != nil
-                guard inCell || float.horizontalFrom == "column" else { continue }
+                guard inCell || float.horizontalFrom == "column" || (float.horizontalFrom == "margin" && p.cell == nil) else { continue }
                 let column = inCell ? (cell?.colWidth ?? 0) : inner
                 // (A box that takes its text's width is that wide: a drop cap's.)
                 if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                 let w = laid.map { $0.width }
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _px(image.height)
-                let x = _px(float.x)
+                let x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
                 let own = _px(p.style.indentLeft) + (inCell ? (cell?.pad.left ?? 0) : 0)
+                let rightGap = _px(p.style.indentRight) + (inCell ? (cell?.pad.right ?? 0) : 0)
+                guard w > 0 else { continue }
+                if x + w / 2 >= column / 2 {
+                    // (At the right, with room at its left for three ems and none
+                    // at its right: the lines end short of it, by a right indent.
+                    // One wrapped on its left alone is left to the paragraph-by-
+                    // paragraph push, as before.)
+                    guard float.wrapSide != "right",
+                          column - (x + w) - _px(float.distanceRight ?? 9) < size,
+                          x - _px(float.distanceLeft ?? 9) - own >= size * 3 else { continue }
+                    let narrow = column - rightGap - (x - _px(float.distanceLeft ?? 9))
+                    guard narrow > 0 else { continue }
+                    let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
+                                bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                    guard band.bottom > 0.01 else { continue }
+                    if best == nil || narrow > best!.indent { best = (narrow, band, true) }
+                    continue
+                }
                 // (Not with room at its left for text: that stands round it on
                 // both sides, which the engine does not set.)
-                guard w > 0, x + w / 2 < column / 2, x - _px(float.distanceLeft ?? 9) - own < size else { continue }
+                guard float.wrapSide != "left", x - _px(float.distanceLeft ?? 9) - own < size else { continue }
                 let edge = x + w + _px(float.distanceRight ?? 9)
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
-                guard edge > own, column - edge - _px(p.style.indentRight) - (inCell ? (cell?.pad.right ?? 0) : 0) >= size * 3 else { continue }
+                guard edge > own, column - edge - rightGap >= size * 3 else { continue }
                 let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                             bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }
-                if best == nil || edge - own > best!.indent { best = (edge - own, band) }
+                if best == nil || edge - own > best!.indent { best = (edge - own, band, false) }
             }
             if k > 0 { offset += _heights[k - 1] }
             k -= 1
