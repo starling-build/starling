@@ -8576,7 +8576,13 @@ public final class RichLayout {
            let v = Double(aboveXML[at.upperBound...].prefix { $0 != "\"" }), v > 0 {
             frameGap = 2 * v / 20 + 2.7
         }
-        let before = (theme.wordRules ? spacing.before + bTop : (spacing.before + bTop).rounded()) + _px(frameGap)
+        // (A cell's first paragraph its own page break opens drops its space
+        // before from 2013's layout on, as T238's body paragraph does:
+        // zh-ab9cbe66's "立即學習效果" (84 twips before, mode 15, p63 and p56)
+        // stands 4.2pt over where ours did, and the page's rows with it.)
+        let cellBreakLead = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15
+            && style.cellBreakOpens && p.cell != nil && (i == 0 || document.paragraphs[i - 1].cell != p.cell)
+        let before = (theme.wordRules ? (cellBreakLead ? 0 : spacing.before) + bTop : (spacing.before + bTop).rounded()) + _px(frameGap)
         let after = spacing.after + bBottom
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.

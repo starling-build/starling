@@ -4325,6 +4325,7 @@ enum DocxFormat {
         var positionalTabs: [Int: TabStop.Alignment] = [:]
         var inlineImages: [String: ImageAttachment] = [:]
         var leadingBreak = false   // the paragraph opens with a page break
+        var cellBreakOpens = false   // …in a table cell, where the break itself is dropped
         var leadingColumnBreak = false   // ... and that break is a column break
         var leadingBreakRPr: String? = nil   // ... in a run with these properties
         var splitBefore = false   // the text being read is the rest of a split w:p
@@ -5235,7 +5236,7 @@ enum DocxFormat {
                     // form title opens its cell with two, and Word's print
                     // sets it on the cell's first line, under the page's
                     // empty paragraphs, where ours split an empty line off.
-                    break
+                    if text.isEmpty, inlineImages.isEmpty, built.isEmpty { cellBreakOpens = true }
                 case "w:br":
                     // A page break ends the paragraph; a line break stays
                     // inside it, as Shift+Return's does — splitting it added a
@@ -5483,6 +5484,7 @@ enum DocxFormat {
             // in Word's print and at the left margin in ours.)
             style.alignment = .center
         }
+        if cellBreakOpens { style.cellBreakOpens = true }
         if leadingBreak {
             // (A break followed by floating objects alone is a break too:
             // the objects stand with the paragraph's start, on the page

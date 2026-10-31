@@ -615,6 +615,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// property: laid out the same here, written back as it was — Word
     /// places the text after one differently by the paragraph's spacing.
     public var pageBreakInline = false
+    /// A page break character opened this paragraph in a table cell, where
+    /// Word sets no break (the reader drops it) but, from 2013's layout,
+    /// takes the paragraph's space before off: zh-ab9cbe66.
+    public var cellBreakOpens = false
     /// That break character is a COLUMN break (`w:br w:type="column"`):
     /// a new page here, where a page is one column, and written back as
     /// the column break it was.
