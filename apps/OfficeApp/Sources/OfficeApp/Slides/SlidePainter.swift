@@ -430,6 +430,10 @@ final class SlidePainter: CustomPainter {
     /// Not for a box in columns, whose lines stand side by side. Turned
     /// text (`vert`, a turned diagram frame) is snapped along its own
     /// lines, as laid out (eaVertAnchor 1.22 → 0.46).
+    /// False: lines keep their laid-out pitch. PowerPoint for Windows does not
+    /// snap them (au.asn.aes p8: 16.80 pt between every Verdana 14 line).
+    nonisolated(unsafe) static var snapsLinesToPoints = false
+
     static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
                                    visible: Rect) {
         var baselines: [Double] = []
@@ -1018,7 +1022,7 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
-            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0,
+            } else if Self.snapsLinesToPoints, shape.kind != .table, shape.columns <= 1, shape.textSpin == 0,
                       abs(shape.rotation.truncatingRemainder(dividingBy: 90)) < 0.01 {
                 // (Not in a box turned other than by quarters: under such a
                 // turn a band's cut leaves every line's text in the PDF —
