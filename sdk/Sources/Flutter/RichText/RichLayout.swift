@@ -7731,7 +7731,13 @@ public final class RichLayout {
             // it on by half its first character's spacing — starling-engine's
             // patches/skia-no-line-spacing-shift.patch.)
             let origin = 0.0
-            func measure(_ wraps: [Int]) {
+            func measure(_ found: [Int]) {
+            // (A line start the trial lays out at a hard break's own character
+            // is the character after it: LibreOffice's tdf146248 sets each
+            // contents entry after the first on a line of its own by `w:br`,
+            // and measured its tab from the end of the line before, a negative
+            // distance, so every page number went to a line of its own.)
+            let wraps = found.map { w in w < units.count && (units[w] == 0x0A || units[w] == 0x2028) ? w + 1 : w }
             tabs = [:]
             hangs = [:]
             runsPast = []
