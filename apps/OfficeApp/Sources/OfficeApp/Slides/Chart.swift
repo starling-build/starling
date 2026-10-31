@@ -3800,6 +3800,14 @@ enum ChartPainter {
         if c.onSheet, c.pieLabelsAround, c.plotLayout == nil {
             radius = max(radius / 2, radius - 1.25 * (c.series[0].labelSize ?? c.baseTextSize) * k)
         }
+        // In a Word document the same: a pie whose labels stand outside it
+        // and whose plot the file leaves to Word is 15.3pt smaller a side at
+        // 9pt labels (1.7 of their size) — lo tdf137154's eight labels
+        // round a pie of 198pt in Word's print, ours 229.
+        if values.filter({ $0 > 0 }).count > 1, !c.onSheet, !c.onSlide, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil {
+            RuleTrace.hit("word-pie-with-outside-labels-leaves-room-for-them")
+            radius = max(radius / 2, radius - 1.7 * (c.series[0].labelSize ?? c.baseTextSize) * k)
+        }
         let centre = area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2
