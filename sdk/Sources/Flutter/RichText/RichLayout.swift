@@ -5887,16 +5887,23 @@ public final class RichLayout {
                 let first = (page / _columns) * _columns
                 var seq: [PagePiece] = []
                 for s in first ... page { seq += _pages[s] }
+                // (A section that began partway down the page balances its
+                // own pieces, under those of the sections above it.)
+                var head: [PagePiece] = []
+                if _perSection, let before = seq.first.map({ _sectionOf[$0.paragraph] }), before != _sectionOf[i - 1] {
+                    head = seq.filter { _sectionOf[$0.paragraph] != _sectionOf[i - 1] }
+                }
+                let base = head.map { $0.pageY + $0.height }.max() ?? 0
                 let tail = Array(_allPieces.suffix(seq.count))
-                if !seq.isEmpty, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
+                if seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
                    seq.allSatisfy({ _cells[$0.paragraph] == nil && !$0.repeated && $0.part == .all }) {
-                    let total = (first ... page).reduce(0.0) { acc, s in acc + (_pages[s].map { $0.pageY + $0.height }.max() ?? 0) }
+                    let total = (first ... page).reduce(0.0) { acc, s in acc + ((_pages[s].filter { p in !head.contains(where: { $0 == p }) }).map { $0.pageY + $0.height }.max().map { $0 - base } ?? 0) }
                     let target = total / Double(nb)
                     var out: [[PagePiece]] = Array(repeating: [], count: nb)
                     var c = 0, cy = 0.0
                     var lastBottom: [Int: Double] = [:]
-                    for piece in seq {
-                        let gap = max(0, piece.pageY - (lastBottom[piece.page] ?? 0))
+                    for piece in seq where !head.contains(where: { $0 == piece }) {
+                        let gap = max(0, piece.pageY - (lastBottom[piece.page] ?? base))
                         lastBottom[piece.page] = piece.pageY + piece.height
                         var top = cy > 0.01 ? cy + gap : 0
                         var rest = (from: piece.flowTop, to: piece.flowBottom)
@@ -5911,7 +5918,7 @@ public final class RichLayout {
                                 continue
                             }
                             if c == nb - 1 || top + (rest.to - rest.from) <= target + 0.5 {
-                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: base + top))
                                 cy = top + (rest.to - rest.from)
                                 break
                             }
@@ -5922,22 +5929,22 @@ public final class RichLayout {
                             let bottoms = Self._lineBottoms(g.painter).map { g.textTop + $0 }
                             let cuts = bottoms.filter { $0 > rest.from + 0.5 && $0 < rest.to - 0.5 }
                             if let cut = cuts.first(where: { top + ($0 - rest.from) >= target - 0.5 }) ?? cuts.last,
-                               top + (cut - rest.from) <= contentH + 0.01 {
+                               base + top + (cut - rest.from) <= contentH + 0.01 {
                                 // (At its last line the paragraph ends here, the
                                 // space under that line with it: zh-b5359de4's empty
                                 // 36pt cover paragraphs, a line of 54.2 in 62.2, sent
                                 // that 8pt on as a piece and the next column started
                                 // under it.)
                                 if let lastLine = bottoms.last, abs(cut - lastLine) < 0.01,
-                                   top + (rest.to - rest.from) <= contentH + 0.01 {
-                                    out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
+                                   base + top + (rest.to - rest.from) <= contentH + 0.01 {
+                                    out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: base + top))
                                     c += 1; cy = 0
                                     break
                                 }
-                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: cut, page: first + c, pageY: top))
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: cut, page: first + c, pageY: base + top))
                                 rest = (cut, rest.to)
                             } else if top < 0.01 {
-                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: top))
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: base + top))
                                 cy = top + (rest.to - rest.from)
                                 c += 1; cy = 0
                                 break
@@ -5951,8 +5958,8 @@ public final class RichLayout {
                     if blockBottom <= contentH + 0.01 {
                         _allPieces.removeLast(seq.count)
                         while _pages.count < first + _columns { _pages.append([]) }
-                        for k in 0 ..< nb where first + k <= max(page, first + _columns - 1) { _pages[first + k] = out[k] }
-                        _allPieces.append(contentsOf: out.flatMap { $0 }.sorted { ($0.paragraph, $0.flowTop) < ($1.paragraph, $1.flowTop) })
+                        for k in 0 ..< nb where first + k <= max(page, first + _columns - 1) { _pages[first + k] = (k == 0 ? head : []) + out[k] }
+                        _allPieces.append(contentsOf: (head + out.flatMap { $0 }).sorted { ($0.paragraph, $0.flowTop) < ($1.paragraph, $1.flowTop) })
                         page = first
                         y = blockBottom
                         columnFloor = (first / _columns, blockBottom)
