@@ -3370,6 +3370,8 @@ public final class RichLayout {
         // A floating table anchored to the text after it: where it began,
         // for that paragraph (see below).
         var textFloatTop: (table: String, page: Int, y: Double, down: Double, chained: Bool)? = nil
+        // The text place the last text-anchored floating table hung from.
+        var floatRunBase: (table: String, page: Int, y: Double)? = nil
         // (A floating table kept with its anchor whose offset takes it past
         // the margin: its first row stands there.)
         var keptPastFoot: String? = nil
@@ -5032,6 +5034,16 @@ public final class RichLayout {
                     if y > 0.01, y + _px(down) > contentH - 0.01 {
                         if anchorFits { keptPastFoot = c.table } else { newPage() }
                     }
+                    // (A run of floating tables hangs from one anchor, the
+                    // paragraph after the run: each stands its own offset
+                    // below that place, not below the one before it —
+                    // floating-tables-anchor, in Word's print.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, let prevT = _cells[i - 1]?.table,
+                       let fb = floatRunBase, fb.table == prevT, fb.page == page,
+                       document.tableStyles[prevT]?.floatOffsetY != nil, document.tableStyles[prevT]?.pageAnchored != true {
+                        y = fb.y
+                    }
+                    floatRunBase = (c.table, page, y)
                     textFloatTop = (c.table, page, y, _px(down), false)
                     y += _px(down)
                 }
