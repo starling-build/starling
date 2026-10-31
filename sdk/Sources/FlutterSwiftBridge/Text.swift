@@ -5231,7 +5231,7 @@ public func loadFontFromList(_ list: Data, fontFamily: String? = nil) async thro
   sendFontChangeMessage()
 }
 
-#if !os(Windows)
+#if !os(Windows) && !os(WASI)
 /// Whether the engine in this process knows per-line indents and metrics
 /// overrides (it exports `StarlingTextLineIndentsSupported`). One that does
 /// not ignores both silently and lays the text out wrong, so the first use

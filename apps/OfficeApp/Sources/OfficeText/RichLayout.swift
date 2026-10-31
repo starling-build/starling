@@ -6540,7 +6540,7 @@ public final class RichLayout {
                     // in Word's print; ours set it at the top of page 1.)
                     let xml = document.paragraphs[i].style.frameXML ?? ""
                     func number(_ key: String) -> Double? {
-                        guard let r = xml.range(of: key + "=\"") else { return nil }
+                        guard let r = xml.firstRange(of: key + "=\"") else { return nil }
                         return Double(xml[r.upperBound...].prefix { $0 != "\"" })
                     }
                     if xml.containsSubstring("w:wrap=\"notBeside\""), xml.containsSubstring("w:hRule=\"exact\""), let h = number("w:h"), h > 0 {

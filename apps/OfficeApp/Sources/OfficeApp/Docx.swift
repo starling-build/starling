@@ -2871,7 +2871,7 @@ enum DocxFormat {
                 if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
                 guard let props = core ?? nil else { return }
                 var value = props.children.first { $0.name.hasSuffix(":" + local) }?.text ?? ""
-                value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                value = value.trimmingWhitespace(newlines: true)
                 if value.isEmpty {
                     guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { return }
                     if glossary == nil { glossary = .some(part("word/glossary/document.xml").flatMap(XNode.parse)) }
@@ -2960,7 +2960,11 @@ enum DocxFormat {
     static func _missingReference(_ instr: String, _ names: Set<String>, _ otherText: String) -> String? {
         let words = instr.trimmingWhitespace(newlines: true).split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
         guard words.count >= 2, words[0].uppercased() == "REF" else { return nil }
-        let name = words[1].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        // (Quotes off both ends by hand: `trimmingCharacters(in:)` is legacy Foundation, which the web build leaves out.)
+        var quoted = Substring(words[1])
+        while quoted.first == "\"" { quoted = quoted.dropFirst() }
+        while quoted.last == "\"" { quoted = quoted.dropLast() }
+        let name = String(quoted)
         guard !name.isEmpty, !name.hasPrefix("\\"), !names.contains(name.lowercased()),
               !otherText.lowercased().containsSubstring("w:name=\"\(name.lowercased())\"") else { return nil }
         return name
