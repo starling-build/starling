@@ -1247,6 +1247,38 @@ enum DocxFormat {
                     let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
                     if !widths.isEmpty { tableColumns[id] = widths }
                 }
+                // (Cells wider than the grid column they stand in make the column wider, in a table
+                // that fits its content: Word's print of the lab tw1 has each column as wide as its
+                // widest cell, 6381 + 6381 under a 4536 + 1845 grid, and the whole scaled down to the
+                // text when it is wider. LibreOffice's tdf79329.)
+                if let cols = tableColumns[id], node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed",
+                   !(node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].map { fixedTableStyles.contains($0) } ?? defaultTableFixed),
+                   (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto" {
+                    var widest = cols
+                    var wider = false
+                    // (Only where a row is far wider than the grid — a grid Word wrote is its own
+                    // layout of the columns, and cells wider than it are preferences it overruled.)
+                    let gridTotal = cols.reduce(0, +)
+                    for tr in unwrapped(node, "w:tr") where tr.first("w:trPr")?.first("w:gridBefore") == nil {
+                        var col = 0
+                        var rowTotal = 0.0
+                        for tc in unwrapped(tr, "w:tc") {
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? "") { rowTotal += v / 20 }
+                        }
+                        guard rowTotal > gridTotal * 1.25 else { continue }
+                        for tc in unwrapped(tr, "w:tc") {
+                            let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if span == 1, col < widest.count, w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? ""), v / 20 > widest[col] + 1 {
+                                widest[col] = v / 20
+                                wider = true
+                            }
+                            col += span
+                        }
+                    }
+                    if wider { tableColumns[id] = widest }
+                }
                 // (A table with no grid at all has its first row's cells for one:
                 // LibreOffice's floattable-nested-3tables, tables of 2000-twip
                 // cells, wraps "before the middle table:" in them in Word's print.)
