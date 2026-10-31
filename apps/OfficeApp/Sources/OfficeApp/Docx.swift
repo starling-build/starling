@@ -352,7 +352,39 @@ enum DocxFormat {
     /// paragraphs go. (lo tdf133924: Word's print sets "Around" 71pt and
     /// "notBeside" 273pt under the text's top, the text round the one and over
     /// and under the other; ours set both frames before the text.)
-    static func _foldFrames(_ root: XNode) {
+    static func _foldFrames(_ root: XNode, styles: XNode? = nil) {
+        // (A frame a paragraph's style defines — lo special_styles' "envelope
+        // address", 396 by 99pt exact, centred on the page and aligned to the
+        // foot of the margins, its paragraph saying only `wrap="auto"` —
+        // is the frame, the style's attributes under the paragraph's. Of
+        // that shape only, so far: set in the flow it took the text's room,
+        // where Word's print sets it at the foot of the page and the lines
+        // after it in the 27pt to its right.)
+        if let styles, let body = root.first("w:body") {
+            var own: [String: (frame: [String: String], based: String?)] = [:]
+            for st in styles.all("w:style") where st["w:type"] == "paragraph" {
+                guard let id = st["w:styleId"] else { continue }
+                own[id] = (st.first("w:pPr")?.first("w:framePr")?.attrs ?? [:], st.first("w:basedOn")?["w:val"])
+            }
+            func chain(_ id: String?, _ depth: Int = 0) -> [String: String] {
+                guard let id, depth < 12, let st = own[id] else { return [:] }
+                return chain(st.based, depth + 1).merging(st.frame) { _, new in new }
+            }
+            for p in body.children where p.name == "w:p" {
+                guard let pPr = p.first("w:pPr"), let sid = pPr.first("w:pStyle")?["w:val"] else { continue }
+                var attrs = chain(sid)
+                guard !attrs.isEmpty, Double(attrs["w:w"] ?? "").map({ $0 > 0 }) == true, Double(attrs["w:h"] ?? "").map({ $0 > 0 }) == true,
+                      attrs["w:vAnchor"] == nil, attrs["w:hAnchor"] == "page", attrs["w:xAlign"] != nil,
+                      ["bottom", "center"].contains(attrs["w:yAlign"] ?? "") else { continue }
+                let mine = pPr.first("w:framePr")
+                for (k, v) in mine?.attrs ?? [:] { attrs[k] = v }
+                guard attrs["w:wrap"] == "auto" || attrs["w:wrap"] == "around" else { continue }
+                attrs["w:wrap"] = "around"
+                attrs["w:vAnchor"] = "margin"
+                pPr.children.removeAll { $0.name == "w:framePr" }
+                pPr.children.append(XNode(name: "w:framePr", attrs: attrs))
+            }
+        }
         // (A frame whose text runs turned, `w:textDirection` btLr or tbRl, on
         // the page or margin: a box of the size it says, the text in it
         // turned, where the layout set it across a narrow column — lo
@@ -506,7 +538,7 @@ enum DocxFormat {
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
         _inheritSpace(root)
         Self._foldDropCaps(root)
-        Self._foldFrames(root)
+        Self._foldFrames(root, styles: part("word/styles.xml").flatMap(XNode.parse))
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
