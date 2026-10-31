@@ -59,10 +59,10 @@ enum SlidesPdf {
         return true
     }
 
-    /// The PDF with every picture marked `/Interpolate true`, as
-    /// PowerPoint marks one drawn larger than its pixels: a viewer then
-    /// smooths it, as the slide on screen does, where unmarked a 16-pixel
-    /// icon shown an inch across is blocks (tdf93830's). Nil when the file
+    /// The PDF with every picture that came from a JPEG marked
+    /// `/Interpolate true`, as PowerPoint for Windows marks them (a picture
+    /// from a PNG it marks false: lo-tdf146223's 2-pixel background is four
+    /// blocks there, tdf93830's 16-pixel icon too): a viewer then smooths it. Nil when the file
     /// is not laid out as the PDF backend writes it — one classic
     /// cross-reference table — and is left as it is.
     static func smoothPictures(_ data: Data) -> Data? {
@@ -122,7 +122,15 @@ enum SlidesPdf {
         }
         var at: [Int] = []  // where each mark ends
         var i = 0
+        let jpeg = SlideTextCache.jpegSizes
         while let r = _find(mark, in: bytes, from: i) {
+            if let open = (0 ..< r).reversed().first(where: { bytes[$0] == 0x3C && bytes[$0 + 1] == 0x3C }),
+               let close = _find(Array(">>".utf8), in: bytes, from: r),
+               let w = value("/Width ", in: bytes[open ..< close]), let h = value("/Height ", in: bytes[open ..< close]),
+               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) {
+                i = r + mark.count
+                continue
+            }
             if masks.isEmpty || object(before: r).map({ !masks.contains($0) }) ?? true { at.append(r + mark.count) }
             i = r + mark.count
         }

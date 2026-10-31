@@ -27,6 +27,12 @@ final class SlideTextCache {
     }
     private var _entries: [ObjectIdentifier: Entry] = [:]
     private var _images: [String: Image] = [:]
+    /// The pixel sizes (width << 32 | height) of the pictures decoded from a
+    /// JPEG: the ones PowerPoint for Windows marks smooth in its PDF.
+    nonisolated(unsafe) static var jpegSizes: Set<UInt64> = []
+    static func noteJpeg(_ bytes: [UInt8], _ image: Image) {
+        if bytes.starts(with: [0xFF, 0xD8]) { jpegSizes.insert(UInt64(image.width) << 32 | UInt64(image.height)) }
+    }
     private var _decoding: Set<String> = []
     /// Called when a picture finishes decoding: repaint.
     var onImageDecoded: (() -> Void)?
@@ -65,6 +71,7 @@ final class SlideTextCache {
             guard let self else { decoded?.dispose(); return }
             self._decoding.remove(id)
             if let decoded {
+                Self.noteJpeg(bytes, decoded)
                 if self._images[id] == nil { self._images[id] = decoded } else { decoded.dispose() }
                 self.onImageDecoded?()
             } else if self._images[id] == nil {
@@ -98,6 +105,7 @@ final class SlideTextCache {
             codec.dispose()
         }
         if let decoded {
+            Self.noteJpeg(bytes, decoded)
             if _images[id] == nil { _images[id] = decoded; onImageDecoded?() } else { decoded.dispose() }
         } else if _images[id] == nil {
             _undecodable.insert(id)
