@@ -1202,6 +1202,8 @@ public struct TableStyle: Hashable, Sendable {
     /// margin (Word for Windows' print of fdo68607 and lo-89daf93d), in points.
     public var marginOffsetY: Double? = nil
     public var pageOffsetY: Double? = nil
+    /// `w:tblpYSpec="bottom"`: the table's foot stands at the body's foot.
+    public var bottomAligned = false
     /// The table floats anchored to the text (w:vertAnchor="text"): in a
     /// header or footer it takes no room, and stands over the paragraph
     /// after it (`RichLayout.floatsFrames`).

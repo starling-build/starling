@@ -5024,6 +5024,21 @@ public final class RichLayout {
                     reserveNotes(ids, deferring: true)
                 }
             }
+            // (A table that asks for the body's foot, `w:tblpYSpec="bottom"`:
+            // its foot at the body's, as its offset from the page's top.
+            // LibreOffice's floattable-from-bottom has it 621pt down a 792pt
+            // page in Word's print, margin at 720; ours stood it at the top.)
+            func bottomAlignedOffset(_ c: _CellGeo, _ i: Int) -> Double? {
+                guard theme.wordRules, document.tableStyles[c.table]?.bottomAligned == true else { return nil }
+                var bottom = c.rowTop + c.ownRowHeight, k = i
+                while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                let height = bottom - c.rowTop
+                guard height < contentH else { return nil }
+                let physical = page / _columns
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                // (A hair short of the foot: a table that ends on it opens a page.)
+                return (contentH - height - 0.5 + insetTop) / _px(1)
+            }
             func raiseAtHead(_ c: _CellGeo) {
                 // (At the head too under nothing but what takes no room in
                 // Word's flow: frames, and tables floating by the text.
@@ -5201,10 +5216,10 @@ public final class RichLayout {
                     && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
                     && (y > 0.01 || !_pages[page].isEmpty)
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
-                   case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil {
+                   case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil || ts0?.bottomAligned == true {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                    let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
+                    let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? bottomAlignedOffset(c, i).map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
                     if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
