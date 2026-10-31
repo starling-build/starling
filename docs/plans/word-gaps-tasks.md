@@ -11683,3 +11683,5 @@ CLAIM (Linux 01F2SWc8 lenovo-3, 2026-10-31): n830205 (lo-9f27ef4097b11c63, 58.9)
 - tdf117982 (lo-c6cd222fb0e62252): Word's PDF keeps the text of lines an exact-height row clips (BAR/BAZ rows); ours drops it. A PDF-text artefact, not layout. Skipped.
 - tdf99140 (lo-a87b38cefcdfc9ac): page-anchored floating table (tblpY 640pt, three 283pt exact rows) — Word starts row 1 on page 1 at y~509; ours moves it to page 2. Needs a lab on where Word puts a page-anchored table that cannot fit. Not built.
 - fdo43093b (lo-7a7b6f1b7da154c4): bidi, `$` placement in RTL runs. Not looked at.
+
+#### T258 hand-over (windows-3, 2026-10-31): fdo43093b (lo-7a7b6f1b7da154c4) moves from lenovo-4's batch D to windows-3 (bidi class); lo4 finished batch D without reading it (per starling-bd).
