@@ -3912,6 +3912,33 @@ public final class RichLayout {
             guard bottomWidth > (ts.edgeWidths["insideH"] ?? ts.borderWidth ?? 0.5) + 0.01 else { return own }
             return max(own, _px(Self._ruleRoom(ts.edgeStyles["bottom"] ?? ts.borderStyle, bottomWidth)))
         }
+        // (How far past a part's foot a nested row may begin and still stay, in Word for Windows, where the table
+        // holding it is placed against the page: the row lines above it do not count. Labs nt1/nt1b (windows):
+        // a 90-row table in the one cell of a page-anchored floating row keeps every row whose top, less the
+        // lines stacked above it, is above the margin — one row more than the lines counted, whatever the
+        // footer's distance; a plain outer row cuts where the lines are counted. LibreOffice's fdo77887 and
+        // fdo48718-1: 44 rows on page 1 in Word's print, 42 in ours. One slack per cut, as `cellCuts` lists them.)
+        func cellSlacks(_ k: Int) -> [Double] {
+            let n = cellCuts(k).count
+            guard theme.wordRules, RichTextTheme.wordWindowsPages, let outer = _cells[k], document.tableStyles[outer.table]?.pageAnchored == true,
+                  let image = document.paragraphs[k].image, image.textBox?.growsToFit == true,
+                  let inside = _textBox(image, document) else { return Array(repeating: 0, count: n) }
+            var heights: [Double: (height: Double, rules: Double)] = [:]
+            let first = inside.layout._cells.compactMap({ $0 }).first?.table
+            for m in 0 ..< min(inside.document.paragraphs.count, inside.layout._cells.count) {
+                if let c = inside.layout._cells[m], c.firstInRow, c.table == first {
+                    heights[c.rowTop + c.ownRowHeight] = (c.ownRowHeight, c.rules)
+                }
+            }
+            var slacks: [Double] = [], above = 0.0
+            for bottom in heights.keys.sorted() {
+                let row = heights[bottom]!
+                slacks.append(row.height + above)
+                above += row.rules
+            }
+            slacks.removeLast()
+            return slacks + Array(repeating: 0, count: max(0, n - slacks.count))
+        }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
             // (A table nested in the cell parts between its rows, as
@@ -3985,7 +4012,8 @@ public final class RichLayout {
                 guard _tops[last] + _heights[last] > limit else { continue }
                 var cut: Double? = nil
                 for m in members {
-                    for b in cellCuts(m) where b <= limit { cut = max(cut ?? b, b) }
+                    let cuts = cellCuts(m), slacks = cellSlacks(m)
+                    for (n, b) in cuts.enumerated() where b - (slacks.indices.contains(n) ? slacks[n] : 0) <= limit { cut = max(cut ?? b, b) }
                 }
                 let shownFrom = found.map { max(_allPieces[$0].flowTop, _tops[_allPieces[$0].paragraph]) }.min() ?? ref.flowTop
                 let at = max(cut ?? shownFrom, shownFrom)
@@ -4079,7 +4107,7 @@ public final class RichLayout {
             if !theme.wordRules { for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } } }
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
-            struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double; var owners: [Int] = [] }
+            struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double; var owners: [Int] = []; var slacks: [Double] = [] }
             var columns: [Column] = []
             for k in i ..< j {
                 let d = _cells[k]!
@@ -4090,6 +4118,7 @@ public final class RichLayout {
                 let own = cellCuts(k)
                 columns[columns.count - 1].cuts.append(contentsOf: own)
                 columns[columns.count - 1].owners.append(contentsOf: repeatElement(k, count: own.count))
+                columns[columns.count - 1].slacks.append(contentsOf: cellSlacks(k))
                 // (A cell merged down has the rows below for the rest.)
                 columns[columns.count - 1].bottom = d.rowSpan > 1 ? min(rowBottom, _tops[k] + _heights[k] + d.pad.bottom)
                     : _tops[k] + _heights[k] + d.pad.bottom
@@ -4137,7 +4166,10 @@ public final class RichLayout {
                         !piece.repeated && _cells[piece.paragraph].map { $0.table == c.table && $0.row == 0 } == true }
                     // (Not from 2013's layout on: LibreOffice's floattable-avoid-last-manip-ofst has no compatibility
                     // mode and goes past the margin; its two like tables in mode 15 stop at the margin in Word's print.)
-                    if (RichTextTheme.wordWindowsPages && startsHere && (document.compatibilityMode ?? 12) < 15) || y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
+                    // (Not a row that holds a table nested in it with slack of its own: labs nt1b, the margin moves its cut and
+                    // the footer's distance does not.)
+                    let nestedSlack = columns.contains { $0.slacks.contains { $0 > 0 } }
+                    if (RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15) || y + (bottom - c.rowTop) <= edge + 0.01 { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
@@ -4400,10 +4432,10 @@ public final class RichLayout {
                             // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let at = column.cuts.lastIndex(where: { $0 > column.cut + 0.01 && $0 <= closed - (theme.wordRules ? d0.margin : 0) }),
+                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules ? d0.margin : 0) }),
                                   case let owner = column.owners.indices.contains(at) ? column.owners[at] : -1,
-                                  let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner }).map({ column.cuts[$0] })
-                                    .last(where: { $0 <= cutClosed - (theme.wordRules ? d0.margin : 0) }) {
+                                  let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner })
+                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules ? d0.margin : 0) }).map({ column.cuts[$0] }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line
