@@ -12013,3 +12013,5 @@ Both are the open items already above; no new rule found worth a build.
   14pt text box "— 10 —" is 51.1pt wide; Word fits it by squeezing the leading space (the "— " is 17.7 wide, not 21: "10"
   starts at 494.0, last dash at 512.5, ends 526.6), ours needs 53.2 and drops the last "—" to a second line (y 789.8). One
   line, a text-box case of the squeeze that cells already have (the lc lab). Not built.
+
+- **lenovo-3 — zh-6d402586 (96.8) and zh-3c055c9b (96.9) LOOKED AT, NOT FIXED (2026-10-31, Windows mode, v2).** Both are the open squeeze question, nothing new. zh-6d402586's 24 misses are p6's "COVID-19疫苗者，得免除PCR檢驗，未完整接種疫苗之移" line (Word ends it at "移"; ours takes "工，" with the "，" hung) and the lines that ripple from it into p7-p8 (the paragraph after it too: "10、…" and "12、…"). Lab p6d already says Word never hangs that mid-paragraph "，", and t175 (zh-021b8feb) hangs a mid-paragraph "、" at 21-23 over; the condition between them is unknown, so any rule I wrote would be a guess that moves one witness against the other. zh-3c055c9b's 18 misses are one paragraph on p2 ("費、" refusal, parked on windows-1's lab tfe). Both need that lab's answer first.
