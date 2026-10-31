@@ -1172,6 +1172,8 @@ public struct TableStyle: Hashable, Sendable {
     /// Where such a table stands: its `w:tblpY` from the page's top edge,
     /// in points (nil where an alignment places it, `w:tblpYSpec`).
     public var pageOffsetY: Double? = nil
+    /// `w:tblpYSpec="bottom"`: the table's foot stands at the body's foot.
+    public var bottomAligned = false
     /// The table floats anchored to the text (w:vertAnchor="text"): in a
     /// header or footer it takes no room, and stands over the paragraph
     /// after it (`RichLayout.floatsFrames`).

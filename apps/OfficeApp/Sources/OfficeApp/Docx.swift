@@ -1501,6 +1501,7 @@ enum DocxFormat {
                 if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
                     if pos["w:vertAnchor"] == "page" { style.pageAnchored = true }
                     if pos["w:vertAnchor"] == "page", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? "") { style.pageOffsetY = v / 20 }
+                    if pos["w:tblpYSpec"] == "bottom", pos["w:tblpY"] == nil { style.pageAnchored = true; style.bottomAligned = true }
                     style.keptPosition = PptxXML.serialize(pos)
                         + (node.first("w:tblPr")?.first("w:tblOverlap").map { PptxXML.serialize($0) } ?? "")
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
