@@ -1071,6 +1071,9 @@ enum DocxFormat {
                         case 0xF0B7, 0x2022: glyph = "\u{2022}"
                         case 0xF06F, 0x006F: glyph = "\u{25E6}"
                         case 0xF0A7, 0x25AA: glyph = "\u{25AA}"
+                        // (Wingdings "l", the round bullet: "⚫" in a Word print's text,
+                        // and a round dot where the default bullet is a small one.)
+                        case 0xF06C: glyph = "\u{26AB}"
                         case 0xF0D8, 0x27A2: glyph = "\u{27A2}"
                         case 0xF0FC, 0x2713: glyph = "\u{2713}"
                         case 0xF076, 0x2756: glyph = "\u{2756}"
