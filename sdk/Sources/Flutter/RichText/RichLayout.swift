@@ -4193,6 +4193,13 @@ public final class RichLayout {
                     // footer's place, and Word's print parts it onto page 2; the 26pt
                     // of floattable-compat14 stays.)
                     if y + (bottom - c.rowTop) <= edge + 0.01, c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40) { avail = max(avail, edge - y) }
+                    // (A single row too tall for the page parts at the footer's
+                    // place, not the margin: LibreOffice's fdo77887, a table
+                    // placed from the page whose one row holds a 74-row list,
+                    // has 44 rows on page 1 in Word's print, the last ending
+                    // 890pt down a 936pt page with the margin at 865 and the
+                    // footer's place at 900.)
+                    else if RichTextTheme.wordWindowsPages, c.row == 0, j >= count || _cells[j]?.table != c.table { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
