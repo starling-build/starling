@@ -11,3 +11,8 @@ Five documents, all made from that one by one change (docx/):
 1. Print each in a FRESH Word for Windows, PDF named like the docx.
 2. Read-out wanted per print: the page count, and for each page what is on it (title, the rectangle, "Turandot", the last text). In particular: is the
    rectangle on the same page as the title? Is the text after it on the rectangle's page or the next?
+Round 2 (wr1 results: all five variants A-E kept the rect alone on a page and the text on the next; width, spacing, own paragraph do not matter):
+  F-no-rect.docx            the rectangle's run removed (title stays).
+  G-no-headers.docx         A with the three w:headerReference removed.
+  H-no-rect-no-headers.docx both.
+Read-out: page count and what is on each page, as before. Does Turandot reach page 1 (or 2) when the rectangle is gone? Do the headers matter?
