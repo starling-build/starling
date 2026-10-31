@@ -8,6 +8,7 @@
 // and the writer emits the same subset, one element per paragraph.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

@@ -8,6 +8,7 @@
 // grid, the formula bar, the name box and the status bar agree.
 
 import Flutter
+import OfficeText
 import Foundation
 
 final class WorkbookController: ChangeNotifier {

@@ -12,6 +12,7 @@
 // moved, resized and deleted.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

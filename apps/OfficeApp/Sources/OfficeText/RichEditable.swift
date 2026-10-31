@@ -13,6 +13,7 @@
 // and every windowed host (Flutter ids). Timers use DispatchQueue with a
 // generation token — Foundation.Timer never fires on the DRM embedder.
 
+import Flutter
 import FlutterSwiftBridge
 import Foundation
 

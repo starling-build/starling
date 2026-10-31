@@ -7,6 +7,7 @@
 // Swift over the document model; nothing touches the engine.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

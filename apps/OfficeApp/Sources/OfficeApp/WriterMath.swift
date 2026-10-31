@@ -11,6 +11,7 @@
 // two scoring formulas, and the 50pt they stand in.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

@@ -4,6 +4,7 @@
 import XCTest
 import Foundation
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 

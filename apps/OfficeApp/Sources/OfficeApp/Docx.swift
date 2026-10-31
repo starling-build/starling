@@ -12,6 +12,7 @@
 // LibreOffice and macOS all open.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 #if canImport(FoundationXML) && !os(WASI)

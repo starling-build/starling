@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import Foundation
 
 /// The document's lines and pages as text, laid out the way the window

@@ -16,6 +16,7 @@
 // or resized drawing has its anchor rewritten on save.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

@@ -10,6 +10,7 @@
 //   OFFICE_DEMO_PAGES=200 swift run OfficeApp  the Phase 0 perf document
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

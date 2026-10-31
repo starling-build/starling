@@ -12,6 +12,7 @@
 // are TextInputChannel's (Widgets/TextInputConnection.swift), shared with
 // the plain fields' TextInputConnection.
 
+import Flutter
 import FlutterSwiftBridge
 import Foundation
 

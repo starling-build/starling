@@ -6,6 +6,7 @@
 // its notes — searched case-insensitively, as PowerPoint's Find does.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

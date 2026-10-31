@@ -6,6 +6,7 @@
 // style; a native NSOpenPanel per host is a later host-injection closure.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

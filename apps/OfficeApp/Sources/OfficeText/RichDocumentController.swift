@@ -12,6 +12,7 @@
 // invalidation it needs so a keystroke re-lays out one paragraph, not the
 // document.
 
+import Flutter
 import FlutterSwiftBridge
 import Foundation
 

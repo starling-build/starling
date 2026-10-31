@@ -6,6 +6,7 @@ import XCTest
 import FoundationXML   // XMLParser, off Darwin
 #endif
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 

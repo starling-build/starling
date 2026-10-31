@@ -17,6 +17,7 @@
 // what PowerPoint shows is what this app showed.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 #if os(WASI)
 import FoundationEssentials

@@ -8,6 +8,7 @@
 // and Review are placeholders that keep the strip Word-shaped.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

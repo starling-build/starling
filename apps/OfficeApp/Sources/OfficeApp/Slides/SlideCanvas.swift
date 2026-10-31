@@ -12,6 +12,7 @@
 // remounts, and a remounted editor loses the typing under the click.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

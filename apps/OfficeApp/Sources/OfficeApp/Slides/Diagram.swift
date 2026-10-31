@@ -15,6 +15,7 @@
 
 import Foundation
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 
 /// One point of a diagram's data model (`dgm:pt`): a node with text, the

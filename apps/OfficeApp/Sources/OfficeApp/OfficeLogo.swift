@@ -10,6 +10,7 @@
 // framework reads no SVG and the web build has no bundle to hold a picture.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

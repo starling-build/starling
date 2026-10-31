@@ -8,6 +8,7 @@
 // has to survive every edit to the deck around it.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

@@ -10,6 +10,7 @@
 // opens on it.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
