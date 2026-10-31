@@ -4896,6 +4896,20 @@ public final class RichLayout {
                     while last + 1 < count, _cells[last + 1]?.table == c.table { last += 1 }
                     if last < _tops.count, _tops[last] + _heights[last] - _tops[i] > contentH - y { newPage() }
                 }
+                // A table floating by the text straight after another that does,
+                // at an offset no higher than the first's, avoids it: it stands
+                // 21.5pt lower than the first's foot puts it — lab fs1 (Word for
+                // Windows, LibreOffice's floattable-tables-lost): Outer table 2 is
+                // 115.34pt under Table 1's text with Table 1's row 91.5pt, 73.82
+                // with 50, 30.48 more with a second row of 30; ours 92.5 (the
+                // constant is one witness's, not a distance the file states).
+                if theme.wordRules, RichTextTheme.wordWindowsPages, c.row == 0, c.firstInRow, i > 0, let before = _cells[i - 1],
+                   before.table != c.table, let first = document.tableStyles[before.table], first.floatsOverText, !first.pageAnchored,
+                   let second = document.tableStyles[c.table], second.floatsOverText, !second.pageAnchored {
+                    let firstAt: Double = (first.floatOffsetY ?? 0) - (first.floatRaiseY ?? 0)
+                    let secondAt: Double = (second.floatOffsetY ?? 0) - (second.floatRaiseY ?? 0)
+                    if secondAt >= firstAt { y += _px(21.5) }
+                }
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
                 // 4.35pt under the line before it in Word's print).
