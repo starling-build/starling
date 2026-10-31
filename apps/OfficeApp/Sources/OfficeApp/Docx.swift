@@ -1724,8 +1724,17 @@ enum DocxFormat {
                 // Margins the cells carry themselves (w:tcMar, again the
                 // HTML converters' habit) when most of them do.
                 let cellMars = cells.filter { $0.first("w:tcPr")?.first("w:tcMar") != nil }
-                let cellMar = cellMars.count * 2 >= cells.count && !cellMars.isEmpty
+                var cellMar = cellMars.count * 2 >= cells.count && !cellMars.isEmpty
                     ? _cellMargins(cellMars[0].first("w:tcPr"), "w:tcMar") : _Margins()
+                // (A side that more than half of them state: a margin one cell
+                // alone gives its right is its own — lo tdf160077_layoutInCellB's
+                // first cell, right 720 beside a second that says nothing of it,
+                // took 36pt off the second's lines, which wrapped a word early.)
+                let statedBy = cellMars.map { _cellMargins($0.first("w:tcPr"), "w:tcMar") }
+                if statedBy.filter({ $0.top != nil }).count * 2 <= cells.count { cellMar.top = nil }
+                if statedBy.filter({ $0.left != nil }).count * 2 <= cells.count { cellMar.left = nil }
+                if statedBy.filter({ $0.bottom != nil }).count * 2 <= cells.count { cellMar.bottom = nil }
+                if statedBy.filter({ $0.right != nil }).count * 2 <= cells.count { cellMar.right = nil }
                 let margins = cellMar.under(_cellMargins(node.first("w:tblPr"))).under(styled).under(defaultMargins).under(_Margins.word)
                 style.cellMarginTop = margins.top
                 style.cellMarginLeft = margins.left
