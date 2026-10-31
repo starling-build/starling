@@ -2302,8 +2302,17 @@ enum ChartPainter {
             let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
             var y: Double, columnX = 0.0
             if let box {
-                // In its own place, the plot's room untouched.
+                // In its own place, the plot's room untouched — unless the
+                // plot is left to Word's layout and the legend is set below
+                // (or above) it: the plot still gives up the row it would
+                // have had (lo-a14e916b's legend, at the right, with
+                // `legendPos` b: Word's plot ends 18pt higher than ours).
                 y = box.center.dy - linesH / 2
+                if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
+                    RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
+                    area = Rect.fromLTRB(area.left, area.top, area.right,
+                                         area.bottom - 1.2 * k - lineH - 8.4 * k)
+                }
             } else if beside {
                 y = c.legendPosition == "tr" ? area.top : area.center.dy - lineH * Double(lines.count) / 2
                 if c.legendPosition == "l" {
