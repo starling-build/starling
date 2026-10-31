@@ -5046,6 +5046,20 @@ public final class RichLayout {
                        document.tableStyles[c.table]?.shapesLeaveCell == true {
                         let insetTop = _pageInsetTop.isEmpty ? 0 : _pageInsetTop[0]
                         y = _px(down) - insetTop
+                    } else if RichTextTheme.wordWindowsPages, i > 0, _cells[i - 1] == nil, document.paragraphs[i - 1].text.isEmpty,
+                              document.paragraphs[i - 1].image == nil, document.paragraphs[i - 1].style.frameXML == nil,
+                              i == 1, page == 0, let before = _pages[page].last, before.paragraph == 0, before.pageY <= y + 0.01 {
+                        // (An empty first paragraph of the document, just before
+                        // the table, is its anchor, and the offset is from that
+                        // line's top, not
+                        // from under it: LibreOffice's floattable-deleted-anchor,
+                        // tblpY 1441 under an empty line at the margin, has
+                        // its text 72pt under the margin in Word's print, and
+                        // shape-in-floattable's drawing 27.65pt under it.)
+                        // (Never above the table's place in the flow: tdf87460
+                        // and floattable-negative-height, tblpY 1 and 9
+                        // twips, stand under the line.)
+                        y = max(y, before.pageY + _px(down))
                     } else {
                         y += _px(down)
                     }
