@@ -80,6 +80,7 @@ let appTarget: Target = {
                 .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
                 .product(name: "SwiftRuntime", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+                "OfficeText",
                 "CZlib",
                 .product(name: "FlutterUIKit", package: "FlutterSwift"),
             ],
@@ -101,6 +102,7 @@ let appTarget: Target = {
             .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
             .product(name: "SwiftRuntime", package: "FlutterSwift"),
             .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "OfficeText",
             "CZlib",
             .product(name: "FlutterCocoa", package: "FlutterSwift"),
         ],
@@ -122,6 +124,7 @@ let appTarget: Target = {
             .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
             .product(name: "SwiftRuntime", package: "FlutterSwift"),
             .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "OfficeText",
             "CZlib",
             .product(name: "FlutterWin32", package: "FlutterSwift"),
         ],
@@ -147,14 +150,18 @@ let appTarget: Target = {
             ? [
                 .product(name: "FlutterShared", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "OfficeText",
             "CZlib",
+                "OfficeText",
                 "CZlib",
                 .product(name: "FlutterGTK", package: "FlutterSwift"),
             ]
             : [
                 .product(name: "FlutterShared", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "OfficeText",
             "CZlib",
+                "OfficeText",
                 "CZlib",
             ],
         resources: resources,
@@ -217,6 +224,7 @@ let webAppTarget: Target = .executableTarget(
         .product(name: "SwiftRuntime", package: "FlutterSwift"),
         .product(name: "FluentSystemIcons", package: "FlutterSwift"),
         .product(name: "FlutterWeb", package: "FlutterSwift"),
+        "OfficeText",
         "CZlib",
     ],
     // No resources: the page fetches the fonts (build/web-app.sh stages
@@ -242,6 +250,37 @@ let webAppTarget: Target = .executableTarget(
     ]
 )
 
+// The Word layout stack (RichDocument, RichLayout, the editor): a library of
+// its own, so an edit to the app's UI does not recompile the layout, and an
+// edit to the layout does not rebuild the Flutter module (it lived in sdk/
+// until 2026-10).
+let textDependencies: [Target.Dependency] = {
+    #if os(Linux)
+    return [.product(name: "FlutterShared", package: "FlutterSwift")]
+    #else
+    return [
+        .product(name: "Flutter", package: "FlutterSwift"),
+        .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
+        .product(name: "SwiftRuntime", package: "FlutterSwift"),
+    ]
+    #endif
+}()
+
+let textTarget: Target = .target(
+    name: "OfficeText",
+    dependencies: textDependencies,
+    path: "Sources/OfficeText",
+    swiftSettings: wasmBuild
+        ? [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(
+                ["Foundation", "CoreFoundation", "FoundationInternationalization", "_FoundationICU"]
+                    .flatMap { ["-Xfrontend", "-disable-autolink-library", "-Xfrontend", $0] }),
+            .unsafeFlags(["-Osize"], .when(configuration: .release)),
+        ]
+        : [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5), .unsafeFlags(glibcMathCompat)]
+)
+
 let package = Package(
     name: "OfficeApp",
     platforms: (wasmBuild || platformConstraints.isEmpty) ? nil : platformConstraints,
@@ -252,12 +291,19 @@ let package = Package(
     targets: [
         wasmBuild ? webAppTarget : appTarget,
         zlibTarget,
+        textTarget,
         // Round-trip tests for the file formats. `swift test --package-path
         // apps/OfficeApp` — pure Swift over the document model, no window.
         .testTarget(
             name: "OfficeAppTests",
-            dependencies: ["OfficeApp"],
+            dependencies: ["OfficeApp", "OfficeText"],
             resources: [.copy("Fixtures")],
+            swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
+        ),
+        // The layout's own tests (they lived in sdk/Tests/FlutterTests/RichText).
+        .testTarget(
+            name: "OfficeTextTests",
+            dependencies: ["OfficeText"],
             swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
         ),
     ],

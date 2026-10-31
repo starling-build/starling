@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 
 /// Writer's chrome palette. Document formatting remains owned by the document.

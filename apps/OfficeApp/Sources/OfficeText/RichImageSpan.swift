@@ -1,6 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
+import Flutter
 import FlutterSwiftBridge
 
 /// The span a picture inline with text occupies: a placeholder of the

@@ -9,6 +9,7 @@
 // `_compositeChild`) — so they are drawn, not composited.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

@@ -3,6 +3,7 @@
 
 import Foundation
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 
 /// `a:pattFill`: one of DrawingML's 48 preset 8×8 patterns, in a

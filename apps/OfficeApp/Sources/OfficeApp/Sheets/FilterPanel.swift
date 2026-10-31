@@ -7,6 +7,7 @@
 // the panel does — so each row listens to the ticks itself.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

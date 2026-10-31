@@ -13,6 +13,7 @@
 // (the caret must not land inside an emoji) goes through
 // `RichParagraph.graphemeBefore/After`, which convert at the edge.
 
+import Flutter
 import FlutterSwiftBridge
 import Foundation
 

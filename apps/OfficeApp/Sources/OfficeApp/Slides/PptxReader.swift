@@ -11,6 +11,7 @@
 // can write masters, layouts and themes back byte for byte.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

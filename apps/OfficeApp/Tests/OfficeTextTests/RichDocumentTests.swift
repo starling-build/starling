@@ -7,6 +7,7 @@
 
 import XCTest
 @testable import Flutter
+@testable import OfficeText
 import FlutterSwiftBridge
 
 final class RichParagraphTests: XCTestCase {

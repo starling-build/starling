@@ -4,6 +4,7 @@
 import XCTest
 @testable import OfficeApp
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 
 final class SheetsShapeTests: XCTestCase {

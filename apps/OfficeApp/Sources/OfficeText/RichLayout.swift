@@ -10,6 +10,7 @@
 // Units: the model speaks points (11pt), the engine speaks logical pixels;
 // `RichTextTheme.pixelsPerPoint` (96/72) times `scale` (zoom) converts.
 
+import Flutter
 import FlutterSwiftBridge
 import Foundation
 
@@ -597,7 +598,7 @@ public final class RichTextTheme {
                           named: RichNamedStyle? = nil, normal: CharStyle? = nil,
                           scale: Double, fontScale: Double = 1,
                           eastAsian: Bool = false, gridPitch: Double? = nil, characterClass: Int? = nil,
-                          characterGrid: Double? = nil, scriptHidden: Bool = false) -> TextStyle {
+                          characterGrid: Double? = nil, scriptHidden: Bool = false) -> Flutter.TextStyle {
         var size = style.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? fontSize
         // (Complex-script text is set at the size the file gives it, `w:szCs`:
         // lo tdf163575's Persian is 12pt in a style whose `w:sz` is 10.)

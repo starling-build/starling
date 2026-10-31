@@ -9,6 +9,7 @@
 // show plays it a click at a time (`AnimationPlan`).
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

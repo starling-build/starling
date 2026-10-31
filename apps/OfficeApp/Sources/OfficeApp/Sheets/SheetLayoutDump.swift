@@ -13,6 +13,7 @@
 // them to find where the two platforms measure or format differently.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

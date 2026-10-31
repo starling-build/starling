@@ -33,6 +33,7 @@
 #if os(macOS)
 import AppKit
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

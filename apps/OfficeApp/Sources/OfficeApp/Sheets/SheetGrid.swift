@@ -14,6 +14,7 @@
 // grid and an editor widget to get wrong.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

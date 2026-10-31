@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import Foundation
 
 /// A slide's faces as PowerPoint stands in for them: the shared

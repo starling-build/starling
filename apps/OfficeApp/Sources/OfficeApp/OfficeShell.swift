@@ -7,6 +7,7 @@
 // never rebuilds anything but the editor's own painter.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 #if os(WASI)
