@@ -17662,7 +17662,20 @@ public final class RichLayout {
         if let separator {
             let line = Paint()
             line.color = theme.textColor
-            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            // (A separator that holds text after its line — lo
+            // tdf123262_textFootnoteSeparators' "Text in footnote separator" —
+            // has the line in its first paragraph's middle and the rest
+            // set under it, as Word prints it.)
+            let texted = separator.document.paragraphs.count > 1 && separator.document.paragraphs.dropFirst().contains { !$0.text.isEmpty }
+            let first = texted && separator.layout._tops.count > 1 ? separator.layout._tops[1] : separator.height
+            canvas.drawRect(Rect.fromLTWH(left, top + first / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            if texted {
+                canvas.save()
+                canvas.translate(left, top)
+                separator.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: separator.document,
+                                       selection: nil, caret: nil)
+                canvas.restore()
+            }
             top += separator.height
         }
         for (note, from, to) in notes {
