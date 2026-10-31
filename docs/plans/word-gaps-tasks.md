@@ -127,6 +127,12 @@ Where v1 and v2 disagree on the original set: tdf169843 v2 0.0 / v1 100.0; tdf13
 of those lines is worth a look by lenovo-3). Round 6 (65b1ce5a 97aa86b3 942f299d 5da0347a 52db52eb) on the first 107 prints: lo-1e0077c3
 37.5→100, nothing else, none down. Round 7 (queued) scores all 361 LO prints and the 756. Files: ~/starling-doc-check/lo-baseline.txt, r6-base6-lo*.
 
+**Round 11 lanes (windows-1, 2026-10-30; base office 475df3cb).** Lane A (windows-1): lo-t252b chain (macOS-doc 26c63514, 768aa34a, 4deb4ace), tblpdefault
+d678bf72 (macos-ios), nested pair 2cacb9af+230f6b67, table-in-paragraph 3dd56f2b, table-cells-over-grid de27e954 (lenovo-2), lenovo-2's and lenovo-4's
+rebased commits when they arrive. Lane B (`windows`): lo-noto 3a37f154+f9ac5995 (lenovo-5), segoe 7093abcc (lenovo-3), lo-sections-2 7237f4ca (lenovo-4),
+lo-frames cd93406e (lenovo). Each lane sends its authors the results. Round 10 (windows-1): partmargin/floatsplit/tablemargin/fieldtab ran; one
+official drop zh-15f60bac 99.0→71.8 under triage; nested-short-list, table-style-indent, table-no-grid and lo-lists-text conflict on the tip and need rebases.
+
 ### OFFICIAL BASELINE #2 (Windows box, Windows mode, v2) — office a334f282, the FULL-audit references (windows-1, 2026-10-30)
 Rolling base `base4` = release build of office a334f282 (no T238, none of round 4's stack), bundled fonts, 756 documents,
 word-win through 0e8ae25d (every reference now reprinted alone in a fresh Word). Official score is matcher v2.
