@@ -370,13 +370,14 @@ enum DocxFormat {
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
                   f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
-                  f["w:wrap"] == "around" else { return nil }
+                  f["w:wrap"] == "around" || f["w:wrap"] == "notBeside" else { return nil }
             // (Not a frame whose text is tracked: lo tdf125894's inserted and deleted
             // paragraphs stand in Word's print as one line from the margin, not in
-            // the frame's width. And not "notBeside": a frame so set at the foot of a
-            // paragraph's own line — tdf105035_framePrC's, 28pt down — is set
-            // right by the flow's own offset; it is the frames that text goes round
-            // that the flow gets wrong.)
+            // the frame's width. And "notBeside" only among frames that text goes
+            // round, below: one set at the foot of a paragraph's own line —
+            // tdf105035_framePrC's, 28pt down — is set right by the flow's own
+            // offset; it is the frames that text goes round that the flow gets
+            // wrong, and the ones set beside them tdf133924's.)
             if p.descendant("w:ins") != nil || p.descendant("w:del") != nil { return nil }
             return f
         }
@@ -396,7 +397,8 @@ enum DocxFormat {
                 while k < kids.count, let f = frameOf(kids[k]), signature(f) == signature(frame) { k += 1 }
                 runs.append((frame, j ..< k)); j = k
             }
-            guard j < kids.count, kids[j].name == "w:p", kids[j].first("w:pPr")?.first("w:framePr") == nil else {
+            guard runs.contains(where: { $0.frame["w:wrap"] == "around" }),
+                  j < kids.count, kids[j].name == "w:p", kids[j].first("w:pPr")?.first("w:framePr") == nil else {
                 out.append(contentsOf: kids[i ..< j]); i = j; continue
             }
             let host = kids[j]
