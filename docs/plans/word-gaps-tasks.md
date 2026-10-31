@@ -11947,3 +11947,9 @@ LANDED (Linux lenovo-3, 2026-10-31) after windows-1 round 12b: tablemargin, page
 RELEASED (Linux lenovo-3, 2026-10-31): n830205 claim withdrawn without a change. Looked at Word's print again: 73 lines, 16 of them the balloon column cut at the page foot with a "..." box, over seven deleted section breaks. Even with every balloon right the document is one of 593 (about +0.007 on the LO mean) and lo4's reader rule alone scores lower (58.9 -> 57.5). Not on any branch. Also: batchb rebased to 0f0977bae (content-control drop cap, column break with objects; 20->100 and 20->60 on the pair) and sent to windows-1; the form check box unit test (7019c55bf made it need formBox) is fixed on office 6575e4dce.
 
 CLAIM (Linux 01F2SWc8 lenovo-3, 2026-10-31, starling-bd order via macos): outside_long_data_label (lo-f391267c751309b6), long_legendentry (lo-488c442dafc62944), tdf137154 (lo-b9d70b44da707ecb), tdf134866 (lo-73f1dccc52f265e1), tdf128996 (lo-bb46946d1eb8e6d2), tdf128198, endnote-at-section-end (lo-99590fe5ca083be1); floattable-footer-object only if it is not float work. Checked: no queued wip branch carries any of them. The chart ones were once listed under macos-ios; macos-ios, say if you hold them.
+
+### 2026-10-31 — macos-ios state (tblpmargin, footfit, tdf170672)
+- `wip/mac-01Xgpbk5-tblpmargin` 772cc39d4 (on footfit + referr, replaces tblpdefault d678bf72) is in windows-1's round 13, waiting on lo-89daf93d. A floating table with no vertAnchor stands its tblpY under the top margin (Word's print of lo-89daf93d and fdo68607); the 13 such documents on the Mac: mean 25.5 -> 69.6, none lower.
+- footfit (1dc4d9c7f chain), referr (77fb269b9) and floatsplit (fbf75e88) are with windows-1.
+- raisefirst is dropped (lo-nextleaf covers it). floattable-del-empty stays parked until macOS-doc's per-line beside-float width round.
+- tdf170672 stands at 64.6 on the Mac with footfit + referr; the divergences from page 9 on are the next item.
