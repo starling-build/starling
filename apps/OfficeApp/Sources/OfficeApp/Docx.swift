@@ -2148,6 +2148,30 @@ enum DocxFormat {
                 if let id = node["w:id"] { notes.openComments.removeAll { $0 == id } }
             case "w:sectPr":
                 pageSetup = _pageSetup(node)
+            case "w:altChunk":
+                // An HTML chunk, as Word imports it: paragraphs of the markup's
+                // text in Times New Roman 12, 14pt of auto spacing either side
+                // (lo alt-chunk-html: "HTML AltChunk" 13.3pt tall, 31.4 under the
+                // line before it and 27.4 over the line after, in Word's print).
+                if let id = node["r:id"], let rel = notes.rels[id], !rel.external,
+                   ["html", "htm", "xhtml"].contains(rel.target.split(separator: ".").last.map { $0.lowercased() } ?? ""),
+                   let data = part(_resolvePath("word", rel.target)) {
+                    RuleTrace.hit("html-alt-chunk-is-paragraphs")
+                    for text in Self._htmlParagraphs(String(decoding: data, as: UTF8.self)) {
+                        let run = XNode(name: "w:r", attrs: [:])
+                        let rPr = XNode(name: "w:rPr", attrs: [:])
+                        rPr.children = [XNode(name: "w:rFonts", attrs: ["w:ascii": "Times New Roman", "w:hAnsi": "Times New Roman", "w:cs": "Times New Roman"]),
+                                        XNode(name: "w:sz", attrs: ["w:val": "24"])]
+                        let t = XNode(name: "w:t", attrs: ["xml:space": "preserve"])
+                        t.text = text
+                        run.children = [rPr, t]
+                        let pPr = XNode(name: "w:pPr", attrs: [:])
+                        pPr.children = [XNode(name: "w:spacing", attrs: ["w:before": "280", "w:after": "280"])]
+                        let para = XNode(name: "w:p", attrs: [:])
+                        para.children = [pPr, run]
+                        walkBlock(para, indent: indent, depth: depth)
+                    }
+                }
             default:
                 break
             }
@@ -5418,7 +5442,59 @@ enum DocxFormat {
             flush(pageBreakAfter: sectionBreakAfter)
         }
         if sectionMarginsChange, !built.isEmpty { built[built.count - 1].sectionMarginsChange = true }
+        if built.count > 1 { for k in 0 ..< built.count - 1 { Self._sectionMarkStaysOnTheLastPiece(&built[k].paragraph) } }
         return built
+    }
+
+    /// The paragraphs of an HTML chunk: its text, split where a block
+    /// element (p, div, h1-h6, li, tr, br) starts, tags and head dropped,
+    /// the common entities read, runs of white space one space.
+    static func _htmlParagraphs(_ html: String) -> [String] {
+        var out: [String] = []
+        var cur = ""
+        var skip = false
+        func end() {
+            let t = cur.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\r" || $0 == "\t" }).joined(separator: " ")
+            if !t.isEmpty { out.append(t) }
+            cur = ""
+        }
+        var i = html.startIndex
+        while i < html.endIndex {
+            if html[i] == "<", let close = html[i...].firstIndex(of: ">") {
+                let tag = html[html.index(after: i) ..< close].lowercased()
+                let name = tag.drop(while: { $0 == "/" || $0 == " " }).prefix(while: { $0 != " " && $0 != "/" }).description
+                if ["head", "style", "script", "title"].contains(name) { skip = !tag.hasPrefix("/") }
+                else if ["p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "table", "ul", "ol", "pre"].contains(name) { end() }
+                i = html.index(after: close)
+                continue
+            }
+            if !skip {
+                if html[i] == "&", let semi = html[i...].prefix(10).firstIndex(of: ";") {
+                    let ent = String(html[html.index(after: i) ..< semi])
+                    let known = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": "\u{00A0}"]
+                    if let v = known[ent] { cur += v; i = html.index(after: semi); continue }
+                    if ent.hasPrefix("#"), let code = ent.dropFirst().first == "x" || ent.dropFirst().first == "X" ? UInt32(ent.dropFirst(2), radix: 16) : UInt32(ent.dropFirst()),
+                       let u = Unicode.Scalar(code) { cur.unicodeScalars.append(u); i = html.index(after: semi); continue }
+                }
+                cur.append(html[i])
+            }
+            i = html.index(after: i)
+        }
+        end()
+        return out
+    }
+
+    /// A paragraph cut at a page or column break is several paragraphs here,
+    /// and the section's mark (its `w:sectPr`) is the LAST one's: the pieces
+    /// before it are inside the section. Left on all of them the section
+    /// ended at the first piece, and an odd-page section began the rest on
+    /// the next odd page: lo bnc519228's "page 2", after a page break in the
+    /// paragraph that ends the first section, stood on page 3 with a blank
+    /// page 2, where Word has it on page 2.
+    static func _sectionMarkStaysOnTheLastPiece(_ p: inout RichParagraph) {
+        guard p.style.sectionXML != nil else { return }
+        RuleTrace.hit("section-mark-on-the-last-piece-of-a-split-paragraph")
+        p.style.sectionXML = nil; p.style.sectionRels = []; p.style.sectionPage = nil; p.style.sectionBreaksPage = nil
     }
 
     /// `w:rFonts` for a look: the Latin face in ascii and hAnsi, and in

@@ -41,6 +41,11 @@ final class DocxTests: XCTestCase {
     /// A cached placeholder is shared by named inline text controls. A
     /// filled control, a different name, and a block control keep their
     /// own content (Word's 55966 and independently printed variants).
+    func testHtmlAltChunkIsItsParagraphs() {
+        let html = "<html><head><title>t</title><style>p{}</style></head><body><p>HTML &amp; AltChunk</p><div>two<br>lines</div></body></html>"
+        XCTAssertEqual(DocxFormat._htmlParagraphs(html), ["HTML & AltChunk", "two", "lines"])
+    }
+
     func testNamedInlinePlaceholders() throws {
         func control(_ text: String, name: String = "Shared", showing: String = "<w:showingPlcHdr/>", block: Bool = false) -> String {
             let runs = "<w:r><w:t>\(text)</w:t></w:r>"
@@ -6339,4 +6344,5 @@ private final class TurnedTextCanvas: Canvas {
     func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
     func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
     func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+
 }
