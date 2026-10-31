@@ -292,6 +292,97 @@ enum DocxFormat {
         if let body = root.first("w:body") { fold(body, top: true) }
     }
 
+    /// Word's text frames. A run of paragraphs holding one `w:framePr` that is
+    /// anchored to the text (`w:vAnchor="text"`), with a width, a height and a
+    /// place below its paragraph (`w:y`), is a box that stands there and has
+    /// the paragraph after it set round it (`w:wrap` "around") or clear of it
+    /// ("notBeside"): an anchored text box. Here it is written into the
+    /// paragraph after the run as one — read as any anchored text box, and
+    /// laid out beside it by the layout's wrapping — and the frame's own
+    /// paragraphs go. (lo tdf133924: Word's print sets "Around" 71pt and
+    /// "notBeside" 273pt under the text's top, the text round the one and over
+    /// and under the other; ours set both frames before the text.)
+    static func _foldFrames(_ root: XNode) {
+        func frameOf(_ p: XNode) -> XNode? {
+            guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
+                  f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
+                  Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
+                  f["w:wrap"] == "around" else { return nil }
+            // (Not a frame whose text is tracked: lo tdf125894's inserted and deleted
+            // paragraphs stand in Word's print as one line from the margin, not in
+            // the frame's width. And not "notBeside": a frame so set at the foot of a
+            // paragraph's own line — tdf105035_framePrC's, 28pt down — is set
+            // right by the flow's own offset; it is the frames that text goes round
+            // that the flow gets wrong.)
+            if p.descendant("w:ins") != nil || p.descendant("w:del") != nil { return nil }
+            return f
+        }
+        func signature(_ f: XNode) -> String { PptxXML.serialize(f) }
+        guard let body = root.first("w:body") else { return }
+        var out: [XNode] = []
+        let kids = body.children
+        var i = 0
+        while i < kids.count {
+            guard frameOf(kids[i]) != nil else { out.append(kids[i]); i += 1; continue }
+            // (Every run of frames before one paragraph is anchored to it: runs of
+            // paragraphs of one frame, one after another.)
+            var runs: [(frame: XNode, range: Range<Int>)] = []
+            var j = i
+            while j < kids.count, let frame = frameOf(kids[j]) {
+                var k = j
+                while k < kids.count, let f = frameOf(kids[k]), signature(f) == signature(frame) { k += 1 }
+                runs.append((frame, j ..< k)); j = k
+            }
+            guard j < kids.count, kids[j].name == "w:p", kids[j].first("w:pPr")?.first("w:framePr") == nil else {
+                out.append(contentsOf: kids[i ..< j]); i = j; continue
+            }
+            let host = kids[j]
+            var drawings: [XNode] = []
+            var kept: [XNode] = []
+            for (frame, range) in runs {
+                let w = Int((Double(frame["w:w"] ?? "") ?? 0) * 635), h = Int((Double(frame["w:h"] ?? "") ?? 0) * 635)
+                let y = Int((Double(frame["w:y"] ?? "") ?? 0) * 635)
+                let hSpace = Int((Double(frame["w:hSpace"] ?? "") ?? 0) * 635), vSpace = Int((Double(frame["w:vSpace"] ?? "") ?? 0) * 635)
+                let relH = ["page": "page", "margin": "margin"][frame["w:hAnchor"] ?? ""] ?? "column"
+                let horizontal: String
+                if let a = frame["w:xAlign"] { horizontal = "<wp:align>\(a)</wp:align>" }
+                else { horizontal = "<wp:posOffset>\(Int((Double(frame["w:x"] ?? "") ?? 0) * 635))</wp:posOffset>" }
+                let wrap = frame["w:wrap"] == "notBeside" ? "<wp:wrapTopAndBottom/>" : "<wp:wrapSquare wrapText=\"bothSides\"/>"
+                let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
+                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpace)\" distR=\"\(hSpace)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>\(y)</wp:posOffset></wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                guard let drawing = XNode.parse(Data(xml.utf8)), let content = drawing.descendant("w:txbxContent") else {
+                    kept.append(contentsOf: kids[range]); continue
+                }
+                for k in range {
+                    let p = kids[k]
+                    p.first("w:pPr")?.children.removeAll { $0.name == "w:framePr" }
+                    content.children.append(p)
+                }
+                drawings.append(drawing)
+            }
+            out.append(contentsOf: kept)
+            var at = host.children.firstIndex(where: { $0.name != "w:pPr" }) ?? host.children.count
+            for d in drawings { host.children.insert(d, at: at); at += 1 }
+            out.append(host)
+            i = j + 1
+        }
+        body.children = out
+    }
+
+    /// The chart a drawing is itself: its `c:chart` outside any text box's content
+    /// and outside an alternate content's fallback. A chart in a text box's
+    /// paragraph is that paragraph's inline object (the text box is the drawing, its
+    /// insets and all), and the fallback holds the same chart again: lo fdo78474's
+    /// chart drew over the whole frame and chart-size's twice.
+    static func _ownChartRid(_ node: XNode) -> String? {
+        for child in node.children {
+            if child.name == "w:txbxContent" || child.name == "mc:Fallback" { continue }
+            if child.name == "c:chart", let rid = child["r:id"] { return rid }
+            if let found = _ownChartRid(child) { return found }
+        }
+        return nil
+    }
+
     /// A package whose main part is not named `word/document.xml`: the root
     /// relationships say which it is (LibreOffice's tdf104713_undefinedStyles
     /// names `word/trial.xml`), and it and its relationships file are read
@@ -347,6 +438,7 @@ enum DocxFormat {
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
         _inheritSpace(root)
         Self._foldDropCaps(root)
+        Self._foldFrames(root)
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
@@ -4463,7 +4555,7 @@ enum DocxFormat {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterCharts.register(space, for: att.id + "#" + rid, themePart: notes.part(_resolvePath("word", themeTarget)))
             }
-            if node.descendant("wpg:graphicFrame") == nil, let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
+            if node.descendant("wpg:graphicFrame") == nil, let rid = Self._ownChartRid(node), let rel = notes.rels[rid], !rel.external,
                let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 // (With the chart part's own theme override, for its faces.)
@@ -4478,7 +4570,7 @@ enum DocxFormat {
             // A box-and-whisker chart (Office 2016's chartex part), drawn
             // on a column chart's axes, or a sunburst: named by `cx:chart`
             // (by `c:chart` it is read above, as chartex names its own).
-            if node.descendant("c:chart") == nil, let space = boxWhisker(node) {
+            if Self._ownChartRid(node) == nil, node.descendant("c:chart") == nil, let space = boxWhisker(node) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
             }
