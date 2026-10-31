@@ -471,6 +471,7 @@ enum DocxFormat {
             body.children.insert(contentsOf: extra.children.filter { $0.name != "w:sectPr" }, at: at)
         }
         _reuseInlinePlaceholders(body)
+        _bindCoreProperties(body, part: part)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
         // How note marks are numbered: Word's endnotes count "i, ii, iii"
         // unless the settings say otherwise, its footnotes "1, 2, 3"
@@ -2184,6 +2185,7 @@ enum DocxFormat {
                     + "</w:\(path.hasSuffix("header") ? "hdr" : "ftr")>").utf8) : nil
                 guard let data = phantom ?? part(path), let node = XNode.parse(data) else { return [] }
                 _inheritSpace(node)
+                _bindCoreProperties(node, part: part)
                 // (Their theme font references too: zh-a4b0f6ea's page
                 // numbers are `majorEastAsia`, 宋体, in a footer.)
                 _resolveThemeFonts(node, theme)
@@ -2571,6 +2573,53 @@ enum DocxFormat {
             }
         }
         return DocxDocument(document: document, pageSetup: pageSetup)
+    }
+
+    /// A content control bound to a core property (the title, the author
+    /// …: a cover page's) shows the property, not what the file cached —
+    /// and its placeholder text where the property is empty. Lab-free:
+    /// lo-9106c8eca7363cbc (fdo67013), a header's "Title" control cached
+    /// "Sample Doc 002" over an empty `dc:title`; Word's print has
+    /// "[Type the document title]".
+    private static func _bindCoreProperties(_ root: XNode, part: (String) -> Data?) {
+        func texts(_ n: XNode, _ out: inout [XNode]) {
+            if n.name == "w:t" { out.append(n) }
+            for c in n.children { texts(c, &out) }
+        }
+        var core: XNode??
+        var glossary: XNode??
+        func walk(_ node: XNode) {
+            if node.name == "w:sdt", let pr = node.first("w:sdtPr"), let bind = pr.first("w:dataBinding"),
+               bind["w:storeItemID"]?.uppercased() == "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}",
+               let xpath = bind["w:xpath"], let last = xpath.split(separator: "/").last,
+               let content = node.first("w:sdtContent") {
+                let local = String(last.split(separator: "[").first ?? "").split(separator: ":").last.map(String.init) ?? ""
+                if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
+                guard let props = core ?? nil else { return }
+                var value = props.children.first { $0.name.hasSuffix(":" + local) }?.text ?? ""
+                value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if value.isEmpty {
+                    guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { return }
+                    if glossary == nil { glossary = .some(part("word/glossary/document.xml").flatMap(XNode.parse)) }
+                    guard let g = glossary ?? nil,
+                          let docPart = (g.first("w:docParts")?.all("w:docPart") ?? []).first(where: { $0.first("w:docPartPr")?.first("w:name")?["w:val"] == name }),
+                          let body = docPart.first("w:docPartBody") else { return }
+                    var shown: [XNode] = []
+                    texts(body, &shown)
+                    value = shown.map { $0.text }.joined()
+                    if value.isEmpty { return }
+                }
+                var runs: [XNode] = []
+                texts(content, &runs)
+                guard let first = runs.first else { return }
+                RuleTrace.hit("core-bound-control-shows-the-property")
+                first.text = value
+                for r in runs.dropFirst() { r.text = "" }
+                return
+            }
+            for child in node.children { walk(child) }
+        }
+        walk(root)
     }
 
     /// Plain-text inline controls showing one named placeholder share its
