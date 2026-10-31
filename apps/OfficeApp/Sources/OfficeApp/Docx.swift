@@ -5477,10 +5477,11 @@ enum DocxFormat {
             for (k, v) in keptRun { all[k] = v }
             cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
+        if let z = szCs { cs.complexFontSize = z }
         if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
-            if !sawSz, let z = szCs { cs.fontSize = z }
+            if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
         }
         return cs
     }

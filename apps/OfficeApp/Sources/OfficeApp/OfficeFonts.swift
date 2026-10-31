@@ -2161,7 +2161,15 @@ enum OfficeFonts {
         // the paragraph's lines took three letters fewer each, and it ran
         // to 8 lines where Word's has 7.)
         var name = family ?? "Times New Roman"
-        let missing = embeddedFamily(name) == nil && installedFamilies[name.trimmingWhitespace().lowercased()] == nil
+        var missing = embeddedFamily(name) == nil && installedFamilies[name.trimmingWhitespace().lowercased()] == nil
+        // (A name the font table gives an Arabic charset (B2) and no more is
+        // Arial in Word for Windows' print, not Times: lo tdf163575's
+        // "B Mitra". A name the table does not know stays Times', as
+        // rtl.docx's "Noto Sans Arabic UI".)
+        if missing, wordOnWindows, fontEntry(name)?.charset == "B2", installedFamilies["arial"] != nil {
+            name = "Arial"
+            missing = false
+        }
         if missing { name = "Times New Roman" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]

@@ -152,6 +152,10 @@ public struct CharStyle: Hashable, Sendable {
     /// The faces a file names for complex-script (Arabic, Hebrew) and
     /// East Asian characters when it names them (Word's w:cs and
     /// w:eastAsia font slots); nil means `fontFamily` serves them too.
+    /// The size a file gives complex-script characters (`w:szCs`), in points,
+    /// when a style or the run says: Persian text in lo tdf163575 is 12pt
+    /// where its style's `w:sz` is 10.
+    public var complexFontSize: Double? = nil
     public var complexFontFamily: String? = nil
     public var eastAsiaFontFamily: String? = nil
     /// The face for the rest of the Latin range (`w:hAnsi`) when the file

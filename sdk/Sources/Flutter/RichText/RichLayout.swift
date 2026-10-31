@@ -599,6 +599,9 @@ public final class RichTextTheme {
                           eastAsian: Bool = false, gridPitch: Double? = nil, characterClass: Int? = nil,
                           characterGrid: Double? = nil, scriptHidden: Bool = false) -> TextStyle {
         var size = style.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? fontSize
+        // (Complex-script text is set at the size the file gives it, `w:szCs`:
+        // lo tdf163575's Persian is 12pt in a style whose `w:sz` is 10.)
+        if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
         // A fitted size is a whole number of points: PowerPoint sets 32 pt
         // at 85% in 27, not 27.2.
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
