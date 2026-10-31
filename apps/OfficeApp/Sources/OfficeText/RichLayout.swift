@@ -8250,33 +8250,53 @@ public final class RichLayout {
         let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
-        // the room comes out: each measure in twips made points on its own
-        // (÷ 20, in doubles) and added — the column, less the left indent,
-        // plus the hanging one, less the right. Where that lands a hair
-        // under the room's true width (5.4 is not a double), the line that
-        // needs all of it does not fit. Lab f39 (Word for Windows,
-        // zh-f39e54b6's package): 第十四條 and 第十五條 need 441.0pt
-        // exactly, their two commas squeezed to half; at left 1026,
-        // hanging 1134, right -108 the sum is 440.99999999999994 and "日"
-        // goes down, at 1023/1131 it is 441 and "查" stays — and 62 prints
-        // over left, hanging and right a twip apart all part on that sum's
-        // side of 441, which no rounding of the measures to a unit does.
-        // Word for Mac's print refuses 第十四條's the same way. The painter's
-        // slack takes the verdict, and so does `_fitEastAsianLines`, whose
-        // `hair` and `edge` would otherwise take such a line.
+        // the room comes out: each measure in twips goes to the sixteenth
+        // of a point (1.25 twips; the left and hanging indents to the
+        // nearest, a right outdent's size cut down) and the
+        // measures are added — the column, less the left indent, plus the
+        // hanging one, less the right. Where that lands under the room's
+        // true width, the line that needs all of it does not fit. Labs f39
+        // and f39b (Word for Windows, zh-f39e54b6's package, 200 prints):
+        // 第十四條, 第十五條, 第二十四條 and 三、… need 441.0pt exactly, their
+        // two commas squeezed to half; the next character is taken if and
+        // only if left mod 5 twips is 3 or 4 (hanging = left + 108, right
+        // -108), at any left from 1000 to 2180, and from right -109 at the
+        // others — which the sixteenth-point sum gives and no sum in
+        // doubles does. Word for Mac's print refuses 第十四條's the same
+        // way. The painter's slack takes the verdict, and so does
+        // `_fitEastAsianLines`, whose `hair` and `edge` would otherwise
+        // take such a line.
         var tieSlack = 0.001
         var tieShort = (first: false, rest: false)
         if theme.wordRules, wordList == nil, style.list == nil, !style.rightToLeft {
             let tw = { (px: Double) -> Int in Int((px / self._px(1) * 20).rounded()) }
             let w = tw(textWidth + ownLeft + right), l = tw(ownLeft), r = tw(right), h = -tw(lead)
-            let point = { (t: Int) -> Double in Double(t) / 20 }
-            let rest = point(w) + -point(l) + -point(r)
-            tieShort.rest = rest < point(w - l - r)
+            // (A first-line indent is a negative hanging one, and is cut down
+            // like a right outdent: zh-4a2ab598's "无", twelve points in
+            // a cell room of 722 twips less a first line of 482, is on
+            // Word's first line.)
+            // (The sixteenth-point sum is the lab's, on ideographs and
+            // their marks alone: a tab stop, a character grid or a Latin
+            // letter or digit on the line has widths the sum here is not
+            // Word's to the thousandth on, and keeps the earlier sum in
+            // points — which only a line that is a hair short of its room
+            // by the indents' own rounding refuses. The column is taken as
+            // it is, not quantised: with it quantised too, zh-73534289's
+            // cells (auto width, no indent) lost a character a line.)
+            let latin = p.text.unicodeScalars.contains { $0.value < 0x2E80 && !$0.properties.isWhitespace }
+            let labSum = !p.text.contains("\t") && (_grid(i, document).chars ?? 0) == 0 && !latin
+            let sixteenth = { (t: Int) -> Double in labSum ? (Double(t) / 1.25).rounded() * 1.25 : Double(t) / 20 }
+            let outdent = { (t: Int) -> Double in labSum ? (t < 0 ? (Double(t) / 1.25).rounded(.up) * 1.25 : sixteenth(t)) : Double(t) / 20 }
+            let eps = labSum ? 1e-6 : 0
+            let unit = labSum ? 1.0 : 20.0
+            let column = labSum ? Double(w) : Double(w) / 20
+            let rest = column - sixteenth(l) - outdent(r)
+            tieShort.rest = rest < Double(w - l - r) / unit - eps
             tieShort.first = tieShort.rest
             if tieShort.rest { tieSlack = -0.0005 }
             if lead != 0 {
-                let first = point(w) + -point(l) + point(h) + -point(r)
-                tieShort.first = first < point(w - l + h - r)
+                let first = column - sixteenth(l) + outdent(h) - outdent(r)
+                tieShort.first = first < Double(w - l + h - r) / unit - eps
                 let firstSlack = tieShort.first ? -0.0005 : 0.001
                 // (The first line's room is the painter's width less its
                 // indent box: the box takes what the other lines' slack
