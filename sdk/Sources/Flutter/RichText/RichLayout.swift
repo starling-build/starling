@@ -3668,6 +3668,20 @@ public final class RichLayout {
             var k0 = i
             while k0 > 0, let d = _cells[k0 - 1], d.table == table { k0 -= 1 }
             guard let h = _cells[k0], h.row == 0 else { return }
+            // (Nor where the header and the row under it that may not part do
+            // not stand on a page together: lo Cool16066_addRowsUnderOmittedHeading's
+            // 10 cm header and its 40-line row, whole, make 843pt for 728, and
+            // Word's print sets the row at page 2's top with no header over it.)
+            if theme.wordRules, let next = _cells[i], next.table == table, next.row >= headerRows(table),
+               document.tableStyles[table]?.rowsCantSplit.contains(next.row) == true {
+                var head = 0.0
+                var n = k0
+                while n < count, let d = _cells[n], d.table == table, d.row < headerRows(table) {
+                    head = max(head, d.rowTop + d.ownRowHeight - h.rowTop)
+                    n += 1
+                }
+                if head + next.ownRowHeight > contentH + 0.01, next.ownRowHeight <= contentH + 0.01 { return }
+            }
             // (Every row the file marks as a header, where Word's rules
             // are followed: a heading of two rows is repeated whole.)
             let rows = headerRows(table)
@@ -17199,7 +17213,10 @@ public final class RichLayout {
                    _headerFooterSection(at).index != section.index {
                     number = first + (q - at)
                 } else {
-                    number = start(section) ?? (q == 0 ? 1 : number + 1)
+                    // (A first section that starts on an even page is numbered
+                    // from 2, no blank page before it: lo tdf135216_evenOddFooter's
+                    // print opens with the even footer and "2".)
+                    number = start(section) ?? (q == 0 ? (theme.wordRules && section.index == 0 && _sectionSetups[0].sectionStartParity == .even ? 2 : 1) : number + 1)
                 }
             } else {
                 number += 1
