@@ -103,6 +103,12 @@ perl alarm). Mac vs Windows box: Mac base eb51a6060 scored 756: 99.762 (with tex
 claimed gains (zh-27a874b7 88.2 -> 89.2, zh-d62da4dd 90.0 -> 91.0), no drops. Headline at a2bad17d1 (v2): 756 mean with text 99.764 (all 98.445), 741 >= 95,
 588 at 100, 755 pages equal; LO 593 mean with text 80.927 (all 75.059), 358 >= 95, 348 at 100, 555 pages equal. Drops: none.
 
+**Tip watch, 4bdbbf1ad (mac-confirm, 2026-10-31; Mac, Windows mode, bundled, v2 official, v1 beside; 28 code commits since 7fb669849).**
+756: mean with text 99.768 (all 98.448), 741 >= 95, 589 at 100, 755 pages equal; 3 up (zh-ab9cbe66 97.7 -> 98.7, zh-37b6536f 99.3 -> 100, zh-4e5fe46f 93.3 -> 93.8), ZERO down (v1: 4 up, zero down).
+LO 593: mean with text 83.044 (all 77.022), 374 >= 95, 363 at 100, 560 pages equal; 25 up, 2 down — exactly the two accepted drops of 35c8ad4a7 (starling-bd's
+logged exception): OPEN ITEMS lo-e998b55c 60 -> 40 and lo-000463df 62.9 -> 62.1 (same in v1). Biggest LO ups: lo-b9d70b44, lo-486e8e62, lo-ed539d0e, lo-a64612b3, lo-9a2bcefe,
+lo-bb46946d, lo-9f8577e6, lo-25ea410e, lo-79583fa0, lo-2dc13fbc, lo-158005c9 -> 100; lo-d1e88d77 37.5 -> 92.3. No other drops. Round times: build 455 s (WMO, 28 commits), LO 76 s, 756 438 s.
+
 **Confirmation round 5 — PASS for 5 of 6** (windows-1, 2026-10-30; base office 64f26dce; Windows mode, 756, final prints; v2 official).
 Stack of 6 (7190a877 lenovo-3 dotabove, 9dd407f8 macOS-doc spacegive T240, 8141e618 lenovo-2 mixed-size-baseline,
 7e254b8d + 7c31f4e7 macos-ios keepfloat, 4f0b145d lenovo T241): 14 up, ONE drop, zh-1d2a7c35 100.0→99.7 (v1 99.7→99.5; p6's ①②③
