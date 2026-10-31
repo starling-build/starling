@@ -11461,3 +11461,5 @@ CLAIM (Mac 7bd18d8e, 2026-10-30, routed by starling-bd): floattable-negative-hei
 
 RELEASED by lenovo-3 (Linux 01F2SWc8): floattable-deleted-anchor and floattable-table-row-keep. Read: both are Noto Sans documents (our build without lo5's wip/lo-noto draws Carlito, so every line differs) and the deleted-anchor rest is the missing tblpY default (Mac's wip/mac-01Xgpbk5-tblpdefault), page 1 y 97.5 vs Word 144.0. Nothing local; they follow lo-noto and tblpdefault.
 CLAIMED by lenovo-3 instead: tdf164905 (lo-9c6cc479ac7525b8, 59.0%, fields: the table of contents). Reading now; tablemargin (e73b20c10) and segoe (7093abcc1) are still with windows-1.
+
+- CLAIM (Linux lo5, starling-bd's order 2026-10-30): (1) fdo77887 + fdo48718-1 attendance table, 44 rows vs 42 on page 1; (2) tdf147485-forcepoint and Tdf147485; (3) tdf152983-1-min. In that order.
