@@ -3745,7 +3745,20 @@ public final class RichLayout {
                     m += 1
                 }
                 let own = max(0, next.rules - next.ruleBelow)
-                if !stated, under > own + 0.01 { height += under - own }
+                // (In a table that draws no lines between rows, only the room
+                // its first page gave it: tdf170672's header, a 1.5pt line
+                // of its cells' own over margins of 5.4pt, stands 80.1pt over
+                // its second row on every page of Word's print and of ours on
+                // the first — and the repeats, asking the line's room again,
+                // 81.5. Tables with lines of their own keep the lab `hl` room:
+                // zh-e1b09977, zh-64044a1d.)
+                var gap = Double.infinity
+                let ruled = document.tableStyles[table].map { $0.edges?.insideH ?? ($0.borders && !$0.bordersFromCells) } ?? true
+                if cut == nil, !ruled, let first = (k0 ..< count).first(where: { _cells[$0]?.table == table && _cells[$0]?.row == rows }),
+                   let low = _cells[first] {
+                    gap = max(0, low.rowTop - (h.rowTop + height))
+                }
+                if !stated, under > own + 0.01 { height += min(under - own, gap) }
             }
             // (Not a header that leaves the page no room under it.)
             guard height < contentH - y - 1 else { return }
