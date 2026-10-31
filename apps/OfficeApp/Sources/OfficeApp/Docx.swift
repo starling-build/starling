@@ -4427,7 +4427,9 @@ enum DocxFormat {
                 // tall as its empty lines — see `RichTextBox.fitsHeight`.)
                 let fitsHeight = (node.descendant("v:textbox")?["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
                     && !(((node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? "").containsSubstring("mso-wrap-style:none"))
-                if inside.contains(where: { !$0.text.isEmpty }) || (holdsTable && parts.isEmpty) || (fitsHeight && !inside.isEmpty && parts.isEmpty) {
+                // (A picture or a chart is a box's content too: fdo78474's three boxes
+                // hold one each and no text, and were dropped as empty.)
+                if inside.contains(where: { !$0.text.isEmpty || $0.image != nil || !$0.inlineImages.isEmpty }) || (holdsTable && parts.isEmpty) || (fitsHeight && !inside.isEmpty && parts.isEmpty) {
                     var box = RichTextBox(paragraphs: inside)
                     if holdsTable, parts.isEmpty { notes.boxTables[att.id] = content }
                     box.parts = parts
