@@ -345,6 +345,42 @@ Owner: Claude windows-2, `starling-office-3`. Windows mode only (word-win), pair
   (An earlier pair against an older base showed 67 movers: those were other sessions' commits, not these.)
   zh-6b242483 "（家）|×1" is a mode-14 squeeze (5.1 over, 4 marks, Word refuses), with macos-ios as a per-mark witness.
   Next from the band: "≤" set East Asian after Latin (zh-0060058e), zh-499adba6's footnote "100|％".
+- (5) Columns, step 1, LANDED 64a34251c (windows-2, LO class): a body of columns closed by an empty section of one column keeps
+  its columns (`_bodyColumns`; only when the closing section's paragraphs are empty/whitespace, a closing section with text
+  broke lo-a07c5feb 100 -> 33.3). LO pair vs a clean same-tip base: lo-eb12e7d4ce90ffa6 (fdo43573-2-min) 0.8 -> 55.5,
+  lo-ff3b52d1090fe293 (shape-anchored-in-follow) 26.4 -> 59.3, 2 movers of 463, none down. Windows 756 pair: 0 movers.
+  Step 2 (true per-section columns replacing `_bodyColumns`/`_oneColumn`/`_fullWidthCover`) is next; fdo43573's rest is nested-table text.
+- (6) Word substitutes a missing font by the document's fontTable (tdf153136 = lo-11ad5a95, Normal = Liberation Serif, printed
+  Cambria). Rule: the entry's `w:altName`, else the Unicode signature (usb0/usb1) picks the face, else no entry -> Noto Sans.
+  All 17 LO docs whose Normal style names Liberation Serif (doc | altName | usb0/usb1 | face printed | rule says):
+```
+lo-01d7b0e5 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-0725bffd | Times New Roman | - | TimesNewRomanPS- | Times (altName)
+lo-11ad5a95 | - | E0000AFF/500078FF | Cambria | Cambria (usb E0000AFF/500078FF)
+lo-1a09ce52 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-27918bf0 | - | - | Noto Sans | no entry
+lo-415c2398 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-41f726ef | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-43795e41 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-52da6bc6 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-5c28b8d5 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-8bd99b19 | Times New Roman | - | TimesNewRomanPS- | Times (altName)
+lo-9749f2b5 | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-9c5dc9ad | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-9f46ceca | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-a998edda | Times New Roman | - | TimesNewRomanPSM | Times (altName)
+lo-bf8f3297 | Times New Roman | - | (no text) | Times (altName)
+lo-ccd9da4b | Times New Roman | - | ArialMT | Times (altName)
+```
+  lo-ccd9da4b: its runs name Arial, so the Normal style is not what printed. The two Liberation Sans entries without altName printed Arial.
+  Not landed yet: the signature -> Cambria substitution, with the spaces-height and table page-break fixes below (each to be paired alone against 64a34251c).
+- (7) Lab sp (windows): a run of spaces alone takes the line's height only for U+0020, U+2002, U+2003, U+2005 (a 48pt one in a
+  12pt row leaves it 14.6pt); U+2000, 2001, 2004, 2006-200A, 202F and a letter make it 56.7. On wip/w2-spaces-height.
+  tdf153136 with all three (spaces, Cambria, table page break inside columns): 41.5 -> 87.8, 3 pages.
+- (8) Notes: the `<=`/opensEastAsian joiner change was a no-op on the current base (d8efd9e02 already covers it), dropped.
+  fdo73596 is already 42/42, nothing to do. tdf97090 is a wrapTight picture anchor that does not wrap text, not width: handed to macOS-doc.
+  tdf149555, tdf146248, tdf108272 went to lenovo-4.
+
 ### zh-c2c92639 (95.8, 54 pages) against word-win v2 — looked at, two clusters (Mac 01Xgpbk5, 2026-10-30; RELEASED as a lead)
 - p41 "引用标准名录" and its 25-line list stand 10pt low in ours: the heading opens with a page-break character and has space before 360 —
   T238's construct (compatibilityMode 15 case); expected to be fixed when T238 lands.
