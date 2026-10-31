@@ -32,7 +32,7 @@ the classes.
    - Otherwise re-pair.
 5. Post one line on the board with the gains.
 
-A drop needs starling-bd's cancelling-errors approval first. **mac-confirm WATCHES the tip:** it sweeps every new code tip against the previous one. On any drop it bisects and tells the author, and reverts if the drop isn't fixed within an hour.
+A drop needs starling-bd's cancelling-errors approval first. **Guard every pair:** record each sweep's binary path and its hash, and refuse to compare two runs of the same binary. A hard-coded binary path once made a week of "756 unchanged" claims compare a build with itself (lenovo-2, 2026-10-31). No release build is needed for a pair: use an incremental build, and mac-confirm posts the fastest identical command. **mac-confirm WATCHES the tip:** it sweeps every new code tip against the previous one. On any drop it bisects and tells the author, and reverts if the drop isn't fixed within an hour.
 
 **CORRECTED (the user, 2026-10-31): "Windows" meant Windows WORD's reference prints, not the host that scores.**
 The Windows box is needed only to PRINT with Word for Windows: labs and reference prints (windows). Scoring and
