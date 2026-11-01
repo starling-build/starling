@@ -599,6 +599,25 @@ enum DocxFormat {
         Self._foldDropCaps(root)
         Self._foldFrames(root)
         Self._floatFramedTables(root)
+        // A Word document as an alt-chunk: its blocks stand where the chunk
+        // does, and its section breaks with them, on paper of Word's default
+        // (Letter, an inch all round) whatever the chunk's own pgSz says;
+        // its closing section is the outer document's. (lo alt-chunk: Word
+        // prints "inner doc, first para" under the outer text on a Letter
+        // page and "inner doc, last para" on the A4 page after it; the chunk
+        // is read before the section breaks are told how the next starts.)
+        for (i, node) in body.children.enumerated().reversed() where node.name == "w:altChunk" {
+            guard let id = node["r:id"], let rel = relInfo[id], !rel.external, rel.target.lowercased().hasSuffix(".docx"),
+                  let data = part(_resolvePath("word", rel.target)), let inner = Self._innerBody(data) else { continue }
+            RuleTrace.hit("docx-alt-chunk-is-blocks")
+            let blocks = inner.children.filter { $0.name != "w:sectPr" }
+            for sect in blocks.flatMap({ $0.descendants("w:sectPr") }) {
+                sect.children.removeAll { $0.name == "w:pgSz" || $0.name == "w:pgMar" }
+                sect.children.insert(XNode(name: "w:pgSz", attrs: ["w:w": "12240", "w:h": "15840"]), at: 0)
+                sect.children.insert(XNode(name: "w:pgMar", attrs: ["w:top": "1440", "w:right": "1440", "w:bottom": "1440", "w:left": "1440", "w:header": "720", "w:footer": "720", "w:gutter": "0"]), at: 1)
+            }
+            body.children.replaceSubrange(i ... i, with: blocks)
+        }
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
@@ -5900,6 +5919,14 @@ enum DocxFormat {
     /// The paragraphs of an HTML chunk: its text, split where a block
     /// element (p, div, h1-h6, li, tr, br) starts, tags and head dropped,
     /// the common entities read, runs of white space one space.
+    /// The body of a Word document that stands as an alt-chunk.
+    static func _innerBody(_ archive: Data) -> XNode? {
+        guard let entries = try? Zip.read(archive),
+              let doc = entries.first(where: { $0.name == "word/document.xml" }),
+              let root = XNode.parse(doc.data) else { return nil }
+        return root.first("w:body")
+    }
+
     static func _htmlParagraphs(_ html: String) -> [String] {
         var out: [String] = []
         var cur = ""
