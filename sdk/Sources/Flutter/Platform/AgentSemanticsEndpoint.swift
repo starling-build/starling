@@ -116,36 +116,75 @@ public final class AgentSemanticsEndpoint: @unchecked Sendable {
 
     private func handle(_ line: Data, _ fd: Int32) {
         guard let req = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
-              let op = req["op"] as? String else {
+              req["op"] is String else {
             Self.reply(fd, ["ok": false, "error": "bad request"])
             return
         }
-        let id = req["id"] ?? NSNull()
         // The walk touches the live element/render tree — main thread only.
         let work: () -> Void = { [weak self] in
             guard let self else { return }
-            switch op {
-            case "semantic_tree":
-                let (nodes, actionMap) = Self.snapshot()
-                self.handlers = actionMap
-                Self.reply(fd, ["id": id, "ok": true, "nodes": nodes])
-            case "perform_action":
-                guard let node = req["node"] as? Int,
-                      let action = req["action"] as? String,
-                      let handler = self.handlers[node]?[action] else {
-                    Self.reply(fd, ["id": id, "ok": false,
-                                    "error": "no such node/action (snapshot stale? re-query)"])
-                    return
-                }
-                handler(nil)
-                Self.reply(fd, ["id": id, "ok": true])
-            default:
-                Self.reply(fd, ["id": id, "ok": false, "error": "unknown op \(op)"])
-            }
+            Self.reply(fd, self.perform(req))
         }
         DispatchQueue.main.async(
             execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
     }
+
+    /// Answer one request. MAIN THREAD ONLY. The socket calls this; the shell
+    /// calls it directly (no socket) for its own surfaces.
+    ///
+    /// Ops: `tree`, `find`, `act` — plus the original `semantic_tree` and
+    /// `perform_action`, kept so `test/functional.py` and the broker still work.
+    public func perform(_ req: [String: Any]) -> [String: Any] {
+        let id = req["id"] ?? NSNull()
+        switch req["op"] as? String ?? "" {
+        case "tree", "semantic_tree":
+            let (nodes, map) = Self.snapshot()
+            handlers = map
+            return ["id": id, "ok": true, "nodes": nodes]
+        case "find":
+            let (nodes, map) = Self.snapshot()
+            handlers = map
+            let role = req["role"] as? String
+            let label = req["label"] as? String
+            let contains = (req["labelContains"] as? String)?.lowercased()
+            let hits = nodes.filter { n in
+                if let role, n["role"] as? String != role { return false }
+                if let label, n["label"] as? String != label { return false }
+                if let contains,
+                   !((n["label"] as? String) ?? "").lowercased().contains(contains) {
+                    return false
+                }
+                return true
+            }
+            return ["id": id, "ok": true, "nodes": hits]
+        case "act", "perform_action":
+            guard let node = req["node"] as? Int,
+                  let action = req["action"] as? String else {
+                return ["id": id, "ok": false, "error": "act needs node and action"]
+            }
+            guard let table = handlers[node] else {
+                return ["id": id, "ok": false, "error": "stale node (re-query)"]
+            }
+            guard let handler = table[action] else {
+                return ["id": id, "ok": false,
+                        "error": "node has no action \(action); it offers \(table.keys.sorted())"]
+            }
+            if action == "setText" {
+                guard let text = req["arg"] as? String else {
+                    return ["id": id, "ok": false, "error": "setText needs a string arg"]
+                }
+                handler(text)
+            } else {
+                handler(nil)
+            }
+            return ["id": id, "ok": true]
+        default:
+            return ["id": id, "ok": false, "error": "unknown op"]
+        }
+    }
+
+    /// The in-process endpoint for the shell's own surfaces.
+    public static let local = AgentSemanticsEndpoint(path: "")
 
     private static func reply(_ fd: Int32, _ obj: [String: Any]) {
         guard JSONSerialization.isValidJSONObject(obj),
@@ -164,21 +203,48 @@ public final class AgentSemanticsEndpoint: @unchecked Sendable {
     // MARK: Snapshot walk (main thread)
 
     /// Walk the element tree, emitting a node for every render object that
-    /// annotates a SemanticsConfiguration. Actionable nodes with no label
-    /// of their own borrow their subtree's text (mergeSemantics-lite) so
-    /// "find the button labeled X" works without explicit Semantics widgets.
+    /// says something: a label, or at least one action. A control is usually
+    /// several annotated render objects stacked on one rectangle (a `Semantics`
+    /// around a `GestureDetector` around the label's text); those fold into one
+    /// node so an agent sees one button, not three.
     private static func snapshot() -> ([[String: Any]], [Int: [String: SemanticsActionHandler]]) {
         guard let root = rootElementProvider?() else { return ([], [:]) }
-        var nodes: [[String: Any]] = []
-        var actionMap: [Int: [String: SemanticsActionHandler]] = [:]
-        var nextId = 1
+
+        struct Item {
+            var rect: [Double]
+            var role = ""
+            var label = ""
+            var value: String?
+            var hint = ""
+            var identifier = ""
+            var enabled = true
+            var focused: Bool?
+            var selected = false
+            var checked: Bool?
+            var handlers: [String: SemanticsActionHandler] = [:]
+            var actionOrder: [String] = []
+        }
+        var items: [Item] = []
 
         let describable: [(String, SemanticsAction)] = [
-            ("tap", .tap),
-            ("longPress", .longPress),
-            ("increase", .increase),
-            ("decrease", .decrease),
+            ("tap", .tap), ("longPress", .longPress),
+            ("increase", .increase), ("decrease", .decrease),
+            ("setText", .setText), ("focus", .focus),
+            ("scrollUp", .scrollUp), ("scrollDown", .scrollDown),
         ]
+
+        func roleOf(_ c: SemanticsConfiguration, hasTap: Bool) -> String {
+            if !c.agentRole.isEmpty { return c.agentRole }
+            if c.isTextField { return "textfield" }
+            if c.isSlider { return "slider" }
+            if c.isLink { return "link" }
+            if c.isButton { return "button" }
+            if c.isHeader { return "heading" }
+            if c.isImage { return "image" }
+            if c.isChecked != nil { return "checkbox" }
+            if c.isToggled != nil { return "switch" }
+            return hasTap ? "clickable" : ""
+        }
 
         func subtreeLabel(_ element: Element) -> String {
             var parts: [String] = []
@@ -195,43 +261,84 @@ public final class AgentSemanticsEndpoint: @unchecked Sendable {
             return parts.joined(separator: " ")
         }
 
-        func walk(_ e: Element) {
+        // `stack` holds indexes into `items` of the emitting ancestors.
+        func walk(_ e: Element, _ stack: [Int]) {
+            var stack = stack
             if let roe = e as? RenderObjectElement, let ro = roe.renderObject {
                 let cfg = SemanticsConfiguration()
                 ro.describeSemanticsConfiguration(cfg)
                 if cfg.hasBeenAnnotated {
-                    var label = cfg.label
-                    var actions: [String] = []
-                    var nodeHandlers: [String: SemanticsActionHandler] = [:]
+                    var item = Item(rect: [])
                     for (name, action) in describable {
                         if let h = cfg.getActionHandler(action) {
-                            actions.append(name)
-                            nodeHandlers[name] = h
+                            item.handlers[name] = h
+                            item.actionOrder.append(name)
                         }
                     }
-                    if label.isEmpty && !actions.isEmpty {
-                        label = subtreeLabel(e)
+                    item.label = cfg.label
+                    if item.label.isEmpty && !item.handlers.isEmpty
+                        && cfg.agentRole.isEmpty && !cfg.isTextField {
+                        item.label = subtreeLabel(e)
                     }
-                    if !label.isEmpty || !actions.isEmpty {
-                        let rect = MatrixUtils.transformRect(
-                            ro.getTransformTo(nil), ro.paintBounds)
-                        let id = nextId
-                        nextId += 1
-                        var node: [String: Any] = [
-                            "node": id,
-                            "label": label,
-                            "actions": actions,
-                            "rect": [rect.left, rect.top, rect.width, rect.height],
-                        ]
-                        if !cfg.value.isEmpty { node["value"] = cfg.value }
-                        nodes.append(node)
-                        actionMap[id] = nodeHandlers
+                    if !item.label.isEmpty || !item.handlers.isEmpty || !cfg.agentRole.isEmpty {
+                        let r = MatrixUtils.transformRect(ro.getTransformTo(nil), ro.paintBounds)
+                        item.rect = [r.left, r.top, r.width, r.height]
+                        item.role = roleOf(cfg, hasTap: item.handlers["tap"] != nil)
+                        if !cfg.value.isEmpty { item.value = cfg.value }
+                        item.hint = cfg.hint
+                        item.identifier = cfg.identifier
+                        item.enabled = cfg.isEnabled ?? true
+                        item.focused = cfg.isFocused
+                        item.selected = cfg.isSelected
+                        item.checked = cfg.isChecked ?? cfg.isToggled
+                        // Fold into the nearest emitting ancestor on the same rectangle.
+                        if let up = stack.last, items[up].rect == item.rect {
+                            var host = items[up]
+                            if host.label.isEmpty { host.label = item.label }
+                            if host.role.isEmpty || host.role == "clickable" { host.role = item.role.isEmpty ? host.role : item.role }
+                            if host.value == nil { host.value = item.value }
+                            if host.hint.isEmpty { host.hint = item.hint }
+                            if host.identifier.isEmpty { host.identifier = item.identifier }
+                            if !item.enabled { host.enabled = false }
+                            if host.focused == nil { host.focused = item.focused }
+                            host.selected = host.selected || item.selected
+                            if host.checked == nil { host.checked = item.checked }
+                            for n in item.actionOrder where host.handlers[n] == nil {
+                                host.handlers[n] = item.handlers[n]
+                                host.actionOrder.append(n)
+                            }
+                            items[up] = host
+                        } else {
+                            items.append(item)
+                            stack.append(items.count - 1)
+                        }
                     }
                 }
             }
-            e.visitChildElements { walk($0) }
+            let snapshotStack = stack
+            e.visitChildElements { walk($0, snapshotStack) }
         }
-        walk(root)
+        walk(root, [])
+
+        var nodes: [[String: Any]] = []
+        var actionMap: [Int: [String: SemanticsActionHandler]] = [:]
+        for (i, it) in items.enumerated() {
+            let id = i + 1
+            // A bare label (no role, no actions) is a piece of text.
+            let role = it.role.isEmpty ? "text" : it.role
+            var node: [String: Any] = [
+                "node": id, "role": role, "label": it.label,
+                "rect": it.rect, "enabled": it.enabled,
+                "selected": it.selected, "actions": it.actionOrder,
+            ]
+            if let v = it.value { node["value"] = v }
+            if !it.hint.isEmpty { node["hint"] = it.hint }
+            if !it.identifier.isEmpty { node["id"] = it.identifier }
+            if let f = it.focused { node["focused"] = f }
+            if let c = it.checked { node["checked"] = c }
+            nodes.append(node)
+            actionMap[id] = it.handlers
+        }
         return (nodes, actionMap)
     }
 }
