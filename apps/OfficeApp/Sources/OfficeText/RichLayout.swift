@@ -14610,12 +14610,12 @@ public final class RichLayout {
                     // marks, with 4.58 of room left, and leaves it at 4.49 —
                     // squeezing 4.31 — and at every narrower step; the older
                     // test below, each mark no more than the room, took it.)
-                    let halfEmRefuses = RichTextTheme.wordWindowsPages && !modern && a > 0
-                        && units[a] >= 0x2E80 && stretchRoom + hair < em / 2
+                    let halfEmRefuses = RichTextTheme.wordWindowsPages && !modern && inCell && onCharacterGrid && a > 0
+                        && units[a] >= 0x2E80 && set >= em * 0.95 && stretchRoom + hair < em / 2
                     let taken = takenFirst && !gridCapped && !halfEmRefuses && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
-                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
+                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) halfEm \(halfEmRefuses) sr \(stretchRoom / pt) em \(em / pt) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
                     }
                     // (A Latin word's own curly quotes give nothing for it
                     // in the body: lab `sq-q` (zh-b00fef0d's package,
