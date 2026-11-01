@@ -6226,7 +6226,11 @@ public final class RichLayout {
                         y = max(top, bottom)
                         deferredUnder = moved
                         placeDeferred()
-                    } else if y > top - 0.01, y < bottom {
+                    } else if !(mine && RichTextTheme.wordWindowsPages), y > top - 0.01, y < bottom {
+                        // (Not its own paragraph, with the float at its top: the line goes under the
+                        // float, the paragraph stays — LibreOffice's tdf137850, a text box wrapped
+                        // top and bottom at offset 0, stands at the margin in Word's print, not
+                        // under its own height.)
                         y = bottom
                     }
                 }
