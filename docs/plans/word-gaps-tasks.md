@@ -12954,3 +12954,140 @@ zh-b8de3ae2's four `bar3DChart`s (rotX 15, rotY 20, rAngAx 1) and lo-1bd2003e's 
 | chart | 0 | 0 | 1 | 1 |
 Wrap is about 60% of it (line-END class: amd-3 and amd-6). The y misses are cascades, not a class: zh-505b9619 44 (p59: a "員。" Word breaks to a line of its own where ours hangs it 14pt past the margin, every later line one row high), zh-147bdae0 25 (p19: a URL cell, Word breaks "…/Con-" / "tent_List…", ours at "…/Content_List.aspx?n=78"), zh-4ea36aa8 17 (p14: a cell's first line wraps at a different place), zh-db07d44e 7. All three roots are line breaks. "Absent" in tables is 79: zh-9bcea239 11 and zh-b24b396a (digits Word clips, invisible), zh-8415d258 8 (□-form rows), the rest one or two per document. No non-line-end class with two witnesses stands out; the URL break (zh-147bdae0 p19) is the one worth a lab: where does Word break a URL in a cell (after "-", "/", "?", "&")?
 - TIP WATCH amd-8, round 6: 24ac45e78 (code through bb367862f and 1b7142306): CLEAN. Word 756 v2/v1 0 up 0 down; LO v2/v1 2 up 0 down (lo-23180ba1 48.9 -> 100, lo-4c84a541 50 -> 100); failures 0. No Slides change in these commits (Slides next at round 8 or on a Slides/painting commit).
+
+### LO CENSUS 3 (lenovo-2, Sonnet 5.5, 2026-11-01, starling-bd's order via macos)
+One build of the tip 151c8a238 (code through bb367862f, my two beside-a-float steps included), Windows mode, bundled faces, matcher v2, this server's engine; every one of the 593 re-converted and re-scored (scripts: /data/s/lenovo-2/tools/census3.py on the Lenovo-2 server). 593 documents: mean 83.5% of Word's lines matched, median 100.0%; 428 at 95% or more, 509 at half or more; 573 with Word's page count.
+- HEADLINE: 83.5% over all 593 (CENSUS 2: 79.5%); 131 documents with text are under 100 (CENSUS 2: 166), missing about 1291 lines in all (CENSUS 2: about 1690). Ranked by gap from 100, then by Word's line count. Format: rank name (score, Word's lines, lines missing, pages Word/ours): STATUS (holder), board line.
+- STATUS IS AUTOMATIC, as in CENSUS 2: the most recent board line that names the document (census, baseline and table rows skipped), tag read from its words, first session name in it. `landed?` can be a line that lists the document among others; `named` is a mention with no claim. [UNHELD] = no claim by anyone on the board (never named, or named/read-out without a holder). The slices macos listed stand on top: ranks 61-110 amd-4, 111+ amd-6, below-50 unheld and nested-table split amd-7, tables amd-2, frames lenovo-3, charts amd-5; a row in a slice is held by that session unless it says otherwise.
+- UNHELD ROWS: 51 of 131. The ones in ranks 1-60 are listed with [UNHELD]; lenovo-2 takes the top ones next.
+  1 floattable-multi-col (0.0, Word 8 lines, missing 8, pages 2/2): landed? (windows-4), board line 12800
+  2 n751077 (0.0, Word 6 lines, missing 6, pages 1/1): claimed (lenovo-2), board line 12410
+  3 tdf135035 (0.0, Word 4 lines, missing 4, pages 1/1): claimed (lenovo-2), board line 12410
+  4 tdf134866 (0.0, Word 2 lines, missing 2, pages 1/1): landed? (lenovo-3), board line 12102
+  5 sdt-around-float-table (0.0, Word 1 lines, missing 1, pages 1/1): named, board line 12902 [UNHELD]
+  6 floattable-center-inline-overlap (0.0, Word 1 lines, missing 1, pages 1/1): landed? (lenovo-2), board line 12907
+  7 fdo78904 (0.0, Word 1 lines, missing 1, pages 1/1): read/parked (windows-1), board line 12108
+  8 sdt+framePr (0.0, Word 1 lines, missing 1, pages 1/1): landed? (lenovo-2), board line 12899
+  9 tdf38575_fullWidthLine (1.6, Word 61 lines, missing 60, pages 4/2): named, board line 11694 [UNHELD]
+  10 floattable-footer-object (6.2, Word 16 lines, missing 15, pages 4/4): named, board line 12904 [UNHELD]
+  11 floattable-wrap-on-all-pages (7.7, Word 13 lines, missing 12, pages 2/2): named, board line 12624 [UNHELD]
+  12 floattable-anchor-height (8.9, Word 123 lines, missing 112, pages 4/4): landed?, board line 12846
+  13 tdf163575 (9.7, Word 31 lines, missing 28, pages 1/1): read/parked (windows-3), board line 12799
+  14 fdo79822 (11.1, Word 9 lines, missing 8, pages 1/1): named, board line 12626 [UNHELD]
+  15 outside_long_data_label (11.1, Word 9 lines, missing 8, pages 1/1): landed? (windows-4), board line 12800
+  16 fdo78474 (20.0, Word 5 lines, missing 4, pages 1/1): landed? (amd-1), board line 12905
+  17 floattable-object-formatter (25.0, Word 4 lines, missing 3, pages 2/3): read/parked, board line 11783 [UNHELD]
+  18 alt-chunk (25.0, Word 4 lines, missing 3, pages 3/1): named (lenovo-3), board line 12112
+  19 floattable-tab-join (25.0, Word 4 lines, missing 3, pages 2/3): read/parked, board line 11783 [UNHELD]
+  20 floattable-tab-join-legacy (25.0, Word 4 lines, missing 3, pages 2/3): read/parked, board line 11783 [UNHELD]
+  21 tdf139336_ColumnsWithFootnoteDoNotOccupyEntirePage (26.9, Word 26 lines, missing 19, pages 1/1): landed? (windows-2), board line 12838
+  22 chart-dupe (28.6, Word 14 lines, missing 10, pages 1/1): named, board line 12922 [UNHELD]
+  23 tdf126244 (30.0, Word 10 lines, missing 7, pages 1/1): claimed, board line 12802
+  24 tdf167956 (33.3, Word 36 lines, missing 24, pages 2/2): named, board line 11461 [UNHELD]
+  25 redline-image-inline (33.3, Word 15 lines, missing 10, pages 1/1): landed? (amd-3), board line 12914
+  26 tdf172156 (33.3, Word 3 lines, missing 2, pages 2/3): named, board line 12631 [UNHELD]
+  27 floating-table-section-columns (33.3, Word 3 lines, missing 2, pages 1/1): read/parked (windows-1), board line 12108
+  28 tdf120344_FontTypes (33.3, Word 3 lines, missing 2, pages 1/1): landed? (lenovo-5), board line 12748
+  29 floattable-header (36.2, Word 94 lines, missing 60, pages 8/10): named, board line 12632 [UNHELD]
+  30 tdf135665 (40.0, Word 10 lines, missing 6, pages 1/1): landed? (amd-3), board line 12914
+  31 table-floating-margins (40.0, Word 10 lines, missing 6, pages 1/1): claimed, board line 12802
+  32 floattable-redline (40.0, Word 5 lines, missing 3, pages 1/1): landed? (lenovo-5), board line 12748
+  33 tdf123651 (42.9, Word 7 lines, missing 4, pages 1/1): named, board line 11545 [UNHELD]
+  34 tdf126287 (42.9, Word 7 lines, missing 4, pages 2/3): named (windows), board line 12074
+  35 floating-table-dummy-text (43.9, Word 57 lines, missing 32, pages 2/2): named, board line 12634 [UNHELD]
+  36 tdf92724_continuousBreaksComplex (46.2, Word 13 lines, missing 7, pages 3/3): landed? (windows-4), board line 12800
+  37 floattable-nested-rowspan (46.4, Word 69 lines, missing 37, pages 6/5): landed? (windows-4), board line 12800
+  38 floattable-model-position-for-view-point-correction (50.0, Word 20 lines, missing 10, pages 2/2): landed? (windows-4), board line 12800
+  39 IndexFieldFlagF (50.0, Word 12 lines, missing 6, pages 1/1): landed? (windows-2), board line 12745
+  40 tdf164500_framePrBeforeTable2 (50.0, Word 8 lines, missing 4, pages 1/1): landed? (amd-2), board line 12913
+  41 tdf117982 (50.0, Word 6 lines, missing 3, pages 1/1): named, board line 11825 [UNHELD]
+  42 layout-in-cell-2 (50.0, Word 4 lines, missing 2, pages 1/1): landed? (lenovo-3), board line 12166
+  43 endnote-at-section-end (50.0, Word 4 lines, missing 2, pages 1/1): named (amd-2), board line 12828
+  44 floattable-leak (50.0, Word 2 lines, missing 1, pages 1/1): named, board line 12636 [UNHELD]
+  45 textframe-in-shape (50.0, Word 2 lines, missing 1, pages 1/1): unheld (never on the board) [UNHELD]
+  46 sdt-company-multipara (50.0, Word 2 lines, missing 1, pages 1/1): named, board line 12638 [UNHELD]
+  47 floattable-anchorpos (50.0, Word 2 lines, missing 1, pages 1/1): landed? (amd-1), board line 12905
+  48 para-upper-margin-fly-intersect (50.0, Word 2 lines, missing 1, pages 1/1): landed? (amd-2), board line 12889
+  49 tdf8255 (50.0, Word 2 lines, missing 1, pages 1/1): named (lenovo-3), board line 12112
+  50 do-not-break-wrapped-tables (50.0, Word 2 lines, missing 1, pages 1/2): named, board line 12620 [UNHELD]
+  51 tdf116486 (50.0, Word 2 lines, missing 1, pages 1/1): named (lenovo-3), board line 12112
+  52 fdo52208 (50.0, Word 2 lines, missing 1, pages 1/1): named, board line 12720 [UNHELD]
+  53 tdf97090 (52.7, Word 55 lines, missing 26, pages 1/2): landed?, board line 12740
+  54 090716_Studentische_Arbeit_VWS (54.5, Word 11 lines, missing 5, pages 3/3): claimed, board line 12802
+  55 fdo43573-2-min (55.5, Word 393 lines, missing 175, pages 15/15): landed? (windows-2), board line 12838
+  56 floattable-overlap-cell (55.6, Word 9 lines, missing 4, pages 1/1): named, board line 12641 [UNHELD]
+  57 shape-anchored-in-follow (59.3, Word 91 lines, missing 37, pages 2/2): landed? (amd-3), board line 12914
+  58 tdf153592_columnBreaks (60.0, Word 5 lines, missing 2, pages 2/2): named, board line 12643 [UNHELD]
+  59 tdf89088 (60.0, Word 5 lines, missing 2, pages 2/2): named (starling-bd), board line 12110
+  60 tdf129659 (60.0, Word 5 lines, missing 2, pages 1/1): landed? (amd-1), board line 12905
+  61 floattable-deleted-anchor (60.4, Word 48 lines, missing 19, pages 3/3): landed? (lenovo-2), board line 12439 (slice amd-4)
+  62 floattable-heading-split-hyphen (62.1, Word 132 lines, missing 50, pages 4/4): claimed (amd-3), board line 12797 (slice amd-4)
+  63 tdf36117_verticalAdjustment (63.2, Word 38 lines, missing 14, pages 6/6): named, board line 12835 [UNHELD] (slice amd-4)
+  64 bnc779620 (66.7, Word 3 lines, missing 1, pages 1/1): named, board line 12885 [UNHELD] (slice amd-4)
+  65 floattable-in-text-section (66.7, Word 3 lines, missing 1, pages 3/6): named, board line 12645 [UNHELD] (slice amd-4)
+  66 tdf124600 (66.7, Word 3 lines, missing 1, pages 1/1): named, board line 11694 [UNHELD] (slice amd-4)
+  67 tdf123873 (68.8, Word 16 lines, missing 5, pages 1/1): landed? (amd-2), board line 12889 (slice amd-4)
+  68 tdf149089 (70.0, Word 60 lines, missing 18, pages 3/3): named, board line 12647 [UNHELD] (slice amd-4)
+  69 tdf124675 (70.0, Word 10 lines, missing 3, pages 2/2): landed? (amd-4), board line 12912 (slice amd-4)
+  70 n830205 (71.2, Word 73 lines, missing 21, pages 1/1): named, board line 12814 [UNHELD] (slice amd-4)
+  71 tdf79329 (71.4, Word 7 lines, missing 2, pages 1/1): named, board line 12649 [UNHELD] (slice amd-4)
+  72 tdf167540 (71.4, Word 7 lines, missing 2, pages 1/1): landed? (lenovo-5), board line 12748 (slice amd-4)
+  73 tdf108272 (73.3, Word 15 lines, missing 4, pages 2/2): named, board line 11553 [UNHELD] (slice amd-4)
+  74 tdf158349_SDTstreamStateStack (75.0, Word 92 lines, missing 23, pages 3/3): named (mac-confirm), board line 12813 (slice amd-4)
+  75 tdf153964_firstIndentAfterBreak14 (75.0, Word 16 lines, missing 4, pages 3/3): named, board line 12650 [UNHELD] (slice amd-4)
+  76 tdf124398_groupshapeChart (75.0, Word 16 lines, missing 4, pages 1/1): landed? (amd-2), board line 12889 (slice amd-4)
+  77 floattable-nested-layout (75.0, Word 4 lines, missing 1, pages 1/1): named, board line 11669 [UNHELD] (slice amd-4)
+  78 floattable-next-row-invalidate-pos (75.0, Word 4 lines, missing 1, pages 2/2): landed? (lenovo-2), board line 12079 (slice amd-4)
+  79 floatingtbl_with_formula (77.8, Word 9 lines, missing 2, pages 1/1): named (macos-ios), board line 12235 (slice amd-4)
+  80 floattable-wrap-empty-para-legacy (78.6, Word 28 lines, missing 6, pages 2/2): read/parked, board line 11788 [UNHELD] (slice amd-4)
+  81 floattable-wrap-empty-para (78.6, Word 28 lines, missing 6, pages 2/2): read/parked, board line 11788 [UNHELD] (slice amd-4)
+  82 tdf128207 (80.0, Word 25 lines, missing 5, pages 1/1): named, board line 12922 [UNHELD] (slice amd-4)
+  83 tdf160077_layoutInCellC (80.0, Word 5 lines, missing 1, pages 1/1): landed? (lenovo-5), board line 12748 (slice amd-4)
+  84 floattable-footer (81.8, Word 11 lines, missing 2, pages 2/1): landed? (windows-4), board line 12800 (slice amd-4)
+  85 floattable-avoid-manip-ofst (82.7, Word 156 lines, missing 27, pages 6/6): named (macOS-doc), board line 12403 (slice amd-4)
+  86 strict (83.3, Word 18 lines, missing 3, pages 1/1): named (mac-confirm), board line 12813 (slice amd-4)
+  87 fdo60957-2 (83.3, Word 6 lines, missing 1, pages 1/1): named, board line 12148 [UNHELD] (slice amd-4)
+  88 tdf106153 (83.8, Word 37 lines, missing 6, pages 1/1): named (macos-ios), board line 11221 (slice amd-4)
+  89 tdf154703_framePrWrapSpacing (84.6, Word 13 lines, missing 2, pages 2/2): named, board line 12878 [UNHELD] (slice amd-4)
+  90 tdf152298 (85.2, Word 61 lines, missing 9, pages 2/2): named, board line 12653 [UNHELD] (slice amd-4)
+  91 mixednumberings (85.6, Word 97 lines, missing 14, pages 5/5): named, board line 11462 [UNHELD] (slice amd-4)
+  92 tdf122878 (85.7, Word 35 lines, missing 5, pages 2/2): named, board line 10402 [UNHELD] (slice amd-4)
+  93 floattable-nested-3tables (85.7, Word 14 lines, missing 2, pages 2/2): claimed (windows-4), board line 12399 (slice amd-4)
+  94 tdf69647_text (85.7, Word 7 lines, missing 1, pages 2/2): landed? (lenovo-2), board line 11417 (slice amd-4)
+  95 chart-in-footer (85.7, Word 7 lines, missing 1, pages 1/1): named, board line 12654 [UNHELD] (slice amd-4)
+  96 tdf105035_framePrC (87.2, Word 47 lines, missing 6, pages 1/1): landed? (lenovo-5), board line 12748 (slice amd-4)
+  97 tdf75573_page1frame (87.5, Word 8 lines, missing 1, pages 1/1): named, board line 12658 [UNHELD] (slice amd-4)
+  98 tdf82824 (87.5, Word 8 lines, missing 1, pages 1/1): named (amd-8), board line 12906 (slice amd-4)
+  99 tdf137116 (87.5, Word 8 lines, missing 1, pages 1/1): landed?, board line 12883 (slice amd-4)
+  100 tdf153136 (87.8, Word 41 lines, missing 5, pages 3/3): landed? (windows-2), board line 12759 (slice amd-4)
+  101 fdo76098 (88.4, Word 43 lines, missing 5, pages 2/2): named, board line 12753 [UNHELD] (slice amd-4)
+  102 FDO76248 (88.5, Word 157 lines, missing 18, pages 3/3): claimed (amd-3), board line 12818 (slice amd-4)
+  103 tdf48658_transparentOLEheader (88.9, Word 9 lines, missing 1, pages 1/1): named, board line 12660 [UNHELD] (slice amd-4)
+  104 tdf155707 (89.1, Word 64 lines, missing 7, pages 2/2): named (macos-ios), board line 12897 (slice amd-4)
+  105 tdf161139_orrick-org-min3 (89.8, Word 59 lines, missing 6, pages 3/3): landed?, board line 11759 (slice amd-4)
+  106 CT-formatted-deletion (90.0, Word 10 lines, missing 1, pages 1/1): claimed (amd-3), board line 12818 (slice amd-4)
+  107 tdf147485-forcepoint (90.6, Word 32 lines, missing 3, pages 1/1): named (amd-8), board line 12906 (slice amd-4)
+  108 merge_hidden_redline (91.3, Word 23 lines, missing 2, pages 1/1): named, board line 10410 [UNHELD] (slice amd-4)
+  109 tdf124398 (91.7, Word 12 lines, missing 1, pages 1/1): landed? (amd-2), board line 12889 (slice amd-4)
+  110 tdf170672 (92.3, Word 1326 lines, missing 102, pages 49/49): named, board line 12661 [UNHELD] (slice amd-4)
+  111 tdf152983-1-min (92.3, Word 39 lines, missing 3, pages 2/2): claimed (windows-4), board line 12399 (slice amd-6)
+  112 tdf134676 (92.9, Word 14 lines, missing 1, pages 1/1): named, board line 11464 [UNHELD] (slice amd-6)
+  113 tdf109053 (93.8, Word 64 lines, missing 4, pages 2/2): claimed (windows-4), board line 12399 (slice amd-6)
+  114 floattable-heading-split (93.8, Word 32 lines, missing 2, pages 2/2): claimed (amd-3), board line 12797 (slice amd-6)
+  115 Tdf147485 (93.8, Word 32 lines, missing 2, pages 1/1): named (amd-8), board line 12906 (slice amd-6)
+  116 tdf153964_topMarginAfterBreak14 (93.8, Word 16 lines, missing 1, pages 6/6): named, board line 12662 [UNHELD] (slice amd-6)
+  117 floattable-hidemark (93.9, Word 33 lines, missing 2, pages 2/2): unheld (never on the board) [UNHELD] (slice amd-6)
+  118 floattable-heading-split-footer (94.4, Word 72 lines, missing 4, pages 3/3): named, board line 12663 [UNHELD] (slice amd-6)
+  119 tdf150200 (95.2, Word 21 lines, missing 1, pages 1/1): named (windows-1), board line 11782 (slice amd-6)
+  120 floattable-table-row-keep (95.7, Word 47 lines, missing 2, pages 3/3): named (macOS-doc), board line 12317 (slice amd-6)
+  121 tdf119908_smart_hyphenation (96.1, Word 178 lines, missing 7, pages 4/4): named (starling-bd), board line 11683 (slice amd-6)
+  122 tdf164905 (96.2, Word 105 lines, missing 4, pages 3/3): landed? (lenovo-3), board line 12084 (slice amd-6)
+  123 tdf160077_layoutInCellB (96.3, Word 27 lines, missing 1, pages 1/1): named (windows-1), board line 11744 (slice amd-6)
+  124 tdf127814 (96.8, Word 31 lines, missing 1, pages 3/3): landed? (lenovo-5), board line 12795 (slice amd-6)
+  125 tdf135144 (98.0, Word 49 lines, missing 1, pages 2/2): landed?, board line 11473 (slice amd-6)
+  126 tdf170630 (98.3, Word 59 lines, missing 1, pages 2/2): named (starling-bd), board line 12395 (slice amd-6)
+  127 tdf92157 (98.5, Word 196 lines, missing 3, pages 6/6): named (lenovo-2), board line 11566 (slice amd-6)
+  128 tdf104492 (98.6, Word 74 lines, missing 1, pages 3/3): claimed (amd-3), board line 12818 (slice amd-6)
+  129 fdo63164-1 (98.9, Word 761 lines, missing 8, pages 29/29): named, board line 11448 [UNHELD] (slice amd-6)
+  130 fdo78904_fileHang (99.1, Word 799 lines, missing 7, pages 21/21): read/parked (windows-1), board line 12108 (slice amd-6)
+  131 tdf164499 (99.1, Word 108 lines, missing 1, pages 6/6): claimed (amd-3), board line 12818 (slice amd-6)
