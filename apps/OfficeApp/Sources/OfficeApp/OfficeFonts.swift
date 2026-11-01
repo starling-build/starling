@@ -3429,6 +3429,14 @@ enum OfficeFonts {
                 FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
             }
         }
+        // (OFFICE_BUNDLED_FONTS_ONLY=1: the engine's font lookup sees only the faces registered
+        // above — no fontconfig, CoreText or DirectWrite fallback behind them. Off by default;
+        // the hermetic-fonts proof turns it on. An engine without the call says so and goes on.)
+        if ProcessInfo.processInfo.environment["OFFICE_BUNDLED_FONTS_ONLY"] == "1" {
+            let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextBundledFontsOnlySupported") != nil } ?? false
+            if known { flutter.swift_bridge.DisableSystemFontFallback() }
+            else { FileHandle.standardError.write("[Office] this engine cannot turn the system fonts off; they stay\n".data(using: .utf8)!) }
+        }
         _registrationSucceeded = ok
         return ok
         #endif
