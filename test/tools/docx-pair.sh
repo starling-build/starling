@@ -23,6 +23,10 @@
 # FIXBIN and kept as a mover only if the second print scores the same.
 #   SETS (default "756 lo"; "lo" alone for a LibreOffice-only check — then do not commit the scores)
 #   PYTHON (needs PyMuPDF; default python3)   BASE_REV (default origin/office)   STAGE
+#   BASEBIN and FIXBIN must sit BESIDE their build's libFlutterShared.so and *.resources
+#   bundles (the release dir): a binary copied away on its own cannot load and fails every
+#   document. More than MAXFAIL percent (default 3) failed conversions in a set aborts the
+#   run (exit 1, no files in $STAGE/fix) and prints the first failure's stderr.
 #   ENGINE_OUT   the engine out dir the binaries were built against (default: the
 #                first of engine/src/out/host_release_arm64, host_release)
 set -u
@@ -41,10 +45,17 @@ case $(uname) in Darwin) export DYLD_LIBRARY_PATH=$EO;; *) export LD_LIBRARY_PAT
 corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; esac; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 sweep() {
-  local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf"; : > "$WORK/fail.txt"
+  local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
   ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
       [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && printf '%s\0' "$n"; done |
-    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>&1 || echo "FAIL $n"' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
+    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || echo "FAIL $n"' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
+  local nf nd; nf=$(wc -l < "$WORK/fail.txt"); nd=$(ls "$C/docs"/*.docx | wc -l)
+  if [ $(( nf * 100 )) -gt $(( nd * ${MAXFAIL:-3} )) ]; then
+    f=$(head -1 "$WORK/fail.txt" | sed 's/^FAIL //'); echo "ABORT: $nf of $nd conversions failed in set $SET with $BIN — nothing written to $STAGE/fix" >&2
+    echo "first failure ($f), its stderr:" >&2; head -20 "$WORK/err/${f%.docx}.txt" >&2
+    echo "(is the binary beside libFlutterShared.so and the *.resources bundles? a copied binary needs its whole release dir)" >&2
+    rm -rf "$STAGE/fix"; exit 1
+  fi
   score "$WORK" "$C"
 }
 score() {  # WORK CORPUSDIR
