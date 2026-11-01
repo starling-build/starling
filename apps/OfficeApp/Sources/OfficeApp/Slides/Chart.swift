@@ -2868,7 +2868,9 @@ enum ChartPainter {
             let catLine = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k
             var room = area0.height - (0.61 * labelSize * k + catLine + 3.2 * k)
             if c.categoryAxisTitle != nil { room -= (1.22 * (c.axisTitleSize ?? 13.3) + 4) * k }
-            return max(2, min(10, Int(room / (15 * k))))
+            // (14.5, not 15: lo-817b02d41c5ce84c's 145.3pt of room goes 0 to 5 by halves, ten steps, in
+            // Word's print, where 15 made it nine and ones.)
+            return max(2, min(10, Int(room / (14.5 * k))))
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? 10,
                                                                           headroom: c.barView != nil ? 0 : 0.05)
@@ -3040,7 +3042,15 @@ enum ChartPainter {
                     slant = min(90, abs(turn)) * .pi / 180
                     clockwise = turn < 0
                     for t in catLabels { t.dispose() }
-                    catLabels = c.categories.map { categoryText($0, catSize, .infinity) }
+                    // (A name turned upright in a Word document is wrapped to
+                    // a length: lo-817b02d41c5ce84c's "really really long data
+                    // label 1 made even longer" stands in three lines, the
+                    // first 78.5 pt long, in a 183 pt chart, and the plot
+                    // keeps the room left. Ours ran 200 pt and took the plot
+                    // away. Roughly half the chart's height; one
+                    // witness.)
+                    let upright = abs(turn) >= 90 && !c.onSlide && !c.onSheet
+                    catLabels = c.categories.map { categoryText($0, catSize, upright ? 0.5 * area.height : .infinity) }
                 }
             } else if !horizontal, c.type != .area, !c.categoryAxisDeleted {
                 let room = max(slot - 2 * k, 8 * k)
