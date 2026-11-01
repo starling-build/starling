@@ -3436,7 +3436,6 @@ enum OfficeFonts {
                 FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
             }
         }
-        #if os(Linux)
         // The CJK and script faces a machine would otherwise supply: Resources/fonts/fonts.tsv lists
         // them (file, face of a collection, family, weight, script, fallback order — the one table
         // the web build's manifest reads as well), so a render does not depend on which fonts the
@@ -3456,6 +3455,15 @@ enum OfficeFonts {
                     chain.append((order, c[2]))
                 }
             }
+            // (Bundled mode is the same on every platform: the system's CJK face — PingFang on a Mac
+            // or iPhone, YaHei on Windows — gives way to the bundled one. Where the user chose the
+            // installed fonts, or Word for Mac's own faces are in play, the system's stay in front.)
+            #if !os(Linux)
+            if fontSource == .bundled, !wordOnMac, chain.contains(where: { $0.family == "Noto Sans CJK SC" }) {
+                RichTextTheme.glyphFallback.removeAll { $0 == "PingFang SC" || $0 == "Microsoft YaHei" }
+                cjkFallback = ["Noto Sans CJK SC"]
+            }
+            #endif
             for (_, family) in chain.sorted(by: { $0.order < $1.order }) where !RichTextTheme.glyphFallback.contains(family) {
                 RichTextTheme.glyphFallback.append(family)
             }
@@ -3466,9 +3474,8 @@ enum OfficeFonts {
                 let c = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
                 if c.count >= 2 { aliases[c[0].lowercased()] = c[1] }
             }
-            bundledAliases = aliases
+            if fontSource == .bundled, !wordOnMac { bundledAliases = aliases }
         }
-        #endif
         // (OFFICE_BUNDLED_FONTS_ONLY=1: the engine's font lookup sees only the faces registered
         // above — no fontconfig, CoreText or DirectWrite fallback behind them. Off by default;
         // the hermetic-fonts proof turns it on. An engine without the call says so and goes on.)

@@ -108,3 +108,8 @@ Copyright (c) 2003 Bitstream, Inc. (Bitstream Vera); DejaVu changes are in
 the public domain. Bitstream Vera Fonts licence.
 Document face standing in for Verdana.
 Full text: fonts/DejaVu-LICENSE.txt.
+
+## Noto Sans CJK, Noto Serif CJK and the Noto script faces
+
+Noto Sans CJK and Noto Serif CJK (Regular, Bold; Japanese, Korean, Simplified and Traditional Chinese, Hong Kong), Noto Sans Arabic, Noto Naskh Arabic, Noto Sans Hebrew, Noto Serif Hebrew, Noto Sans Thai, Noto Sans Devanagari and Noto Color Emoji, bundled for text no other bundled face draws. SIL Open Font License 1.1.
+Sources and checksums: fonts/README.md. Full text: fonts/Noto-OFL-LICENSE.txt.
