@@ -1999,7 +1999,7 @@ public final class RichLayout {
     /// print. A vertical cell's too: zh-74b34f3b's tbRlV "東引鄉活動中心
     /// 2樓" keeps its ideographs upright and lays the "2" on its side,
     /// where its "2" had turned ours whole.)
-    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, mixed: Bool = false) -> Bool {
+    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, mixed: Bool = false, centred: Bool = false) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         func wide(_ u: UInt16) -> Bool { u >= 0x2E80 && !(u >= 0xD800 && u <= 0xDFFF) && u != 0xFFFC }
@@ -2075,7 +2075,13 @@ public final class RichLayout {
                 let left = Double(n) * (painter.width - advance) / Double(shown.count - 1)
                 box = TextBox(fromLTRBD: left, box.top, left + advance, box.bottom, box.direction)
             }
-            let form = Self._verticalForms[ch] ?? ch
+            // (DFKai-SB has no vertical forms: Word's prints of its tbRlV
+            // columns hold the plain "、" at the plain step, none of
+            // U+FE10 to FE19 — zh-74b34f3b's "會議、研習、喜宴", where the
+            // drop below stood ours 9pt low.)
+            let family = styles[k]?.fontFamily ?? ""
+            let plain = family.contains("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
+            let form = plain ? ch : (Self._verticalForms[ch] ?? ch)
             // (Its own advance, without the run's letter spacing: that
             // follows it — below.)
             let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
@@ -2094,7 +2100,11 @@ public final class RichLayout {
             // Word sets a spaced run: zh-b0401810's "职业资格证书…" (51
             // twips, 15.6pt apart) stands 2.55pt higher in Word's print —
             // half its spacing — than ours, centred in each place, did.)
-            let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k)
+            // (A centred DFKai-SB column — the 1.3 line the face is set in — stands 0.11 em higher in Word's
+            // print than the places it is set in, zh-74b34f3b's 16pt
+            // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
+            let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
+            let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
             canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + across(box))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
@@ -16285,7 +16295,7 @@ public final class RichLayout {
                 - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i])
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
-               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", mixed: true) {
+               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", mixed: true, centred: aligned == .center) {
                 canvas.restore()
                 return
             }
