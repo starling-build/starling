@@ -16164,6 +16164,11 @@ public final class RichLayout {
         let x = document.paragraphs[a], y = document.paragraphs[b]
         guard let bx = x.style.borders, bx == y.style.borders, x.cell == y.cell,
               x.style.indentLeft == y.style.indentLeft, x.style.indentRight == y.style.indentRight else { return false }
+        // (Not across a page or column break at the paragraph's start: its box
+        // opens again on the new page, with its top line and room — lab pb
+        // (Word for Windows) over LibreOffice's tdf153964_firstIndentAfterBreak14,
+        // text 4.0pt lower under a border of sz 24 and space 1, 8 under space 8.)
+        if y.style.pageBreakInline, y.cell == nil { return false }
         return true
     }
 
