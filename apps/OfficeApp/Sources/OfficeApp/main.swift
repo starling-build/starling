@@ -71,6 +71,8 @@ func initializeHeadlessText() {
         break
     }
     OfficeFonts.register()
+    // (A stale engine is said at once, on stderr, not at the first indent.)
+    _ = starlingEngineKnowsLineIndents()
 }
 
 // `--bench [pages]`: the perf gate without a window. Lays out the generated

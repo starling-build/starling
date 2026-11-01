@@ -5240,7 +5240,7 @@ private let engineKnowsLineIndents: Bool = {
   let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextLineIndentsSupported") != nil } ?? false
   if !known {
     // write(2) rather than fputs(_, stderr): Glibc's `stderr` is a mutable global that Swift 6 rejects as not concurrency-safe.
-    let warning = "warning: this engine predates per-line indents and metrics overrides (starling-engine e837b7634c9); text beside floats is laid out wrong. Rebuild the engine.\n"
+    let warning = "engine lacks StarlingTextLineIndentsSupported: per-line indents OFF (this engine predates starling-engine e837b7634c9, or on Linux was linked without the export in embedder_exports.lst); text beside floats is laid out wrong. Rebuild/relink the engine.\n"
     warning.withCString { _ = write(2, $0, strlen($0)) }
   }
   return known
@@ -5248,3 +5248,9 @@ private let engineKnowsLineIndents: Bool = {
 #else
 private let engineKnowsLineIndents = true
 #endif
+
+/// Whether the engine in this process knows per-line indents (looking the
+/// probe up warns once, on stderr, if it does not). A headless tool calls it
+/// at start so a stale engine is said at once, not only at the first text
+/// that needs an indent.
+public func starlingEngineKnowsLineIndents() -> Bool { engineKnowsLineIndents }
