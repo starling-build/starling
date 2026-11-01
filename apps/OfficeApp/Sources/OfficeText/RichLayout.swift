@@ -2911,7 +2911,7 @@ public final class RichLayout {
                         for offset in 1 ..< cell.rowSpan where r + offset < rows.count && offset - 1 < continued.count {
                             var h = 0.0
                             for p in continued[offset - 1] {
-                                if measured[p] == nil { measured[p] = _detachedHeight(p, document) }
+                                if measured[p] == nil { measured[p] = _detachedHeight(p, document, pair: cell.rowSpan == 2) }
                                 h += measured[p]!
                             }
                             own[r + offset] = max(own[r + offset], h + pads + (offset == cell.rowSpan - 1 ? cell.ruleBelow : 0))
@@ -3226,14 +3226,32 @@ public final class RichLayout {
 
     /// The height of a paragraph that is not in the flow — one a
     /// vertically merged cell's continuation holds — with its spacing.
-    private func _detachedHeight(_ p: RichParagraph, _ document: RichDocument) -> Double {
-        let (span, _, _) = _span(for: p, at: nil, document, textWidth: _px(1000))
-        let painter = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
-        painter.fractionalLineHeights = theme.wordRules
-        painter.layout()
-        defer { painter.dispose() }
-        let body = p.style.lineCollapsed ? 0 : painter.height
-        return (_px(p.style.spaceBefore) + body + _px(p.style.spaceAfter)).rounded(.up)
+    private func _detachedHeight(_ p: RichParagraph, _ document: RichDocument, pair: Bool = false) -> Double {
+        func body(_ p: RichParagraph) -> Double {
+            let (span, _, _) = _span(for: p, at: nil, document, textWidth: _px(1000))
+            let painter = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+            painter.fractionalLineHeights = theme.wordRules
+            painter.layout()
+            defer { painter.dispose() }
+            return p.style.lineCollapsed ? 0 : painter.height
+        }
+        var height = body(p)
+        // (Word does not snap an empty paragraph's line to the grid in a
+        // merged cell's continuation row once it is taller than one pitch:
+        // lab vm, YaHei 12pt, 18.02 + 8.52 where the snapped line would be
+        // 31.2 + 8. Only that face, and only a pair of rows, was measured:
+        // zh-9ba2ead7's FangSong_GB2312 pair and zh-cb56e605's block of three
+        // are set on the grid, as Word's print has them.)
+        let named = _named(p, document)
+        let face = p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+        if pair, theme.wordRules, RichTextTheme.wordWindowsPages, p.text.isEmpty, let face, face.contains("雅黑") || face.contains("YaHei"),
+           let pitch = _grid(nil, document).pitch {
+            var loose = p
+            loose.style.eastAsian["w:snapToGrid"] = "0"
+            let natural = body(loose)
+            if natural > _px(pitch) + 0.01 { height = natural }
+        }
+        return (_px(p.style.spaceBefore) + height + _px(p.style.spaceAfter)).rounded(.up)
     }
 
     /// Where each of a painter's lines ends below its top. The engine's
