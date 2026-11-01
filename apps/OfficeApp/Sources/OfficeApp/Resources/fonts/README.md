@@ -43,8 +43,12 @@ trusting the name.
 
 A document that names "Noto Sans" (LibreOffice's test files do) is drawn with Noto Sans itself, not a
 stand-in: the clone table above has nothing close to its widths, and Word's print of those files
-sets it in the real face. Regular, Bold, Italic and Bold Italic, the hinted 2.x release from
-github.com/notofonts/notofonts.github.io (fonts/NotoSans/hinted/ttf), OFL: NotoSans-LICENSE.txt.
+sets it in the real face. Regular, Bold, Italic and Bold Italic, Version 1.04 (2048 upem, 2299 glyphs in
+Regular), the build Word's print is set in, so its advances are Word's. Licence: Apache 2.0
+(NotoSans-1.04-LICENSE.txt). Source: Microsoft Office cloud font cache, Monotype build for Google
+(FontCache/4/CloudFonts/Noto Sans under %LOCALAPPDATA%, taken 2026-11-01). AOSP (external/noto-fonts)
+does not carry 1.04: its earliest copy, android-6.0.0_r1 other/NotoSans-Regular.ttf, is 1.05 with 2188 glyphs.
+Replaces the OFL 2.x release (NotoSans-LICENSE.txt is kept for that release; it no longer covers these files).
 Loaded with the extra faces below under the family "Noto Sans"; `OfficeFonts.substitute` maps the name.
 
 ## Slides' free faces (2026-10-17)
