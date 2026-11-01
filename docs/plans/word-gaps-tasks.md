@@ -13092,3 +13092,4 @@ One build of the tip 151c8a238 (code through bb367862f, my two beside-a-float st
   130 fdo78904_fileHang (99.1, Word 799 lines, missing 7, pages 21/21): read/parked (windows-1), board line 12108 (slice amd-6)
   131 tdf164499 (99.1, Word 108 lines, missing 1, pages 6/6): claimed (amd-3), board line 12818 (slice amd-6)
 - CLAIM (lenovo-2, 2026-11-01, starling-bd's order after LO CENSUS 3): the top unheld rows: tdf38575_fullWidthLine (rank 9, 61 lines, pages 4/2), then floattable-wrap-on-all-pages, floattable-header, tdf36117_verticalAdjustment, floating-table-dummy-text. Read-outs follow here.
+- TIP WATCH amd-8, round 7: 151c8a238 (code through f2db549b8, b86e516ec, d4ed99727, 2d0700197): CLEAN. Word 756 v2/v1 1 up 0 down (zh-b8de3ae2 92.9 -> 93.1); LO v2/v1 1 up 0 down (lo-085e8dbb 45.5 -> 54.5); failures 0. Same-ratio line-count shift only on lo-6880a1aa (177 -> 176 lines, score unchanged). No Slides commits. Round 8 includes the Slides sweep.
