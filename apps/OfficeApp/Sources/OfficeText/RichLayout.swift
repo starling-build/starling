@@ -4438,6 +4438,16 @@ public final class RichLayout {
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
             struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double; var owners: [Int] = []; var slacks: [Double] = [] }
+            // (The top margins and lines of the nested cells a part that goes over a page is still in: it is
+            // set under them again — see `RichParagraphStyle.nestedTopRepeat`.)
+            func nestedRepeat(_ column: Column) -> Double {
+                guard theme.wordRules, let k = column.members.first(where: { _tops[$0] + _heights[$0] > column.cut + 0.01 }) else { return 0 }
+                return _px(document.paragraphs[k].style.nestedTopRepeat)
+            }
+            func nestedFoot(_ owner: Int) -> Double {
+                guard theme.wordRules, owner >= 0, owner < document.paragraphs.count else { return 0 }
+                return _px(document.paragraphs[owner].style.nestedBottomRepeat)
+            }
             var columns: [Column] = []
             for k in i ..< j {
                 let d = _cells[k]!
@@ -4560,7 +4570,7 @@ public final class RichLayout {
                     // (With the cell's top margin under the rule again —
                     // see where the pieces are set below.)
                     max(0, column.bottom - column.cut)
-                        + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0)
+                        + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + nestedRepeat(column) : 0)
                 }.max() ?? 0)
                 // (A part whose text fits is no taller than the room to the
                 // foot, though the row states more: zh-045c5a75's row of at
@@ -4772,10 +4782,10 @@ public final class RichLayout {
                             // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules ? d0.margin : 0) }),
+                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules ? d0.margin : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedRepeat(column) }),
                                   case let owner = column.owners.indices.contains(at) ? column.owners[at] : -1,
                                   let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner })
-                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules ? d0.margin : 0) }).map({ column.cuts[$0] }) {
+                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules ? d0.margin : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedRepeat(column) }).map({ column.cuts[$0] }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line
@@ -4992,7 +5002,7 @@ public final class RichLayout {
                         // road signs, a row of pictures parted at page 5's
                         // foot, go on 5pt lower on page 6 in Word's print
                         // than ours, which had only the rule.)
-                        let again = !first && theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0
+                        let again = !first && theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + nestedRepeat(column) : 0
                         var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut) + (shift[n] ?? 0) + again)
                         piece.part = .text
                         pieces[k, default: []].append(piece)

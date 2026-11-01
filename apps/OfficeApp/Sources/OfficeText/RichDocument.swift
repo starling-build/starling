@@ -490,6 +490,19 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var alignment: ParagraphAlignment = .left
     public var indentLeft: Double = 0
     public var indentRight: Double = 0
+    /// Points. For a paragraph in a table nested in a table cell (flattened
+    /// into the cell): the top margins and top lines of the nested cells it
+    /// stands in, outer ones too, which began on an earlier paragraph. Where
+    /// the row parts over a page, Word sets the part that goes over under
+    /// them again, as under the row's own cell margin: lo-c7082c66's middle
+    /// table, a cell of 5.65pt top margin in a cell of the same, opens
+    /// page 2 12.3pt down, twice the room one cell takes.
+    public var nestedTopRepeat: Double = 0
+    /// Points. The same for the room under: the bottom margins and bottom lines
+    /// of the nested cells the paragraph stands in and that go on past it. A
+    /// part of the row that ends a page keeps that room clear of the foot, as
+    /// of the row's own cell margin.
+    public var nestedBottomRepeat: Double = 0
     /// Where a group's text boxes are set in one text (`RichTextBox.parts`),
     /// the right inset of the box this paragraph stands in, in points —
     /// its indents hold its box's place and both insets. nil elsewhere.

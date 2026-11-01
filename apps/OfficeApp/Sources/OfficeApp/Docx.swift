@@ -1673,6 +1673,19 @@ enum DocxFormat {
                                 (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 16 } } ?? 0
                             let lead = (m.left ?? 5.4) + edge
                             for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell { paragraphs[k].style.indentLeft += lead }
+                            // (Its top margin and top line stand again over a part of it that goes over a
+                            // page — see `RichParagraphStyle.nestedTopRepeat`; not over its first paragraph,
+                            // which brings its own space.)
+                            let topEdge = (node.first("w:tblPr")?.first("w:tblBorders")?.first("w:top")).flatMap { b -> Double? in
+                                (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 8 } } ?? 0
+                            for k in (first + 1) ..< max(first + 1, paragraphs.count) where paragraphs[k].cell == currentCell {
+                                paragraphs[k].style.nestedTopRepeat += (m.top ?? 0) + topEdge
+                            }
+                            let bottomEdge = (node.first("w:tblPr")?.first("w:tblBorders")?.first("w:bottom")).flatMap { b -> Double? in
+                                (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 8 } } ?? 0
+                            for k in first ..< max(first, paragraphs.count - 1) where paragraphs[k].cell == currentCell {
+                                paragraphs[k].style.nestedBottomRepeat += (m.bottom ?? 0) + bottomEdge
+                            }
                             paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
                             paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
                         }
