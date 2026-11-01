@@ -4,8 +4,9 @@ sits at x 290.9..347.6 on a 419.6pt-wide page with 72pt margins. Our model ends 
 91.3pt from the left margin). Word's print breaks 'not be | happening' on line 8 -- a line whose text ends at 154.7 -- so its limit is
 between 153.3 (a line it kept) and 154.7: 9-10pt tighter than ours. Question: is the frame's border (sz + space) taken off the room, once
 or on both sides, is hSpace taken from the frame's outer or inner edge, and what does it do with no border?
-Method: see build.py's docstring. 6 variants x 29 pages in ONE document, fr2.docx: Courier New 10pt (6.0pt a character), 'aaaaaaaaaaa b'
+Method: see build.py's docstring. 6 variants x 29 pages in ONE document, fr2.docx: Courier New 10pt (6.0pt a character), 'aaaaaaaaaaaaa b'
 (90.0pt, 15 chars), right indent 0..14pt in 0.5pt steps. Print fr2.docx to PDF with Word for Windows (any compat mode the template has), then
   analyze.py fr2.pdf > fr2.tsv
 What to send back: fr2.tsv (it ends with the flip per variant), or the PDF. build.py regenerates docx/ and the index; python3 build.py docx.
 Needs PyMuPDF (import fitz). Courier New must be on the box.
+Our own print (FR2-OURS.tsv) is flat at 1 line: our layout ignores a right indent beside a frame, which is itself a finding for the answer.
