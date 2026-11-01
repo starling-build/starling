@@ -2362,6 +2362,21 @@ powerpoint-win): Calibri 264 → 124 of 2029, Verdana 37 → 2, Cambria
 47 → 0. Left: Lucida Sans Unicode (25 of 90), Courier New (15 of 62),
 Aptos Display (6 of 21).
 
+*Line spacing under single, tried and dropped (2026-11-01).* Windows seems
+to scale a proportional spacing under 100% from the line's top, so the
+baseline sits (1 − s) × descent lower than the Mac-fitted rule
+(`RichLayout.baselineShift`): HowWeRefactor's 60% Courier 12 pt boxes
+were −1.42 pt on every line (0.4 × 3.57), GeomLec1's 90% −0.59, and a
+flag doing it fixed both (off lines 22 → 5, 15 → 0). Over the 555 decks
+it is a net loss: 52 worse against 14 better, lo-font-scale +1.54,
+lo-3columns +1.30, KEY02 +0.68, alterman_security +0.52 (alterman's
+Arial 18/24 pt lines went from 4 off to 78, now too low). The rule is
+right for some faces (Courier, Calibri at 90%) and wrong for others,
+and nothing tells them apart yet — not `lnSpcReduction`, not the stated
+versus reduced spacing. The one big win in that sweep,
+ececapstonespring2012 12.37 → 1.47, was b257d61f8 (a base difference),
+not the flag. Not landed; the experiment is `wip/win1-slides-lowspc`.
+
 **Lines on whole points, 2026-10-17** (sweep 180: 1.0145 → 1.0016;
 55 decks better, 25 worse; smartart-simple 3.24 → 1.63, pptx2svg 5.00
 → 3.69, tdf93868 1.25 → 0.62, 60810 −0.44, the AES deck −0.36, cooper
