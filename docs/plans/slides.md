@@ -2330,6 +2330,23 @@ tdf149206 fits neither: its one bitmap prints 563.5 by 451 units for
 a frame of 562.95 by 450.35 (and a window mapped onto a viewport of
 its own), half a unit either side; left.
 
+**WordArt against Windows, 2026-10-31 (windows-1; released, nothing more to
+get).** ThemeColorTransparency's fill and outline transparency were drawn
+already; what showed was a `w="0"` hairline PowerPoint for Windows draws
+(0.14 pt in its PDF; 28 decks have one: 1.0361 → 1.0248, aascu 6.52 →
+4.77, lo-tdf109067 2.58 → 0.04, lo-tdf105739 1.19 → 0). `textInflate`'s
+edge is an ellipse's arc, not a parabola (−0.11 on two decks). The rest is
+the face: Windows sets Arial Black, we set Archivo Black, whose line is
+1.088 em against Arial Black's 1.41, and the letters' height in the warp
+follows the line — in ThemeColorTransparency "Happy" stands 9–27% shorter
+than PowerPoint's (the H 87.5 pt against 111). Knobs that fit the letters
+to a pt (line box 0.9 em, baseline 0.82 down it, the arc) scored WORSE
+(6.20 → 6.74, ImportWordArtGradient 13.72 → 14.42): the pixel score is
+the glyph shapes, not the placement. Unreachable without Arial Black.
+Left: the sysDot outline of a text run (drawn solid), a path gradient with
+an alpha ramp and a `tileRect` (PowerPoint's print is solid accent1 across
+the text; ours fades), WordArtBitmapFill.
+
 **Lines on whole points — Mac's rule, switched off against Windows, 2026-10-31**
 (555 decks vs powerpoint-win: 1.0874 → 1.0361, 70 better, 16 worse by at
 most 0.31, the 93 exact decks still exact; lo-tdf154858 4.39 → 0,

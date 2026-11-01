@@ -26,7 +26,7 @@ enum WordArt {
         func arc(_ u: Double) -> Double { 1 - (max(0, 1 - bow(u))).squareRoot() }   // the same, round
         switch warp.preset {
         case "textPlain": return { _ in (0, 1) }
-        case "textInflate": let a = adj(18750); return { (a * bow($0), 1 - a * bow($0)) }
+        case "textInflate": let a = adj(18750); return { (a * arc($0), 1 - a * arc($0)) }   // an ellipse's arc, as the preset draws it
         case "textDeflate": let a = adj(18750); return { (a * (1 - bow($0)), 1 - a * (1 - bow($0))) }
         case "textInflateTop": let a = adj(40000); return { (a * bow($0), 1) }
         case "textInflateBottom": let a = adj(60000); return { (0, 1 - (1 - a) * bow($0)) }
