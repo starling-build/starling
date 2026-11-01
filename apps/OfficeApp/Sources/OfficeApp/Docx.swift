@@ -2025,7 +2025,9 @@ enum DocxFormat {
                     if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         if pos["w:vertAnchor"] == nil { style.marginOffsetY = v / 20 } else { style.floatOffsetY = v / 20 }
                     }
-                    if vertText, pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    // (A table placed "inside" the text's line takes no room in it either: LibreOffice's
+                    // tdf-less lo-4c84a541 has "After table1" level with it in Word's print.)
+                    if vertText, pos["w:tblpYSpec"] == nil || pos["w:tblpYSpec"] == "inside" { style.floatsOverText = true }
                     // (A drawing the table holds that is not laid out in its cell.)
                     if node.descendants("wp:anchor").contains(where: { $0["layoutInCell"] == "0" }) { style.shapesLeaveCell = true }
                     if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v < 0 {

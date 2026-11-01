@@ -1,7 +1,7 @@
-apps/OfficeApp 5c135d2c9273e1a6d530b51888bf422df574f291
+apps/OfficeApp 99bfe4363232dc01f52b73b4a69b8691a53a9e64
 sdk d4cf4a99d58ae96983d805a9f184ba412672fef3
 test/docx-line-match.py 8a3a14b2064e09fb95d81241771a24e87ce8c67d
-engine 730caae4d394b117102836a128ca0f7b9acf1ddf
+engine d1e8009036e20a7aeb4899ad12da070ba3f1dec8
 enginesyms 96a3b39eb02efe06
-enginepatches 8f86b1306040e313
+enginepatches 2e278bca915d6f38
 fonts bundled/windows
