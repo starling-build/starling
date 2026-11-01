@@ -518,7 +518,16 @@ enum WordArt {
                         let u0 = x / total, u1 = (x + g.width) / total
                         x += g.width
                         guard g.width > 0, g.painter.height > 0 else { continue }
-                        let p00 = point(u0, v0), p10 = point(u1, v0), p01 = point(u0, v1), p11 = point(u1, v1)
+                        var gv0 = v0, gv1 = v1
+                        if let box = Self.knob("WA_BOX"), let size = Optional(g.style(Paint()).fontSize ?? 0), size > 0 {
+                            // A line box of `box` ems with its baseline `WA_BASE` of the way down it.
+                            let e = box * size, d = g.painter.computeDistanceToActualBaseline(.alphabetic)
+                            let alpha = Self.knob("WA_BASE") ?? 0.75
+                            let unit = v1 - v0
+                            gv0 = v0 + ((0 - d) / e + alpha) * unit
+                            gv1 = v0 + ((g.painter.height - d) / e + alpha) * unit
+                        }
+                        let p00 = point(u0, gv0), p10 = point(u1, gv0), p01 = point(u0, gv1), p11 = point(u1, gv1)
                         let ax = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / 2 / g.width, (p10.dy - p00.dy + p11.dy - p01.dy) / 2 / g.width)
                         let ay = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / 2 / g.painter.height,
                                         (p01.dy - p00.dy + p11.dy - p10.dy) / 2 / g.painter.height)
