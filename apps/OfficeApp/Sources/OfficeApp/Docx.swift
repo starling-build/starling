@@ -364,6 +364,45 @@ enum DocxFormat {
     /// paragraphs go. (lo tdf133924: Word's print sets "Around" 71pt and
     /// "notBeside" 273pt under the text's top, the text round the one and over
     /// and under the other; ours set both frames before the text.)
+    /// A table whose every cell paragraph carries the one frame, of the text's
+    /// anchor and "auto" wrap, an offset down and nothing else: Word floats it as
+    /// a table placed by the text, `w:tblpY` down from the paragraph after it,
+    /// and sets that text first, at the top (LibreOffice's tdf164474: "Some text"
+    /// at 30.5 over the table's row at 59.4; ours set the row first and the text
+    /// under it). The frame is written as the table's own floating position, and
+    /// taken off the paragraphs (the table's, and the one after it that carries
+    /// the same frame).
+    static func _floatFramedTables(_ root: XNode) {
+        guard let body = root.first("w:body") else { return }
+        func cellParagraphs(_ tbl: XNode) -> [XNode] {
+            tbl.all("w:tr").flatMap { $0.all("w:tc") }.flatMap { $0.all("w:p") }
+        }
+        var i = 0
+        while i < body.children.count {
+            defer { i += 1 }
+            let tbl = body.children[i]
+            guard tbl.name == "w:tbl", let pr = tbl.first("w:tblPr"), pr.first("w:tblpPr") == nil else { continue }
+            let paragraphs = cellParagraphs(tbl)
+            guard !paragraphs.isEmpty else { continue }
+            let frames = paragraphs.map { $0.first("w:pPr")?.first("w:framePr") }
+            guard let frame = frames[0], frames.allSatisfy({ $0 != nil }),
+                  Set(frames.map { PptxXML.serialize($0!) }).count == 1,
+                  frame["w:vAnchor"] == nil || frame["w:vAnchor"] == "text",
+                  frame["w:hAnchor"] == nil || frame["w:hAnchor"] == "text",
+                  frame["w:wrap"] == nil || frame["w:wrap"] == "auto" || frame["w:wrap"] == "around",
+                  frame["w:x"] == nil, frame["w:xAlign"] == nil, frame["w:yAlign"] == nil, frame["w:w"] == nil, frame["w:h"] == nil,
+                  frame["w:dropCap"] == nil, let y = Int(frame["w:y"] ?? ""), y > 0 else { continue }
+            let signature = PptxXML.serialize(frame)
+            for p in paragraphs { p.first("w:pPr")?.children.removeAll { $0.name == "w:framePr" } }
+            if i + 1 < body.children.count, body.children[i + 1].name == "w:p",
+               let f = body.children[i + 1].first("w:pPr")?.first("w:framePr"), PptxXML.serialize(f) == signature {
+                body.children[i + 1].first("w:pPr")?.children.removeAll { $0.name == "w:framePr" }
+            }
+            let pos = XNode(name: "w:tblpPr", attrs: ["w:vertAnchor": "text", "w:horzAnchor": "text", "w:tblpY": String(y)])
+            pr.children.insert(pos, at: 0)
+        }
+    }
+
     static func _foldFrames(_ root: XNode) {
         // (A frame whose text runs turned, `w:textDirection` btLr or tbRl, on
         // the page or margin: a box of the size it says, the text in it
@@ -559,6 +598,7 @@ enum DocxFormat {
         _inheritSpace(root)
         Self._foldDropCaps(root)
         Self._foldFrames(root)
+        Self._floatFramedTables(root)
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
