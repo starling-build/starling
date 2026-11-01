@@ -2174,6 +2174,17 @@ enum OfficeFonts {
         if missing { name = "Times New Roman" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
+        // (Hebrew in Times New Roman or Arial: the Liberation clones have
+        // the letters at Times' and Arial's widths — alef 0.600 em, 0.628
+        // — where the chain's first face with Hebrew was DejaVu Sans at
+        // 0.668, which broke lo tdf129659's paragraph a word early and
+        // set its letters in the wrong face. Arabic has no Liberation
+        // glyphs and still falls through to the Naskh.)
+        switch name.trimmingWhitespace().lowercased() {
+        case "times new roman": face.fallback.insert("Liberation Serif", at: 2)
+        case "arial": face.fallback.insert("Liberation Sans", at: 2)
+        default: break
+        }
         // (Word for Windows' Arabic in Arial and Times New Roman, which the
         // stand-ins have none of: Noto Naskh draws it, 11% wider than Arial
         // over zh-d97c5474's Arabic paragraph — 1817pt to Word's 1634 —
@@ -2183,7 +2194,7 @@ enum OfficeFonts {
             switch name.trimmingWhitespace().lowercased() {
             case "arial":
                 // (In the sans Arabic, nearer Arial's than the Naskh is.)
-                face.fallback = [cambria, "Times New Roman", "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans"]
+                face.fallback = [cambria, "Times New Roman", "Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans"]
                 face.joinedAdvances = WindowsArabicAdvances.arial
                 face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
             case "times new roman":
