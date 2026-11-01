@@ -17578,6 +17578,14 @@ public final class RichLayout {
             bandLeft -= _px(margins.0)
             bandWidth += _px(margins.0 + margins.1)
         }
+        // (The margin is the text area across all its columns, not the
+        // column the anchor stands in: lo-7afc5602's box, aligned right to
+        // the margin, stands at the page's right margin in a 2-column
+        // section, 423pt where the column's edge put it at 137.)
+        if _perSection, float.horizontalFrom == "margin", !floatsFrames, i >= _cells.count || _cells[i] == nil {
+            let setup = _setup(ofParagraph: i)
+            bandWidth = _px(setup.contentWidth)
+        }
         // (From a cell's own edges, not its text's: a floating table nested
         // in a cell — see the reader's `w:tblpPr`.)
         // (Not from its paragraph's line, which floats before it may have
@@ -17877,6 +17885,10 @@ public final class RichLayout {
 
     /// How far paragraph `i`'s text starts from its column's left edge
     /// (its indents; a cell's place is left out of it).
+    private func _marginFloat(_ i: Int) -> Bool {
+        let images = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
+        return images.contains { $0.float?.horizontalFrom == "margin" }
+    }
     private func _textLeftInColumn(_ i: Int) -> Double {
         guard i < _cells.count, _cells[i] == nil else { return 0 }
         return _textLeft[i]
@@ -18602,7 +18614,10 @@ public final class RichLayout {
                         let columnClipR = manyColumns ? left + columnW + 1 : _pxPageW(p)
                         // (A cover's one-column section, set across the page:
                         // `_fullWidthCover`.)
+                        // (A margin-aligned float of a multi-column section
+                        // stands outside its anchor's column: lo-7afc5602.)
                         let across = _fullWidthCover.contains(piece.paragraph)
+                            || (_perSection && manyColumns && _marginFloat(piece.paragraph))
                         let clipL = across ? 0 : columnClipL
                         let clipR = across ? _pxPageW(p) : columnClipR
                         let top = pageTop + piece.pageY + (verticalShifts?[slot * 1_000_000 + pieceIndex] ?? 0)
