@@ -1943,7 +1943,12 @@ public final class RichLayout {
                     widths[c.table] = _pctColumns(c.table, base, ts, document)
                 }
             } else {
-                widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
+                // (A table with no grid and cells of no width, a share of the column wide, is that share,
+                // not the whole column: LibreOffice's sdt-around-float-table, 40% and aligned right,
+                // stands at the right margin's share in Word's print and ran the column's width.)
+                var room = width
+                if theme.wordRules, let pct = document.tableStyles[c.table]?.widthPercent, pct > 0, pct < 100 { room = width * pct / 100 }
+                widths[c.table] = Array(repeating: (room / Double(cols)).rounded(.down), count: cols)
             }
         }
         for (table, w) in widths where _columnWidths[table] != w {
