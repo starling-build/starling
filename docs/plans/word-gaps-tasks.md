@@ -13208,3 +13208,9 @@ print as FangSong/KaiTi because every reprint batch first prints the warm docume
 answer and the per-font-table-entry substitutions); Fang Zheng names (方正*) not installed -> Microsoft YaHei; 標楷體 -> DFKaiShu-SB-Estd-BF;
 新細明體 -> PMingLiU; 宋体 -> SimSun; 黑体 -> SimHei; 等线 -> DengXian; Liberation Sans/Serif -> Arial/Times New Roman; Carlito -> Calibri/Cambria mixes;
 DejaVu Serif/Sans -> Cambria / Segoe UI. Sent to amd-perf.
+
+### CASCADES — ranked list and three-way split (amd-5, 2026-11-01 22:50, tip 406412873 + fonts reinstalled)
+Rank = missed lines on/after a document's first miss, documents ≥95 only. Full list of missed lines: /data/s/amd-5/census/mf1-756.tsv (cols set, doc, total, page, y, x0, x1, text; a copy of the render dir is w-f1-756 beside it).
+Split by rank: amd-5 takes 1, 4, 7, 10, 13, 16; amd-3 takes 2, 5, 8, 11, 14; amd-1 takes 3, 6, 9, 12, 15.
+1 zh-147bdae0 54 (URL, needs hyphenation — leave) · 2 zh-ab9cbe66 36 p18 · 3 zh-ae2dd08d 29 p18 (text-box line one hair short: Word fits 經 at 428.7) · 4 zh-6d402586 24 p6 (p6 y442: ours hangs the "，" and squeezes 工 in; Word wraps 工) · 5 zh-db07d44e 22 p7 (the last row 大口徑 of the p7 table is 36.5 high in ours, 23.2 in Word, so it goes to p8; the row is the last of a vertical merge) · 6 zh-6e7ff836 21 p19 · 7 zh-7773163d 20 p4 · 8 zh-e0ca7252 19 p1 · 9 zh-4ea36aa8 19 p14 (table, cell text interleaved) · 10 zh-3c055c9b 18 p2 · 11 zh-c2c92639 16 p20 · 12 zh-9bcea239 16 (clipped digits — leave) · 13 zh-5be7e156 16 p2 · 14 zh-7a16a243 15 p2 · 15 zh-bdae17c0 14 p9 · 16 zh-b00fef0d 14 p5.
+Done: zh-505b9619 52 -> 3 (406412873, Taiwan colon not squeezed to hang a paragraph's last mark more than 3pt over).
