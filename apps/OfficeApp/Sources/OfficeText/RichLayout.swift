@@ -5407,6 +5407,31 @@ public final class RichLayout {
                 let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                 y = max(-insetTop, -_px(up))
             }
+            // (A table floating by the text that opens a page and has more rows than the body holds is
+            // lifted, not parted where the body ends: Word sets as many of its whole rows as the page, from
+            // its top edge, holds so that the last ends at the body's foot, the top of the first over the
+            // margin. LibreOffice's floattable-footer-object, 55pt rows, a body 209pt high under a footer
+            // picture: five rows a page, the first at 6.2pt down a page, the fifth ending at the foot.)
+            func liftToFoot(_ c: _CellGeo) {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, c.firstInRow, _pages[page].isEmpty,
+                      let ts = document.tableStyles[c.table], ts.floatsOverText, !ts.pageAnchored, y < _px(1) + 0.01 else { return }
+                let physical = page / _columns
+                guard let footer = _headerFooter(.footer, page: physical, document, pageCount: 1),
+                      _footerPictureEnd(footer, pageSetup(forPage: physical)) != nil else { return }
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                var heights: [Double] = [], seen = Set<Int>(), k = i
+                while k < count, let d = _cells[k], d.table == c.table {
+                    if d.row >= c.row, seen.insert(d.row).inserted { heights.append(d.ownRowHeight) }
+                    k += 1
+                }
+                let all = heights.reduce(0, +)
+                guard all > contentH - y + 0.01 else { return }
+                var run = 0.0, n = 0
+                for h in heights { if run + h <= contentH + insetTop + 0.01 { run += h; n += 1 } else { break } }
+                guard n >= 2, run > contentH - y + 0.01 else { return }
+                RuleTrace.hit("floating-table-lifted-to-end-at-the-foot")
+                y = contentH - run - ruleUnder(c)
+            }
             if let c = _cells[i] {
                 // (Where the row opens the page, a break it states is no
                 // break, whatever offset the table is then set down by:
@@ -5541,6 +5566,7 @@ public final class RichLayout {
                 // 67.080.20" at 34.5 in Word's print, 36.65pt over the
                 // margin; ours stood it at the margin — and 177pt down.)
                 raiseAtHead(c)
+                liftToFoot(c)
                 // (And one placed above the text's place in the middle of a
                 // page, up over the paragraphs before it: they stand under it,
                 // as the text before a table placed against the page does,
@@ -5769,6 +5795,7 @@ public final class RichLayout {
                     // floating-table-section-break, a table 9.85pt up under
                     // the section break, has its text at 58 in Word's print.)
                     raiseAtHead(c)
+                liftToFoot(c)
                 }
                 // (At a page's top the table goes on: its header row
                 // again, and the cells merged down from above.)
@@ -6018,6 +6045,7 @@ public final class RichLayout {
                     // line 12pt over the margin on page 2 in Word's print;
                     // ours stood it at the margin.)
                     raiseAtHead(c)
+                liftToFoot(c)
                     underPins(c.ownRowHeight)
                     shown = pageHeight()
                     if shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: true) {
@@ -6060,6 +6088,7 @@ public final class RichLayout {
                     // print and keep all three rows there; ours stood it at
                     // the margin and sent the third row to page 3.)
                     raiseAtHead(c)
+                liftToFoot(c)
                     goOn()
                     underPins(c.ownRowHeight)
                     shown = pageHeight()
@@ -18964,6 +18993,26 @@ public final class RichLayout {
         return made
     }
 
+    /// How far from the page's foot a footer's picture that the text goes over and under, set up from its paragraph,
+    /// reaches (pixels), if it has one: Word stands it wholly above that paragraph (or as far up as it says, if
+    /// that is more).
+    private func _footerPictureEnd(_ footer: _HeaderFooter, _ setup: PageSetup) -> Double? {
+        var end: Double? = nil
+        for (j, hp) in footer.document.paragraphs.enumerated() where hp.cell == nil && j < footer.layout._tops.count {
+            for image in Array(hp.inlineImages.values) + (hp.image.map { [$0] } ?? []) {
+                guard let f = image.float, f.bandsPage, f.wrapSide == nil, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                      image.height > 0 else { continue }
+                // (Not one raised clear of its paragraph by more than its height: the body knows nothing of that —
+                // floattable-footer-nofit, raised 200pt, keeps five rows a page.)
+                let reach = _px(image.height) + _px(f.effectBottom)
+                guard -_px(f.y) < reach else { continue }
+                RuleTrace.hit("footer-picture-above-its-paragraph-ends-the-body")
+                end = max(end ?? 0, _px(setup.footerDistance) + footer.height - footer.layout._tops[j] + reach)
+            }
+        }
+        return end
+    }
+
     /// How far below the paper's top page `p`'s text starts, and how far
     /// above its bottom it ends (pixels): the margins, or the header's
     /// and the footer's extent where that is more.
@@ -18987,6 +19036,10 @@ public final class RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages, let off = footer.pageAnchoredTop {
                 bottom = max(bottom, _px(setup.height) - _px(off))
             }
+            // (And a picture in it that the text goes over and under, set up from its paragraph: Word stands it wholly
+            // above that paragraph and ends the body at its top — LibreOffice's floattable-footer-object, a picture 88.5pt
+            // high raised 81pt, ends the body 91pt higher than the footer's line alone does, three rows a page, not five.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, let end = _footerPictureEnd(footer, setup) { bottom = max(bottom, end) }
         }
         return (top, bottom)
     }
