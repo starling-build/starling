@@ -8017,7 +8017,13 @@ public final class RichLayout {
         if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0.0001 {
             let spacing = (_normalChar(document)?.letterSpacing ?? 0) * (document.balancesSpaceWidth ? 2 : 1)
             let cell = _px((_normalChar(document)?.fontSize ?? theme.fontSize) + add + spacing)
-            if cell > 0 { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
+            // (Not for a paragraph of smaller characters than the cell: LibreOffice's
+            // tdf149089, 9pt text on a grid of Normal's 10.5, holds 55 characters of
+            // its 498.7pt column in Word's print, 495pt of them, where 47 whole cells
+            // of 10.5 hold 54.)
+            let base = _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            let own = _px(p.runs.map { $0.style.fontSize ?? base }.max() ?? base)
+            if cell > 0, own >= cell - _px(0.01) { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
         }
         // A floating frame: as wide as it says, from where it says.
         var frameLeft: Double? = nil
