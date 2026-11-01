@@ -8667,3 +8667,11 @@ with no other document changes; tab indentation remains a separate issue.
   face and Times' joining widths still set each Arabic word. Pair on the
   Windows box, office 8ac9be91, Windows mode, 756 documents: rtl 85.7→100,
   nothing else moves (v1 and v2).
+
+- **A Word chart with no title: its plot starts higher.** Word for Windows' print puts the top value-axis
+  label 15.15pt under the frame's top in a 432x252 untitled chart (a titled one: 41.15), ours 19.15, so the
+  4.5 and 5 labels missed the 3pt window (ten charts in nine LibreOffice documents, tdf130031 and tdf130380
+  among them). A 2013-style flat chart takes -4pt at the top; an unstyled (LibreOffice's older export) one -3
+  at the top and 6pt more at the foot (lo-40949e85 tdf124398, lo-79680f48: the axis 9pt taller). 3-D
+  charts keep their plot (lo-8743d336 stood right). amd-5, 2026-11-01: LO 593 ten documents up (about 20
+  lines), none down; the 756 identical. Census of the chart-text class: docs/plans/word-gaps-tasks.md.

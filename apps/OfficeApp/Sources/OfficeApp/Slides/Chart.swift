@@ -3137,6 +3137,12 @@ enum ChartPainter {
         let word = !c.onSlide && !c.onSheet && !c.chartex && c.styled2013
         // (Its foot as well where nothing but the category labels stands there: a legend or
         // an axis title under the plot takes the foot's room its own way.)
+        // (A Word chart without a title or the 2013 style — LibreOffice's older export — stands
+        // 3 pt higher at the top and 6 pt lower at the foot than the generic plot: lo-40949e85's
+        // axis 0 to 6 at 16.25 and 232.25 under its frame's top in Word for Windows' print, ours
+        // at 19.25 and 226.25; lo-79680f48's alike, 9 pt taller in a 77 pt chart.)
+        let plainUntitledWord = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.barView == nil
+            && (c.title ?? "").isEmpty && c.titleAt == nil
         let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
         let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
@@ -3166,7 +3172,7 @@ enum ChartPainter {
             // it: their baselines 7.98 pt over the frame's foot in Excel's
             // prints of histograms, Pareto charts and waterfalls, ours 5.45.
             // Not a box plot's, already higher than Excel's.)
-            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) - (wordFoot ? 4.4 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) - (wordFoot ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -3203,6 +3209,12 @@ enum ChartPainter {
             // scatter charts, their feet where ours are. A titled `cx:`
             // chart's, 0.45: four histograms and box plots, 31.8 pt under
             // the frame's top.)
+            // (A Word chart with no title: its plot starts 4 pt higher, the top tick label 15.15
+            // under the frame's top in Word for Windows' prints where ours stood 19.15 — ten
+            // untitled column and area charts of the LibreOffice set, lo-6b6ece9c and nine like
+            // it; a titled one stands 41.15 and is not moved. Not a 3-D chart's, nor a chart without the 2013 style:
+            // lo-8743d336's and lo-40949e85's plots stand where they did.)
+            let untitledWordRise = -4.0
             let pt = k / 0.75
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
             // (An untitled 2007-style column chart on a slide: its plot starts
@@ -3211,7 +3223,8 @@ enum ChartPainter {
             // gridline 10.5 pt under the frame's top, ours 14.5.)
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
             let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
-                : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt : 0
+                : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
+                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? -3 * k : 0)
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
