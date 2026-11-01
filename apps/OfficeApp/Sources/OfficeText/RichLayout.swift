@@ -9891,7 +9891,7 @@ public final class RichLayout {
         if theme.wordRules, p.cell == nil, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             for image in (p.image.map { [$0] } ?? []) + Array(p.inlineImages.values) {
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y > 0,
-                      image.height + f.effectBottom > 0, before + painter.height >= _px(f.y) - 0.01 else { continue }
+                      image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
             }
         }
