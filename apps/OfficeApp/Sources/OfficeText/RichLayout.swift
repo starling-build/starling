@@ -1235,6 +1235,9 @@ public final class RichLayout {
     private var _turnedBox = false
     /// Whether this layout is a text box's text (`_textBox`).
     private var _inTextBox = false
+    /// Laid out as a text box's own text (also the layouts remade for a box whose text is
+    /// centred or at the foot, which keep nothing else of the first).
+    private var _boxText = false
     // Frame edges in the nested layout's line coordinates, for restoring
     // an overflowing first-line indent. Other lines keep their own policy.
     private var _fixedTextFrame: (left: Double, right: Double)?
@@ -10600,6 +10603,34 @@ public final class RichLayout {
             let next = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at) + ch.utf16.count
             if next < p.text.utf16.count { wideStarts.insert(next) }
         }
+        // (A text box's paragraph whose first word is too long for its
+        // indented first line, yet fits a whole line, holds its first
+        // character alone on that line, the rest from the next: LibreOffice's
+        // textframe-in-shape, "hello" in a 28.8pt box under Normal's 14.4pt
+        // first-line indent, is "h" / "ello" in Word for Windows' print, where
+        // the engine left the first line empty and set the word whole below.
+        // One letter, not as many as fit: "he" would have.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let index, _boxText, p.cell == nil,
+           p.style.list == nil, p.runs.count == 1, !p.style.rightToLeft,
+           p.style.alignment == .left || p.style.alignment == .justify {
+            let lead = _px(firstLineIndent(p, at: index, document))
+            let units = Array(p.text.utf16)
+            let end = units.firstIndex(where: { $0 == 0x20 || $0 == 0x09 || $0 == 0x0A || $0 == 0x2028 || $0 >= 0x2E80 }) ?? units.count
+            if lead > 0, end > 1, !units[..<end].contains(0x2D), !units[..<end].contains(0xFFFC) {
+                let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                func width(_ n: Int) -> Double {
+                    let painter = TextPainter(text: TextSpan(text: String(decoding: units[..<n], as: UTF16.self), style: style), textDirection: .ltr)
+                    painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                    defer { painter.dispose() }
+                    return painter.width
+                }
+                let whole = width(end)
+                if lead + whole > textWidth + 0.01, whole <= textWidth + 0.01, lead + width(1) <= textWidth + 0.01 {
+                    RuleTrace.hit("first-word-too-long-for-indented-line")
+                    wideStarts.insert(units[0] >= 0xD800 && units[0] < 0xDC00 ? 2 : 1)
+                }
+            }
+        }
         // (Before a "×" or "÷" after an ideograph or a full-width mark Word
         // may part a line, as between ideographs; the engine takes "％×1.2"
         // for one word. zh-7a16a243's "…可達560％×1.2=672％)" ends a line at
@@ -18159,6 +18190,7 @@ public final class RichLayout {
         // (Turned, its lines run along the box's height.)
         layout._turnedBox = box.textDirection != .horizontal
         layout._inTextBox = true
+        layout._boxText = true
         if _canCorrectFixedBoxIndent(box) {
             let inset = box.textDirection == .horizontal ? box.insetLeft
                 : box.textDirection == .up ? box.insetBottom : box.insetTop
@@ -18183,6 +18215,7 @@ public final class RichLayout {
                 let width = layout.width
                 layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
                 layout.scale = scale
+                layout._boxText = true
                 layout.width = width
                 layout.ensureLaidOut(sub)
             }
@@ -18209,6 +18242,7 @@ public final class RichLayout {
                 let width = layout.width
                 layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
                 layout.scale = scale
+                layout._boxText = true
                 layout.width = width
                 layout.ensureLaidOut(sub)
             }
