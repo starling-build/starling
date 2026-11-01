@@ -6727,7 +6727,12 @@ public final class RichLayout {
                 // (`w:keepLines`), or — its widow and orphan control,
                 // which is on unless the paragraph says otherwise — with
                 // two lines at least on each side.
-                if theme.wordRules, let chosen = cut, y > 0.01 || cursor > top + 0.01 {
+                // (At a page's top too, for its widow control alone: a paragraph that
+                // fills a page and leaves one line for the next gives that page
+                // a line to keep company: tdf136952's p2, 17 lines, ends with
+                // two on p3 in Word's print, where ours left one.)
+                let atTop = !(y > 0.01 || cursor > top + 0.01)
+                if theme.wordRules, let chosen = cut {
                     let st = document.paragraphs[i].style
                     let all = cuts!
                     let first = all.firstIndex(where: { $0 > cursor + 0.01 }) ?? 0
@@ -6739,7 +6744,9 @@ public final class RichLayout {
                     // p34 under its figure in Word for Windows' print, the
                     // space past the foot; ours sent it to p35, and the 66
                     // lines after it a page down.)
-                    if st.keepLines, bottom - top <= contentH + 0.01 {
+                    if atTop {
+                        if st.widowControl, !st.keepLines, !document.widowControlSuspended, all.count - 1 - last == 1, keep >= 3 { keep -= 1 }
+                    } else if st.keepLines, bottom - top <= contentH + 0.01 {
                         if last < all.count - 1 { keep = 0 }
                     } else if st.widowControl, !document.widowControlSuspended,
                               // (A wrapper table's text is a cell's, set as the body is: before
