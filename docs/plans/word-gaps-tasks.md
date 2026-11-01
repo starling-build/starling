@@ -12789,3 +12789,4 @@ starling-bd's order: split the 214 by direction and feature; find the rule or wr
 - **Landed (e016001db): a line may break between a digit and the small percent sign "﹪"** (U+FE6A) — zh-146f4e02's six "…價值）的8﹪給予" lines end "…的8" in Word's print, the "﹪" opening the next;
   the engine's number+percent glue carried the 8 down. A zero-width break before U+FE6A after an ASCII digit (Windows only). The sweep's line matcher forgives this (756 v1/v2 and lo: up 0, down 0,
   identical means), so the evidence is the census, not the score: zh-146f4e02 p9 now reads "…的8" / "﹪给予货币奖励。" as Word's. Stamp one revision behind (origin moved under the rebase).
+- CLAIM (windows-2 Sonnet 5.5, 2026-11-01, no coordinator): Slides pptx2svg 4.85 (line offsets). EMF exact-frame (lo-tdf143222 5.67->3.65, bug54570 1.41->0.22; lo-tdf149206 3.0->3.61, lo-ole-emf_min 0.01->0.10; mean 0.9388->0.9342 on 555) is on wip/w2-emf-frame dc7a8f6a5, Word pair with macos.
