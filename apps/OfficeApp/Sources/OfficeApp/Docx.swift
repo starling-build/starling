@@ -1468,7 +1468,7 @@ enum DocxFormat {
                 // LibreOffice's fdo76248, "*Projections" after Table 5: 499.5 in Word's print, the table's
                 // foot, where ours set it and the paragraphs after in the 218pt beside it.)
                 if Self.wordOnWindows, currentCell == nil, first > 0, first < paragraphs.count, let above = paragraphs[first - 1].cell,
-                   tableStyles[above.table]?.floatsOverText == true, paragraphs[first].image == nil, paragraphs[first].text.hasPrefix("\n"),
+                   tableStyles[above.table]?.floatsOverText == true, paragraphs[first].image == nil, paragraphs[first].text.hasPrefix("\n"), paragraphs[first].text.utf16.count > 1,
                    let run = node.children.first(where: { $0.name == "w:r" }),
                    let br = run.children.first(where: { $0.name != "w:rPr" }), br.name == "w:br",
                    (br["w:type"] ?? "textWrapping") == "textWrapping", ["all", "left", "right"].contains(br["w:clear"] ?? "") {
