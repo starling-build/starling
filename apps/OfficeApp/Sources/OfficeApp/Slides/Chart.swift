@@ -2306,6 +2306,16 @@ enum ChartPainter {
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
             }
+            // (A row wrapped is balanced: Word sets a legend of eight entries, too long for
+            // a row, as four and four — lo tdf137116's pie, "datalabel1…4" over "5…8" —
+            // where ours filled the first row, six and two.)
+            if !beside, box == nil, lines.count > 1, !c.onSlide, !c.onSheet {
+                let columns = (entries.count + lines.count - 1) / lines.count
+                if columns < (lines.map(\.count).max() ?? 0) {
+                    RuleTrace.hit("word-legend-rows-wrapped-are-balanced")
+                    lines = stride(from: 0, to: entries.count, by: columns).map { Array(entries[$0 ..< min($0 + columns, entries.count)]) }
+                }
+            }
             // (An entry to a line: PowerPoint's 9 pt entries are 16.9 pt apart.)
             // (A line of the chart's Latin face, whatever the names' script:
             // zh-37b6536f's Chinese entries, 9pt, stand 16.8 apart in Word's
