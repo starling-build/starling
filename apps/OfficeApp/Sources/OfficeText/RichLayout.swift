@@ -7642,7 +7642,16 @@ public final class RichLayout {
         let ownLeft = listLeft.map { _px($0) } ?? _px(sides.left)
         var left = wordList != nil ? ownLeft
             : ownLeft + (style.list != nil ? _px(_listIndents(p, document)?.left ?? theme.listIndent * Double(style.listLevel + 1)) : 0)
-        let right = _px(sides.right)
+        var right = _px(sides.right)
+        // (A right-to-left paragraph's indents are its start's and its end's:
+        // `w:start` (or Word's `w:left`) is the RIGHT edge, a list level's
+        // as well — LibreOffice's tdf82065, "RTL with indent" under a bullet
+        // of start 170.1 and hanging 56.7, ends 170.1pt short of the right
+        // margin with its bullet 56.7 further in, in Word's print; ours set
+        // the bullet 113 in from the left and the text against the margin.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, p.cell == nil, !_mirrored.contains(i) {
+            swap(&left, &right)
+        }
         var width = _flowWidth(i)
         // On a grid of characters a body line holds whole characters of
         // Normal's size: as wide as the most of them the column takes,
@@ -16715,8 +16724,16 @@ public final class RichLayout {
                    let first = g.painter.computeLineMetrics().first {
                     at = g.textLeft + first.left
                 }
+                // (A right-to-left paragraph's number stands at its right: its right edge
+                // is the first line's start, the text's right edge and the hang.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, p.cell == nil, !_mirrored.contains(i) {
+                    at = g.textLeft + g.textWidth - _px(wl.first) - marker.width
+                    marker.paint(canvas, Offset(at, g.inkTop))
+                    marker.dispose()
+                } else {
                 marker.paint(canvas, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop))
                 marker.dispose()
+                }
             } else {
             var markerChar = theme.markersAtHang ? Self._slidesMarkerChar(p.runs[0].style) : p.runs[0].style
             if let c = p.style.bulletColor { markerChar.color = c }
