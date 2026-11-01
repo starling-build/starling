@@ -13094,3 +13094,54 @@ One build of the tip 151c8a238 (code through bb367862f, my two beside-a-float st
 - CLAIM (lenovo-2, 2026-11-01, starling-bd's order after LO CENSUS 3): the top unheld rows: tdf38575_fullWidthLine (rank 9, 61 lines, pages 4/2), then floattable-wrap-on-all-pages, floattable-header, tdf36117_verticalAdjustment, floating-table-dummy-text. Read-outs follow here.
 - TIP WATCH amd-8, round 7: 151c8a238 (code through f2db549b8, b86e516ec, d4ed99727, 2d0700197): CLEAN. Word 756 v2/v1 1 up 0 down (zh-b8de3ae2 92.9 -> 93.1); LO v2/v1 1 up 0 down (lo-085e8dbb 45.5 -> 54.5); failures 0. Same-ratio line-count shift only on lo-6880a1aa (177 -> 176 lines, score unchanged). No Slides commits. Round 8 includes the Slides sweep.
 - amd-4 LANDED tdf124675 (lo-7a2c306339779157 70 -> 100, 6206e1a98): a paragraph too tall for what is left of a floating table's offset parts there; its lines that fit stand over the table, the rest under it. Moving to LO CENSUS 2 ranks 61-110 (nobody-holds only).
+
+### LO below 50% (amd-7, 2026-11-01, tip 9e4cf6642 swept fresh; mean 83.3 over 593; 45 documents with Word lines, 42 more score 0 with no Word lines)
+Score, lines (ours/Word), holder. Holders come from the board claims above and starling-bd's relays; 'no live claim' means I found no open claim, not that it is free of history. Since the sweep, lo-c7082c66 is 93.5.
+```
+  0.0%      0/1 lo-0a475ed1  lenovo-3 (WordArt)
+  0.0%      0/1 lo-47f8ee21  lenovo-3
+  0.0%     0/23 lo-8c97b9a2  lenovo-3 (WordArt arch)
+  0.0%     0/32 lo-e2dfec33  lenovo-3 (WordArt circle)
+  0.0%     0/81 lo-1e6077df  amd-5 (chart text)
+  0.0%      1/1 lo-0dd5bc0a  lenovo-2/amd-2 (beside float table)
+  0.0%      1/1 lo-5e49366b  lenovo-2/amd-2 (beside float table)
+  0.0%      1/1 lo-91e56c04  no live claim
+  0.0%      1/2 lo-f1cc2329  read out by lenovo-2, not fixed (frame paragraph, wrap none)
+  0.0%      2/2 lo-73f1dccc  lenovo-3 (tdf134866)
+  0.0%      4/4 lo-f8601326  read out, no live claim (frame in 3 columns)
+  0.0%      6/6 lo-0622682c  read out, no live claim (VML group)
+  0.0%      8/8 lo-20f5d558  read out, no live claim (float table in 2 columns)
+  1.6%    61/58 lo-c6d022b6  amd-6
+  6.2%    16/16 lo-2d0cbd06  lenovo-2/amd-2
+  7.7%    13/12 lo-425b63cb  amd-7
+  8.9%  123/124 lo-c7082c66  amd-7 LANDED afe0ed388 (8.9 -> 93.5)
+  9.7%    31/27 lo-7ec36a70  lenovo-3 (frames)
+ 11.1%      9/5 lo-8ab9b90f  amd-7 (amd-5 holds the charts)
+ 11.1%      9/5 lo-f391267c  amd-5
+ 12.5%      8/7 lo-88b29958  lenovo-2/amd-2
+ 20.0%      5/5 lo-b6cd0d97  no live claim
+ 25.0%      4/2 lo-d5dbaac5  no live claim (alt-chunk)
+ 25.0%      4/4 lo-67635bac  amd-7 (parked, board 11783)
+ 25.0%      4/4 lo-e0bfbb26  amd-7 (parked)
+ 25.0%      4/4 lo-e0dd265c  amd-7 (parked)
+ 26.9%    26/31 lo-9749f2b5  no live claim
+ 28.6%    14/15 lo-1bd2003e  amd-5
+ 30.0%    10/11 lo-a994ad5c  amd-5
+ 33.3%    15/15 lo-fc75bd78  amd-7 (freed by windows-4; check lenovo-5)
+ 33.3%      3/3 lo-be1a88f4  parked by lenovo-2 (font missing)
+ 33.3%      3/3 lo-47598455  lenovo-2 claimed 10-31
+ 33.3%      3/5 lo-a998edda  amd-7
+ 33.3%    36/34 lo-6b7d4262  amd-6
+ 36.2%   94/103 lo-a43021ca  not fixable (footer date is Word print date)
+ 40.0%     10/6 lo-f48e444e  amd-7 (freed by windows-4; check lenovo-5)
+ 40.0%     10/9 lo-6e93e16d  amd-3 landed two-sided wrap; still 40
+ 40.0%      5/5 lo-e998b55c  amd-7 (freed; check lenovo-5)
+ 42.9%      7/7 lo-3a0ca937  amd-7
+ 42.9%      7/7 lo-f5c618c5  amd-7
+ 43.9%    57/58 lo-c9b8c5ab  amd-6
+ 45.5%    11/13 lo-085e8dbb  amd-7 (freed by windows-4)
+ 46.2%    13/12 lo-e97858a4  no live claim
+ 46.4%    69/68 lo-5c5eb1f7  amd-7
+ 48.9%    94/91 lo-23180ba1  lenovo-3 (frames step 2)
+```
+- LANDED (amd-7, 2026-11-01) afe0ed388: a table nested in a table cell, flattened into it, keeps its cell margins in the page split. Where a row goes over a page, each enclosing nested cell's top margin + top line is set again at the head of the part (lo-c7082c66 page 2: 12.3pt = 2 x (5.65 + 0.5) under the margin, ours was 6.6), and its bottom margin + bottom line are kept clear of the foot where the part ends. `RichParagraphStyle.nestedTopRepeat` / `nestedBottomRepeat` (set where `Docx` flattens, read in `splitRow` for the head, the room, and the cut). Pair on 88cd3e5b3: 756 zero movers, LO one up (lo-c7082c66 8.9 -> 93.5, 115 of 123 lines), none down, v1 and v2. Still off in that document: page 3's foot (8 lines, a Table4 row split) and x 5.7pt (floating table in a cell, not scored). NOT lab-confirmed: 2 x 6.15 fits to 0.1pt on one document only. A `windows` lab with a 3-level nested table that splits would settle it.
