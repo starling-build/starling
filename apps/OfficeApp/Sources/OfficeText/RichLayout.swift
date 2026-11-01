@@ -14654,7 +14654,13 @@ public final class RichLayout {
                         RichTextTheme.wordWindowsPages && o > 0 && units[o - 1] == 0x20 && Self._openingUnits.contains(units[o])
                             && (lineTabbed || (a ..< max(a, o)).contains { units[$0] == 0x09 })
                     }
-                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
+                    // (Taiwan's full-width colon, mid-line, does not give for a paragraph's
+                    // last mark hung past the margin when the character before it is more
+                    // than 3pt over: zh-505b9619's "…第5點之人員。" (mode 15, zh-TW, 14pt,
+                    // 5.35 over) sends "員。" down in Word's print with the "：" full
+                    // width, where ours squeezed it and hung the "。". Under 3pt it gives:
+                    // zh-d746674a's "…編碼意義等。" is 1.6 over and takes it.)
+                    let all = (marks + own).filter { (!kept || $0 != tail) && !(hang > 0 && over - hang > 60 && paragraphEnd && theme.wordRules && !legacy && document.marksCentred && (document.compatibilityMode ?? 12) >= 15 && $0 != tail && units[$0] == 0xFF1A) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
