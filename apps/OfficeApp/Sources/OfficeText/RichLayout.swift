@@ -6956,6 +6956,40 @@ public final class RichLayout {
                 if y > contentH - 0.01, !ender { newPage() }
                 var mine = _wrapBoxes(i)
                 for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height), $0.above, $0.below) : $0 } } }
+                // (A box of the paragraph's own that the page fixes — a text box
+                // wrapped square, placed from the page or its margin, the
+                // full column wide — and that the paragraph's first line
+                // meets, space before and all, sends the paragraph under it,
+                // and its space before is set again there: lo tdf116486's
+                // "TEST", 175pt before, its line 274 to 285 and the box 283
+                // to 299, stands at 474 in Word's print, 299 + 175; ours
+                // stood at 274, over the box's own text.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _anchorsOnly(i, document) == false,
+                   !document.paragraphs[i].text.isEmpty, lead > 0.01 {
+                    var fixed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+                    var own: [ImageAttachment] = []
+                    if i < _floatImages.count, let image = _floatImages[i] { own.append(image) }
+                    if i < _inline.count { own += _inline[i] }
+                    for image in own {
+                        guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.heightShare == nil,
+                              float.verticalFrom == "page" || float.verticalFrom == "margin", float.horizontalFrom != "character",
+                              image.textBox != nil || !image.data.isEmpty else { continue }
+                        let r = _floatRect(float, image, geometry(i), i)
+                        let t = _px(float.y) - (float.verticalFrom == "page" ? _pxMarginTop(page) : 0)
+                        fixed.append((t - _px(float.distanceTop), t + _px(image.height) + _px(float.distanceBottom), r.left, r.right))
+                    }
+                    if !fixed.isEmpty {
+                        let reach = Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? 0
+                        let kept = bands
+                        bands = []
+                        var steps = 0
+                        while let below = noRoom(at: y, height: reach, fixed), steps < 20, below > y + 0.01 {
+                            y = below; steps += 1
+                            RuleTrace.hit("word-own-fixed-box-sends-its-paragraph-under")
+                        }
+                        bands = kept
+                    }
+                }
                 if !mine.isEmpty {
                     if y > 0.01, mine.contains(where: { _pinnedFloats[$0.id]?.page != page && y + $0.rect.bottom - top > contentH + 0.5 }) { newPage() }
                     var placed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
