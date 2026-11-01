@@ -12771,7 +12771,11 @@ public final class RichLayout {
         let left = _tableLeft(before.table, document)
         let right = left + widths.reduce(0, +)
         // The text's edge: the table's right side and the clear it asks.
+        // (Before 2013's layout the text keeps off the table's right cell margin too: lab
+        // `beside-float`, Word's print of a 50% to 90% table with 141-twip distances, sets
+        // the text 5.3pt past where the distance alone puts it, at every width.)
         let edge = right + _px(twips("w:rightFromText") / 20)
+            + ((document.compatibilityMode ?? 0) < 15 ? _px(document.tableStyles[before.table]?.textOutdentRight ?? 5.4) : 0)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         // (A table in the left half, or one that fills most of the column, whose
         // text beside it in the strip left at its right is a few words wide:
@@ -12796,7 +12800,7 @@ public final class RichLayout {
         }
         // (Beside a table at the left, in the strip at its right: one that ends in the middle
         // of the column leaves the text under it, and so does one that fills most of it.)
-        guard left < column / 2, right < column / 2 + _px(100) || right > column * 0.8, rightRoom >= size * 3 else { return nil }
+        guard left < column / 2, rightRoom >= size * 3 else { return nil }
         return edge > own ? (edge - own, false) : nil
     }
 
