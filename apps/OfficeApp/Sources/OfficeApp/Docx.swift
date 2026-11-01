@@ -5391,7 +5391,11 @@ enum DocxFormat {
                 let complex = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
                 }
-                if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
+                // (Not the Hyperlink character style inside a table of contents:
+                // Word prints its entries in the TOC paragraph's own look, black
+                // and plain, whatever the runs name.)
+                let inContents = notes.fields.contains { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }
+                if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex) }
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex)
@@ -5401,6 +5405,11 @@ enum DocxFormat {
             // style again, so the run has to say "none" over it —
             // bug59058's green reference numbers came back underlined.
             if link != nil, !cs.underline { cs.off.insert(.underline) }
+            // (And the link stays a link, in the text's own colour.)
+            if link != nil, cs.color == nil,
+               notes.fields.contains(where: { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }) {
+                cs.color = Color(0xFF000000)
+            }
             runRaised = cs.raised
             for child in r.children {
                 switch child.name {
