@@ -12690,3 +12690,10 @@ One build of office d72358f13 plus my wrap=largest (landed since as 14280eb84, w
 - LANDED: a frame whose paragraph is followed by a bookmark's end at body level (Word writes `w:bookmarkEnd` between paragraphs) now folds into its box like any other; before, the fold gave up at the bookmark and the frame stayed an ordinary bordered line across the page. lo-fc098a0f380c326f 0 -> 66.7 (the frame, its border and its offset now match).
 - NOT done, and not mine to do cheaply: Word sets the text on BOTH sides of that frame (same line y, a left piece at x 71 and a right piece at x 425). The layout's own note says "text round it on both sides, which the engine does not set". It needs two-piece lines: lay lines at alternating widths, then put the odd ones back up beside the even. Any other both-sides witness in the census would share it; I hold none.
 - Pair (756 + 593 LO, relinked Linux engine): 756 unchanged; LO up lo-fc098a0f. Two small LO dips in that sweep, lo-5c5eb1f7 (53.6 -> 46.4) and lo-c7082c66 (9.8 -> 8.9), are NOT from this: the same binary without my change gives the same numbers. They come from the tip's commit 388df7b95 (text beside a page-edge floating table). Whoever holds tdf125324 may want to look.
+
+### lenovo-2, 2026-11-01: census top-5 round, read-outs of what I did not fix
+- Landed this round: tdf137850, tdf130120, tdf87924 (full), tdf107119 (the frame only). See the three lines above.
+- lo-e8c1ae37 (tdf147485-forcepoint, 0%, Word 32 lines, ours 2): a logo, a group of ~30 custom-shape outlines each carrying one or two letters ("ms", "La", "ia", "k"…) at hand-set spots. Word prints the pieces; we print the two whole words. Not layout; leave.
+- lo-a43021ca (floattable-header, 36.2%, 8 pages Word / 10 ours): one 48-row floating table (vertAnchor text, y 1, header row, rows 693pt tall) that parts across pages; ours parts it into more pages. The footer date line also differs on every page (file date vs today), 2 lines a page that no fix can match. Belongs to the floattable-split family (floatsplit/partmargin owners), not taken.
+- lo-eb12e7d4 stays windows-2's (claimed).
+- Queue empty for me: sending macos NEED WORK.
