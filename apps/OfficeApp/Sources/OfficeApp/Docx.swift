@@ -426,14 +426,27 @@ enum DocxFormat {
                 let relV = onPage ? (frame["w:vAnchor"] ?? "page") : "paragraph"
                 let vertical = onPage && frame["w:yAlign"] != nil && frame["w:yAlign"] != "inline"
                     ? "<wp:align>\(frame["w:yAlign"]!)</wp:align>" : "<wp:posOffset>\(y)</wp:posOffset>"
-                let hSpace = Int((Double(frame["w:hSpace"] ?? "") ?? 0) * 635), vSpace = Int((Double(frame["w:vSpace"] ?? "") ?? 0) * 635)
+                // (A border on a side of the frame takes its `w:space` and twice its
+                // width, and a little more, off the room beside it, on top of
+                // `w:hSpace`: lab fr2 (Word for Windows, tdf154703's frame,
+                // sz 6 / 12 and space 7 / 14 over hSpace 0, 1000 and 2552) ends
+                // the lines 9.1, 11.0 and 16.2pt short of where hSpace alone puts
+                // them: space + 2 x width + 0.6.)
+                func borderGive(_ side: String) -> Double {
+                    guard let b = kids[range.lowerBound].first("w:pPr")?.first("w:pBdr")?.first(side), (b["w:val"] ?? "none") != "none",
+                          (b["w:val"] ?? "nil") != "nil" else { return 0 }
+                    return (Double(b["w:space"] ?? "") ?? 0) + 2 * (Double(b["w:sz"] ?? "") ?? 0) / 8 + 0.6
+                }
+                let hSpaceL = Int(((Double(frame["w:hSpace"] ?? "") ?? 0) / 20 + borderGive("w:left")) * 12700)
+                let hSpaceR = Int(((Double(frame["w:hSpace"] ?? "") ?? 0) / 20 + borderGive("w:right")) * 12700)
+                let vSpace = Int((Double(frame["w:vSpace"] ?? "") ?? 0) * 635)
                 let relH = ["page": "page", "margin": "margin"][frame["w:hAnchor"] ?? ""] ?? "column"
                 let horizontal: String
                 if let a = frame["w:xAlign"] { horizontal = "<wp:align>\(a)</wp:align>" }
                 else { horizontal = "<wp:posOffset>\(Int((Double(frame["w:x"] ?? "") ?? 0) * 635))</wp:posOffset>" }
                 let wrap = frame["w:wrap"] == "notBeside" ? "<wp:wrapTopAndBottom/>" : "<wp:wrapSquare wrapText=\"bothSides\"/>"
                 let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
-                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpace)\" distR=\"\(hSpace)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"\(relV)\">\(vertical)</wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\"\(direction.map { " vert=\"\($0)\"" } ?? "") lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpaceL)\" distR=\"\(hSpaceR)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"\(relV)\">\(vertical)</wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\"\(direction.map { " vert=\"\($0)\"" } ?? "") lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
                 guard let drawing = XNode.parse(Data(xml.utf8)), let content = drawing.descendant("w:txbxContent") else {
                     kept.append(contentsOf: kids[range]); continue
                 }
