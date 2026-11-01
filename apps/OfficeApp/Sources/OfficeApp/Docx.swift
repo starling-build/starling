@@ -2492,9 +2492,18 @@ enum DocxFormat {
                         // line at the second column's head in Word's print,
                         // the title under it, 20.7pt lower than ours.)
                         var carried: RichParagraph? = nil
+                        // (When the paragraph opening the column is that empty
+                        // line itself — the reader keeps the break's mark as a
+                        // paragraph of its own — the one before it is only
+                        // taken out of the first column, not carried on: set
+                        // twice, the title stood 26pt low in zh-6cd1befe, and
+                        // left in the first column its line ran zh-8f9b19f4's
+                        // section 8pt long.)
+                        let opensWithItsMark = q.text.isEmpty && q.image == nil && notes.columnMarksFollow
                         if q.style.breakEndsPrevious, let prev = columns[columns.count - 1].last, prev.text.isEmpty, prev.image == nil,
                            columns[columns.count - 1].count > 1 {
-                            carried = columns[columns.count - 1].removeLast()
+                            let taken = columns[columns.count - 1].removeLast()
+                            if !opensWithItsMark { carried = taken }
                         }
                         columns.append(carried.map { [$0] } ?? [])
                         q.style.pageBreakBefore = false
@@ -4076,6 +4085,11 @@ enum DocxFormat {
         /// `w:splitPgBreakAndParaMark` before 2013's layout: the mark of a
         /// paragraph that ends in a page break goes to the next page.
         var marksFollowBreaks = false
+        /// The mark of a paragraph that ends in a COLUMN break stands at the
+        /// top of the next column, in 2010's layout and 2013's alike (lab
+        /// cb1 and cb2 in Word for Windows; LibreOffice's tdf165492: Word's
+        /// second column opens with that empty line, ours with the table).
+        var columnMarksFollow = true
         /// Some section of the body sets its text in two columns or more:
         /// there a column break in the middle of a paragraph is a break.
         var hasColumns = false
@@ -5831,7 +5845,8 @@ enum DocxFormat {
             }
         }
         if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter,
-           !(notes.marksFollowBreaks && last.breakCharacter && !last.breakColumn) {
+           !(notes.marksFollowBreaks && last.breakCharacter && !last.breakColumn),
+           !(Self.wordOnWindows && notes.hasColumns && notes.columnMarksFollow && last.breakCharacter && last.breakColumn) {
             // The paragraph ended with its page break: Word shows nothing
             // for its mark on the new page (SampleDoc's page two began
             // a line down), so no empty paragraph for it — the break
