@@ -3136,7 +3136,7 @@ enum ChartPainter {
             // categories 151.3 apart, ours 150.9. Not against a legend
             // beside it: tdf149985's, +0.11 so.)
             let legendBeside = c.legend && c.legendBox == nil && ["r", "l", "tr"].contains(c.legendPosition)
-            var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : 4) * k
+            var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
@@ -3166,7 +3166,12 @@ enum ChartPainter {
             // the frame's top.)
             let pt = k / 0.75
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
-            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k
+            // (An untitled 2007-style column chart on a slide: its plot starts
+            // 4 pt higher and ends 2 pt nearer the frame's right edge than
+            // the rest: both of cooper's charts in PowerPoint's print, top
+            // gridline 10.5 pt under the frame's top, ours 14.5.)
+            let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
+            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt : 0
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
