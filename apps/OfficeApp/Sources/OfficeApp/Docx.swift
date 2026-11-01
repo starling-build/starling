@@ -5852,11 +5852,15 @@ enum DocxFormat {
     /// stand on a page of their own. A box (`RichTextBox`) does not part,
     /// so such a table is read as paragraphs, one row each: see the reader.
     static func _isTallNarrowFloat(_ node: XNode) -> Bool {
-        guard let pr = node.first("w:tblPr"), pr.first("w:tblpPr") != nil,
+        guard let pr = node.first("w:tblPr"), let pos = pr.first("w:tblpPr"),
               node.first("w:tblGrid")?.all("w:gridCol").count == 1,
-              !node.all("w:tr").isEmpty, node.all("w:tr").count <= 15 else { return false }
-        // (A long list of short rows is the box's, which parts between its
-        // rows already: LibreOffice's tdf170620, 56 rows of 272 twips.)
+              !node.all("w:tr").isEmpty else { return false }
+        // (Not one that floats only in name, which the box reads as an
+        // inline table and parts between its rows already: LibreOffice's
+        // tdf170620, 56 rows, against the text, from the column's edge, a
+        // twip under its paragraph.)
+        if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
+           (Double(pos["w:tblpY"] ?? "") ?? 0) / 20 <= 1, (Double(pos["w:tblpX"] ?? "") ?? 0) >= 0 { return false }
         var total = 0.0
         for tr in node.all("w:tr") {
             if tr.all("w:tc").count != 1 { return false }
