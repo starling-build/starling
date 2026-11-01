@@ -1283,6 +1283,8 @@ public final class RichLayout {
     /// How far a paragraph's first line is held in beside a floating table
     /// it follows (`_besideIndent`), in layout pixels; 0 for none.
     private var _besideLead: [Double] = []
+    /// Whether that hold is on the paragraph's RIGHT: the table stands at the right, and the lines end short of it.
+    private var _besideRightSide: [Bool] = []
     /// Paragraphs laid out before the rows of the table they sit beside were
     /// measured: laid out again once those are.
     private var _besidePending: Set<Int> = []
@@ -1431,6 +1433,7 @@ public final class RichLayout {
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
         _besideLead = Array(repeating: 0, count: n)
+        _besideRightSide = Array(repeating: false, count: n)
         _boxFirstLineShift = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
@@ -1507,6 +1510,7 @@ public final class RichLayout {
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _besideLead.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _besideRightSide.insert(contentsOf: Array(repeating: false, count: n), at: at)
                 _boxFirstLineShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -1547,6 +1551,7 @@ public final class RichLayout {
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
                 _besideLead.removeSubrange(at ..< end)
+                _besideRightSide.removeSubrange(at ..< end)
                 _boxFirstLineShift.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
@@ -5012,7 +5017,14 @@ public final class RichLayout {
             // paragraphs after its centred 354pt table in that room, and
             // "16." under the table on the same page; ours set them under
             // it, and "16." went over.)
-            func blank(_ p: RichParagraph) -> Bool { !p.text.contains { $0 != " " } && p.image == nil }
+            // (A paragraph of one anchored picture has no line of its own to keep under the
+            // table: it is as blank as an empty one. LibreOffice's tdf164500, the logo's
+            // paragraph after the table, stands beside it in Word's print.)
+            func blank(_ p: RichParagraph) -> Bool {
+                guard let image = p.image else { return !p.text.contains { $0 != " " } }
+                return RichTextTheme.wordWindowsPages && !p.text.contains { $0 != " " && $0 != "\u{FFFC}" }
+                    && image.sourceXML?.containsSubstring("<wp:anchor") == true
+            }
             if let beside = besideTable {
                 let p = document.paragraphs[i]
                 if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
@@ -8182,9 +8194,16 @@ public final class RichLayout {
         // table of 283pt with "This is some text" after it, has that line at
         // x 359.5 on the table's own line in Word's print.)
         _besideLead[i] = 0
-        if let beside = _besideIndent(i, p, document), beside > lead {
-            lead = beside
-            _besideLead[i] = beside
+        _besideRightSide[i] = false
+        if let beside = _besideIndent(i, p, document) {
+            if beside.right {
+                // (A table at the right: the lines end short of it, the first line starts where it would.)
+                _besideLead[i] = beside.indent
+                _besideRightSide[i] = true
+            } else if beside.indent > lead {
+                lead = beside.indent
+                _besideLead[i] = beside.indent
+            }
         }
         if theme.wordRules, _fixedTextFrame != nil, p.cell == nil, style.list == nil,
            !style.rightToLeft, style.alignment == .left || style.alignment == .justify, lead > 0,
@@ -8715,7 +8734,7 @@ public final class RichLayout {
         // indent each, and laid again until they settle.)
         var besideLineIndents: [LineIndent] = []
         var besideIndent = _besideLead[i]
-        var besideRight = false
+        var besideRight = besideIndent > 0 && _besideRightSide[i]
         var besideLeftRoom: Double?
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
@@ -12489,7 +12508,7 @@ public final class RichLayout {
         return nil
     }
 
-    private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double? {
+    private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
               p.style.list == nil,
               let before = _besideSource(i)?.cell,
@@ -12514,9 +12533,24 @@ public final class RichLayout {
         // beside it in Word's print. One two-thirds of a wide column leaves
         // the text under it: zh-ae2dd08d90a's 9801-twip table on a landscape
         // page.)
-        guard left < column / 2, right < column / 2 + _px(100) || right > column * 0.8, column - edge - _px(p.style.indentRight) >= size * 3 else { return nil }
         let own = _px(p.style.indentLeft)
-        return edge > own ? edge - own : nil
+        // (The side with the room: a table in the right half with no room at its right
+        // for text and room at its left for three ems: the lines end short of it, by a
+        // right indent. Word sets LibreOffice's tdf164500 "Easier net order..." in the
+        // 295pt strip left of its table at x 376, and tdf164474-like lo-4c84a541's
+        // "After table1" at the margin, 207pt left of a table at tblpX 5597, with more
+        // room at its left than its right.)
+        let gap = left - _px(twips("w:leftFromText") / 20)
+        let leftRoom = gap - own
+        let rightRoom = column - edge - _px(p.style.indentRight)
+        if leftRoom >= size * 3, leftRoom > rightRoom, left >= column / 2 || leftRoom > rightRoom + size * 3 {
+            let narrow = column - gap - _px(p.style.indentRight)
+            return narrow > 0 ? (narrow, true) : nil
+        }
+        // (Beside a table at the left, in the strip at its right: one that ends in the middle
+        // of the column leaves the text under it, and so does one that fills most of it.)
+        guard left < column / 2, right < column / 2 + _px(100) || right > column * 0.8, rightRoom >= size * 3 else { return nil }
+        return edge > own ? (edge - own, false) : nil
     }
 
     /// The square-wrapped float at the left of paragraph `i`'s text — a drop
