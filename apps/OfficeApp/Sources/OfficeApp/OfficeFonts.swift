@@ -773,9 +773,13 @@ enum OfficeFonts {
         return family
     }
 
-    /// A face's advances, in ems, for the ASCII letters and digits it
-    /// maps to a glyph of some advance (`cmap`'s Windows Unicode
-    /// subtable, `hmtx` over `head`'s units per em).
+    /// A face's advances, in ems, for the printable ASCII it maps to a
+    /// glyph of some advance (`cmap`'s Windows Unicode subtable, `hmtx`
+    /// over `head`'s units per em). Letters and digits alone at first;
+    /// the space and punctuation too since zh-57f1de0d's 方正仿宋_GBK
+    /// "4.1 " stood 31.8pt at 16pt in Word's print — "." 0.297 em and the
+    /// space 0.445 — where the stand-in's half em made it 3.9pt narrower and
+    /// the line took the ideograph Word sends down (99.9 -> 100).
     static func alnumAdvances(_ data: Data) -> [UInt32: Double]? {
         let d = [UInt8](data)
         func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
@@ -802,7 +806,7 @@ enum OfficeFonts {
         let segs = u16(f + 6) / 2
         let ends = f + 14, starts = ends + 2 * segs + 2, deltas = starts + 2 * segs, offsets = deltas + 2 * segs
         var out: [UInt32: Double] = [:]
-        for c in Array(0x30 ... 0x39) + Array(0x41 ... 0x5A) + Array(0x61 ... 0x7A) {
+        for c in Array(0x20 ... 0x7E) {
             var glyph = 0
             for i in 0 ..< segs where c <= u16(ends + 2 * i) {
                 guard c >= u16(starts + 2 * i) else { break }
