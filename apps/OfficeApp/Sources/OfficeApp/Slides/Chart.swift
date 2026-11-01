@@ -94,6 +94,10 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// A point's label written out in the file (`c:dLbl/c:tx/c:rich`): its
+    /// paragraphs, the value field (`type="VALUE"`) as nil — lo tdf136061's
+    /// "4.3" over "Custom label". Only where every field is the value.
+    var labelRich: [Int: [String?]] = [:]
     /// Where those labels stand by their points (`c:dLblPos`): nil is
     /// Excel's default for a line, to the right ("r").
     var labelPos: String? = nil
@@ -1256,6 +1260,18 @@ enum ChartXML {
             // zh-b8de3ae2's 3-D bars' close values, apart in Word's print,
             // stood over each other.)
             for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
+                if let i = one.first("c:idx")?["val"].flatMap(Int.init), let rich = one.first("c:tx")?.first("c:rich") {
+                    var paras: [String?] = []
+                    var plain = true
+                    for p in rich.all("a:p") {
+                        let fields = p.all("a:fld")
+                        if fields.contains(where: { $0["type"] != "VALUE" }) { plain = false; break }
+                        if !fields.isEmpty, p.all("a:r").isEmpty { paras.append(nil) }
+                        else if fields.isEmpty { paras.append(p.all("a:r").compactMap { $0.first("a:t")?.text }.joined()) }
+                        else { plain = false; break }
+                    }
+                    if plain, paras.count > 1 { s.labelRich[i] = paras }
+                }
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
@@ -3622,7 +3638,9 @@ enum ChartPainter {
                         // "-10,160,557" under their columns' feet in Word's print,
                         // where ours set them all over the axis line.)
                         let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
-                        labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy
+                        // (A label written out over the value: lines of its own below or above the value's.)
+                        let shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
+                        labels.append((shown, Offset(rect.center.dx, c.stacked ? rect.center.dy
                             : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + nudge(j, i), j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
@@ -3808,13 +3826,16 @@ enum ChartPainter {
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: .infinity)
                         return t
                     }()
                 let dx = horizontal && !c.stacked ? 0 : tp.width / 2
                 let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
-                tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2 - rise))
+                // (A label of several lines keeps its last line where a single one stood and grows upward.)
+                let lineCount = max(1, tp.computeLineMetrics().count)
+                let grown = lineCount > 1 ? tp.height - tp.height / Double(lineCount) : 0
+                tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2))
                 tp.dispose()
             }
         }
