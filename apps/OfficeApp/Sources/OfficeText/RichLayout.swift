@@ -14608,10 +14608,20 @@ public final class RichLayout {
                         let ownRoom = all.filter { $0 >= a }.reduce(0.0) { $0 + half($1) }
                         return need > min(mid, 0.823 * em) + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
                     }()
-                    let taken = takenFirst && !gridCapped && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    // (Before 2013's layout, Word for Windows takes an ideograph
+                    // over the margin only while half its em is still free
+                    // before it: lab `gq3` (zh-9c162f26's paragraph, mode 14,
+                    // 9pt on a grid, one cell, right edge stepped 0..8pt)
+                    // takes the 43rd character squeezing 4.19pt over three
+                    // marks, with 4.58 of room left, and leaves it at 4.49 —
+                    // squeezing 4.31 — and at every narrower step; the older
+                    // test below, each mark no more than the room, took it.)
+                    let halfEmRefuses = RichTextTheme.wordWindowsPages && !modern && inCell && onCharacterGrid && a > 0
+                        && units[a] >= 0x2E80 && set >= em * 0.95 && !document.kernsPunctuation && stretchRoom + hair < em / 2
+                    let taken = takenFirst && !gridCapped && !halfEmRefuses && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
-                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
+                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) halfEm \(halfEmRefuses) sr \(stretchRoom / pt) em \(em / pt) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
                     }
                     // (A Latin word's own curly quotes give nothing for it
                     // in the body: lab `sq-q` (zh-b00fef0d's package,
