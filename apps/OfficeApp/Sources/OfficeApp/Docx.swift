@@ -328,7 +328,12 @@ enum DocxFormat {
                     let inMargin = frame["w:dropCap"] == "margin"
                     let marginWidth = capText.unicodeScalars.reduce(0.0) { $0 + ($1.value == 0x49 ? 0.333 : em(String($1))) } * size
                     let emu = Int(height * 12700)
-                    let emuW = max(emu, Int(capWidth * (capText.count > 1 ? 1.05 : 1.5) * 12700))   // (room for the cap's own width: the box takes the text's, no more than its extent)
+                    // (One capital letter in Times is its own advance wide: tdf109308's "L" at 57.5pt, 35.1.)
+                    let timesCaps: [Double] = [0.722, 0.667, 0.667, 0.722, 0.611, 0.556, 0.722, 0.722, 0.333, 0.389, 0.722, 0.611, 0.889, 0.722, 0.722, 0.556, 0.722, 0.667, 0.556, 0.611, 0.722, 0.722, 0.944, 0.722, 0.722, 0.611]
+                    let exactCap: Double? = capText.unicodeScalars.count == 1 && (0x41...0x5A).contains(capText.unicodeScalars.first!.value)
+                        ? timesCaps[Int(capText.unicodeScalars.first!.value) - 0x41] * size : nil
+                    if exactCap != nil { RuleTrace.hit("dropcap-box-is-the-capital-wide") }
+                    let emuW = exactCap.map { Int($0 * 12700) } ?? max(emu, Int(capWidth * (capText.count > 1 ? 1.05 : 1.5) * 12700))   // (room for the cap's own width: the box takes the text's, no more than its extent)
                     let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
                     let hSpacePoints: Double = (Double(frame["w:hSpace"] ?? "") ?? 0) / 20
                     let distRight: Int = Int(hSpacePoints * 12700)
@@ -1076,6 +1081,13 @@ enum DocxFormat {
                 // whose styles part has no run defaults at all (LibreOffice's
                 // empty w:styles: tdf108496, tdf132752, four more) is Word's own
                 // Normal, as with no styles part: 12pt.
+                // A file that names no face anywhere, and carries no theme, is set in Times New Roman:
+                // lo tdf109308_dropCapNumbered's print is TimesNewRomanPSMT.
+                if cs.fontFamily == nil, part("word/theme/theme1.xml") == nil, styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts") == nil,
+                   !styles.all("w:style").contains(where: { $0.first("w:rPr")?.first("w:rFonts") != nil }) {
+                    cs.fontFamily = "Times New Roman"
+                    RuleTrace.hit("no-fonts-named-times")
+                }
                 if cs.fontSize == nil {
                     if styles.first("w:docDefaults")?.first("w:rPrDefault") == nil {
                         cs.fontSize = 12

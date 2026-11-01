@@ -1300,6 +1300,8 @@ public final class RichLayout {
     private var _heights: [Double] = []
     private var _tops: [Double] = []
     private var _listLabels: [String?] = []
+    /// How far a list item's first line, beside a box at the left, sets its number and text past where the box ends.
+    private var _besideLabelShift: [Int: Double] = [:]
     /// What each paragraph's list membership and cell were at its last
     /// layout: a change in either is what invalidates the numbering pass
     /// and the table pass, not a change in the paragraph's text.
@@ -8661,6 +8663,18 @@ public final class RichLayout {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
             let original = _px(firstLineIndent(p, at: i, document))
+            // (A list item's first line beside a box at the left sets its number and its
+            // text past the box's edge by their own offsets, the lines under it at the
+            // edge or their indent, whichever is further: lo
+            // tdf109308_dropCapNumbered, "1." at 139.3 and the text at 157.3 in Word's
+            // print, the two lines under it at 121.3 and the last at 108.)
+            var firstExtra = 0.0
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !besideRight, _besideLead[i] == 0, p.cell == nil,
+               p.style.listId != nil, let own = _listIndents(p, document), own.left > 0 {
+                firstExtra = _px(own.left)
+                RuleTrace.hit("word-list-first-line-beside-box-is-past-the-edge")
+            }
+            _besideLabelShift[i] = nil
             var indents: [LineIndent] = []
             var firstBeside = true
             for _ in 0 ..< 8 {
@@ -8677,7 +8691,7 @@ public final class RichLayout {
                 for k in 0 ..< bottoms.count {
                     let top = k == 0 ? 0 : bottoms[k - 1]
                     let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
-                    next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent : 0, right: 0))
+                    next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
                 }
                 while let last = next.last, last.left == 0, last.right == 0, next.count > 1, next[next.count - 2].left == 0, next[next.count - 2].right == 0 { next.removeLast() }
                 let first = next.first.map { $0.left > 0 || $0.right > 0 } ?? false
@@ -8688,7 +8702,8 @@ public final class RichLayout {
             if indents.contains(where: { $0.left > 0 || $0.right > 0 }), indents.last.map({ $0.left != 0 || $0.right != 0 }) == true { indents.append(LineIndent()) }
             besideLineIndents = indents
                 if !firstBeside || besideRight { lead = original; _leadWidth[i] = lead }
-            else { lead = max(lead - besideIndent, 0); _leadWidth[i] = lead }
+            else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
+            if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
@@ -12394,7 +12409,11 @@ public final class RichLayout {
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _px(image.height)
                 let x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
-                let own = _px(p.style.indentLeft) + (inCell ? (cell?.pad.left ?? 0) : 0)
+                // (A list item's text starts at its numbering's left: the lines beside the
+                // box start at its edge, not at that and the edge's whole.)
+                let listLeft = k == i ? _listIndents(p, document).map { _px($0.left) } ?? 0 : 0
+                if listLeft > _px(p.style.indentLeft) + 0.01 { RuleTrace.hit("word-beside-box-counts-the-list-left") }
+                let own = max(_px(p.style.indentLeft), listLeft) + (inCell ? (cell?.pad.left ?? 0) : 0)
                 let rightGap = _px(p.style.indentRight) + (inCell ? (cell?.pad.right ?? 0) : 0)
                 guard w > 0 else { continue }
                 if x + w / 2 >= column / 2 {
@@ -16752,7 +16771,7 @@ public final class RichLayout {
                 // As Word sets it: from the first line's offset, or up to
                 // it where the level's numbers are set to the right.
                 let marker = _marker(i, p, document, label: label, strut: g.painter.strutStyle)
-                var at = g.textLeft + _px(wl.first)
+                var at = g.textLeft + _px(wl.first) + (_besideLabelShift[i] ?? 0)
                 // (Centred or set right, the number goes with its line:
                 // "第一章 总则" is centred whole. The box it stands in
                 // is the first thing on that line.)
