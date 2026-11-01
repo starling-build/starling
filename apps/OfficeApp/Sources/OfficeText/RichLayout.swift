@@ -18868,6 +18868,12 @@ public final class RichLayout {
             // Not one far up the page: Word wraps the body round that.)
             let rise = footer.frameRise
             bottom = max(bottom, _px(setup.footerDistance) + footer.height + (rise <= _px(36) ? rise : 0))
+            // (A table placed against the page opens the footer where it says, when that is above where the footer would
+            // begin: LibreOffice's tdf122878, tblpY 14743 twips under a 36pt footer distance, ends the body 13pt higher in
+            // Word's print — one line fewer on page 1 — and sets its "A1 A2" row there.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, let off = footer.pageAnchoredTop {
+                bottom = max(bottom, _px(setup.height) - _px(off))
+            }
         }
         return (top, bottom)
     }
@@ -18896,7 +18902,8 @@ public final class RichLayout {
                 continue
             }
             let headerAt = hf.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)
-            let top = kind == .header ? rect.top + headerAt : rect.bottom - _px(setup.footerDistance) - hf.height
+            var top = kind == .header ? rect.top + headerAt : rect.bottom - _px(setup.footerDistance) - hf.height
+            if kind == .footer, theme.wordRules, RichTextTheme.wordWindowsPages, let off = hf.pageAnchoredTop { top = min(top, rect.top + _px(off)) }
             hf.layout.regionTopOnPage = top - rect.top
             hf.layout.regionMarginTop = _px(setup.marginTop)
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
