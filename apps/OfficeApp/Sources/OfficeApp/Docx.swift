@@ -374,6 +374,14 @@ enum DocxFormat {
                ["page", "margin"].contains(f["w:vAnchor"] ?? ""), Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil || f["w:yAlign"] != nil,
                f["w:wrap"] == "around", p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
+            // (A frame of no stated size, set by the text at the page's outer or inner
+            // edge: a page-margin note, LibreOffice's CT-with-frame "0123" — in Word's
+            // print it stands at the right of the page, level with the next paragraph's
+            // top, in the margin beside no text, and that paragraph keeps its place; ours
+            // set it as a line of the text and the paragraph under it, 11pt low.)
+            if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, f["w:w"] == nil, f["w:h"] == nil,
+               f["w:vAnchor"] == "text", f["w:hAnchor"] == "page", f["w:xAlign"] == "outside" || f["w:xAlign"] == "inside",
+               f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
                   f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
@@ -416,7 +424,15 @@ enum DocxFormat {
             var drawings: [XNode] = []
             var kept: [XNode] = []
             for (frame, range) in runs {
-                let w = Int((Double(frame["w:w"] ?? "") ?? 0) * 635), h = Int((Double(frame["w:h"] ?? "") ?? 0) * 635)
+                var w = Int((Double(frame["w:w"] ?? "") ?? 0) * 635), h = Int((Double(frame["w:h"] ?? "") ?? 0) * 635)
+                if w == 0, h == 0 {
+                    // (Sized by its text: the characters at the run's size, and the exact line.)
+                    let pPr = kids[range.lowerBound].first("w:pPr")
+                    let chars = kids[range.lowerBound].descendants("w:t").reduce(0) { $0 + ($1.text.count) }
+                    let size = (Double(kids[range.lowerBound].descendant("w:sz")?["w:val"] ?? "") ?? 20) / 2
+                    let line = pPr?.first("w:spacing").flatMap { $0["w:lineRule"] == "exact" ? Double($0["w:line"] ?? "") : nil }.map { $0 / 20 } ?? size * 1.2
+                    w = Int(Double(max(1, chars)) * size * 0.6 * 12700); h = Int(line * 12700)
+                }
                 let y = Int((Double(frame["w:y"] ?? "") ?? 0) * 635)
                 let direction = turned(kids[range.lowerBound])
                 // (Or aligned on the page, text not turned: lo tdf36117_verticalAdjustment's
