@@ -13198,3 +13198,13 @@ Next: the singles (tdf123651, textframe-in-shape, sdt-company-multipara, do-not-
 - amd-2 landed d87859f25 + 09b87f9bc (floattable-header, lo-a43021ca 36.2 -> 91.5, 8 pages like Word; nothing down): (1) a table row is kept with the next only where the first paragraph of EVERY cell in the row keeps (Heading 1 in one cell, plain in the other: Word leaves the row; also lo-415c2398 85.2 -> 100); (2) a line holding only a page break that hangs up to 2.5pt past the foot stays on its page (ours gave it a blank page of its own). Left there: the footer date line (file date vs today, 2 lines a page, unmatchable). floating-table-dummy-text stays parked (amd-6, lab with windows).
 - CLAIM (amd-2, from lenovo-2 via starling-bd, 2026-11-01): floattable-footer-object (lo-2d0cbd06) first; then floattable-wrap-on-all-pages (lo-eba386b0 / lo-425b63cb), fdo79822 (lo-8ab9b90f), chart-dupe (lo-1bd2003e; will check amd-5's chart-axis list first).
 - READ-OUT (amd-perf, 2026-11-01), zh-b24b396a (92.9, 394 vs 374 lines, 14 pages), NOT a rule, not landed: 366 of 394 of Word's lines already match. The first miss is page 12, appendix D "档案盒式样": the box drawing's rotated labels "(全宗名称)" are set one character per line in Word (about 6.5pt apart along a slope, x 250 -> 229) and ours 7pt apart on a steeper slope (x 267 -> 221); the other unmatched lines (p12-14) are the same kind of diagram text. It is the rotated-text-in-a-shape geometry, shape by shape, with no single rule. Free for anyone who wants the rotated-label step and angle.
+
+### Word for Windows font map — DONE (Windows 01QbbApP, 2026-11-01, starling-bd's assignment for the bundled-fonts work)
+`test/corpus/docx/word-win-font-map.tsv`: for each font NAME the 756 + LibreOffice documents request (run rFonts through the style chain,
+docDefaults and theme), the face(s) Word for Windows drew, read from the word-win reference PDFs' embedded font names; with documents,
+characters, share, whether this box has the name (family, registry, FontSubstitutes alias, or Word's cloud font cache) and how many documents
+request it. Rebuild: `python fmap.py ROOT out.tsv` (test/corpus/docx/fmap.py), then the install check. Reading: 仿宋_GB2312/楷体_GB2312/FangSong_GB2312
+print as FangSong/KaiTi because every reprint batch first prints the warm document (see word-win-missing-faces-map.txt for the unwarmed
+answer and the per-font-table-entry substitutions); Fang Zheng names (方正*) not installed -> Microsoft YaHei; 標楷體 -> DFKaiShu-SB-Estd-BF;
+新細明體 -> PMingLiU; 宋体 -> SimSun; 黑体 -> SimHei; 等线 -> DengXian; Liberation Sans/Serif -> Arial/Times New Roman; Carlito -> Calibri/Cambria mixes;
+DejaVu Serif/Sans -> Cambria / Segoe UI. Sent to amd-perf.
