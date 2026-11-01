@@ -140,7 +140,10 @@ struct PdfMarkup {
                         if start == own, run.length > 0, p.style.list != nil, p.style.markRevision?.kind == .deleted { piece = "<#>" + piece }
                         open!.paragraphs[open!.paragraphs.count - 1] += piece
                     } else {
-                        if !piece.isEmpty { close() }
+                        // (Text of a joined head's own, before the deletion that
+                        // went on from its mark, parts nothing: the balloon runs on
+                        // from "def¶" into the next paragraph's "ghi", merge_hidden_redline.)
+                        if !piece.isEmpty, start >= own { close() }
                         text += piece
                         runs.append(run)
                     }
@@ -170,9 +173,13 @@ struct PdfMarkup {
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
                                 author: p.style.markRevision?.author ?? "")
-                } else if p.style.frame != nil {
+                } else if p.style.frame != nil || !p.runs.contains(where: { $0.style.revision?.kind == .inserted }) {
                     // (A framed paragraph's mark cannot run into the next: its
-                    // own "Deleted: ¶", tdf125894's third.)
+                    // own "Deleted: ¶", tdf125894's third. Nor does the mark of a
+                    // paragraph with text and no deletion in it: its own
+                    // "Deleted: ¶" at the end of the line, merge_hidden_redline's 8 and 10; but
+                    // not where the text is itself an insertion, n830205's 2.x.)
+                    RuleTrace.hit("deleted-mark-own-balloon")
                     deletions.append(Note(anchor: RichPosition(paragraph: paragraphs.count, offset: p.text.utf16.count), label: "Deleted:",
                                           paragraphs: ["¶"], author: p.style.markRevision?.author ?? ""))
                 }
