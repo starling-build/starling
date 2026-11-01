@@ -112,6 +112,22 @@ final class SlideTextCache {
         }
     }
 
+    private var _withAlpha: [String: Image] = [:]
+    /// `image` redrawn at its own size with `alpha` applied to its pixels.
+    func withAlpha(_ image: Image, _ alpha: Double) -> Image? {
+        let key = "\(ObjectIdentifier(image).hashValue)/\(alpha)"
+        if let known = _withAlpha[key] { return known }
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)))
+        let w = Double(image.width), h = Double(image.height)
+        let paint = Paint()
+        paint.color = Color(0xFFFFFFFF).withOpacity(alpha)
+        canvas.drawImageRect(image, Rect.fromLTWH(0, 0, w, h), Rect.fromLTWH(0, 0, w, h), paint)
+        guard let baked = recorder.endRecording().toImageSync(width: image.width, height: image.height) else { return nil }
+        _withAlpha[key] = baked
+        return baked
+    }
+
     /// Pictures whose decode failed.
     private var _undecodable: Set<String> = []
     func isUndecodable(_ attachment: ImageAttachment) -> Bool {
@@ -1134,6 +1150,12 @@ final class SlidePainter: CustomPainter {
     /// t / (t + b) down — which is the rectangle itself when it is a point.
     static func pathFocus(_ fillTo: Rect) -> Offset {
         func ratio(_ a: Double, _ b: Double) -> Double { a + b > 1e-9 ? a / (a + b) : 0.5 }
+        // (A rectangle that is not a point — its insets not adding to the
+        // whole across and down — is the area's middle: Windows PowerPoint
+        // prints GeomLec1's background (l 65%, b 98%) as a circle round the
+        // middle, where the Mac's started at the top right corner.)
+        let across = fillTo.left + 1 - fillTo.right, down = fillTo.top + 1 - fillTo.bottom
+        if abs(across - 1) > 0.01 || abs(down - 1) > 0.01, across >= 0, down >= 0, across <= 1, down <= 1 { return Offset(0.5, 0.5) }
         return Offset(ratio(fillTo.left, 1 - fillTo.right), ratio(fillTo.top, 1 - fillTo.bottom))
     }
 
@@ -1328,9 +1350,14 @@ final class SlidePainter: CustomPainter {
             metafile.paint(canvas, in: Self.inset(r, fill.imageInset), image: { cache.image($0) }, font: OfficeFonts.substitute)
             if recoloured { canvas.restore() }
         }
-        if let image = fill.image, let decoded = cache.image(image) {
+        if let image = fill.image, let drawn = cache.image(image) {
+            // A picture with its own transparency is drawn from a copy with
+            // the transparency in its pixels, as PowerPoint writes it (a new
+            // picture in the PDF, with an alpha channel, not the JPEG).
+            let baked = fill.imageAlpha < 1 && fill.duotone == nil && fill.imageLevels == nil ? cache.withAlpha(drawn, fill.imageAlpha) : nil
+            let decoded = baked ?? drawn
             let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
-            let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
+            let paint = baked != nil ? imagePaint(alpha: 1, duotone: nil) : imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
             // A tile larger than the area is cropped, not fitted: Windows

@@ -697,11 +697,14 @@ struct PptxReader {
             if let b = slide.first("p:cSld")?.first("p:bg") {
                 bgFill = _background(b, owner: part, colors: colors, theme: themeRoot, themePart: themePart)
                 // Shaded to the title (`shadeToTitle`): the path gradient
-                // runs out from the title's box.
+                // runs out from a point at the title box's top centre, as
+                // Windows PowerPoint prints tdf114848's slide 5 (t = the
+                // larger of the across distance over half the width and the
+                // down distance from the title's top over what is left).
                 if b.first("p:bgPr")?["shadeToTitle"] == "1", bgFill?.path != nil, size.width > 0, size.height > 0,
                    let title = shapes.first(where: { $0.phType == "title" || $0.phType == "ctrTitle" })?.frame {
-                    bgFill?.fillTo = Rect.fromLTRB(max(0, title.left / size.width), max(0, title.top / size.height),
-                                                   max(0, 1 - title.right / size.width), max(0, 1 - title.bottom / size.height))
+                    let cx = min(1, max(0, (title.left + title.right) / 2 / size.width)), top = min(1, max(0, title.top / size.height))
+                    bgFill?.fillTo = Rect.fromLTRB(cx, top, 1 - cx, 1 - top)
                 }
             } else {
                 for (owner, xml) in [(layoutPart, layout), (masterPart, master)] {

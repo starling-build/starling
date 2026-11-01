@@ -124,10 +124,12 @@ enum SlidesPdf {
         var i = 0
         let jpeg = SlideTextCache.jpegSizes
         while let r = _find(mark, in: bytes, from: i) {
+            // (A picture with an alpha channel is not the JPEG: PowerPoint
+            // writes one made so as false.)
             if let open = (0 ..< r).reversed().first(where: { bytes[$0] == 0x3C && bytes[$0 + 1] == 0x3C }),
                let close = _find(Array(">>".utf8), in: bytes, from: r),
                let w = value("/Width ", in: bytes[open ..< close]), let h = value("/Height ", in: bytes[open ..< close]),
-               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) {
+               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) || _find(smask, in: Array(bytes[open ..< close]), from: 0) != nil {
                 i = r + mark.count
                 continue
             }
