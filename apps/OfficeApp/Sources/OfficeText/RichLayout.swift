@@ -4569,9 +4569,12 @@ public final class RichLayout {
                     // (And to the page's own foot, not the footer's place: lab ft1 (Word for Windows, compat 12): a line stays
                     // while its bottom is within the page height, wherever the margin and footer stand — a row opening 20pt
                     // above the margin keeps 7 lines to 611.9 on a 612pt page, one opening 600pt down keeps one, 606 keeps none.)
-                    if RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15 {
+                    // (Not a row with a height of its own: LibreOffice's lo-e3dca7be, a one-line 1014-twip row 2pt above the margin of a
+                    // 395pt page, goes whole to page 2 in Word's print, where the page's foot would hold it.)
+                    let byLines = RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15
+                    if byLines, document.tableStyles[c.table]?.rowHeights[c.row] == nil {
                         avail = max(avail, max(edge, _px(setup.height) - _bodyInsets(page: page / _columns, document).top) - y)
-                    } else if y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) { avail = max(avail, edge - y) }
+                    } else if byLines || y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
