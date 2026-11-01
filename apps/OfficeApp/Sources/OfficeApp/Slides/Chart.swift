@@ -4173,7 +4173,8 @@ extension ChartPainter {
                 l.outside = false
                 l.fitted = false
                 l.leaders = false
-                for (i, r) in segments {
+                // (In order: a dictionary's is not the same from one run to the next.)
+                for (i, r) in segments.sorted(by: { $0.key < $1.key }) {
                     _pieLabels(c, l, canvas, frame: frame, slices: [(i, 0, values[i], c.pointColor(i, accents: theme.accents))],
                                centre: r.center, rx: 1, ry: 1, inner: 0, k: k, theme: theme, ink: ink, point: { _, _ in r.center })
                 }

@@ -11726,7 +11726,7 @@ public final class RichLayout {
         // regular YaHei's 41.16, not bold's 41.5. Without a strut the
         // engine stacked the two faces' boxes and the line was 54. Such a
         // line is held at the height most of its text has.)
-        var share: [Double: (TextStyle, Int)] = [:]
+        var share: [Double: (TextStyle, Int, Int)] = [:]
         var near = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
@@ -11734,7 +11734,8 @@ public final class RichLayout {
                joiners || text.contains(where: { $0 != "\u{2060}" }),
                let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
-                share[size * h, default: (style, 0)].1 += text.count
+                let met = share.count
+                share[size * h, default: (style, 0, met)].1 += text.count
                 if let f = first, let fs = f.fontSize, let fh = f.height {
                     if tallest {
                         if size * h > fs * fh + 0.01 { first = style }
@@ -11758,7 +11759,9 @@ public final class RichLayout {
         var held = first
         if let top = first, let ts = top.fontSize, let th = top.height, near || (tallest && nearCounts) {
             let alike = share.filter { Self._sameLine($0.value.0.fontSize ?? 0, $0.key / max(0.01, $0.value.0.fontSize ?? 1), ts, th) }
-            if alike.count > 1 { held = alike.values.max { $0.1 < $1.1 }?.0 ?? top }
+            // (A tie in text goes to the stretch met first: the dictionary's
+            // own order is not the same from one run to the next.)
+            if alike.count > 1 { held = alike.values.max { $0.1 != $1.1 ? $0.1 < $1.1 : $0.2 > $1.2 }?.0 ?? top }
         }
         guard uniform, count > 0, let base = held, let size = base.fontSize, let h = base.height else { return nil }
         // (Even leading: the engine's proportional strut scales the
