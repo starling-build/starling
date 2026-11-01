@@ -12438,3 +12438,176 @@ LAB SPECS FOR `windows` (windows-4, 2026-11-01; `windows` was not reachable by m
 - 2026-11-01 (starling-ios-1f) LANDED 0eaf01a74 (office+sheets): Word charts draw their own drawing's text boxes (`c:userShapes`, relSizeAnchor text only): lo-bf1e33f3 tdf156267 66.7 -> 100 (the rings' "32%" were text boxes, series labels deleted). Pair: LO 593 one mover; the one 756 document with chart user shapes (zh-547fc43c) identical.
 - 2026-11-01 (starling-ios-1f) LANDED 20f1b59b9 (office+sheets): a Word legend wrapped to rows is balanced across them (4+4, not 6+2): lo-22a53e2b 33.3 -> 100, lo-c490d65b 33.3 -> 100, lo-a2386f32 82.1 -> 100 (LO mean 79.046 -> 79.301); the ten chart documents of the 756 identical. tdf137116 (lo-f9b9a8fc) keeps 75.0: its legend is now Word's, the pie's outside labels stand 2-7pt off (Word y 109/145/189/219/227, ours 106/141/191/226): pie bestFit label placement, not taken. Also ours pitches entries 54pt where Word's 4 columns pitch 48.7 (x ignored by the matcher).
 - LANDED (lenovo-2, Sonnet 5.5, 2026-11-01): wrapText="largest" keeps the text to the side with more room (lo-9181670 20 -> 100, lo-488c442d 78.6 -> 85.7; pair vs the tip on the refreshed engine: 756 98.380 unchanged, LO 593 79.330 -> 79.477, none down). That finishes my wip-branch sweep: everything of mine is landed, already on the tip, or listed above as not taken. lenovo-2 releases the "lenovo-2 OWNS" claim.
+
+### LO CENSUS 2 (lenovo-2, Sonnet 5.5, 2026-11-01, starling-bd's order via macos)
+One build of office tip 14280eb84 (docx code identical to the build scored: the tip plus my wrap=largest), Windows mode, bundled faces, matcher v2, on the RELINKED engine (StarlingText* exported, per-line indents ON; every earlier census ran with them off). Hash-guarded sweep, scores in ~/tmp/wz/lWl on the Lenovo.
+- HEADLINE: mean 86.3% over the 546 documents whose Word print has text (79.5% over all 593, counting the 47 with no text as 0). 392 at 95 or more, 380 text documents at exactly 100; 570 of 593 have Word's page count. T250's 75.1% (old engine, indents off) is now 86.3%.
+- 166 documents with text are under 100, missing about 1690 lines in all. RANKED BY GAP FROM 100, then by Word's line count. Format: rank name (score, Word's lines, lines missing, pages Word/ours): STATUS.
+- STATUS IS AUTOMATIC, as T250's was: the most recent board line that names the document (census rows and table rows skipped), with the tag read from its words (landed / claimed / handed over / read-parked / named) and the first session name in it. "landed?" can be a line that lists the document among other things; check before trusting. Holders named in the list: windows-4 (cause unknown), macos-ios (unclaimed), lenovo-5 (the old queued-on-a-wip-branch class), macOS-doc (nested-flatten margin; beside-float line width: floattable-del-empty, tdf125324, tdf154703). tdf154703 (lo-60fd9368) is no longer at 7.7: the engine relink alone took it to 84.6 with 2 pages as in Word; lenovo-2 holds nothing on it.
+- CENSUS BY STATUS: named 44, read/parked 14, claimed macOS-doc 13, read/parked windows-1 11, named windows-1 9, landed? 9, claimed windows-4 7, landed? macos-ios 7, unclaimed 6, landed? lenovo-3 5, named macOS-doc 5, read/parked lenovo-2 5.
+  1 tdf147485 (0.0, Word 32 lines, missing 32, pages 1/1): landed? (lenovo-3), board line 12395
+  2 tdf147485 (0.0, Word 32 lines, missing 32, pages 1/1): landed? (lenovo-3), board line 12395
+  3 tdf139336 (0.0, Word 26 lines, missing 26, pages 1/1): claimed (macOS-doc), board line 12368
+  4 floattable-multi-col (0.0, Word 8 lines, missing 8, pages 2/2): claimed (macOS-doc), board line 12408
+  5 n751077 (0.0, Word 6 lines, missing 6, pages 1/1): claimed (macOS-doc), board line 12408
+  6 tdf107119 (0.0, Word 6 lines, missing 6, pages 1/1): named, board line 11725
+  7 tdf135035 (0.0, Word 4 lines, missing 4, pages 1/1): claimed (macOS-doc), board line 12408
+  8 tdf134866 (0.0, Word 2 lines, missing 2, pages 1/1): read/parked (windows-1), board line 12102
+  9 tdf103931 (0.0, Word 2 lines, missing 2, pages 1/1): landed? (windows-3), board line 12373
+  10 tdf164474 (0.0, Word 2 lines, missing 2, pages 1/1): named, board line 11769
+  11 tdf130120 (0.0, Word 1 lines, missing 1, pages 1/1): named, board line 11771
+  12 sdt-around-float-table (0.0, Word 1 lines, missing 1, pages 1/1): read/parked (windows-1), board line 12108
+  13 tdf137850 (0.0, Word 1 lines, missing 1, pages 1/1): named, board line 11767
+  14 lo-5e49366b936f8112 (0.0, Word 1 lines, missing 1, pages 1/1): named, board line 171
+  15 tdf82065 (0.0, Word 1 lines, missing 1, pages 1/1): named (windows-1), board line 11785
+  16 tdf87924 (0.0, Word 1 lines, missing 1, pages 1/1): named, board line 11768
+  17 fdo78904 (0.0, Word 1 lines, missing 1, pages 1/1): read/parked (windows-1), board line 12108
+  18 lo-f1cc2329dc3ab533 (0.0, Word 1 lines, missing 1, pages 1/1): named, board line 175
+  19 tdf38575 (1.6, Word 61 lines, missing 60, pages 4/2): named, board line 11694
+  20 lo-c8e4ecd86afc61bb (2.1, Word 47 lines, missing 46, pages 3/3): read/parked (macOS-doc), board line 12315
+  21 lo-2d0cbd065a6578a0 (6.2, Word 16 lines, missing 15, pages 4/4): claimed (lenovo-2), board line 12405
+  22 floattable-wrap-on-all-pages (7.7, Word 13 lines, missing 12, pages 2/2): named (macOS-doc), board line 11787
+  23 floattable-anchor-height (9.8, Word 123 lines, missing 111, pages 4/3): claimed (windows-4), board line 12421
+  24 fdo79822 (11.1, Word 9 lines, missing 8, pages 1/1): named (windows-1), board line 11734
+  25 lo-f391267c751309b6 (11.1, Word 9 lines, missing 8, pages 1/1): claimed (lenovo-3), board line 12307
+  26 tdf164500 (12.5, Word 8 lines, missing 7, pages 1/2): claimed (macOS-doc), board line 12408
+  27 tdf163575 (12.9, Word 31 lines, missing 27, pages 1/1): landed? (lenovo-3), board line 12395
+  28 fdo78474 (20.0, Word 5 lines, missing 4, pages 1/1): landed? (windows-3), board line 12373
+  29 lo-e643d1ee983d40a7 (20.0, Word 5 lines, missing 4, pages 1/1): named, board line 11694
+  30 IndexFieldFlagF (25.0, Word 12 lines, missing 9, pages 1/1): claimed (macOS-doc), board line 12368
+  31 unbalanced-columns (25.0, Word 4 lines, missing 3, pages 1/1): landed?, board line 12353
+  32 floattable-object-formatter (25.0, Word 4 lines, missing 3, pages 2/3): landed?, board line 12354
+  33 alt-chunk (25.0, Word 4 lines, missing 3, pages 3/1): landed?, board line 12354
+  34 floattable-tab-join (25.0, Word 4 lines, missing 3, pages 2/3): read/parked (macos-ios), board line 11783
+  35 floattable-tab-join-legacy (25.0, Word 4 lines, missing 3, pages 2/3): read/parked (macos-ios), board line 11783
+  36 tdf133924 (26.9, Word 26 lines, missing 19, pages 1/1): named, board line 12098
+  37 chart-dupe (28.6, Word 14 lines, missing 10, pages 1/1): read/parked, board line 11332
+  38 tdf79272 (28.6, Word 7 lines, missing 5, pages 1/1): named (windows-1), board line 11785
+  39 tdf126244 (30.0, Word 10 lines, missing 7, pages 1/1): claimed (macOS-doc), board line 12408
+  40 tdf133701 (30.0, Word 10 lines, missing 7, pages 1/1): claimed (macOS-doc), board line 12408
+  41 tdf167956 (33.3, Word 36 lines, missing 24, pages 2/2): named, board line 11461
+  42 lo-fc75bd78d5cbd5e5 (33.3, Word 15 lines, missing 10, pages 1/1): unclaimed (never on the board)
+  43 tdf135343 (33.3, Word 9 lines, missing 6, pages 2/2): claimed (macOS-doc), board line 12368
+  44 tdf172156 (33.3, Word 3 lines, missing 2, pages 2/3): read/parked (lenovo-2), board line 11814
+  45 floating-table-section-columns (33.3, Word 3 lines, missing 2, pages 1/1): read/parked (windows-1), board line 12108
+  46 tdf120344 (33.3, Word 3 lines, missing 2, pages 1/1): landed? (windows-1), board line 12079
+  47 tdf158349 (34.8, Word 92 lines, missing 60, pages 3/4): read/parked (lenovo-2), board line 12398
+  48 floattable-header (36.2, Word 94 lines, missing 60, pages 8/10): named (macOS-doc), board line 11573
+  49 tdf125324 (38.1, Word 21 lines, missing 13, pages 1/1): claimed (windows-4), board line 12421
+  50 tdf135665 (40.0, Word 10 lines, missing 6, pages 1/1): named, board line 11497
+  51 table-floating-margins (40.0, Word 10 lines, missing 6, pages 1/1): claimed (lenovo-2), board line 12407
+  52 floattable-redline (40.0, Word 5 lines, missing 3, pages 1/1): named, board line 12251
+  53 tdf153136 (41.5, Word 41 lines, missing 24, pages 3/3): named, board line 12413
+  54 tdf155707 (42.2, Word 64 lines, missing 37, pages 2/2): read/parked, board line 12435
+  55 tdf123651 (42.9, Word 7 lines, missing 4, pages 1/1): read/parked, board line 11545
+  56 tdf126287 (42.9, Word 7 lines, missing 4, pages 2/3): read/parked, board line 12074
+  57 floating-table-dummy-text (43.9, Word 57 lines, missing 32, pages 2/2): read/parked (windows-1), board line 11703
+  58 090716_Studentische_Arbeit_VWS (45.5, Word 11 lines, missing 6, pages 3/3): named, board line 11712
+  59 tdf92724 (46.2, Word 13 lines, missing 7, pages 3/3): claimed (macOS-doc), board line 12368
+  60 special_styles (48.9, Word 94 lines, missing 48, pages 3/3): named (macOS-doc), board line 12190
+  61 tdf96750 (50.0, Word 24 lines, missing 12, pages 2/2): named (lo5), board line 11752
+  62 lo-db7394160ea7b5d3 (50.0, Word 20 lines, missing 10, pages 2/2): claimed (lenovo-2), board line 12407
+  63 CT-with-frame (50.0, Word 8 lines, missing 4, pages 1/1): named, board line 11709
+  64 tdf117982 (50.0, Word 6 lines, missing 3, pages 1/1): named, board line 11825
+  65 tdf165492 (50.0, Word 6 lines, missing 3, pages 1/1): named (windows-1), board line 11782
+  66 layout-in-cell-2 (50.0, Word 4 lines, missing 2, pages 1/1): landed? (lenovo-3), board line 12166
+  67 endnote-at-section-end (50.0, Word 4 lines, missing 2, pages 1/1): read/parked (windows-1), board line 12102
+  68 tdf123001 (50.0, Word 4 lines, missing 2, pages 1/1): named (windows-1), board line 694
+  69 default-sect-break-cols (50.0, Word 2 lines, missing 1, pages 1/1): claimed (macOS-doc), board line 12368
+  70 floattable-leak (50.0, Word 2 lines, missing 1, pages 1/1): landed? (macos-ios), board line 11514
+  71 textframe-in-shape (50.0, Word 2 lines, missing 1, pages 1/1): named, board line 190
+  72 sdt-company-multipara (50.0, Word 2 lines, missing 1, pages 1/1): landed? (macos-ios), board line 11514
+  73 floattable-anchorpos (50.0, Word 2 lines, missing 1, pages 1/1): landed? (windows-3), board line 12373
+  74 floattable-tbl-overlap (50.0, Word 2 lines, missing 1, pages 1/1): landed? (macos-ios), board line 11514
+  75 para-upper-margin-fly-intersect (50.0, Word 2 lines, missing 1, pages 1/1): named, board line 12099
+  76 tdf8255 (50.0, Word 2 lines, missing 1, pages 1/1): read/parked (windows-1), board line 12112
+  77 do-not-break-wrapped-tables (50.0, Word 2 lines, missing 1, pages 1/2): landed? (lenovo-2), board line 12374
+  78 tdf116486 (50.0, Word 2 lines, missing 1, pages 1/1): read/parked (windows-1), board line 12112
+  79 fdo52208 (50.0, Word 2 lines, missing 1, pages 1/1): claimed (macOS-doc), board line 12368
+  80 tdf97090 (52.7, Word 55 lines, missing 26, pages 1/2): landed? (lenovo-3), board line 12392
+  81 floattable-nested-rowspan (53.6, Word 69 lines, missing 32, pages 6/5): read/parked, board line 12417
+  82 fdo43573 (55.5, Word 393 lines, missing 175, pages 15/15): landed?, board line 12264
+  83 floattable-overlap-cell (55.6, Word 9 lines, missing 4, pages 1/1): read/parked (lenovo-2), board line 11814
+  84 lo-ff3b52d1090fe293 (59.3, Word 91 lines, missing 37, pages 2/2): named, board line 12414
+  85 tdf153592 (60.0, Word 5 lines, missing 2, pages 2/2): named (windows-1), board line 11782
+  86 tdf89088 (60.0, Word 5 lines, missing 2, pages 2/2): landed? (macos-ios), board line 12110
+  87 tdf129659 (60.0, Word 5 lines, missing 2, pages 1/1): claimed, board line 12425
+  88 tdf109308 (60.0, Word 5 lines, missing 2, pages 1/1): read/parked, board line 12430
+  89 floattable-deleted-anchor (60.4, Word 48 lines, missing 19, pages 3/3): landed? (macos-ios), board line 12437
+  90 floattable-heading-split-hyphen (62.1, Word 132 lines, missing 50, pages 4/4): named, board line 12251
+  91 tdf123873 (62.5, Word 16 lines, missing 6, pages 1/1): read/parked, board line 11332
+  92 tdf82824 (62.5, Word 8 lines, missing 3, pages 1/1): named, board line 11327
+  93 tdf36117 (63.2, Word 38 lines, missing 14, pages 6/6): named, board line 12098
+  94 tdf156267 (66.7, Word 6 lines, missing 2, pages 1/1): landed?, board line 12438
+  95 bnc779620 (66.7, Word 3 lines, missing 1, pages 1/1): named, board line 12146
+  96 lo-a48482e7b65814c7 (66.7, Word 3 lines, missing 1, pages 3/6): read/parked (lenovo-2), board line 11814
+  97 floattable-not-wrapped-by-table (66.7, Word 3 lines, missing 1, pages 1/1): read/parked (lenovo-2), board line 11814
+  98 tdf124600 (66.7, Word 3 lines, missing 1, pages 1/1): named, board line 11694
+  99 n830205 (67.1, Word 73 lines, missing 24, pages 1/1): named (lenovo-3), board line 12402
+  100 tdf105688 (69.2, Word 13 lines, missing 4, pages 2/2): landed? (windows-2), board line 12369
+  101 tdf149089 (70.0, Word 60 lines, missing 18, pages 3/3): landed?, board line 12182
+  102 tdf124675 (70.0, Word 10 lines, missing 3, pages 2/2): named, board line 12428
+  103 tdf79329 (71.4, Word 7 lines, missing 2, pages 1/1): landed? (macos-ios), board line 11530
+  104 tdf167540 (71.4, Word 7 lines, missing 2, pages 1/1): named (macOS-doc), board line 11407
+  105 tdf128207 (72.0, Word 25 lines, missing 7, pages 1/1): claimed (macOS-doc), board line 12408
+  106 tdf108272 (73.3, Word 15 lines, missing 4, pages 2/2): named, board line 11553
+  107 fdo76098 (74.4, Word 43 lines, missing 11, pages 2/2): named, board line 11500
+  108 tdf153964 (75.0, Word 16 lines, missing 4, pages 3/3): read/parked (windows-1), board line 11751
+  109 tdf124398 (75.0, Word 16 lines, missing 4, pages 1/1): landed? (lenovo-2), board line 12356
+  110 tdf137116 (75.0, Word 8 lines, missing 2, pages 1/1): landed?, board line 12439
+  111 floattable-nested-layout (75.0, Word 4 lines, missing 1, pages 1/1): named, board line 11669
+  112 floattable-next-row-invalidate-pos (75.0, Word 4 lines, missing 1, pages 2/2): landed? (windows-1), board line 12079
+  113 floatingtbl_with_formula (77.8, Word 9 lines, missing 2, pages 1/1): named (macos-ios), board line 12233
+  114 floattable-wrap-empty-para-legacy (78.6, Word 28 lines, missing 6, pages 2/2): read/parked, board line 11788
+  115 lo-cf2ad77e4308cf76 (78.6, Word 28 lines, missing 6, pages 2/2): read/parked, board line 11788
+  116 tdf160077 (80.0, Word 5 lines, missing 1, pages 1/1): named, board line 11746
+  117 tdf151704 (81.2, Word 16 lines, missing 3, pages 2/2): claimed, board line 12426
+  118 floattable-footer (81.8, Word 11 lines, missing 2, pages 2/1): claimed (lenovo-2), board line 12405
+  119 tdf130031 (81.8, Word 11 lines, missing 2, pages 1/1): read/parked, board line 12430
+  120 floattable-avoid-manip-ofst (82.7, Word 156 lines, missing 27, pages 6/6): named (macOS-doc), board line 12401
+  121 tdf124398 (83.3, Word 12 lines, missing 2, pages 1/1): landed? (macOS-doc), board line 11510
+  122 tdf130380 (83.3, Word 12 lines, missing 2, pages 1/1): named, board line 11464
+  123 fdo60957 (83.3, Word 6 lines, missing 1, pages 1/1): named, board line 12148
+  124 tdf106153 (83.8, Word 37 lines, missing 6, pages 1/1): named (macos-ios), board line 11221
+  125 tdf154703 (84.6, Word 13 lines, missing 2, pages 2/2): claimed (windows-4), board line 12421
+  126 tdf152298 (85.2, Word 61 lines, missing 9, pages 2/2): landed? (macos-ios), board line 698
+  127 mixednumberings (85.6, Word 97 lines, missing 14, pages 5/5): read/parked, board line 11462
+  128 tdf122878 (85.7, Word 35 lines, missing 5, pages 2/2): named, board line 10402
+  129 lo-488c442dafc62944 (85.7, Word 14 lines, missing 2, pages 1/1): landed? (lenovo-2), board line 12440
+  130 floattable-nested-3tables (85.7, Word 14 lines, missing 2, pages 2/2): claimed (windows-4), board line 12397
+  131 tdf134146 (85.7, Word 14 lines, missing 2, pages 1/1): named, board line 11464
+  132 lo-817b02d41c5ce84c (85.7, Word 14 lines, missing 2, pages 1/1): landed?, board line 12354
+  133 tdf134676 (85.7, Word 14 lines, missing 2, pages 1/1): named, board line 11464
+  134 tdf69647 (85.7, Word 7 lines, missing 1, pages 2/2): landed? (windows-1), board line 11417
+  135 chart-in-footer (85.7, Word 7 lines, missing 1, pages 1/1): named, board line 11328
+  136 tdf105035 (87.2, Word 47 lines, missing 6, pages 1/1): named, board line 12098
+  137 tdf75573 (87.5, Word 8 lines, missing 1, pages 1/1): named, board line 11746
+  138 tdf134606 (88.0, Word 25 lines, missing 3, pages 1/1): named, board line 12427
+  139 fdo76248 (88.5, Word 157 lines, missing 18, pages 3/3): unclaimed (never on the board)
+  140 strict (88.9, Word 18 lines, missing 2, pages 1/1): landed? (lo5), board line 12082
+  141 tdf136061 (88.9, Word 18 lines, missing 2, pages 1/1): read/parked, board line 12150
+  142 tdf48658 (88.9, Word 9 lines, missing 1, pages 1/1): named (windows-1), board line 11723
+  143 lo-662686b2a0fc83d4 (88.9, Word 9 lines, missing 1, pages 1/1): unclaimed (never on the board)
+  144 tdf161139 (89.8, Word 59 lines, missing 6, pages 3/3): read/parked, board line 11759
+  145 lo-0770373f9fd08d76 (90.0, Word 10 lines, missing 1, pages 1/1): unclaimed (never on the board)
+  146 lo-ec231ad7c5f06e26 (91.3, Word 23 lines, missing 2, pages 1/1): read/parked (lenovo-3), board line 695
+  147 tdf170672 (92.3, Word 1326 lines, missing 102, pages 49/49): named, board line 12251
+  148 tdf152983 (92.3, Word 39 lines, missing 3, pages 2/2): claimed (windows-4), board line 12397
+  149 lo-015dbec5c738261f (92.5, Word 228 lines, missing 17, pages 7/7): claimed (windows-4), board line 12421
+  150 tdf109053 (93.8, Word 64 lines, missing 4, pages 2/2): claimed (windows-4), board line 12397
+  151 floattable-heading-split (93.8, Word 32 lines, missing 2, pages 2/2): named (macos-ios), board line 11705
+  152 tdf153964 (93.8, Word 16 lines, missing 1, pages 6/6): read/parked (windows-1), board line 11751
+  153 floattable-hidemark (93.9, Word 33 lines, missing 2, pages 2/2): named (mac-confirm), board line 259
+  154 floattable-heading-split-footer (94.4, Word 72 lines, missing 4, pages 3/3): claimed (lo5), board line 11280
+  155 tdf150200 (95.2, Word 21 lines, missing 1, pages 1/1): named (windows-1), board line 11782
+  156 tdf119908 (96.1, Word 178 lines, missing 7, pages 4/4): named, board line 11683
+  157 tdf164905 (96.2, Word 105 lines, missing 4, pages 3/3): landed? (windows-1), board line 12084
+  158 tdf160077 (96.3, Word 27 lines, missing 1, pages 1/1): named, board line 11746
+  159 tdf127814 (96.8, Word 31 lines, missing 1, pages 3/3): named, board line 11709
+  160 tdf135144 (98.0, Word 49 lines, missing 1, pages 2/2): landed?, board line 11473
+  161 tdf170630 (98.3, Word 59 lines, missing 1, pages 2/2): read/parked, board line 12393
+  162 tdf92157 (98.5, Word 196 lines, missing 3, pages 6/6): named (windows-1), board line 11566
+  163 tdf104492 (98.6, Word 74 lines, missing 1, pages 3/3): unclaimed (never on the board)
+  164 fdo63164 (98.9, Word 761 lines, missing 8, pages 29/29): named, board line 11448
+  165 fdo78904 (99.1, Word 799 lines, missing 7, pages 21/21): read/parked (windows-1), board line 12108
+  166 tdf164499 (99.1, Word 108 lines, missing 1, pages 6/6): unclaimed (never on the board)
