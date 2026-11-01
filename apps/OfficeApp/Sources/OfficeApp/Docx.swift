@@ -609,7 +609,6 @@ enum DocxFormat {
         if let compat = part("word/settings.xml").flatMap(XNode.parse)?.first("w:compat") {
             let mode = compat.all("w:compatSetting").first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") } ?? 12
             notes.marksFollowBreaks = mode < 15 && (compat.first("w:splitPgBreakAndParaMark").map { !_isOff($0) } ?? false)
-            notes.columnMarksFollow = mode < 15
         }
 
         // Kept header and footer parts, before the styles are read: the
@@ -2441,7 +2440,12 @@ enum DocxFormat {
                         // line at the second column's head in Word's print,
                         // the title under it, 20.7pt lower than ours.)
                         var carried: RichParagraph? = nil
-                        if q.style.breakEndsPrevious, let prev = columns[columns.count - 1].last, prev.text.isEmpty, prev.image == nil,
+                        // (Not when the paragraph opening the column is that
+                        // empty line itself: before 2013's layout the reader
+                        // keeps the break's mark as a paragraph of its own,
+                        // and carrying the one before it as well sets two.)
+                        let opensWithItsMark = q.text.isEmpty && q.image == nil && notes.columnMarksFollow
+                        if q.style.breakEndsPrevious, !opensWithItsMark, let prev = columns[columns.count - 1].last, prev.text.isEmpty, prev.image == nil,
                            columns[columns.count - 1].count > 1 {
                             carried = columns[columns.count - 1].removeLast()
                         }
@@ -4025,11 +4029,11 @@ enum DocxFormat {
         /// `w:splitPgBreakAndParaMark` before 2013's layout: the mark of a
         /// paragraph that ends in a page break goes to the next page.
         var marksFollowBreaks = false
-        /// Before 2013's layout the mark of a paragraph that ends in a
-        /// COLUMN break stands at the top of the next column, option or
-        /// not (LibreOffice's tdf165492: Word's second column opens with
-        /// that empty line, ours with the table).
-        var columnMarksFollow = false
+        /// The mark of a paragraph that ends in a COLUMN break stands at the
+        /// top of the next column, in 2010's layout and 2013's alike (lab
+        /// cb1 and cb2 in Word for Windows; LibreOffice's tdf165492: Word's
+        /// second column opens with that empty line, ours with the table).
+        var columnMarksFollow = true
         /// Some section of the body sets its text in two columns or more:
         /// there a column break in the middle of a paragraph is a break.
         var hasColumns = false
