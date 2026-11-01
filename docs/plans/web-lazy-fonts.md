@@ -127,25 +127,22 @@ kind of thing a flash of the wrong count would repeat. After 4 s we lay out
 with what we have and relayout on arrival (the path that exists).
 
 For typing and IME: the first CJK keystroke has no prefetch to rely on. We
-also start an idle prefetch for the page's `navigator.language` (zh → SC +
-TC? no: just the one the language names; ja → JP; ko → KR) 3 s after start-up
+also start an idle prefetch for the page's `navigator.language` (zh-CN → SC, zh-TW/HK → TC,
+ja → JP, ko → KR: the one face the language names) 3 s after start-up
 when the connection is not metered (`navigator.connection.saveData` false),
 so the common reader never types into boxes.
 
 ### 4. What shows while it loads
 
 - Layout and paint use the current fallback list. For a script whose file
-  is **pending**, the builder **does not draw boxes**: it tells skparagraph
-  the glyphs are covered by DejaVu's `.notdef`-free fallback… (not
-  possible), so instead the paragraph is built with the text colour
-  alpha 0 for runs in a pending script. The line breaks and metrics are
-  those of the notdef box (about 1 em wide, which is also what CJK
-  advances are), so the layout is close to the final one; text appears when
-  the face does. A document that is open and mostly Chinese is therefore blank
-  for the seconds it takes, with the chip saying why — not a field of
-  squares. (This is the only part that touches the paragraph builder's
-  paint; the prototype tries it and falls back to plain boxes if skparagraph
-  resists.)
+  is **pending**, the builder sets the run's text colour to alpha 0, so the
+  page shows no field of squares. The line breaks and metrics are those of
+  the missing-glyph box (about an em wide, close to a CJK advance), so
+  the first layout is near the final one, and the text appears when the face
+  does. A document mostly in Chinese is blank for the seconds it takes, with
+  the chip saying why. This is the only part that touches the paragraph
+  builder's paint; the prototype tries it and falls back to plain boxes if
+  skparagraph resists.
 - Failure: the existing "Some fonts could not load" chip and Retry; the text
   stays blank for that script rather than boxes, and PDF/PNG export refuse
   with a message naming the script (they already wait for `fontsPending()`).
