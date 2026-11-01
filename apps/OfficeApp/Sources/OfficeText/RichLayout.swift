@@ -4566,8 +4566,12 @@ public final class RichLayout {
                     // (Not a row that holds a table nested in it with slack of its own: labs nt1b, the margin moves its cut and
                     // the footer's distance does not.)
                     let nestedSlack = columns.contains { $0.slacks.contains { $0 > 0 } }
-                    if (RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15)
-                        || (y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40))) { avail = max(avail, edge - y) }
+                    // (And to the page's own foot, not the footer's place: lab ft1 (Word for Windows, compat 12): a line stays
+                    // while its bottom is within the page height, wherever the margin and footer stand — a row opening 20pt
+                    // above the margin keeps 7 lines to 611.9 on a 612pt page, one opening 600pt down keeps one, 606 keeps none.)
+                    if RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15 {
+                        avail = max(avail, max(edge, _px(setup.height) - _bodyInsets(page: page / _columns, document).top) - y)
+                    } else if y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
