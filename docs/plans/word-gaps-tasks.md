@@ -12611,3 +12611,9 @@ One build of office d72358f13 plus my wrap=largest (landed since as 14280eb84, w
   164 fdo63164 (98.9, Word 761 lines, missing 8, pages 29/29): named, board line 11448
   165 fdo78904 (99.1, Word 799 lines, missing 7, pages 21/21): read/parked (windows-1), board line 12108
   166 tdf164499 (99.1, Word 108 lines, missing 1, pages 6/6): unclaimed (never on the board)
+
+### mac-confirm tip watch, 2026-11-01 (code 036219852 vs scores/mac at b13022e88)
+- Windows mode, Mac, non-WMO build; 756 and 593 LO, no failures, v2 and v1. A `pkill -x OfficeApp` by another session landed during the run; all PDFs were produced (failures 0), so the result stands.
+- 756 v2: no mover, mean with text 99.784. 756 v1: no mover (zh-cfb320509d line width 524/525, same ratio).
+- LO v2 mean with text 83.883 -> 84.997 (v1 83.483 -> 84.594), 11 up, 1 down: up lo-cc084a84 0->100, lo-983ce30f 0->100, lo-82a03040 0->100, lo-60fd9368 7.7->84.6, lo-406a95f2 44.4->100, lo-853c06a0 0->50, lo-84a48df2 50->100, lo-717ff943 3.6->52.7, lo-e07d5e6d 81.8->100, lo-5c656cf8 and lo-5d16f81b 90->100. Down: lo-c7082c66 15.4->9.8 (v1 15.4->11.4), the cancelling error already logged by macOS-doc. No other drop.
+- docx-pair.sh is landed (46b81bbfa, 5f6dad35d) and scores/mac is seeded; the STAMP carries the linked engine library hash. Code that landed after 036219852 (wrap=largest, chart userShapes/balanced legend rows, floattable anchor) is being swept now; scores/mac is re-seeded after that.
