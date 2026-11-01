@@ -4941,6 +4941,9 @@ enum DocxFormat {
                     } else if let body = node.descendant("wps:bodyPr") {
                         box.hasFixedFrame = body.first("a:noAutofit") != nil
                         if let anchor = body["anchor"], anchor == "ctr" || anchor == "b" { box.anchor = anchor }
+                        // (Not where the body says `upright`: its text stays level in the turned shape, as
+                        // zh-b24b396a's "（文件正面）" does in Word's print.)
+                        if body["upright"] != "1", let rot = node.descendant("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }) { box.shapeRotation = rot / 60000 }
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
                         box.fitsAsDrawing = box.fitsText

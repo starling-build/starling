@@ -400,6 +400,8 @@ public struct RichTextBox: Hashable, Sendable {
     /// `vert` does, but an ideograph stands upright in it — as a cell's
     /// `uprightIdeographs`.
     public var uprightIdeographs = false
+    /// The shape's own turn in degrees clockwise (`a:xfrm rot` / 60000): its text turns with it.
+    public var shapeRotation: Double = 0
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 

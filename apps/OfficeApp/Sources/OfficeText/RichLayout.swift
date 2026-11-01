@@ -16469,7 +16469,7 @@ public final class RichLayout {
                 if clipped { canvas.restore() }
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
-                _paintTextBox(inside, text, box, canvas)
+                _paintTurnedTextBox(inside, text, image, box, canvas)
             } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
                 // (No stand-in for a floating object the editor cannot
                 // draw: it would lie over the text it floats beside.)
@@ -16739,7 +16739,7 @@ public final class RichLayout {
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
-                            self._paintTextBox(inside, text, rect, canvas, clips: float.bandsPage)
+                            self._paintTurnedTextBox(inside, text, image, rect, canvas, clips: float.bandsPage)
                         }
                         continue
                     }
@@ -16759,7 +16759,7 @@ public final class RichLayout {
                     if clipped { canvas.restore() }
                 } else if let inside = _textBox(image, document), let text = image.textBox {
                     _ = _paintObject(image, rect, canvas)
-                    _paintTextBox(inside, text, rect, canvas)
+                    _paintTurnedTextBox(inside, text, image, rect, canvas)
                 } else if theme.wordRules, image.name == "checkbox" || image.name == "checkbox-on", let outline = image.outline {
                     // (A form's check box: see where it is set. Stroked
                     // inside its square, as Word's 0.72 line is; a ticked
@@ -16925,6 +16925,33 @@ public final class RichLayout {
                 || [text.insetLeft, text.insetTop, text.insetRight, text.insetBottom].allSatisfy { $0 == 0 })
     }
 
+    /// How far a turned text box's lines are moved across its frame to stand in the
+    /// middle of it, where the text is anchored there (`wps:bodyPr anchor="ctr"`).
+    private func _turnedSlack(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect) -> Double? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, text.anchor == "ctr", text.hasFixedFrame, text.parts.isEmpty, !text.uprightIdeographs else { return nil }
+        let room = rect.width - _px(text.insetLeft + text.insetRight)
+        let slack = room - inside.layout.totalHeight
+        return slack > 0.01 ? slack / 2 : nil
+    }
+
+    /// A text box's text in a shape that is itself turned (`RichTextBox.shapeRotation`):
+    /// the text is set in the shape's own frame, and turned with it about its centre
+    /// — a shape turned 90° with its text read upward (`vert270`) reads across the
+    /// page, in the middle of the shape (LibreOffice's tdf87924, an arrow turned
+    /// to point down with "hello" level in it).
+    private func _paintTurnedTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas, clips: Bool = false) {
+        guard theme.wordRules, abs(text.shapeRotation) > 0.01 else {
+            _paintTextBox(inside, text, rect, canvas, clips: clips)
+            return
+        }
+        let c = rect.center
+        canvas.save()
+        canvas.translate(c.dx, c.dy)
+        canvas.rotate(text.shapeRotation * Double.pi / 180)
+        _paintTextBox(inside, text, Rect.fromLTWH(-rect.width / 2, -rect.height / 2, rect.width, rect.height), canvas, clips: clips)
+        canvas.restore()
+    }
+
     /// A text box's text in its box `rect`: from its insets, or turned a
     /// quarter about the corner it reads from (`RichTextBox.textDirection`)
     /// — reading up from the bottom-left inset corner, its lines stacking
@@ -16946,9 +16973,11 @@ public final class RichLayout {
         case .up:
             canvas.translate(rect.left + _px(text.insetLeft), rect.bottom - _px(text.insetBottom))
             canvas.rotate(-Double.pi / 2)
+            if let slack = _turnedSlack(inside, text, rect) { canvas.translate(0, slack) }
         case .down:
             canvas.translate(rect.right - _px(text.insetRight), rect.top + _px(text.insetTop))
             canvas.rotate(Double.pi / 2)
+            if let slack = _turnedSlack(inside, text, rect) { canvas.translate(0, slack) }
         }
         // (Upright ideographs, `eaVert`: each paragraph of ideographs
         // stood up in its place, as a cell's — and the whole turned, as
