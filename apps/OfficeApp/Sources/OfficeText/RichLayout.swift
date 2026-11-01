@@ -9641,7 +9641,15 @@ public final class RichLayout {
         // (Its own fraction too where its lines keep theirs: Word adds
         // its paragraphs' heights unrounded, and a page of one-line
         // paragraphs each rounded up stood a unit a paragraph long.)
-        let total = before + push + bodyHeight + after
+        var total = before + push + bodyHeight + after
+        // (A row flattened into paragraphs is as tall as the row asks, the
+        // room it lacks under its last paragraph: see `blockMinHeight`.)
+        if theme.wordRules, let least = style.blockMinHeight, p.cell != nil {
+            var held = total
+            var k = i - 1
+            while k >= 0, k > i - style.blockParagraphs { held += _heights[k]; k -= 1 }
+            if _px(least) > held { total += _px(least) - held }
+        }
         _heights[i] = painter.fractionalLineHeights ? total : total.rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.

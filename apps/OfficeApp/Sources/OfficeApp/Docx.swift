@@ -1394,6 +1394,77 @@ enum DocxFormat {
                         for (key, image) in paragraphs[k].inlineImages { paragraphs[k].inlineImages[key] = boxed(image) }
                     }
                 }
+            case "w:tbl" where currentCell != nil && depth < maxNesting && Self._isTallNarrowFloat(node):
+                // (See `_isTallNarrowFloat`: its rows are paragraphs of the
+                // cell, set in from its sides where the float stands, each
+                // as tall as its row asks, and kept whole at a page's foot.)
+                let before = paragraphs.count
+                var keptId: String? = nil
+                if _nestingDepth(node) <= 6, let frag = _keptFragment(node, notes) {
+                    keptTableCount += 1
+                    keptId = "kt\(keptTableCount)"
+                    keptTables[keptId!] = KeptTable(xml: frag.xml, rels: frag.rels, texts: [])
+                }
+                let pos = node.first("w:tblPr")?.first("w:tblpPr")
+                let gridW = (Double(node.first("w:tblGrid")?.all("w:gridCol").first?["w:w"] ?? "") ?? 0) / 20
+                var wide = gridW
+                if let w = node.first("w:tblPr")?.first("w:tblW"), (w["w:type"] ?? "dxa") == "dxa", let v = Double(w["w:w"] ?? ""), v > 0 { wide = v / 20 }
+                var cellWide = 0.0
+                if let c = currentCell, let cols = tableColumns[c.table] {
+                    cellWide = cols.dropFirst(c.column).prefix(c.span).reduce(0, +)
+                }
+                var left = 0.0, right = 0.0
+                if cellWide > wide + 1 {
+                    switch pos?["w:tblpXSpec"] {
+                    case "center"?: left = (cellWide - wide) / 2
+                    case "right"?, "outside"?: left = cellWide - wide
+                    case "left"?, "inside"?: left = 0
+                    default: left = min(max(0, (Double(pos?["w:tblpX"] ?? "") ?? 0) / 20), cellWide - wide)
+                    }
+                    right = cellWide - wide - left
+                }
+                let tableMargins = _cellMargins(node.first("w:tblPr"))
+                // (Each row is a rule's width taller at its head, and the
+                // table stands its tblpY under the paragraph it floats by:
+                // Word's print of floattable-in-inlinetable has the first
+                // line 5.9pt under the cell's, the tblpY 5.4 and the rule
+                // 0.5, and the row on the next page 0.5 under its margin.)
+                func rule(_ name: String) -> Double {
+                    guard let b = node.first("w:tblPr")?.first("w:tblBorders")?.first(name), (b["w:val"] ?? "none") != "none",
+                          let sz = Double(b["w:sz"] ?? "") else { return 0 }
+                    return sz / 8
+                }
+                var rowNumber = 0
+                for tr in unwrapped(node, "w:tr") {
+                    defer { rowNumber += 1 }
+                    for tc in unwrapped(tr, "w:tc") {
+                        let first = paragraphs.count
+                        for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
+                        guard paragraphs.count > first else { continue }
+                        let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
+                        paragraphs[first].style.spaceBefore += (m.top ?? 0) + rule(rowNumber == 0 ? "w:top" : "w:insideH")
+                            + (rowNumber == 0 && pos?["w:vertAnchor"] == "text" ? max(0, (Double(pos?["w:tblpY"] ?? "") ?? 0) / 20) : 0)
+                        paragraphs[paragraphs.count - 1].style.spaceAfter += m.bottom ?? 0
+                        let least = (tr.first("w:trPr")?.first("w:trHeight")).flatMap { h in h["w:hRule"] == "exact" ? nil : Double(h["w:val"] ?? "").map { $0 / 20 } }
+                        for k in first ..< paragraphs.count {
+                            paragraphs[k].style.indentLeft += left
+                            paragraphs[k].style.indentRight += right
+                            if let least, least < 500 {
+                                paragraphs[k].style.keepLines = true
+                                if k < paragraphs.count - 1 { paragraphs[k].style.keepNext = true }
+                            }
+                        }
+                        if let least, least > 0 {
+                            paragraphs[paragraphs.count - 1].style.blockMinHeight = least
+                            paragraphs[paragraphs.count - 1].style.blockParagraphs = paragraphs.count - first
+                        }
+                    }
+                }
+                if let kid = keptId {
+                    if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
+                    for k in before ..< paragraphs.count { paragraphs[k].keptTable = kid }
+                    keptTables[kid]!.texts = paragraphs[before...].map(\.text)
+                }
             case "w:tbl" where currentCell != nil && depth < maxNesting && _nestingDepth(node) == 1
                                 && ((unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600)
                                     || (unwrapped(node, "w:tr").count > 15 && (node.first("w:tblGrid")?.all("w:gridCol").count ?? 1) >= 2)
@@ -5772,6 +5843,26 @@ enum DocxFormat {
         let width = (text - space * Double(num - 1)) / Double(num)
         guard width > 0 else { return nil }
         return (0 ..< num).map { k in (width, k < num - 1 ? space : 0) }
+    }
+
+    /// A table floating in a cell (`w:tblpPr`), one column wide and tall by
+    /// the least heights it gives its rows: Word parts it between its rows
+    /// across pages, as it does a table of the body — LibreOffice's
+    /// floattable-anchor-height, whose three rows of 98, 363 and 170pt each
+    /// stand on a page of their own. A box (`RichTextBox`) does not part,
+    /// so such a table is read as paragraphs, one row each: see the reader.
+    static func _isTallNarrowFloat(_ node: XNode) -> Bool {
+        guard let pr = node.first("w:tblPr"), pr.first("w:tblpPr") != nil,
+              node.first("w:tblGrid")?.all("w:gridCol").count == 1,
+              !node.all("w:tr").isEmpty, node.all("w:tr").count <= 15 else { return false }
+        // (A long list of short rows is the box's, which parts between its
+        // rows already: LibreOffice's tdf170620, 56 rows of 272 twips.)
+        var total = 0.0
+        for tr in node.all("w:tr") {
+            if tr.all("w:tc").count != 1 { return false }
+            if let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact", let v = Double(h["w:val"] ?? "") { total += v / 20 }
+        }
+        return total >= 200
     }
 
     static func _nestingDepth(_ node: XNode) -> Int {

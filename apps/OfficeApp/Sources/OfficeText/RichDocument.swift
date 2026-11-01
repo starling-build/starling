@@ -532,6 +532,13 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// and twice its cell spacing. Set on each of its paragraphs.
     public var frameInsetTop = 0.0
     public var frameInsetBottom = 0.0
+    /// Points: a table row flattened into paragraphs (a narrow floating
+    /// table in a cell, whose rows Word parts across pages) is at least
+    /// this tall, counted over this paragraph and the `blockParagraphs - 1`
+    /// before it; the layout gives the last the room that is missing as
+    /// space after. Set on the row's last paragraph.
+    public var blockMinHeight: Double? = nil
+    public var blockParagraphs = 1
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// The glyph this bulleted paragraph shows, when the file names one
