@@ -14559,6 +14559,11 @@ public final class RichLayout {
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma)
                     && !runRulesOff(tail) && !afterLatin
+                    // (Nor a full-width percent sign in Taiwan's Chinese, whose own list leaves it out
+                    // of what may not start a line: it is no closing mark there, and does not hang.
+                    // zh-ab9cbe66's "…分署25％(不含)－55％(含)" sends "％(含)" down in Word's print
+                    // with the sign 0.23 over; ours hung it.)
+                    && !(units[tail] == 0xFF05 && wordRules && RichTextTheme.wordWindowsPages && document.keptSettings["w:noLineBreaksBefore"] == nil && Self._traditionalChinese(document))
                     // (Nor, before 2013's layout where marks are compressed, a
                     // Latin closing quote: lab `z01` (Word for Windows,
                     // zh-015abfaf's package, mode 14, 16pt) takes "…比学赶帮超”"
