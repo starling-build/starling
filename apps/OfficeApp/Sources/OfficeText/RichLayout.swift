@@ -12747,6 +12747,11 @@ public final class RichLayout {
         var offset = 0.0
         var k = i - 1
         while k >= 0, k >= i - 8, k < _cells.count {
+            // (Not across a section or a page break: the table stands on the page before. The
+            // title of a landscape section, "附件2：", opens the page after a 478pt table of
+            // zh-316044fe's, and stands at the margin in Word's print.)
+            if k + 1 < _pageBreak.count, _pageBreak[k + 1] { return nil }
+            if k + 1 < _sectionOf.count, _sectionOf[k + 1] != _sectionOf[k] { return nil }
             if let c = _cells[k] { return (c, offset) }
             guard k < _heights.count else { return nil }
             offset += _heights[k]
