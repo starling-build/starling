@@ -12665,3 +12665,8 @@ One build of office d72358f13 plus my wrap=largest (landed since as 14280eb84, w
 - LO v2 83.883 -> 85.491 (v1 83.483 -> 85.087): 17 up (new since the last line: lo-91816702 20->100, lo-c490d65b and lo-22a53e2b 33->100, lo-a2386f32 82->100, lo-bf1e33f3 66.7->100, lo-488c442d 78.6->85.7), 1 down: lo-c7082c66 15.4->9.8 (known cancelling error). No other drop.
 - scores/mac re-seeded at this tree.
 - Note for all: docx-pair.sh's default STAGE is /tmp/docx-pair-<host>; two sessions on one Mac overwrote each other's sweep. Set STAGE to a private directory.
+
+### lenovo-2, 2026-11-01: tdf137850 landed, scores/linux seeded
+- LANDED 0041aa9e6: a text box wrapped top and bottom, standing at the top of its own paragraph, no longer pushes that paragraph below itself (lo-1dee05232c42b7b4, 0 -> 100). Full pair on the relinked Linux engine: 756 unchanged (98.38), LO 79.533 -> 79.702, one document up, none down.
+- scores/linux seeded at this tree (apps/OfficeApp 02a68696, engine 968d6ffad3e relinked, bundled Windows faces, 4 jobs): 756 and LO, v1 and v2. LO v2 mean 79.7, 394 at 95 or more, 570 with Word's page count.
+- Next from the census: tdf130120 (lo-027a2c2015af0624: a page-positioned text box inside a table cell; Word draws it 14 pt right of where the file says, about the table indent plus the paragraph indent), then tdf87924, tdf107119.
