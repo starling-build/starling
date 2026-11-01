@@ -7458,7 +7458,19 @@ public final class RichLayout {
             return Double(style.eastAsian[key] ?? "").map { $0 != 0 } ?? false
         }
         let skipBefore = contextual && sameStyle(i - 1) && !keepsLines(i - 1, "w:beforeLines") || theme.omitsLeadingSpace && i == 0
-        let skipAfter = contextual && sameStyle(i + 1) && !keepsLines(i + 1, "w:afterLines")
+        // (Word for Windows takes a contextual paragraph's space after
+        // away before the next ROW's paragraph too, whatever its style —
+        // lab rk (Windows 01QbbApP), lo-c8e4ecd8's title row: a lone
+        // paragraph of 24pt after, contextual, over a Heading2 row sits
+        // 12.3 above it (the heading's own before), 36.3 without the
+        // flag; over a Normal row 2.3 against 26.3. Floating or not.)
+        func nextRow(_ j: Int) -> Bool {
+            guard theme.wordRules, RichTextTheme.wordWindowsPages, j >= 0, j < document.paragraphs.count,
+                  document.paragraphs[j].keptTable == nil, p.keptTable == nil,
+                  let a = p.cell, let b = document.paragraphs[j].cell else { return false }
+            return a.table == b.table && b.row > a.row
+        }
+        let skipAfter = contextual && (sameStyle(i + 1) || nextRow(i + 1)) && !keepsLines(i + 1, "w:afterLines")
         // Automatic spacing is the web's, unless the document says its
         // own numbers stand: see `RichDocument.htmlAutoSpacing`.
         let web = !theme.wordRules || document.htmlAutoSpacing
