@@ -12297,3 +12297,30 @@ CLAIMED (Linux lenovo-2 starling-d6, 2026-10-31, starling-bd via macos): lo-c4c6
   Left in those decks: GeomLec1 p7/p9/p11 (about 10%, Lucida Sans Unicode is not on this machine: font fallback class), lo-tdf114848 p1/p2 WordArt waves (7-10%, text warp).
 
 - CLAIM (Linux lo4 Sonnet 5.5, 2026-11-01, starling-bd's queue 2): multi-page Slides decks Maloney, aascu hbcu cooper, at.ecodesign Vertiefungsvortrag_elektronik, lo-tdf116350-texteffects (worst pages and shared class); then a refreshed baseline-win.tsv and a lowest-20 list with classes.
+
+### S3 — Slides baseline refreshed on the tip, lowest 20 with classes (Linux lo4 Sonnet 5.5, 2026-11-01)
+
+`test/corpus/pptx/baseline-win.tsv` now holds today's sweep (office 80e375892 + Word changes after it, release build, 555 decks vs powerpoint-win, MuPDF diff). **Mean 0.9634%** (after my three rules 0.9669). Bands: 97 exact, 392 at 0-2%, 50 at 2-5%, 9 at 5-10%, 6 at 10-20%, 1 over 20%. The 96 matched-win decks are exact.
+**Three of the worst decks are not our fault.** Windows PowerPoint's own print of Divino_Revelado is blank on 11 of its 12 pages (it repaired the file and drew nothing), and of fuzzer-4986044400861184 on 5 of 23 pages; fuzzer-5611274456596480 is 61.6% on a repaired one-page file. Without those three the mean over 552 decks is **0.8076%**. Worth treating them as "reference invalid" in any future gate.
+The lowest 20, with a class each (font-bound = text in a stand-in font, per macos-ios's 57.5%: Windows draws Calibri/Verdana/Lucida, we draw Carlito/DejaVu, positions agree and every glyph edge differs):
+1. fuzzer-5611274456596480 61.55 — **reference invalid** (repaired by PowerPoint).
+2. oox-tdf139618_WordArtBitmapFill 14.58 — WordArt (bitmap text fill).
+3. Divino_Revelado 14.46 — **reference invalid** (11 of 12 Windows pages blank).
+4. oox-Scene3d_material_highlight 13.00 — 3-D (parked).
+5. fuzzer-4986044400861184 12.84 — **reference invalid** (5 of 23 Windows pages blank; the rest not checked).
+6. oox-tdf139618_ImportWordArtGradient 11.77 — WordArt (gradient text).
+7. oox-Scene3d_lightRig_rot_rotation 10.70 — 3-D (parked).
+8. lo-tdf140865Wordart3D 9.25 — 3-D WordArt (parked).
+9. oox-tdf139618_ThemeColorTransparency 9.12 — WordArt, **fixable**: Windows draws the warped text's fill and outline with their transparency (faint fill, hairline outline); we draw them opaque.
+10. oox-tdf155327_WordArtDefaultColor 7.03 — WordArt (warped text, sub-pixel glyph edges): unknown.
+11-13. 45541_Footer / _Header / 45545_Comment 5.75 — windows-1's (line offsets); the same table.
+14. lo-font-scale 5.67 — line offsets/font-bound (autofit text; lines wrap alike).
+15. lo-tdf143222 5.67 — windows-2's (table text).
+16. lo-master-slides 5.33 — font-bound (fallback font for a font this machine lacks; macOS-doc's).
+17. alterman_security 4.94 — windows-1's (line offsets).
+18. GeomLec1 4.87 — font-bound (Lucida Sans Unicode missing here), left after my background fix.
+19. pptx2svg 4.85 — line offsets (windows-2's class); picture bullets are fine.
+20. aascu 5864 4.77 (worst page 19.8) — gradient (lenovo-3's).
+Next after these (not in the 20): lo-tdf94238 4.49 gradient, 60810 4.49 line offsets, Maloney 4.25 font-bound (Verdana against DejaVu Sans: every page is the same table of glyph edges), Scene3d_legacy* 3-D, lo-smartart-picture-strip 4.35 unknown, lo-activex_* 3.9-4.1 unknown, lo-3columns 3.78 unknown.
+**Queue-2 decks:** Maloney 4.25 / 28 pages: font-bound on every page (positions equal, Verdana vs DejaVu). at.ecodesign Vertiefungsvortrag 3.23 / 34 pages: font-bound (Calibri vs Carlito), page 13 worst at 7.6. aascu hbcu cooper 3.24 / 16 pages: page 6 worst: text font-bound, plus a **fixable** chart difference: Windows' chart plot area starts 4.3 pt higher (top gridline 10.5 pt under the frame, ours 14.8) and ends 2 pt further right (11.5 from the frame's right edge, ours 13.5) with the same foot; auto layout (no manual layout in the file) in Chart.swift's `area`/axis reserve (line ~2107). I have not changed it (one deck: needs more Windows chart decks to calibrate, 20 in the corpus). lo-tdf116350-texteffects 3.65: WordArt arc text, glyph placement along the arc differs by a few pixels.
+**What would move the mean most:** the stand-in fonts (57.5% of what is left, macos-ios) — i.e. bundling metric-compatible faces for Verdana and Lucida is the one item bigger than every fix on this list together.
