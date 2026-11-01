@@ -1703,48 +1703,79 @@ public final class RichLayout {
                 ensureLaidOut(document)
             }
         }
-        // The text round a frame the page fixes: a style's, centred and aligned on the
-        // margins, whose place does not depend on the flow (lo special_styles). Its page is
-        // where its paragraph stands; every line there level with it is held in to the side
-        // with the room, and laid out again until the lines settle.
+        // The text round what the page fixes: a style's frame, centred and aligned on the
+        // margins (lo special_styles), or a box that wraps the text, aligned on the page or
+        // its margins (lo tdf36117's centred ones). Their place does not depend on the flow.
+        // The page is where the paragraph holding them stands; every line there level with
+        // one is held in to the side with the room, and laid out again until the lines settle.
         if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_stripPassing,
-           document.paragraphs.contains(where: { $0.cell == nil && Self._stripFrame($0.style) }) {
+           document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0) != nil }) {
             _stripPassing = true
             defer { _stripPassing = false }
             for _ in 0 ..< 4 {
                 var want: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
-                for (f, fp) in document.paragraphs.enumerated() where fp.cell == nil && Self._stripFrame(fp.style) {
-                    guard f < _pieceStart.count, _pieceStart[f] < _allPieces.count, let frame = fp.style.frame,
-                          let fw = frame.width, let fh = frame.height, frame.horizontalAnchor == "page", frame.horizontalAlign == "center" else { continue }
+                // (What stands in the way: its page, its place from the text area's top and
+                // from the page's left, its room kept clear at each side, the sides text may
+                // take, and the paragraph that is itself the frame, set apart.)
+                var blocks: [(page: Int, frame: Int?, top: Double, h: Double, x0: Double, w: Double, spaceL: Double, spaceR: Double, side: String?)] = []
+                for (f, fp) in document.paragraphs.enumerated() where fp.cell == nil && f < _pieceStart.count && _pieceStart[f] < _allPieces.count {
                     let first = _allPieces[_pieceStart[f]]
                     let setup = pageSetup(forPage: first.page)
-                    let insets = _bodyInsets(page: first.page, document)
-                    let contentH = max(1, _px(setup.height) - insets.top - insets.bottom)
-                    let h = _px(fh), w = _px(fw)
-                    let top = frame.verticalAlign == "top" ? 0 : frame.verticalAlign == "center" ? (contentH - h) / 2 : contentH - h
-                    let xml = fp.style.frameXML ?? ""
-                    let space = xml.firstRange(of: "w:hSpace=\"").flatMap { r in Double(xml[r.upperBound...].prefix { $0 != "\"" }) }.map { _px($0 / 20) } ?? 0
-                    let colLeft = _px(setup.marginLeft + setup.gutter)
-                    let x0 = (_px(setup.width) - w) / 2
-                    for piece in _pages[first.page] where piece.paragraph != f && !piece.repeated {
+                    if Self._stripFrame(fp.style), let frame = fp.style.frame, let fw = frame.width, let fh = frame.height,
+                       frame.horizontalAnchor == "page", frame.horizontalAlign == "center" {
+                        let insets = _bodyInsets(page: first.page, document)
+                        let contentH = max(1, _px(setup.height) - insets.top - insets.bottom)
+                        let h = _px(fh), w = _px(fw)
+                        let top = frame.verticalAlign == "top" ? 0 : frame.verticalAlign == "center" ? (contentH - h) / 2 : contentH - h
+                        let xml = fp.style.frameXML ?? ""
+                        let space = xml.firstRange(of: "w:hSpace=\"").flatMap { r in Double(xml[r.upperBound...].prefix { $0 != "\"" }) }.map { _px($0 / 20) } ?? 0
+                        blocks.append((first.page, f, top, h, (_px(setup.width) - w) / 2, w, space, space, nil))
+                    }
+                    if let box = Self._pageBox(fp) {
+                        let float = box.float, image = box.image
+                        let pageH = _px(setup.height), marginTop = _px(setup.marginTop), marginBottom = _px(setup.marginBottom)
+                        let h = _px(image.height), w = _px(image.width)
+                        let whole = h + _px(float.effectBottom)
+                        let base = float.verticalFrom == "page" ? 0 : marginTop
+                        let span = float.verticalFrom == "page" ? pageH : pageH - marginTop - marginBottom
+                        let a = float.verticalAlign ?? "top"
+                        let onPage = base + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
+                        let physical = first.page / _columns
+                        let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : marginTop
+                        let left = float.horizontalFrom == "page" ? 0 : _px(setup.marginLeft + setup.gutter)
+                        let across = float.horizontalFrom == "page" ? _px(setup.width) : _px(setup.contentWidth)
+                        let x0: Double
+                        switch float.horizontalAlign {
+                        case "center": x0 = left + (across - w) / 2
+                        case "right": x0 = left + across - w
+                        case "left": x0 = left
+                        default: x0 = left + _px(float.x)
+                        }
+                        blocks.append((first.page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
+                    }
+                }
+                for block in blocks {
+                    let colLeft = _px(pageSetup(forPage: block.page).marginLeft + pageSetup(forPage: block.page).gutter)
+                    for piece in _pages[block.page] where piece.paragraph != block.frame && !piece.repeated {
                         let k = piece.paragraph
                         let q = document.paragraphs[k]
-                        guard q.cell == nil, q.style.frame == nil, !q.text.isEmpty, !q.style.rightToLeft, k < _heights.count else { continue }
+                        guard q.cell == nil, q.style.frame == nil, !q.text.isEmpty, !q.style.rightToLeft, k < _heights.count, want[k] == nil else { continue }
                         let rise = piece.flowBottom - piece.flowTop
-                        guard piece.pageY < top + h - 0.01, piece.pageY + rise > top + 0.01 else { continue }
+                        guard piece.pageY < block.top + block.h - 0.01, piece.pageY + rise > block.top + 0.01 else { continue }
                         let column = _flowWidth(k)
                         let size = _px(q.runs.first?.style.fontSize ?? theme.fontSize)
                         let own = _px(q.style.indentLeft), rightGap = _px(q.style.indentRight)
-                        let leftRoom = (x0 - space - colLeft) - own
-                        let rightRoom = (colLeft + column - rightGap) - (x0 + w + space)
+                        var leftRoom = (block.x0 - block.spaceL - colLeft) - own
+                        var rightRoom = (colLeft + column - rightGap) - (block.x0 + block.w + block.spaceR)
+                        if block.side == "left" { rightRoom = 0 } else if block.side == "right" { leftRoom = 0 }
                         guard max(leftRoom, rightRoom) >= size * 2 else { continue }
                         // (The piece's flow offsets are the flow's; the band is from the paragraph's top.)
                         let fromTop = piece.flowTop - (k < _tops.count ? _tops[k] : 0)
-                        let band = (top: top - piece.pageY + fromTop, bottom: top + h - piece.pageY + fromTop)
+                        let band = (top: block.top - piece.pageY + fromTop, bottom: block.top + block.h - piece.pageY + fromTop)
                         if rightRoom >= leftRoom {
-                            want[k] = ((x0 + w + space) - colLeft - own, band, false)
+                            want[k] = ((block.x0 + block.w + block.spaceR) - colLeft - own, band, false)
                         } else {
-                            want[k] = (column - rightGap - (x0 - space - colLeft), band, true)
+                            want[k] = (column - rightGap - (block.x0 - block.spaceL - colLeft), band, true)
                         }
                     }
                 }
@@ -17367,6 +17398,22 @@ public final class RichLayout {
               let xml = style.frameXML, !xml.containsSubstring("w:vAnchor="), xml.containsSubstring("w:hRule=\"exact\""),
               !xml.containsSubstring("w:wrap=\"") || xml.containsSubstring("w:wrap=\"auto\"") else { return false }
         return true
+    }
+
+    /// The box in a paragraph that the text goes round and the page fixes: wrapped, in the
+    /// text's way, aligned on the page or its margins both ways (`_floatRect`'s place).
+    static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
+        guard p.cell == nil else { return nil }
+        for image in p.inlineImages.values {
+            guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
+                  let a = float.verticalAlign, a == "top" || a == "center" || a == "bottom",
+                  float.verticalFrom == "page" || float.verticalFrom == "margin",
+                  float.horizontalFrom == "page" || float.horizontalFrom == "margin",
+                  float.horizontalAlign != "inside", float.horizontalAlign != "outside",
+                  float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
+            return (image, float)
+        }
+        return nil
     }
 
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
