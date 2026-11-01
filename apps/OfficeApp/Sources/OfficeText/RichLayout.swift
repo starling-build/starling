@@ -2851,6 +2851,7 @@ public final class RichLayout {
                 var ruled = 0.0
                 var padded = 0.0
                 var paddedBelow = 0.0
+                var bareHeight = 0.0
                 let ruleAbove = rows.isEmpty ? rule("top", ts?.edges?.top) : 0
                 let lastRow = !(j < n && _cells[j]?.table == table)
                 let ruleBelow = lastRow ? rule("bottom", ts?.edges?.bottom) : rule("insideH", ts?.edges?.insideH)
@@ -2880,6 +2881,7 @@ public final class RichLayout {
                         && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
                     if cell.rowSpan == 1, !cell.vertical, !hidden {
                         rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
+                        bareHeight = max(bareHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom - cell.rules)
                         // (And as tall as a float its text wraps round reaches,
                         // where it stands in the cell (`_floatRect`, no higher
                         // than the row's top): zh-ab9cbe66's flow charts, 632pt
@@ -2952,6 +2954,17 @@ public final class RichLayout {
                         }
                         m -= 1
                     }
+                }
+                // (A row stands as tall as its tallest cell's text and margins
+                // and the line the row's other cells draw, even where the
+                // tallest cell hides that line itself: zh-6e7ff836's p19 table,
+                // insideH sz4, its text cells stating nil above and below while
+                // the two cells beside them keep the line, has every such row
+                // 48.48 in Word's print for three exact 16pt lines, ours 48.0 —
+                // 4.6pt short by the page foot, a row's line left on the page.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, ruled > 0 {
+                    RuleTrace.hit("word-row-takes-the-line-its-other-cells-draw")
+                    rowHeight = max(rowHeight, bareHeight + ruled)
                 }
                 // (A row of spanning or turned cells alone is still its
                 // margins tall.)
