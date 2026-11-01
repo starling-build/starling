@@ -609,6 +609,7 @@ enum DocxFormat {
         if let compat = part("word/settings.xml").flatMap(XNode.parse)?.first("w:compat") {
             let mode = compat.all("w:compatSetting").first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") } ?? 12
             notes.marksFollowBreaks = mode < 15 && (compat.first("w:splitPgBreakAndParaMark").map { !_isOff($0) } ?? false)
+            notes.columnMarksFollow = mode < 15
         }
 
         // Kept header and footer parts, before the styles are read: the
@@ -4024,6 +4025,11 @@ enum DocxFormat {
         /// `w:splitPgBreakAndParaMark` before 2013's layout: the mark of a
         /// paragraph that ends in a page break goes to the next page.
         var marksFollowBreaks = false
+        /// Before 2013's layout the mark of a paragraph that ends in a
+        /// COLUMN break stands at the top of the next column, option or
+        /// not (LibreOffice's tdf165492: Word's second column opens with
+        /// that empty line, ours with the table).
+        var columnMarksFollow = false
         /// Some section of the body sets its text in two columns or more:
         /// there a column break in the middle of a paragraph is a break.
         var hasColumns = false
@@ -5761,7 +5767,8 @@ enum DocxFormat {
             }
         }
         if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter,
-           !(notes.marksFollowBreaks && last.breakCharacter && !last.breakColumn) {
+           !(notes.marksFollowBreaks && last.breakCharacter && !last.breakColumn),
+           !(Self.wordOnWindows && notes.hasColumns && notes.columnMarksFollow && last.breakCharacter && last.breakColumn) {
             // The paragraph ended with its page break: Word shows nothing
             // for its mark on the new page (SampleDoc's page two began
             // a line down), so no empty paragraph for it — the break
