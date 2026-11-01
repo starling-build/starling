@@ -1,4 +1,4 @@
-593 documents: mean 81.8% of Word's lines matched, median 100.0%; 410 at 95% or more, 499 at half or more; 572 with Word's page count
+593 documents: mean 82.3% of Word's lines matched, median 100.0%; 413 at 95% or more, 501 at half or more; 572 with Word's page count
     0.0%  lines 0/0  pages 0/0  lo-02c5b89ddc2d9138
     0.0%  lines 6/6  pages 1/1  lo-0622682cda1b279e
     0.0%  lines 0/0  pages 0/0  lo-099d1f3b2085ed7b
@@ -26,7 +26,6 @@
     0.0%  lines 0/0  pages 0/0  lo-6e4ea74b6c749d5d
     0.0%  lines 0/0  pages 0/0  lo-72a4e3a9469266ac
     0.0%  lines 2/2  pages 1/1  lo-73f1dccc52f265e1
-    0.0%  lines 2/6  pages 1/1  lo-74bd0b2f63a1ad3e
     0.0%  lines 0/0  pages 0/0  lo-782edaea6d7f343b
     0.0%  lines 0/0  pages 0/0  lo-811b59753758a155
     0.0%  lines 0/0  pages 0/0  lo-83fd931af644db85
@@ -53,7 +52,6 @@
     0.0%  lines 0/32  pages 0/1  lo-e2dfec336073da46
     0.0%  lines 0/0  pages 0/0  lo-e7d811ebad124268
     0.0%  lines 1/2  pages 1/1  lo-f1cc2329dc3ab533
-    0.0%  lines 2/2  pages 1/1  lo-f3312cb174ed70a3
     0.0%  lines 4/4  pages 1/1  lo-f860132614b4f586
     0.0%  lines 0/0  pages 0/0  lo-fc0b25c54dbc0357
     1.6%  lines 61/58  pages 4/2  lo-c6d022b650e67cb5
@@ -116,10 +114,8 @@
    60.0%  lines 5/3  pages 2/2  lo-297bc5cd7795570e
    60.0%  lines 5/5  pages 2/2  lo-382401e902ed9090
    60.0%  lines 5/5  pages 1/1  lo-ccca8bf3eae9ede4
-   60.0%  lines 5/5  pages 1/1  lo-ee0e461d0850301d
    60.4%  lines 48/47  pages 3/3  lo-89daf93dd3d7e0ba
    62.1%  lines 132/133  pages 4/4  lo-000463dfea864c26
-   62.5%  lines 8/10  pages 1/1  lo-c996762f20bf4f32
    62.5%  lines 16/17  pages 1/1  lo-ccd9da4b76bda965
    63.2%  lines 38/33  pages 6/6  lo-0349db3a0944fbef
    66.7%  lines 3/3  pages 1/1  lo-796c371e29f0b36d
@@ -164,6 +160,7 @@
    85.7%  lines 35/35  pages 2/2  lo-a0aac2492a3897cb
    87.2%  lines 47/45  pages 1/1  lo-c678e48606fbcb06
    87.5%  lines 8/8  pages 1/1  lo-af81b53e196c72c4
+   87.5%  lines 8/48  pages 1/1  lo-c996762f20bf4f32
    87.5%  lines 8/7  pages 1/1  lo-f9b9a8fc47c97aa6
    87.8%  lines 41/37  pages 3/3  lo-11ad5a950bc534cc
    88.0%  lines 25/31  pages 1/1  lo-9ab859804c921621
@@ -368,6 +365,7 @@
   100.0%  lines 2/2  pages 2/2  lo-7271065f4b39d2d6
   100.0%  lines 3/3  pages 1/1  lo-73312d3df49b7adc
   100.0%  lines 28/28  pages 3/3  lo-744a14ed044ece37
+  100.0%  lines 2/6  pages 1/1  lo-74bd0b2f63a1ad3e
   100.0%  lines 2/2  pages 1/1  lo-75a4a49bfd25b3c2
   100.0%  lines 3/3  pages 2/2  lo-7607206ea71b1f76
   100.0%  lines 7/7  pages 2/2  lo-761d0b40a8fd2bec
@@ -567,6 +565,7 @@
   100.0%  lines 6/6  pages 1/1  lo-ebb078d791b6deb4
   100.0%  lines 27/31  pages 2/2  lo-ed539d0e226f93bf
   100.0%  lines 3/3  pages 1/1  lo-ee07437e238f2a79
+  100.0%  lines 5/5  pages 1/1  lo-ee0e461d0850301d
   100.0%  lines 1/1  pages 1/1  lo-ef81aa22d9f26cbf
   100.0%  lines 3/3  pages 1/1  lo-f0be7488a5cbb93b
   100.0%  lines 1/1  pages 1/1  lo-f0ceb78c9153b947
@@ -578,6 +577,7 @@
   100.0%  lines 4/3  pages 1/1  lo-f2b254ac6887d82c
   100.0%  lines 3/3  pages 1/1  lo-f2ca6bfa11e6819b
   100.0%  lines 4/3  pages 1/1  lo-f2fd7e5975503f7c
+  100.0%  lines 2/2  pages 1/1  lo-f3312cb174ed70a3
   100.0%  lines 3/3  pages 1/1  lo-f384af17b1799daf
   100.0%  lines 22/22  pages 1/1  lo-f5d3f9ec3b4dd4fc
   100.0%  lines 2/2  pages 2/2  lo-f63fbb532875f9a0

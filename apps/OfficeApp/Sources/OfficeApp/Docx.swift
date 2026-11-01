@@ -4356,6 +4356,15 @@ enum DocxFormat {
             if style.attrs["w:type"] == nil { style.attrs["w:type"] = "paragraph" }
             if style.attrs["w:styleId"] == nil, let name = style.first("w:name")?["w:val"] { style.attrs["w:styleId"] = name }
         }
+        // A file whose styles flag no paragraph style as the default (LibreOffice's
+        // "style0", named Normal) has the one named "Normal" as it: tdf103931's
+        // Liberation Serif paragraphs, which Word's print sets at 24.0pt a line
+        // (Times) where ours, outside the style, took 25 (Calibri).
+        let paragraphStyles = styles.all("w:style").filter { $0.attrs["w:type"] == "paragraph" }
+        if !paragraphStyles.contains(where: { $0.attrs["w:default"] == "1" }),
+           let normal = paragraphStyles.first(where: { $0.first("w:name")?["w:val"] == "Normal" }), normal.attrs["w:styleId"] != "Normal" {
+            normal.attrs["w:default"] = "1"
+        }
     }
 
     private static func _resolveThemeFonts(_ root: XNode, _ theme: ThemeFonts) {
