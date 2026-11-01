@@ -34,11 +34,12 @@ else
   printf 'enginelib %s\n' "$( [ -n "$LIB" ] && { shasum -a 256 "$LIB" 2>/dev/null || sha256sum "$LIB"; } | cut -c1-16 || echo unknown)"
 fi
 printf 'fonts %s\n' "${STAMP_FONTS:-bundled/windows}"
-# The HOST's installed fonts, on Linux: the app falls back to them for glyphs the bundled faces lack,
-# even in bundled mode, so installing a package moves scores with no change in this repo. The sorted
-# list of font files fontconfig knows (a font added, removed or replaced on a host changes it).
-if [ "$(uname)" = Linux ] && command -v fc-list >/dev/null 2>&1; then
-  printf 'hostfonts %s\n' "$(fc-list --format '%{file}\n' 2>/dev/null | LC_ALL=C sort -u | sha256sum | cut -c1-16)"
+# The HOST's installed fonts, on Linux: the engine scans /usr/share/fonts (and the other font
+# directories) itself and falls back to what it finds there for glyphs the bundled faces lack, even in
+# bundled mode, so installing a package moves scores with no change in this repo. The sorted list of
+# font files under those directories, with their sizes (a font added, removed or replaced changes it).
+if [ "$(uname)" = Linux ]; then
+  printf 'hostfonts %s\n' "$(find /usr/share/fonts /usr/local/share/fonts "$HOME/.fonts" "$HOME/.local/share/fonts" -type f -printf '%p %s\n' 2>/dev/null | LC_ALL=C sort | sha256sum | cut -c1-16)"
 fi
 [ -n "${T:-}" ] && rm -rf "$T"
 exit 0
