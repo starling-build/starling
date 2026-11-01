@@ -17470,6 +17470,12 @@ public final class RichLayout {
         if float.horizontalFrom == "page" {
             let setup = _setup(ofParagraph: i)
             let margins = floatsFrames ? frameMargins : (setup.marginLeft + setup.gutter, setup.marginRight)
+            // (The page's edge, not the cell's text: a box placed from the
+            // page, anchored in a table's cell, stands that far from the page
+            // however far in the cell's text is — LibreOffice's tdf130120, a
+            // box 511.3pt from the page's edge, 14pt (the table's indent and
+            // the paragraph's) too far right.)
+            if theme.wordRules, i < _cells.count, _cells[i] != nil { bandLeft = 0 }
             bandLeft -= _px(margins.0)
             bandWidth += _px(margins.0 + margins.1)
         }
