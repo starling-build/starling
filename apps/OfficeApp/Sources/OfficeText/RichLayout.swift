@@ -11691,6 +11691,18 @@ public final class RichLayout {
                                             eastAsian: true, gridPitch: pitch)
                     spans.append(TextSpan(text: String(ch), style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
+                } else if ea, theme.wordRules, Self._cjkFaceFamily == nil, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) {
+                    // (Where no CJK face is named — Linux, whose stand-ins
+                    // have no Roman numerals — the numeral is still a full
+                    // cell: the glyph is the fallback's, padded to an em as
+                    // the dot above is. zh-94f12659's "（Ⅰ级）" in 仿宋_GB2312
+                    // is 16pt in Word's print where DejaVu's gave 4.7, and
+                    // its line kept "故：" Word wrapped.)
+                    flush(i)
+                    let s = style(kind)
+                    let width = _glyphWidth(s, ch)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + max(0, em - width))))
+                    start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkFaceFamily, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) {
                     // (A Roman numeral in East Asian text is the CJK face's,
                     // an em wide: zh-78729cf9's "（Ⅰ级）、重大（Ⅱ级）" in a
