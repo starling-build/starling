@@ -922,7 +922,7 @@ public struct PageSetup: Hashable, Codable, Sendable {
     public var pageNumberFormat: String? = nil
     /// An explicit odd/even section start (`w:type`). Its page numbers,
     /// rather than physical sheet indices, determine the requested side.
-    public enum PageParity: Int, Hashable, Sendable { case even = 0, odd = 1 }
+    public enum PageParity: Int, Hashable, Codable, Sendable { case even = 0, odd = 1 }
     public var sectionStartParity: PageParity? = nil
 
     public init(width: Double, height: Double, marginTop: Double = 72,
