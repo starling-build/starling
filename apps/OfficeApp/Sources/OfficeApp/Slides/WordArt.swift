@@ -278,7 +278,15 @@ enum WordArt {
                 let paint = Paint()
                 paint.style = .fill
                 paint.color = Color(0xFFFFFFFF)
-                if fillsEachGlyph, let shader = SlidePainter.gradientShader(fill, Rect.fromLTWH(0, 0, g.width, g.painter.height)) {
+                if fill.path != nil, fill.stops.contains(where: { $0.color.alpha == 0 }),
+                   let solid = fill.stops.max(by: { $0.color.alpha < $1.color.alpha })?.color {
+                    // A path gradient that runs up from a fully clear stop is
+                    // printed flat by PowerPoint for Windows, in its most opaque
+                    // stop's colour (ImportWordArtGradient's third "Happy
+                    // Birthday": plain accent1 where it fades out to nothing).
+                    paint.color = solid
+                    drawn(paint)
+                } else if fillsEachGlyph, let shader = SlidePainter.gradientShader(fill, Rect.fromLTWH(0, 0, g.width, g.painter.height)) {
                     paint.shader = shader
                     drawn(paint)
                 } else if let shader = SlidePainter.gradientShader(fill, area, pre: inv) {
