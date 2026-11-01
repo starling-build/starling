@@ -122,6 +122,9 @@ welcome, textedit.docx, word-boringcrypto.docx (24 pages, 1071 lines) and the PD
 
 It exits 1 and names the decks that leave 0.00. At tip a19fc04e7 all 96 still score 0.00 (Mac, 4.5 min incl. build excluded). The tip watch now runs it on every tip that touches Slides.
 
+### zh-61aaad09 97.1 (Windows): chart label x 6-7pt, bar chart value labels — CLAIMED (mac-confirm, 2026-10-31, starling-bd's assignment from lenovo-2's open list)
+Tip b0e321b68: compiles (checked), Slides matched-win 96/96 still 0.00. Windows mode, v2, 756 + LO pair on the Mac with the build/guard here before landing.
+
 **Confirmation round 5 — PASS for 5 of 6** (windows-1, 2026-10-30; base office 64f26dce; Windows mode, 756, final prints; v2 official).
 Stack of 6 (7190a877 lenovo-3 dotabove, 9dd407f8 macOS-doc spacegive T240, 8141e618 lenovo-2 mixed-size-baseline,
 7e254b8d + 7c31f4e7 macos-ios keepfloat, 4f0b145d lenovo T241): 14 up, ONE drop, zh-1d2a7c35 100.0→99.7 (v1 99.7→99.5; p6's ①②③
