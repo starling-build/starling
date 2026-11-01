@@ -44,6 +44,41 @@ extension flutter.swift_bridge {
             }
         }
 
+        /// The glyphs' outlines for a UTF-8 byte range, as the native bridge's
+        /// `GetGlyphPath` gives them: verbs and points flattened, counts always
+        /// reported, buffers filled only when they hold the outline.
+        public func GetGlyphPath(
+            _ utf8Start: Int, _ utf8End: Int,
+            _ verbs: UnsafeMutablePointer<UInt8>?, _ verbCapacity: Int, _ verbCount: UnsafeMutablePointer<Int>?,
+            _ points: UnsafeMutablePointer<Float>?, _ pointCapacity: Int, _ pointCount: UnsafeMutablePointer<Int>?
+        ) -> Bool {
+            verbCount?.pointee = 0
+            pointCount?.pointee = 0
+            guard skHandle != 0, utf8End > utf8Start else { return false }
+            return withSkStack { stack in
+                let counts = stack.alloc(8)
+                let wantsOutline = verbs != nil && points != nil
+                // (Sized first, in skwasm's memory, so the buffers can be.)
+                guard paragraph_getGlyphPath(skHandle, UInt32(utf8Start), UInt32(utf8End), 0, 0, 0, 0, counts) else {
+                    return false
+                }
+                let need: [UInt32] = skRead(counts, count: 2)
+                verbCount?.pointee = Int(need[0])
+                pointCount?.pointee = Int(need[1])
+                guard wantsOutline, Int(need[0]) <= verbCapacity, Int(need[1]) <= pointCapacity else { return need[0] > 0 }
+                let verbBuffer = stack.alloc((Int(need[0]) + 3) & ~3)
+                let pointBuffer = stack.alloc(Int(need[1]) * 8)
+                guard paragraph_getGlyphPath(
+                    skHandle, UInt32(utf8Start), UInt32(utf8End), verbBuffer, need[0], pointBuffer, need[1], counts)
+                else { return false }
+                let v: [UInt8] = skRead(verbBuffer, count: Int(need[0]))
+                let p: [Float] = skRead(pointBuffer, count: Int(need[1]) * 2)
+                v.withUnsafeBufferPointer { verbs?.update(from: $0.baseAddress!, count: v.count) }
+                p.withUnsafeBufferPointer { points?.update(from: $0.baseAddress!, count: p.count) }
+                return true
+            }
+        }
+
         public func GetLongestLine() -> Double {
             skHandle == 0 ? 0 : Double(paragraph_getLongestLine(skHandle))
         }

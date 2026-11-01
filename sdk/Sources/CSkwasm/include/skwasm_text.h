@@ -141,6 +141,10 @@ void paragraphStyle_setFractionalLineHeights(sk_ptr style, bool value);
 // Starling's, likewise: one more line's (left, right) inset, in line order.
 SKWASM(paragraphStyle_addLineIndent)
 void paragraphStyle_addLineIndent(sk_ptr style, float left, float right);
+// Starling's, likewise: room every line's break holds back while justification
+// still stretches the line across the whole width (patches/skia-fit-reserve.patch).
+SKWASM(paragraphStyle_setFitReserve)
+void paragraphStyle_setFitReserve(sk_ptr style, float reserve);
 
 // --- text/paragraph_builder*.cpp --------------------------------------------
 SKWASM(paragraphBuilder_create)
@@ -163,6 +167,10 @@ SKWASM(paragraph_dispose) void paragraph_dispose(sk_ptr paragraph);
 SKWASM(paragraph_getWidth) float paragraph_getWidth(sk_ptr paragraph);
 SKWASM(paragraph_getHeight) float paragraph_getHeight(sk_ptr paragraph);
 SKWASM(paragraph_getGlyphInkBounds) bool paragraph_getGlyphInkBounds(sk_ptr paragraph, sk_ptr bounds);
+SKWASM(paragraph_getGlyphPath)
+bool paragraph_getGlyphPath(sk_ptr paragraph, uint32_t start, uint32_t end, sk_ptr verbs,
+                            uint32_t verbCapacity, sk_ptr points, uint32_t pointCapacity,
+                            sk_ptr counts);
 SKWASM(paragraph_getLongestLine) float paragraph_getLongestLine(sk_ptr paragraph);
 SKWASM(paragraph_getMinIntrinsicWidth)
 float paragraph_getMinIntrinsicWidth(sk_ptr paragraph);

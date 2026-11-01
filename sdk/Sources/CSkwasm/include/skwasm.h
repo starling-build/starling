@@ -126,6 +126,12 @@ SKWASM(paragraph_dispose) void paragraph_dispose(sk_ptr paragraph);
 SKWASM(paragraph_layout) void paragraph_layout(sk_ptr paragraph, float width);
 SKWASM(paragraph_getHeight) float paragraph_getHeight(sk_ptr paragraph);
 SKWASM(paragraph_getGlyphInkBounds) bool paragraph_getGlyphInkBounds(sk_ptr paragraph, sk_ptr bounds);
+// Starling's: the glyphs' outlines for a UTF-8 byte range, flattened to verbs and points
+// (counts[0] verbs, counts[1] points); buffers may be null to size.
+SKWASM(paragraph_getGlyphPath)
+bool paragraph_getGlyphPath(sk_ptr paragraph, uint32_t start, uint32_t end, sk_ptr verbs,
+                            uint32_t verbCapacity, sk_ptr points, uint32_t pointCapacity,
+                            sk_ptr counts);
 SKWASM(paragraph_getLongestLine) float paragraph_getLongestLine(sk_ptr paragraph);
 
 #endif  // STARLING_SKWASM_H

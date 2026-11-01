@@ -214,6 +214,9 @@ extension flutter.swift_bridge {
         /// Starling's: per-line (left, right) indents — the pair count in slot 7,
         /// each pair's floats' bits from slot 8.
         private static let psLineIndents: Int32 = 1 << 14
+        /// Starling's: the fit reserve, one float's bits in slot 8 + 2 * the
+        /// line-indent count (the count in slot 7, read only under bit 14).
+        private static let psFitReserve: Int32 = 1 << 15
 
         public init(
             _ encoded_style: UnsafePointer<Int32>?,
@@ -265,6 +268,13 @@ extension flutter.swift_bridge {
                             paragraphStyle,
                             Float(bitPattern: UInt32(bitPattern: encoded[8 + 2 * i])),
                             Float(bitPattern: UInt32(bitPattern: encoded[9 + 2 * i])))
+                    }
+                }
+                if mask & Self.psFitReserve != 0 {
+                    let pairs = mask & Self.psLineIndents != 0 && encoded_style_length > 7 ? max(0, Int(encoded[7])) : 0
+                    if encoded_style_length > 8 + 2 * pairs {
+                        let reserve = Float(bitPattern: UInt32(bitPattern: encoded[8 + 2 * pairs]))
+                        if reserve.isFinite, reserve > 0 { paragraphStyle_setFitReserve(paragraphStyle, reserve) }
                     }
                 }
             }

@@ -89,6 +89,22 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
                          double* right,
                          double* bottom) const;
 
+  // Starling: the outlines of the glyphs whose cluster starts in the UTF-8
+  // byte range [utf8_start, utf8_end), in paragraph coordinates, as path
+  // verbs (0 move, 1 line, 2 quad, 4 cubic, 5 close — Skia's numbers; a conic
+  // comes back as quads) and points (x, y pairs; move 1, line 1, quad 2,
+  // cubic 3, close 0). Always sets *verb_count and *point_count to what the
+  // outline needs; copies only if the buffers hold them (call once with null
+  // buffers to size them). False for an empty paragraph or no outline.
+  bool GetGlyphPath(size_t utf8_start,
+                    size_t utf8_end,
+                    uint8_t* verbs,
+                    size_t verb_capacity,
+                    size_t* verb_count,
+                    float* points,
+                    size_t point_capacity,
+                    size_t* point_count) const;
+
   /// The distance from the left edge of the leftmost glyph to the right edge
   /// of the rightmost glyph in the paragraph.
   ///

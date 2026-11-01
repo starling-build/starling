@@ -3071,6 +3071,14 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
   /// bridge passes the pairs after slot 7 of the encoded style, under bit 14.)
   public var lineIndents: [LineIndent] = []
 
+  /// Starling: room, in layout pixels, the line breaker holds back from
+  /// every line while justification still stretches the line across the
+  /// whole width (less its indents): a line breaks as if the paragraph were
+  /// this much narrower and is then set to the full measure. Word's kashida
+  /// justification does this. 0 is today's behaviour. (No Dart counterpart;
+  /// the bridge passes it after the line-indent pairs, under bit 15.)
+  public var fitReserve: Double = 0
+
   // MARK: - Equatable
 
   /// **Dart Source:** `text.dart:2081-2098`
@@ -3097,6 +3105,7 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
       && lhs._leadingDistribution == rhs._leadingDistribution
       && lhs.fractionalLineHeights == rhs.fractionalLineHeights
       && lhs.lineIndents == rhs.lineIndents
+      && lhs.fitReserve == rhs.fitReserve
   }
 
   // MARK: - Hashable
@@ -3123,6 +3132,7 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
     hasher.combine(_leadingDistribution)
     hasher.combine(fractionalLineHeights)
     hasher.combine(lineIndents)
+    hasher.combine(fitReserve)
   }
 
   // MARK: - CustomStringConvertible
@@ -3267,6 +3277,12 @@ public protocol Paragraph: AnyObject {
   /// Visible glyph bounds after layout, excluding whitespace and line
   /// leading. Decorations and paint effects are not included. Nil for no ink.
   func getGlyphInkBounds() -> Rect?
+
+  /// The outlines of the glyphs whose cluster starts in the UTF-8 byte range
+  /// `utf8Start..<utf8End` of the paragraph's text, as one path in paragraph
+  /// coordinates (each glyph where it is laid out). Nil when no glyph there
+  /// has an outline, or the engine cannot give one. (No Dart counterpart.)
+  func getGlyphPath(utf8Start: Int, utf8End: Int) -> Path?
 
   /// Whether this reference to the underlying picture is `dispose`d.
   ///
@@ -3443,6 +3459,7 @@ extension Paragraph {
   /// (Where a paragraph knows no advances of its own: its lines' heights.)
   public func computeLineAdvances() -> [Double] { computeLineMetrics().map { $0.height } }
   public func getGlyphInkBounds() -> Rect? { nil }
+  public func getGlyphPath(utf8Start: Int, utf8End: Int) -> Path? { nil }
 }
 
 // MARK: - Paragraph Protocol Extension (Default Implementations)
@@ -3551,6 +3568,27 @@ public class NativeParagraph: Paragraph {
     var left = 0.0, top = 0.0, right = 0.0, bottom = 0.0
     guard bridge.GetGlyphInkBounds(&left, &top, &right, &bottom) else { return nil }
     return Rect.fromLTRB(left, top, right, bottom)
+  }
+
+  public func getGlyphPath(utf8Start: Int, utf8End: Int) -> Path? {
+    guard utf8End > utf8Start, engineKnowsGlyphPath else { return nil }
+    var verbCount = 0, pointCount = 0
+    // (Sized first, then filled: the engine reports what the outline needs.)
+    _ = bridge.GetGlyphPath(
+      utf8Start, utf8End, nil, 0, &verbCount, nil, 0, &pointCount)
+    guard verbCount > 0, pointCount > 0 else { return nil }
+    var verbs = [UInt8](repeating: 0, count: verbCount)
+    var points = [Float](repeating: 0, count: pointCount * 2)
+    var filledVerbs = 0, filledPoints = 0
+    let ok = verbs.withUnsafeMutableBufferPointer { v in
+      points.withUnsafeMutableBufferPointer { p in
+        bridge.GetGlyphPath(
+          utf8Start, utf8End, v.baseAddress, verbCount, &filledVerbs, p.baseAddress, pointCount,
+          &filledPoints)
+      }
+    }
+    guard ok, filledVerbs == verbCount, filledPoints == pointCount else { return nil }
+    return Path.fromGlyphOutline(verbs: verbs, points: points)
   }
 
   /// The distance from the left edge of the leftmost glyph to the right edge of
@@ -4466,6 +4504,14 @@ public class NativeParagraphBuilder: ParagraphBuilder {
         encodedStyle.append(Int32(bitPattern: Float(indent.right).bitPattern))
       }
     }
+    // (Starling: the fit reserve's float follows the pairs — slot 8 + 2 * count,
+    // the count in slot 7, which reads 0 here when there are no indents —
+    // under bit 15. An engine without it ignores the bit and the slot.)
+    let sendsFitReserve = style.fitReserve > 0 && engineKnowsFitReserve
+    if sendsFitReserve {
+      if style.lineIndents.isEmpty || !engineKnowsLineIndents { encodedStyle.append(0) }
+      encodedStyle.append(Int32(bitPattern: Float(style.fitReserve).bitPattern))
+    }
     var mask: Int32 = 0
 
     if let textAlign = style.textAlign {
@@ -4504,6 +4550,9 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     }
     if !style.lineIndents.isEmpty, engineKnowsLineIndents {
       mask |= (1 << 14)
+    }
+    if sendsFitReserve {
+      mask |= (1 << 15)
     }
 
     encodedStyle[0] = mask
@@ -5254,3 +5303,68 @@ private let engineKnowsLineIndents = true
 /// at start so a stale engine is said at once, not only at the first text
 /// that needs an indent.
 public func starlingEngineKnowsLineIndents() -> Bool { engineKnowsLineIndents }
+
+#if !os(Windows) && !os(WASI)
+/// Whether the engine in this process knows the fit reserve (it exports
+/// `StarlingTextFitReserveSupported`). One that does not ignores the reserve
+/// silently and breaks lines at the full width, so a paragraph that asks for
+/// one against it says so, once. (Only looked up when a reserve is asked for.)
+private let engineKnowsFitReserve: Bool = {
+  let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextFitReserveSupported") != nil } ?? false
+  if !known {
+    let warning = "engine lacks StarlingTextFitReserveSupported: fit reserve OFF (this engine predates the fit-reserve round, or on Linux was linked without the export in embedder_exports.lst); justified lines break at the full width. Rebuild/relink the engine.\n"
+    warning.withCString { _ = write(2, $0, strlen($0)) }
+  }
+  return known
+}()
+/// Whether the engine in this process can hand back glyph outlines (it exports
+/// `StarlingTextGlyphPathSupported`).
+private let engineKnowsGlyphPath: Bool = {
+  let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextGlyphPathSupported") != nil } ?? false
+  if !known {
+    let warning = "engine lacks StarlingTextGlyphPathSupported: glyph outlines OFF (this engine predates the glyph-path round, or on Linux was linked without the export in embedder_exports.lst); outlined and warped text falls back to its plain drawing. Rebuild/relink the engine.\n"
+    warning.withCString { _ = write(2, $0, strlen($0)) }
+  }
+  return known
+}()
+#else
+private let engineKnowsFitReserve = true
+private let engineKnowsGlyphPath = true
+#endif
+
+extension Path {
+  /// A path rebuilt from the engine's flattened glyph outline: Skia's verb
+  /// numbers (0 move, 1 line, 2 quad, 4 cubic, 5 close) and the x, y pairs
+  /// each takes (1, 1, 2, 3, 0 of them). A verb the list cannot finish
+  /// (short of points, or a number it does not know) ends the path there.
+  static func fromGlyphOutline(verbs: [UInt8], points: [Float]) -> Path {
+    let path = Path()
+    var at = 0
+    func pt(_ k: Int) -> (Double, Double) { (Double(points[2 * (at + k)]), Double(points[2 * (at + k) + 1])) }
+    for verb in verbs {
+      switch verb {
+      case 0 where at + 1 <= points.count / 2:
+        let p = pt(0); path.moveTo(p.0, p.1); at += 1
+      case 1 where at + 1 <= points.count / 2:
+        let p = pt(0); path.lineTo(p.0, p.1); at += 1
+      case 2 where at + 2 <= points.count / 2:
+        let a = pt(0), b = pt(1); path.quadraticBezierTo(a.0, a.1, b.0, b.1); at += 2
+      case 4 where at + 3 <= points.count / 2:
+        let a = pt(0), b = pt(1), c = pt(2); path.cubicTo(a.0, a.1, b.0, b.1, c.0, c.1); at += 3
+      case 5:
+        path.close()
+      default:
+        return path
+      }
+    }
+    return path
+  }
+}
+
+/// Whether the engine in this process knows the fit reserve (looking the
+/// probe up warns once, on stderr, if it does not).
+public func starlingEngineKnowsFitReserve() -> Bool { engineKnowsFitReserve }
+
+/// Whether the engine in this process can hand back glyph outlines (looking
+/// the probe up warns once, on stderr, if it cannot).
+public func starlingEngineKnowsGlyphPath() -> Bool { engineKnowsGlyphPath }

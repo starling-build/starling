@@ -893,6 +893,14 @@ public final class TextPainter {
         didSet { if lineIndents != oldValue { markNeedsLayout() } }
     }
 
+    /// Starling: room, in layout pixels, the line breaker holds back from
+    /// every line while justification still stretches the line across the
+    /// whole width less its indents (`ParagraphStyle.fitReserve`). 0, today's
+    /// behaviour, by default.
+    public var fitReserve: Double = 0 {
+        didSet { if fitReserve != oldValue { markNeedsLayout() } }
+    }
+
     public var strutStyle: StrutStyle? {
         get { _strutStyle }
         set {
@@ -983,6 +991,7 @@ public final class TextPainter {
         )
         style.fractionalLineHeights = fractionalLineHeights
         style.lineIndents = lineIndents
+        style.fitReserve = fitReserve
         return style
     }
 
@@ -1427,6 +1436,31 @@ public final class TextPainter {
     public func getGlyphInkBounds() -> Rect? {
         guard let cachedLayout = _layoutCache else { return nil }
         return cachedLayout.paragraph.getGlyphInkBounds()?.shift(cachedLayout.paintOffset)
+    }
+
+    /// Starling: the outlines of the glyphs for the text in `range` (UTF-16
+    /// offsets into `plainText`, the whole text when nil) as one path in the
+    /// painter's coordinates, each glyph where it is laid out. Nil before layout,
+    /// when no glyph in the range has an outline (spaces, bitmap faces), or on an
+    /// engine that cannot give outlines (`starlingEngineKnowsGlyphPath()`).
+    /// Fill it, stroke it (dashed too), or transform it point by point.
+    public func glyphPath(range: Range<Int>? = nil) -> Path? {
+        guard let cachedLayout = _layoutCache else { return nil }
+        let text = plainText
+        let units = text.utf16.count
+        let lower = max(0, min(range?.lowerBound ?? 0, units))
+        let upper = max(lower, min(range?.upperBound ?? units, units))
+        guard upper > lower else { return nil }
+        // (The engine counts bytes of the UTF-8 it was given; the range is in
+        // UTF-16 code units, as `getBoxesForRange` takes them.)
+        let u16 = text.utf16
+        guard let a = u16.index(u16.startIndex, offsetBy: lower, limitedBy: u16.endIndex),
+              let b = u16.index(u16.startIndex, offsetBy: upper, limitedBy: u16.endIndex) else { return nil }
+        let start = text.utf8.distance(from: text.utf8.startIndex, to: a)
+        let end = text.utf8.distance(from: text.utf8.startIndex, to: b)
+        guard let path = cachedLayout.paragraph.getGlyphPath(utf8Start: start, utf8End: end) else { return nil }
+        let offset = cachedLayout.paintOffset
+        return offset == Offset.zero ? path : path.shift(offset)
     }
 
     /// Returns a list of rects that bound the given selection.
