@@ -10860,6 +10860,15 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, ch == "\u{FE6A}", before.map({ $0.isASCII && $0.isNumber }) == true {
+                    // (A line may break between a digit and the small percent
+                    // sign "﹪", which is no Latin "%": zh-146f4e02's "…價值）的8﹪給予"
+                    // ends a line "…的8" in Word for Windows' print, the "﹪"
+                    // opening the next (six such lines); the engine keeps a
+                    // number with its percent sign and carried the "8" down.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, before == "-", ch.isASCII, ch.isNumber,
                           (wordHasLetter && beforeBefore.map { $0.isASCII && ($0.isLetter || $0.isNumber) } == true)
                             || beforeBefore.map { !$0.isASCII && Self.isEastAsian($0, hinted: false) } == true {
