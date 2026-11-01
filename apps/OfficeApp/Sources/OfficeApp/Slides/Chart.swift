@@ -4926,7 +4926,15 @@ extension ChartPainter {
                 // about ten degrees of upright: lab tpie's "建築", 0.75% at
                 // twelve o'clock, in Word's print, where ours stood a half
                 // width left; "金融", 13° off upright, keeps the half width.)
-                at = Offset(edge.dx + dx * gap + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
+                // (In a Word document a best fit's room for the box's height
+                // grows with the square of how upright the slice is, not with
+                // it — an outside-end label's with it, lo-b9d70b44's pie: lo
+                // tdf137116's eight equal slices, labels 2-3 and 6-7 at 3
+                // o'clock stand 3pt nearer the pie's middle line in Word's
+                // print than ours, those at the top and foot where they did.)
+                let upright = l.fitted && !c.onSlide && !c.onSheet ? abs(dy) : 1.0
+                if upright < 1 { RuleTrace.hit("word-pie-outside-label-room-grows-with-uprightness") }
+                at = Offset(edge.dx + dx * gap + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * upright * (gap + h / 2))
             } else {
                 // (A 3-D pie's 0.9 of the way out: the survey's.)
                 at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
