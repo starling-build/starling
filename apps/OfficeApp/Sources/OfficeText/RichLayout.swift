@@ -2710,7 +2710,11 @@ public final class RichLayout {
                     // row by its other cells and its stated height — lab
                     // `rm6`, zh-ae655121's floating signature table, 5pt
                     // shorter with the marks hidden than without.)
+                    // (A picture is not nothing: LibreOffice's floattable-del-empty,
+                    // a picture alone in a hideMark cell, stands 104pt tall in Word's
+                    // print, where its row collapsed here and the picture was never drawn.)
                     let hidden = theme.wordRules && document.paragraphs[k].text.isEmpty
+                        && document.paragraphs[k].image == nil && document.paragraphs[k].inlineImages.isEmpty
                         && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
                     if cell.rowSpan == 1, !cell.vertical, !hidden {
                         rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
