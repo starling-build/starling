@@ -3260,14 +3260,19 @@ public final class RichLayout {
         }
         var height = body(p)
         // (Word does not snap an empty paragraph's line to the grid in a
-        // merged cell's continuation row once it is taller than one pitch:
-        // lab vm, YaHei 12pt, 18.02 + 8.52 where the snapped line would be
-        // 31.2 + 8. Only that face, and only a pair of rows, was measured:
-        // zh-9ba2ead7's FangSong_GB2312 pair and zh-cb56e605's block of three
-        // are set on the grid, as Word's print has them.)
-        let named = _named(p, document)
-        let face = p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-        if pair, theme.wordRules, RichTextTheme.wordWindowsPages, p.text.isEmpty, let face, face.contains("雅黑") || face.contains("YaHei"),
+        // merged cell's continuation row once it is taller than one pitch,
+        // when the paragraph MARK names another Latin face than the one the
+        // paragraph is set in by its style, at 12pt or less. Labs vm3-vm5:
+        // 仿宋 or 宋体 in the mark's ascii slot over a YaHei style, alone or
+        // with the other slots, leaves it; no mark properties, size alone,
+        // kerning alone, YaHei in every slot over a YaHei style, or 仿宋 in
+        // East Asian alone, snap it. zh-eec0747a's header marks say YaHei
+        // over a theme-Calibri style: 18.02 + 8.52 where the snapped line
+        // would be 31.2 + 8.)
+        let styleFace = _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily
+        if pair, theme.wordRules, RichTextTheme.wordWindowsPages, p.text.isEmpty,
+           let mark = p.style.mark, let ascii = mark.fontFamily, ascii != styleFace,
+           (mark.fontSize ?? 12) <= 12,
            let pitch = _grid(nil, document).pitch {
             var loose = p
             loose.style.eastAsian["w:snapToGrid"] = "0"
