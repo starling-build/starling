@@ -293,7 +293,8 @@ sudo apt-get install -y \
 sudo apt-get install -y \
     libwayland-dev libxkbcommon-dev libdrm-dev libgbm-dev libegl-dev \
     libgles-dev libinput-dev libudev-dev libsystemd-dev libxshmfence-dev \
-    libx11-dev libxcb1-dev libpixman-1-dev libpipewire-0.3-dev
+    libx11-dev libxcb1-dev libpixman-1-dev libpipewire-0.3-dev \
+    freerdp3-dev libwinpr3-dev
 sudo apt-get install -y libva-dev
 sudo apt-get install -y \
     netpbm ffmpeg mesa-va-drivers seatd
@@ -304,7 +305,12 @@ compile and link against — the Wayland compositor (`wayland-server`,
 `xkbcommon`), the DRM/GBM/EGL stack, `libinput`/`libudev`, sd-bus for the portal
 (`libsystemd`), the in-tree X server's `xshmfence`, and PipeWire for the
 portal's ScreenCast stream (linked, not dlopen'd — `libpipewire-0.3-0` is in
-every Ubuntu desktop install as the audio stack). Third: `libva-dev`, which
+every Ubuntu desktop install as the audio stack), and FreeRDP 3
+(`freerdp3-dev`, `libwinpr3-dev`) for the `RdpServer` target — RDP screen
+share, and `--rdp` display mode, the headless desktop
+(docs/plans/headless-desktop.md). Its runtime libraries
+(`libfreerdp3-3`, `libfreerdp-server3-3`, `libwinpr3-3`) come in as
+dependencies of the `-dev` packages. Third: `libva-dev`, which
 both halves of the hardware video path link directly — the video player's
 `CH264Decoder` and the screen recorder's `CVaapiEncoder`. libva is MIT and
 present wherever VA-API is, so it needs no dlopen dance.

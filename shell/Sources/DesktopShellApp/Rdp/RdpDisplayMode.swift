@@ -27,8 +27,8 @@ import SwiftRuntime
 /// user_data round trip, and there is exactly one display-mode session.
 nonisolated(unsafe) var rdpEgl: OpaquePointer? = nil
 nonisolated(unsafe) var rdpDisplayService: RdpDisplayService? = nil
-nonisolated(unsafe) private var rdpPointer: RdpPointer? = nil
-nonisolated(unsafe) private var rdpKeyboard: RdpKeyboard? = nil
+nonisolated(unsafe) var rdpPointer: RdpPointer? = nil
+nonisolated(unsafe) var rdpKeyboard: RdpKeyboard? = nil
 nonisolated(unsafe) private var rdpEngine: OpaquePointer? = nil
 
 /// Size a client negotiated but the raster thread has not applied yet. The
@@ -90,11 +90,29 @@ func runRdpDisplay() -> Never {
     let keyboard = RdpKeyboard()
     rdpKeyboard = keyboard
 
-    guard service.start(defaultWidth: width, defaultHeight: height) else {
-        FileHandle.standardError.write(Data(
-            "[RdpDisplay] listener failed — cannot start\n".utf8))
-        exit(1)
+    // STARLING_HEADLESS_NO_RDP=1: no RDP listener at all (no port, no
+    // certificate). The desktop is then driven and watched only through the
+    // operator socket (OperatorControl.swift) — the shape agents want, and
+    // what lets many headless desktops share a box without fighting over
+    // port 3389.
+    let noRdp = env["STARLING_HEADLESS_NO_RDP"] == "1"
+    if noRdp {
+        // Nobody is looking, so nothing may animate for their benefit. The
+        // screensaver is the one that matters: its shader is the most
+        // expensive thing the shell draws, and on llvmpipe it took a 1080p
+        // desktop from ~15 ms frames to seconds and wedged the main queue.
+        // An explicit STARLING_SCREENSAVER_IDLE still wins.
+        setenv("STARLING_SCREENSAVER_IDLE", "0", 0)
     }
+    if !noRdp {
+        guard service.start(defaultWidth: width, defaultHeight: height) else {
+            FileHandle.standardError.write(Data(
+                "[RdpDisplay] listener failed — cannot start\n".utf8))
+            exit(1)
+        }
+    }
+    let operatorCtl = OperatorControl()
+    operatorControl = operatorCtl
 
     displayLayout = DisplayLayout.build(
         physicalWidth: Int(width), physicalHeight: Int(height),
@@ -125,6 +143,9 @@ func runRdpDisplay() -> Never {
     rendererConfig.open_gl.make_current = { _ in
         guard let e = rdpEgl else { return false }
         if rdp_egl_make_current(e) == 0 { return false }
+        if getenv("STARLING_GL_RENDERER") == nil, let r = rdp_egl_renderer(e) {
+            setenv("STARLING_GL_RENDERER", String(cString: r), 1)
+        }
         // Apply a pending client resize here: this is the one place the
         // context is guaranteed current, which an FBO resize requires.
         rdpSizeLock.lock()
@@ -173,6 +194,13 @@ func runRdpDisplay() -> Never {
     }
     rendererConfig.open_gl.present = { _ in
         guard let e = rdpEgl, let svc = rdpDisplayService else { return false }
+        // Operator socket: fps stats, and a screenshot if one is waiting.
+        // Independent of any RDP client — this is what makes the desktop
+        // observable with nobody connected.
+        if let op = operatorControl {
+            op.notePresent()
+            if op.captureWanted { op.serviceCapture(egl: e) }
+        }
         // Raster thread. Skip the readback entirely when nobody is attached
         // or the rate cap has not elapsed — the pixels would only be thrown
         // away, and this thread is the desktop's pipeline.
@@ -347,6 +375,7 @@ func runRdpDisplay() -> Never {
         rdpKeyboard?.releaseAll()
     }
 
+    operatorCtl.start()
     PlatformDispatcher.instance.scheduleFrame()
     Foundation.RunLoop.main.run()
     exit(0)
