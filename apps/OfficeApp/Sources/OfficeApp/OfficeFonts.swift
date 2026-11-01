@@ -96,8 +96,8 @@ enum OfficeFonts {
         default:
             // ("code" as in Source Code Pro — not as in Lucida Sans Unicode,
             // which came up monospace for a while.)
-            if n.containsSubstring("mono") || n.containsSubstring("courier")
-                || (n.containsSubstring("code") && !n.containsSubstring("unicode")) {
+            if faceHas(n, "mono") || faceHas(n, "courier")
+                || (faceHas(n, "code") && !faceHas(n, "unicode")) {
                 return mono
             }
             // (A name only: not one Word has no face for that the file's
@@ -106,9 +106,9 @@ enum OfficeFonts {
             // is Calibri in Word's print, its "/" 4.06pt at 10.5, where
             // ours took Times and a cell's "门" stayed on the line.)
             let byTable = !wordMacFamilies.contains(n) && !family.unicodeScalars.contains { $0.value >= 0x2E80 } && fontEntry(family) != nil
-            if !byTable, n.containsSubstring("serif") && !n.containsSubstring("sans") { return serif }
-            if !byTable, n.containsSubstring("times") || n.containsSubstring("roman") || n.containsSubstring("garamond")
-                || n.containsSubstring("baskerville") || n.containsSubstring("didot") {
+            if !byTable, faceHas(n, "serif") && !faceHas(n, "sans") { return serif }
+            if !byTable, faceHas(n, "times") || faceHas(n, "roman") || faceHas(n, "garamond")
+                || faceHas(n, "baskerville") || faceHas(n, "didot") {
                 return serif
             }
             // A Latin name Word on a Mac has no face for goes by the
@@ -180,6 +180,29 @@ enum OfficeFonts {
     #else
     private static let declaredLock = NSLock()
     #endif
+
+    /// Whether a face name holds a keyword: `containsSubstring`, remembered. It is a pure function
+    /// of the two strings (so nothing ever invalidates the memory), asked ~40 times per text span by
+    /// the stand-in and East Asian face lookups with the same few names; searching by character,
+    /// each answer cost more than the rest of the span. Bounded: a long-lived editor that meets
+    /// many names starts over rather than grow.
+    nonisolated(unsafe) private static var hasMemo: [String: [String: Bool]] = [:]
+    #if os(WASI)
+    private static let hasLock = _NoLock()
+    #else
+    private static let hasLock = NSLock()
+    #endif
+    static func faceHas(_ name: String, _ key: String) -> Bool {
+        hasLock.lock()
+        if let hit = hasMemo[name]?[key] { hasLock.unlock(); return hit }
+        hasLock.unlock()
+        let answer = name.containsSubstring(key)
+        hasLock.lock()
+        if hasMemo.count > 4096 { hasMemo.removeAll() }
+        hasMemo[name, default: [:]][key] = answer
+        hasLock.unlock()
+        return answer
+    }
     private static let wordsOwn: Set<String> = [
         "宋体", "simsun", "新宋体", "nsimsun", "黑体", "simhei", "楷体", "kaiti", "仿宋", "fangsong", "微软雅黑", "microsoft yahei",
         "microsoft yahei ui", "等线", "等线 light", "dengxian", "dengxian light", "新細明體", "pmingliu", "細明體", "mingliu",
@@ -925,12 +948,31 @@ enum OfficeFonts {
     /// faces also go by.
     static func isEastAsianFace(_ family: String) -> Bool {
         if isDeclaredLatin(family) || isUndeclaredMacGBName(family) { return false }
+        return namesEastAsianFace(family)
+    }
+
+    /// The part of `isEastAsianFace` that reads only the name (the rest reads what the file declared),
+    /// remembered like `faceHas`: asked for every span.
+    nonisolated(unsafe) private static var eastAsianNameMemo: [String: Bool] = [:]
+    private static func namesEastAsianFace(_ family: String) -> Bool {
+        hasLock.lock()
+        if let hit = eastAsianNameMemo[family] { hasLock.unlock(); return hit }
+        hasLock.unlock()
+        let answer = _namesEastAsianFace(family)
+        hasLock.lock()
+        if eastAsianNameMemo.count > 4096 { eastAsianNameMemo.removeAll() }
+        eastAsianNameMemo[family] = answer
+        hasLock.unlock()
+        return answer
+    }
+
+    private static func _namesEastAsianFace(_ family: String) -> Bool {
         if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return true }
         let n = family.trimmingWhitespace().lowercased()
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
                     "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stxinwei", "stheiti", "songti", "heiti",
                     "pingfang", "hiragino", "mincho", "ms gothic", "yu gothic", "meiryo", "malgun", "batang", "gulim", "dotum",
-                    "cjk", "source han", "noto sans sc", "noto serif sc", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where n.containsSubstring(key) {
+                    "cjk", "source han", "noto sans sc", "noto serif sc", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where faceHas(n, key) {
             return true
         }
         return false
@@ -1073,11 +1115,11 @@ enum OfficeFonts {
         // at charset 00, Mincho — its list labels' "、" in MS Mincho in
         // word-win, their lines topped by Mincho's ascent (macos-ios'
         // measurement).)
-        let listed = n.containsSubstring(",")
-        guard listed || !has.contains(where: { n.containsSubstring($0) }) else { return nil }
+        let listed = faceHas(n, ",")
+        guard listed || !has.contains(where: { faceHas(n, $0) }) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
-           has.contains(where: { alt.containsSubstring($0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
+           has.contains(where: { faceHas(alt, $0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
         switch e.charset.uppercased() {
         case "86", "80", "": return nil
         case "88": return "jhenghei"
@@ -1682,7 +1724,7 @@ enum OfficeFonts {
 
     private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
-        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
         if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { return fallback == "mincho" ? windowsMincho : eastAsianFace("Microsoft JhengHei") }
         // (The faces Word for Windows takes an embedded 仿宋_GB2312's missing
         // characters from (`windowsSubsetFallback`), each on its own line,
@@ -1840,7 +1882,7 @@ enum OfficeFonts {
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), n == "fangsong_gb2312" || n == "kaiti_gb2312", altName(family) == nil {
             return eastAsianFace("SimSun")
         }
-        if wordOnMac, ignoringEmbedding || !isEmbedded(family), gb2312 || fangZheng || !wordHas.contains(where: { n.containsSubstring($0) }),
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), gb2312 || fangZheng || !wordHas.contains(where: { faceHas(n, $0) }),
            let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
             let a = alt.trimmingWhitespace().lowercased()
             // (… JhengHei too: zh-167ee06c's 華康雅風體W3(P), alternate
@@ -1859,7 +1901,7 @@ enum OfficeFonts {
             let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體", "jhenghei"]
                 + (gb2312 ? ["仿宋", "fangsong"] : [])
                 + (gb2312 || fangZheng ? ["arial unicode"] : [])
-            if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
+            if usable.contains(where: { faceHas(a, $0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { faceHas(a, $0) }) {
                 return eastAsianFace(alt)
             }
         }
@@ -1905,11 +1947,11 @@ enum OfficeFonts {
         // no alternate, is YaHei.)
         let windowsHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
                           "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线"]
-        let windowsLacks = !windowsHas.contains(where: { n.containsSubstring($0) }) || has("_gb2312", "方正", "小标宋", "標楷")
+        let windowsLacks = !windowsHas.contains(where: { faceHas(n, $0) }) || has("_gb2312", "方正", "小标宋", "標楷")
         if wordOnWindows, windowsLacks, ignoringEmbedding || !isEmbedded(family), let alt = altName(family) {
             let a = alt.trimmingWhitespace().lowercased()
-            if a != n, windowsHas.contains(where: { a.containsSubstring($0) }),
-               !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
+            if a != n, windowsHas.contains(where: { faceHas(a, $0) }),
+               !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { faceHas(a, $0) }) {
                 return eastAsianFace(alt, ignoringEmbedding: ignoringEmbedding)
             }
         }
@@ -2134,9 +2176,9 @@ enum OfficeFonts {
     private static func windowsBoldWiden(_ family: String) -> Double {
         func units(_ name: String) -> Double? {
             let n = name.lowercased()
-            if ["標楷", "dfkai", "細明", "mingliu"].contains(where: { n.containsSubstring($0) }) { return 1024 }
-            if ["jhenghei", "正黑", "yahei", "雅黑"].contains(where: { n.containsSubstring($0) }) { return 2048 }
-            if ["kaiti", "楷体", "fangsong", "仿宋", "simhei", "黑体", "simsun", "宋体", "mincho", "明朝"].contains(where: { n.containsSubstring($0) }) { return 256 }
+            if ["標楷", "dfkai", "細明", "mingliu"].contains(where: { faceHas(n, $0) }) { return 1024 }
+            if ["jhenghei", "正黑", "yahei", "雅黑"].contains(where: { faceHas(n, $0) }) { return 2048 }
+            if ["kaiti", "楷体", "fangsong", "仿宋", "simhei", "黑体", "simsun", "宋体", "mincho", "明朝"].contains(where: { faceHas(n, $0) }) { return 256 }
             return nil
         }
         return 1 / (units(family) ?? altName(family).flatMap(units) ?? 256)
@@ -2156,7 +2198,7 @@ enum OfficeFonts {
         #elseif os(Linux)
         guard abs(ea.height - square.height) < 0.01 else { return nil }
         let n = family.trimmingWhitespace().lowercased()
-        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
         if has("mincho", "明朝") { return "Noto Serif CJK JP" }
         if has("mingliu", "明體") { return "Noto Serif CJK TC" }
         if has("simsun", "宋体", "宋體", "songti") { return "Noto Serif CJK SC" }
@@ -2531,7 +2573,7 @@ enum OfficeFonts {
             // Carlito's 14.6 put every line of it high and a word long.)
             let lower = family.trimmingWhitespace().lowercased()
             if lower.hasPrefix("nunito sans") {
-                let light = lower.containsSubstring("light")
+                let light = faceHas(lower, "light")
                 face.advances = light ? nunitoSansLightAdvances : nunitoSansAdvances
                 face.boldAdvances = nunitoSansBoldAdvances
                 face.otherAdvances = (face.otherAdvances ?? [:]).merging(light ? nunitoSansLightOtherAdvances : nunitoSansOtherAdvances) { $1 }
@@ -2716,7 +2758,7 @@ enum OfficeFonts {
                 // heights: zh-e68a2f57's TOC at 1.75 lines steps 44.4 with
                 // MS Gothic alone — its square line — and 56.4 with
                 // JhengHei; ours, YaHei for all, 56 throughout.)
-                if wordOnWindows, ["仿宋_gb2312", "fangsong_gb2312"].contains(where: { family.lowercased().containsSubstring($0) }) {
+                if wordOnWindows, ["仿宋_gb2312", "fangsong_gb2312"].contains(where: { faceHas(family.lowercased(), $0) }) {
                     face.uncoveredChain = [("MS Gothic", WindowsFallbackCovers.msGothic), ("Yu Gothic", WindowsFallbackCovers.yuGothic),
                                            ("Microsoft JhengHei", nil)]
                     face.uncoveredFamily = "Microsoft JhengHei"
@@ -2886,7 +2928,7 @@ enum OfficeFonts {
         // ours, KaiTi's em each, wrapped "單位" and the form under it.)
         if ea.latin == mono, ea.latinAdvances == nil {
             let lower = family.lowercased()
-            let nbsp = wordOnWindows && (lower.containsSubstring("標楷") || lower.containsSubstring("dfkai")) ? 0.5 : 1.0
+            let nbsp = wordOnWindows && (faceHas(lower, "標楷") || faceHas(lower, "dfkai")) ? 0.5 : 1.0
             // (And GB2312's primes ′ ″ an em, as in the East Asian face
             // above: Word counts them the square face's own.)
             face.otherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
@@ -3024,7 +3066,7 @@ enum OfficeFonts {
         guard _wordMacFacesLoaded, ea.height != yaHei.height else { return nil }
         if isUndeclaredMacGBName(family) { return "SimSun" }
         let n = family.trimmingWhitespace().lowercased()
-        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
         if has("明體", "mingliu") { return "PMingLiU" }
         if has("黑体", "simhei") { return "SimHei" }
         if has("楷体", "kaiti") { return "KaiTi" }
@@ -3065,7 +3107,7 @@ enum OfficeFonts {
         }
         guard _fangSongLoaded else { return nil }
         if n == "仿宋" || n == "fangsong" { return starlingFangSong }
-        guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }
+        guard !wordOnMac, !faceHas(n, "华文"), !n.hasPrefix("st") else { return nil }
         // (As Word for Windows sets it: a name it lacks is FangSong only
         // where its font table gives 仿宋 for it — `wordOnWindows`.)
         if wordOnWindows {
@@ -3073,7 +3115,7 @@ enum OfficeFonts {
             let a = altName(family)?.trimmingWhitespace().lowercased() ?? ""
             return (a == "仿宋" || a == "fangsong") ? starlingFangSong : nil
         }
-        return n.containsSubstring("仿宋") || n.containsSubstring("fangsong") ? starlingFangSong : nil
+        return faceHas(n, "仿宋") || faceHas(n, "fangsong") ? starlingFangSong : nil
     }
 
     /// Whether `wordSans` and `wordSerif` are registered.

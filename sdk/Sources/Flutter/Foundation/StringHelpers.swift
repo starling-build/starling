@@ -41,7 +41,16 @@ extension StringProtocol {
     /// `contains<T: StringProtocol>` is `range(of:)` in the NS layer, and
     /// a same-named overload here did not displace it.
     public func containsSubstring(_ other: String) -> Bool {
-        Substring(self).firstRange(ofSubstring: other) != nil
+        // (Plain ASCII on both sides, no CR: a Character is then exactly one byte, so the
+        // character search is a byte search, answered without walking graphemes. Anything
+        // else, and an empty `other`, takes the character search below.)
+        var other = other
+        let answer: Bool? = other.withUTF8 { needle in
+            var hay = String(self)
+            return hay.withUTF8 { asciiContains($0, needle) }
+        }
+        if let answer { return answer }
+        return Substring(self).firstRange(ofSubstring: other) != nil
     }
 
     /// `self` with the first occurrence of `target` removed, if any.
@@ -129,4 +138,24 @@ extension Substring {
         }
         return nil
     }
+}
+
+/// `needle` in `hay` as bytes, or nil when either is not plain ASCII without a CR (or `needle`
+/// is empty), where bytes and Characters part ways.
+private func asciiContains(_ hay: UnsafeBufferPointer<UInt8>, _ needle: UnsafeBufferPointer<UInt8>) -> Bool? {
+    guard !needle.isEmpty else { return nil }
+    for b in needle where b >= 0x80 || b == 0x0D { return nil }
+    for b in hay where b >= 0x80 || b == 0x0D { return nil }
+    guard hay.count >= needle.count else { return false }
+    let first = needle[0], last = hay.count - needle.count
+    var i = 0
+    while i <= last {
+        if hay[i] == first {
+            var j = 1
+            while j < needle.count && hay[i + j] == needle[j] { j += 1 }
+            if j == needle.count { return true }
+        }
+        i += 1
+    }
+    return false
 }
