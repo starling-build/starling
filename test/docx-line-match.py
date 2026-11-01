@@ -397,6 +397,45 @@ def unmatched(words, ours):
     return [r for n, r in enumerate(words) if not done[n]]
 
 
+_CTX = None
+
+
+def _score_job(f):
+    return score_document(*_CTX, f)
+
+
+def score_document(tool, work, key, count, f):
+    """One document: (ratio, name, Word's lines, ours, (Word's pages, ours)), or None when
+    Word's print is missing. With a KEY it also prints where the document first parts from Word."""
+    ref = os.path.join(WORD, f[:-4] + "-orig.pdf")
+    if not os.path.exists(ref):
+        return None
+    a, b = lines(tool, ref), lines(tool, os.path.join(work, "pdf", f))
+    by_page = {}
+    for r in b:
+        by_page.setdefault(r[0], []).append(r)
+    by_word = {}
+    for r in a:
+        by_word.setdefault(r[0], []).append(r)
+    missed_rows = [r for page in sorted(by_word) for r in unmatched(by_word[page], by_page.get(page, []))]
+    missed_set = set(map(id, missed_rows))
+    missed = [r for r in a if id(r) in missed_set]
+    pages = (max((r[0] for r in a), default=0), max((r[0] for r in b), default=0))
+    result = ((len(a) - len(missed)) / max(1, len(a)), f[:-4], len(a), len(b), pages)
+    if key:
+        print(f"{f[:-4]}: Word {len(a)} lines on {pages[0]} pages, ours {len(b)} on {pages[1]}, matched {len(a) - len(missed)}")
+        if missed:
+            at = a.index(missed[0])
+            first = a[max(0, at - 3)]
+            print("--- Word, from three lines before the first that has no match")
+            for r in a[max(0, at - 3):at + count]:
+                print(f"  p{r[0]} y{r[1]:5.0f} x{r[2]:5.0f} {r[3][:50]}")
+            print("--- ours, from the same place")
+            for r in [r for r in b if (r[0], -r[1]) >= (first[0], -(first[1] + 25))][:count + 3]:
+                print(f"  p{r[0]} y{r[1]:5.0f} x{r[2]:5.0f} {r[3][:50]}")
+    return result
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -413,37 +452,23 @@ def main():
     tool = os.path.join(work, "pdf-text") if sys.platform == "darwin" and not mupdf else None
     if tool and not os.access(tool, os.X_OK):
         subprocess.run(["swiftc", "-O", "-o", tool, os.path.join(HERE, "pdf-text.swift")], check=True)
-    results = []
     skip = set() if key else ignored()
-    for f in sorted(os.listdir(os.path.join(work, "pdf"))):
-        if not f.endswith(".pdf") or (key and key not in f) or any(f.startswith(k) for k in skip):
-            continue
-        ref = os.path.join(WORD, f[:-4] + "-orig.pdf")
-        if not os.path.exists(ref):
-            continue
-        a, b = lines(tool, ref), lines(tool, os.path.join(work, "pdf", f))
-        by_page = {}
-        for r in b:
-            by_page.setdefault(r[0], []).append(r)
-        by_word = {}
-        for r in a:
-            by_word.setdefault(r[0], []).append(r)
-        missed_rows = [r for page in sorted(by_word) for r in unmatched(by_word[page], by_page.get(page, []))]
-        missed_set = set(map(id, missed_rows))
-        missed = [r for r in a if id(r) in missed_set]
-        pages = (max((r[0] for r in a), default=0), max((r[0] for r in b), default=0))
-        results.append(((len(a) - len(missed)) / max(1, len(a)), f[:-4], len(a), len(b), pages))
-        if key:
-            print(f"{f[:-4]}: Word {len(a)} lines on {pages[0]} pages, ours {len(b)} on {pages[1]}, matched {len(a) - len(missed)}")
-            if missed:
-                at = a.index(missed[0])
-                first = a[max(0, at - 3)]
-                print("--- Word, from three lines before the first that has no match")
-                for r in a[max(0, at - 3):at + count]:
-                    print(f"  p{r[0]} y{r[1]:5.0f} x{r[2]:5.0f} {r[3][:50]}")
-                print("--- ours, from the same place")
-                for r in [r for r in b if (r[0], -r[1]) >= (first[0], -(first[1] + 25))][:count + 3]:
-                    print(f"  p{r[0]} y{r[1]:5.0f} x{r[2]:5.0f} {r[3][:50]}")
+    names = [f for f in sorted(os.listdir(os.path.join(work, "pdf")))
+             if f.endswith(".pdf") and not (key and key not in f) and not any(f.startswith(k) for k in skip)]
+    # (DOCX_MATCH_JOBS=N: score the documents in N processes. Each is scored alone and the
+    # results are sorted below, so the output is byte for byte the serial one. Not with a
+    # KEY, which prints as it goes. The default stays serial.)
+    jobs = 1 if key else int(os.environ.get("DOCX_MATCH_JOBS") or 1)
+    if jobs > 1 and len(names) > 1 and hasattr(os, "fork"):  # (no fork on Windows: serial there)
+        import multiprocessing
+        global _CTX
+        _CTX = (tool, work, key, count)
+        with multiprocessing.get_context("fork").Pool(min(jobs, len(names))) as pool:
+            # (Largest print first, so the slow documents do not start last.)
+            order = sorted(names, key=lambda f: -os.path.getsize(os.path.join(work, "pdf", f)))
+            results = [r for r in pool.imap_unordered(_score_job, order, chunksize=1) if r]
+    else:
+        results = [r for r in (score_document(tool, work, key, count, f) for f in names) if r]
     if not key and results:
         results.sort()
         v = [r[0] for r in results]

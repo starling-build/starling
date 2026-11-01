@@ -62,11 +62,17 @@ sweep() {
   fi
   score "$WORK" "$C"
 }
-score() {  # WORK CORPUSDIR
+score() {  # WORK CORPUSDIR — v2 and v1 side by side, each over MATCH_JOBS processes (the matcher's output is the serial one's)
+  export DOCX_MATCH_JOBS=${MATCH_JOBS:-$JOBS}
   DOCX_LINE_MATCH=v2 DOCX_WORD_REFS=$2/word-win $PY -W ignore -I "$ROOT/test/docx-line-match.py" "$1" > "$1/match-v2.txt" 2>"$1/match-v2.err" &
   DOCX_LINE_MATCH=v1 DOCX_WORD_REFS=$2/word-win $PY -W ignore -I "$ROOT/test/docx-line-match.py" "$1" > "$1/match-v1.txt" 2>"$1/match-v1.err" &
   wait
 }
+
+# The sets are swept side by side (JOBS each; the LibreOffice set is short, the 756's slowest document sets the wall time):
+# wait_sets LABEL — wait for every background sweep; if one aborted, so does the run.
+wait_sets() { local bad=0 j; for j in $(jobs -p); do wait "$j" || bad=1; done
+  [ $bad = 0 ] || { echo "ABORT: a $1 sweep failed (see above) — nothing written to $STAGE/fix" >&2; rm -rf "$STAGE/fix"; exit 1; }; }
 
 rm -rf "$STAGE"; mkdir -p "$STAGE/work"
 # the base: stored scores, if their stamp is the base revision's
@@ -79,13 +85,16 @@ if [ $SEED = 0 ] && [ "$want" = "$have" ]; then
   for S in $SETS; do for v in v2 v1; do git show "$BASE_REV:$STORED/$S.$v" > "$BASE/$S.$v"; done; done
 elif [ $SEED = 0 ]; then
   echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
-  for S in $SETS; do sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null; for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
+  for S in $SETS; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
+  wait_sets base
+  for S in $SETS; do for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
 fi
 # the fix
 FIX=$STAGE/fix; mkdir -p "$FIX"
+for S in $SETS; do ( T0=$(date +%s); sweep "$FIXBIN" "$STAGE/work/fix-$S" $S && echo "$(( $(date +%s)-T0 )) s" > "$STAGE/work/fix-$S.time" ) & done
+wait_sets fix
 for S in $SETS; do
-  T0=$(date +%s); sweep "$FIXBIN" "$STAGE/work/fix-$S" $S
-  echo "fix $S: $(( $(date +%s)-T0 )) s, failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
+  echo "fix $S: $(cat "$STAGE/work/fix-$S.time"), failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
   for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done
 done
 test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
@@ -100,7 +109,7 @@ for S in $SETS; do
   C=$(corpus "$S"); names=$(grep -E '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | sed -E 's/.* ((zh|lo)-[0-9a-f]+).*/\1/;s/.*CHANGED\(same ratio\) ((zh|lo)-[0-9a-f]+):.*/\1/' | sort -u)
   [ -n "$names" ] || continue
   W=$STAGE/work/again-$S; mkdir -p "$W/pdf"
-  for n in $names; do f=$(ls "$C/docs/$n"*.docx 2>/dev/null | head -1); [ -n "$f" ] && perl -e 'alarm 300; exec @ARGV' "$FIXBIN" --convert "$f" "$W/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1; done
+  printf '%s\n' $names | xargs -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && perl -e "alarm 300; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"
   score "$W" "$C"
   for n in $names; do k=$(basename "$(ls "$C/docs/$n"*.docx | head -1)" .docx)
     a=$(grep " $k\$" "$W/match-v2.txt"); b=$(grep " $k\$" "$STAGE/work/fix-$S/match-v2.txt")
