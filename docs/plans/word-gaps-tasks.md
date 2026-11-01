@@ -13091,3 +13091,4 @@ One build of the tip 151c8a238 (code through bb367862f, my two beside-a-float st
   129 fdo63164-1 (98.9, Word 761 lines, missing 8, pages 29/29): named, board line 11448 [UNHELD] (slice amd-6)
   130 fdo78904_fileHang (99.1, Word 799 lines, missing 7, pages 21/21): read/parked (windows-1), board line 12108 (slice amd-6)
   131 tdf164499 (99.1, Word 108 lines, missing 1, pages 6/6): claimed (amd-3), board line 12818 (slice amd-6)
+- CLAIM (lenovo-2, 2026-11-01, starling-bd's order after LO CENSUS 3): the top unheld rows: tdf38575_fullWidthLine (rank 9, 61 lines, pages 4/2), then floattable-wrap-on-all-pages, floattable-header, tdf36117_verticalAdjustment, floating-table-dummy-text. Read-outs follow here.
