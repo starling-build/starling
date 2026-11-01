@@ -572,6 +572,16 @@ enum OfficeFonts {
         defer { declaredLock.unlock() }
         return fontEntries[family.trimmingWhitespace().lowercased()]
     }
+    /// A Liberation, DejaVu or Noto face (none of them Word for Windows'
+    /// own) whose font-table entry is charset 80 with the alternate Times
+    /// New Roman: the case lab tdf measured (`standInFace`).
+    private static func charsetEightyLatinFace(_ family: String) -> Bool {
+        let n = family.trimmingWhitespace().lowercased()
+        guard n.hasPrefix("liberation ") || n.hasPrefix("dejavu ") || n.hasPrefix("noto "), !isEmbedded(family),
+              let e = fontEntry(family), e.charset.uppercased() == "80",
+              e.alt?.trimmingWhitespace().lowercased() == "times new roman" else { return false }
+        return true
+    }
     static func noteEmbedded(_ names: [String]) {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -2384,6 +2394,20 @@ enum OfficeFonts {
         if let alt = macTableAlternate(family) { return standInFace(alt, eastAsian: eastAsian) }
         let own = isEastAsianFace(family)
         guard own || eastAsian else {
+            // (A Latin-named face Word for Windows lacks, whose font-table
+            // entry says charset 80 (Shift-JIS) and alternate Times New
+            // Roman, is not Times there: Word reads it as an East Asian font
+            // it has to substitute, sets its text in Calibri and its line
+            // 1.875 ems tall — 22.5pt at 12, 44.9 at 24 — where charset 00,
+            // or no entry, is Times' 1.15. Lab tdf (windows 01QbbApP, on
+            // tdf103931's Liberation Serif): 33.9pt paragraphs, 24.0 once the
+            // charset is 00 or the entry gone. Only this entry is probed.)
+            if wordOnWindows, charsetEightyLatinFace(family), var face = standInFace(calibri, eastAsian: false) {
+                let before = face.naturalHeight ?? 1.2207
+                face.naturalHeight = 1.875
+                face.baseline = (face.baseline ?? 0.9625) + (1.875 - before) / 2
+                return face
+            }
             // A Latin face: its clone, and where Word sets the baseline
             // of the face it is the clone of — its ascent under its line
             // gap (Arial .905 + .033, Times .891 + .042, Calibri .75 +
