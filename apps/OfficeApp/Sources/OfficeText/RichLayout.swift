@@ -3618,6 +3618,10 @@ public final class RichLayout {
         // A floating table anchored to the text after it: where it began,
         // for that paragraph (see below).
         var textFloatTop: (table: String, page: Int, y: Double, down: Double, chained: Bool)? = nil
+        // The paragraph set over a floating table's offset that does not fit
+        // in what is left of it: its lines that do stand above the table (to
+        // `limit`, on the page), the rest where the flow went on (`back`).
+        var floatHold: (limit: Double, back: Double)? = nil
         // The text place the last text-anchored floating table hung from.
         var floatRunBase: (table: String, page: Int, y: Double)? = nil
         // (A floating table kept with its anchor whose offset takes it past
@@ -7063,7 +7067,29 @@ public final class RichLayout {
                     y = tf.y
                     textFloatTop = (tf.table, page, tf.y + (bottom - top), tf.down - (bottom - top), true)
                 }
+                // (A paragraph too tall for what is left of the offset parts
+                // there: the lines that fit stand over the table, the rest
+                // under it. LibreOffice's tdf124675, tblpY 2340 twips under
+                // three paragraphs of 100pt: the first line of the fourth
+                // stands at 136.7 in Word's print, its second under the
+                // table; ours set both under it.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, tf.chained || _cells[i - 1]?.table == tf.table,
+                        _cells[i] == nil, tf.page == page, frameReturn == nil, !_pageBreak[i], resumeCursor == nil,
+                        tf.down > 0.01, bottom - top > tf.down + 0.01, document.paragraphs[i].image == nil,
+                        // (A table with room beside it sets text there instead.)
+                        let across = _columnWidths[tf.table]?.reduce(0, +), across >= _flowWidth(i) - _px(40),
+                        _besideIndent(i, document.paragraphs[i], document) == nil,
+                        // (Only where a line stands over the table and another goes under:
+                        // all of its lines over it, and just its space after under, leaves
+                        // it where it was.)
+                        case let g = geometry(i), case let cs = Self._lineBottoms(g.painter).map({ g.textTop + $0 + (i < _firstLineLift.count ? _firstLineLift[i] : 0) }),
+                        cs.count >= 2, cs[0] - top <= tf.down + 0.01 {
+                    frameReturn = (y, page)
+                    floatHold = (tf.y + tf.down, y)
+                    y = tf.y
+                }
             }
+            defer { floatHold = nil }
             defer {
                 if let back = frameReturn, !(i + 1 < count && ownFrame != nil && document.paragraphs[i + 1].style.frameXML == ownFrame) {
                     if back.page == page { y = back.y }
@@ -7109,7 +7135,7 @@ public final class RichLayout {
                     let prevAfter = _spacing(i - 1, document).after
                     if prevAfter > 0.01 { cursor = min(bottom, top + min(lead, prevAfter)) }
                 }
-                let available = contentH - y
+                let available = (floatHold?.limit ?? contentH) - y
                 let rest = bottom - cursor
                 // (The last line may reach past the foot by its grid's
                 // overhang.)
@@ -7217,6 +7243,10 @@ public final class RichLayout {
                 // one paragraph that Word starts page 13 with, drew none.)
                 if theme.wordRules, y > 0.01, cursor <= top + 0.01, _anchorsOnly(i, document),
                    bottom - _spacing(i, document).after - cursor > available + slack + overhang { cut = nil }
+                // (Over a floating table's offset only a real part counts: where
+                // just the paragraph's space after does not fit, the paragraph
+                // goes under the table whole, as it did before it could part.)
+                if floatHold != nil, let c = cut, let last = cuts!.last, c >= last - 0.01 { cut = nil }
                 // Word's rules for where a paragraph may part: not at all
                 // (`w:keepLines`), or — its widow and orphan control,
                 // which is on unless the paragraph says otherwise — with
@@ -7226,7 +7256,7 @@ public final class RichLayout {
                 // a line to keep company: tdf136952's p2, 17 lines, ends with
                 // two on p3 in Word's print, where ours left one.)
                 let atTop = !(y > 0.01 || cursor > top + 0.01)
-                if theme.wordRules, let chosen = cut {
+                if theme.wordRules, floatHold == nil, let chosen = cut {
                     let st = document.paragraphs[i].style
                     let all = cuts!
                     let first = all.firstIndex(where: { $0 > cursor + 0.01 }) ?? 0
@@ -7282,7 +7312,10 @@ public final class RichLayout {
                         y = contentH
                         break
                     }
-                    newPage()
+                    if let hold = floatHold { y = hold.back; floatHold = nil; frameReturn = nil } else { newPage() }
+                } else if floatHold != nil {
+                    // Nothing fits over the table: all of it goes under.
+                    y = floatHold!.back; floatHold = nil; frameReturn = nil
                 } else if y > 0.01 {
                     // Nothing fits in what is left of this page: start a new one.
                     newPage()
