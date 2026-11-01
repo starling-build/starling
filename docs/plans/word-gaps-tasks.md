@@ -12940,3 +12940,16 @@ zh-b8de3ae2's four `bar3DChart`s (rotX 15, rotY 20, rAngAx 1) and lo-1bd2003e's 
 - amd-2 landed 2d0700197: a later page that opens on the empty mark closing a continuous section takes the NEXT section's header and footer (page geometry stays the first section's — letting geometry follow it broke zh-b8de3ae2). 090716_Studentische_Arbeit_VWS (lo-085e8dbb) 45.5 -> 54.5, nothing down. Remaining there: vertical gaps on pages 2-3 (zz 252.8 vs Word 259.1; ZUSAMMENFASSUNG 188 vs 211), no rule yet.
 - CLAIM (amd-2): tdf126244 (lo-a994ad5c), freed by starling-bd (macOS-doc stopped).
 - amd-2 read-out tdf126244 (lo-a994ad5c, 30.0): a chart with a MULTI-LEVEL category axis (Word draws 2012/2011 and FIRST LEVEL beside the rows, the category text in a column at x 118.8, value axis ticks at 254..487; ours stacks the labels at x 79.6 and spaces the ticks 54pt). Chart-axis feature, not a text rule — released, belongs with amd-5's chart-axis work.
+
+### CENSUS OF EVERYTHING ELSE IN THE 756 (amd-5, 2026-11-01, at 6d91e2c72 + picture first-line indent)
+156 documents at 95-99.9, 808 missed Word lines, each placed by the container its text is in (docx XML) and by the kind of miss (ours has a line at the same height that overlaps in x but starts and ends differently = wrap; same four opening characters 3pt+ away = y; nothing near = absent). Tool: /data/s/amd-5/census/cls.py (on amd-5's box).
+| container | wrap | y | absent | other |
+|---|---|---|---|---|
+| body paragraph | 176 | 42 | 4 | 2 |
+| table cell | 116 | 75 | 49 | 16 |
+| list paragraph | 93 | 50 | 0 | 1 |
+| text box | 16 | 13 | 1 | 18 |
+| unplaced (text spans paragraphs) | 61 | 37 | 13 | 8 |
+| footnote / footer / header | 15 | 2 | 3 | 1 |
+| chart | 0 | 0 | 1 | 1 |
+Wrap is about 60% of it (line-END class: amd-3 and amd-6). The y misses are cascades, not a class: zh-505b9619 44 (p59: a "員。" Word breaks to a line of its own where ours hangs it 14pt past the margin, every later line one row high), zh-147bdae0 25 (p19: a URL cell, Word breaks "…/Con-" / "tent_List…", ours at "…/Content_List.aspx?n=78"), zh-4ea36aa8 17 (p14: a cell's first line wraps at a different place), zh-db07d44e 7. All three roots are line breaks. "Absent" in tables is 79: zh-9bcea239 11 and zh-b24b396a (digits Word clips, invisible), zh-8415d258 8 (□-form rows), the rest one or two per document. No non-line-end class with two witnesses stands out; the URL break (zh-147bdae0 p19) is the one worth a lab: where does Word break a URL in a cell (after "-", "/", "?", "&")?
