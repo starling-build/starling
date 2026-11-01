@@ -1107,6 +1107,12 @@ enum ChartXML {
             // Column groups on one pair of axes, alike: one group of all
             // their series (chart-tdf100084's two, a series each).
             merged = Array(kinds.dropFirst())
+        } else if kinds.count > 1, kinds.allSatisfy({ $0.name == "c:scatterChart" }),
+                  Set(kinds.map { Set($0.all("c:axId").compactMap { $0["val"] }) }).count == 1 {
+            // Scatter groups on one pair of axes, as Excel keeps a smoothed
+            // series and a plain one apart (lo's c4c60fcb: a response curve
+            // and its -3dB line): one group of all their series.
+            merged = Array(kinds.dropFirst())
         } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:lineChart" }) {
             // Lines over lines, the second group on a value axis of its own
             // at the right (chart-add_series_secondary_axis): drawn as a

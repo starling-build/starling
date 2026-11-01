@@ -6418,7 +6418,13 @@ public final class RichLayout {
                     let gridHalf = lineBottoms.count == 1 && style.lineHeightPoints == nil
                         && style.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil
                         && i < _overhang.count ? _overhang[i] : 0
-                    let line = (lineBottoms.first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
+                    // (A paragraph that anchors a float of its own stands its line
+                    // by the line alone: its box reaches down over the float, and
+                    // the float is not a text line to keep off an earlier band —
+                    // lo's c4c60fcb, a chart group anchored in an empty line above
+                    // a text box's band, went to the next page.)
+                    let ownsBand = tableBands.contains { $0.owner == i }
+                    let line = (lineBottoms.first.map { $0 + (ownsBand ? 0 : geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
                     while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
                         y = band.bottom; guardSteps += 1
                     }
@@ -17331,7 +17337,9 @@ public final class RichLayout {
         // the before or without it (lab ss); ours stood 9pt higher.)
         if theme.wordRules, float.verticalAlign == nil, float.verticalFrom == "paragraph" {
             var top = g.top
-            if let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }), piece.flowTop > top { top = piece.flowTop }
+            // (Not where the line went under this float: its place is the paragraph's
+            // top, and the flow there is the line below it.)
+            if let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }), piece.flowTop > top, !((float.takesRoom || float.bandsPage) && pushed > 0) { top = piece.flowTop }
             y = top + _px(float.y)
         }
         // (… where the paragraph's own line went under a float of its that
@@ -17340,7 +17348,10 @@ public final class RichLayout {
         // 27.3pt down, and a "單位：張(人)數,%" box, 32.1pt down, which
         // Word's print sets under the chart, at the line's new place —
         // ours set it over the chart, and its page ran long.)
-        if theme.wordRules, !float.wraps, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0 { y += pushed }
+        // (Not one that bands the page, top and bottom: it holds its own
+        // place, and the line goes under it — lo's c4c60fcb, a chart group
+        // 9.5pt under an empty line, drew 294pt too low.)
+        if theme.wordRules, !float.wraps, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0 { y += pushed }
         // (From the page or its margin, a stated offset is on the page
         // the paragraph starts: zh-799c91cd's envelope addresses a box
         // 308.8pt under the margin, which ours stood at its paragraph,
