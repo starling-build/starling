@@ -9831,11 +9831,16 @@ public final class RichLayout {
             // and the border stands beside it as well.)
             let room = theme.wordRules && image.float == nil ? _pictureRoom(image) : (top: 0.0, bottom: 0.0, left: 0.0, right: 0.0)
             _imageDrop[i] = room.top
-            let spare = theme.wordRules ? max(0, textWidth - w.rounded() - room.left - room.right) : 0
+            // (A picture on the first line stands in by the paragraph's first-line indent, as text
+            // does: zh-b8de3ae2's 圖6 chart, 483.75pt under `w:firstLine` 660, has its title at
+            // 185 in Word's print and 152 where ours stood without it. Centred, the room left is
+            // shared out after the indent; right-aligned, the indent changes nothing.)
+            let indent = theme.wordRules && style.alignment != .right && image.float == nil && style.list == nil ? _px(p.style.firstLineIndent) : 0
+            let spare = theme.wordRules ? max(0, textWidth - indent - w.rounded() - room.left - room.right) : 0
             // (Not its effect extent's left, in a frame placed on the page: the
             // drawing stands at the frame's x — lab frame.)
             let atFrameX = style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
-            _imageShift[i] = (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + (atFrameX ? 0 : room.left)
+            _imageShift[i] = indent + (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + (atFrameX ? 0 : room.left)
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = (h + room.top + room.bottom).rounded() }
