@@ -432,6 +432,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var _blinkHeldSolidUntil: Double = 0
     /// macOS Terminal's cadence, near enough.
     private static let blinkPeriod: Double = 0.6
+    /// STARLING_CURSOR_BLINK=0 keeps the cursor solid. A blink is a full
+    /// repaint of the whole screen on software GL (~0.35 CPU-s at 1080p), so
+    /// headless desktops turn it off — see docs/plans/headless-desktop.md.
+    private static let blinkEnabled: Bool =
+        ProcessInfo.processInfo.environment["STARLING_CURSOR_BLINK"] != "0"
 
     /// Scrollback view offset in lines (0 = live screen). Shift+PageUp/Down,
     /// the mouse wheel, or a touchpad pan.
@@ -624,6 +629,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private func _restartBlink() {
         _blinkGeneration += 1
         _blinkOn = true
+        guard Self.blinkEnabled else { return }
         _blinkHeldSolidUntil = Self._now() + Self.blinkPeriod
         _scheduleBlinkTick(after: Self.blinkPeriod)
     }

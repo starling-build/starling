@@ -64,8 +64,10 @@ Terminal window dragged back and forth. `LP` is llvmpipe threads.
   not efficiency.
 - Every present re-renders the whole screen (no partial repaint).
 - **Idle is free** until something animates. The bare desktop presents no
-  frames. A blinking Terminal cursor causes about 3.4 presents/s, costing
-  0.6–2.9 cores.
+  frames. A blinking Terminal cursor used to cause about 3.4 presents/s,
+  costing 0.6–2.9 cores. Headless mode now sets `STARLING_CURSOR_BLINK=0`
+  (inherited by child apps) and an idle desktop with Terminal open measures
+  0 presents and about 1 ms CPU in 10 s.
 - The screensaver shader stalls llvmpipe for seconds per frame. Headless mode
   turns the screensaver off by default.
 - Screenshot: readback 60–115 ms, PNG encode about 300 ms under load; total
@@ -108,7 +110,7 @@ None for the prototype. Wanted later:
 ## Plan
 
 1. Done: operator socket, driver, smoke test, measurements.
-2. Cursor-blink suppression in headless mode.
+2. Done: cursor-blink suppression in headless mode.
 3. Semantic tree and `perform_action` exposed through the operator socket.
 4. `starling-headless@` unit, plus a gateway/MCP bridge.
 5. Multi-output, and the DMA-BUF versus CPU path for child apps (with no

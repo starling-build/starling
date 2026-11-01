@@ -103,6 +103,8 @@ func runRdpDisplay() -> Never {
         // desktop from ~15 ms frames to seconds and wedged the main queue.
         // An explicit STARLING_SCREENSAVER_IDLE still wins.
         setenv("STARLING_SCREENSAVER_IDLE", "0", 0)
+        // A caret blink repaints the whole frame on software GL; children inherit this.
+        setenv("STARLING_CURSOR_BLINK", "0", 0)
     }
     if !noRdp {
         guard service.start(defaultWidth: width, defaultHeight: height) else {
