@@ -12659,3 +12659,9 @@ One build of office d72358f13 plus my wrap=largest (landed since as 14280eb84, w
   - tdf170672 92.3 (mac-01Xgpbk5-footfit): Word p15 y -200 x 429 scroosoosspoosboosoossoos | ours p15 y -187 x 429 oosoossboosoosooss
   - tdf153964_topMarginAfterBreak14 93.8 (lo-first): Word p3 y -174 x  72 break | ours p3 y -159 x  72 60ptfollowedbypage
   - floattable-heading-split-footer 94.4 (lo-objbase): Word p2 y -492 x  41 50L50 | ours p2 y -470 x  41 49L49
+
+### mac-confirm tip watch, 2026-11-01 (code through 28b840f4b: wrap=largest, chart userShapes, balanced legend rows, floattable anchor)
+- Mac, Windows mode, 756 + 593 LO, failures 0. 756 v2 mean with text 99.784 -> 99.793: 3 up (zh-eec0747a 97.5->100, zh-6d1afa56 97.8->100, zh-e653f583 98.4->100), 0 down. v1 +0.007, 0 down.
+- LO v2 83.883 -> 85.491 (v1 83.483 -> 85.087): 17 up (new since the last line: lo-91816702 20->100, lo-c490d65b and lo-22a53e2b 33->100, lo-a2386f32 82->100, lo-bf1e33f3 66.7->100, lo-488c442d 78.6->85.7), 1 down: lo-c7082c66 15.4->9.8 (known cancelling error). No other drop.
+- scores/mac re-seeded at this tree.
+- Note for all: docx-pair.sh's default STAGE is /tmp/docx-pair-<host>; two sessions on one Mac overwrote each other's sweep. Set STAGE to a private directory.
