@@ -53,7 +53,7 @@ struct PdfMarkup {
         // down [1]: A1", for the whole of it, and one empty line where it
         // stood.
         var movedTable: String? = nil
-        for var p in source.paragraphs {
+        for (srcIndex, var p) in source.paragraphs.enumerated() {
             if let c = p.cell, let mark = p.style.markRevision, mark.kind == .deleted, mark.moved, !mark.nested,
                p.runs.allSatisfy({ $0.length == 0 || ($0.style.revision?.kind == .deleted && $0.style.revision?.moved == true && $0.style.revision?.nested != true) }) {
                 if movedTable != c.table {
@@ -97,6 +97,9 @@ struct PdfMarkup {
                     head.runs = runs
                     head.style = p.style
                     p = head
+                } else if head.cell != nil, head.text.isEmpty, head.image == nil {
+                    // (A deleted table's cells, each emptied: no rows left to
+                    // lay out, n830205's page 2.)
                 } else {
                     paragraphs.append(head)
                 }
@@ -148,7 +151,22 @@ struct PdfMarkup {
             if p.style.markRevision?.kind == .deleted {
                 // (Its mark goes into the balloon too, as Word writes it: ¶,
                 // and the next deleted paragraph starts a line of its own.)
-                if open != nil { open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("") }
+                if p.style.sectionXML != nil, p.text.isEmpty, case let said = PdfMarkup._sectionBreak(source.paragraphs, after: srcIndex) {
+                    // A deleted section break is drawn as itself, a rule round
+                    // its name, on a line of its own in the balloon (n830205's
+                    // "Deleted: Section Break (Continuous)").
+                    if open == nil {
+                        // (Where the mark stands: at the end of the line before it.)
+                        let before = max(0, paragraphs.count - 1)
+                        open = Note(anchor: RichPosition(paragraph: before, offset: paragraphs.last?.text.utf16.count ?? 0), label: "Deleted:", paragraphs: [said, ""],
+                                    author: p.style.markRevision?.author ?? "")
+                    } else {
+                        if open!.paragraphs[open!.paragraphs.count - 1].isEmpty { open!.paragraphs[open!.paragraphs.count - 1] = said }
+                        else { open!.paragraphs.append(said) }
+                        open!.paragraphs.append("")
+                    }
+                }
+                else if open != nil { open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("") }
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
                                 author: p.style.markRevision?.author ?? "")
@@ -181,6 +199,17 @@ struct PdfMarkup {
             + PdfMarkup._comments(printed) + PdfMarkup._formats(printed) + gone
         notes = made.enumerated()
             .sorted { ($0.element.anchor, $0.offset) < ($1.element.anchor, $1.offset) }.map(\.element)
+    }
+
+    /// What Word calls the section break that ends the section at `index`: by
+    /// how the next section starts (its `w:type`; a next page where it
+    /// states none, or where no section follows).
+    private static func _sectionBreak(_ paragraphs: [RichParagraph], after index: Int) -> String {
+        let kinds = ["continuous": "Continuous", "evenPage": "Even Page", "oddPage": "Odd Page", "nextColumn": "Column"]
+        if let next = paragraphs[(index + 1)...].first(where: { $0.style.sectionXML != nil }), let xml = next.style.sectionXML {
+            for (key, name) in kinds where xml.containsSubstring("w:type w:val=\"\(key)\"") { return "Section Break (\(name))" }
+        }
+        return "Section Break (Next Page)"
     }
 
     /// Where moved text went: "Moved (insertion) [n]" at the start of each
@@ -459,7 +488,6 @@ struct PdfMarkup {
         let turn = textRight + (windows ? 4.6 : 9.1), meet = windows ? 6.0 : 5.5
         var authors: [String] = []
         for n in notes where !authors.contains(n.author) { authors.append(n.author) }
-        var floor = -Double.infinity
         let balloon: (family: String, size: Double, line: Double?) = {
             // (Word for Windows' own face is Segoe UI 9pt, its lines 1.33
             // ems, and it is what Word for Windows sets for a Balloon Text
@@ -478,6 +506,8 @@ struct PdfMarkup {
             return (OfficeFonts.drawn(family), style.char.fontSize ?? 8,
                     family.trimmingWhitespace().lowercased() == "tahoma" ? 1.207 : nil)
         }()
+        let plainEllipsis = TextStyle(color: Color(0xFF000000), fontSize: balloon.size, fontFamily: balloon.family)
+        var entries: [(note: Note, anchor: Rect, tp: TextPainter, indent: Double, want: Double)] = []
         for note in notes {
             let caret = layout.caretRect(note.anchor, document)
             guard let rect = layout.canvasRects(caret).first, layout.page(atCanvasY: rect.top) == p else { continue }
@@ -503,7 +533,6 @@ struct PdfMarkup {
             // stand with the other balloons.)
             let indent = note.label == "Deleted:" && (!windows || note.paragraphs.contains { $0.hasPrefix("<#>") }) ? 8.8 : 0
             tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent)
-            defer { tp.dispose() }
             // (Whole paragraphs deleted stand a little above the line they
             // are anchored to: at most 6.27pt under the line before them.
             // Labs `dl` (Word 16, delins's package, "the subcommentaries"
@@ -520,11 +549,43 @@ struct PdfMarkup {
                     want = min(want, (r.bottom - page.top) / px + 6.27)
                 }
             }
-            let top = max(want, floor)
-            let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + padTop + padBottom)
+            entries.append((note, anchor, tp, indent, want))
+        }
+        defer { for e in entries { e.tp.dispose() } }
+        // Where each box stands: under its anchor and clear of the one before.
+        // A column that would run off the page is packed up instead (Word's
+        // n830205: the boxes ride above their lines, edge to edge) and, short
+        // of room even so, its tallest box is cut short with a "..." at its foot.
+        let limit = setup.height - setup.marginBottom + 6
+        var heights = entries.map { $0.tp.height + padTop + padBottom }
+        var tops: [Double] = []
+        var f = -Double.infinity
+        for (i, e) in entries.enumerated() {
+            let t = max(e.want, f)
+            tops.append(t)
+            f = t + heights[i] + gap
+        }
+        var shown = entries.count
+        var cut: Int? = nil
+        if let lt = tops.last, lt + heights[heights.count - 1] > limit {
+            // Packed from the first box down, edge to edge; the one that runs
+            // past the page's foot is cut short and the rest are not shown.
+            var g = tops[0]
+            for i in 0 ..< entries.count {
+                tops[i] = g
+                if g + heights[i] > limit {
+                    if limit - g > 24 { heights[i] = limit - g; cut = i; shown = i + 1 } else { shown = i }
+                    break
+                }
+                g += heights[i] + gap
+            }
+        }
+        for (i, e) in entries.enumerated() where i < shown {
+            let note = e.note, anchor = e.anchor, tp = e.tp, indent = e.indent
+            let top = tops[i]
+            let box = Rect.fromLTRB(boxLeft, top, boxRight, top + heights[i])
             // (Stacked edge to edge: delins's one-line balloons stand
             // 15.1pt apart, an 8pt line and the padding.)
-            floor = box.bottom + gap
             let colour = PdfMarkup.colours[(authors.firstIndex(of: note.author) ?? 0) % PdfMarkup.colours.count]
             let fill = Paint()
             fill.color = Color(note.isComment ? colour.fill : 0xFFFFFFFF)
@@ -540,7 +601,18 @@ struct PdfMarkup {
             let under = anchor.bottom
             canvas.drawLine(Offset(anchor.left, under), Offset(turn, under), line)
             canvas.drawLine(Offset(turn, under), Offset(boxLeft, top + meet), line)
-            tp.paint(canvas, Offset(boxLeft + inset + indent, top + padTop))
+            if cut == i {
+                canvas.save()
+                canvas.clipRect(box)
+                tp.paint(canvas, Offset(boxLeft + inset + indent, top + padTop))
+                canvas.restore()
+                let more = TextPainter(text: TextSpan(text: "...", style: plainEllipsis), textDirection: .ltr)
+                more.layout(minWidth: 0, maxWidth: 40)
+                more.paint(canvas, Offset(boxRight - inset - more.width, box.bottom - padBottom - more.height))
+                more.dispose()
+            } else {
+                tp.paint(canvas, Offset(boxLeft + inset + indent, top + padTop))
+            }
         }
     }
 }
