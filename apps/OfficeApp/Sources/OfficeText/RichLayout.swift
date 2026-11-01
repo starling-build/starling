@@ -10067,6 +10067,9 @@ public final class RichLayout {
         var inserts: [Int] = []
         var before: Character? = nil
         var beforeBefore: Character? = nil
+        // (Whether the plain spaces just before the character at hand
+        // follow a no-break space: see the branch that joins them.)
+        var spacesAfterNbsp = false
         // (Whether the run of ASCII letters, digits and hyphens the
         // character at hand ends has a letter in it: see the hyphen before
         // a digit, below.)
@@ -10097,6 +10100,28 @@ public final class RichLayout {
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
             .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        // (A numbered paragraph's first word, wider than the line, is
+        // parted where the line ends, beside its number: Word sets
+        // LibreOffice's tdf134606 "a)" and "XXXXXXXXXX" in a 68pt text
+        // column as "XXXXXXXXX" / "X", the number on the first line. The
+        // engine, with the number's box on the line already, sends the
+        // whole word down and parts it there, a line the row is taller
+        // for — so it is told it may part anywhere, as for a word on a
+        // line of its own.)
+        if theme.wordRules, !document.usesEastAsianLayout, p.style.list != nil || _wordList(p, document) != nil,
+           let first = p.text.utf16.firstIndex(where: { $0 != 0x20 && $0 != 0x09 }), first == p.text.utf16.startIndex {
+            let units = Array(p.text.utf16)
+            var end = 0
+            while end < units.count, units[end] != 0x20, units[end] != 0x09, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
+            if end >= 3, !units[..<end].contains(where: { $0 >= 0x2E80 || $0 == 0x2D }), let run = p.runs.first {
+                let word = String(decoding: units[..<end], as: UTF16.self)
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                if painter.width > textWidth + 0.01 { loose.formUnion(1 ..< end) }
+                painter.dispose()
+            }
+        }
         // (In a turned text box a first line indented past the line's
         // length holds its first character alone, the rest from the next
         // line: zh-b24b396a's "30" dimension labels — vert270 boxes 7.8pt
@@ -10688,6 +10713,19 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, !document.usesEastAsianLayout, spacesAfterNbsp, before == " ", !ea,
+                          !ch.isWhitespace, ch != "\u{00A0}" {
+                    // (Plain spaces after a no-break space hold the word
+                    // that follows them: Word parts no line between
+                    // "X)" + U+00A0 + U+0020 and the next word, so one
+                    // wider than what is left of the line is cut where the
+                    // line ends. LibreOffice's tdf134606, "X)\u{00A0} XXXXXXXXXXXX"
+                    // in a 94pt cell: Word sets "X)  XXXXXXXXXXX" / "X
+                    // XXXXXXXXX *", ours sent the 12 X's down whole, a
+                    // third line, the row 12pt taller.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules || theme.officeLatinBreaks, let b = before,
                           Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
                     flush(i)
@@ -11013,6 +11051,7 @@ public final class RichLayout {
                 }
                 beforeBefore = before
                 before = ch
+                if ch == "\u{00A0}" { spacesAfterNbsp = true } else if ch != " " { spacesAfterNbsp = false }
                 wordHasLetter = ch.isASCII && (ch.isLetter || ch.isNumber || ch == "-") ? wordHasLetter || ch.isLetter : false
                 if let c = current, c != kind { flush(i) }
                 else if joinedFace != nil, isArabic(ch) != (beforeBefore.map(isArabic) ?? false) { flush(i) }
