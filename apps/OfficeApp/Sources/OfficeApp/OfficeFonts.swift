@@ -1173,6 +1173,35 @@ enum OfficeFonts {
         0.5068, 0.4048, 0.2910, 0.4048, 0.6074,
     ]
 
+    // Aptos's own widths, U+0020 to U+007E, in its Regular and Bold: read from
+    // the hmtx of the subsets Word for Windows' prints embed (every print in
+    // test/corpus, 2026-11-01; every glyph they hold agrees across prints).
+    // Regular holds 74 of the 95, Bold 61; the others are estimates from
+    // Liberation Sans's by the median ratio of the known ones of their kind
+    // (upper case, lower case, digits, the rest). Aptos is the default face of
+    // a document written in Word since 2023, narrower than Arial in the round
+    // lower case and wider in "i l t": redline-image-inline's 12pt lines broke
+    // a word early in the stand-in.
+    static let aptosAdvances: [Double] = [
+        0.2031, 0.2930, 0.3696, 0.5717, 0.5717, 0.8262, 0.6856, 0.2104, 0.3423, 0.3423, 0.4000, 0.6003, 0.2856, 0.3403, 0.2856,
+        0.2856, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.2856, 0.2856, 0.6003, 0.5342,
+        0.6003, 0.5015, 1.0435, 0.5894, 0.6040, 0.6924, 0.6860, 0.5562, 0.5244, 0.7085, 0.7070, 0.2603, 0.3311, 0.5684, 0.4995,
+        0.7900, 0.7061, 0.7324, 0.5771, 0.7324, 0.6060, 0.5659, 0.4785, 0.6812, 0.5854, 0.8921, 0.5990, 0.5396, 0.5156, 0.2944,
+        0.2856, 0.2944, 0.4824, 0.5717, 0.3423, 0.5312, 0.5610, 0.5249, 0.5605, 0.5269, 0.3013, 0.4844, 0.5513, 0.2388, 0.2388,
+        0.4868, 0.2603, 0.8530, 0.5513, 0.5518, 0.5610, 0.5605, 0.3345, 0.4858, 0.3232, 0.5586, 0.4521, 0.7207, 0.4424, 0.4521,
+        0.4380, 0.3433, 0.2670, 0.3433, 0.6003,
+    ]
+
+    static let aptosBoldAdvances: [Double] = [
+        0.2031, 0.2930, 0.4199, 0.5087, 0.5087, 0.8134, 0.6606, 0.2175, 0.3046, 0.3046, 0.3560, 0.5342, 0.2998, 0.3403, 0.2998,
+        0.2541, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.5342, 0.2998, 0.3046, 0.5342, 0.5342,
+        0.5342, 0.5588, 0.8920, 0.6201, 0.6191, 0.7065, 0.7070, 0.5732, 0.5366, 0.7178, 0.7290, 0.2939, 0.3667, 0.6230, 0.5117,
+        0.8208, 0.7227, 0.7373, 0.6055, 0.7018, 0.6338, 0.5981, 0.5054, 0.6516, 0.6167, 0.8516, 0.6018, 0.6018, 0.5511, 0.3046,
+        0.2541, 0.3046, 0.5342, 0.5087, 0.3046, 0.5518, 0.5864, 0.5488, 0.5859, 0.5562, 0.3350, 0.5112, 0.5791, 0.2681, 0.2666,
+        0.5342, 0.2959, 0.8892, 0.5791, 0.5732, 0.5864, 0.5862, 0.3691, 0.5156, 0.3555, 0.5815, 0.4937, 0.7612, 0.4951, 0.4937,
+        0.4658, 0.3560, 0.2559, 0.3560, 0.5342,
+    ]
+
     // Lucida Sans Unicode's own widths, U+0020 to U+007E: its lower case
     // is 5-37% wider than Arial's, its digits all 0.632, and the sans
     // stand-in set bug59058's "SEER 9 Incidence…" note on one line where
@@ -2503,6 +2532,11 @@ enum OfficeFonts {
             if family.trimmingWhitespace().lowercased() == "aptos" {
                 face.naturalHeight = 1.22
                 face.baseline = 0.94
+                if wordOnWindows {
+                    face.advances = aptosAdvances
+                    face.boldAdvances = aptosBoldAdvances
+                    RuleTrace.hit("aptos-own-widths")
+                }
             }
             // Segoe UI's Latin line in Mac Word is its own 2210/514
             // ascent/descent in 2048 units. A fresh five-line 12pt probe
