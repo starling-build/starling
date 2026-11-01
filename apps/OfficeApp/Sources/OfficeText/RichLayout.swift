@@ -11765,18 +11765,6 @@ public final class RichLayout {
                                             eastAsian: true, gridPitch: pitch)
                     spans.append(TextSpan(text: String(ch), style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
-                } else if ea, theme.wordRules, Self._cjkFaceFamily == nil, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) {
-                    // (Where no CJK face is named — Linux, whose stand-ins
-                    // have no Roman numerals — the numeral is still a full
-                    // cell: the glyph is the fallback's, padded to an em as
-                    // the dot above is. zh-94f12659's "（Ⅰ级）" in 仿宋_GB2312
-                    // is 16pt in Word's print where DejaVu's gave 4.7, and
-                    // its line kept "故：" Word wrapped.)
-                    flush(i)
-                    let s = style(kind)
-                    let width = _glyphWidth(s, ch)
-                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + max(0, em - width))))
-                    start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkFaceFamily, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) {
                     // (A Roman numeral in East Asian text is the CJK face's,
                     // an em wide: zh-78729cf9's "（Ⅰ级）、重大（Ⅱ级）" in a
@@ -11786,7 +11774,15 @@ public final class RichLayout {
                     // took a character more than Word's, three times.)
                     flush(i)
                     let s = style(kind)
-                    spans.append(TextSpan(text: String(ch), style: (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)))
+                    var numeral = (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)
+                    #if os(Linux)
+                    // (Linux's CJK face may be absent, and the glyph then
+                    // the fallback's, 4.7pt where Word's print has the
+                    // 仿宋_GB2312 numeral a full 16: zh-94f12659's "（Ⅰ级）"
+                    // kept "故：" on a line Word wrapped. Pad to the cell.)
+                    numeral = numeral.copyWith(letterSpacing: (numeral.letterSpacing ?? 0) + max(0, em - _glyphWidth(numeral, ch)))
+                    #endif
+                    spans.append(TextSpan(text: String(ch), style: numeral))
                     start = after
                 } else if ea, theme.wordRules, ch == "\u{02D9}" {
                     // (A dot above in East Asian text is a full cell: the
