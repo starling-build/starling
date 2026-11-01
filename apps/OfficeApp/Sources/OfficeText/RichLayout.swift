@@ -5137,7 +5137,6 @@ public final class RichLayout {
                         RuleTrace.hit("header-block-over-page")
                         newPage()
                     }
-                    }
                 }
                 // A table floating by the text straight after another that does,
                 // at an offset no higher than the first's, avoids it: it stands
