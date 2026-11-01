@@ -3319,7 +3319,50 @@ public final class RichLayout {
         return i < _overhang.count ? _overhang[i] : 0
     }
 
+    /// Paragraphs set on both sides of a box: per painter, how far each line
+    /// is moved up (a right piece stands level with the left piece before
+    /// it, and the lines after the pair stand as if it took no room) and the
+    /// height all the right pieces give back.
+    struct _PairedLines { weak var painter: TextPainter?; var shifts: [Double]; var saving: Double }
+    nonisolated(unsafe) static var _pairedLines: [ObjectIdentifier: _PairedLines] = [:]
+    static func _paired(_ painter: TextPainter) -> _PairedLines? {
+        guard let entry = _pairedLines[ObjectIdentifier(painter)], entry.painter === painter else { return nil }
+        return entry
+    }
+    static func _registerPairs(_ painter: TextPainter, _ indents: [LineIndent], push: (top: Double, bottom: Double)? = nil) {
+        _pairedLines = _pairedLines.filter { $0.value.painter != nil }
+        let bottoms = _rawLineBottoms(painter)
+        var shifts = [Double](repeating: 0, count: bottoms.count)
+        // `acc` is how far the lines from here on are moved: up by a right piece
+        // that stands level with the line before it, down past a box the text
+        // keeps above and below (`push`, the box's stretch of the paragraph: the
+        // first line that would meet it, and the lines after, go under it).
+        var acc = 0.0
+        var pushed = false
+        for k in 0 ..< bottoms.count {
+            let before = k == 0 ? 0 : bottoms[k - 1]
+            if k > 0, k < indents.count, indents[k].left > 0, indents[k].right == 0 {
+                let previous = before - (k >= 2 ? bottoms[k - 2] : 0), own = bottoms[k] - before
+                shifts[k] = acc - previous
+                acc -= min(own, previous)
+            } else {
+                if let band = push, !pushed, k > 0, bottoms[k] + acc > band.top + 0.01, before + acc < band.bottom - 0.01 {
+                    acc += band.bottom - (before + acc)
+                    pushed = true
+                }
+                shifts[k] = acc
+            }
+        }
+        if abs(acc) > 0.001 { _pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc) }
+    }
+
     static func _lineBottoms(_ painter: TextPainter) -> [Double] {
+        let raw = _rawLineBottoms(painter)
+        guard let pair = _paired(painter), pair.shifts.count == raw.count else { return raw }
+        return zip(raw, pair.shifts).map { $0 + $1 }
+    }
+
+    static func _rawLineBottoms(_ painter: TextPainter) -> [Double] {
         // (A paragraph whose lines keep their fractions is the sum of its
         // lines' advances: on the Mac a 1.5-spaced line of YaHei reports
         // an ascent and descent of 644.8 for an advance of 617.4, and
@@ -8673,9 +8716,10 @@ public final class RichLayout {
         var besideLineIndents: [LineIndent] = []
         var besideIndent = _besideLead[i]
         var besideRight = false
+        var besideLeftRoom: Double?
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
-        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
+        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom }
         if besideIndent > 0, let band = besideBand {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
@@ -8695,7 +8739,7 @@ public final class RichLayout {
             var indents: [LineIndent] = []
             var firstBeside = true
             for _ in 0 ..< 8 {
-                let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside && !besideRight ? max(original - besideIndent, 0) : original,
+                let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside && !besideRight && besideLeftRoom == nil ? max(original - besideIndent, 0) : original,
                                               adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
                 let trialInline = _span(for: p, at: i, document, textWidth: textWidth, lead: original, adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld).1
                 let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: .ltr)
@@ -8705,10 +8749,32 @@ public final class RichLayout {
                 let bottoms = Self._lineBottoms(trial)
                 trial.dispose()
                 var next: [LineIndent] = []
-                for k in 0 ..< bottoms.count {
-                    let top = k == 0 ? 0 : bottoms[k - 1]
-                    let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
-                    next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
+                if let leftRoom = besideLeftRoom {
+                    // (Both sides: a line level with the box is the left piece, in
+                    // the room at its left, and the line after it the right
+                    // piece, level with it. The lines after the pair stand where
+                    // they would if the right piece took no room: `saved` is the
+                    // height the right pieces give back.)
+                    var saved = 0.0, k = 0
+                    while k < bottoms.count {
+                        let before = k == 0 ? 0 : bottoms[k - 1]
+                        if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
+                            next.append(LineIndent(left: 0, right: max(textWidth - leftRoom, 0)))
+                            if k + 1 < bottoms.count {
+                                next.append(LineIndent(left: besideIndent, right: 0))
+                                saved += min(bottoms[k + 1] - bottoms[k], bottoms[k] - before)
+                            }
+                            k += 2
+                        } else {
+                            next.append(LineIndent()); k += 1
+                        }
+                    }
+                } else {
+                    for k in 0 ..< bottoms.count {
+                        let top = k == 0 ? 0 : bottoms[k - 1]
+                        let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
+                        next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
+                    }
                 }
                 while let last = next.last, last.left == 0, last.right == 0, next.count > 1, next[next.count - 2].left == 0, next[next.count - 2].right == 0 { next.removeLast() }
                 let first = next.first.map { $0.left > 0 || $0.right > 0 } ?? false
@@ -8718,7 +8784,7 @@ public final class RichLayout {
             }
             if indents.contains(where: { $0.left > 0 || $0.right > 0 }), indents.last.map({ $0.left != 0 || $0.right != 0 }) == true { indents.append(LineIndent()) }
             besideLineIndents = indents
-                if !firstBeside || besideRight { lead = original; _leadWidth[i] = lead }
+                if !firstBeside || besideRight || besideLeftRoom != nil { lead = original; _leadWidth[i] = lead }
             else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
@@ -8954,7 +9020,8 @@ public final class RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, tieShort: tieShort)
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, tieShort: tieShort,
+                                     lineIndents: besideLeftRoom != nil ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
@@ -9368,6 +9435,22 @@ public final class RichLayout {
                 _overhang[i] = height * (1 - 1 / multiple)
             }
         }
+        // (A box the text keeps above and below, standing part way down the paragraph that
+        // holds its anchor: the lines that would meet it go under it — Word's print of
+        // LibreOffice's tdf133924, "notBeside" 273pt down a paragraph of text.)
+        var keepClear: (top: Double, bottom: Double)?
+        // (One column only: in several the paragraph's lines are cut into columns, and the
+        // existing placement of a band keeps them off — lo shape-anchored-in-follow.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, _columns <= 1 {
+            for image in p.inlineImages.values {
+                guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil, float.verticalFrom == "paragraph", float.y > 0 else { continue }
+                keepClear = (_px(float.y - float.distanceTop), _px(float.y + image.height + float.effectBottom + float.distanceBottom))
+                break
+            }
+        }
+        if (besideLeftRoom != nil && !besideLineIndents.isEmpty) || keepClear != nil {
+            Self._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
+        }
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth
@@ -9542,6 +9625,7 @@ public final class RichLayout {
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height + _px(segoeLift)
+        if let pair = Self._paired(painter) { bodyHeight -= pair.saving }
         if i < _firstLineLift.count { _firstLineLift[i] = _px(segoeLift) }
         // A paragraph of nothing but floating objects stands as one of a
         // single floating picture does (25pt in zh-37b6536f, where the
@@ -12441,14 +12525,14 @@ public final class RichLayout {
     /// the stretch of the paragraph's height it takes; nil for none. It is
     /// anchored in the paragraph itself or in one of the few before it in the
     /// same cell (or the body), the paragraphs between standing under it.
-    private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool)? {
+    private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !p.style.rightToLeft else { return nil }
         // (A cell's text is as wide as the cell less its margins, not the page's
         // column.)
         let cell = p.cell != nil && i < _cells.count ? _cells[i] : nil
         let inner = cell.map { max(0, $0.colWidth - $0.pad.left - $0.pad.right) } ?? _flowWidth(i)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-        var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool)?
+        var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)?
         var offset = 0.0
         var k = i
         while k >= 0, k >= i - 6 {
@@ -12466,6 +12550,43 @@ public final class RichLayout {
             // zh-37b6536f's photographs.)
             if k < i, p.cell != nil, let image = q.image, image.name == "table", k < _imageSize.count { candidates.append((image, _imageSize[k])) }
             for (image, laid) in candidates {
+                // (A box in the middle of the column with room on both sides, text
+                // wrapped round it on both: the lines alternate between the room
+                // at its left and the room at its right, a left piece and a
+                // right piece on one line of the page. Lab-less: Word's print of
+                // LibreOffice's tdf133924, "Around", and tdf135665's objects.)
+                if k == i || p.style.list == nil, p.cell == nil, let float = image.float, float.wraps, !float.takesRoom, float.wrapSide == nil,
+                   float.verticalAlign == nil, float.verticalFrom == "paragraph",
+                   float.horizontalAlign == nil || ["left", "center", "right"].contains(float.horizontalAlign!),
+                   ["column", "margin", "page"].contains(float.horizontalFrom), _perSection == false || float.horizontalFrom != "margin" {
+                    if image.textBox?.fitsText == true { _ = _textBox(image, document) }
+                    let w = laid.map { $0.width }
+                        ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
+                    let h = laid.map { $0.height } ?? _px(image.height)
+                    var bandLeft = 0.0, bandWidth = inner
+                    if float.horizontalFrom == "page" {
+                        let setup = _setup(ofParagraph: i)
+                        let left = _px(setup.marginLeft + setup.gutter)
+                        bandLeft = -left
+                        bandWidth = inner + left + _px(setup.marginRight)
+                    }
+                    let x: Double
+                    switch float.horizontalAlign {
+                    case "center": x = bandLeft + (bandWidth - w) / 2
+                    case "right": x = bandLeft + bandWidth - w
+                    case "left": x = bandLeft
+                    default: x = bandLeft + _px(float.x)
+                    }
+                    let own = _px(p.style.indentLeft)
+                    let rightGap = _px(p.style.indentRight)
+                    let leftEdge = x - _px(float.distanceLeft ?? 9), rightEdge = x + w + _px(float.distanceRight ?? 9)
+                    if w > 0, leftEdge - own >= size * 3, inner - rightEdge - rightGap >= size * 3 {
+                        let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
+                                    bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                        if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent { best = (rightEdge - own, band, false, leftEdge - own) }
+                        continue
+                    }
+                }
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
                       float.horizontalAlign == nil || float.horizontalAlign == "left" || float.horizontalAlign == "right" else { continue }
                 let inCell = float.horizontalFrom == "cell" && cell != nil
@@ -12497,7 +12618,7 @@ public final class RichLayout {
                     let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                                 bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                     guard band.bottom > 0.01 else { continue }
-                    if best == nil || narrow > best!.indent { best = (narrow, band, true) }
+                    if best == nil || narrow > best!.indent { best = (narrow, band, true, nil) }
                     continue
                 }
                 // (Not with room at its left for text: that stands round it on
@@ -12511,7 +12632,7 @@ public final class RichLayout {
                             bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }
-                if best == nil || edge - own > best!.indent { best = (edge - own, band, false) }
+                if best == nil || edge - own > best!.indent { best = (edge - own, band, false, nil) }
             }
             if k > 0 { offset += _heights[k - 1] }
             k -= 1
@@ -13347,9 +13468,14 @@ public final class RichLayout {
         return joins
     }
 
-    private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
+    private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
-                                    runsPast: Set<Int> = [], tieShort: (first: Bool, rest: Bool) = (false, false)) -> [Int: Double] {
+                                    runsPast: Set<Int> = [], tieShort: (first: Bool, rest: Bool) = (false, false),
+                                    lineIndents: [LineIndent] = []) -> [Int: Double] {
+        // (A paragraph set on both sides of a box has a room of its own on every
+        // line, its pieces: `room` is the line's, from `lineIndents`.)
+        var width = baseWidth
+        func room(_ line: Int) -> Double { line < lineIndents.count ? max(baseWidth - lineIndents[line].left - lineIndents[line].right, 0) : baseWidth }
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
@@ -13678,6 +13804,8 @@ public final class RichLayout {
             }
         }
         var x = leadWidth
+        var lineNumber = 0
+        width = room(0)
         // (Under `w:topLinePunct` the opening mark a line starts with gives
         // its blank half as any mark does, whatever characterSpacingControl
         // says, and gives it from its left: zh-1cfb652b's "《城市建筑垃圾管理
@@ -14878,7 +15006,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
+                    if piece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
                     continue
                 }
             }
@@ -14898,6 +15026,7 @@ public final class RichLayout {
                     adjust[last - 1, default: 0] -= min(after, w - width + 0.02)
                 }
                 x = 0
+                lineNumber += 1; width = room(lineNumber)
                 onFirstLine = false
                 marks = []
                 spaces = []
@@ -15016,6 +15145,7 @@ public final class RichLayout {
             if after > 0 { spaces.append(last - 1) }
             if piece.hard {
                 x = 0
+                lineNumber += 1; width = room(lineNumber)
                 onFirstLine = false
                 marks = []
                 spaces = []
@@ -16831,7 +16961,8 @@ public final class RichLayout {
             }
         }
         // (A cell's line moved, its marker with it.)
-        let shifts = lines == nil ? _cellLineShifts(i, g, document) : []
+        var shifts = lines == nil ? _cellLineShifts(i, g, document) : []
+        if shifts.isEmpty, lines == nil, let pair = Self._paired(g.painter) { shifts = pair.shifts }
         if let first = shifts.first { canvas.save(); canvas.translate(0, first) }
         if let label = listLabel(i, document), theme.marksEmptyListItems || !document.paragraphs[i].text.isEmpty {
             let p = document.paragraphs[i]
