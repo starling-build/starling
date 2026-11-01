@@ -2277,10 +2277,19 @@ enum ChartPainter {
                     let wrapped = styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true)
                     let each = wrapped.height / Double(max(1, wrapped.computeLineMetrics().count))
                     let room = Int((box.height / each).rounded(.down))
-                    guard !c.onSlide, !c.onSheet, room >= 1, wrapped.computeLineMetrics().count > room else { return (i: e.i, tp: wrapped) }
+                    guard !c.onSlide, !c.onSheet, room >= 1 else { return (i: e.i, tp: wrapped) }
+                    // (The entry stands in from the box's left by 0.65 of the text's size — its
+                    // key 11.7pt in at 18pt — and the name wraps in what is left: long_legendentry's
+                    // "Data series with" fits the box and not the room after that inset, so
+                    // the name is three lines in two, "Data series" over "with a…".)
+                    let inset = 0.65 * size * k
+                    let narrowed = styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true)
+                    let overfull = narrowed.computeLineMetrics().count > room
+                    narrowed.dispose()
+                    guard overfull else { return (i: e.i, tp: wrapped) }
                     wrapped.dispose()
                     RuleTrace.hit("word-legend-name-ends-in-an-ellipsis-where-its-box-is-full")
-                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left, maxLines: room, windowsLines: true))
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, align: .left, maxLines: room, windowsLines: true))
                 }
             }
             // A column beside stacked columns (or areas) reads as the stack
