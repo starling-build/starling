@@ -3313,7 +3313,9 @@ enum ChartPainter {
         let lift2 = c.styled2013 ? 0 : 1.45 * k
         for (i, v) in secondTicks.enumerated() {
             let tp = secondLabels[i]
-            tp.paint(canvas, Offset(plot.right + 6 * k, vpos2(v) - tp.height / 2 - lift2))
+            // (Word for Windows stands them 10.1pt off the plot's edge: zh-61aaad09's
+            // and zh-2a241df1's "60.00%" labels print 4pt right of where 6 put them.)
+            tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? 10.1 : 6) * k, vpos2(v) - tp.height / 2 - lift2))
         }
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
