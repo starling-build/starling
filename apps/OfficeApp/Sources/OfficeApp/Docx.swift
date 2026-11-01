@@ -404,11 +404,15 @@ enum DocxFormat {
                 while k < kids.count, let f = frameOf(kids[k]), signature(f) == signature(frame) { k += 1 }
                 runs.append((frame, j ..< k)); j = k
             }
+            // (A bookmark's end between the frame and its paragraph is no paragraph: LibreOffice's
+            // tdf107119, "This is a frame" and the text round it, has one.)
+            var h = j
+            while h < kids.count, kids[h].name == "w:bookmarkStart" || kids[h].name == "w:bookmarkEnd" { h += 1 }
             guard runs.contains(where: { $0.frame["w:wrap"] == "around" }),
-                  j < kids.count, kids[j].name == "w:p", kids[j].first("w:pPr")?.first("w:framePr") == nil else {
+                  h < kids.count, kids[h].name == "w:p", kids[h].first("w:pPr")?.first("w:framePr") == nil else {
                 out.append(contentsOf: kids[i ..< j]); i = j; continue
             }
-            let host = kids[j]
+            let host = kids[h]
             var drawings: [XNode] = []
             var kept: [XNode] = []
             for (frame, range) in runs {
@@ -441,10 +445,11 @@ enum DocxFormat {
                 drawings.append(drawing)
             }
             out.append(contentsOf: kept)
+            out.append(contentsOf: kids[j ..< h])
             var at = host.children.firstIndex(where: { $0.name != "w:pPr" }) ?? host.children.count
             for d in drawings { host.children.insert(d, at: at); at += 1 }
             out.append(host)
-            i = j + 1
+            i = h + 1
         }
         body.children = out
     }
