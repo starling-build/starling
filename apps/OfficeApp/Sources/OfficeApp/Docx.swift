@@ -1575,10 +1575,18 @@ enum DocxFormat {
                     for (r, tr) in rows.enumerated() {
                         for tc in unwrapped(tr, "w:tc") {
                             let first = paragraphs.count
-                            for child in tc.children { walkBlock(child, indent: indent + 18, depth: depth + 1) }
+                            for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                             guard paragraphs.count > first else { continue }
                             flagMarkUnderNestedTable(tc, since: first)
                             let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
+                            // (The nested table's own left cell margin and left border put its text in
+                            // from the outer cell's: lo-c7082c66's middle table stands 5.6pt in, even in
+                            // compat mode 11, and lo-5c5eb1f7's frames in nested cells 5.65pt. This
+                            // replaces the flat 18pt the children used to be handed, which was 12pt too much.)
+                            let edge = (node.first("w:tblPr")?.first("w:tblBorders")?.first("w:left")).flatMap { b -> Double? in
+                                (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 16 } } ?? 0
+                            let lead = (m.left ?? 5.4) + edge
+                            for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell { paragraphs[k].style.indentLeft += lead }
                             paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
                             paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
                         }
