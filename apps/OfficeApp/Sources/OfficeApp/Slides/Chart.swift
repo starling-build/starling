@@ -3224,7 +3224,12 @@ enum ChartPainter {
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
             let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
-                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? -3 * k : 0)
+                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? -3 * k
+                   // (A titled 3-D column chart: its front plane starts 5.4 pt lower than ours at any title size —
+                   // lab ch4 (Word for Windows, rotX 15 / rotY 20, legend below): the top value label's baseline
+                   // 60.58 / 55.73 / 50.88 under the frame's top for a title of 18 / 14 / 10pt, ours 55.2 / 50.4 /
+                   // 45.5; untitled they agree, 29.81 and 29.7. zh-b8de3ae2's four charts: 121 against 117.)
+                   : word && c.barView != nil && titled ? 5.4 * k : 0)
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
