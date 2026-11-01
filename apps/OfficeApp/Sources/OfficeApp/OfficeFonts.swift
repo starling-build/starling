@@ -35,7 +35,7 @@ enum OfficeFonts {
     static let serif = "Liberation Serif"
     static let mono = "Liberation Mono"
     static let calibri = "Carlito"
-    /// Noto Sans, the face a document names when it names it (bundled; OFL).
+    /// Noto Sans, the face a document names when it names it (bundled; v1.04, Apache 2.0).
     static let notoSans = "Noto Sans"
     static let cambria = "Caladea"
     /// DejaVu Sans, for Verdana: not a metric clone, but of the same

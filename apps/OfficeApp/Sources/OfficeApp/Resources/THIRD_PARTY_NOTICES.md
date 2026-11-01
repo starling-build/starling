@@ -29,9 +29,9 @@ Document face standing in for Calibri.
 Full text: fonts/Carlito-LICENSE.txt.
 
 ## Noto Sans
-Copyright 2022 The Noto Project Authors. SIL Open Font License 1.1.
-Bundled as itself (Regular, Bold, Italic, Bold Italic; the hinted 2.x release) for documents that name Noto Sans.
-Full text: fonts/NotoSans-LICENSE.txt.
+Copyright 2012 Google Inc. Apache License 2.0.
+Bundled as itself (Regular, Bold, Italic, Bold Italic; Version 1.04, from Microsoft Office's cloud font cache) for documents that name Noto Sans.
+Full text: fonts/NotoSans-1.04-LICENSE.txt.
 
 ## Zhuque Fangsong (as Starling FangSong)
 Copyright (c) 2023, Zhejiang JadeFoci Technology Co. LTD. SIL Open Font License 1.1.
