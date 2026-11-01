@@ -15,6 +15,14 @@ if [ -z "$REV" ]; then
 fi
 for p in "$@"; do printf '%s %s\n' "$p" "$(git rev-parse "$REV:$p" 2>/dev/null || echo missing)"; done
 printf 'engine %s\n' "$(git -C "${ENGINE_REPO:-engine}" rev-parse HEAD 2>/dev/null || echo unknown)"
+# The engine LINKED, not the repo's pin: a hash of the engine library the binaries load
+# (STARLING_ENGINE_OUT, else the first engine/src/out/host_release* here), since the
+# checkout's HEAD says nothing about what was built when (Linux's StarlingText* exports,
+# 968d6ffad3e, moved scores with no change in this repo).
+EO=${STARLING_ENGINE_OUT:-}
+[ -n "$EO" ] || for d in engine/src/out/host_release_arm64 engine/src/out/host_release; do [ -d "$d" ] && { EO=$d; break; }; done
+LIB=$(ls "$EO"/libflutter_engine.so "$EO"/libFlutterMacOS.dylib "$EO"/libflutter_engine.dylib "$EO"/flutter_engine.dll "$EO"/flutter_windows.dll 2>/dev/null | head -1)
+printf 'enginelib %s\n' "$( [ -n "$LIB" ] && { shasum -a 256 "$LIB" 2>/dev/null || sha256sum "$LIB"; } | cut -c1-16 || echo unknown)"
 printf 'fonts %s\n' "${STAMP_FONTS:-bundled/windows}"
 [ -n "${T:-}" ] && rm -rf "$T"
 exit 0
