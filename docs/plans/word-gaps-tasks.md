@@ -12697,3 +12697,45 @@ One build of office d72358f13 plus my wrap=largest (landed since as 14280eb84, w
 - lo-a43021ca (floattable-header, 36.2%, 8 pages Word / 10 ours): one 48-row floating table (vertAnchor text, y 1, header row, rows 693pt tall) that parts across pages; ours parts it into more pages. The footer date line also differs on every page (file date vs today), 2 lines a page that no fix can match. Belongs to the floattable-split family (floatsplit/partmargin owners), not taken.
 - lo-eb12e7d4 stays windows-2's (claimed).
 - Queue empty for me: sending macos NEED WORK.
+
+### SPEC: ENGINE ROUND 2 — PROPOSAL FOR THE USER (lenovo-2, Sonnet 5.5, 2026-11-01, starling-bd's request via macos; NOTHING BUILT, the user decides)
+Read off this board; every line count is from LO CENSUS 2 / the entries cited. Ranked by gain per effort, best first. Round 1 (per-line indents, per-run ascent/descent) is done and in use; this is what still sits on the board as "engine can't" / "engine-round witness". The finding that matters most: only TWO of the six items below need a real engine change (items 1 and 4). The rest were filed as engine work but are layout work on top of `lineIndents`, which exists.
+
+1. JUSTIFY WIDTH SEPARATE FROM THE FIT WIDTH (macos-ios's kashida, tdf155707 / lo-af36644e, 37 lines at 42-45%).
+   What the lab showed (board, 2026-11-01): Word holds a reserve R back from the line fit, then justifies the line across the FULL width: both 17/17/16 words per line, lowKashida 17/16/16, mediumKashida 15/15/14, highKashida 14/13; full lines still end at the right margin. R is about 0.10-0.115 of the width for medium and 0.17-0.21 for high.
+   Why layout cannot do it: `lineIndents (left,right)` narrows BOTH the break and the justification, so a right indent of R breaks right but ends the line R short of the margin.
+   API: one new field, `TextPainter.fitReserve` (points, per paragraph or per line like `lineIndents`): the breaker uses `maxWidth - left - right - reserve`; justification stretches to `maxWidth - left - right`. Default 0 = today.
+   Size: small. A field through the paragraph builder, the bridge (`Text.swift`), the wasm build; one three-machine engine rebuild (about 20 min each) and the pair gate. Layout side: one rule choosing R by `jc` (needs a second lab for low/both at more widths; the first covers 150 words of Calibri 11 only).
+   Gain: tdf155707 ~ +55 points on a 37-line document, possibly more kashida documents (no scan yet). Also would let the Windows "squeeze" rule be replaced by a measured reserve if the labs agree.
+
+2. TWO-SIDED WRAP (my tdf107119 remainder, lo-fc098a0f, 6 lines, now 66.7).
+   Word sets text on BOTH sides of a box in the middle of the column: the same line y carries a left piece and a right piece, the paragraph continuing from one into the other.
+   NO new engine API needed. `lineIndents` already narrows each line. Method: lay the paragraph with alternating (left piece, right piece) widths as `lineIndents` entries, then paint each odd line at the previous line's y and take half the lines' height off the paragraph. `_paintShiftedLines` already paints lines at their own shifts. The layout comment at `RichLayout.swift` ("text round it on both sides, which the engine does not set") is out of date for this reason.
+   Size: medium, layout only (1-2 days): pagination must count pairs as one row; widow/orphan and the beside-float code must agree.
+   Gain: 4 lines now (66.7 -> 100 on one document). The census names no other both-sided witness, so the first step is a corpus scan for page-middle `wrapSquare`/`wrapTight` boxes with room on both sides; that decides whether this is worth a day.
+
+3. PER-SECTION COLUMN COUNT / WIDTH ON ONE PAGE (filed as engine-round witnesses; they are layout).
+   Documents: tdf135343_columnSectionBreak (lo-998868b6, 33.3, 6 lines; also needs bidi column order), IndexFieldFlagF (lo-9bb072ca, 25.0, 9), tdf96750_landscapeFollow (lo-554c0386, 50.0, 12), unbalanced-columns (25.0, 3), default-sect-break-cols (50.0, 1), fdo52208 (50.0, 1), tdf103931 (lo-74bd0b2f, 0, 4 of 6). About 36 lines in 7 documents.
+   Cause: `_resolveSections` gives every section the last section's column count ("columns are the document's throughout"). No engine API; the engine lays one column at a time already.
+   Size: medium to large, layout only: columns become per-section state through pagination, balancing, and the column-break code.
+   Gain: ~36 lines over 7 documents; the best count per document of the layout items.
+
+4. GLYPH OUTLINES AS PATHS (windows' dashed WordArt text outline; lab ppt/wa and wa-cap, 2026-10-31).
+   Needed for: Slides ImportWordArtGradient (sysDot / dash text outlines print dashed in PowerPoint; ours stays solid because `TextPainter` strokes cannot be dashed), and every WordArt WARP, which transforms outlines: LO tdf147485 x2 (textArchUp), fdo79540 t175, FDO78590 t144, official zh-b24b396a (textSlantDown).
+   API: `TextPainter.glyphPath(range) -> Path` (or `getGlyphOutline(face, glyphId) -> Path`), i.e. Skia's `SkFont::getPath` / `SkTextBlob` through the bridge and wasm. The dash rule itself is already known and implemented for shape outlines (`SlidePainter.dashed(capped:)`).
+   Size: engine small (one exported call); Swift medium (outline stroking with caps, then the warp transforms).
+   Gain: pixels, not lines: one Slides deck outline now, 5 warped-text documents later. The Word line score barely moves (Word's text layer holds the warped text as pieces). Rank last of the real engine items on lines; first on visible fidelity.
+
+5. TEXT AROUND FRAMES AND HEADER/FOOTER FLOATS, SETTLED AFTER PAGINATION (T256; special_styles lo-23180ba1 48.9, tdf36117 p5-6, tdf105035_framePrB 8.9, lo-9181670, tdf133924).
+   NO new engine API. `lineIndents` exists; the missing step is a pagination-time pass: once a paragraph's page and y are known, re-lay it with indents from the bands of that page (header/footer floats, page-anchored boxes, style-defined frames). Today the beside block only knows floats anchored in or above the paragraph, laid before pages exist (macOS-doc's step 3 report).
+   Size: large, layout only (a relayout pass with convergence, like the trial relayout that stays).
+   Gain: ~48 lines in special_styles alone, ~100 across the family; poor per effort but the largest pool.
+
+6. HEBREW/ARABIC LINE BUILDING (tdf129659 lo-ccca8bf3: Word 9 lines, ours 5; Cool16066 28 lines at 33%; tdf135216 7 lines at 30%; census bidi class 38 lines / 4 documents).
+   Ours merges lines Word keeps apart in RTL paragraphs. Cause not isolated: no API can be named yet.
+   Next step: a Word lab (RTL paragraph, mixed digits/Latin, several widths) and a read of whether the break is the engine's bidi run split or our own `_fit` pass. Size unknown. Gain: ~38 lines. Rank last until the read.
+
+What I found NOT to need the engine, so do not wait for a round: items 2, 3, 5. Filed as engine witnesses earlier: tdf97090, tdf154703, tdf105688, floattable-multi-col, tdf164500 (round 1's witnesses, landed or in their owners' hands).
+Slides: I found no Slides item parked "needs engine" other than item 4; Slides owners should add theirs under this heading.
+
+DECISION FOR THE USER: approve an engine round for items 1 and 4 together (both small, both one export through bridge/wasm, one rebuild on three machines), or items 1 alone. Items 2, 3, 5 go ahead as layout work either way.
