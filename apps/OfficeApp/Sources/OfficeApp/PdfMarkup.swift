@@ -22,6 +22,10 @@ struct PdfMarkup {
         /// The face its text is set in (a deletion's, its own); nil for
         /// the balloons' own.
         var family: String? = nil
+        /// The deleted paragraph's own side indents (points): Word for Windows
+        /// sets its balloon text in from them, at a quarter (lab ctdel).
+        var indentLeft = 0.0
+        var indentRight = 0.0
         var isComment: Bool { label.hasPrefix("Commented") }
     }
 
@@ -134,6 +138,8 @@ struct PdfMarkup {
                             open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
                                         family: (run.style.fontFamily ?? source.styles.resolve(p.style)?.char.fontFamily
                                             ?? source.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.drawn))
+                            open!.indentLeft = p.style.indentLeft
+                            open!.indentRight = p.style.indentRight
                         }
                         // A list item deleted with its mark loses its number
                         // too, which Word writes "<#>" (delins's tika items).
@@ -173,6 +179,8 @@ struct PdfMarkup {
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
                                 author: p.style.markRevision?.author ?? "")
+                    open!.indentLeft = p.style.indentLeft
+                    open!.indentRight = p.style.indentRight
                 } else if p.style.frame != nil || !p.runs.contains(where: { $0.style.revision?.kind == .inserted }) {
                     // (A framed paragraph's mark cannot run into the next: its
                     // own "Deleted: ¶", tdf125894's third. Nor does the mark of a
@@ -611,8 +619,20 @@ struct PdfMarkup {
             // deleted list items, delins's "<#>" ones: Tika-792's "Deleted:
             // s.", 58067's "Deleted: This is another Test.¶" and lab bp's
             // stand with the other balloons.)
-            let indent = note.label == "Deleted:" && (!windows || note.paragraphs.contains { $0.hasPrefix("<#>") }) ? 8.8 : 0
-            tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent)
+            var indent = note.label == "Deleted:" && (!windows || note.paragraphs.contains { $0.hasPrefix("<#>") }) ? 8.8 : 0
+            // (Word for Windows sets a deletion's text in from its paragraph's
+            // own side indents, at a quarter of them: lab ctdel, one deleted
+            // paragraph in twelve forms: left 864 twips moves the text 8.2pt
+            // on the print, right 864 narrows the line, a style's the same as
+            // direct, centring, a first-line indent, the kept mark and a
+            // pPrChange nothing. LibreOffice's CT-formatted-deletion, in Quote.)
+            var narrower = 0.0
+            if windows, note.label == "Deleted:", note.indentLeft > 0 || note.indentRight > 0 {
+                RuleTrace.hit("balloon-text-follows-the-deleted-paragraphs-indents")
+                indent += max(0, note.indentLeft) / 4
+                narrower = max(0, note.indentRight) / 4
+            }
+            tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent - narrower)
             // (Whole paragraphs deleted stand a little above the line they
             // are anchored to: at most 6.27pt under the line before them.
             // Labs `dl` (Word 16, delins's package, "the subcommentaries"
