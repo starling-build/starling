@@ -12617,3 +12617,45 @@ One build of office d72358f13 plus my wrap=largest (landed since as 14280eb84, w
 - 756 v2: no mover, mean with text 99.784. 756 v1: no mover (zh-cfb320509d line width 524/525, same ratio).
 - LO v2 mean with text 83.883 -> 84.997 (v1 83.483 -> 84.594), 11 up, 1 down: up lo-cc084a84 0->100, lo-983ce30f 0->100, lo-82a03040 0->100, lo-60fd9368 7.7->84.6, lo-406a95f2 44.4->100, lo-853c06a0 0->50, lo-84a48df2 50->100, lo-717ff943 3.6->52.7, lo-e07d5e6d 81.8->100, lo-5c656cf8 and lo-5d16f81b 90->100. Down: lo-c7082c66 15.4->9.8 (v1 15.4->11.4), the cancelling error already logged by macOS-doc. No other drop.
 - docx-pair.sh is landed (46b81bbfa, 5f6dad35d) and scores/mac is seeded; the STAMP carries the linked engine library hash. Code that landed after 036219852 (wrap=largest, chart userShapes/balanced legend rows, floattable anchor) is being swept now; scores/mac is re-seeded after that.
+- 2026-11-01 (lenovo-5) QUEUED-ON-A-WIP-BRANCH CLASS RE-SCORED (79 LO documents, 82 variants; tip e0d4ee805, relinked engine 968d6ffad3e, Windows mode, matcher v2). CORRECTED STATUS: the branches are already ported; the three I re-ported by hand (floattable-tables-lost / outer-nonsplit-inner 33.3 -> 100, floattable-header's page break, fdo77887/fdo48718-1) are the same patches lenovo-2 landed (b9f577372, d67e0c9ed, 844439130), so I landed nothing. 41 variants are still below 95 (2 others reached 100 on the tip). The rest are NOT unported branches: they are float-table/chart/SmartArt classes with other owners, or lines Word and we place differently. First divergence of each (Word line | ours line; page, y from the bottom, x, text), score, branch:
+  - tdf82065_Ind_start_strict 0.0 (lo-batch10): Word p1 y -85 x 108 RTLwithindent• | ours p1 y -85 x 185 •RTLwithindent
+  - floattable-wrap-on-all-pages 7.7 (wide-float-beside): Word p1 y -108 x  78 A1Heheardquietstepsbehindhim.Thatdidn'tbodewell. | ours p1 y -108 x  78 A1
+  - floattable-anchor-height 9.8 (nested-float-height): Word p1 y -763 x  48 Tabletestdocument | ours p1 y -748 x  42 Tabletestdocument
+  - fdo79822 11.1 (lo-smartart-layout): Word p1 y -134 x 209 AssessingAssessing | ours p1 y -179 x 130 RaisingCommunityAwarenessDevelopingalocalclimateId
+  - fdo78474 20.0 (lo-frame-turned): Word p1 y -95 x 295 Sales | ours p1 y -94 x 295 Sales
+  - tdf79272_strictDxa 28.6 (lo-batch10): Word p1 y -133 x 190 WestApproved | ours p1 y -133 x 196 WestApprove
+  - redline-image-inline 33.3 (lenovo3-tracked): Word p1 y -214 x  55 afterhepulledoffthebigtimeandwasmakingoffwiththegr | ours p1 y -214 x  55 justafterhepulledoffthebigtimeandwasmakingoffwitht
+  - tdf120344_FontTypes 33.3 (float-batch2): Word p1 y -85 x  89 1.asd | ours p1 y -82 x  89 1.asd
+  - tdf172156 33.3 (float-batch2): Word p1 y -220 x  33 LivingroomÁltalánosszerkezet,falak | ours p2 y -133 x  33 LivingroomÁltalánosszerkezet,falak
+  - floattable-header 36.2 (lo-t252b): Word p1 y -797 x  43 30.10.202611:15 | ours p1 y -797 x  43 27.02.202411:07
+  - floattable-redline 40.0 (lenovo3-tracked): Word p1 y -112 x  72 Table2:A1Table2:B1 | ours p1 y -115 x 177 beforeinsafter
+  - floating-table-dummy-text 43.9 (lo-cut): Word p1 y -513 x  72 doloreeufugiatnullapariatur.Excepteursintoccaecat | ours p1 y -499 x  72 auteiruredolorinreprehenderitinvoluptatevelitessec
+  - tdf92724_continuousBreaksComplex 46.2 (lo-sections-2): Word p2 y -500 x  96 [WeckenSiedasInteresseIhrer | ours p2 y -500 x  96 [WeckenSiedasInteresseIhrerLeser
+  - floattable-leak 50.0 (lo-t252b): Word p1 y -39 x  26 OuterA1Firstinner | ours p1 y -37 x  26 OuterA1
+  - floattable-tbl-overlap 50.0 (lo-t252b): Word p1 y -85 x  72 Aftertable1Table1 | ours p1 y -85 x 286 Table1
+  - sdt-company-multipara 50.0 (lo-t252b): Word p1 y -145 x  72 innertable | ours p1 y -154 x  67 innertable
+  - tdf123001 50.0 (lenovo3-tracked): same prefix
+  - tdf165492_atLeastWithBottomSpacing 50.0 (lenovo3-batchb): Word p1 y -102 x 156 1 | ours p1 y -77 x 156 1
+  - floattable-overlap-cell 55.6 (float-batch2): Word p1 y -213 x  91 20% | ours p1 y -210 x 101 20%
+  - tdf109308_dropCapNumbered 60.0 (lenovo3-batchb): Word p1 y -86 x 139 1.oremipsumdolorsitamet,consecteturadipiscingelit. | ours p1 y -86 x  90 1.oremipsumdolorsitamet,consecteturadipiscingelit.
+  - tdf153592_columnBreaks 60.0 (lenovo3-batchb): Word p1 y -257 x 147 Textbox | ours p2 y -26 x  21 x
+  - tdf82824 62.5 (mac-01Xgpbk5-lochart-steps): Word p1 y -201 x 401 ChartTitle | ours p1 y -201 x 402 ChartTitle
+  - floattable-in-text-section 66.7 (float-batch2): Word p3 y -85 x  78 A2End | ours p4 y -85 x  78 A2
+  - floattable-not-wrapped-by-table 66.7 (float-batch2): Word p1 y -96 x  54 Left,A1Right,A1 | ours p1 y -96 x  54 Left,A1
+  - tdf149089 70.0 (lab-tw1): Word p1 y -429 x  57 2018-04-05张三测试测试测试测试测试测试 | ours p1 y -414 x  57 2017-03-04秦始皇新增screentest描述
+  - tdf167540 71.4 (lo-objbase): Word p1 y -127 x  77 Firstfloatingtable | ours p1 y -102 x  51 2
+  - tdf79329 71.4 (lo-beside-r9): Word p1 y -101 x  57 A1 | ours p1 y -98 x  62 A1
+  - tdf153964_firstIndentAfterBreak14 75.0 (lo-first): Word p2 y -141 x 129 Howisfirst | ours p2 y -137 x 129 Howisfirst
+  - tdf160077_layoutInCellC 80.0 (lo-smartart-layout): Word p1 y -234 x  36 Top | ours p1 y -234 x  37 Top
+  - tdf124398 83.3 (lo-chartgroup): Word p1 y -339 x 437 Series2 | ours p1 y -322 x 438 Series1
+  - tdf152298 85.2 (lenovo3-compat-lab): Word p1 y -658 x 153 20,1230,1230,1230,1230,1231.09.2022 | ours p1 y -642 x 153 10,1230,1230,1230,1230,1231.09.2022
+  - chart-in-footer 85.7 (mac-01Xgpbk5-lochart-steps): Word p1 y -754 x 329 Series1 | ours p1 y -748 x  78 10
+  - tdf134146 85.7 (mac-01Xgpbk5-floatgraze): Word p1 y -86 x 161 5 | ours p1 y -90 x 161 5
+  - xaxis-labelbreak 85.7 (mac-01Xgpbk5-lochart): Word p1 y -86 x  84 5 | ours p1 y -90 x  84 5
+  - tdf105035_framePrC 87.2 (lo-frame-turned): Word p1 y -58 x  47   | ours p1 y -90 x  77 PreparationofPapersforIEEETRANSACTIONS
+  - tdf75573_page1frame 87.5 (lo-smar): Word p1 y -703 x  84 INCIDIDUNTUTLABOREETDOLOREMAGNAALIQUA.UTENIMADMINI | ours p1 y -687 x 100 LOREMIPSUMDOLORSITAMET,CONSECTETURADIPISICINGELIT,
+  - strict 88.9 (lo-batch10): Word p1 y -356 x 213 123 | ours p1 y -342 x 149 0
+  - tdf48658_transparentOLEheader 88.9 (lo-box-picture): Word p1 y -91 x  62 TextRow2Col1TextRow2Col2 | ours p1 y -68 x 401 bbbb
+  - tdf170672 92.3 (mac-01Xgpbk5-footfit): Word p15 y -200 x 429 scroosoosspoosboosoossoos | ours p15 y -187 x 429 oosoossboosoosooss
+  - tdf153964_topMarginAfterBreak14 93.8 (lo-first): Word p3 y -174 x  72 break | ours p3 y -159 x  72 60ptfollowedbypage
+  - floattable-heading-split-footer 94.4 (lo-objbase): Word p2 y -492 x  41 50L50 | ours p2 y -470 x  41 49L49
