@@ -1483,7 +1483,7 @@ enum DocxFormat {
                     for k in before ..< paragraphs.count { paragraphs[k].keptTable = kid }
                     keptTables[kid]!.texts = paragraphs[before...].map(\.text)
                 }
-            case "w:tbl" where currentCell != nil && depth < maxNesting && _nestingDepth(node) == 1
+            case "w:tbl" where currentCell != nil && depth < maxNesting && (_nestingDepth(node) == 1 || Self._formHoldingATable(node))
                                 && ((unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600)
                                     || (unwrapped(node, "w:tr").count > 15 && (node.first("w:tblGrid")?.all("w:gridCol").count ?? 1) >= 2)
                                     // (Or a list of short rows, one column: LibreOffice's tdf170620, 56 rows
@@ -5903,6 +5903,20 @@ enum DocxFormat {
             if let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact", let v = Double(h["w:val"] ?? "") { total += v / 20 }
         }
         return total >= 200
+    }
+
+    /// A table in a cell that holds exactly one level of tables of its own,
+    /// of three rows or more and none floating: a form whose check-box rows nest
+    /// the "Plan number / Number of lots" strip (LibreOffice's tdf158349).
+    /// Word sets it as a block in its cell like any other; flattened, the
+    /// check box and its text stacked as two lines. A one- or two-row wrapper (the
+    /// single cell around a form, zh-cb57eaad's three deep; floattable-nested-rowspan's
+    /// spacer row and form) and anything
+    /// with a floating table in it stay flattened.
+    static func _formHoldingATable(_ node: XNode) -> Bool {
+        _nestingDepth(node) == 2
+            && node.children.filter { $0.name == "w:tr" }.count >= 3
+            && node.descendant("w:tblpPr") == nil
     }
 
     static func _nestingDepth(_ node: XNode) -> Int {
