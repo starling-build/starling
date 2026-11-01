@@ -106,6 +106,9 @@ struct ChartSeries: Equatable {
     var labelCode: String? = nil
 }
 
+/// A group of a multi-level category axis: its first category and its name.
+struct ChartLevelGroup: Equatable { var from: Int; var text: String }
+
 struct Chart: Equatable {
     var type: ChartType
     /// Shown above the plot; nil for none.
@@ -131,6 +134,9 @@ struct Chart: Equatable {
     /// The first column of the data: category names, or for a scatter
     /// chart the x values.
     var categories: [String]
+    /// A multi-level category axis' outer levels (`c:multiLvlStrCache`'s
+    /// second `c:lvl` on): each the first category of a group and its name.
+    var categoryLevels: [[ChartLevelGroup]] = []
     var series: [ChartSeries]
     var legend = true
     /// `c:legendPos`: "b" below the plot (what a new chart gets), "t" above,
@@ -1153,6 +1159,7 @@ enum ChartXML {
         var categories: [String] = []
         var series: [ChartSeries] = []
         var pointColors: [Int: Color] = [:]
+        var levels: [[ChartLevelGroup]] = []
         var named = false
         for ser in el.all("c:ser") + merged.flatMap({ $0.all("c:ser") }) {
             // (A series with no name is "Series1", no space, as Office names it:
@@ -1162,6 +1169,13 @@ enum ChartXML {
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
             let val = ser.first("c:val") ?? ser.first("c:yVal")
             var names = cat.map(_points) ?? []
+            if levels.isEmpty, let cache = cat?.descendant("c:multiLvlStrCache") {
+                levels = cache.all("c:lvl").dropFirst().map { lvl in
+                    lvl.all("c:pt").compactMap { pt in
+                        pt["idx"].flatMap(Int.init).flatMap { i in pt.first("c:v").map { ChartLevelGroup(from: i, text: $0.text) } }
+                    }.sorted { $0.from < $1.from }
+                }.filter { !$0.isEmpty }
+            }
             // (Numbers named by a format — dates, most often — are shown
             // in it: chartex's radar chart has days 37261 to 37265 in a
             // m/d/yyyy cache, which Word prints as 1/5/2002 to 1/9/2002.
@@ -1384,6 +1398,7 @@ enum ChartXML {
         }
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
+        c.categoryLevels = levels
         c.lineSeries = lines.map { l in
             var l = l
             if l.values.count < n { l.values += Array(repeating: nil, count: n - l.values.count) }
@@ -3074,7 +3089,9 @@ enum ChartPainter {
             // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
             // print, "A very long category" over "name 4", ours one line a third wide.)
             let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? barNameWidth : max(slot - 2 * k, 8 * k)) }
+            // (Under a multi-level axis the names are not wrapped: lo tdf126244's
+            // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty ? barNameWidth : .infinity) : max(slot - 2 * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -3151,7 +3168,11 @@ enum ChartPainter {
             // and 3.8 pt higher at the bottom: bar-chart's in PowerPoint's
             // print, its labels where ours were.)
             let old2007 = c.plainText && !c.styled2013 && c.officeStyled
-            let left = (catLabels.map(\.width).max() ?? 0) + (old2007 ? 7.9 : 6) * k + besideOut
+            // (Each outer level of a multi-level axis takes a column of its own, a
+            // label line and 9.2 pt across, left of the names.)
+            let leafWidth: Double = catLabels.map(\.width).max() ?? 0
+            let levelBand: Double = Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 9.2 * k)
+            let left: Double = leafWidth + (old2007 ? 7.9 : 6) * k + besideOut + levelBand
             // (A 2013-style chart's top stands off the title as a column
             // chart's does, half a label line, though no label overhangs
             // it: 61745's bar chart's plot is 17 pt under its title's
@@ -3461,6 +3482,28 @@ enum ChartPainter {
                 // zero where the bars run both ways: lo tdf128996's end 8.5 pt before it.)
                 let side = word && sc.lo < 0 && !c.categoryLabelsLow && !c.categoryAxisDeleted ? zero : plot.left
                 tp.paint(canvas, Offset(side - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
+            }
+            // The outer levels of a multi-level axis: each group's name turned up
+            // in a column of its own, centred on the names it covers.
+            if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted {
+                let band = (catLabels.first?.height ?? 12 * k) + 9.2 * k
+                let leafLeft = plot.left - 8.5 * k - besideOut - (catLabels.map(\.width).max() ?? 0)
+                for (li, level) in c.categoryLevels.enumerated() {
+                    let right = leafLeft - Double(li) * band
+                    for (gi, group) in level.enumerated() {
+                        let end = gi + 1 < level.count ? level[gi + 1].from : n
+                        let tp = text(group.text, catSize, .infinity)
+                        let cy = plot.bottom - (Double(group.from) + Double(end)) / 2 * slot
+                        canvas.save()
+                        canvas.translate(right - band / 2 - tp.height / 2 - 3.5 * k, cy + tp.width / 2)
+                        canvas.rotate(-.pi / 2)
+                        tp.paint(canvas, .zero)
+                        canvas.restore()
+                        tp.dispose()
+                        let edge = plot.bottom - Double(end) * slot
+                        canvas.drawLine(Offset(right - band, edge), Offset(right, edge), gridPaint)
+                    }
+                }
             }
         } else {
             if !c.categoryAxisDeleted { canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint) }
