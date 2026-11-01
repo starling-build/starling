@@ -1,0 +1,216 @@
+## ft1-a-20-m12 pages 2 height 612.0
+  p1 base 172.70 S1
+  p1 base 262.73 S2
+  p1 base 352.75 S3
+  p1 base 442.75 S4
+  p1 base 528.58 T T Lorem 
+  p1 base 542.02 T do eiusm
+  p1 base 555.34 T aliqua U
+  p1 base 568.78 T ullamco 
+  p1 base 582.24 T aute iru
+  p1 base 595.68 T dolore e
+  p1 base 609.12 T cupidata
+  p2 base 82.46 T mollit a
+  p2 base 95.90 U U Lorem 
+  p2 base 109.34 U do eiusm
+  p2 base 122.78 U aliqua U
+  p2 base 136.10 U ullamco 
+  p2 base 149.54 U aute iru
+  p2 base 162.98 U dolore e
+  p2 base 176.42 U cupidata
+  p2 base 189.86 U mollit a
+## ft1-a-20-m15 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p2 base 82.46 T T Lorem 
+  p2 base 95.90 T do eiusm
+  p2 base 109.34 T aliqua U
+  p2 base 122.78 T ullamco 
+  p2 base 136.10 T aute iru
+  p2 base 149.54 T dolore e
+  p2 base 162.98 T cupidata
+  p2 base 176.42 T mollit a
+  p2 base 189.86 U U Lorem 
+  p2 base 203.33 U do eiusm
+  p2 base 216.77 U aliqua U
+  p2 base 230.21 U ullamco 
+  p2 base 243.65 U aute iru
+  p2 base 257.09 U dolore e
+  p2 base 270.41 U cupidata
+  p2 base 283.85 U mollit a
+## ft1-b-0-m12 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p1 base 534.82 S5
+  p1 base 550.42 T T Lorem 
+  p1 base 563.86 T do eiusm
+  p1 base 577.30 T aliqua U
+  p1 base 590.76 T ullamco 
+  p1 base 604.20 T aute iru
+  p2 base 82.46 T dolore e
+  p2 base 95.90 T cupidata
+  p2 base 109.34 T mollit a
+  p2 base 122.78 U U Lorem 
+  p2 base 136.10 U do eiusm
+  p2 base 149.54 U aliqua U
+  p2 base 162.98 U ullamco 
+  p2 base 176.42 U aute iru
+  p2 base 189.86 U dolore e
+  p2 base 203.33 U cupidata
+  p2 base 216.77 U mollit a
+## ft1-b-0-m15 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p1 base 534.82 S5
+  p2 base 82.46 T T Lorem 
+  p2 base 95.90 T do eiusm
+  p2 base 109.34 T aliqua U
+  p2 base 122.78 T ullamco 
+  p2 base 136.10 T aute iru
+  p2 base 149.54 T dolore e
+  p2 base 162.98 T cupidata
+  p2 base 176.42 T mollit a
+  p2 base 189.86 U U Lorem 
+  p2 base 203.33 U do eiusm
+  p2 base 216.77 U aliqua U
+  p2 base 230.21 U ullamco 
+  p2 base 243.65 U aute iru
+  p2 base 257.09 U dolore e
+  p2 base 270.41 U cupidata
+  p2 base 283.85 U mollit a
+## ft1-c+3-m12 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p1 base 534.82 S5
+  p1 base 553.42 T T Lorem 
+  p1 base 566.86 T do eiusm
+  p1 base 580.32 T aliqua U
+  p1 base 593.76 T ullamco 
+  p1 base 607.20 T aute iru
+  p2 base 82.46 T dolore e
+  p2 base 95.90 T cupidata
+  p2 base 109.34 T mollit a
+  p2 base 122.78 U U Lorem 
+  p2 base 136.10 U do eiusm
+  p2 base 149.54 U aliqua U
+  p2 base 162.98 U ullamco 
+  p2 base 176.42 U aute iru
+  p2 base 189.86 U dolore e
+  p2 base 203.33 U cupidata
+  p2 base 216.77 U mollit a
+## ft1-c+3-m12-p595 pages 2 height 595.3
+  p1 base 174.77 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.82 S4
+  p1 base 536.76 T T Lorem 
+  p1 base 550.20 T do eiusm
+  p1 base 563.64 T aliqua U
+  p1 base 577.08 T ullamco 
+  p1 base 590.52 T aute iru
+  p2 base 82.46 T dolore e
+  p2 base 95.90 T cupidata
+  p2 base 109.34 T mollit a
+  p2 base 122.78 U U Lorem 
+  p2 base 136.10 U do eiusm
+  p2 base 149.54 U aliqua U
+  p2 base 162.98 U ullamco 
+  p2 base 176.45 U aute iru
+  p2 base 189.89 U dolore e
+  p2 base 203.33 U cupidata
+  p2 base 216.77 U mollit a
+## ft1-c+3-m15 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p2 base 82.46 S5
+  p2 base 101.18 T T Lorem 
+  p2 base 114.62 T do eiusm
+  p2 base 128.06 T aliqua U
+  p2 base 141.38 T ullamco 
+  p2 base 154.82 T aute iru
+  p2 base 168.26 T dolore e
+  p2 base 181.70 T cupidata
+  p2 base 195.17 T mollit a
+  p2 base 208.61 U U Lorem 
+  p2 base 222.05 U do eiusm
+  p2 base 235.49 U aliqua U
+  p2 base 248.93 U ullamco 
+  p2 base 262.37 U aute iru
+  p2 base 275.69 U dolore e
+  p2 base 289.13 U cupidata
+  p2 base 302.57 U mollit a
+## ft1-c+3-m15-p595 pages 2 height 595.3
+  p1 base 174.77 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p2 base 82.46 S4
+  p2 base 174.53 T T Lorem 
+  p2 base 187.85 T do eiusm
+  p2 base 201.29 T aliqua U
+  p2 base 214.73 T ullamco 
+  p2 base 228.17 T aute iru
+  p2 base 241.61 T dolore e
+  p2 base 255.05 T cupidata
+  p2 base 268.49 T mollit a
+  p2 base 281.93 U U Lorem 
+  p2 base 295.39 U do eiusm
+  p2 base 308.83 U aliqua U
+  p2 base 322.15 U ullamco 
+  p2 base 335.59 U aute iru
+  p2 base 349.03 U dolore e
+  p2 base 362.47 U cupidata
+  p2 base 375.91 U mollit a
+## ft1-d+15-m12 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p1 base 534.82 S5
+  p1 base 565.42 T T Lorem 
+  p1 base 578.88 T do eiusm
+  p1 base 592.32 T aliqua U
+  p1 base 605.76 T ullamco 
+  p2 base 82.46 T aute iru
+  p2 base 95.90 T dolore e
+  p2 base 109.34 T cupidata
+  p2 base 122.78 T mollit a
+  p2 base 136.10 U U Lorem 
+  p2 base 149.54 U do eiusm
+  p2 base 162.98 U aliqua U
+  p2 base 176.42 U ullamco 
+  p2 base 189.86 U aute iru
+  p2 base 203.33 U dolore e
+  p2 base 216.77 U cupidata
+  p2 base 230.21 U mollit a
+## ft1-d+15-m15 pages 2 height 612.0
+  p1 base 174.74 S1
+  p1 base 264.77 S2
+  p1 base 354.79 S3
+  p1 base 444.79 S4
+  p2 base 82.46 S5
+  p2 base 113.18 T T Lorem 
+  p2 base 126.62 T do eiusm
+  p2 base 140.06 T aliqua U
+  p2 base 153.38 T ullamco 
+  p2 base 166.82 T aute iru
+  p2 base 180.26 T dolore e
+  p2 base 193.73 T cupidata
+  p2 base 207.17 T mollit a
+  p2 base 220.61 U U Lorem 
+  p2 base 234.05 U do eiusm
+  p2 base 247.49 U aliqua U
+  p2 base 260.93 U ullamco 
+  p2 base 274.37 U aute iru
+  p2 base 287.69 U dolore e
+  p2 base 301.13 U cupidata
+  p2 base 314.57 U mollit a
