@@ -1,5 +1,5 @@
 #!/bin/bash
-# test/pptx-app-render.sh IN_DIR PPT_DIR WORK [names…] — how this app DRAWS
+# test/pptx-app-render.sh [-j JOBS] IN_DIR PPT_DIR WORK [names…] — how this app DRAWS
 # a deck against how PowerPoint draws it: every .pptx in IN_DIR that has a
 # NAME-orig.pdf in PPT_DIR (PowerPoint's export, from
 # test/pptx-powerpoint-render.sh) is exported by `OfficeApp --deck-pdf` and
@@ -11,6 +11,11 @@
 # the side-by-side PNGs of pages over the threshold (pairs/), and
 # render.tsv (name, pages, worst %, mean %); rows already there are
 # skipped, so a sweep resumes. OFFICE_APP picks the binary.
+# -j JOBS (default 1) renders and scores that many decks at once, each deck
+# writing its row to WORK/rows/ and the rows joining render.tsv in deck
+# order at the end, so the file is the same at any JOBS. On the Windows
+# box (16 threads) use -j 12; elsewhere -j 4 to 8 (each render holds a
+# whole engine, so memory is what limits it).
 #   test/pptx-app-render.sh                  # the corpus in the repo, into ~/starling-ppt-check/app
 #   test/pptx-app-render.sh WORK             # … into WORK
 #   OFFICE_WEB=1 test/pptx-app-render.sh WORK   # … drawn by the browser build
@@ -21,6 +26,8 @@
 # (Starling's own fonts, whatever this machine has: a harness pins them so no
 # baseline moves with the machine — see OfficeFonts.fontSource.)
 export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
+JOBS=1
+if [ "${1:-}" = -j ]; then JOBS=${2:?-j wants a number}; shift 2; fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 if [ $# -le 1 ]; then
@@ -90,19 +97,41 @@ if [ -n "$OFFICE_WEB" ]; then
     node "$ROOT/build/tools/web-drive.mjs" pdfs "$WORK/web-list.txt" "$WORK/pdf" > "$WORK/web-drive.log" 2>&1
   kill $SERVER 2>/dev/null
 fi
+# One deck: render it, score it against PowerPoint's print, and print its row
+# (a row is "NAME<TAB>summary…", or "NAME<TAB>ERROR<TAB>why").
+one() {
+  local n=$1 base=${1%.pptx} out s
+  if [ -n "$OFFICE_WEB" ]; then
+    [ -s "$WORK/pdf/$base.pdf" ] || {
+      printf '%s	ERROR	%s
+' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)"; return; }
+  elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+    printf '%s	ERROR	%s
+' "$n" "$(echo "$out" | tail -1 | cut -c1-120)"; return
+  fi
+  s=$(eval "$DIFF_STR" '"$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1' | tail -1)
+  printf '%s	%s
+' "$n" "$s"
+}
+export -f one
+export APP IN PPT WORK OFFICE_WEB
+export DIFF_STR; DIFF_STR=$(printf '%q ' "${DIFF[@]}")
+todo=()
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.pptx}
   [ -f "$PPT/$base-orig.pdf" ] || continue
   grep -q "^$n	" "$WORK/render.tsv" && continue
-  if [ -n "$OFFICE_WEB" ]; then
-    [ -s "$WORK/pdf/$base.pdf" ] || {
-      printf '%s\tERROR\t%s\n' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue; }
-  elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
-    printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
-  fi
-  s=$("${DIFF[@]}" "$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)
-  printf '%s\t%s\n' "$n" "$s" | tee -a "$WORK/render.tsv"
+  todo+=("$n")
 done
+if [ "$JOBS" -le 1 ]; then
+  for n in "${todo[@]}"; do one "$n" | tee -a "$WORK/render.tsv"; done
+elif [ ${#todo[@]} -gt 0 ]; then
+  rm -rf "$WORK/rows"; mkdir -p "$WORK/rows"
+  printf '%s
+' "${todo[@]}" | xargs -P "$JOBS" -I{} bash -c 'one "$1" > "$WORK/rows/$1.tsv"' _ {}
+  for n in "${todo[@]}"; do cat "$WORK/rows/$n.tsv"; done | tee -a "$WORK/render.tsv"
+  rm -rf "$WORK/rows"
+fi
 if [ "$CORPUS_GROUP" = matched ]; then
   lost=$(for n in "${names[@]}"; do grep "^$n	" "$WORK/render.tsv"; done | grep -v 'worst=0.00%')
   [ -z "$lost" ] || { echo "no longer matching PowerPoint exactly:"; echo "$lost"; exit 1; }
