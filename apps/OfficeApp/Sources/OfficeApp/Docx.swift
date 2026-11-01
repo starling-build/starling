@@ -3807,7 +3807,13 @@ enum DocxFormat {
                 // kept its old place.)
                 let placed = (Double(node["w:y"] ?? "") ?? 0) != 0
                 f.verticalAlign = placed ? nil : node["w:yAlign"]
-                if node["w:y"] == nil, node["w:wrap"] == "around", let h = Double(node["w:h"] ?? ""), h > 0 { f.height = h / 20 }
+                // (A style's frame of an exact height with no anchor of its own, aligned
+                // on the margins and left to the default wrap: lo special_styles' "envelope
+                // address", 396 by 99pt, hAnchor page, centred, "bottom" — the foot of the
+                // text area in Word's print, the lines level with it set beside it.)
+                let styled = node["w:vAnchor"] == nil && node["w:hRule"] == "exact" && (node["w:wrap"] ?? "auto") == "auto"
+                    && ["top", "center", "bottom"].contains(node["w:yAlign"] ?? "")
+                if node["w:y"] == nil, node["w:wrap"] == "around" || styled, let h = Double(node["w:h"] ?? ""), h > 0 { f.height = h / 20 }
                 // (A frame set "inline" vertically, of no width or height of
                 // its own, stays in the flow as a paragraph: zh-fe536967's
                 // footer, over a style's framed 29pt box, is one, and Word

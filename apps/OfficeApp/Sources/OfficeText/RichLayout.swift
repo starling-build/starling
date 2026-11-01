@@ -1268,6 +1268,10 @@ public final class RichLayout {
     private var _mirrored: Set<Int> = []
     private var _mirrorPassing = false
     private var _besidePassing = false
+    /// The strips beside a frame the page fixes (`_stripFrame`): for each paragraph a line of
+    /// it stands level with, the room it is held in and the band, from the paragraph's top.
+    private var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
+    private var _stripPassing = false
     /// The stretch of a float that a paragraph set beside it really shares,
     /// from the paragraph's own top, as the page it fell on made it
     /// (`_besideBand` takes it over the whole float's).
@@ -1692,6 +1696,64 @@ public final class RichLayout {
                     if let old = _besideBandUse[k], abs(old.top - band.top) < 0.5, abs(old.bottom - band.bottom) < 0.5 { continue }
                     if _besideBandUse[k] == nil, let was = _besideBand(k, document), abs(was.top - band.top) < 0.5, abs(was.bottom - band.bottom) < 0.5 { continue }
                     _besideBandUse[k] = band
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
+        // The text round a frame the page fixes: a style's, centred and aligned on the
+        // margins, whose place does not depend on the flow (lo special_styles). Its page is
+        // where its paragraph stands; every line there level with it is held in to the side
+        // with the room, and laid out again until the lines settle.
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_stripPassing,
+           document.paragraphs.contains(where: { $0.cell == nil && Self._stripFrame($0.style) }) {
+            _stripPassing = true
+            defer { _stripPassing = false }
+            for _ in 0 ..< 4 {
+                var want: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
+                for (f, fp) in document.paragraphs.enumerated() where fp.cell == nil && Self._stripFrame(fp.style) {
+                    guard f < _pieceStart.count, _pieceStart[f] < _allPieces.count, let frame = fp.style.frame,
+                          let fw = frame.width, let fh = frame.height, frame.horizontalAnchor == "page", frame.horizontalAlign == "center" else { continue }
+                    let first = _allPieces[_pieceStart[f]]
+                    let setup = pageSetup(forPage: first.page)
+                    let insets = _bodyInsets(page: first.page, document)
+                    let contentH = max(1, _px(setup.height) - insets.top - insets.bottom)
+                    let h = _px(fh), w = _px(fw)
+                    let top = frame.verticalAlign == "top" ? 0 : frame.verticalAlign == "center" ? (contentH - h) / 2 : contentH - h
+                    let xml = fp.style.frameXML ?? ""
+                    let space = xml.firstRange(of: "w:hSpace=\"").flatMap { r in Double(xml[r.upperBound...].prefix { $0 != "\"" }) }.map { _px($0 / 20) } ?? 0
+                    let colLeft = _px(setup.marginLeft + setup.gutter)
+                    let x0 = (_px(setup.width) - w) / 2
+                    for piece in _pages[first.page] where piece.paragraph != f && !piece.repeated {
+                        let k = piece.paragraph
+                        let q = document.paragraphs[k]
+                        guard q.cell == nil, q.style.frame == nil, !q.text.isEmpty, !q.style.rightToLeft, k < _heights.count else { continue }
+                        let rise = piece.flowBottom - piece.flowTop
+                        guard piece.pageY < top + h - 0.01, piece.pageY + rise > top + 0.01 else { continue }
+                        let column = _flowWidth(k)
+                        let size = _px(q.runs.first?.style.fontSize ?? theme.fontSize)
+                        let own = _px(q.style.indentLeft), rightGap = _px(q.style.indentRight)
+                        let leftRoom = (x0 - space - colLeft) - own
+                        let rightRoom = (colLeft + column - rightGap) - (x0 + w + space)
+                        guard max(leftRoom, rightRoom) >= size * 2 else { continue }
+                        // (The piece's flow offsets are the flow's; the band is from the paragraph's top.)
+                        let fromTop = piece.flowTop - (k < _tops.count ? _tops[k] : 0)
+                        let band = (top: top - piece.pageY + fromTop, bottom: top + h - piece.pageY + fromTop)
+                        if rightRoom >= leftRoom {
+                            want[k] = ((x0 + w + space) - colLeft - own, band, false)
+                        } else {
+                            want[k] = (column - rightGap - (x0 - space - colLeft), band, true)
+                        }
+                    }
+                }
+                var changes: [RichChange] = []
+                for k in Set(want.keys).union(_stripUse.keys) {
+                    let a = want[k], b = _stripUse[k]
+                    if let a, let b, abs(a.indent - b.indent) < 0.5, a.right == b.right, abs(a.band.top - b.band.top) < 0.5, abs(a.band.bottom - b.band.bottom) < 0.5 { continue }
+                    if a == nil, b == nil { continue }
+                    _stripUse[k] = a
                     changes.append(.changed(k))
                 }
                 if changes.isEmpty { break }
@@ -7828,7 +7890,7 @@ public final class RichLayout {
             // (An x the style chain states wins over an alignment from
             // further down it: the date's own style puts it at 354pt, its
             // parent's says right, and Word's print has it at 354.)
-            if notBesideInText, frame.horizontalAnchor == "page", frame.horizontalAlign == "center",
+            if notBesideInText || Self._stripFrame(style), frame.horizontalAnchor == "page", frame.horizontalAlign == "center",
                !(style.frameXML ?? "").containsSubstring("w:x=\"") {
                 let setup = _setup(ofParagraph: i)
                 let shift = _px((setup.width - w) / 2 - setup.marginLeft - setup.gutter)
@@ -8739,6 +8801,7 @@ public final class RichLayout {
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
         else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom }
+        else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
         if besideIndent > 0, let band = besideBand {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
@@ -17263,6 +17326,15 @@ public final class RichLayout {
     static func _framePlaced(_ f: ParagraphFrame) -> Bool {
         guard let a = f.verticalAlign else { return true }
         return f.verticalAnchor == "margin" && f.height != nil && (a == "top" || a == "center" || a == "bottom")
+    }
+
+    /// A frame a style defines, of an exact height and a width, aligned on the margins
+    /// with no anchor of its own: the text round it stands in the strips beside it.
+    static func _stripFrame(_ style: RichParagraphStyle) -> Bool {
+        guard let f = style.frame, f.width != nil, f.height != nil, f.verticalAnchor == "margin", f.verticalAlign != nil,
+              let xml = style.frameXML, !xml.containsSubstring("w:vAnchor="), xml.containsSubstring("w:hRule=\"exact\""),
+              !xml.containsSubstring("w:wrap=\"") || xml.containsSubstring("w:wrap=\"auto\"") else { return false }
+        return true
     }
 
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
