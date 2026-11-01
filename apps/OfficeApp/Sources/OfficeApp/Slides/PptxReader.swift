@@ -905,7 +905,14 @@ struct PptxReader {
             f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
             if let to = path.first("a:fillToRect") {
                 func v(_ k: String) -> Double { (to[k].flatMap(Double.init) ?? 0) / 100000 }
-                f.fillTo = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
+                // A focus outside the shape (t 150%, b -50%) is drawn by
+                // Windows PowerPoint at the centre, not beyond the edge
+                // where the Mac's print has it (tdf94238).
+                if ["l", "t", "r", "b"].contains(where: { v($0) < 0 || v($0) > 1 }) {
+                    f.fillTo = Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
+                } else {
+                    f.fillTo = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
+                }
             } else {
                 f.fillTo = Rect.fromLTRB(0, 0, 1, 1)
             }
