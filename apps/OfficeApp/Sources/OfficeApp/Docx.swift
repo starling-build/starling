@@ -241,6 +241,42 @@ enum DocxFormat {
 
     // MARK: Reading
 
+    /// A width that is a share of the page's or margins' (`wp14:sizeRelH`,
+    /// `pctWidth` in thousandths of a percent) is that share of the section's
+    /// page or text area in Word, whatever extent the file also states:
+    /// LibreOffice's tdf92724 pull quote says 2360930 EMU (185.9pt) and 40% of
+    /// the margins (180.5pt), and Word sets its text in the 166.1pt the share
+    /// leaves; ours took the extent's 171.5 and ran a word longer on five of
+    /// its lines. The extent is rewritten in the markup, before the drawing is
+    /// read, so every reader of it agrees. Each section's own page.
+    static func _applyShareWidths(_ root: XNode) {
+        guard let body = root.first("w:body") else { return }
+        func resolve(_ anchors: [XNode], _ sect: XNode?) {
+            guard !anchors.isEmpty, let sect, let sz = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
+                  let w = Double(sz["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") else { return }
+            let gutter = Double(mar["w:gutter"] ?? "") ?? 0
+            for anchor in anchors {
+                guard let rel = anchor.first("wp14:sizeRelH"), let pct = Double(rel.first("wp14:pctWidth")?.text ?? ""), pct > 0,
+                      let extent = anchor.first("wp:extent"), let cx = extent["cx"], Double(cx) != nil else { continue }
+                let span: Double
+                switch rel["relativeFrom"] ?? "" {
+                case "margin": span = w - l - r - gutter
+                case "page": span = w
+                default: continue
+                }
+                let emu = String(Int((span / 20 * 12700 * pct / 100_000).rounded()))
+                extent.attrs["cx"] = emu
+                for ext in anchor.descendants("a:ext") where ext["cx"] == cx { ext.attrs["cx"] = emu }
+            }
+        }
+        var pending: [XNode] = []
+        for child in body.children {
+            if child.name == "w:sectPr" { resolve(pending, child); pending = []; continue }
+            pending += child.descendants("wp:anchor")
+            if child.name == "w:p", let sect = child.first("w:pPr")?.first("w:sectPr") { resolve(pending, sect); pending = [] }
+        }
+    }
+
     /// Word's drop caps. A paragraph holding only `w:framePr w:dropCap="drop"`
     /// (`w:lines` of them) and the letters it drops, on an exact line of
     /// the lines' height, goes before the paragraph it is the first of; the
@@ -618,6 +654,7 @@ enum DocxFormat {
             }
             body.children.replaceSubrange(i ... i, with: blocks)
         }
+        Self._applyShareWidths(root)
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
         // Each section break in the text, told how the section after it
@@ -1586,6 +1623,10 @@ enum DocxFormat {
                     keptTables[kid]!.texts = paragraphs[before...].map(\.text)
                 }
             case "w:tbl" where currentCell != nil && depth < maxNesting && (_nestingDepth(node) == 1 || Self._formHoldingATable(node))
+                                // (Not a single row of as many paragraphs as a page holds: a block does not part inside a row,
+                                // and one of 75 lines ran 40pt past the foot with the rest of its lines
+                                // lost. Lab nt1, Word for Windows: such a row parts at the foot like any.)
+                                && !(unwrapped(node, "w:tr").count == 1 && node.descendants("w:p").count >= 50)
                                 && ((unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600)
                                     || (unwrapped(node, "w:tr").count > 15 && (node.first("w:tblGrid")?.all("w:gridCol").count ?? 1) >= 2)
                                     // (Or a list of short rows, one column: LibreOffice's tdf170620, 56 rows
@@ -1709,19 +1750,24 @@ enum DocxFormat {
                             for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell { paragraphs[k].style.indentLeft += lead }
                             // (Its top margin and top line stand again over a part of it that goes over a
                             // page — see `RichParagraphStyle.nestedTopRepeat`; not over its first paragraph,
-                            // which brings its own space.)
-                            let topEdge = (node.first("w:tblPr")?.first("w:tblBorders")?.first("w:top")).flatMap { b -> Double? in
-                                (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 8 } } ?? 0
+                            // which brings its own space. The cell's own line, else the table's: Word for
+                            // Windows' lab nt1 sets three nested levels 6.12pt each under their 5.65 margins
+                            // and 0.5pt lines, and 15.0pt for 0 + 0.5, 10 + 1.5 and 3 + none.)
+                            func line(_ name: String, _ fallback: String) -> Double {
+                                let b = tc.first("w:tcPr")?.first("w:tcBorders")?.first(name) ?? node.first("w:tblPr")?.first("w:tblBorders")?.first(fallback)
+                                guard let b, (b["w:val"] ?? "none") != "none" else { return 0 }
+                                return Double(b["w:sz"] ?? "").map { $0 / 8 } ?? 0
+                            }
+                            let topEdge = line("w:top", r == 0 ? "w:top" : "w:insideH")
+                            let bottomEdge = line("w:bottom", r == rows.count - 1 ? "w:bottom" : "w:insideH")
                             for k in (first + 1) ..< max(first + 1, paragraphs.count) where paragraphs[k].cell == currentCell {
                                 paragraphs[k].style.nestedTopRepeat += (m.top ?? 0) + topEdge
                             }
-                            let bottomEdge = (node.first("w:tblPr")?.first("w:tblBorders")?.first("w:bottom")).flatMap { b -> Double? in
-                                (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 8 } } ?? 0
                             for k in first ..< max(first, paragraphs.count - 1) where paragraphs[k].cell == currentCell {
                                 paragraphs[k].style.nestedBottomRepeat += (m.bottom ?? 0) + bottomEdge
                             }
-                            paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
-                            paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
+                            paragraphs[first].style.spaceBefore += (m.top ?? 0) + topEdge + spacing * (r == 0 ? 2 : 1)
+                            paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + bottomEdge + spacing * (r == rows.count - 1 ? 2 : 1)
                         }
                     }
                 }
