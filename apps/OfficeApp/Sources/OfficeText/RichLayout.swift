@@ -2407,7 +2407,8 @@ public final class RichLayout {
                 guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
                 return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
                                            timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1),
-                                           shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages)
+                                           shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages,
+                                           latinQuotes: theme.wordRules && !_setEastAsian(p, document, at: o - 1) && !_setEastAsian(p, document, at: o))
             }).union(_looseWordOffsets(p, document, textWidth: 100_000, named: _named(p, document),
                                        pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
             func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
@@ -10564,7 +10565,7 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages, latinQuotes: theme.wordRules && !hinted) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             || (theme.wordRules && Self._closingQuote(ch) && !Self._eastAsianLineRules(run, document, named: named))
                             // (And end one with an opening mark, where it is
                             // `w:kinsoku` 0 that turns them off in text of an
@@ -10654,6 +10655,20 @@ public final class RichLayout {
                 // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
                 // its "失".)
                 if kind == -9 { extra += cambriaWidth * em - _glyphWidth(style(kind), ch) }
+                // (A quotation mark in a run that says `w:hint` "default" over
+                // an East Asian ASCII face and a Latin hAnsi one is the hAnsi
+                // face's, at its width: zh-785e46f8's “ ” in 仿宋_GB2312 over
+                // a Times hAnsi are 7.1pt at 16pt in Word's print, where the
+                // stand-in set them 8.0 and the line lost a character.)
+                if theme.wordRules, !ea, ch == "\u{201C}" || ch == "\u{201D}" || ch == "\u{2018}" || ch == "\u{2019}",
+                   (run.fontHint ?? named?.char.fontHint) == "default", latinFace?.isEastAsian == true, highFace.map({ !$0.isEastAsian }) == true,
+                   let high = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily {
+                    var alt = run
+                    alt.fontFamily = high
+                    let s = theme.textStyle(for: alt, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            eastAsian: false, gridPitch: pitch, characterClass: nil, characterGrid: grid, scriptHidden: true)
+                    extra += _glyphWidth(s, ch) - _glyphWidth(style(kind), ch)
+                }
                 // (An em space is an em and an en space half one, whatever face
                 // sets them: zh-8415d258's paragraphs open with two U+2003 in
                 // a 仿宋_GB2312 run, 15pt apiece at 15pt in Word for Windows'
@@ -12990,7 +13005,8 @@ public final class RichLayout {
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
                                        timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1),
-                                       shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages)
+                                       shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages,
+                                       latinQuotes: wordRules && !_setEastAsian(p, document, at: o - 1) && !_setEastAsian(p, document, at: o))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
@@ -15165,7 +15181,7 @@ public final class RichLayout {
     /// sake: before an opening one that follows East Asian text or a
     /// closing mark, after a closing one that East Asian text or an
     /// opening mark follows.
-    private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false, timesEastAsian: Bool = true, shapesPart: Bool = false) -> Bool {
+    private static func _breaksBetween(_ a: Character, _ b: Character, percentStarts: Bool = false, timesEastAsian: Bool = true, shapesPart: Bool = false, latinQuotes: Bool = false) -> Bool {
         func wide(_ c: Character) -> Bool { (c.unicodeScalars.first?.value ?? 0) >= 0x2E80 }
         // (And before a percent sign after a full-width character, where
         // the document's own list of what may not start a line leaves it
@@ -15184,6 +15200,13 @@ public final class RichLayout {
         // 健康" too; ours took the "+" down and the paragraph ran behind.)
         if a == "+", wide(b), !_closingMarks.contains(b) { return true }
         if b == "\u{201C}" || b == "\u{2018}" {
+            // (Not between a closing quote and an opening one that both stand
+            // in a Latin face: the pair is one word to Word, and a closing
+            // quote may not open a line, so the ideograph before it goes down
+            // with it. Lab `cq1` (Word 16, Windows), 04/05/07/08: "暑”“往"
+            // with "”“" in Times parts before "暑" at any room, 7.1pt quotes
+            // hung or not; in 仿宋 they part between the quotes.)
+            if latinQuotes, a == "\u{201D}" || a == "\u{2019}" { return false }
             return wide(a) && !_openingMarks.contains(a) || a == "\u{201D}" || a == "\u{2019}"
         }
         // (And before a hyphen: zh-84702a67's "…系统”-“企业信息备案模块”"
