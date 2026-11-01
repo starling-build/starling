@@ -1128,6 +1128,18 @@ struct DiagramLayout {
             // The ring touches the centre shape, less the overlap asked for.
             let (cw, _) = sizes(items[0])
             radius = (cw + w) / 2 + (node.vals["sp"] ?? node.vals["sibSp"] ?? 0)
+        } else if m > 1, layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/arrow5", full, (3 ... 5).contains(m) {
+            // PowerPoint draws a layout it knows by its uniqueId from its own
+            // definition, not from the file's (windows' lab on
+            // lo-smartart-rotation, with the id renamed so the file's was
+            // read): the chord between neighbours is (c + sibSp) arrows,
+            // c = 1.414 for four, 1.291 for five,
+            // and for three always 1.221 whatever the sibSp: 158.9 pt
+            // arrows on a ring 0.705 of one, where the file's -0.35 gave
+            // 0.375 and arrows 205 pt wide.
+            let s = max(w, h)
+            let chord = m == 3 ? s * 1.2216 : s * (m == 4 ? 2.0.squareRoot() : 1.2908) + (node.vals["sibSp"] ?? 0)
+            radius = chord / (2 * sin(abs(step) / 2 * .pi / 180))
         } else if m > 1 {
             let chord = max(w, h) + (node.vals["sibSp"] ?? 0)
             radius = chord / (2 * sin(abs(step) / 2 * .pi / 180))
