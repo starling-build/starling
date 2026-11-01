@@ -3276,6 +3276,8 @@ public final class RichLayout {
     private var _sectionOf: [Int] = []
     /// Each page's section, and each page's top on the canvas.
     private var _pageSection: [Int] = []
+    /// Pages whose header and footer come from a later section than the one that sets the page up.
+    private var _pageHeaderSection: [Int: Int] = [:]
     /// Pages left blank so that a section opens on its number's side
     /// (`_paginate`): they have no number, header or footer.
     private var _blankPages: Set<Int> = []
@@ -3613,6 +3615,18 @@ public final class RichLayout {
             if page % _columns == 0 {
                 while _pageSection.count <= physical { _pageSection.append(0) }
                 _pageSection[physical] = para < _sectionOf.count ? _sectionOf[para] : max(0, _sectionSetups.count - 1)
+                _pageHeaderSection[physical] = nil
+                // (A page that opens on the empty mark closing a continuous
+                // section belongs to the section after it: lo
+                // 090716_Studentische_Arbeit_VWS' page 3 opens on such a mark
+                // of the second section, whose default header has text, and
+                // Word's print gives the page the third section's empty one.)
+                if theme.wordRules, physical > 0, i > 0, i < count, i + 1 < _sectionOf.count, i < _cells.count, _cells[i] == nil,
+                   case let mark = document.paragraphs[i], mark.text.isEmpty, mark.image == nil, mark.style.sectionXML != nil,
+                   mark.style.sectionBreaksPage == false, _sectionOf[i + 1] != _sectionOf[i] {
+                    RuleTrace.hit("page-opens-on-a-continuous-section-mark")
+                    _pageHeaderSection[physical] = _sectionOf[i + 1]
+                }
             }
             // (Between the header and the footer, where they reach past
             // the margins.)
@@ -3891,6 +3905,7 @@ public final class RichLayout {
             contentH = max(1, _px(pageSetup(forPage: page / _columns).height) - insets.top - insets.bottom)
         } else {
             _pageSection.removeAll(keepingCapacity: true)
+            _pageHeaderSection = [:]
             openPage()
         }
         func add(_ piece: PagePiece) {
@@ -18409,7 +18424,8 @@ public final class RichLayout {
     private func _headerFooterSection(_ p: Int) -> (index: Int, last: Bool) {
         let last = max(0, _sectionSetups.count - 1)
         guard _sectionSetups.count > 1, p >= 0, p < _pageSection.count else { return (last, true) }
-        return (_pageSection[p], _pageSection[p] >= last)
+        let section = _pageHeaderSection[p] ?? _pageSection[p]
+        return (section, section >= last)
     }
 
     /// Whether page `p` is the first of a section that gives its first
