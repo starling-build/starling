@@ -5811,10 +5811,16 @@ open class RenderSemanticsAnnotations: RenderProxyBox {
         // TODO: Full implementation with semantics owner
     }
 
-    /// TODO: Override `describeSemanticsConfiguration` when
-    /// `SemanticsConfiguration` integration on RenderObject base is available.
-    /// The full implementation reads `SemanticsProperties` and configures
-    /// container, explicitChildNodes, excludeSemantics, blockUserActions, etc.
+    /// Fills in the annotation. Set by the `Semantics` widget; a closure
+    /// rather than a copy of Dart's SemanticsProperties so the widget can
+    /// describe exactly what a control offers and nothing more.
+    public var configure: ((SemanticsConfiguration) -> Void)?
+
+    open override func describeSemanticsConfiguration(_ config: SemanticsConfiguration) {
+        super.describeSemanticsConfiguration(config)
+        configure?(config)
+        if container { config.isSemanticBoundary = true }
+    }
 }
 
 // MARK: - RenderBlockSemantics

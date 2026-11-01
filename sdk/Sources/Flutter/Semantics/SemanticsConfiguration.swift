@@ -756,6 +756,13 @@ public class SemanticsConfiguration: Hashable {
   }
   internal var _role: SemanticsRole = .none
 
+  /// Starling: the control kind a `Semantics` widget names ("checkbox",
+  /// "radio", "switch", ...), which Dart's flags alone cannot say. Read by the
+  /// agent endpoint; not part of Flutter's semantics tree.
+  public var agentRole: String = "" {
+    didSet { _hasBeenAnnotated = true }
+  }
+
   // MARK: - Text Content Properties (AttributedString-backed)
   /// **Dart Source:** `semantics.dart:5307-5507`
 
