@@ -1694,7 +1694,7 @@ public final class RichLayout {
             for _ in 0 ..< 3 {
                 var changes: [RichChange] = []
                 for k in _besideLead.indices where _besideLead[k] > 0 {
-                    guard k < _pieceStart.count, _pieceStart[k] < _allPieces.count, k > 0, let table = _besideSource(k)?.cell.table else { continue }
+                    guard k < _pieceStart.count, _pieceStart[k] < _allPieces.count, k > 0, let table = _besideSource(k, document)?.cell.table else { continue }
                     let first = _allPieces[_pieceStart[k]]
                     let mine = _pages[first.page].filter { _cells[$0.paragraph]?.table == table && !$0.repeated }
                     guard let floor = mine.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max(),
@@ -5225,12 +5225,12 @@ public final class RichLayout {
             if let beside = besideTable {
                 let p = document.paragraphs[i]
                 if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
-                else if _cells[i] != nil || !(blank(p) || (i < _besideLead.count && _besideLead[i] > 0)) { y = beside.bottom; besideTable = nil }
+                else if (_cells[i] != nil && !(_cells[i].map { _narrowBesideFloat($0.table, document) } ?? false)) || (_cells[i] == nil && !(blank(p) || (i < _besideLead.count && _besideLead[i] > 0))) { y = beside.bottom; besideTable = nil }
             }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0), !ts.pageAnchored, ts.keptPosition != nil,
-               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) >= _px(18),
+               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) >= _px(18) || _stripBesideLeftTable(prev, i, document),
                let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 {
                 besideTable = (y, page)
                 y = top
@@ -10436,7 +10436,8 @@ public final class RichLayout {
             }
             let size = style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let strip = textWidth - _px(twips("w:tblpX") / 20) - widths.reduce(0, +) - _px(twips("w:rightFromText") / 20)
-            if strip >= _px(size) { _heights[i] = 0; _spaceBefore[i] = 0 }
+            // (Not before a narrow table that stands in the strip too: the mark keeps its line there, lo-5e49366b.)
+            if strip >= _px(size), !_stripBesideLeftTable(before.table, i, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
         }
         // A floating frame takes no room either: the text that follows
         // starts where it does.
@@ -12876,6 +12877,25 @@ public final class RichLayout {
         return entry
     }
 
+    /// A floating table at the left of the column that leaves a strip at its right for three ems of text, with a narrow
+    /// ordinary table after the paragraph `i` (or paragraphs of text) that stand in the strip: the paragraph between
+    /// them is beside it too. (lo-5e49366b: a blank line, a 90pt table and "x", all at the top of the strip in Word.)
+    private func _stripBesideLeftTable(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, i + 1 < document.paragraphs.count, let next = document.paragraphs[i + 1].cell,
+              _narrowBesideFloat(next.table, document), let ts = document.tableStyles[table], ts.floatsOverText,
+              let kept = ts.keptPosition, !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
+        let column = _flowWidth(i), left = _tableLeft(table, document)
+        return left < column / 2 && column - (left + widths.reduce(0, +)) >= _px(theme.fontSize) * 3 + _px(20)
+    }
+
+    /// An ordinary table (not floating, not placed against the page) a fifth of the column wide or less, that Word
+    /// sets in the strip beside a floating table rather than under it.
+    private func _narrowBesideFloat(_ table: String, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], !ts.floatsOverText, !ts.pageAnchored,
+              ts.keptPosition == nil, let widths = _columnWidths[table] else { return false }
+        return widths.reduce(0, +) <= _px(1) * 100
+    }
+
     /// A paragraph's left and right indents in points: Word's
     /// `w:leftChars` and `w:rightChars` count characters of the
     /// document's own size (Normal's), and outrank the measure beside
@@ -12890,7 +12910,7 @@ public final class RichLayout {
     /// The last cell of the table that floats by the text above paragraph `i`
     /// and the body paragraphs between (a few at most) stand under, with how
     /// far down from the table's anchor the paragraph is.
-    private func _besideSource(_ i: Int) -> (cell: _CellGeo, offset: Double)? {
+    private func _besideSource(_ i: Int, _ document: RichDocument) -> (cell: _CellGeo, offset: Double)? {
         var offset = 0.0
         var k = i - 1
         while k >= 0, k >= i - 8, k < _cells.count {
@@ -12899,7 +12919,17 @@ public final class RichLayout {
             // zh-316044fe's, and stands at the margin in Word's print.)
             if k + 1 < _pageBreak.count, _pageBreak[k + 1] { return nil }
             if k + 1 < _sectionOf.count, _sectionOf[k + 1] != _sectionOf[k] { return nil }
-            if let c = _cells[k] { return (c, offset) }
+            if let c = _cells[k] {
+                // (An ordinary narrow table in the strip beside a floating one is no cover for it: what follows
+                // stands beside the float still. LibreOffice's lo-5e49366b, a 90pt table and "x" after a 350pt float.)
+                if _narrowBesideFloat(c.table, document) {
+                    var j = k
+                    while j > 0, let d = _cells[j - 1], d.table == c.table { j -= 1 }
+                    k = j - 1
+                    continue
+                }
+                return (c, offset)
+            }
             guard k < _heights.count else { return nil }
             offset += _heights[k]
             k -= 1
@@ -12910,7 +12940,7 @@ public final class RichLayout {
     private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
               p.style.list == nil, !p.style.clearsFloat,
-              let before = _besideSource(i)?.cell,
+              let before = _besideSource(i, document)?.cell,
               let ts = document.tableStyles[before.table], ts.floatsOverText, !ts.pageAnchored,
               let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
               !kept.containsSubstring("w:tblpXSpec"),
@@ -13081,7 +13111,7 @@ public final class RichLayout {
     /// by the text it follows takes: its offset down to its foot.
     private func _besideBand(_ i: Int, _ document: RichDocument) -> (top: Double, bottom: Double)? {
         if let used = _besideBandUse[i] { return used }
-        guard i > 0, let source = _besideSource(i), case let before = source.cell,
+        guard i > 0, let source = _besideSource(i, document), case let before = source.cell,
               let style = document.tableStyles[before.table], style.floatsOverText else { return nil }
         let down = style.floatOffsetY ?? 0
         var k = i - 1, top = Double.infinity, bottom = 0.0
