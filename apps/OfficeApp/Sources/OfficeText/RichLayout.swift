@@ -5884,7 +5884,20 @@ public final class RichLayout {
                 // row's first lines. Nor a run a kept paragraph before the
                 // table began: that run is the paragraphs' own — bug65649.)
                 let carried = c.row == 0 && i > 0 && _cells[i - 1] == nil && document.paragraphs[i - 1].style.keepNext
-                if theme.wordRules, c.firstInRow, y > 0.01, !carried, document.paragraphs[i].style.keepNext {
+                // (A row is kept with the next only where the first paragraph of
+                // every one of its cells says so: lo floattable-header's "A2: page
+                // 2" is Heading 1, which keeps with the next, beside a cell that
+                // does not, and Word's print leaves the row on page 2 under the
+                // header row, where ours took it to page 3 and left page 2 empty.)
+                var rowKept = document.paragraphs[i].style.keepNext
+                if rowKept, theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] != nil {
+                    var m = i
+                    while m < count, let e = _cells[m], e.table == c.table, e.row == c.row {
+                        if m == i || _cells[m - 1]?.column != e.column, !document.paragraphs[m].style.keepNext { rowKept = false; RuleTrace.hit("row-kept-only-if-every-cell-keeps") }
+                        m += 1
+                    }
+                }
+                if theme.wordRules, c.firstInRow, y > 0.01, !carried, rowKept {
                     var previous: Int? = nil
                     var b = i - 1
                     while b >= 0, let d = _cells[b], d.table == c.table, d.row == c.row - 1 { previous = b; b -= 1 }
