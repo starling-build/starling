@@ -30,6 +30,15 @@ enum WriterCharts {
         let fill: Color?
         let line: Color?
         let lineWidth: Double
+        /// The chart's own drawing's text boxes (`c:userShapes`), by
+        /// fractions of the frame: lo tdf156267's rings' "32%".
+        var notes: [Note] = []
+    }
+
+    struct Note {
+        let left: Double, top: Double, right: Double, bottom: Double
+        let lines: [(text: String, size: Double, bold: Bool, align: TextAlign)]
+        let middle: Bool
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
@@ -39,7 +48,7 @@ enum WriterCharts {
     /// colours from `themePart` (the document's `a:theme`), for the
     /// object attachment `id`; false where it is no chart this can draw.
     @discardableResult
-    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil) -> Bool {
+    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil, userShapes: XNode? = nil) -> Bool {
         let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: pptxTheme)
@@ -90,8 +99,30 @@ enum WriterCharts {
         // in D9D9D9: chartex's box-and-whisker chart.)
         let line = ln?.first("a:solidFill").flatMap { colors.color(in: $0) }
             ?? (chartex && area == nil ? Color(0xFFD9D9D9) : nil)
-        let entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
+        var entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
+        // (Text boxes only, placed by `cdr:relSizeAnchor`; other shapes are not drawn.)
+        for anchor in userShapes?.children ?? [] where anchor.name == "cdr:relSizeAnchor" {
+            func at(_ n: XNode?) -> (Double, Double)? {
+                guard let x = n?.first("cdr:x").flatMap({ Double($0.text) }), let y = n?.first("cdr:y").flatMap({ Double($0.text) }) else { return nil }
+                return (x, y)
+            }
+            guard let a = at(anchor.first("cdr:from")), let b = at(anchor.first("cdr:to")),
+                  let body = anchor.first("cdr:sp")?.first("cdr:txBody") else { continue }
+            var lines: [(text: String, size: Double, bold: Bool, align: TextAlign)] = []
+            for para in body.all("a:p") {
+                let runs = para.all("a:r")
+                let text = runs.compactMap { $0.first("a:t")?.text }.joined()
+                guard !text.isEmpty else { continue }
+                let rPr = runs.first?.first("a:rPr")
+                let size = rPr?["sz"].flatMap(Double.init).map { $0 / 100 } ?? 18
+                let algn = para.first("a:pPr")?["algn"]
+                lines.append((text, size, rPr?["b"] == "1", algn == "ctr" ? .center : algn == "r" ? .right : .left))
+            }
+            guard !lines.isEmpty else { continue }
+            entry.notes.append(Note(left: a.0, top: a.1, right: b.0, bottom: b.1, lines: lines,
+                                    middle: body.first("a:bodyPr")?["anchor"] == "ctr"))
+        }
         lock.lock()
         entries[id] = entry
         lock.unlock()
@@ -126,6 +157,25 @@ enum WriterCharts {
             canvas.drawRect(rect, p)
         }
         ChartPainter.paint(entry.chart, canvas, rect, pxPerPt: pxPerPt, theme: entry.theme)
+        for note in entry.notes {
+            let box = Rect.fromLTRB(rect.left + note.left * rect.width, rect.top + note.top * rect.height,
+                                    rect.left + note.right * rect.width, rect.top + note.bottom * rect.height)
+            var painters: [TextPainter] = []
+            for line in note.lines {
+                let tp = TextPainter(text: TextSpan(text: line.text, style: Flutter.TextStyle(
+                    color: entry.theme.text, fontSize: line.size * pxPerPt, fontWeight: line.bold ? .bold : .normal,
+                    fontFamily: OfficeFonts.substitute(entry.chart.font ?? entry.theme.bodyFont))), textAlign: line.align, textDirection: .ltr)
+                tp.layout(minWidth: box.width, maxWidth: max(1, box.width))
+                painters.append(tp)
+            }
+            let total = painters.reduce(0.0) { $0 + $1.height }
+            var y = note.middle ? box.top + (box.height - total) / 2 : box.top
+            for tp in painters {
+                tp.paint(canvas, Offset(box.left, y))
+                y += tp.height
+                tp.dispose()
+            }
+        }
         if let line = entry.line {
             let p = Paint()
             p.style = .stroke

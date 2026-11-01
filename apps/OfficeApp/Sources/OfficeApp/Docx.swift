@@ -5112,7 +5112,10 @@ enum DocxFormat {
                 let over = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
                     .first(where: { ($0["Type"] ?? "").hasSuffix("/themeOverride") && $0["TargetMode"] != "External" })?["Target"]
                     .flatMap { notes.part(_resolvePath(dir, $0)) }
-                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over)
+                let shapes = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                    .first(where: { ($0["Type"] ?? "").hasSuffix("/chartUserShapes") && $0["TargetMode"] != "External" })?["Target"]
+                    .flatMap { notes.part(_resolvePath(dir, $0)) }.flatMap(XNode.parse)
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over, userShapes: shapes)
             }
             // A box-and-whisker chart (Office 2016's chartex part), drawn
             // on a column chart's axes, or a sunburst: named by `cx:chart`
