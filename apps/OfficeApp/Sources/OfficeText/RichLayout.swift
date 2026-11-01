@@ -5493,7 +5493,12 @@ public final class RichLayout {
                     // paragraph's: tdf153136's second copy, a table after a
                     // page-break paragraph in a two-column section, opens
                     // Word's page 2; ours set it in page 1's second column.)
-                    if theme.wordRules, _columns > 1 { while page % _columns != 0 { newPage() } }
+                    // (A column break is the next column: lo-e311acbade7c85b8's
+                    // second table follows a paragraph that breaks the column.)
+                    if theme.wordRules, _columns > 1, !document.paragraphs[i].style.columnBreak,
+                       !(i > 0 && document.paragraphs[i - 1].style.columnBreak) {
+                        while page % _columns != 0 { newPage() }
+                    }
                     // (A table placed against the page, at its offset on the
                     // page the break opened.)
                     if theme.wordRules, c.row == 0, i == 0 || _cells[i - 1]?.table != c.table,
