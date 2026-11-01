@@ -17,15 +17,15 @@ def frame(sz, sp, hs):
             '<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="20"/></w:rPr><w:t>A right aligned frame</w:t></w:r></w:p>') % (hs, '<w:pBdr>%s</w:pBdr>' % b if b else '')
 def para(r_tw, first):
     br = '' if first else '<w:pageBreakBefore/>'
-    return ('<w:p><w:pPr>%s<w:ind w:right="%d"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="20"/></w:rPr>'
-            '<w:t xml:space="preserve">aaaaaaaaaaaaa b</w:t></w:r></w:p>') % (br, r_tw)
+    return ('<w:p><w:pPr>%s</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:spacing w:val="%d"/><w:sz w:val="20"/></w:rPr>'
+            '<w:t>%s</w:t></w:r></w:p>') % (br, r_tw, 'a' * 30)
 src = zipfile.ZipFile(tpl); doc = src.read('word/document.xml').decode('utf8')
 head = doc[:doc.index('<w:body>') + 8]; sect = doc[doc.rindex('<w:sectPr'):]
 sect = sect.replace('<w:vAlign w:val="center"/>', '')
 body = ''; first = True; index = []
 for name, sz, sp, hs in VARIANTS:
-    for k in range(29):
-        r = k * 10
+    for k in range(21):
+        r = k * 2
         # the frame paragraph carries the page break (it is the first of the page)
         f = frame(sz, sp, hs)
         if not first: f = f.replace('<w:pPr>', '<w:pPr><w:pageBreakBefore/>', 1)
