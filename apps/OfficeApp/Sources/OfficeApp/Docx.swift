@@ -5727,7 +5727,9 @@ enum DocxFormat {
             // heading's space before.)
             if sectionBreakAfter { built[built.count - 1].pageBreakAfter = true }
         } else {
+            let markFollows = text.isEmpty && inlineImages.isEmpty && notes.marksFollowBreaks && (built.last.map { $0.pageBreakAfter && $0.breakCharacter && !$0.breakColumn } ?? false)
             flush(pageBreakAfter: sectionBreakAfter)
+            if markFollows, built.count > 1 { built[built.count - 1].paragraph.style.markFollowsBreak = true }
         }
         if sectionMarginsChange, !built.isEmpty { built[built.count - 1].sectionMarginsChange = true }
         if built.count > 1 { for k in 0 ..< built.count - 1 { Self._sectionMarkStaysOnTheLastPiece(&built[k].paragraph) } }

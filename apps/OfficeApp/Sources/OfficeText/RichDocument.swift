@@ -642,6 +642,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// there — Word drops the space before a paragraph that follows a
     /// break character, and keeps it under "page break before".
     public var breakEndsPrevious = false
+    /// The paragraph is the MARK of one that ended in its page break (a
+    /// file with `w:splitPgBreakAndParaMark`): the same paragraph's last
+    /// line on the new page, which keeps the space before.
+    public var markFollowsBreak = false
     /// The paragraph is the rest of one a break character split (its
     /// `w:p` went on past a `w:br w:type="page"`): its first line is no
     /// first line, and takes no first-line indent.

@@ -6438,6 +6438,12 @@ public final class RichLayout {
                 // fresh print, where ours stood p30 9pt low.)
                 let inlineKeeps = st.pageBreakInline && !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15)
                 leavesLead = !newSection && !inlineKeeps && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
+                // (The mark of a paragraph that ended in its page break,
+                // where the file splits break and mark: its line on the new
+                // page keeps the 6pt before — lo tdf151704's page 2 opens
+                // at 20.4 in Word's print, the table 32.7, where ours
+                // stood 6.3pt high.)
+                if leavesLead, st.markFollowsBreak { leavesLead = false; RuleTrace.hit("word-split-break-mark-keeps-its-space-before") }
             }
             // How much of it a page's head takes off, for where a line
             // under a float first stands (below): zh-27a874b7's chart
@@ -6448,7 +6454,7 @@ public final class RichLayout {
             var headSkip = 0.0
             if theme.wordRules, y < 0.01, page > 0, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
                 if leavesLead { headSkip = pageFresh ? lead : 0 }
-                else if i > 0, _cells[i - 1] == nil { headSkip = min(lead, _spacing(i - 1, document).after) }
+                else if i > 0, _cells[i - 1] == nil, !document.paragraphs[i].style.markFollowsBreak { headSkip = min(lead, _spacing(i - 1, document).after) }
             }
             // Pictures that text wraps round (2026-10-14, zh-37b6536f's
             // photographs, from Word's print):
@@ -6815,7 +6821,7 @@ public final class RichLayout {
                 // and 20pt, labs `hd`..`hm`, 2026-10-14; without that
                 // after, all of it.)
                 else if theme.wordRules, !leavesLead, y < 0.01, page > 0, cursor <= top + 0.01, lead > 0.01,
-                        i > 0, _cells[i - 1] == nil {
+                        i > 0, _cells[i - 1] == nil, !document.paragraphs[i].style.markFollowsBreak {
                     let prevAfter = _spacing(i - 1, document).after
                     if prevAfter > 0.01 { cursor = min(bottom, top + min(lead, prevAfter)) }
                 }
