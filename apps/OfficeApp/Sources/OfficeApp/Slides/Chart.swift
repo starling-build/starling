@@ -3093,7 +3093,11 @@ enum ChartPainter {
                     let upright = abs(turn) >= 90 && !c.onSlide && !c.onSheet
                     catLabels = c.categories.map { categoryText($0, catSize, upright ? 0.5 * area.height : .infinity) }
                 }
-            } else if !horizontal, c.type != .area, !c.categoryAxisDeleted {
+            } else if !horizontal, c.type != .area || (!c.onSlide && !c.onSheet), !c.categoryAxisDeleted {
+                // (An area chart's date labels in a Word document are turned a
+                // quarter right angle, like the columns', when they do not fit
+                // their slots: lo-c996762f20bf4f32's five dates in a 217pt chart;
+                // ours broke "1/5/2002" inside its year.)
                 let room = max(slot - 2 * k, 8 * k)
                 let words = c.categories.flatMap { $0.split(separator: " ").map(String.init) }
                 let widest = words.map { w -> Double in
