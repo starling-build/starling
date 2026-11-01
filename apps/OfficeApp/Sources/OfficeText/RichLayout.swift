@@ -9337,6 +9337,12 @@ public final class RichLayout {
                 if start < firstEnd { onFirst.insert(size) } else { later.insert(size) }
             }
             mixedSizes = onFirst.count == 1 && later.contains { !onFirst.contains($0) }
+            // (… and a first line whose sizes differ by no more than a
+            // point — 15.5 and 15 — is corrected like one of a single size:
+            // zh-202582e2's item 3, runs of sz 31 then 30, stood 6pt low
+            // where Word's print has it at the 31's baseline whatever the
+            // later lines' runs are.)
+            if !mixedSizes, onFirst.count > 1, !onFirst.contains(-1), let lo = onFirst.min(), let hi = onFirst.max(), hi - lo <= 1.0 { mixedSizes = true }
         }
         if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes,
            let line = painter.computeLineMetrics().first {
