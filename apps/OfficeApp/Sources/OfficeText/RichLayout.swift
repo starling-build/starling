@@ -6048,6 +6048,14 @@ public final class RichLayout {
                             y = target
                         }
                     }
+                    // (A table placed up over the text taken to this page
+                    // from the foot of the last stands up there too: the
+                    // floattable-tab-join pair and floattable-object-formatter,
+                    // tblpY -179 twips on a landscape page, have the second
+                    // table start 9pt up in the margin on page 2 in Word's
+                    // print and keep all three rows there; ours stood it at
+                    // the margin and sent the third row to page 3.)
+                    raiseAtHead(c)
                     goOn()
                     underPins(c.ownRowHeight)
                     shown = pageHeight()
