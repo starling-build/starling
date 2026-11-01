@@ -7466,6 +7466,12 @@ public final class RichLayout {
             return web && s.spaceAfterAuto ? (s.list == nil || !listGoesOn ? 14.0 : 0.0) : inLines(s, "w:afterLines") ?? s.spaceAfter
         }
         var spaceBefore = web && style.spaceBeforeAuto ? autoGap : inLines(style, "w:beforeLines") ?? style.spaceBefore
+        // (An empty paragraph that is a whole continuous section of its own — it ends
+        // the section, and the one before it ended just above — has no space before in
+        // Word's print: zh-b8de3ae2 p25's two (7.55pt and 3pt) stand the text after them
+        // 10.4pt high, nine lines matched.)
+        if theme.wordRules, i > 0, p.text.isEmpty, style.sectionPage != nil,
+           document.paragraphs[i - 1].style.sectionPage != nil, document.paragraphs[i - 1].style.sectionBreaksPage != true { spaceBefore = 0 }
         // (Automatic spacing gives way at a cell's edges, as a web page's
         // does: none before a cell's first paragraph, none after its
         // last — zh-a4b0f6ea's cover form, whose every cell is auto
