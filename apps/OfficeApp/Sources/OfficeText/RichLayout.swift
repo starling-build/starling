@@ -2667,6 +2667,11 @@ public final class RichLayout {
                 return v
             }
             if theme.wordRules, let down = ts?.floatOffsetY { y += _px(down) }
+            // (A table floating over the text of a header or footer, raised by a negative
+            // `w:tblpY`, stands that far above the line it hangs from — off the page's head
+            // too: LibreOffice's tdf105688 header table, tblpY -1554 twips, has its
+            // text 78pt higher in Word's print than the line set it in the flow.)
+            else if theme.wordRules, floatsFrames, floatsFrom != nil, let up = ts?.floatRaiseY { y -= _px(up) }
             func rule(_ side: String, _ on: Bool?) -> Double {
                 // (Under Word's rules each cell carries its own row's
                 // rules in its margins — its own sides, the row above's,
