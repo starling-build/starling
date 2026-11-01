@@ -17816,6 +17816,26 @@ public final class RichLayout {
             }
         }
         layout.ensureLaidOut(sub)
+        // (A frame anchored to the page, at a y it states, stands there: Word
+        // clamps it only at the page's foot, not at the footer's bottom.
+        // Lab fr148b (Word for Windows): a framed line's top is the frame's y
+        // for any y up to the page's bottom, in exact and auto-height frames
+        // alike; an exact frame that would pass the foot moves up to fit.
+        // lo tdf148671's footer frame, y 796.25 under a footer bottom of
+        // 806.2, has its line at 796.26 in Word's print; ours stood 3.5pt up.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages {
+            let region = kind == .header ? _px(setup.headerDistance) : _px(setup.height) - _px(setup.footerDistance) - layout.totalHeight
+            for (k, para) in sub.paragraphs.enumerated() where para.cell == nil && k < layout._tops.count && k < layout._spaceBefore.count {
+                guard let f = para.style.frame, f.verticalAnchor == "page", f.verticalAlign == nil,
+                      let xml = para.style.frameXML, xml.containsSubstring("w:y=\"") else { continue }
+                var target = _px(f.y)
+                var room = layout._painters[k]?.height ?? 0
+                if xml.containsSubstring("w:hRule=\"exact\""), let r = xml.firstRange(of: "w:h=\""),
+                   let h = Double(xml[r.upperBound...].prefix { $0 != "\"" }), h > 0 { room = _px(h / 20) }
+                target = min(target, _px(setup.height) - room)
+                layout._spaceBefore[k] = target - region - layout._tops[k]
+            }
+        }
         let made = _HeaderFooter(layout: layout, document: sub)
         _headerFooterCache[key] = made
         return made
