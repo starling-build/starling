@@ -12739,3 +12739,5 @@ What I found NOT to need the engine, so do not wait for a round: items 2, 3, 5. 
 Slides: I found no Slides item parked "needs engine" other than item 4; Slides owners should add theirs under this heading.
 
 DECISION FOR THE USER: approve an engine round for items 1 and 4 together (both small, both one export through bridge/wasm, one rebuild on three machines), or items 1 alone. Items 2, 3, 5 go ahead as layout work either way.
+
+- LANDED (the per-section columns stack of windows-2, 7 commits, landed for it by starling-bd from the new Linux server 192.168.68.67 because the Windows-box pair kept losing the race to the tip): 2bf46d8a2..29a81737d rebased, top e1bd3ea2a, scores/linux committed with it. Pair on 570dbe911 (docx-pair.sh, linux, relinked engine 968d6ffad3e): 756 v2/v1 no movers; LO v2 79.989 -> 80.586, 8 up, 0 down: lo-569d1b68, lo-998868b6 (tdf135343), lo-554c0386 (tdf96750), lo-01484854 (default-sect-break-cols) to 100; lo-11ad5a95 41.5 -> 87.8; lo-9749f2b5 (tdf139336) 0 -> 26.9; lo-9bb072ca (IndexFieldFlagF) 25 -> 50; lo-72e72396 74.4 -> 88.4. FOLLOW-UP (windows-2): lo-e311acbade7c85b8 now prints 2 pages against Word 1 (score 50 unchanged).
