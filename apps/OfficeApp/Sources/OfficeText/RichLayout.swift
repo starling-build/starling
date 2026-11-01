@@ -954,6 +954,10 @@ public struct PageSetup: Hashable, Sendable {
     /// section's are `RichDocument.pageNumberStart`/`pageNumberFormat`.
     public var pageNumberStart: Int? = nil
     public var pageNumberFormat: String? = nil
+    /// The section's chapter numbers on its page numbers
+    /// (`RichDocument.chapterStyle`/`chapterSeparator` are the last section's).
+    public var chapterStyle: Int? = nil
+    public var chapterSeparator: String? = nil
     /// The section's line numbers (`w:lnNumType`), nil where it has none.
     public var lineNumbers: LineNumbering? = nil
     /// The section's vertical alignment of a page's text (`w:vAlign`):
@@ -18698,6 +18702,45 @@ public final class RichLayout {
         return number % 2 == parity.rawValue ? number : number + 1
     }
 
+    /// The chapter's number and its separator in front of page `p`'s number,
+    /// where the section's `w:pgNumType` names a heading level
+    /// (`w:chapStyle`): LibreOffice's tdf149089, chapStyle 1 over a numbered
+    /// "heading 1", is "1-1", "1-2", "1-3" in Word's print. The chapter is
+    /// the first heading of that level on the page, else the last before it
+    /// (as STYLEREF reads), else the first after it: the title page of
+    /// tdf149089 stands before its only chapter heading and is "1-1" in
+    /// Word's print too.
+    private func _chapterPrefix(_ p: Int, _ document: RichDocument) -> String {
+        guard theme.wordRules else { return "" }
+        let section = _headerFooterSection(p)
+        let level: Int?, separator: String?
+        if section.last || section.index >= _sectionSetups.count {
+            level = document.chapterStyle; separator = document.chapterSeparator
+        } else {
+            level = _sectionSetups[section.index].chapterStyle; separator = _sectionSetups[section.index].chapterSeparator
+        }
+        guard let level, level >= 1, p < _pages.count else { return "" }
+        let onPage = _pages[p].map(\.paragraph).filter { $0 >= 0 && $0 < document.paragraphs.count }
+        guard let first = onPage.min() else { return "" }
+        let isChapter: (Int) -> Bool = { document.paragraphs[$0].style.heading == level && self.listLabel($0, document) != nil }
+        let last = onPage.max() ?? first
+        guard let chapter = onPage.sorted().first(where: isChapter) ?? (0 ..< first).reversed().first(where: isChapter)
+                ?? (last + 1 ..< document.paragraphs.count).first(where: isChapter),
+              var label = listLabel(chapter, document) else { return "" }
+        label = label.trimmingWhitespace()
+        while let last = label.last, ".、．)）".contains(last) { label.removeLast() }
+        guard !label.isEmpty else { return "" }
+        let sep: String
+        switch separator {
+        case "period": sep = "."
+        case "colon": sep = ":"
+        case "emDash": sep = "\u{2014}"
+        case "enDash": sep = "\u{2013}"
+        default: sep = "-"
+        }
+        return label + sep
+    }
+
     /// How page `p`'s section writes its numbers.
     private func _pageNumberFormat(_ p: Int, _ document: RichDocument) -> String? {
         let section = _headerFooterSection(p)
@@ -18765,7 +18808,7 @@ public final class RichLayout {
             }
         }
         let setup = pageSetup(forPage: p)
-        let shown = _pageNumber(number, document, format: _pageNumberFormat(p, document))
+        let shown = _chapterPrefix(p, document) + _pageNumber(number, document, format: _pageNumberFormat(p, document))
         let count = String(pageCount ?? self.pageCount)
         let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(number % 2)|\(p % 2)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
         if let hit = _headerFooterCache[key] { return hit }

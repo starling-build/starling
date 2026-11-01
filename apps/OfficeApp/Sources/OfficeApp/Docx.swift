@@ -2947,6 +2947,8 @@ enum DocxFormat {
             if let num = sect.first("w:pgNumType") {
                 document.pageNumberStart = Int(num["w:start"] ?? "")
                 document.pageNumberFormat = num["w:fmt"]
+                document.chapterStyle = Int(num["w:chapStyle"] ?? "")
+                document.chapterSeparator = num["w:chapSep"]
             }
             document.sectionTailXML = tail.isEmpty ? nil : tail
         }
@@ -4043,6 +4045,8 @@ enum DocxFormat {
         if let num = sect.first("w:pgNumType") {
             setup.pageNumberStart = Int(num["w:start"] ?? "")
             setup.pageNumberFormat = num["w:fmt"]
+            setup.chapterStyle = Int(num["w:chapStyle"] ?? "")
+            setup.chapterSeparator = num["w:chapSep"]
         }
         if let mar = sect.first("w:pgMar") {
             setup.marginTop = Double(mar["w:top"] ?? "1440").map { abs($0) / 20 } ?? 72

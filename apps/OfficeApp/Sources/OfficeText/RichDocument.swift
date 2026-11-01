@@ -2380,6 +2380,11 @@ public struct RichDocument: Hashable, Sendable {
     /// says that (`w:fmt`: "lowerRoman", "numberInDash"…).
     public var pageNumberStart: Int? = nil
     public var pageNumberFormat: String? = nil
+    /// The heading level whose number a page number starts with
+    /// (`w:pgNumType w:chapStyle`), and what stands between them
+    /// (`w:chapSep`: "hyphen", "period", "colon", "emDash", "enDash").
+    public var chapterStyle: Int? = nil
+    public var chapterSeparator: String? = nil
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
     public var evenAndOddHeaders = false
     /// Content types of `keptParts`, by package path, as the file declared
