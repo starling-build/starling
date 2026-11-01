@@ -1046,9 +1046,47 @@ struct DiagramLayout {
             let side = min(w, h * ar)
             w = side; h = side / ar
         }
+        let n = items.count
+        // PictureStrips is sized as PowerPoint's built-in one (measured at
+        // n = 1...6): strips of aspect 3, one column up to four of them and
+        // two from five, row gap 0.1325 of a strip's height and column gap
+        // twice that, the strips (with the picture bar's 0.03 overhang)
+        // centred in the frame.
+        if layout["uniqueId"] == "urn:microsoft.com/office/officeart/2008/layout/PictureStrips",
+           first.params["ar"].flatMap(Double.init) == 3, (node.params["flowDir"] ?? "row") == "row" {
+            let g = 0.1325, over = 0.03
+            // (Where the height limits them PowerPoint's own rule is not known:
+            // n = 3 and 4 measured, the rest by the frame less a tenth.)
+            var bestH = 0.0, bestC = 1
+            for c in 1 ... min(2, n) {
+                let r = (n + c - 1) / c
+                let byWidth = W / (3 * Double(c) + Double(c - 1) * 2 * g)
+                let byHeight: Double
+                if c == 1, n == 3 { byHeight = 117.7 / 426.7 * H } else if c == 1, n == 4 { byHeight = 86.6 / 426.7 * H }
+                else { byHeight = 0.9 * H / (Double(r) + Double(r - 1) * g + over) }
+                let hh = min(byWidth, byHeight)
+                if hh > bestH + 1e-9 { bestH = hh; bestC = c }
+            }
+            let cols = bestC, rows = (n + cols - 1) / cols
+            let h = bestH, w = 3 * h
+            var gap = g * h
+            // (Width-limited in a column, the rest of the height is shared out between them.)
+            if cols == 1, n == 2 { gap = max(gap, (0.8725 * H - Double(n) * h - over * h) / Double(n - 1)) }
+            let colPitch = w + 2 * g * h
+            let spanW = Double(cols) * w + Double(cols - 1) * 2 * g * h
+            let spanH = Double(rows) * h + Double(rows - 1) * gap + over * h
+            let ox = node.rect.left + (W - spanW) / 2, oy = node.rect.top + (H - spanH) / 2
+            for (i, item) in items.enumerated() {
+                let row = i / cols, col = i % cols
+                let inLine = min(cols, n - row * cols)
+                let shift = inLine < cols ? Double(cols - inLine) / 2 * colPitch : 0
+                item.rect = Rect.fromLTWH(ox + Double(col) * colPitch + shift, oy + Double(row) * (h + gap), w, h)
+                layoutNode(item)
+            }
+            return
+        }
         let hs = spaces.first?.vals["w"] ?? 0
         let vs = node.vals["sp"] ?? hs
-        let n = items.count
         let byRow = (node.params["flowDir"] ?? "row") == "row"
         // The column count whose grid is largest in the frame.
         var best = 1, bestScore = Double.infinity
@@ -1783,7 +1821,17 @@ struct DiagramLayout {
             .filter { $0.name == "a:r" && !($0.first("a:t")?.text ?? "").isEmpty }
         let ownSizes = fileRuns.compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init) }
         let k = !fileRuns.isEmpty && ownSizes.count == fileRuns.count && prim > 0 ? min(1, (ownSizes.max() ?? 0) / 100 / prim) : 1
-        func margin(_ name: String) -> String { Self.emu((n.value(name) ?? inset) * k) }
+        // PictureStrips' text starts a tenth of a strip's height past the
+        // small picture's right edge (measured at n = 1...6), not at 0.6 of
+        // the bar's width.
+        let strips = layout["uniqueId"] == "urn:microsoft.com/office/officeart/2008/layout/PictureStrips"
+        func margin(_ name: String) -> String {
+            if strips, name == "lMarg", n.vals["lMarg"] != nil, n.rect.width > 0 {
+                let strip = n.rect.width / 0.96
+                return Self.emu((0.21 - 0.04) * strip + 0.1 * strip / 3)
+            }
+            return Self.emu((n.value(name) ?? inset) * k)
+        }
         let bodyPr = XNode(name: "a:bodyPr", attrs: ["anchor": anchor, "wrap": "square", "starling:insScale": "1",
                                                      "lIns": margin("lMarg"), "tIns": margin("tMarg"),
                                                      "rIns": margin("rMarg"), "bIns": margin("bMarg")])
@@ -1798,6 +1846,9 @@ struct DiagramLayout {
             if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
             bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
         }
+        // (PictureStrips' left margin is a distance from the picture, not a
+        // share of the font: it stays when the text shrinks.)
+        if strips, n.vals["lMarg"] != nil { bodyPr.attrs["starling:insScale"] = "0" }
         body.children = [bodyPr, XNode(name: "a:lstStyle", attrs: [:])] + paragraphs
         return body
     }
