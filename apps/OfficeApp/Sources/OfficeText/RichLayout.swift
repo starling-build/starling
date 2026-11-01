@@ -7392,6 +7392,20 @@ public final class RichLayout {
                 } else if floatHold != nil {
                     // Nothing fits over the table: all of it goes under.
                     y = floatHold!.back; floatHold = nil; frameReturn = nil
+                } else if y > 0.01, theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[i].text.isEmpty,
+                          document.paragraphs[i].image == nil, i + 1 < count, document.paragraphs[i + 1].style.markFollowsBreak,
+                          _pageBreak[i + 1], bottom - cursor <= contentH - y + _px(2.5) {
+                    // (A line that holds only a page break, hung a little past the foot
+                    // (the length of a line's leading), stays on its page and the break
+                    // ends it: lo floattable-header's 13.8pt line at 761.6, the foot at
+                    // 788.2, is page 1's last in Word's print; ours took it to a page
+                    // of its own and the table after it to the page after, 10 pages
+                    // for 8.)
+                    RuleTrace.hit("page-break-line-hangs-past-the-foot")
+                    add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom, page: page, pageY: y))
+                    cursor = bottom
+                    y = contentH
+                    break
                 } else if y > 0.01 {
                     // Nothing fits in what is left of this page: start a new one.
                     newPage()
