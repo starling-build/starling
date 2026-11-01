@@ -12776,7 +12776,7 @@ public final class RichLayout {
 
     private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
-              p.style.list == nil,
+              p.style.list == nil, !p.style.clearsFloat,
               let before = _besideSource(i)?.cell,
               let ts = document.tableStyles[before.table], ts.floatsOverText, !ts.pageAnchored,
               let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),

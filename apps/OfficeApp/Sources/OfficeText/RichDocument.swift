@@ -638,6 +638,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// property: laid out the same here, written back as it was — Word
     /// places the text after one differently by the paragraph's spacing.
     public var pageBreakInline = false
+    /// The paragraph opens with a line break that clears the floats (`w:br w:clear`), right after
+    /// a table floating over the text: the text stands under the table, not in the room beside it.
+    public var clearsFloat = false
     /// A page break character opened this paragraph in a table cell, where
     /// Word sets no break (the reader drops it) but, from 2013's layout,
     /// takes the paragraph's space before off: zh-ab9cbe66.

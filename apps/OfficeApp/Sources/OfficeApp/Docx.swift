@@ -1463,6 +1463,21 @@ enum DocxFormat {
                     if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
                 if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
+                // (A line break that clears opens a paragraph after a table floating over the text: the
+                // line is the one level with the table, and the text after it stands under the table.
+                // LibreOffice's fdo76248, "*Projections" after Table 5: 499.5 in Word's print, the table's
+                // foot, where ours set it and the paragraphs after in the 218pt beside it.)
+                if Self.wordOnWindows, currentCell == nil, first > 0, first < paragraphs.count, let above = paragraphs[first - 1].cell,
+                   tableStyles[above.table]?.floatsOverText == true, paragraphs[first].image == nil, paragraphs[first].text.hasPrefix("\n"),
+                   let run = node.children.first(where: { $0.name == "w:r" }),
+                   let br = run.children.first(where: { $0.name != "w:rPr" }), br.name == "w:br",
+                   (br["w:type"] ?? "textWrapping") == "textWrapping", ["all", "left", "right"].contains(br["w:clear"] ?? "") {
+                    paragraphs[first].text.removeFirst()
+                    if !paragraphs[first].runs.isEmpty {
+                        if paragraphs[first].runs[0].length > 1 { paragraphs[first].runs[0].length -= 1 } else { paragraphs[first].runs.removeFirst() }
+                    }
+                    paragraphs[first].style.clearsFloat = true
+                }
                 // A text box whose text holds a table (`_Shared.boxTables`):
                 // its text read again here, tables and all, as a small table
                 // in a cell is (below). zh-64044a1d's 災民收容登記表 is a form
