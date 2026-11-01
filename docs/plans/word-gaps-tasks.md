@@ -12277,3 +12277,5 @@ A picture fill that declares no dpi is laid at **96 dpi on Windows PowerPoint** 
 - CLAIM (lenovo-3 Sonnet 5.5, 2026-10-31, starling-bd via macos): LO Word tdf97090 (lo-717ff9436b62dd61, 3.6%, 1 page vs Word 2), tdf163575 (lo-7ec36a70d03c79fb, 9.7%), tdf147485 (lo-677416bef0488597, 0%, ours 2 lines). Windows mode v2; full pair before landing; a lab goes on the board if needed (windows offline).
 
 - CLAIM (Linux lo4 Sonnet 5.5, 2026-11-01, starling-bd's queue): Slides decks lo-tdf146223 (13.94), GeomLec1 (9.97), lo-tdf114848 (5.85), in that order. Gate: 555-deck sweep vs powerpoint-win, tip before/after, nothing worse, matched-win.txt exact.
+
+CLAIMED (Linux lenovo-2 starling-d6, 2026-10-31, starling-bd via macos): lo-c4c60fcb (6.2: a chart in a wpg group, wrapTopAndBottom, is not drawn at all; Word 1 page, ours 2), lo-2d0cbd06 floattable-footer-object (6.2), lo-60fd9368 tdf154703 (7.7 on the last sweep). lo-88b29958 and lo-f391267c are held by lenovo office1 and lenovo-3, not taken.
