@@ -406,7 +406,7 @@ enum WriterGroups {
             return Double(formula.dropFirst(4))
         }
         let warp = TextWarp(preset: preset, adjust: adjustments, xml: PptxXML.serialize(w))
-        return WordArt.envelope(warp) != nil ? warp : nil
+        return WordArt.draws(warp) ? warp : nil
     }
 
     /// Reads the shapes of `group` (a `wpg:wgp`) — straight lines, and
