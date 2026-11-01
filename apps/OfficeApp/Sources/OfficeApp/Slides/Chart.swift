@@ -2146,6 +2146,14 @@ enum ChartPainter {
 
         let titled = !(c.title ?? "").isEmpty
         var placed: (TextPainter, Offset)? = nil
+        // (How far the title pushed the plot's top down. A 2007-style flat pie in a
+        // Word document with its legend at a side is centred on the whole frame, the
+        // legend with it, not on the room under the title: fdo78474's and
+        // lo-72e72396's legend and pie both stand at the frame's middle in Word's
+        // print — 125.45 of 125.45, 219.35 of 219.3 — ours 8pt lower. A
+        // Word-made chart with outside labels (zh-37b6536f) stands elsewhere, so
+        // that one keeps the room under the title.)
+        var titleDrop = 0.0
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
             // each line centred. (A Word document's chart that gives no size anywhere: 10pt, as
@@ -2247,7 +2255,14 @@ enum ChartPainter {
             // (A pie on a slide stands 7 under it: pie-chart's, its top
             // 2.75 pt lower in PowerPoint's print and the pie 3.25 smaller.)
             let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
+            let beforeTitle = area.top
             area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
+            if c.type == .pie, c.ofPie == nil, c.pieTilt == nil, !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.titleAt == nil,
+               c.plotLayout == nil, c.legendBox == nil, c.legend, ["r", "l"].contains(c.legendPosition),
+               !(c.pieLabels.map { $0.series || $0.category || $0.value || $0.percent } ?? false) {
+                RuleTrace.hit("word-pie-with-a-side-legend-is-centred-on-the-frame")
+                titleDrop = area.top - beforeTitle
+            }
             if placed == nil { tp.dispose() }
         }
 
@@ -2381,7 +2396,7 @@ enum ChartPainter {
                                          area.bottom - 1.2 * k - lineH - 8.4 * k)
                 }
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - lineH * Double(lines.count) / 2
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - lineH * Double(lines.count) / 2
                 if c.legendPosition == "l" {
                     columnX = area.left
                     area = Rect.fromLTRB(area.left + columnW + 12 * k, area.top, area.right, area.bottom)
@@ -2482,6 +2497,7 @@ enum ChartPainter {
         if pie, let l = c.plotLayout {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
+        if titleDrop > 0 { area = area.shift(Offset(0, -titleDrop / 2)) }
         if c.surface {
             _surface(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
                      text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) })
