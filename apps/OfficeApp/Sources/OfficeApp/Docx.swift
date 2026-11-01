@@ -2248,6 +2248,10 @@ enum DocxFormat {
                         }
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
+                        if let rev = tcPr?.first("w:cellDel") ?? tcPr?.first("w:cellIns") {
+                            currentCell?.revision = RevisionMark(kind: rev.name == "w:cellIns" ? .inserted : .deleted, author: rev["w:author"] ?? "",
+                                                                 date: rev["w:date"] ?? "", moved: false)
+                        }
                         currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
                         currentCell?.rowBordersXML = rowSides.map { PptxXML.serialize($0) }
                         currentCell?.marginsXML = tcPr?.first("w:tcMar").map { PptxXML.serialize($0) }
@@ -4388,6 +4392,10 @@ enum DocxFormat {
                 let to = rev.name == "w:ins" || rev.name == "w:moveTo"
                 style.markRevision = RevisionMark(kind: to ? .inserted : .deleted, author: rev["w:author"] ?? "", date: rev["w:date"] ?? "",
                                                   moved: rev.name.hasPrefix("w:move"))
+            }
+            if let change = pPr.first("w:pPrChange") {
+                style.propertyChange = FormatChange(author: change["w:author"] ?? "", date: change["w:date"] ?? "",
+                                                    oldRPrXML: change.first("w:pPr").map { PptxXML.serialize($0) } ?? "")
             }
             if let rPr = pPr.first("w:rPr") {
                 // (The mark's character style first, then its own properties, as a run's:

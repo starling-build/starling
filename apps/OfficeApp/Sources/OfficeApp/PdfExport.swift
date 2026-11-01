@@ -94,7 +94,7 @@ extension PdfExport {
         return document.paragraphs.contains { p in
             // (A deleted paragraph mark is a tracked change too, with its
             // "Deleted: ¶" balloon: tdf120336's one empty paragraph.)
-            p.style.markRevision?.kind == .deleted ||
+            p.style.markRevision?.kind == .deleted || p.style.propertyChange != nil || p.cell?.revision?.kind == .deleted ||
             (p.style.markRevision != nil && p.style.sectionXML != nil) ||
             p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision.map(Self.hasBalloon) == true || $0.style.formatChange != nil }
         }

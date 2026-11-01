@@ -197,8 +197,22 @@ struct PdfMarkup {
         let tos = PdfMarkup._insertedMoves(printed)
         let made = PdfMarkup._moves(tos + places.filter { p in !tos.contains { $0.anchor == p.anchor } } + deletions)
             + PdfMarkup._comments(printed) + PdfMarkup._formats(printed) + gone
+        // (Within one line of the page — a paragraph, or a table row — Word
+        // stacks the balloons of text taken out before the ones for text
+        // reformatted: n830205's "Deleted" pair before its "Formatted", and
+        // tdf123001's "Deleted", "Deleted Cells", then "Formatted: Right: 0"".)
+        var rowStart: [Int] = []
+        for (i, p) in printed.paragraphs.enumerated() {
+            if i > 0, let c = p.cell, let b = printed.paragraphs[i - 1].cell, b.table == c.table, b.row == c.row { rowStart.append(rowStart[i - 1]) }
+            else { rowStart.append(i) }
+        }
+        func line(_ n: Note) -> Int { n.anchor.paragraph < rowStart.count ? rowStart[n.anchor.paragraph] : n.anchor.paragraph }
+        func rank(_ n: Note) -> Int { n.label == "Formatted:" || n.label == "Field Code Changed" ? 1 : 0 }
         notes = made.enumerated()
-            .sorted { ($0.element.anchor, $0.offset) < ($1.element.anchor, $1.offset) }.map(\.element)
+            .sorted { a, b in
+                let ka = (line(a.element), rank(a.element), a.element.anchor, a.offset), kb = (line(b.element), rank(b.element), b.element.anchor, b.offset)
+                return ka < kb
+            }.map(\.element)
     }
 
     /// What Word calls the section break that ends the section at `index`: by
@@ -276,7 +290,24 @@ struct PdfMarkup {
         // whose words after the link were not reformatted has its field's
         // balloon before the next item's.)
         var codeChanged: (field: Int, author: String)? = nil
+        var cellsSeen: Set<String> = []
+        var paragraphLast: String? = nil
         for (i, p) in document.paragraphs.enumerated() {
+            // (A cell deleted with its row's tracked change: one "Deleted
+            // Cells" for the cell, at its first paragraph — tdf123001's.)
+            if let c = p.cell, let rev = c.revision, rev.kind == .deleted, cellsSeen.insert("\(c.table)/\(c.row)/\(c.column)").inserted {
+                out.append(Note(anchor: RichPosition(paragraph: i, offset: 0), label: "Deleted Cells", paragraphs: [""], author: rev.author))
+            }
+            // (A paragraph whose indents or alignment were changed: a
+            // balloon for the stretch of paragraphs changed alike, "Formatted:
+            // Centered", "Formatted: Right: 0\"".)
+            if let change = p.style.propertyChange {
+                let said = Self._describe(paragraph: p.style, was: change.oldRPrXML)
+                if said.isEmpty { paragraphLast = nil } else if paragraphLast != said {
+                    out.append(Note(anchor: RichPosition(paragraph: i, offset: 0), label: "Formatted:", paragraphs: [said], author: change.author))
+                    paragraphLast = said
+                }
+            } else { paragraphLast = nil }
             // (A result that runs to its paragraph's end ends there.)
             defer {
                 if let c = codeChanged {
@@ -314,6 +345,48 @@ struct PdfMarkup {
             last = (text, 0)
         }
         return out
+    }
+
+    /// What a paragraph's alignment and side indents are now that they were
+    /// not, in Word's words (inches, two places: `Right: 0"`).
+    static func _describe(paragraph style: RichParagraphStyle, was old: String) -> String {
+        func attribute(_ element: String, _ name: String) -> String? {
+            guard let r = old.rangeOfSubstring("<\(element) ") ?? old.rangeOfSubstring("<\(element)/") else { return nil }
+            let tail = old[r.upperBound...]
+            guard let end = tail.firstIndex(of: ">") else { return nil }
+            let tag = String(tail[..<end])
+            guard let a = tag.rangeOfSubstring(name + "=\"") else { return nil }
+            return String(tag[a.upperBound...].prefix { $0 != "\"" })
+        }
+        func inches(_ points: Double) -> String {
+            let v = (points / 72 * 100).rounded() / 100
+            return (v == v.rounded() ? String(Int(v)) : String(v)) + "\""
+        }
+        var said: [String] = []
+        let oldAlign: ParagraphAlignment = {
+            switch attribute("w:jc", "w:val") {
+            case "center": return .center
+            case "right", "end": return .right
+            case "both", "distribute": return .justify
+            default: return .left
+            }
+        }()
+        if style.alignment != oldAlign {
+            switch style.alignment {
+            case .center: said.append("Centered")
+            case .right: said.append("Right")
+            case .justify: said.append("Justified")
+            default: said.append("Left")
+            }
+        }
+        func twips(_ names: [String]) -> Double {
+            for n in names { if let v = attribute("w:ind", n).flatMap({ Double($0) }) { return v / 20 } }
+            return 0
+        }
+        let oldLeft = twips(["w:left", "w:start"]), oldRight = twips(["w:right", "w:end"])
+        if abs(style.indentLeft - oldLeft) > 0.01 { said.append("Left: " + inches(style.indentLeft)) }
+        if abs(style.indentRight - oldRight) > 0.01 { said.append("Right: " + inches(style.indentRight)) }
+        return said.joined(separator: ", ")
     }
 
     /// What a run's look is now that it was not, in Word's words.

@@ -701,6 +701,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// paragraph joins the next once accepted (and Word prints nothing
     /// for a paragraph whose text and mark are both deleted).
     public var markRevision: RevisionMark? = nil
+    /// A tracked change to the paragraph's own properties (`w:pPrChange`):
+    /// who made it and the properties it had before, as the file wrote them.
+    public var propertyChange: FormatChange? = nil
 
     public init(alignment: ParagraphAlignment = .left, indentLeft: Double = 0,
                 indentRight: Double = 0, firstLineIndent: Double = 0,
@@ -1070,6 +1073,9 @@ public struct CellRef: Hashable, Sendable {
     /// The table's border switch when `bordersXML` was read: once the
     /// editor toggles the table's borders, the summary is written instead.
     public var bordersKeptUnder: Bool? = nil
+    /// A tracked change to the cell itself (`w:cellIns`, `w:cellDel`): Word
+    /// prints "Inserted Cells" / "Deleted Cells" in the margin for it.
+    public var revision: RevisionMark? = nil
     /// Which way the cell's text runs (PowerPoint's `vert`, Word's
     /// `w:textDirection`): across as usual, or turned a quarter so the
     /// lines run up or down the cell and stack across its width.
