@@ -1709,7 +1709,9 @@ public final class RichLayout {
         // The page is where the paragraph holding them stands; every line there level with
         // one is held in to the side with the room, and laid out again until the lines settle.
         if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_stripPassing,
-           document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0) != nil }) {
+           document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0) != nil })
+            || (theme.wordRules && RichTextTheme.wordWindowsPages && pageSetup != nil && _columns == 1 && !_stripPassing
+                && document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfBox($0) != nil } })) {
             _stripPassing = true
             defer { _stripPassing = false }
             for _ in 0 ..< 4 {
@@ -1752,6 +1754,52 @@ public final class RichLayout {
                         default: x0 = left + _px(float.x)
                         }
                         blocks.append((first.page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
+                    }
+                }
+                // (And a header's or footer's own boxes that the text goes round: Word wraps the
+                // body round a sidebar picture anchored in the header — lo tdf38575's, 84pt wide
+                // and the page's height, holds every line of the body in 18pt.)
+                if document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfBox($0) != nil } }) {
+                    for page in _pages.indices {
+                        let setup = pageSetup(forPage: page)
+                        let pageH = _px(setup.height), marginTop = _px(setup.marginTop), marginBottom = _px(setup.marginBottom)
+                        let insetTop = page < _pageInsetTop.count ? _pageInsetTop[page] : marginTop
+                        for kind in [KeptHeaderFooter.Kind.header, .footer] {
+                            guard let hf = _headerFooter(kind, page: page, document, pageCount: 1) else { continue }
+                            let region = kind == .header
+                                ? hf.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)
+                                : pageH - _px(setup.footerDistance) - hf.height
+                            for (j, hp) in hf.document.paragraphs.enumerated() {
+                                guard let box = Self._hfBox(hp) else { continue }
+                                let float = box.float, image = box.image
+                                let w = _px(image.width), whole = _px(image.height) + _px(float.effectBottom)
+                                var onPage: Double
+                                switch float.verticalFrom {
+                                case "page", "margin", "topMargin":
+                                    let base = float.verticalFrom == "page" ? 0 : marginTop
+                                    let span = float.verticalFrom == "page" ? pageH : pageH - marginTop - marginBottom
+                                    switch float.verticalAlign {
+                                    case "center": onPage = base + (span - whole) / 2
+                                    case "bottom": onPage = base + span - whole
+                                    case "top": onPage = base
+                                    default: onPage = base + _px(float.y)
+                                    }
+                                default:
+                                    guard float.verticalAlign == nil else { continue }
+                                    onPage = region + (j < hf.layout._tops.count ? hf.layout._tops[j] : 0) + _px(float.y)
+                                }
+                                let left = float.horizontalFrom == "page" ? 0 : _px(setup.marginLeft + setup.gutter)
+                                let across = float.horizontalFrom == "page" ? _px(setup.width) : _px(setup.contentWidth)
+                                let x0: Double
+                                switch float.horizontalAlign {
+                                case "center": x0 = left + (across - w) / 2
+                                case "right": x0 = left + across - w
+                                case "left": x0 = left
+                                default: x0 = left + _px(float.x)
+                                }
+                                blocks.append((page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
+                            }
+                        }
                     }
                 }
                 for block in blocks {
@@ -17456,11 +17504,23 @@ public final class RichLayout {
     /// text's way, aligned on the page or its margins both ways (`_floatRect`'s place).
     static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
         guard p.cell == nil else { return nil }
-        for image in p.inlineImages.values {
+        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   let a = float.verticalAlign, a == "top" || a == "center" || a == "bottom",
                   float.verticalFrom == "page" || float.verticalFrom == "margin",
                   float.horizontalFrom == "page" || float.horizontalFrom == "margin",
+                  float.horizontalAlign != "inside", float.horizontalAlign != "outside",
+                  float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
+            return (image, float)
+        }
+        return nil
+    }
+
+    /// A box in a header's or footer's paragraph that the body's text goes round.
+    static func _hfBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
+        guard p.cell == nil else { return nil }
+        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+            guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
             return (image, float)
