@@ -152,6 +152,11 @@ struct PdfMarkup {
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
                                 author: p.style.markRevision?.author ?? "")
+                } else if p.style.frame != nil {
+                    // (A framed paragraph's mark cannot run into the next: its
+                    // own "Deleted: ¶", tdf125894's third.)
+                    deletions.append(Note(anchor: RichPosition(paragraph: paragraphs.count, offset: p.text.utf16.count), label: "Deleted:",
+                                          paragraphs: ["¶"], author: p.style.markRevision?.author ?? ""))
                 }
                 pending = p
                 continue
