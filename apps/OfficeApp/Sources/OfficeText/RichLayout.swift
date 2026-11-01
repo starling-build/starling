@@ -8813,6 +8813,18 @@ public final class RichLayout {
                 let em = _px(p.runs.first?.style.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize)
                 if textWidth < em { lineWidth = max(lineWidth, em) }
             }
+            // (Word holds a reserve back from the fit of a line set `mediumKashida` or
+            // `highKashida` and justifies across the whole width: its lab (tdf155707, Calibri 11,
+            // "word" x150) fits 15 / 15 / 14 words at 453.6 / 433.6 / 413.6pt where `both` fits
+            // 17 / 17 / 16 and the full lines still end at the margin; high 14 / 13. The reserve is
+            // about 0.105 of the width for medium, 0.19 for high; low fits as `both`.)
+            if theme.wordRules, style.alignment == .justify {
+                switch style.eastAsian["w:jc"] {
+                case "mediumKashida": painter.fitReserve = 0.105 * lineWidth
+                case "highKashida": painter.fitReserve = 0.19 * lineWidth
+                default: break
+                }
+            }
             painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
             // (A paragraph of spaces alone is one line, its spaces hung
             // past the edge as a line's last ones are: zh-cfb32050's form
