@@ -201,6 +201,13 @@ public final class RichTextTheme {
         // (The face the text asks for, where its stand-in is not its
         // clone, keeps its own depth below the baseline: `ownDescentShare`.)
         let below = own ?? drawn
+        // PowerPoint for Windows scales the whole line, baseline and all,
+        // from its top (HowWeRefactor's 60% Courier New 12 pt stands its
+        // baseline 1.43 pt lower than the depth-kept rule's: 0.4 of the
+        // 3.6 pt below it; GeomLec1's 90% 0.59, a tenth of 5.9).
+        // Only for a deep reduction (75% and under): at 90% the sweep lost
+        // more decks than it gained (the faces differ in a way not found).
+        if multiple <= 0.75, scalesLowSpacingFromTop { return multiple * single * (drawn - below) }
         // Under a spacing of its own below single, a shrink-to-fit's
         // reduction (`lineSpacingReduction`) scales the whole line,
         // baseline and all: lo-3columns' 90% less 20% stands its first
@@ -235,6 +242,11 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Slides: a spacing under single scales the line from its top, the
+    /// letters' depth below going with it (PowerPoint for Windows), where
+    /// false keeps the depth under the baseline and takes the change off
+    /// above (PowerPoint for Mac's).
+    public var scalesLowSpacingFromTop = false
     /// Slides: the share of a spacing over single's extra that stands
     /// above a paragraph's lines (`baselineShift`), whatever the face:
     /// PowerPoint's 0.70 at 150% in tdf137367's 40 pt Calibri, where the
