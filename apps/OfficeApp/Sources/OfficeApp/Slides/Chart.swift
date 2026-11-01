@@ -506,6 +506,9 @@ struct Chart: Equatable {
         var series = false, category = false, value = false, percent = false
         var separator: String? = nil
         var outside = false
+        /// Where the file puts the labels (`c:dLblPos`: ctr, inEnd, inBase,
+        /// outEnd, bestFit), nil where it says nothing.
+        var position: String? = nil
         /// Outside only for a best fit (`bestFit`), which a 3-D pie
         /// keeps inside its slices.
         var fitted = false
@@ -1536,6 +1539,7 @@ enum ChartXML {
             // labels inside and the small ones' beside them on leaders.)
             let pos = d.first("c:dLblPos")?["val"] ?? (type == .pie ? "bestFit" : nil)
             l.outside = pos == "outEnd" || pos == "bestFit"
+            l.position = d.first("c:dLblPos")?["val"]
             var ends = pos == "outEnd"
             for one in d.all("c:dLbl") {
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init) else { continue }
@@ -5017,8 +5021,15 @@ extension ChartPainter {
                 if upright < 1 { RuleTrace.hit("word-pie-outside-label-room-grows-with-uprightness") }
                 at = Offset(edge.dx + dx * gap + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * upright * (gap + h / 2))
             } else {
-                // (A 3-D pie's 0.9 of the way out: the survey's.)
-                at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
+                // (A 3-D pie's 0.9 of the way out: the survey's. Where the file
+                // says "ctr", half way out along the slice's middle, seen
+                // through the pie's own projection: lab pie3 (Word for Windows,
+                // a two-slice pie, 24 shares and turns at each of rotX 15, 30
+                // and 45): all 72 labels within 0.4pt of 0.5 of the radius,
+                // the camera 4.65 radii off.)
+                let f = inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? (l.position == "ctr" && !c.onSlide && !c.onSheet ? 0.5 : 0.9) : 0.7
+                if point != nil, l.position == "ctr", !c.onSlide, !c.onSheet { RuleTrace.hit("word-pie3d-centre-label-at-half-radius") }
+                at = on(s.mid, f)
             }
             let moved = l.moves[s.index]
             if let m = moved {
