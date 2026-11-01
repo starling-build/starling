@@ -9618,6 +9618,22 @@ public final class RichLayout {
         // layout without the strut does, over whatever baseline the text
         // was given above — not on top of it: zh-76700e5f's "5.3 制棒"
         // headings stood a point under Word's with both.)
+        // (A bullet in Symbol stands the first line on Symbol's own ascent under its top, where that is more than
+        // the text's, and the line as much taller — Word for Windows: LibreOffice's tdf104492, Arial 10pt under a "•", has
+        // its bullet lines 12.25pt (1.225 em, Symbol's 1005 and 220 of 1000) apart where the others are Arial's 11.5; Times 12pt
+        // goes 13.8 to 14.7. Courier New's "o" (0.833 over the baseline) sets nothing, nor does Calibri, whose own is the taller.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list == .bullet, p.image == nil, !p.text.isEmpty,
+           style.lineHeightPoints == nil || style.lineHeightIsMinimum,
+           _levelNumberFonts(p, document).latin?.lowercased() == "symbol",
+           let line = painter.computeLineMetrics().first {
+            let named = _named(p, document)
+            let markerSize = _markerChar(p, document).fontSize ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            let need = _px(markerSize * 1.005) - line.baseline
+            if need > _px(0.05) {
+                _inkShift[i] += max(0, need - _inkShift[i])
+                segoeLift += max(0, _px(markerSize * 1.225) - line.height) / _px(1)
+            }
+        }
         if numberLift > 0.001 {
             let extra = max(0, numberLift - _inkShift[i])
             _inkShift[i] += extra
