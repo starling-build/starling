@@ -12915,3 +12915,5 @@ By document the mass is: zh-b8de3ae2 46 (bar3D/col+line/pie3D/ofPie/line, all fo
 
 ### amd-3 CLAIM — zh digit-run line-end class (ideograph|digit at Word's break), 756 set
 On starling-bd's order. Re-count on tip, find Word's keep/break rule for a digit run at the line end (zh-12c4f07a, zh-4a90bb2f, zh-8628cfbe, zh-9bcea239, zh-146f4e02). amd-6 told to leave these out of its census. Then zh-202582e2's 6 pt gap.
+
+- 2026-11-01 amd-7 (Slides, closing): the fast (no-WMO) build and the default (WMO) build of tip 120672010, both against the same engine, print BYTE-IDENTICAL `--deck-pdf` output for all 555 decks (test/corpus/pptx/decks), and score the same (mean 0.9436 vs powerpoint-win, 96 matched-win decks exact). So `build-office-fast.sh` is safe for Slides gates too (header updated). Linux Slides scores equal the Mac/Windows rows on 541 of 555 decks to 0.01; baseline-win.tsv (0.963) is stale, NOT refreshed (starling-bd: skip). windows-2's "numCol candidate" is stale: bodyPr numCol landed 2026-10-12 (the four numCol decks score 0.25 to 3.78%, lo-3columns the worst). amd-7 now moves to Word.
