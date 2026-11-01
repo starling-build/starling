@@ -123,7 +123,13 @@ welcome, textedit.docx, word-boringcrypto.docx (24 pages, 1071 lines) and the PD
 It exits 1 and names the decks that leave 0.00. At tip a19fc04e7 all 96 still score 0.00 (Mac, 4.5 min incl. build excluded). The tip watch now runs it on every tip that touches Slides.
 
 ### zh-61aaad09 97.1 (Windows): chart label x 6-7pt, bar chart value labels — CLAIMED (mac-confirm, 2026-10-31, starling-bd's assignment from lenovo-2's open list)
-Tip b0e321b68: compiles (checked), Slides matched-win 96/96 still 0.00. Windows mode, v2, 756 + LO pair on the Mac with the build/guard here before landing.
+Tip b0e321b68: compiles (checked), Slides matched-win 96/96 still 0.00.
+- DONE (mac-confirm): the 97.1 was not the x. The two missed lines were the chart-2 pie legend's wrapped "举报" (Word 642/700, ours 638/695): Word sets a wrapped legend name's lines on the
+  per-face line (JhengHei 1.729 em, baselines 17.3 apart at 9.96pt; ours 14.0). Wrapped legend names now use `labelSpan` (same as chart labels). Pair on the Mac (ed5669921 base, both Windows mode, v2):
+  756 zh-61aaad09 97.1 -> 100, nothing else moved (v1 none down); LO 593 nothing moved.
+- OPEN (invisible to the line matcher, which ignores x): the second value axis' labels stand 6.4pt left of Word's in zh-61aaad09 chart 1 and zh-2a241df1 (Word 460.7 vs ours 454.3: Word's labels are
+  10.1pt from the plot edge — tick "out", 3.5 + 6.6 — ours 6; and a manual-layout plot over a data table is 2.3pt narrower in ours, 283.6 vs 285.8, edge 448.3 vs 450.6, where the frame's right minus 4 minus the
+  label width minus 10.1 gives Word's 450.6); pie legend names stand 2.3pt left and 1.8pt high; left axis labels end 1.0pt left. Not changed.
 
 **Confirmation round 5 — PASS for 5 of 6** (windows-1, 2026-10-30; base office 64f26dce; Windows mode, 756, final prints; v2 official).
 Stack of 6 (7190a877 lenovo-3 dotabove, 9dd407f8 macOS-doc spacegive T240, 8141e618 lenovo-2 mixed-size-baseline,
