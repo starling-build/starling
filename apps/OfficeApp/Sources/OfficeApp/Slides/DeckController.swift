@@ -1392,6 +1392,7 @@ final class DeckController: ChangeNotifier {
         theme.measuresShownCaps = true      // and fits a run in capitals by its capitals
         theme.kernsByRun = true             // and kerns a run only from its `kern` size up
         // (No `cellLineShift`: PowerPoint for Windows keeps a cell's lines at their pitch, as it does a box's.)
+        theme.scalesLowSpacingFromTop = true // and scales a line under single from its top, as PowerPoint for Windows does
         theme.cellLinesPastCorners = true   // and runs a cell's own lines half their width past its corners
         theme.exactLineDescentShare = 0.22  // and sets a line of so many points' baseline 0.78 down it, whatever the face
         theme.exactLineDescentOfSize = 0.25 // but no less than a quarter of its text's size above its foot
