@@ -63,12 +63,19 @@ struct PdfMarkup {
                     deletions.append(Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Moved:", paragraphs: [p.text],
                                           author: mark.author))
                 }
+                // (Its rows are laid out as ordinary Normal paragraphs, not as
+                // the table's cell paragraphs: 23 pt each at Calibri 11
+                // whatever the moved table's text, in Word's print.)
                 var empty = p
                 empty.text = ""
+                let normal = source.styles[RichNamedStyle.normalId]
+                if let n = normal?.paragraph {
+                    empty.style.spaceAfter = n.spaceAfter
+                    empty.style.spaceAfterAuto = n.spaceAfterAuto
+                    empty.style.lineSpacing = n.lineSpacing
+                }
                 empty.style.markRevision = nil
-                // (Its rows stand taller than the new place's, as Word prints them.)
-                empty.style.spaceAfter += 10
-                empty.runs = [Run(length: 0, style: CharStyle())]
+                empty.runs = [Run(length: 0, style: normal?.char ?? CharStyle())]
                 paragraphs.append(empty)
                 continue
             }
