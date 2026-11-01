@@ -14867,7 +14867,14 @@ public final class RichLayout {
                                 ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + ($1 == a - 1 ? 0 : gaps[$1] ?? 0) } * 0.44)
                                     <= markRoom * (stretchRoom + hair)
                                 : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
-                                    <= room * (stretchRoom + hair) || cellRest)
+                                    <= room * (stretchRoom + hair) || cellRest
+                                    // (A digit that ends a cell's line, Word for Windows: lab
+                                    // `sqc`'s "11" is taken 4.5 over and left from 6, half
+                                    // its "月", whatever the share test says of the line's
+                                    // stretch — zh-8628cfbe's "…員工1" (name 名 down) is
+                                    // taken 4.3 over with its "。" squeezed 4.6.)
+                                    || (RichTextTheme.wordWindowsPages && !wide && inCell && oneLatin && x < width
+                                        && need <= room + hair && x + min(lead, w) - width <= before / 2 + edge))
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
