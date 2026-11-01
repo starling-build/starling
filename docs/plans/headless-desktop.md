@@ -117,24 +117,68 @@ None for the prototype. Wanted later:
    `/dev/dri` they use the CPU path; with it, kms_swrast).
 6. Test with a real RDP client.
 
-## GNOME 50 comparison (web-sourced, not installed, not measured)
+## GNOME 50 comparison
 
-- mutter has a `--headless` backend. GNOME 50 added virtual monitors and
-  monitor-mode emulation, and `gnome-headless-session` to launch a session
-  with no monitor.
-- Control: `org.gnome.Mutter.RemoteDesktop` and `org.gnome.Mutter.ScreenCast`
-  (`RecordVirtual`) over D-Bus, pixels over PipeWire, input over libei.
-- `gnome-remote-desktop` serves RDP (FreeRDP) and VNC. Headless single-user
-  setup uses `grdctl --headless`; multi-user remote login goes through GDM
-  and a per-user compositor.
-- A headful session cannot be shared with a headless one. Mutter 50.1 has a
-  reported crash when a Qt client asks a headless seat for a keyboard.
-- Cost: a full gnome-shell (JavaScript), mutter, PipeWire, WirePlumber and
-  a D-Bus stack per session. Starling's headless shell is one process with
-  no such stack.
-- Unlike Starling, GNOME has no agent-oriented control API. You assemble one
-  from RemoteDesktop, ScreenCast and libei.
+Measured on the same box (gnome-shell 50.1, gnome-remote-desktop 50.2,
+mutter, PipeWire), one private session with its own bus and runtime
+directory. No GDM, no seat, no root. Started with
+`gnome-shell --headless --wayland --no-x11 --virtual-monitor 1920x1080`.
 
-Verdict: GNOME can do it and is the better choice if the goal is running
-unmodified GNOME apps with the stock desktop. For agent control at density,
-Starling's own headless mode is simpler and lighter.
+What was measured:
+- **It works headless here**, on software GL, with no GPU.
+- **Memory: about 370 MB per session** (35 processes, PSS), 390 MB with the
+  RDP server listening. Starling's desktop is about 250 MB in one process.
+  Most of GNOME's extra weight is session helpers (evolution, ibus, goa,
+  portals), not the compositor.
+- **Idle CPU: about zero** (0.001 cores) once started. Startup burned about
+  13 CPU-seconds.
+- **CPU per frame and fps: NOT measured.** The only sanctioned way to pull
+  pixels is RDP/ScreenCast, and this box has no X server or SDL for the RDP
+  client (`xfreerdp3` needs one). Needs `xvfb` or `sdl3-freerdp`.
+
+What was learned:
+- gnome-shell's own Screenshot D-Bus call is refused ("Screenshot is not
+  allowed") outside an unsafe mode. Agents must go through
+  `org.gnome.Mutter.RemoteDesktop` + `ScreenCast` (PipeWire frames, libei
+  input) or through RDP.
+- `grdctl --headless ... enable` needs systemd user services and fails
+  without them. In a bare private session set the dconf key directly
+  (`/org/gnome/desktop/remote-desktop/rdp/headless/enable`), and give
+  `grdctl` absolute paths for the TLS key and cert.
+- The remote-desktop daemon wants EGL and prints Mesa errors with no GPU,
+  but still starts and serves RDP.
+- Known upstream: mutter 50.1 crashes when a Qt client asks a headless seat
+  for a keyboard (web report, not reproduced).
+- Setting up a session took a dozen steps and a private bus. Starling's is
+  one process and one environment variable.
+
+## Recommendation
+
+For agent control at density, **use Starling's headless mode**:
+- One process, about 250 MB, free when idle, and a purpose-built control
+  socket (windows, launch, input, screenshots, stats) with same-user-only
+  access.
+- GNOME gives screenshots and input only through RDP or the
+  RemoteDesktop/ScreenCast/libei stack, which is a larger surface to
+  assemble and secure, and about 50% more memory per session.
+- Keep GNOME as the fallback when an agent must run unmodified GNOME apps
+  that need the stock desktop's services.
+- Open question: GNOME's frame cost. Install `xvfb` (or `sdl3-freerdp`),
+  then drive both desktops with the same workload and compare.
+
+## Capability checklist (headless-agent branch)
+
+| Capability | Status |
+|---|---|
+| Screenshot, click, drag, scroll, key, type | done |
+| Launch by app id, window list | done |
+| Frame stats | done |
+| Idle cost near zero (no blink, no screensaver) | done |
+| Same-user-only socket | done |
+| Semantics tree and actions | not started (design agreed with lenovo-2, who has since left) |
+| Window focus / move / resize / minimise / close, wait-for-window | not started |
+| Shell surfaces (dock, launcher, notifications, control centre) | not started |
+| Clipboard, drag-and-drop, file dialogs, IME | not started |
+| Event subscription, wait-for-condition | not started |
+| N-desktop orchestration, Python client, CLI | not started |
+| End-to-end suite under test/ | smoke test only |
