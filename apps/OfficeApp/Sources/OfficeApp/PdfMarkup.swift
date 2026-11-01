@@ -49,7 +49,29 @@ struct PdfMarkup {
             open = nil
         }
         var pending: RichParagraph? = nil   // a paragraph whose mark was deleted, to be joined to the next
+        // A table moved away whole (TC-table-DnD-move): one balloon, "Moved
+        // down [1]: A1", for the whole of it, and one empty line where it
+        // stood.
+        var movedTable: String? = nil
         for var p in source.paragraphs {
+            if let c = p.cell, let mark = p.style.markRevision, mark.kind == .deleted, mark.moved, !mark.nested,
+               p.runs.allSatisfy({ $0.length == 0 || ($0.style.revision?.kind == .deleted && $0.style.revision?.moved == true && $0.style.revision?.nested != true) }) {
+                if movedTable != c.table {
+                    movedTable = c.table
+                    close()
+                    if let head = pending { paragraphs.append(head); pending = nil }
+                    deletions.append(Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Moved:", paragraphs: [p.text],
+                                          author: mark.author))
+                }
+                var empty = p
+                empty.text = ""
+                empty.style.markRevision = nil
+                // (Its rows stand taller than the new place's, as Word prints them.)
+                empty.style.spaceAfter += 10
+                empty.runs = [Run(length: 0, style: CharStyle())]
+                paragraphs.append(empty)
+                continue
+            }
             // Where this paragraph's own text begins (after a joined head's).
             var own = 0
             if var head = pending {
@@ -153,9 +175,14 @@ struct PdfMarkup {
     /// stretch of it, as Word labels the new place.
     private static func _insertedMoves(_ document: RichDocument) -> [Note] {
         var out: [Note] = []
+        // (A moved table's cells are one move: its balloon stands once,
+        // at its first.)
+        var inMove = false
+        var table: String? = nil
         for (i, p) in document.paragraphs.enumerated() {
             var at = 0
-            var inMove = false
+            if p.cell == nil || p.cell?.table != table { inMove = false }
+            table = p.cell?.table
             for run in p.runs {
                 defer { at += run.length }
                 let moved = run.length > 0 && run.style.revision?.moved == true && run.style.revision?.kind == .inserted
