@@ -233,6 +233,30 @@ Note it needs port 2222 free: the harness forwards a fixed port, and the
 minimal dependency-testing VM uses the same one. The script refuses rather
 than testing the wrong machine.
 
+## The Word pair — `test/tools/docx-pair.sh`
+
+Every Word fix lands on a pair: the 756 corpus and the LibreOffice set, Windows mode,
+v2 (official) and v1 beside it, nothing may drop. The scores are COMMITTED so the tip is
+not re-swept for every fix:
+
+    test/tools/docx-pair.sh BASEBIN FIXBIN [JOBS]      # PYTHON=<python with PyMuPDF>
+    test/corpus/docx/scores/<host>/{756,lo}.{v2,v1} + STAMP     host = mac | linux | windows
+
+`STAMP` (`test/tools/stamp.sh`) is the git hash of `apps/OfficeApp`, `sdk` and
+`test/docx-line-match.py`, the engine commit and the font setting. The scores directory is
+not in it, so committing scores does not invalidate them. If origin/office's stamp equals
+the stored one the stored files are the base and BASEBIN is never run; otherwise the base
+is swept first. The fix is always swept; its files and stamp go to `/tmp/docx-pair-<host>/fix`.
+To land: `cp /tmp/docx-pair-<host>/fix/* test/corpus/docx/scores/<host>/ && git add
+test/corpus/docx/scores && git commit --amend --no-edit`, then fetch + rebase + push. If the
+rebase changes `apps/` or `sdk/` the stamp is stale: re-run. A conflict in `scores/`: take
+theirs and re-run. A host whose files are stale seeds them with `docx-pair.sh --seed BIN BIN`
+and a scores-only commit (`scores: <host> at <sha>`). The output is deterministic, so a
+document that moves between two prints of one binary is printed as `!!! NONDETERMINISTIC`
+and is a bug. A Slides baseline can carry the same stamp:
+`test/tools/stamp.sh apps/OfficeApp sdk test/pptx-app-render.sh > test/corpus/pptx/baseline-win.STAMP`
+when it is refreshed.
+
 ## Not built yet
 
 - **Performance** — few robust metrics with generous thresholds and a trend

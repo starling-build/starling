@@ -1,0 +1,95 @@
+#!/bin/bash
+# test/tools/docx-pair.sh [--seed] BASEBIN FIXBIN [JOBS] — the pair every Word fix lands on:
+# sweep the 756 corpus and the LibreOffice set in Windows mode (bundled fonts), score
+# them with the official matcher (v2) and v1 beside it, and print the movers of FIXBIN
+# against BASEBIN. The scores are COMMITTED, so the base is rarely swept:
+#
+#   test/corpus/docx/scores/<host>/{756,lo}.{v2,v1} + STAMP     host = mac | linux | windows
+#
+# STAMP (test/tools/stamp.sh) names the inputs those files were scored from: the git
+# hashes of apps/OfficeApp, sdk and test/docx-line-match.py, the engine commit and the
+# font setting. If origin/office's stamp (or $BASE_REV's) equals the stored one, the
+# stored files ARE the base and BASEBIN is not run at all; otherwise BASEBIN is swept
+# and a note says so. The fix is always swept. Its files and stamp go to
+# $STAGE (default /tmp/docx-pair-<host>), and a fix is landed by copying them in the
+# same commit as the code:
+#     cp $STAGE/* test/corpus/docx/scores/<host>/ && git add test/corpus/docx/scores && git commit --amend --no-edit
+# (If the rebase before the push changes apps/ or sdk/, the stamp no longer matches:
+# re-run. A conflict in scores/: take theirs, re-run.)
+# --seed: BASEBIN is FIXBIN's own build; only writes the files (a scores-only commit:
+# "scores: <host> at <sha>"). Output is deterministic since be9264e88 (Swift's per-process
+# Dictionary order, fixed), so a document that moves with the inputs unchanged is a
+# BUG and is named loudly (SWIFT_DETERMINISTIC_HASHING=1 would hide such a bug, not fix it; not set): every mover is converted once more by
+# FIXBIN and kept as a mover only if the second print scores the same.
+#   SETS (default "756 lo"; "lo" alone for a LibreOffice-only check — then do not commit the scores)
+#   PYTHON (needs PyMuPDF; default python3)   BASE_REV (default origin/office)   STAGE
+#   ENGINE_OUT   the engine out dir the binaries were built against (default: the
+#                first of engine/src/out/host_release_arm64, host_release)
+set -u
+SEED=0; [ "${1:-}" = "--seed" ] && { SEED=1; shift; }
+BASEBIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); FIXBIN=$(cd "$(dirname "$2")" && pwd)/$(basename "$2"); JOBS=${3:-4}
+HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd); cd "$ROOT" || exit 2
+case $(uname) in Darwin) HOST=mac;; Linux) HOST=linux;; *) HOST=windows;; esac
+PY=${PYTHON:-python3}; BASE_REV=${BASE_REV:-origin/office}; STAGE=${STAGE:-/tmp/docx-pair-$HOST}
+SETS=${SETS:-756 lo}
+INPUTS="apps/OfficeApp sdk test/docx-line-match.py"
+for d in ${ENGINE_OUT:-} engine/src/out/host_release_arm64 engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
+[ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
+export OFFICE_FONT_SOURCE=bundled OFFICE_WORD_FONTS=windows STARLING_ICU=$EO/icudtl.dat STARLING_ENGINE_OUT=$EO FLUTTER_SWIFT_ENGINE_OUT=$EO
+case $(uname) in Darwin) export DYLD_LIBRARY_PATH=$EO;; *) export LD_LIBRARY_PATH=$EO;; esac
+
+corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; esac; }
+# sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
+sweep() {
+  local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf"; : > "$WORK/fail.txt"
+  ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
+      [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && printf '%s\0' "$n"; done |
+    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>&1 || echo "FAIL $n"' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
+  score "$WORK" "$C"
+}
+score() {  # WORK CORPUSDIR
+  DOCX_LINE_MATCH=v2 DOCX_WORD_REFS=$2/word-win $PY -W ignore -I "$ROOT/test/docx-line-match.py" "$1" > "$1/match-v2.txt" 2>"$1/match-v2.err" &
+  DOCX_LINE_MATCH=v1 DOCX_WORD_REFS=$2/word-win $PY -W ignore -I "$ROOT/test/docx-line-match.py" "$1" > "$1/match-v1.txt" 2>"$1/match-v1.err" &
+  wait
+}
+
+rm -rf "$STAGE"; mkdir -p "$STAGE/work"
+# the base: stored scores, if their stamp is the base revision's
+BASE=$STAGE/base; mkdir -p "$BASE"
+STORED=test/corpus/docx/scores/$HOST
+want=$(test/tools/stamp.sh -r "$BASE_REV" $INPUTS)
+have=$(git show "$BASE_REV:$STORED/STAMP" 2>/dev/null || true)
+if [ $SEED = 0 ] && [ "$want" = "$have" ]; then
+  echo "base: stored scores of $HOST match $BASE_REV's stamp — base sweep skipped"
+  for S in $SETS; do for v in v2 v1; do git show "$BASE_REV:$STORED/$S.$v" > "$BASE/$S.$v"; done; done
+elif [ $SEED = 0 ]; then
+  echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
+  for S in $SETS; do sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null; for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
+fi
+# the fix
+FIX=$STAGE/fix; mkdir -p "$FIX"
+for S in $SETS; do
+  T0=$(date +%s); sweep "$FIXBIN" "$STAGE/work/fix-$S" $S
+  echo "fix $S: $(( $(date +%s)-T0 )) s, failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
+  for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done
+done
+test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
+if [ $SEED = 1 ]; then echo "seed written to $FIX (cp $FIX/* $STORED/)"; exit 0; fi
+# movers (and the nondeterministic ones)
+for S in $SETS; do for v in v2 v1; do
+  echo "== $S $v"; $PY "$HERE/docx-cmp.py" "$FIX/$S.$v" "$BASE/$S.$v" > "$STAGE/cmp-$S-$v.txt"; cat "$STAGE/cmp-$S-$v.txt"
+done; done
+# re-print every mover with FIXBIN once more; a different score the second time is noise
+echo "== nondeterminism check"
+for S in $SETS; do
+  C=$(corpus "$S"); names=$(grep -E '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | sed -E 's/.* ((zh|lo)-[0-9a-f]+).*/\1/;s/.*CHANGED\(same ratio\) ((zh|lo)-[0-9a-f]+):.*/\1/' | sort -u)
+  [ -n "$names" ] || continue
+  W=$STAGE/work/again-$S; mkdir -p "$W/pdf"
+  for n in $names; do f=$(ls "$C/docs/$n"*.docx 2>/dev/null | head -1); [ -n "$f" ] && perl -e 'alarm 300; exec @ARGV' "$FIXBIN" --convert "$f" "$W/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1; done
+  score "$W" "$C"
+  for n in $names; do k=$(basename "$(ls "$C/docs/$n"*.docx | head -1)" .docx)
+    a=$(grep " $k\$" "$W/match-v2.txt"); b=$(grep " $k\$" "$STAGE/work/fix-$S/match-v2.txt")
+    [ "$a" = "$b" ] || echo "!!! NONDETERMINISTIC $k: the same binary scored $(echo $b | cut -d' ' -f1) then $(echo $a | cut -d' ' -f1) — a BUG (an iteration-order dependence), not a mover; tell macOS-doc"
+  done
+done
+echo "fix files and stamp: $FIX — to land: cp $FIX/* $STORED/ && git add $STORED && git commit --amend --no-edit"
