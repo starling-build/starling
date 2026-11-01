@@ -40,7 +40,11 @@ INPUTS="apps/OfficeApp sdk test/docx-line-match.py"
 for d in ${ENGINE_OUT:-} engine/src/out/host_release_arm64 engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
 [ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
 export OFFICE_FONT_SOURCE=bundled OFFICE_WORD_FONTS=windows STARLING_ICU=$EO/icudtl.dat STARLING_ENGINE_OUT=$EO FLUTTER_SWIFT_ENGINE_OUT=$EO
-case $(uname) in Darwin) export DYLD_LIBRARY_PATH=$EO;; *) export LD_LIBRARY_PATH=$EO;; esac
+case $HOST in
+  mac) export DYLD_LIBRARY_PATH=$EO;;
+  linux) export LD_LIBRARY_PATH=$EO;;
+  *) export PATH="$EO:$PATH";;   # Windows looks for DLLs on PATH, not LD_LIBRARY_PATH
+esac
 
 corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; esac; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
