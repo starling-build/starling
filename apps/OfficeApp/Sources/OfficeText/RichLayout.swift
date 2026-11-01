@@ -13731,7 +13731,13 @@ public final class RichLayout {
             // p22 in 日（. When the previous mark closes up to this one,
             // the alternative line ending restores its blank half; the
             // compression-versus-stretch comparison below counts it.)
-            let macBodyOpener = openingAlone && !RichTextTheme.wordWindowsPages && !inCell
+            // (Word for Windows squeezes the line's marks for it in a cell too, and
+            // in the body: zh-8628cfbe's cell "…每增(減)0.2個百分點加(" (mode 15, kinsoku
+            // off, compressPunctuation, 11.5pt) ends on the "(", 9.7pt over, its
+            // "，", "(" and ")" given 2.3, 2.3 and 2.4 in Word's print. Not under
+            // the alternative kinsoku rules: zh-c8eb6e92's cell carries "（签名）"'s
+            // "（" over at 1.15pt.)
+            let macBodyOpener = openingAlone && (RichTextTheme.wordWindowsPages ? !document.hangsHalf : !inCell)
             if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
                 let over = x + w - width
                 let tail = last - 1
