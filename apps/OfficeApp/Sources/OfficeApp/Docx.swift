@@ -2296,7 +2296,11 @@ enum DocxFormat {
                         case "tbRl", "tbRlV", "tbLrV":
                             currentCell?.textDirection = .down
                             currentCell?.uprightIdeographs = true
-                        case "btLr": currentCell?.textDirection = .up
+                        // (The strict spelling "lr" turns the text up in Word's
+                        // print — LibreOffice's tdf79272_strictDxa: "USA" in a
+                        // 34.55pt column runs bottom to top, where ours set it
+                        // flat and made the column 41pt.)
+                        case "btLr", "lr": currentCell?.textDirection = .up
                         default: break
                         }
                         // (lrTbV is a horizontal cell — its text runs left to
