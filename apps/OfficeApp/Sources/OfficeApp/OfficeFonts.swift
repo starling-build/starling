@@ -2923,7 +2923,7 @@ enum OfficeFonts {
         // in YaHei, and its line is that face's height. Left to the glyph
         // fallback, Linux drew it in DejaVu Sans and the line stood 2.5pt
         // short; the Mac's system fallback found PingFang.)
-        if !own || embeddedFamily(family) == nil { face.fallback = [substitute(family)] + cjkFallback }
+        if !own || embeddedFamily(family) == nil { face.fallback = [substitute(family)] + (bundledAlias(family).map { [$0] } ?? []) + cjkFallback }
         face.scaledHeight = ea.scaledHeight
         face.scaledBaseline = ea.scaledBaseline
         face.boldHeight = ea.boldHeight
@@ -3005,6 +3005,13 @@ enum OfficeFonts {
     /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
     /// what the Latin side of an East Asian family falls back to first.
     nonisolated(unsafe) static var cjkFallback: [String] = []
+    /// The bundled face a Word font name stands for (Resources/fonts/fonts-aliases.tsv, read with
+    /// fonts.tsv at registration): its ideographs are drawn in that face before the glyph fallback's
+    /// general chain. Empty where the faces are not bundled (macOS, Windows, the web).
+    nonisolated(unsafe) static var bundledAliases: [String: String] = [:]
+    static func bundledAlias(_ name: String) -> String? {
+        bundledAliases.isEmpty ? nil : bundledAliases[name.lowercased()]
+    }
 
     /// The Chinese faces Word for Mac carries (its DFonts), registered
     /// under their family names when OFFICE_WORD_FONTS=mac finds Word
@@ -3429,6 +3436,39 @@ enum OfficeFonts {
                 FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
             }
         }
+        #if os(Linux)
+        // The CJK and script faces a machine would otherwise supply: Resources/fonts/fonts.tsv lists
+        // them (file, face of a collection, family, weight, script, fallback order — the one table
+        // the web build's manifest reads as well), so a render does not depend on which fonts the
+        // machine has installed. A family with a fallback order above 0 joins the glyph fallback.
+        if let table = try? String(contentsOf: resources.appendingPathComponent("fonts/fonts.tsv"), encoding: .utf8) {
+            var chain: [(order: Int, family: String)] = []
+            for line in table.split(separator: "\n").dropFirst() {
+                let c = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+                guard c.count >= 7, let index = Int32(c[1]), let order = Int(c[6]) else { continue }
+                let path = resources.appendingPathComponent("fonts/\(c[0])").path
+                guard FileManager.default.fileExists(atPath: path) else { continue }
+                let loaded = index < 0 ? flutter.swift_bridge.LoadFontFromFile(path, c[2])
+                                       : flutter.swift_bridge.LoadFontFromFileFace(path, c[2], index)
+                if !loaded {
+                    FileHandle.standardError.write("[Office] could not load \(c[2]) from \(path)\n".data(using: .utf8)!)
+                } else if order > 0, !chain.contains(where: { $0.family == c[2] }) {
+                    chain.append((order, c[2]))
+                }
+            }
+            for (_, family) in chain.sorted(by: { $0.order < $1.order }) where !RichTextTheme.glyphFallback.contains(family) {
+                RichTextTheme.glyphFallback.append(family)
+            }
+        }
+        if let table = try? String(contentsOf: resources.appendingPathComponent("fonts/fonts-aliases.tsv"), encoding: .utf8) {
+            var aliases: [String: String] = [:]
+            for line in table.split(separator: "\n").dropFirst() {
+                let c = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+                if c.count >= 2 { aliases[c[0].lowercased()] = c[1] }
+            }
+            bundledAliases = aliases
+        }
+        #endif
         // (OFFICE_BUNDLED_FONTS_ONLY=1: the engine's font lookup sees only the faces registered
         // above — no fontconfig, CoreText or DirectWrite fallback behind them. Off by default;
         // the hermetic-fonts proof turns it on. An engine without the call says so and goes on.)

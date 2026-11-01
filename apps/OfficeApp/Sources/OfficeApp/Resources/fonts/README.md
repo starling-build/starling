@@ -113,3 +113,60 @@ every page count are as before, but for a few documents whose table rows
 the PDF reader now groups otherwise (zh-998727df 100 to 98.4; five others
 up by half a point).
 
+
+## Noto CJK and script faces (2026-11-01)
+
+The faces a document's East Asian, Arabic, Hebrew, Thai and Devanagari text is drawn
+with, and that any glyph the named face lacks falls back to, so that a render does not
+depend on the fonts a machine happens to have installed. All SIL OFL 1.1
+(Noto-OFL-LICENSE.txt). `fonts.tsv` is the table (file, face index in a collection,
+family, weight, script, role, glyph-fallback order, bytes, sha256) the desktop registers
+from and the web build's manifest reads; `fonts-aliases.tsv` maps Word's font names
+(SimSun, PMingLiU, MS Gothic ...) to a family. CJK collections: faces 0 JP, 1 KR, 2 SC,
+3 TC, 4 HK, each loaded under its own family name by face index (`LoadFontFromFileFace`).
+Regular and Bold only. KaiTi / 楷体 have no OFL Kai face and take Noto Serif CJK SC.
+
+Sources, unchanged from the release named:
+
+| Files | Source |
+|---|---|
+| NotoSansCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Sans2.004, 03_NotoSansCJK-OTC.zip |
+| NotoSerifCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Serif2.003, 04_NotoSerifCJKOTC.zip |
+| the CJK files above | byte-identical to Ubuntu's `fonts-noto-cjk` 1:20240730 |
+| NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
+| NotoColorEmoji.ttf | Ubuntu `fonts-noto-color-emoji` |
+
+The script faces are the 2020 snapshot, not the newest notofonts releases, on purpose:
+those are what a Linux machine's glyph fallback drew until now, and the 2021-2026
+releases (Arabic v2.013/v2.021, Hebrew v3.001, Thai v2.002, Devanagari v2.007) changed
+the shaped output enough to move rtl, zh-6a4fc013 (Thai) and others in the line pair.
+Moving to them is a separate, measured step. The 2020 snapshot has no upstream release
+asset to download (notofonts' releases begin later), so its provenance is the distro
+package plus the sha256 below. The WebAssembly build should fetch these lazily, not ship
+them in the page: about 105 MB together.
+
+Thai is registered but kept out of the glyph-fallback chain (fallback_order 0): with it in,
+zh-6a4fc013's Thai text is drawn in Noto Sans Thai instead of missing-glyph boxes and the
+document drops 91.7 -> 48.1 in the line pair (a page more), because Word sets Thai in a face
+with other advances and the line breaker has no width table for it yet. Turning it on is a
+separate step: give the chain a Thai face with Word's widths, then set the order above 0.
+
+sha256:
+
+    b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a  NotoSansCJK-Regular.ttc
+    faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb  NotoSansCJK-Bold.ttc
+    5d9c31a059600193c9d7968a998bde886ccdc77e934006ad243b41794c496a7d  NotoSerifCJK-Regular.ttc
+    1505ee3b9c0890fae6302ee0e9c6fd74d690f4a55a6ace1d9944f3f6352d622d  NotoSerifCJK-Bold.ttc
+    504d7407d86875acf7d04dfaa0fd7524d0b8797723bc4aa18022f29db25b0b6e  NotoSansArabic-Regular.ttf
+    ded6fc7359ca36d15d7aab9ef0c066e21ce48b26a069994d6602fa2cb9a1b952  NotoSansArabic-Bold.ttf
+    8c67eaa2f0086872628fc3f7f760386f83c8be5c5e9a1ba3a38891237b2ac7cb  NotoNaskhArabic-Regular.ttf
+    b5cbcb561b4b540ff11d7b6934577dbbbbb9e1d152d47f6f31f19176d58ff39c  NotoNaskhArabic-Bold.ttf
+    436900d5ad77d33e4234247f3076eaecd25b92b9bea0519514f684140e3566a7  NotoSansHebrew-Regular.ttf
+    d3b01343f71e8a93fffb84c345a1aecbaf4694b98d0eaace916cb9eac9e6dcd3  NotoSansHebrew-Bold.ttf
+    789b7e7e3ff4d95a5e105872a385db12c50c08b60ad5b773d25a3bec86621abf  NotoSerifHebrew-Regular.ttf
+    95150a28d438cba6c79393ef18ad06f39a8b53a7d457e61d8c9d585176ef36da  NotoSerifHebrew-Bold.ttf
+    dfbd5ed0f1e68c3cbc51aa08f646d1ab0e68e7c4ceab70a69e465225ff701f93  NotoSansThai-Regular.ttf
+    97bbc8ea98328325285f2f552228c7aac1db39d8f38f0096a61ba7df1f1f780e  NotoSansThai-Bold.ttf
+    79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f  NotoSansDevanagari-Regular.ttf
+    77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
+    9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10  NotoColorEmoji.ttf
