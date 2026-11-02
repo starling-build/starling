@@ -5444,7 +5444,12 @@ extension ChartPainter {
             ? eye30 * tan(7.5 * .pi / 180) / tan(min(persp, 200) / 4 * .pi / 180) : eye30
         // (Taller than the eye's 30° makes it: PowerPoint's top is 0.468
         // as tall as wide, the view's 0.509.)
-        let squash = (flat ? 0.975 : 0.92) * (1 - 0.205 * wide)  // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
+        // (Only up to a tilt of 30: from there to 45 a Word pie seen in perspective takes the flat one's height, its wider
+        // perspective adding nothing — lab pieout (Word for Windows, a lone disc in a 360 x 212pt frame): at perspective 30
+        // 238.5 / 203.5 / 188.8 wide for rotX 45 / 60 / 75 (flat: 233.5 / 200 / 185.8), all 185 high; ours, 0.92 at every
+        // tilt, 248 / 218 / 205. zh-b8de3ae2's 3-D pie is at 50.)
+        let steep = !c.onSlide && !c.onSheet ? max(0, min(1, (tilt - 30) / 15)) : 0
+        let squash = flat ? 0.975 : (0.92 + 0.055 * steep) * (1 - 0.205 * wide * (1 - steep))  // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
         // A point of the disc at angle `a` (0 to the right, a quarter
         // turn toward the viewer), `f` of the radius out and `h` radii
         // down, on a disc of radius 1 centred on 0.
