@@ -6713,6 +6713,21 @@ public final class RichLayout {
                contentH - y < _markLineHeight(i, document) - 0.01 {
                 newPage()
             }
+            // (In a compat 15 file the empties after the first, which stand past the foot, go with it: lab
+            // compat1415b, 11pt lines with 10 after and 16pt left, put the first on the page and the
+            // second table at the next page's head under none of them; a first that does not fit
+            // goes over with the rest, as in compat 14.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, resumeCursor == nil, y >= contentH - 0.01,
+               _columns == 1, i > 0, _cells[i - 1] == nil, document.paragraphs[i - 1].text.isEmpty, document.paragraphs[i].text.isEmpty,
+               document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil, !_pageBreak[i] {
+                var k = i
+                while k < count, _cells[k] == nil, document.paragraphs[k].text.isEmpty { k += 1 }
+                if k < count, _cells[k] != nil, Self._followsFloatingTable(k, _cells[k]!.table, document: document, cells: _cells) {
+                    RuleTrace.hit("compat15-empties-past-the-foot-before-a-floating-table-are-absorbed")
+                    y += _heights[i]
+                    continue
+                }
+            }
             // (An empty paragraph between two tables floating by the text, in a compat 14 file: Word
             // carries it to the next page unless its space after fits there too — lab compat1415b,
             // Calibri 11pt lines 15.4 over 10 after on a page with 16pt left: both empties go to the
