@@ -13730,3 +13730,5 @@ Word parts a line at a space before a full stop ("Word / .doc" in a 116 pt frame
 CLAIM (amd-3, 2026-11-02): lo-a43021ca, lo-1709e655, lo-536b79ce, zh-5450d509 (gothline + face lab). lo-e6dce9d6 is lenovo-5's.
 TIP WATCH amd-8, round 65 (tip f53ec6c66): Word 756 v2 and LO: 0 down; v1 one 0.1 dip, zh-b8de3ae2 93.4 -> 93.3 (same lines), logged. Unit tests pass (612).
 - amd-2: LANDED lo-62f37fcc 83.3 -> 100 (one-cell table in the neighbours' frame is the frame's paragraph; table rules/shading dropped in that case).
+
+- amd-5 (2026-11-02): LANDED 3f5f4cc72 — a Latin word wider than the line is not parted right after an opening ASCII bracket it begins with (zh-c2c92639 15 -> 13, nothing down). RELEASE zh-31d580df (its misses are line-end commas Word keeps inside the line, ours hung 12pt past the margin: amd-opus's squeeze class). READ zh-15f60bac p18, unclaimed: '（https://www.moea.gov.tw/…' (full-width bracket) — Word puts the bracket WITH the address on a new line, ours leaves '（' at the end of the line before and parts the address from its first letter; the rest of the page chain follows from that.
