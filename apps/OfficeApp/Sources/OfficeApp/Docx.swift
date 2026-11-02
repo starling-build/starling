@@ -2844,7 +2844,11 @@ enum DocxFormat {
             paragraphs = out
         }
         // The caret must be able to leave a table that ends the document.
-        if paragraphs.isEmpty || paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
+        // (Not after a section's columns set as a table: that is no table in
+        // Word, its last column's paragraph ends the page, and the line added
+        // here ran past a page foot of no margin onto a page of its own —
+        // zh-8f9b19f4's landscape last page, 14 pages for Word's 13.)
+        if paragraphs.isEmpty || (paragraphs.last?.cell.map({ tableStyles[$0.table]?.sectionColumns != true }) ?? false) { paragraphs.append(RichParagraph()) }
         // The kept headers and footers again as paragraphs, read like the
         // body (each part by its own relationships), for the layout.
         var headerFooters: [RichHeaderFooter] = []
