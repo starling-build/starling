@@ -5340,6 +5340,9 @@ public final class RichLayout {
                 // t206, Word for Windows: zh-dc9cfa34's row 43, at least
                 // 39.55pt under 0.5pt rules, goes over whole with 40.3
                 // left; at least 22 parts with 24.2 left and 23.5 does not.)
+                if let traced = Self.debugRows, traced == page + 1 {
+                    FileHandle.standardError.write(Data("split row \(c.row): first \(first) fresh \(fresh) y \(y / _px(1)) stated \(stated / _px(1)) avail \(avail / _px(1)) fits \(fits) rest \(rest / _px(1)) ghostBounds \(c.ghostBounds.map { $0 / _px(1) })\n".utf8))
+                }
                 if first, !fresh, y > 0.01, stated > 0, stated + max(ruleUnder(c), theme.wordRules ? c.ruleBelow : 0) > avail + 0.01 {
                     newPage()
                     if repeats { repeatHeader(of: c.table, before: i) }
@@ -5362,7 +5365,10 @@ public final class RichLayout {
                 var ghostPart: Double? = nil
                 if theme.wordRules, first, !fits, !c.ghostBounds.isEmpty,
                    let bound = c.ghostBounds.last(where: { $0 + ruleUnder(c) <= avail + 0.01 }) {
-                    avail = bound + ruleUnder(c)
+                    // (With the rule a part closes with, whole: zh-9ef811c8's "8" row, a
+                    // 15.6pt row and the 0.5 over it, stands on page 6 with its one-line cells and
+                    // its marks in Word's print, the merged lists of ten lines all on page 7.)
+                    avail = bound + (RichTextTheme.wordWindowsPages ? max(ruleUnder(c), ruleUnder(c, parted: true)) : ruleUnder(c))
                     ghostPart = bound
                     ghostLeft = c.ownRowHeight - bound
                     // (Where it ends at the rows' own heights, what goes
@@ -5525,8 +5531,15 @@ public final class RichLayout {
                             // next page — p6, p16, p26, p28.)
                             next[n] = cut
                             moved = true
+                        } else if theme.wordRules, RichTextTheme.wordWindowsPages, ghostPart != nil, d0.rowSpan > 1, d0.rowSpan - 1 <= c.ghostRows {
+                            // (A cell merged down over the rows that part here, none of whose
+                            // lines fits in them, goes over whole with the rest of its rows.)
+                            next[n] = column.cut
                         } else {
                             stuck = true
+                            if let traced = Self.debugRows, traced == page + 1 {
+                                FileHandle.standardError.write(Data("stuck-detail col \(n): align \(String(describing: d0.verticalAlign)) rowSpan \(d0.rowSpan) pad \(d0.pad.top / _px(1)) \(d0.pad.bottom / _px(1)) block \((blockBottom - blockTop) / _px(1)) room \(room / _px(1)) avail \(avail / _px(1)) cutVsRowTop \((column.cut - c.rowTop) / _px(1)) wholeMerged \(wholeMerged) closed \((closed - column.cut) / _px(1))\n".utf8))
+                            }
                         }
                     }
                     // (A cell merged down keeps only the lines whose foot is
@@ -5621,6 +5634,9 @@ public final class RichLayout {
                         setWhole[n] != nil || next[n] >= rowBottom - 0.01 || next[n] >= (columns[n].cuts.max() ?? rowBottom) - 0.01
                     }) {
                         moved = false
+                    }
+                    if let traced = Self.debugRows, traced == page + 1 {
+                        FileHandle.standardError.write(Data("after-columns row \(c.row): moved \(moved) stuck \(stuck) cols \(columns.map { "[\($0.members[0]) cut \($0.cut / _px(1)) bottom \($0.bottom / _px(1)) cuts \($0.cuts.map { $0 / _px(1) })]" }) next \(next.map { $0 / _px(1) }) rowBottom \(rowBottom / _px(1)) setWhole \(setWhole.count) avail \(avail / _px(1))\n".utf8))
                     }
                     if !moved {
                         if !fresh, y > 0.01 {
