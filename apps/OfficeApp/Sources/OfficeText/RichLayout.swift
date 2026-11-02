@@ -6249,7 +6249,7 @@ public final class RichLayout {
                 // page's margin with w:pageBreakBefore in its first cell,
                 // is the document's first page in Word's print; ours began
                 // with a blank one.)
-                let rowOpensThePage = y < 0.01 && _pages[page].isEmpty
+                let rowOpensThePage = y < 0.01 && _pages[page].isEmpty && !(theme.wordRules && markOnPage)
                 // A table every row of which is marked a header (see
                 // `headerRows`) starts on a page of its own where it does
                 // not fit the rest of this one: zh-8628cfbe's annex 3, 28
@@ -6492,7 +6492,7 @@ public final class RichLayout {
                     ? _px(document.tableStyles[c.table]?.floatOffsetY ?? 0) : 0
                 let rowBreaksPage = !sectionBreakHandled && c.firstInRow && _pageBreak[i] && !document.paragraphs[i].style.pageBreakInline
                     && !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil)
-                    && (y - floatDrop > 0.01 || !_pages[page].isEmpty)
+                    && (y - floatDrop > 0.01 || !_pages[page].isEmpty || (theme.wordRules && markOnPage))
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table, !rowBreaksPage,
                    case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil || ts0?.bottomAligned == true {
                     let physical = page / _columns
@@ -6633,7 +6633,9 @@ public final class RichLayout {
                 // package: the test record's table on its own page.)
                 if !sectionBreakHandled, c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
                    !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
-                   !rowOpensThePage, y - floatDrop > 0.01 || !_pages[page].isEmpty {
+                   !rowOpensThePage, y - floatDrop > 0.01 || !_pages[page].isEmpty || (theme.wordRules && markOnPage) {
+                    // (After a section's empty mark, which takes no room and leaves its page blank, a table
+                    // opening the next section starts the page after it — lo-0ceaa045, 1 page for Word's 2.)
                     newPage()
                     // (In columns a page break goes on to the next page, not
                     // the next column, for a table's first row as for a
