@@ -3367,7 +3367,7 @@ enum ChartPainter {
             // 13 charts in three frames, title on and off, six label and value
             // widths), fitted to 0.6 pt. The wall is the plot's front moved
             // back one box depth.
-            let wordAuto3D = inWord && !horizontal && c.plotLayout == nil
+            let wordAuto3D = inWord && !horizontal && c.plotLayout == nil && !v.walled
             if wordAuto3D {
                 RuleTrace.hit("word-3d-columns-left-to-its-own-layout-stand-by-its-fitted-insets")
                 // (The wall's top stands 27 pt and a title's own height under the
