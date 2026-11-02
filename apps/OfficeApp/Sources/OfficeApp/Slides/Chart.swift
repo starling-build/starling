@@ -461,6 +461,9 @@ struct Chart: Equatable {
     var macTraditionalFace: String? = nil
     /// Its title's runs say Traditional Chinese (`macTraditionalFace`).
     var titleTraditional = false
+    /// The face the axes' or legend's own text properties name, where the chart
+    /// as a whole names none (LibreOffice's: `a:latin` Arial on each).
+    var axisFont: String? = nil
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -1491,6 +1494,7 @@ enum ChartXML {
         // (A theme slot, "+mn-lt", is the theme's face: none of its own.)
         func face(_ f: String?) -> String? { f.flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 } }
         c.font = face(spaceRun?.first("a:latin")?["typeface"])
+        c.axisFont = c.font == nil ? (plot.children.filter { ["c:catAx", "c:valAx"].contains($0.name) }.map { $0.first("c:txPr") } + [chart.first("c:legend")?.first("c:txPr")]).lazy.compactMap { face($0?.descendant("a:latin")?["typeface"]) }.first : nil
         func eastAsian(_ n: XNode) -> Bool {
             if n.name == "a:defRPr" || n.name == "a:rPr", let l = n["lang"]?.lowercased(),
                l.hasPrefix("zh") || l.hasPrefix("ja") || l.hasPrefix("ko") { return true }
@@ -2151,7 +2155,7 @@ enum ChartPainter {
         let grid = _mix(theme.text, theme.background, 0.15)
         // (LIBRE_OFFICE-100610's charts say Calibri in an Arial theme, and
         // PowerPoint sets them in Calibri.)
-        let font = OfficeFonts.substitute(c.font ?? theme.bodyFont)
+        let font = OfficeFonts.substitute(c.font ?? (c.onSlide || c.onSheet ? nil : c.axisFont) ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false) -> TextPainter {
@@ -2172,7 +2176,9 @@ enum ChartPainter {
         // a newer one keeps 9: line-, bar- and scatter-chart's labels stand
         // 2.5 pt further out in PowerPoint's print. With its legend below,
         // 8.2: see the legend.)
-        let old = c.plainText && !c.styled2013 && c.officeStyled
+        // (A LibreOffice chart in a Word document, the faces on its own axes: lo-ccd9da4b's plot
+        // stands 6.4 from its frame's left, labels 6.5 from the foot, as the 2007 style's do.)
+        let old = !c.styled2013 && ((c.plainText && c.officeStyled) || (!c.onSlide && !c.onSheet && c.axisFont != nil))
         // (A chartex chart's title stands 2.2 pt higher than a `c:`
         // chart's, its plot's foot 4.4 nearer the frame: chartex's
         // box-and-whisker chart in Word's print, the title's baseline 18.7
@@ -2344,7 +2350,10 @@ enum ChartPainter {
             // high or a stroke as long with its mark in the middle, the entries 1.3 pt further
             // apart: zh-b8de3ae2's "預算", "決算", "執行率" keys at 220.9, 269.6, 318.4.)
             let wideKeys = !c.onSlide && !c.onSheet && !c.chartex && !c.lineSeries.isEmpty && c.type != .line && !beside
-            let key = wideKeys ? 19.2 * k : (c.onSlide ? 6.57 : 7) * k * m, gap = (c.onSlide ? 2.92 : 4) * k * m
+            // (A LibreOffice chart in a Word document: keys 5.1 square at 10 pt and 2.2 before
+            // the names, the legend ending 10.3 inside the frame: lo-ccd9da4b's.)
+            let libreLegend = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil && beside
+            let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             let spacing = (printed ? (c.styled2013 ? 11.2 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
@@ -2451,11 +2460,11 @@ enum ChartPainter {
                     // (A point further in than the plot's margin on a slide:
                     // the names end 9.8 and 10.2 pt short of the frame in
                     // tdf149985's and aascu 5864's columns.)
-                    columnX = area.right - columnW - (c.onSlide ? 1 : 0) * k
+                    columnX = area.right - columnW - (c.onSlide ? 1 : libreLegend ? 1.3 : 0) * k
                     // (17.3 to the legend's keys: the 2007-style line,
                     // scatter, radar and bar charts' plots end 5.3 pt
                     // short of where 12 left them, in PowerPoint's print.)
-                    let apart = !pie && !c.styled2013 ? 17.3 : 12
+                    let apart = libreLegend ? 11.1 : !pie && !c.styled2013 ? 17.3 : 12
                     // (The plot ends where it did with the 7 pt keys and 4 pt
                     // gap these gaps were measured with: its edge is
                     // PowerPoint's, the column's keys moved within it.)
@@ -3254,7 +3263,9 @@ enum ChartPainter {
         // 2013-style chart's labels stand where they would without ticks
         // (chartex's stock chart printed by Word with its axes' ticks
         // out and none: not a label moves).
-        let ticksPush = !c.styled2013
+        // (A LibreOffice chart in a Word document draws its ticks inside the labels' room: lo-ccd9da4b's.)
+        let libre = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil
+        let ticksPush = !c.styled2013 && !libre
         // (A 2013-style chart in a Word document: its plot and labels sit by their own insets,
         // measured on ten LibreOffice test charts against Word for Windows' prints.)
         let word = !c.onSlide && !c.onSheet && !c.chartex && c.styled2013
@@ -3294,14 +3305,14 @@ enum ChartPainter {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
-            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : 0)
+            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : libre ? 2.4 * k : 0)
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Labels by an axis above the foot take no room below it.)
             // (A `cx:` chart's on a sheet 2.53 pt higher, its labels with
             // it: their baselines 7.98 pt over the frame's foot in Excel's
             // prints of histograms, Pareto charts and waterfalls, ours 5.45.
             // Not a box plot's, already higher than Excel's.)
-            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) - (wordFoot ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -3598,7 +3609,7 @@ enum ChartPainter {
                 // plot than the room left for them: chart-slide-bg's and
                 // its three like it, at 166.5 where ours were at 169, the
                 // plot where PowerPoint's is.)
-                let further = word ? 0 : c.styled2013 ? 2.5 * k : 2.6 * k
+                let further = word ? 0 : libre ? 0.2 * k : c.styled2013 ? 2.5 * k : 2.6 * k
                 // (A 2007-style chart's stand with their middles 1.45 pt
                 // above their lines, line- and scatter-chart's 18 pt
                 // labels. A newer chart's are measured so too, and came
@@ -3606,7 +3617,7 @@ enum ChartPainter {
                 // (A newer one's on a slide, 1.25 pt above theirs: its plot
                 // stands 1.5 pt lower there, and chart-slide-bg's labels
                 // print 1.1 to 1.5 above where that put them.)
-                let lift = c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : 1.45 * k
+                let lift = libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D, p - tp.height / 2 - lift))
@@ -3753,12 +3764,12 @@ enum ChartPainter {
                     // the rest down to the right (chart-chart-text-can-
                     // overlap's 45°).
                     canvas.save()
-                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - Self._wordLabelRise(c, catSize) * k)
+                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k)
                     canvas.rotate(clockwise ? slant : -slant)
                     tp.paint(canvas, Offset(clockwise ? 0 : -tp.width, -tp.height / 2))
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - Self._wordLabelRise(c, catSize) * k))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k))
                 }
             }
         }
@@ -4166,7 +4177,10 @@ enum ChartPainter {
         // (0.97 of the room: pie-chart's, under a title beside a legend,
         // is 131 pt in PowerPoint's print, and chart_pt_color_bg1's bare
         // ring 159 — both that share of the frame inside its margin.)
-        var radius = min(area.width, area.height) / 2 * 0.97
+        // (A LibreOffice pie in a Word document: 128 pt in a frame 171 high, 0.823 of the room, and no
+        // white rims between its slices — lo-ccd9da4b's.)
+        let libre = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil && c.plotLayout == nil
+        var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : 0.97)
         // On a sheet, a line of the labels' less each side where they
         // stand round the pie: Excel's prints of five labelled pies are
         // 8.5 to 17 pt smaller a side than ours were, the unlabelled
@@ -4184,7 +4198,7 @@ enum ChartPainter {
             RuleTrace.hit("word-pie-with-outside-labels-leaves-room-for-them")
             radius = max(radius / 2, radius - 1.7 * (c.series[0].labelSize ?? c.baseTextSize) * k)
         }
-        let centre = area.center
+        let centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2
         let fill = Paint()
@@ -4197,7 +4211,7 @@ enum ChartPainter {
         edge.color = theme.background
         // (No rims in a 2007-style chart on a slide: pie-chart's slices
         // meet edge to edge in PowerPoint's print, fills alone.)
-        if c.onSlide, !c.styled2013, c.officeStyled { edge.color = Color(0x00000000) }
+        if (c.onSlide && !c.styled2013 && c.officeStyled) || libre { edge.color = Color(0x00000000) }
         // The series' own outline round each slice where it gives one
         // (chart-tdf161607's ring ruled 2.25 pt green).
         if let line = c.series[0].outline {
