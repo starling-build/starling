@@ -1,4 +1,0 @@
-module PdfiumBridge {
-  header "PdfiumBridge.h"
-  export *
-}
