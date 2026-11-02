@@ -10779,8 +10779,12 @@ public final class RichLayout {
         // wrapped top and bottom 16.65pt down an empty paragraph whose
         // 7.5pt mark's line ends near 11, has that line over it in Word's
         // print and the next paragraph under it.)
-        if theme.wordRules, p.cell == nil, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
+        // (A chart does it with text in its paragraph too: lo-ccd9da4b's, a hair under its
+        // line's top, has "xxxx" under it in Word's print.)
+        if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages || p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
+            let bareText = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
             for image in (p.image.map { [$0] } ?? []) + Array(p.inlineImages.values) {
+                guard bareText || image.sourceXML?.contains("drawingml/2006/chart") == true else { continue }
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y > 0,
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
