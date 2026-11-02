@@ -1,0 +1,33 @@
+# doc	key	prev_base	head_base	head_box_top	head_box_bot	next_base	head_base_minus_72	next_minus_head	font	size
+hz0	b_230_0_p	83.16	107.90	88.53	110.49	127.10	35.90	19.20	MicrosoftJhengHeiBold	18.0
+hz0	b_230_0_f		94.10	74.73	96.69	113.30	22.10	19.20	MicrosoftJhengHeiBold	18.0
+hz0	b_230_70_p	83.16	111.38	92.01	113.97	130.58	39.38	19.20	MicrosoftJhengHeiBold	18.0
+hz0	b_230_70_f		94.10	74.73	96.69	113.30	22.10	19.20	MicrosoftJhengHeiBold	18.0
+hz0	b_240_0_p	83.16	108.74	89.37	111.33	128.30	36.74	19.56	MicrosoftJhengHeiBold	18.0
+hz0	b_240_0_f		94.94	75.57	97.53	114.50	22.94	19.56	MicrosoftJhengHeiBold	18.0
+hz0	b_240_70_p	83.16	112.34	92.97	114.93	131.90	40.34	19.56	MicrosoftJhengHeiBold	18.0
+hz0	b_240_70_f		94.94	75.57	97.53	114.50	22.94	19.56	MicrosoftJhengHeiBold	18.0
+hz0	r_230_0_p	83.16	107.90	88.53	110.49	127.10	35.90	19.20	MicrosoftJhengHeiRegular	18.0
+hz0	r_230_0_f		94.10	74.73	96.69	113.30	22.10	19.20	MicrosoftJhengHeiRegular	18.0
+hz0	r_230_70_p	83.16	111.38	92.01	113.97	130.58	39.38	19.20	MicrosoftJhengHeiRegular	18.0
+hz0	r_230_70_f		94.10	74.73	96.69	113.30	22.10	19.20	MicrosoftJhengHeiRegular	18.0
+hz0	r_240_0_p	83.16	108.74	89.37	111.33	128.30	36.74	19.56	MicrosoftJhengHeiRegular	18.0
+hz0	r_240_0_f		94.94	75.57	97.53	114.50	22.94	19.56	MicrosoftJhengHeiRegular	18.0
+hz0	r_240_70_p	83.16	112.34	92.97	114.93	131.90	40.34	19.56	MicrosoftJhengHeiRegular	18.0
+hz0	r_240_70_f		94.94	75.57	97.53	114.50	22.94	19.56	MicrosoftJhengHeiRegular	18.0
+hz1	b_230_0_p	85.34	115.46	96.09	118.05	138.62	43.46	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_230_0_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_230_70_p	85.34	118.94	99.57	121.53	142.10	46.94	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_230_70_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_240_0_p	85.34	115.46	96.09	118.05	138.62	43.46	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_240_0_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_240_70_p	85.34	118.94	99.57	121.53	142.10	46.94	23.16	MicrosoftJhengHeiBold	18.0
+hz1	b_240_70_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiBold	18.0
+hz1	r_230_0_p	85.34	115.46	96.09	118.05	138.62	43.46	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_230_0_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_230_70_p	85.34	118.94	99.57	121.53	142.10	46.94	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_230_70_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_240_0_p	85.34	115.46	96.09	118.05	138.62	43.46	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_240_0_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_240_70_p	85.34	118.94	99.57	121.53	142.10	46.94	23.16	MicrosoftJhengHeiRegular	18.0
+hz1	r_240_70_f		97.46	78.09	100.05	120.62	25.46	23.16	MicrosoftJhengHeiRegular	18.0
