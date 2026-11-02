@@ -16402,7 +16402,13 @@ public final class RichLayout {
                 // nothing under the alternative kinsoku rules, where no
                 // mark of ours hangs: this one does.)
                 let macComma = theme.wordRules && !RichTextTheme.wordWindowsPages && p.style.alignment == .justify && units[tail] == 0x2C
-                let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
+                // (Where a mark may hang only its inked half and nothing is compressed, a half-width "," or "."
+                // is all ink and hangs whole, in Word for Windows: zh-3fe252ff (mode 14, useAltKinsokuLineBreakRules,
+                // doNotCompress) ends "…有账面价值的资产," "…应选择“21." and "…提示）," with the stop past the margin in
+                // Word's print, which hangs no full-width mark there; ours hung nothing and sent the last word down.)
+                let halfStop = theme.wordRules && RichTextTheme.wordWindowsPages && document.hangsHalf && !squeezes
+                    && (units[tail] == 0x2C || units[tail] == 0x2E)
+                let latinComma = halfStop || !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
                     || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80
                     // (… a "," too: zh-9bcea239's "…少于6个月的," (mode 12, Times) is one line in Word for Windows' print, its "," 3.99 past the margin.)
                     || units[tail] == 0x2C && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
@@ -16499,7 +16505,7 @@ public final class RichLayout {
                 let hung = (hangs || kinsokuHang) && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
-                    && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma)
+                    && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
                     && !runRulesOff(tail) && !afterLatin
                     // (Nor a full-width percent sign in Taiwan's Chinese, whose own list leaves it out
                     // of what may not start a line: it is no closing mark there, and does not hang.
