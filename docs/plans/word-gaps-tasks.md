@@ -14133,3 +14133,4 @@ Next (amd-3): model the room as box + labels; test against the rotY 20/40/70 bot
   4. Text sits about 1 pt higher in cells on long tables than Excel's (lo-tdf100034, StructuredRefs, bug66675). Not verified whether it is font metrics or placement.
   5. Italic on some header cells is lost: A1 of FormatConditionTests p2 is italic in Excel, plain in ours. Cause not checked.
   Everything else in those pairs is fonts and edge anti-aliasing.
+- TIP WATCH amd-8, round 93 (tip da8014422): Word 0 down, 0 up, no pagecount moves, no nondeterminism. Unit tests pass (612, 0 failures). Visual ranking: no document rose by more than 2 points. Slides baseline reseeded (mean 0.9256); Slides swept next round.
