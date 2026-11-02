@@ -21226,7 +21226,7 @@ public final class RichLayout {
                             // tall. The engine drops text wholly outside the
                             // clip, so the whole paragraph is drawn again at
                             // an alpha no eye sees.)
-                            if theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, let c = _cells[piece.paragraph],
+                            if theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top",
                                document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
                                piece.flowBottom < _tops[piece.paragraph] + _heights[piece.paragraph] - 0.5 {
                                 canvas.restore()
