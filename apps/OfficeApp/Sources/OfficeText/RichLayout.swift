@@ -802,6 +802,18 @@ public struct RichResolvedFace: Sendable {
     /// a scaled sans's .711.
     public var advances: [Double]? = nil
     public var boldAdvances: [Double]? = nil
+    /// Its italic's and bold italic's, where the face has them and they
+    /// differ from the regular's and bold's (nil: those are used).
+    public var italicAdvances: [Double]? = nil
+    public var boldItalicAdvances: [Double]? = nil
+    /// The widths to set a run of this weight and slant by.
+    func advanceTable(bold: Bool, italic: Bool) -> [Double]? {
+        if italic {
+            if bold, let t = boldItalicAdvances ?? italicAdvances { return t }
+            if !bold, let t = italicAdvances { return t }
+        }
+        return bold ? boldAdvances : advances
+    }
     /// The original face's kern pairs among those characters, in ems,
     /// keyed first << 8 | second, and its bold's: set where the run
     /// kerns at its size (`kerningFrom`), as Word kerns them — the
@@ -12315,7 +12327,7 @@ public final class RichLayout {
                     let own = kind == -2 ? (classed ? RichResolvedFace.characterClass(" ") : 0) : kind
                     let s = style(own)
                     let k = Int(u) - 0x20
-                    if let table = s.fontWeight == .bold ? face.boldAdvances : face.advances, k < table.count, let px = s.fontSize, px > 0.5 {
+                    if let table = face.advanceTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic), k < table.count, let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
                         var target = table[k] * px / (face.sizeScale * classScale)
                         // (Kerned with the next of the run by the original's
@@ -14434,7 +14446,7 @@ public final class RichLayout {
         // gives the character.)
         let latinFace = latinStyle != nil ? theme.faceResolver?(markerChar.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
         func advanced(_ ch: Character, _ st: TextStyle) -> TextStyle {
-            guard let face = latinFace, let table = st.fontWeight == .bold ? face.boldAdvances : face.advances,
+            guard let face = latinFace, let table = face.advanceTable(bold: st.fontWeight == .bold, italic: st.fontStyle == .italic),
                   let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, u >= 0x20, u <= 0x7E,
                   Int(u) - 0x20 < table.count, let px = st.fontSize, px > 0.5 else { return st }
             let extra = table[Int(u) - 0x20] * px / face.sizeScale - _glyphWidth(st, ch)
@@ -16899,7 +16911,7 @@ public final class RichLayout {
                 // above them; Word's print has the one line.)
                 var width = painter.width
                 if let face = theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false),
-                   let table = style.fontWeight == .bold ? face.boldAdvances : face.advances, let px = style.fontSize, px > 0.5 {
+                   let table = face.advanceTable(bold: style.fontWeight == .bold, italic: style.fontStyle == .italic), let px = style.fontSize, px > 0.5 {
                     width = word.reduce(0.0) { sum, ch in
                         guard let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, u >= 0x20, u <= 0x7E, Int(u) - 0x20 < table.count
                         else { return sum + _glyphWidth(style, ch) }
