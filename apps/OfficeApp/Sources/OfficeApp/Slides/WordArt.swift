@@ -180,7 +180,40 @@ enum WordArt {
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
         guard !lines.isEmpty else { return true }
+        guard let scene = shape.textScene, !scene.isFlatTurn else {
+            _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil)
+            return true
+        }
+        // The letters as a solid: the camera turns the flat word (looked at
+        // from the front, orthographically), and the depth trails behind it
+        // as a stack of copies in the extrusion colour.
+        let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
+        func turn(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double) {
+            var qx = x * cos(lon) + z * sin(lon), qz = -x * sin(lon) + z * cos(lon)
+            let qy = y * cos(lat) - qz * sin(lat)
+            qz = y * sin(lat) + qz * cos(lat)
+            _ = qz
+            let t = qx
+            qx = t
+            return (qx * cos(rev) - qy * sin(rev), qx * sin(rev) + qy * cos(rev))
+        }
+        let ex = turn(1, 0, 0), ey = turn(0, 1, 0), back = turn(0, 0, -scene.depth * px)
+        let c = area.center
+        canvas.save()
+        canvas.transform([ex.0, ex.1, 0, 0, ey.0, ey.1, 0, 0, 0, 0, 1, 0, c.dx - ex.0 * c.dx - ey.0 * c.dy, c.dy - ex.1 * c.dx - ey.1 * c.dy, 0, 1])
+        let det = ex.0 * ey.1 - ex.1 * ey.0
+        // The depth in the word's own plane, so each copy lands on the screen vector.
+        let local = abs(det) > 1e-6 ? Offset((back.0 * ey.1 - back.1 * ey.0) / det, (ex.0 * back.1 - ex.1 * back.0) / det) : Offset(0, 0)
+        let side = scene.extrusionColor ?? Color(0xFF808080)
+        let steps = max(2, Int((scene.depth * px).rounded(.up)))
+        for k in stride(from: steps, through: 1, by: -1) {
+            let f = Double(k) / Double(steps)
+            var sh = Shadow(color: side)
+            sh.offset = Offset(local.dx * f / px, local.dy * f / px)
+            _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: sh, frontless: true)
+        }
         _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil)
+        canvas.restore()
         return true
     }
 
@@ -244,7 +277,7 @@ enum WordArt {
     /// The lines fitted into `area` and drawn: the shadow first, if any,
     /// then the letters.
     private static func _paint(_ lines: [Line], _ warp: TextWarp, _ area: Rect, _ canvas: any Canvas,
-                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false, fitsInk: Bool = false) {
+                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false, fitsInk: Bool = false, frontless: Bool = false) {
         /// Set while the shadow is drawn: every letter in it, filled.
         var shadowPaint: Paint? = nil
         /// One glyph through the map of its cell: `origin` its top left,
@@ -570,7 +603,7 @@ enum WordArt {
             canvas.restore()
             shadowPaint = nil
         }
-        pass()
+        if !frontless { pass() }
     }
 
     /// Arch, circle and button: each line at its own size along the

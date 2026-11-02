@@ -68,6 +68,7 @@ struct ShapeState: Equatable {
     var outlineCompound: String? = nil
     var textTurn = 0
     var textSpin = 0.0
+    var textScene: Scene3D? = nil
     var naturalLines = false
     var shadow: CharShadow? = nil
     var innerShadow: CharShadow? = nil
@@ -1164,6 +1165,7 @@ final class DeckController: ChangeNotifier {
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
         st.textSpin = s.textSpin
+        st.textScene = s.textScene
         st.naturalLines = s.naturalLines
         st.shadow = s.shadow
         st.innerShadow = s.innerShadow
@@ -1273,6 +1275,7 @@ final class DeckController: ChangeNotifier {
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
         shape.textSpin = st.textSpin
+        shape.textScene = st.textScene
         shape.naturalLines = st.naturalLines
         shape.shadow = st.shadow
         shape.innerShadow = st.innerShadow

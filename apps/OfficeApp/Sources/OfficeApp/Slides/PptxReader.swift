@@ -1533,6 +1533,7 @@ private struct SlideContext {
         st.anchorCentred = text.anchorCentred
         st.textTurn = text.textTurn
         st.textSpin = text.textSpin
+        st.textScene = text.textScene
         st.columns = text.columns
         st.columnGap = text.columnGap
         st.warp = text.warp
@@ -2882,6 +2883,7 @@ private struct SlideContext {
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
+        var textScene: Scene3D? = nil
         /// `bodyPr numCol` and `spcCol` (points).
         var columns = 1
         var columnGap = 0.0
@@ -3398,6 +3400,9 @@ private struct SlideContext {
            (rot["lat"].flatMap(Double.init) ?? 0) == 0, (rot["lon"].flatMap(Double.init) ?? 0) == 0,
            let rev = rot["rev"].flatMap(Double.init), rev != 0 {
             body0.textSpin = -rev / 60000
+        }
+        if body0.warp != nil, let bp = body?.first("a:bodyPr"), bp.first("a:scene3d") != nil {
+            body0.textScene = Extrusion.read(bp, colors: colors)
         }
         return body0
     }
