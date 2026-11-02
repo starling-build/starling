@@ -2808,6 +2808,8 @@ enum OfficeFonts {
                 // that sets 616 lines on 27 pages, as Word's print has them,
                 // is 0.82: 0.66 gives 560 on 25, 0.74 597 on 26.)
                 face.classScales = [1, 1, 1, 1, 0.82]
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(browalliaAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
                 #endif
             }
             // (An embedded face whose font-table entry names an East Asian
@@ -3483,7 +3485,7 @@ enum OfficeFonts {
         // the Thai is at Browallia's widths, Cordia's: on Linux's Noto
         // Sans Thai at 0.66 its lines ran long — 91.7 -> 89.4, 638 lines
         // to Word's 614 (office1's check).)
-        if wordOnWindows, _cordiaLoaded { RichTextTheme.thaiBreaksAtSpaces = true }
+        if wordOnWindows { RichTextTheme.thaiBreaksAtSpaces = true }
         // (And on a Windows host, which has no Word for Mac's Cordia to
         // load and so never came here: its Thai, Browallia's widths in
         // Leelawadee UI, broke inside words where Word's breaks at spaces
