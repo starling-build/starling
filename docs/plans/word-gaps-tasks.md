@@ -19,11 +19,11 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
 - amd-6: zh-6e6b9821, lo-5c5eb1f7 row 25 (pinned floating tables)
 - amd-7: per-column footnotes step 3 (lab fn-cols-sweep printing); lo-e8c1ae37, lo-40949e85, lo-948cd424, lo-c678e486. (lo-0622682c done)
-- amd-perf: SmartArt opens (lo-8ab9b90f), lo-717ff943, lo-af36644e
+- amd-perf: lo-8ab9b90f (7-node lab), lo-af36644e re-check, zh-ae2dd08d, zh-264d7516, zh-e49d7943, zh-ee2d19e6, zh-15f60bac (triage)
 - amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
 - lenovo-2: lo-b8885ba2, lo-152d87fe, lo-72e72396, lo-06933f8e, lo-e3095781, lo-512aa398, lo-88b29958 (lab)
 - lenovo-3: lo-7ec36a70 (waiting on the RTL-spaces lab), lo-677416bef, zh-74b34f3b, zh-7488a70f, zh-6c447317, zh-424775e4 (triage)
-- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2)
+- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2); lo-717ff943 (amd-perf)
 - UNFIXABLE: lo-a43021ca (print-date field)
 - lenovo-5: n830205 + lo-a197b7a8 (both waiting on labs), zh-27fc8f9d, zh-d8247da5, zh-cf8b03a5, zh-ea43dd6d (triage)
 - amd-8: tip watch + unit tests
