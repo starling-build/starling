@@ -3930,7 +3930,7 @@ enum ChartPainter {
         gridPaint.strokeWidth = max(0.5, (c.gridWidth ?? 0.75) * k)
         // (A 3-D chart in a Word document with no style number and bare gridlines: Word's own 0.75pt
         // #868686 there too — lo-8743d336's walls' lines, 134 grey in its print where ours were 217.)
-        let bare3D = inWord && !c.styled2013 && !c.officeStyled && box != .zero
+        let bare3D = (inWord || c.onSlide) && !c.styled2013 && !c.officeStyled && box != .zero
         gridPaint.color = (classic || bare3D) && c.gridColor == nil ? Color(0xFF868686) : grid
         let axisPaint = Paint()
         axisPaint.style = .stroke
