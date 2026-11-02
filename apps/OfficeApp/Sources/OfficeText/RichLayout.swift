@@ -8693,6 +8693,8 @@ public final class RichLayout {
     /// standard error (points) — where a line of ours and of Word's end
     /// a character apart, this says which rule let it on. Every such
     /// paragraph's width against its column's, too.
+    /// How far past the right margin Word still honours a right tab stop (lab tabr: 452 twips measured, none refused).
+    static let _tabPastMargin = 22.6
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
     /// A machine-readable record of each over-the-margin decision in `_fitEastAsianLines`, to stderr: test/tools/fit-decisions.py joins them with Word's lines.
     static let debugFitLog = ProcessInfo.processInfo.environment["STARLING_FIT_LOG"] != nil
@@ -10008,6 +10010,8 @@ public final class RichLayout {
         // follows one that starts inside it may run past the margin, and
         // the line fitting is told so.
         var runsPast: Set<Int> = []
+        // A right stop honoured past the margin: how far past (tab offset -> points in px).
+        var beyond: [Int: Double] = [:]
         let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
         var leftTabs: Set<Int> = []    // tabs that take a first line's label to its hanging indent
@@ -10067,6 +10071,7 @@ public final class RichLayout {
             tabs = [:]
             hangs = [:]
             runsPast = []
+            beyond = [:]
             atMargin = []
             leftTabs = []
             _leaders[i] = []
@@ -10151,7 +10156,7 @@ public final class RichLayout {
                 // centred ones too; ours ran the dots on to the stop and
                 // the number went to a line of its own.)
                 if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
-                   s.x > ownLeft + textWidth + 0.5 {
+                   s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right ? _px(Self._tabPastMargin) : 0) {
                     s.x = ownLeft + textWidth
                     s.alignment = .right
                     stop = s
@@ -10225,6 +10230,25 @@ public final class RichLayout {
                     } else if rest > 0 {
                         for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -rest * max(0, edge(k + 1) - edge(k)) / span }
                     }
+                }
+                // (A right stop a little past the margin is honoured: lab tabr, Word for Windows,
+                // stops 52 to 452 twips past an 8848-twip line all end the number AT the stop, on
+                // the line, the dots running on to it. The line stays inside the margin for the
+                // engine — the number's last character gives the overshoot up — and its ink
+                // ends at the stop. zh-875759ff's contents, stop 105 twips out.)
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .right, let lead = stop.leader, lead != "none", !lead.isEmpty,
+                   stop.x > ownLeft + textWidth + 0.5, stop.x <= ownLeft + textWidth + _px(Self._tabPastMargin) + 0.5,
+                   x + own < stop.x - 0.01, hangs[t + 1] == nil,
+                   let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }), hangs[last] == nil {
+                    let over = stop.x - (ownLeft + textWidth)
+                    beyond[t] = over
+                    let span = max(0.01, edge(last + 1) - after)
+                    if over < edge(last + 1) - edge(last) - 0.5 {
+                        hangs[last] = -over
+                    } else {
+                        for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -over * max(0, edge(k + 1) - edge(k)) / span }
+                    }
+                    RuleTrace.hit("word-right-tab-past-the-margin-is-honoured")
                 }
                 tabs[t] = extra
                 if toIndent { leftTabs.insert(t) }
@@ -10814,7 +10838,7 @@ public final class RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, tieShort: tieShort,
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, beyond: beyond, tieShort: tieShort,
                                      lineIndents: besideLeftRoom != nil || _setup(ofParagraph: i).headerWrapLeft > 0 ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
@@ -16026,7 +16050,7 @@ public final class RichLayout {
 
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
-                                    runsPast: Set<Int> = [], tieShort: (first: Bool, rest: Bool) = (false, false),
+                                    runsPast: Set<Int> = [], beyond: [Int: Double] = [:], tieShort: (first: Bool, rest: Bool) = (false, false),
                                     lineIndents: [LineIndent] = []) -> [Int: Double] {
         // (A paragraph set on both sides of a box has a room of its own on every
         // line, its pieces: `room` is the line's, from `lineIndents`.)
@@ -16518,7 +16542,8 @@ public final class RichLayout {
             // 8.5pt, to the margin exactly.)
             let parted = RichTextTheme.wordWindowsPages && kinsokuOff && last > a && piece.b == last && closesUp(last - 1) && last - 1 < ems.count
                 && last < units.count && Self._closingUnits.contains(units[last])
-            var fits = x + w - after + (parted ? ems[last - 1] / 2 : 0) <= width + hair
+            let pastRoom = pastFrom.flatMap { beyond[$0.tab] } ?? 0
+            var fits = x + w - after + (parted ? ems[last - 1] / 2 : 0) <= width + pastRoom + hair
             // (What follows a tab to a right stop at the margin that
             // starts inside it runs on past the margin — `runsPast`, T127:
             // zh-ab1ea005's "123.…救济途径？<tab>52" is one line in Word's
