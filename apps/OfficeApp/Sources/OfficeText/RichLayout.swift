@@ -8123,7 +8123,17 @@ public final class RichLayout {
                     if let first = anchorRun.firstIndex(where: { k in lineTop(k).map { noRoom(at: $0, height: meets(k), []) != nil } ?? false }),
                        var at = lineTop(anchorRun[first]) {
                         var steps = 0
+                        let started = at
                         while let below = noRoom(at: at, height: meets(anchorRun[first]), []), steps < 20 { at = below; steps += 1 }
+                        // (A line that heads its page and, set under the picture, would end past
+                        // the page's foot stays where it stands, as Word's print of zh-b3e8dec4's
+                        // 672pt pictures: each one's page holds the picture at its anchor and
+                        // the next picture's page follows — ours sent the line to the next page
+                        // and drew the picture there, 600pt above it.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, started <= 0.01 + headSkip, anchorRun[first] == i,
+                           at + lineHeight(i) > contentH + 0.01 {
+                            at = started
+                        }
                         for k in anchorRun[first...] {
                             guard let old = lineTop(k) else { continue }
                             let delta = at - old
