@@ -18,7 +18,7 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-4: lo-af81b53e, then lo-52da6bc6 (multiple line spacing: extra space below); Word surface chart
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
 - amd-6: zh-6e6b9821, lo-5c5eb1f7 row 25 (pinned floating tables)
-- amd-7: per-column footnotes step 3 (lab fn-cols-sweep printing); lo-e8c1ae37, lo-40949e85, lo-948cd424, lo-c678e486. (lo-0622682c done)
+- amd-7: ALL DONE 2026-11-02 (step 3 footnotes in columns, lo-e8c1ae37, lo-948cd424 landed; lo-40949e85 already 100; lo-c678e486 parked). Waiting for the next list.
 - amd-perf: lo-8ab9b90f (7-node lab), lo-af36644e re-check, zh-ae2dd08d, zh-264d7516, zh-e49d7943, zh-ee2d19e6, zh-15f60bac (triage)
 - amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
 - lenovo-2: lo-512aa398, zh-df9310bd, zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-31d580df, zh-1eeb9f9a, zh-9ba2ead7 (triage)
