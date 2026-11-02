@@ -972,6 +972,10 @@ public struct PageSetup: Hashable, Sendable {
     /// rather than physical sheet indices, determine the requested side.
     public enum PageParity: Int, Hashable, Sendable { case even = 0, odd = 1 }
     public var sectionStartParity: PageParity? = nil
+    /// How far in from the left margin the body's lines start because a header's picture that
+    /// wraps the text stands the page's height there (`Docx._headerWrapLeft`), in points; 0 for
+    /// none. Only the layout reads it: the file's own margins are what is saved.
+    public var headerWrapLeft: Double = 0
 
     public init(width: Double, height: Double, marginTop: Double = 72,
                 marginBottom: Double = 72, marginLeft: Double = 72,
@@ -13008,6 +13012,13 @@ public final class RichLayout {
     /// same cell (or the body), the paragraphs between standing under it.
     private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !p.style.rightToLeft else { return nil }
+        // (A picture in the header that wraps the text and stands the page's height: every
+        // line of the body starts past it. See `PageSetup.headerWrapLeft`.)
+        if p.cell == nil, p.style.list == nil, i >= 0 {
+            let wrapLeft = _setup(ofParagraph: i).headerWrapLeft
+            let inset = _px(wrapLeft) - _px(p.style.indentLeft)
+            if wrapLeft > 0, inset > 0 { return (inset, (-1, 1e9), false, nil) }
+        }
         // (A cell's text is as wide as the cell less its margins, not the page's
         // column.)
         let cell = p.cell != nil && i < _cells.count ? _cells[i] : nil

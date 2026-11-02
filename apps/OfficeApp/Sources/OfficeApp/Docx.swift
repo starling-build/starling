@@ -2509,7 +2509,7 @@ enum DocxFormat {
             case "w:commentRangeEnd":
                 if let id = node["w:id"] { notes.openComments.removeAll { $0 == id } }
             case "w:sectPr":
-                pageSetup = _pageSetup(node)
+                pageSetup = _pageSetup(node, notes)
             case "w:altChunk":
                 // An HTML chunk, as Word imports it: paragraphs of the markup's
                 // text in Times New Roman 12, 14pt of auto spacing either side
@@ -4021,7 +4021,7 @@ enum DocxFormat {
         }
     }
 
-    private static func _pageSetup(_ sect: XNode) -> PageSetup? {
+    private static func _pageSetup(_ sect: XNode, _ notes: _Shared? = nil) -> PageSetup? {
         guard let sz = sect.first("w:pgSz"), let w = Double(sz["w:w"] ?? ""), let h = Double(sz["w:h"] ?? "") else {
             return nil
         }
@@ -4084,7 +4084,53 @@ enum DocxFormat {
                 setup.characterGridSpace = space != 0 ? space / 4096 : 1e-6
             }
         }
+        if let notes { setup.headerWrapLeft = _headerWrapLeft(sect, setup, notes) }
         return setup
+    }
+
+    /// How far a header's picture that wraps the text and stands the page's height
+    /// pushes the body in from the left margin, in points; 0 for none. Word sets the
+    /// body's lines beside such a picture on every page (LibreOffice's tdf38575: a
+    /// 83pt-wide, 848pt-tall wrapThrough picture at -75pt from the column, whose
+    /// polygon ends at 21255 of 21600, has the body at 101.8, the margin at 85.1 and
+    /// the picture's edge plus distR 16.7pt in).
+    private static func _headerWrapLeft(_ sect: XNode, _ setup: PageSetup, _ notes: _Shared) -> Double {
+        guard let ref = sect.children.first(where: { $0.name == "w:headerReference" && ($0["w:type"] ?? "default") == "default" }),
+              let rel = ref["r:id"].flatMap({ notes.rels[$0] }), !rel.external,
+              let header = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse) else { return 0 }
+        let left = setup.marginLeft + setup.gutter
+        for anchor in header.descendants("wp:anchor") {
+            guard let wrap = anchor.children.first(where: { ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains($0.name) }),
+                  let ext = anchor.first("wp:extent"), let cx = Double(ext["cx"] ?? ""), let cy = Double(ext["cy"] ?? ""),
+                  let ph = anchor.first("wp:positionH"), let pv = anchor.first("wp:positionV"),
+                  let ox = Double(ph.first("wp:posOffset")?.text ?? ""), let oy = Double(pv.first("wp:posOffset")?.text ?? "")
+            else { continue }
+            let emu = 12700.0
+            let baseX: Double
+            switch ph["relativeFrom"] ?? "" {
+            case "page", "leftMargin": baseX = 0
+            case "column", "margin": baseX = left
+            default: continue
+            }
+            let baseY: Double
+            switch pv["relativeFrom"] ?? "" {
+            case "page": baseY = 0
+            case "paragraph": baseY = setup.headerDistance
+            case "margin": baseY = setup.marginTop
+            default: continue
+            }
+            let x0 = baseX + ox / emu, y0 = baseY + oy / emu, w = cx / emu, h = cy / emu
+            // (It has to stand the whole text area's height, and start at or before the margin.)
+            guard y0 <= setup.marginTop + 1, y0 + h >= setup.height - setup.marginBottom - 1, x0 <= left + 1 else { continue }
+            var reach = w
+            if let polygon = wrap.first("wp:wrapPolygon") {
+                let xs = ([polygon.first("wp:start")] + polygon.all("wp:lineTo").map { Optional($0) }).compactMap { $0 }.compactMap { Double($0["x"] ?? "") }
+                if let maxX = xs.max() { reach = w * min(max(maxX, 0), 21600) / 21600 }
+            }
+            let inset = x0 + reach + (Double(anchor["distR"] ?? "") ?? 0) / emu - left
+            if inset > 0, inset < setup.contentWidth / 2 { return inset }
+        }
+        return 0
     }
 
     private struct _Built {
