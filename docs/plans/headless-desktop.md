@@ -179,7 +179,8 @@ For agent control at density, **use Starling's headless mode**:
 | Semantics tree and actions | not started (design agreed with lenovo-2, who has since left) |
 | Window focus / move / resize / minimise / maximise / close, wait-for-window | done (smoke-tested) |
 | Shell surfaces (dock, launcher, notifications, control centre) | not started |
-| Clipboard, drag-and-drop, file dialogs, IME | not started |
+| Clipboard read/write | written, untested here (needs `wl-clipboard`; ops clipboard_set / clipboard_get) |
+| Drag-and-drop, file dialogs, IME | not started |
 | Event subscription, wait-for-condition | not started |
 | N-desktop orchestration, Python client, CLI | not started |
 | End-to-end suite under test/ | smoke test only |

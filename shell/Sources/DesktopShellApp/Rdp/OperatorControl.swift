@@ -278,6 +278,46 @@ final class OperatorControl: @unchecked Sendable {
 
     // MARK: ops (main queue)
 
+    /// Runs wl-copy / wl-paste against the shell's Wayland socket. Off the
+    /// main queue: wl-paste blocks until the owner answers.
+    static func runClipboard(set: Bool, text: String, socket: String) -> [String: Any] {
+        let p = Process()
+        var env = ProcessInfo.processInfo.environment
+        env["WAYLAND_DISPLAY"] = socket
+        p.environment = env
+        let bins = ["/usr/bin/wl-copy", "/usr/bin/wl-paste"]
+        let path = set ? bins[0] : bins[1]
+        guard FileManager.default.isExecutableFile(atPath: path) else {
+            return ["ok": false, "error": "wl-clipboard not installed (apt install wl-clipboard)"]
+        }
+        p.executableURL = URL(fileURLWithPath: path)
+        let inPipe = Pipe(), outPipe = Pipe()
+        p.standardOutput = outPipe
+        p.standardError = FileHandle.nullDevice
+        if set {
+            p.arguments = []
+            p.standardInput = inPipe
+            // wl-copy stays alive to serve the selection; do not wait for it.
+            p.standardOutput = FileHandle.nullDevice
+        } else {
+            p.arguments = ["--no-newline"]
+            p.standardInput = FileHandle.nullDevice
+        }
+        do { try p.run() } catch { return ["ok": false, "error": "spawn failed: \(error)"] }
+        if set {
+            inPipe.fileHandleForWriting.write(Data(text.utf8))
+            try? inPipe.fileHandleForWriting.close()
+            Thread.sleep(forTimeInterval: 0.3)   // let it claim the selection
+            return ["ok": true]
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        if p.isRunning { kill(p.processIdentifier, SIGTERM); return ["ok": false, "error": "clipboard read timed out"] }
+        if p.terminationStatus != 0 { return ["ok": true, "text": "", "empty": true] }
+        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+        return ["ok": true, "text": String(decoding: data, as: UTF8.self)]
+    }
+
     private func pickWindow(_ req: [String: Any], _ wm: WindowManagerState, requireSelector: Bool = false) -> WindowInfo? {
         if let id = req["win"] as? String { return wm.windows.first { $0.id == id } }
         if let app = req["app"] as? String { return wm.windows.first { $0.appId == app } }
@@ -407,6 +447,22 @@ final class OperatorControl: @unchecked Sendable {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { pollBox.fn?() }
             }
             pollBox.fn?()
+
+        case "clipboard_set", "clipboard_get":
+            // The desktop clipboard, through the compositor's own data-control
+            // support: wl-copy / wl-paste are ordinary clients of OUR socket,
+            // so this is exactly what Chrome or a first-party app would see.
+            guard let sock = waylandIntegration?.socketName, !sock.isEmpty else {
+                return fail("wayland server not ready")
+            }
+            let text = req["text"] as? String
+            if op == "clipboard_set" && text == nil { return fail("clipboard_set needs text") }
+            nonisolated(unsafe) let doneU = done
+            let isSet = op == "clipboard_set"
+            DispatchQueue.global().async {
+                let r = OperatorControl.runClipboard(set: isSet, text: text ?? "", socket: sock)
+                DispatchQueue.main.async { doneU(r) }
+            }
 
         case "launch":
             guard let app = req["app"] as? String, let shell = _shellState else {

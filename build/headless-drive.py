@@ -16,6 +16,7 @@ Actions (each one argv element, like shell-drive.py; coordinates LOGICAL px):
     key COMBO            enter, ctrl+a, alt+f4 ...     keydown/keyup NAME
     type TEXT            US-ASCII text
     launch APP           launch or focus an app by registry id
+    clip [TEXT]          set the clipboard to TEXT, or print it with no TEXT
     windows              print every window as JSON
     focus|close|minimize|maximize|unmaximize [APP|win=ID]   window management
     winmove [APP|win=ID] X Y     resize [APP|win=ID] W H     (logical px)
@@ -84,7 +85,7 @@ def main(argv):
     for a in argv:
         w = a.split(" ", 1)
         verb, rest = w[0], (w[1] if len(w) > 1 else "")
-        nums = [float(x) for x in rest.split()] if verb not in ("type", "key", "keydown", "keyup", "launch", "shot", "sleep", "stats", "focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize", "waitwin") and rest else []
+        nums = [float(x) for x in rest.split()] if verb not in ("type", "key", "keydown", "keyup", "launch", "shot", "sleep", "stats", "focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize", "waitwin", "clip") and rest else []
         if verb == "shot":
             r = c.call("shot", path=os.path.abspath(rest))
             print(f"shot {rest}: {r['w']}x{r['h']} {r['bytes']}B total {r['ms']:.0f} ms (frame {r['frame_ms']:.0f} ms)")
@@ -127,6 +128,11 @@ def main(argv):
             if tail:
                 kw["timeout"] = float(tail[0])
             c.call("wait_window", **kw)
+        elif verb == "clip":
+            if rest:
+                c.call("clipboard_set", text=rest)
+            else:
+                print(c.call("clipboard_get")["text"])
         elif verb == "windows":
             print(json.dumps(c.call("windows")["windows"], indent=1))
         elif verb == "screen":

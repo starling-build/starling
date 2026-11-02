@@ -98,4 +98,12 @@ echo "  ok    minimize and focus"
 d "close terminal" "waitwin terminal gone 5" >/dev/null || fail "close / wait-for-gone failed"
 d windows | grep -q '"app": "terminal"' && fail "terminal still listed after close"
 echo "  ok    close, and wait-for-gone returns"
+# 6. clipboard round trip (needs wl-clipboard; skipped, with the reason, without)
+if [ -x /usr/bin/wl-copy ] && [ -x /usr/bin/wl-paste ]; then
+    d "clip headless-clip-ok" >/dev/null || fail "clipboard set failed"
+    [ "$(d clip)" = "headless-clip-ok" ] || fail "clipboard did not read back what was set"
+    echo "  ok    clipboard round trip"
+else
+    echo "  skip  clipboard round trip (apt install wl-clipboard)"
+fi
 echo "all headless checks passed"
