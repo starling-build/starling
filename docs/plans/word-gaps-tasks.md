@@ -13330,3 +13330,39 @@ Stopped at macos's request. A v0 already exists: `AgentSemanticsEndpoint.swift` 
 5. No find-by-label op and no tests.
 Framework note: Flutter's real semantics pipeline is not wired (`flushSemantics` is empty).
 Parked work, never compiled: branch `wip/agent-semantics` (a `Semantics` widget and a rewritten endpoint with roles, find, act). The Macos controls were not wrapped yet. Agreed with amd-desktop: per-app ops `tree`/`act`/`find`, legacy names kept.
+
+## Slides census at tip (lenovo-2, 2026-11-02)
+555 decks vs powerpoint-win, MuPDF diff, bundled fonts. Mean worst-page 1.165 (stale baseline-win: 1.184). Six decks above the stale baseline, none by much except Vertiefungsvortrag_elektronik 7.6 -> 8.82 and lo-tdf149206 3.0 -> 3.61; the baseline is older than the font commits, so cause unproven. Class is a rough guess from what the deck contains (EMF/chart/etc. present), not a diagnosis. Worst 30 (worst-page %, class, deck):
+```
+61.55 unreadable clusterfuzz-testcase-minimized-POIXSLFFuzzer-5611274456596480.pptx
+28.85 unreadable clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx
+21.36 unreadable Divino_Revelado.pptx
+19.80 chart+EMF aascu.org_workarea_downloadasset.aspx_id=5864.pptx
+14.58 WordArt-warp+dashed-text-outline oox-tdf139618_WordArtBitmapFill.pptx
+13.00 3D oox-Scene3d_material_highlight.pptx
+12.32 dashed-text-outline+3D+SmartArt+EMF customGeo.pptx
+11.77 WordArt-warp+dashed-text-outline oox-tdf139618_ImportWordArtGradient.pptx
+11.61 EMF 45541_Footer.pptx
+11.61 EMF 45541_Header.pptx
+11.61 EMF 45545_Comment.pptx
+10.70 3D oox-Scene3d_lightRig_rot_rotation.pptx
+10.42 SmartArt+EMF ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx
+10.14 WordArt-warp+dashed-text-outline+3D lo-tdf114848.pptx
+9.25 WordArt-warp+3D lo-tdf140865Wordart3D.pptx
+9.12 WordArt-warp oox-tdf139618_ThemeColorTransparency.pptx
+8.82 EMF at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx
+8.71 EMF alterman_security.pptx
+7.53 EMF bug62513.pptx
+7.51 unknown au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx
+7.49 3D+SmartArt 60810.pptx
+7.03 WordArt-warp oox-tdf155327_WordArtDefaultColor.pptx
+5.67 unknown lo-font-scale.pptx
+5.41 unknown 2411-Performance_Up.pptx
+5.33 unknown lo-master-slides.pptx
+4.85 picture pptx2svg.pptx
+4.71 picture aptia.pptx
+4.39 3D oox-Scene3d_legacyObliqueBottomRight.pptx
+4.29 dashed-text-outline+3D ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx
+4.26 chart+EMF aascu.org_hbcu_leadershipsummit_cooper_.pptx
+```
+Full table: /data/s/lenovo-2/slides/census/render.tsv on the Lenovo. The first three decks (two fuzz cases, Divino_Revelado) do not open as zips here; not examined.
