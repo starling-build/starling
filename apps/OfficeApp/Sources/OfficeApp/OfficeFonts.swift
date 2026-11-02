@@ -1202,6 +1202,33 @@ enum OfficeFonts {
         0.4658, 0.3560, 0.2559, 0.3560, 0.5342,
     ]
 
+    // Tahoma's own widths, U+0020 to U+007E, in its Regular and Bold, and its
+    // own line: 1.2070 ems by its hhea (ascent 2049, descent 423 of 2048, no
+    // gap). Numbers only, read from the subsets Word's and PowerPoint's
+    // Windows prints embed by test/tools/print-font-metrics.py (55 and 57 of
+    // the 95 glyphs from the subsets' hmtx; the rest estimated from Liberation
+    // Sans by the median ratio of their kind). Tahoma has no metric-compatible
+    // free clone; the sans stand-in's lines held a word too many.
+    static let tahomaAdvances: [Double] = [
+        0.3125, 0.3320, 0.4014, 0.6289, 0.6289, 1.0054, 0.7542, 0.2159, 0.3828, 0.3828, 0.4400, 0.6603, 0.3027, 0.3633, 0.3027,
+        0.3823, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.3535, 0.3142, 0.6603, 0.6603,
+        0.6603, 0.6289, 0.9092, 0.5996, 0.5894, 0.6006, 0.6782, 0.5610, 0.5215, 0.6992, 0.6753, 0.2498, 0.4495, 0.5996, 0.5000,
+        0.7705, 0.6675, 0.7075, 0.5513, 0.6992, 0.6206, 0.5571, 0.5840, 0.6558, 0.5996, 0.8485, 0.5996, 0.5996, 0.5491, 0.3142,
+        0.3142, 0.3142, 0.5306, 0.6289, 0.3766, 0.5249, 0.5527, 0.4614, 0.5527, 0.5264, 0.3184, 0.5527, 0.5576, 0.2285, 0.2213,
+        0.4980, 0.2285, 0.8398, 0.5576, 0.5430, 0.5527, 0.5539, 0.3604, 0.4463, 0.3345, 0.5576, 0.4980, 0.7193, 0.4951, 0.4980,
+        0.4980, 0.3777, 0.2937, 0.3777, 0.6603,
+    ]
+    static let tahomaBoldAdvances: [Double] = [
+        0.2930, 0.3428, 0.4893, 0.6255, 0.6255, 1.0001, 0.7812, 0.2754, 0.4541, 0.4541, 0.4377, 0.6569, 0.3125, 0.4312, 0.3125,
+        0.5771, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.3633, 0.3633, 0.6569, 0.6569,
+        0.6569, 0.6871, 1.0968, 0.6846, 0.6860, 0.6675, 0.7573, 0.6152, 0.5811, 0.7582, 0.7642, 0.4834, 0.5005, 0.6963, 0.5723,
+        0.8931, 0.7039, 0.7700, 0.6572, 0.7582, 0.7261, 0.6333, 0.6123, 0.7039, 0.6502, 1.0278, 0.6502, 0.6502, 0.5954, 0.4541,
+        0.3125, 0.4541, 0.6569, 0.6255, 0.3746, 0.5986, 0.6318, 0.5273, 0.6294, 0.5938, 0.3490, 0.6294, 0.6401, 0.3018, 0.2911,
+        0.5828, 0.3018, 0.9536, 0.6401, 0.6172, 0.6294, 0.6401, 0.4336, 0.5146, 0.4155, 0.6401, 0.5786, 0.8151, 0.6045, 0.5757,
+        0.5240, 0.4377, 0.3147, 0.4377, 0.6569,
+    ]
+
+
     // Lucida Sans Unicode's own widths, U+0020 to U+007E: its lower case
     // is 5-37% wider than Arial's, its digits all 0.632, and the sans
     // stand-in set bug59058's "SEER 9 Incidence…" note on one line where
@@ -2627,6 +2654,14 @@ enum OfficeFonts {
                 face.boldOtherAdvances?.merge(verdanaBoldOtherAdvances) { $1 }
                 face.naturalHeight = 1.2153
                 face.baseline = 1.0054
+            }
+            // (Tahoma, drawn as the sans clone, at its own widths and line.)
+            if family.trimmingWhitespace().lowercased() == "tahoma" {
+                face.advances = tahomaAdvances
+                face.boldAdvances = tahomaBoldAdvances
+                face.naturalHeight = 1.2070
+                face.baseline = 1.0005
+                RuleTrace.hit("tahoma-own-widths")
             }
             // (Arial Black, which Word has and the stand-in is far
             // narrower than — its letters 15% wider than Liberation Sans
