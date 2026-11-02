@@ -5147,7 +5147,11 @@ enum DocxFormat {
                      notes.seenComments, notes.fieldShown) = saved
                 }
                 for shape in node.descendants("wps:wsp") {
-                    guard let warp = WriterGroups.textWarp(shape), let content = shape.first("wps:txbx")?.first("w:txbxContent") else { continue }
+                    guard let warp = WriterGroups.textWarp(shape),
+                          // (Word for Windows sets a slanted text box that is turned as plain glyphs, turned: zh-b24b396a's
+                          // "（全宗名称）" — see `RichTextBox.Part.rotation`.)
+                          !(Self.wordOnWindows && warp.preset == "textSlantDown" && shape.first("wps:spPr")?.first("a:xfrm")?["rot"] != nil),
+                          let content = shape.first("wps:txbx")?.first("w:txbxContent") else { continue }
                     notes.fields = []
                     let paragraphs = content.all("w:p").flatMap {
                         _paragraphs($0, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil).map(\.paragraph)
@@ -5291,8 +5295,16 @@ enum DocxFormat {
                             // (Or in its middle: zh-77079ee8's organisation chart, a
                             // SmartArt whose boxes centre "工作圈" and the
                             // one-line "工作" over "服務組" in Word's print.)
-                            parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b",
-                                                          inMiddle: body?["anchor"] == "ctr"))
+                            var part = RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b",
+                                                        inMiddle: body?["anchor"] == "ctr")
+                            // (A box turned in its group: about its middle, in the
+                            // frame's place.)
+                            if Self.wordOnWindows, let rot = b.first("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }), rot != 0 {
+                                part.rotation = rot / 60000
+                                part.pivotX = x + w / 2
+                                part.pivotY = y + h / 2
+                            }
+                            parts.append(part)
                         }
                     }
                 } else if let group = Self._vmlTop(node), group.name == "v:group",

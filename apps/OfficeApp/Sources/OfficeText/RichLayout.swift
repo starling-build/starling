@@ -18487,7 +18487,7 @@ public final class RichLayout {
         /// A text box group's later boxes that stand beside another rather
         /// than under it: each laid out alone, painted `dy` below the box's
         /// top (pixels).
-        var beside: [(layout: RichLayout, document: RichDocument, dy: Double)] = []
+        var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
         var height: Double { layout.totalHeight }
         /// Where a table placed against the PAGE opens the header stands below the paper's
         /// top (points), if it does: Word sets it there, not at the header distance
@@ -18730,6 +18730,13 @@ public final class RichLayout {
         inside.layout.paint(canvas, visible: all, document: inside.document, selection: nil, caret: nil)
         for other in inside.beside {
             canvas.save()
+            // (A box turned in its group, about its middle: zh-b24b396a's
+            // "（全宗名称）", 8pt glyphs 58° up in Word's print.)
+            if let turn = other.turn {
+                canvas.translate(turn.x, turn.y)
+                canvas.rotate(turn.degrees * Double.pi / 180)
+                canvas.translate(-turn.x, -turn.y)
+            }
             canvas.translate(0, other.dy)
             other.layout.paint(canvas, visible: all, document: other.document, selection: nil, caret: nil)
             canvas.restore()
@@ -18992,10 +18999,10 @@ public final class RichLayout {
         // zh-06c46ba9's tree of labels sets four boxes in a row, and the
         // flow stacked them, each under the last, 140pt down the page.)
         var parts = box.parts
-        var beside: [(layout: RichLayout, document: RichDocument, dy: Double)] = []
-        if parts.count > 1, (1 ..< parts.count).contains(where: { parts[$0].top < parts[$0 - 1].top + parts[$0 - 1].height - 0.5 }) {
+        var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
+        if parts.count > 1, (1 ..< parts.count).contains(where: { parts[$0].rotation != 0 || parts[$0].top < parts[$0 - 1].top + parts[$0 - 1].height - 0.5 }) {
             let all = sub.paragraphs
-            for n in 1 ..< parts.count where parts[n].first < all.count {
+            for n in (parts[0].rotation != 0 ? 0 : 1) ..< parts.count where parts[n].first < all.count {
                 let end = n + 1 < parts.count ? min(all.count, parts[n + 1].first) : all.count
                 guard end > parts[n].first else { continue }
                 var own = sub
@@ -19007,9 +19014,9 @@ public final class RichLayout {
                 var dy = _px(parts[n].top - box.insetTop)
                 if parts[n].atFoot { dy += _px(parts[n].height) - alone.totalHeight }
                 if parts[n].inMiddle { dy += max(0, _px(parts[n].height) - alone.totalHeight) / 2 }
-                beside.append((alone, own, dy))
+                beside.append((alone, own, dy, parts[n].rotation == 0 ? nil : (parts[n].rotation, _px(parts[n].pivotX), _px(parts[n].pivotY))))
             }
-            sub.paragraphs = Array(all[0 ..< min(all.count, parts[1].first)])
+            sub.paragraphs = parts[0].rotation != 0 ? [] : Array(all[0 ..< min(all.count, parts[1].first)])
             parts = [parts[0]]
         }
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)

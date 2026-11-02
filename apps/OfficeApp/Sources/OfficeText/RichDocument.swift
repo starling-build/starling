@@ -398,6 +398,11 @@ public struct RichTextBox: Hashable, Sendable {
         public var height: Double
         public var atFoot: Bool
         public var inMiddle = false
+        /// The box's own turn in degrees clockwise, about its centre
+        /// (`pivotX`, `pivotY`: points from the group's text origin).
+        public var rotation = 0.0
+        public var pivotX = 0.0
+        public var pivotY = 0.0
         public init(first: Int, top: Double, height: Double, atFoot: Bool, inMiddle: Bool = false) {
             self.first = first; self.top = top; self.height = height; self.atFoot = atFoot; self.inMiddle = inMiddle
         }
