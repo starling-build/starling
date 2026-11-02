@@ -8251,12 +8251,32 @@ public final class RichLayout {
         // of lines ending at one no longer changes (a few rounds at most).
         guard theme.wordRules, !automatic.isEmpty || p.text.utf16.contains(0x00AD) else { _hyphenShown[i] = nil; return }
         let units = Array(p.text.utf16)
-        for _ in 0 ..< 5 {
+        let limit = document.keptSettings["w:consecutiveHyphenLimit"].flatMap { x -> Int? in
+            guard let r = x.range(of: "w:val=\"") else { return nil }
+            return Int(x[r.upperBound...].prefix(while: { $0.isNumber }))
+        } ?? 0
+        for _ in 0 ..< 8 {
             guard let painter = _painters[i], i < _inserts.count else { return }
             let starts = Set(_lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count))
             var want = Set<Int>()
             for k in 0 ..< units.count where units[k] == 0x00AD && starts.contains(k + 1) { want.insert(k) }
             for k in automatic where starts.contains(k) { want.insert(k) }
+            // (w:consecutiveHyphenLimit: no more lines in a row end at a
+            // hyphen than it says — lab hy: 1 and 2 hold exactly.)
+            if limit > 0 {
+                let order = _lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count)
+                var run = 0
+                var dropped = false
+                for n in 1 ..< max(1, order.count) {
+                    if want.contains(order[n]) || (order[n] > 0 && units[order[n] - 1] == 0x00AD && want.contains(order[n] - 1)) {
+                        run += 1
+                        if run > limit, let a = _hyphenPoints[i], a.contains(order[n]) {
+                            _hyphenPoints[i]?.remove(order[n]); want.remove(order[n]); dropped = true; run = 0
+                        }
+                    } else { run = 0 }
+                }
+                if dropped { _hyphenShown[i] = want; _layoutParagraphOnce(i, p, document); continue }
+            }
             if want == (_hyphenShown[i] ?? []) { return }
             _hyphenShown[i] = want
             _layoutParagraphOnce(i, p, document)

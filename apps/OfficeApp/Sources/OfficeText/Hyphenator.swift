@@ -42,7 +42,7 @@ final class Hyphenator {
 
     private static var cache: [String: Hyphenator?] = [:]
     private static let lock = NSLock()
-    static let enabled: Set<String> = ["en-us"]
+    static let enabled: Set<String> = ["en-us", "es", "fr"]
 
     /// The hyphenator for a language tag (`en-US`, `nl-NL`, `de-DE`…), or nil
     /// where none is bundled.
@@ -50,17 +50,18 @@ final class Hyphenator {
         let t = tag.lowercased()
         let key: String
         switch true {
-        case t == "en-gb" || t == "en-au" || t == "en-nz" || t == "en-ie" || t == "en-za" || t == "en-in": key = "en-gb"
-        case t.hasPrefix("en"): key = "en-us"
+        case t.hasPrefix("en"): key = "en-us"  // (Word: en-GB hyphenates exactly as en-US, lab hy)
         case t.hasPrefix("nl"): key = "nl"
         case t.hasPrefix("de"): key = "de"
         case t.hasPrefix("es"): key = "es"
         case t.hasPrefix("fr"): key = "fr"
         default: return nil
         }
-        // (Only what Word for Windows' reference prints show it hyphenating:
-        // English (US) — lo-a594fa6b, lo-d1e88d77. Dutch, en-GB set no
-        // hyphen where the patterns find one; German and Spanish await a lab.)
+        // (Only the languages whose hyphenation dictionaries the reference
+        // Word for Windows has installed — English, Spanish, French (lab hy:
+        // PROOF\MSHY7EN/ES/FR). Dutch and German are the BOX'S missing
+        // install, not a Word rule: its prints set none; a Word with them
+        // would. Enable "nl"/"de" here to follow such a Word.)
         guard enabled.contains(key) else { return nil }
         lock.lock(); defer { lock.unlock() }
         if let found = cache[key] { return found }
