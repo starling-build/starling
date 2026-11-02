@@ -207,6 +207,20 @@ struct PdfMarkup {
                         RuleTrace.hit("deleted-numbered-paragraph-leaves-an-empty-mark-line")
                         open!.paragraphs[open!.paragraphs.count - 1] = "¶"; open!.paragraphs.append("")
                     }
+                    // (An empty deleted paragraph between a deleted text paragraph and a numbered one,
+                    // all three with a properties change: Word's balloon repeats the text paragraph's
+                    // line before the numbered one, with the two mark lines it leaves — lab dtwo, d1
+                    // and d3: "t02¶", "¶", "t02¶", "¶", "¶", "t03t04¶". The paragraph's own text,
+                    // not the numbered one's, and no repeat where the run starts at the numbered one.)
+                    if DocxFormat.wordOnWindows, p.text.isEmpty, p.style.propertyChange != nil, srcIndex > 0, srcIndex + 1 < source.paragraphs.count,
+                       case let before = source.paragraphs[srcIndex - 1], case let after = source.paragraphs[srcIndex + 1],
+                       before.style.markRevision?.kind == .deleted, !before.text.isEmpty, before.style.propertyChange != nil, before.style.propertyChange?.oldRPrXML.contains("w:numPr") != true,
+                       after.style.markRevision?.kind == .deleted, !after.text.isEmpty,
+                       after.style.propertyChange?.oldRPrXML.contains("w:numPr") == true {
+                        RuleTrace.hit("deleted-empty-paragraph-repeats-the-text-before-it")
+                        open!.paragraphs[open!.paragraphs.count - 1] = before.text + "¶"
+                        open!.paragraphs.append("¶"); open!.paragraphs.append("¶"); open!.paragraphs.append("")
+                    }
                 }
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
