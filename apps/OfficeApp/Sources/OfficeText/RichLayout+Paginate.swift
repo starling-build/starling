@@ -1798,6 +1798,17 @@ extension RichLayout {
                     break
                 }
             }
+            // (An ordinary table straight after a floating one that keeps text off (tblOverlap never), fitting in the
+            // room at its right, starts level with it and stands beside it — `_besideWideFloatShift` sets it across:
+            // Word's print of LibreOffice's lo-ce0d5e6d, two 387pt tables side by side on one page, ours one under the
+            // other and over onto a second.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, besideTable == nil, i > 0, let c = _cells[i], let prev = _cells[i - 1]?.table,
+               prev != c.table, _tableFirstParagraph[c.table] == i, _besideWideFloatShift(c.table, document) != nil,
+               let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev && !$0.repeated }).map(\.pageY).min(), top < y - 0.01 {
+                RuleTrace.hit("word-table-after-a-float-stands-beside-it-where-it-fits")
+                besideTable = (y, page)
+                y = top
+            }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document), !ts.pageAnchored, ts.keptPosition != nil,

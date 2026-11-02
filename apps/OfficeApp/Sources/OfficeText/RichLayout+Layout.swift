@@ -834,7 +834,7 @@ extension RichLayout {
         switch style?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
-        default: return theme.wordRules ? _px(style?.indent ?? 0) - left + _edgeShift(table, document) : _px(style?.indent ?? 0).rounded()
+        default: return theme.wordRules ? _px(style?.indent ?? 0) - left + _edgeShift(table, document) + (_besideWideFloatShift(table, document) ?? 0) : _px(style?.indent ?? 0).rounded()
         }
     }
 

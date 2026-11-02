@@ -459,7 +459,26 @@ extension RichLayout {
     func _narrowBesideFloat(_ table: String, _ document: RichDocument) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], !ts.floatsOverText, !ts.pageAnchored,
               ts.keptPosition == nil, let widths = _columnWidths[table] else { return false }
-        return widths.reduce(0, +) <= _px(1) * 100
+        return widths.reduce(0, +) <= _px(1) * 100 || _besideWideFloatShift(table, document) != nil
+    }
+
+    /// How far right an ordinary table wider than the strip stands to sit beside the floating table that
+    /// stands just before it (the float's right side and the distance it asks), or nil where it does not fit
+    /// beside it. Word's print of LibreOffice's lo-ce0d5e6d: a 387pt table directly after a tblOverlap-never
+    /// floating one of the same width sits level with it, its rules at 417.5, where ours set it under.
+    /// (amd-3's patch, carried over the split.)
+    func _besideWideFloatShift(_ table: String, _ document: RichDocument) -> Double? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], !ts.floatsOverText, !ts.pageAnchored,
+              ts.keptPosition == nil, ts.alignment == .left, let widths = _columnWidths[table],
+              let f = _tableFirstParagraph[table], f > 0, f - 1 < _cells.count, let prev = _cells[f - 1]?.table, prev != table,
+              let ps = document.tableStyles[prev], ps.floatsOverText, !ps.pageAnchored, let kept = ps.keptPosition,
+              kept.containsSubstring("w:vertAnchor=\"text\""), !kept.containsSubstring("w:tblpXSpec"),
+              let pw = _columnWidths[prev], let r = kept.rangeOfSubstring("w:rightFromText=\"") else { return nil }
+        let distance = Double(kept[r.upperBound...].prefix { $0.isNumber }) ?? 0
+        let edge = _tableLeft(prev, document) + pw.reduce(0, +) + _px(distance / 20)
+        let own = _px(ts.indent ?? 0)
+        guard edge > own + 0.01, edge + widths.reduce(0, +) <= _flowWidth(f) + 0.01 else { return nil }
+        return edge - own
     }
 
     /// A paragraph's left and right indents in points: Word's
