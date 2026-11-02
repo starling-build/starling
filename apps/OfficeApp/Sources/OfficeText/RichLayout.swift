@@ -9388,16 +9388,26 @@ public final class RichLayout {
                 // start, the right edge, where what stands before the tab on
                 // its line has no right-to-left letters — digits, other tabs:
                 // the note numbers of lo-ccca8bf3 (tdf129659), "1<tab><tab>" —
-                // and only for stops that set left; the probe is laid out
+                // and for left, right and centred stops; the probe is laid out
                 // left to right, whose advances are the same.)
+                // (What stands before the tab on its line is as wide as its
+                // boxes spread — Hebrew stands reversed in the probe, so its
+                // offsets say nothing — and starts at the lead, where the
+                // line is the paragraph's first.)
+                var rtlAt: Double? = nil
                 if style.rightToLeft {
                     let lineStart = (0 ..< t).last(where: { units[$0] == 0x0A || units[$0] == 0x2028 }).map { $0 + 1 } ?? 0
                     let rtlLetter: (UInt16) -> Bool = { ($0 >= 0x0590 && $0 <= 0x08FF) || ($0 >= 0xFB1D && $0 <= 0xFDFF) || ($0 >= 0xFE70 && $0 <= 0xFEFF) }
-                    if units[lineStart ..< t].contains(where: rtlLetter) { continue }
-                    let here = stops.first(where: { _px($0.position) > ownLeft + edge(t) - (base ?? origin) + shift + 0.5 })
-                    if let here, here.alignment != .left { continue }
+                    if units[lineStart ..< t].contains(where: rtlLetter) {
+                        if base != nil || lineStart != 0 { continue }
+                        let boxes = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(0), extentOffset: probeMap.painter(t - 1) + 1))
+                        guard let lo = boxes.map(\.left).min(), let hi = boxes.map(\.right).max() else { continue }
+                        rtlAt = lead + (hi - lo)
+                    }
+                    let here = stops.first(where: { _px($0.position) > ownLeft + (rtlAt ?? edge(t)) - (base ?? origin) + shift + 0.5 })
+                    if let here, here.alignment == .decimal { continue }
                 }
-                let at = edge(t)
+                let at = rtlAt ?? edge(t)
                 var after = edge(t + 1)
                 if style.rightToLeft {
                     // (The next character is Hebrew, which the left-to-right
@@ -9457,7 +9467,14 @@ public final class RichLayout {
                 // What follows, up to the next tab or the line's end.
                 var end = t + 1
                 while end < units.count, units[end] != 0x09, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
-                let following = max(0, edge(end) - after)
+                var following = max(0, edge(end) - after)
+                if style.rightToLeft, end > t + 1 {
+                    // (Right-to-left letters stand reversed in the probe: the
+                    // run's width is its boxes' spread, not the offsets'.)
+                    let from = probeMap.painter(t + 1), to = probeMap.painter(end - 1) + 1
+                    let boxes = probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to))
+                    if let lo = boxes.map(\.left).min(), let hi = boxes.map(\.right).max() { following = max(0, hi - lo) }
+                }
                 var extra = stop.x - x - own
                 switch stop.alignment {
                 case .left: break
@@ -9486,8 +9503,8 @@ public final class RichLayout {
                 // ours sent "23" to a line of its own, and the contents ran
                 // a line behind. Only where the tab starts inside its stop:
                 // one past it goes down with what follows, T127.)
-                if theme.wordRules, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1) { runsPast.insert(t) }
-                if theme.wordRules, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1), x + own < stop.x - 0.01,
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1) { runsPast.insert(t) }
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1), x + own < stop.x - 0.01,
                    let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }),
                    case let over = x + own + edge(last + 1) - after - (ownLeft + textWidth), over > 0.01 {
                     // (The tab takes nothing — the number follows the text
