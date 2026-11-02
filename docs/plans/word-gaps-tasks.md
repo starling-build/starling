@@ -13538,3 +13538,5 @@ TIP WATCH amd-8, round 48 (tip 50bd245d9): Word 756 and LO: 0 down, 1 up on LO. 
 TIP WATCH amd-8, round 49 (tip 1c402a007): Word 756 and LO: 0 down. zh-0b87285b 98.7 -> 100 (its page count moved to Word's, as the commit says). OfficeApp unit tests pass: 612 run, 0 failures.
 - amd-2 CLAIM lo-f5c618c5 (coordinator's list: f5c618c5, f48e444e, 99590fe5, c6cd222f, 085e8dbb, f1cc2329, in order). LAB sent to windows for the lo-ff3b52d1 rectangle (where margin-top 81pt is measured from).
 - 2026-11-02 amd-perf CLAIMS (coordinator's list, mine alone): lo-fc75bd78, lo-ccd9da4b, lo-198cd200, lo-7cba9019, lo-796c371e, lo-db00fd9f, lo-0dd5bc0a, lo-73f1dccc, in that order; then the SmartArt wrap/44pt item. Dropped lo-e998b55c (amd-2 landed it) and lo-a998eddac (amd-2).
+- amd-2 lo-f5c618c5: LAB 2 sent to windows (is the last, empty line after a trailing <w:br/> exempt from the foot? variants a-e). Moving to lo-f48e444e meanwhile.
+- amd-2 CLAIM lo-f48e444e
