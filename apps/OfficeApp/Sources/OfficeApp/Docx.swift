@@ -2204,6 +2204,7 @@ enum DocxFormat {
                     // (`w:tblpYSpec="top"` with no anchor stated stands at the margin's top, over the empty
                     // paragraph before it: LibreOffice's lo-0dd5bc0a, a cover-page SDT; Word's print has it 26pt
                     // higher than ours, which set it under that paragraph.)
+                    if let v = Double(pos["w:bottomFromText"] ?? ""), v > 0, style.floatOffsetY != nil, pos["w:tblpYSpec"] == nil { style.floatBottomGap = v / 20 }
                     if pos["w:tblpYSpec"] == "top", pos["w:vertAnchor"] == nil || pos["w:vertAnchor"] == "margin", pos["w:tblpY"] == nil {
                         style.marginOffsetY = 0
                     }

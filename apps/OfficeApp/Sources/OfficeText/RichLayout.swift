@@ -6640,6 +6640,11 @@ public final class RichLayout {
                     add(rules)
                 }
                 y += c.ownRowHeight
+                // (What follows a table floating by the text keeps its bottomFromText clear of it: Word
+                // for Windows' print of LibreOffice's lo-7cba9019, 43 twips, puts the second floating table
+                // 2.1pt and the normal table under it 2.3pt lower than ours, which ignored the distance.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, j >= count || _cells[j]?.table != c.table,
+                   let gap = document.tableStyles[c.table]?.floatBottomGap { y += _px(gap) }
                 if y > contentH - 0.01, !tableEndsOverAnchor(c, j) { newPage() }
                 i = j
                 continue

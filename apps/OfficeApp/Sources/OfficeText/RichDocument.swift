@@ -1254,6 +1254,8 @@ public struct TableStyle: Hashable, Sendable {
     /// A floating table naming no w:vertAnchor stands w:tblpY under the top
     /// margin (Word for Windows' print of fdo68607 and lo-89daf93d), in points.
     public var marginOffsetY: Double? = nil
+    /// `w:bottomFromText` (points) of a table floating by the text: what follows it stays this far clear.
+    public var floatBottomGap: Double? = nil
     public var pageOffsetY: Double? = nil
     /// `w:tblpYSpec="bottom"`: the table's foot stands at the body's foot.
     public var bottomAligned = false
