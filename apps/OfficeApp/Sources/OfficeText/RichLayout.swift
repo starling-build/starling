@@ -4223,7 +4223,17 @@ public final class RichLayout {
         // up (Word's, under its rules): the notes of the paragraph or row
         // being set (`placing`, of paragraphs `placingRange`) go on with
         // it to the next page where none of it stays on this one.
-        let notesOn = theme.wordRules && !document.footnotes.isEmpty && _columns == 1
+        // (A page of columns of one section sets its notes as it sets its
+        // text, each under the column its mark stands in: the column's own
+        // room, a note too long for it parted on to the same column of the
+        // next page. Word's labs fn-cols-long2 and -short.)
+        let slotNotes = theme.wordRules && RichTextTheme.wordWindowsPages && _columns > 1 && !_perSection && !document.footnotes.isEmpty
+        _slotNotes = slotNotes
+        let notesOn = theme.wordRules && !document.footnotes.isEmpty && (_columns == 1 || slotNotes)
+        func noteWidth() -> Double {
+            let s = pageSetup(forPage: page / _columns)
+            return _px(slotNotes ? s.columnWidth : s.contentWidth)
+        }
         var pageNotes: [Int] = []
         var placing: [Int] = []
         var placingRange = 0 ..< 0
@@ -4249,9 +4259,11 @@ public final class RichLayout {
         var rowPending: [Int] = []
         // (The note this page parts, set at its foot to `keep`.)
         var pageCut: (id: Int, keep: Double)? = nil
+        // (Where a column ends at the line marking the note it parts.)
+        var cutEnds: Double? = nil
         func reserveNotes(_ ids: [Int], deferring: Bool = false) {
             guard notesOn else { return }
-            let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+            let width = noteWidth()
             var deferred = false
             for id in ids where !pageNotes.contains(id) {
                 if deferred { if !pendingNotes.contains(id) { pendingNotes.append(id) }; continue }
@@ -4324,7 +4336,7 @@ public final class RichLayout {
             // rule.)
             if notesOn, let cut = pageCut {
                 pageCut = nil
-                let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                let width = noteWidth()
                 if let note = _note(cut.id, width: width, document) {
                     contentH = max(1, contentH - (note.height - cut.keep) - (_note(-1, width: width, document)?.height ?? 0))
                     pageNotes.append(cut.id)
@@ -4345,7 +4357,7 @@ public final class RichLayout {
                 carried.removeAll { mine.contains($0) }
                 rowPending = []
                 reserveNotes(carried)
-                let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                let width = noteWidth()
                 var here: [Int] = []
                 var room = 0.0
                 for (n, id) in mine.enumerated() {
@@ -5562,7 +5574,7 @@ public final class RichLayout {
                 }
                 // (The notes marked in what this page will hold of the row.)
                 if theme.wordRules, !rowPending.isEmpty {
-                    let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                    let width = noteWidth()
                     var here: [Int] = []
                     var room = 0.0
                     for id in rowPending {
@@ -5802,9 +5814,15 @@ public final class RichLayout {
                     if theme.wordRules, _cells[i] == nil, placing.count > 0 {
                         var here: [Int] = []
                         var room = 0.0
-                        let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                        let width = noteWidth()
                         for id in placing where !pageNotes.contains(id) {
-                            guard let mark = _footnoteMarkLine(i, id, document), let note = _note(id, width: width, document) else { here.append(id); continue }
+                            guard var mark = _footnoteMarkLine(i, id, document), let note = _note(id, width: width, document) else { here.append(id); continue }
+                            // (On a page of columns the mark's line is the whole line it
+                            // stands in, a raised mark's box ending above its foot.)
+                            if slotNotes {
+                                let g = geometry(i)
+                                if let lb = Self._lineBottoms(g.painter).map({ $0 + g.textTop }).first(where: { $0 >= mark.bottom - 0.5 }) { mark.bottom = max(mark.bottom, lb) }
+                            }
                             room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
                             if y + (mark.bottom - _tops[i]) + room > contentH + 0.01 {
                                 // (Unless what is left under the mark's line
@@ -5819,6 +5837,7 @@ public final class RichLayout {
                                 if pageCut == nil, let keep = _noteCuts(id, width: width, document).last(where: { $0 <= left + 0.01 }) {
                                     pageCut = (id, keep)
                                     here.append(id)
+                                    if slotNotes { cutEnds = y + (mark.bottom - _tops[i]) }
                                 } else if mark.top > _tops[i] + 0.5 || y > 0.01 {
                                     // (With no line of it there, the mark's line
                                     // goes over with it: the page ends over that
@@ -5846,6 +5865,7 @@ public final class RichLayout {
                             here.append(id)
                         }
                         reserveNotes(here)
+                        if let end = cutEnds { contentH = max(1, min(contentH, end + 0.5)); cutEnds = nil }
                     } else if theme.wordRules, let c0 = _cells[i], placing.count > 0 {
                         // (A row's notes likewise: on this page those marked
                         // in lines of the row this page holds, the rest with
@@ -5857,7 +5877,7 @@ public final class RichLayout {
                         // pages after ran six lines early.)
                         var here: [Int] = []
                         var room = 0.0
-                        let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                        let width = noteWidth()
                         for id in placing where !pageNotes.contains(id) {
                             guard rowPending.isEmpty, let k = placingRange.first(where: { _footnotes(in: $0, document).contains(id) }),
                                   let mark = _footnoteMarkLine(k, id, document), let note = _note(id, width: width, document) else {
@@ -8335,7 +8355,7 @@ public final class RichLayout {
         // Footnotes of a page of columns (Word's print, lo-9749f2b5): they
         // stand at the page's foot in the page's columns, set after the
         // text. Only placed here, not yet reserved off the text's room.
-        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, !document.footnotes.isEmpty {
+        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, !document.footnotes.isEmpty, !slotNotes {
             _pageNotes = [:]
             _noteColumn = [:]
             // (A paragraph cut over pages keeps the notes whose marks stand
@@ -19831,6 +19851,7 @@ public final class RichLayout {
     /// by laying out again until it settles (Word's lab fn-cols-long).
     private var _columnNoteReserve: [Int: Double] = [:]
     private var _columnNoteRaw: [Int: Double] = [:]
+    private var _slotNotes = false
     /// The column of the page each footnote's mark stands in (page of columns).
     private var _noteColumn: [Int: Int] = [:]
     private var _columnNoteRounds = 0
@@ -19857,7 +19878,11 @@ public final class RichLayout {
             let g = note.layout.geometry(k)
             out += Self._lineBottoms(g.painter).map { g.textTop + $0 }
         }
-        return out.sorted().filter { $0 > 0.5 && $0 < note.height - 0.5 }
+        let cuts = out.sorted().filter { $0 > 0.5 && $0 < note.height - 0.5 }
+        // (A note of a page of columns parts with two lines at least on each
+        // side: Word's lab fn-cols-sweep, a mark's note that would keep one
+        // line goes over with the mark's line whole.)
+        return _slotNotes ? Array(cuts.dropFirst().dropLast()) : cuts
     }
 
     /// A sub-document of `paragraphs` that reads its settings from
@@ -21287,6 +21312,7 @@ public final class RichLayout {
     /// from the left margin) — and the notes under it, the last ending
     /// where the page's text area does.
     private func _paintFootnotes(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        if _slotNotes { _paintSlotFootnotes(p, canvas, document); return }
         guard theme.wordRules, let ids = _pageNotes[p], !ids.isEmpty, pageSetup != nil else { return }
         let setup = pageSetup(forPage: p)
         if _columns > 1, RichTextTheme.wordWindowsPages { _paintColumnFootnotes(p, ids, canvas, document); return }
@@ -21335,6 +21361,45 @@ public final class RichLayout {
                               selection: nil, caret: nil)
             canvas.restore()
             top += to - from
+        }
+    }
+
+    /// The notes of a page of columns set with its text (`slotNotes`): each
+    /// column's own, bottom-aligned at the page's foot under a rule of its
+    /// own — 144pt, the column's whole width where a note goes on from the
+    /// page before (Word's labs fn-cols-long2 and -short).
+    private func _paintSlotFootnotes(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        let setup = pageSetup(forPage: p)
+        let width = _px(setup.columnWidth)
+        let rect = pageRect(p)
+        let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
+        guard let separator = _note(-1, width: width, document) else { return }
+        for c in 0 ..< _columns {
+            let slot = p * _columns + c
+            guard let ids = _pageNotes[slot], !ids.isEmpty else { continue }
+            let notes: [(note: _HeaderFooter, from: Double, to: Double)] = ids.compactMap { id in
+                guard let note = _note(id, width: width, document) else { return nil }
+                let from = _noteCarryIn[slot]?.id == id ? _noteCarryIn[slot]!.from : 0
+                let to = _noteCutOut[slot]?.id == id ? _noteCutOut[slot]!.keep : note.height
+                return (note, from, max(from, to))
+            }
+            guard !notes.isEmpty else { continue }
+            var top = bottom - notes.reduce(0.0) { $0 + $1.to - $1.from } - separator.height
+            let left = rect.left + _pxMarginLeft(p) + Double(c) * _px(setup.columnWidth + setup.columnGap)
+            let line = Paint()
+            line.color = theme.textColor
+            let long = _noteCarryIn[slot] != nil
+            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), long ? width : _px(144), _px(0.72)), line)
+            top += separator.height
+            for (note, from, to) in notes {
+                canvas.save()
+                if from > 0 || to < note.height { canvas.clipRect(Rect.fromLTRB(left, top, left + width, top + to - from)) }
+                canvas.translate(left, top - from)
+                note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
+                                  selection: nil, caret: nil)
+                canvas.restore()
+                top += to - from
+            }
         }
     }
 
