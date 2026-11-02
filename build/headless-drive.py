@@ -17,6 +17,9 @@ Actions (each one argv element, like shell-drive.py; coordinates LOGICAL px):
     type TEXT            US-ASCII text
     launch APP           launch or focus an app by registry id
     windows              print every window as JSON
+    focus|close|minimize|maximize|unmaximize [APP|win=ID]   window management
+    winmove [APP|win=ID] X Y     resize [APP|win=ID] W H     (logical px)
+    waitwin APP [gone] [SECS]    wait until a window of APP opens (or is gone)
     screen               print size / scale / renderer
     stats [reset]        presents, fps, frame-interval percentiles, CPU seconds
     sleep S
@@ -33,6 +36,14 @@ import os
 import socket
 import sys
 import time
+
+
+def _isnum(t):
+    try:
+        float(t)
+        return True
+    except ValueError:
+        return False
 
 
 class Op:
@@ -73,7 +84,7 @@ def main(argv):
     for a in argv:
         w = a.split(" ", 1)
         verb, rest = w[0], (w[1] if len(w) > 1 else "")
-        nums = [float(x) for x in rest.split()] if verb not in ("type", "key", "keydown", "keyup", "launch", "shot", "sleep", "stats") and rest else []
+        nums = [float(x) for x in rest.split()] if verb not in ("type", "key", "keydown", "keyup", "launch", "shot", "sleep", "stats", "focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize", "waitwin") and rest else []
         if verb == "shot":
             r = c.call("shot", path=os.path.abspath(rest))
             print(f"shot {rest}: {r['w']}x{r['h']} {r['bytes']}B total {r['ms']:.0f} ms (frame {r['frame_ms']:.0f} ms)")
@@ -97,6 +108,25 @@ def main(argv):
             c.call("type", text=rest)
         elif verb == "launch":
             c.call("launch", app=rest)
+        elif verb in ("focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize"):
+            toks = rest.split()
+            kw = {}
+            if toks and not _isnum(toks[0]):
+                t = toks.pop(0)
+                kw["win" if t.startswith("win=") else "app"] = t[4:] if t.startswith("win=") else t
+            n = [float(x) for x in toks]
+            if verb == "winmove":
+                kw.update(x=n[0], y=n[1])
+            elif verb == "resize":
+                kw.update(w=n[0], h=n[1])
+            c.call(verb, **kw)
+        elif verb == "waitwin":
+            toks = rest.split()
+            kw = {"app": toks[0], "state": "gone" if "gone" in toks else "open"}
+            tail = [t for t in toks[1:] if _isnum(t)]
+            if tail:
+                kw["timeout"] = float(tail[0])
+            c.call("wait_window", **kw)
         elif verb == "windows":
             print(json.dumps(c.call("windows")["windows"], indent=1))
         elif verb == "screen":

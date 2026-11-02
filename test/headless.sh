@@ -79,4 +79,23 @@ d "shot $RT/b.png" >/dev/null || fail "shot b failed"
 d "type echo headless-ok" "key enter" "sleep 2" "shot $RT/c.png" >/dev/null || fail "typing failed"
 cmp -s "$RT/b.png" "$RT/c.png" && fail "typing changed nothing on screen"
 echo "  ok    typed text reaches the terminal and repaints it"
+
+# 5. window management: move, resize, minimize, focus, close, wait-for-gone
+d "winmove terminal 200 150" "resize terminal 640 420" >/dev/null || fail "winmove/resize failed"
+d windows | python3 -c '
+import json, sys
+w = [x for x in json.load(sys.stdin) if x["app"] == "terminal"][0]
+x, y, ww, hh = w["rect"]
+assert abs(x - 200) < 2 and abs(y - 150) < 2, w["rect"]
+assert abs(ww - 640) < 2, w["rect"]
+' || fail "window did not move/resize to the requested rect"
+echo "  ok    winmove and resize take effect"
+d "minimize terminal" >/dev/null || fail "minimize failed"
+d windows | grep -A12 '"app": "terminal"' | grep -q '"minimized": true' || fail "window not minimised"
+d "focus terminal" >/dev/null || fail "focus failed"
+d windows | grep -A12 '"app": "terminal"' | grep -q '"minimized": false' || fail "focus did not restore"
+echo "  ok    minimize and focus"
+d "close terminal" "waitwin terminal gone 5" >/dev/null || fail "close / wait-for-gone failed"
+d windows | grep -q '"app": "terminal"' && fail "terminal still listed after close"
+echo "  ok    close, and wait-for-gone returns"
 echo "all headless checks passed"

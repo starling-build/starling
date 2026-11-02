@@ -278,6 +278,14 @@ final class OperatorControl: @unchecked Sendable {
 
     // MARK: ops (main queue)
 
+    private func pickWindow(_ req: [String: Any], _ wm: WindowManagerState, requireSelector: Bool = false) -> WindowInfo? {
+        if let id = req["win"] as? String { return wm.windows.first { $0.id == id } }
+        if let app = req["app"] as? String { return wm.windows.first { $0.appId == app } }
+        if let t = req["title_contains"] as? String { return wm.windows.first { $0.title.contains(t) } }
+        if requireSelector { return nil }
+        return wm.windows.first { $0.id == wm.focusedWindowId }
+    }
+
     private func scale() -> Double { currentShellDpi > 0 ? currentShellDpi : 1.0 }
 
     private func handle(_ req: [String: Any], _ done: @escaping ([String: Any]) -> Void) {
@@ -350,6 +358,55 @@ final class OperatorControl: @unchecked Sendable {
                  "minimized": w.isMinimized, "maximized": w.isMaximized]
             }
             done(["ok": true, "windows": list])
+
+        case "focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize":
+            // Window management. Pick the window by "win" (id from `windows`),
+            // else by "app" (first match), else the focused one. Geometry is
+            // LOGICAL px, the same unit `windows` reports.
+            guard let shell = _shellState else { return fail("shell not ready") }
+            let wm = shell.windowManager
+            guard let w = self.pickWindow(req, wm) else { return fail("no such window") }
+            let id = w.id
+            let (sw, sh): (Double, Double) = {
+                var pw: UInt32 = 0, ph: UInt32 = 0
+                if let e = rdpEgl { rdp_egl_size(e, &pw, &ph) }
+                return (Double(pw) / scale(), Double(ph) / scale())
+            }()
+            switch op {
+            case "focus": wm.restoreWindow(id)
+            case "close": wm.closeWindow(id)
+            case "minimize": wm.minimizeWindow(id)
+            case "maximize": if !w.isMaximized { wm.maximizeWindow(id, screenWidth: sw, screenHeight: sh) }
+            case "unmaximize": if w.isMaximized { wm.maximizeWindow(id, screenWidth: sw, screenHeight: sh) }
+            case "winmove":
+                guard let x = num("x"), let y = num("y") else { return fail("winmove needs x,y") }
+                wm.moveWindow(id, to: Offset(x, y))
+            default:
+                guard let nw = num("w"), let nh = num("h") else { return fail("resize needs w,h") }
+                let cur = w.targetRect ?? w.rect
+                wm.resizeWindow(id, edge: .bottomRight, delta: Offset(nw - cur.width, nh - cur.height))
+            }
+            PlatformDispatcher.instance.scheduleFrame()
+            done(["ok": true, "win": id])
+
+        case "wait_window":
+            // {"app"|"title_contains"|"win", "state":"open"|"gone", "timeout":S}
+            guard let shell = _shellState else { return fail("shell not ready") }
+            let wantGone = (req["state"] as? String) == "gone"
+            let deadline = Date().addingTimeInterval(num("timeout") ?? 15)
+            nonisolated(unsafe) let reqU = req
+            nonisolated(unsafe) let shellU = shell
+            nonisolated(unsafe) let doneU = done
+            let pollBox = PollBox()
+            pollBox.fn = {
+                let hit = self.pickWindow(reqU, shellU.windowManager, requireSelector: true)
+                if (hit != nil) != wantGone {
+                    return doneU(["ok": true, "win": hit?.id ?? ""])
+                }
+                if Date() > deadline { return doneU(["ok": false, "error": "timeout waiting for window"]) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { pollBox.fn?() }
+            }
+            pollBox.fn?()
 
         case "launch":
             guard let app = req["app"] as? String, let shell = _shellState else {
@@ -618,3 +675,6 @@ enum PngEncoder {
     }
 }
 #endif
+
+/// Holds a self-rescheduling main-queue closure; only ever touched on main.
+private final class PollBox: @unchecked Sendable { var fn: (() -> Void)? }

@@ -40,8 +40,9 @@ It controls the **whole** desktop, so:
 `test/headless.sh` checks the mode and owner. The foreign-uid rejection is
 not tested (needs a second user).
 
-Protocol: JSON lines. Ops: hello, screen, shot, windows, launch, move,
-down/up, click, dblclick, drag, scroll, key/keydown/keyup, type, stats, quit.
+Protocol: JSON lines. Ops: hello, screen, shot, windows, launch, focus, close, minimize,
+maximize, unmaximize, winmove, resize, wait_window, move, down/up, click,
+dblclick, drag, scroll, key/keydown/keyup, type, stats, quit.
 Coordinates are logical pixels. Client: `build/headless-drive.py`.
 
 ## Measurements
@@ -176,7 +177,7 @@ For agent control at density, **use Starling's headless mode**:
 | Idle cost near zero (no blink, no screensaver) | done |
 | Same-user-only socket | done |
 | Semantics tree and actions | not started (design agreed with lenovo-2, who has since left) |
-| Window focus / move / resize / minimise / close, wait-for-window | not started |
+| Window focus / move / resize / minimise / maximise / close, wait-for-window | done (smoke-tested) |
 | Shell surfaces (dock, launcher, notifications, control centre) | not started |
 | Clipboard, drag-and-drop, file dialogs, IME | not started |
 | Event subscription, wait-for-condition | not started |
