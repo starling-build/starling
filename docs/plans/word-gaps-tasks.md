@@ -20,10 +20,10 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-6: zh-6e6b9821, lo-5c5eb1f7 row 25 (pinned floating tables)
 - amd-7: ALL DONE 2026-11-02 (step 3 footnotes in columns, lo-e8c1ae37, lo-948cd424 landed; lo-40949e85 already 100; lo-c678e486 parked). Waiting for the next list.
 - amd-perf: lo-8ab9b90f (7-node lab), lo-af36644e re-check, zh-ae2dd08d, zh-264d7516, zh-e49d7943, zh-ee2d19e6, zh-15f60bac (triage)
-- amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
-- lenovo-2: lo-512aa398, zh-df9310bd, zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-31d580df, zh-1eeb9f9a, zh-9ba2ead7 (triage)
+- amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c; handed over from lenovo-2: zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-df9310bd, zh-31d580df
+- lenovo-2: zh-9ba2ead7 + zh-1eeb9f9a (merged-cell lab cm1), zh-30d86fcf, zh-60173bb6, zh-c9d38b65, zh-01bbcd4d, zh-621d8756, zh-72da925e, zh-df505e38, zh-5313b71d, zh-ae655121, zh-6b242483 (triage)
 - lenovo-3: lo-7ec36a70 (waiting on the RTL-spaces lab), lo-677416bef, zh-74b34f3b, zh-7488a70f, zh-6c447317, zh-424775e4 (triage)
-- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2); lo-717ff943 (amd-perf); lo-b8885ba2, lo-152d87fe, lo-06933f8e, lo-88b29958, lo-47598455, lo-9fa3dedd, lo-a48482e7 (lenovo-2); lo-60fd9368, lo-4aa628bd (amd-2)
+- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2); lo-717ff943 (amd-perf); lo-b8885ba2, lo-152d87fe, lo-06933f8e, lo-88b29958, lo-47598455, lo-9fa3dedd, lo-a48482e7 (lenovo-2); lo-60fd9368, lo-4aa628bd (amd-2); lo-512aa398 (lenovo-2)
 - UNFIXABLE: lo-a43021ca (print-date field); lo-72e72396 (print date)
 - lenovo-5: n830205 + lo-a197b7a8 (both waiting on labs), zh-27fc8f9d, zh-d8247da5, zh-cf8b03a5, zh-ea43dd6d (triage)
 - amd-8: tip watch + unit tests
