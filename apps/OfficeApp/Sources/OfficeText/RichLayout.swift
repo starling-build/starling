@@ -1304,6 +1304,8 @@ public final class RichLayout {
     /// from the paragraph's own top, as the page it fell on made it
     /// (`_besideBand` takes it over the whole float's).
     private var _besideBandUse: [Int: (top: Double, bottom: Double)] = [:]
+    /// Paragraphs whose band is the union of two floats' (the page-fit pass leaves them alone).
+    private var _besideUnion: Set<Int> = []
     /// How far a paragraph's text is set down to clear an object that
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
@@ -1722,7 +1724,7 @@ public final class RichLayout {
             for _ in 0 ..< 3 {
                 var changes: [RichChange] = []
                 for k in _besideLead.indices where _besideLead[k] > 0 {
-                    guard k < _pieceStart.count, _pieceStart[k] < _allPieces.count, k > 0, let table = _besideSource(k, document)?.cell.table else { continue }
+                    guard !_besideUnion.contains(k), k < _pieceStart.count, _pieceStart[k] < _allPieces.count, k > 0, let table = _besideSource(k, document)?.cell.table else { continue }
                     let first = _allPieces[_pieceStart[k]]
                     let mine = _pages[first.page].filter { _cells[$0.paragraph]?.table == table && !$0.repeated }
                     guard let floor = mine.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max(),
@@ -3723,6 +3725,9 @@ public final class RichLayout {
         // A floating table anchored to the text after it: where it began,
         // for that paragraph (see below).
         var textFloatTop: (table: String, page: Int, y: Double, down: Double, chained: Bool)? = nil
+        // Where the table a paragraph may stand beside, at the right margin, ends on its page: the lines
+        // that follow the anchor go on past the room above the table while they stand level with it.
+        var besideChainEnd: Double? = nil
         // The paragraph set over a floating table's offset that does not fit
         // in what is left of it: its lines that do stand above the table (to
         // `limit`, on the page), the rest where the flow went on (`back`).
@@ -5596,6 +5601,12 @@ public final class RichLayout {
                     }
                     floatRunBase = (c.table, page, y)
                     textFloatTop = (c.table, page, y, _px(down), false)
+                    besideChainEnd = nil
+                    if RichTextTheme.wordWindowsPages, document.tableStyles[c.table]?.keptPosition?.containsSubstring("w:tblpXSpec=\"right\"") == true {
+                        var lo = Double.infinity, hi = -Double.infinity, k = i
+                        while k < count, let d = _cells[k], d.table == c.table { lo = min(lo, d.rowTop); hi = max(hi, d.rowTop + d.ownRowHeight); k += 1 }
+                        if hi > lo { besideChainEnd = y + _px(down) + (hi - lo) }
+                    }
                     // (A table that is the document's first block and holds a
                     // drawing outside its cell is measured from the page's top
                     // edge: LibreOffice's missing-path and tdf78727, tblpY 416
@@ -5631,6 +5642,23 @@ public final class RichLayout {
                 // margin; ours stood it at the margin — and 177pt down.)
                 raiseAtHead(c)
                 liftToFoot(c)
+                // (A table placed above the anchor's line, after one placed below it
+                // that hangs from the same anchor, the paragraph after both: it
+                // stands that far above the anchor's place, not above the first one's
+                // foot, and the paragraph still goes back to the anchor's place.
+                // LibreOffice's tdf97090, tblpY 941 and -36 twips at the right
+                // margin: the heading at 372 with the second table at its head
+                // and the first 47pt under it; ours stood the second under the
+                // first's 700, and the heading under that.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, c.row == 0, c.firstInRow, i > 0, let prevT = _cells[i - 1]?.table, prevT != c.table,
+                   let fb = floatRunBase, fb.table == prevT, fb.page == page,
+                   let was = document.tableStyles[prevT], was.floatOffsetY != nil, !was.pageAnchored,
+                   let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.floatOffsetY == nil, let up = ts.floatRaiseY, ts.floatsOverText {
+                    RuleTrace.hit("word-float-above-the-anchor-after-one-below-it-hangs-from-the-same-line")
+                    y = max(0, fb.y - _px(up))
+                    floatRunBase = (c.table, page, y)
+                    if let tf = textFloatTop, tf.table == prevT { textFloatTop = (c.table, page, tf.y, tf.down, false) }
+                }
                 // (And one placed above the text's place in the middle of a
                 // page, up over the paragraphs before it: they stand under it,
                 // as the text before a table placed against the page does,
@@ -7312,8 +7340,12 @@ public final class RichLayout {
             // the first two under the table, and the heading went over.)
             if let tf = textFloatTop {
                 textFloatTop = nil
+                // (A paragraph with the strip beside a table at the right margin to itself stays level with
+                // it as long as the table lasts: lo-717ff943's bullets, tdf97090.)
+                let alongside = i > 0 && (tf.chained || _cells[i - 1]?.table == tf.table) && (besideChainEnd.map { tf.y + 0.01 < $0 } ?? false)
+                    && _cells[i] == nil && _besideIndent(i, document.paragraphs[i], document)?.right == true
                 if theme.wordRules, i > 0, tf.chained || _cells[i - 1]?.table == tf.table, _cells[i] == nil, tf.page == page,
-                   frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 {
+                   frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 || alongside {
                     frameReturn = (y, page)
                     y = tf.y
                     textFloatTop = (tf.table, page, tf.y + (bottom - top), tf.down - (bottom - top), true)
@@ -13115,12 +13147,16 @@ public final class RichLayout {
 
     private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
-              p.style.list == nil, !p.style.clearsFloat,
+              !p.style.clearsFloat,
               let before = _besideSource(i, document)?.cell,
               let ts = document.tableStyles[before.table], ts.floatsOverText, !ts.pageAnchored,
               let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
-              !kept.containsSubstring("w:tblpXSpec"),
               let widths = _columnWidths[before.table] else { return nil }
+        // (A table set at the right margin, `w:tblpXSpec="right"`, takes the text at its left
+        // as one placed across does; and a list's items stand there too: lo-717ff943's
+        // bullets beside its right-hand table of albums, tdf97090.)
+        let rightAligned = kept.containsSubstring("w:tblpXSpec=\"right\"")
+        guard rightAligned || !kept.containsSubstring("w:tblpXSpec"), rightAligned || p.style.list == nil else { return nil }
         func twips(_ name: String) -> Double {
             guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
             return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
@@ -13305,7 +13341,24 @@ public final class RichLayout {
             k -= 1
         }
         guard bottom > top else { return nil }
-        return (_px(down) - source.offset, _px(down) + bottom - top - source.offset)
+        var band = (top: _px(down) - source.offset, bottom: _px(down) + bottom - top - source.offset)
+        // (A table at the right margin that hangs from the same anchor as the one before it, set
+        // above the anchor's line, stands over the other's: the text beside them is held in by
+        // both, from the higher one's top to the lower one's foot. lo-717ff943, tdf97090: its
+        // heading and bullets keep out of the 300pt table of albums from the "Издания Echoes:"
+        // table at its head down to its last row.)
+        if RichTextTheme.wordWindowsPages, style.floatOffsetY == nil, let raise = style.floatRaiseY, !style.pageAnchored, k >= 0,
+           let d = _cells[k], d.table != before.table, let first = document.tableStyles[d.table], first.floatsOverText, !first.pageAnchored,
+           let firstDown = first.floatOffsetY {
+            var t = Double.infinity, b = 0.0, m = k
+            while m >= 0, let e = _cells[m], e.table == d.table { t = min(t, e.rowTop); b = max(b, e.rowTop + e.ownRowHeight); m -= 1 }
+            if b > t {
+                RuleTrace.hit("word-text-beside-two-floats-hung-from-one-anchor-keeps-out-of-both")
+                _besideUnion.insert(i)
+                band = (min(_px(down) - _px(raise), _px(firstDown)) - source.offset, max(band.bottom + source.offset, _px(firstDown) + b - t) - source.offset)
+            }
+        }
+        return band
     }
 
     private func _sideIndents(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> (left: Double, right: Double) {
