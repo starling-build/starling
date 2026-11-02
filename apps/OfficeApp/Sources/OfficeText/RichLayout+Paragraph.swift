@@ -2289,6 +2289,8 @@ extension RichLayout {
         // its anchor, text and all: the first line goes under it, the picture where it was.
         // Lab `anc` (Word for Windows, one column and two): 40pt at (20, 0) in p3 puts p3 at
         // the picture's foot, 40pt down, and the rest after it; 100pt, 100 down.)
+        // (Offset exactly 0, the lab's one value, and a picture or drawing, not a text box: LibreOffice's
+        // tdf137850's box at offset 0 stays at the margin in Word's print.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, !p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil,
