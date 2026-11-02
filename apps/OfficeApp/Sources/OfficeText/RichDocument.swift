@@ -172,6 +172,8 @@ public struct CharStyle: Hashable, Sendable {
     /// which face Word sets the characters both scripts claim — the
     /// curly quotes, dashes and ellipses of Chinese text — in.
     public var hAnsiFontFamily: String? = nil
+    /// The file names `w:hAnsi` and it is the same face as `w:ascii` (so `hAnsiFontFamily` stays nil).
+    public var hAnsiNamedAsAscii = false
     public var fontHint: String? = nil
     /// A shadow under the letters; nil for none.
     public var shadow: CharShadow? = nil

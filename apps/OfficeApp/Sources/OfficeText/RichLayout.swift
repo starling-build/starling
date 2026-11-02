@@ -13024,6 +13024,7 @@ public final class RichLayout {
                 // are 3.6pt each in Word's print, and ours set them 8 and
                 // wrapped the name.)
                 let nbspHAnsi = theme.wordRules && RichTextTheme.wordWindowsPages && !ea && ch == "\u{00A0}" && latinFace?.isEastAsian == true
+                    && !run.hAnsiNamedAsAscii && !(named?.char.hAnsiNamedAsAscii ?? false)
                     && hAnsiFace.map({ !$0.isEastAsian && ["calibri", "carlito"].contains($0.family.lowercased()) }) == true
                 if nbspHAnsi {
                     RuleTrace.hit("no-break-space-is-the-hansi-faces-not-the-east-asian-ones")
