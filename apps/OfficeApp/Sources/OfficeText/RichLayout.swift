@@ -11811,8 +11811,11 @@ public final class RichLayout {
                 // a 仿宋_GB2312 run, 15pt apiece at 15pt in Word for Windows'
                 // print (in Cambria Math), where the stand-in's fallback set
                 // them 6.7 and every such first line took a character more.)
+                // (Arial has the en space itself, 0.557 em: ten of them are 66.84pt at
+                // 12pt in Word's print — lab `spaces` — where the half em makes them 60.)
                 if theme.wordRules, ch == "\u{2003}" || ch == "\u{2002}" {
-                    extra += (ch == "\u{2003}" ? 1 : 0.5) * em - _glyphWidth(style(kind), ch)
+                    let arial = ch == "\u{2002}" && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").lowercased() == "arial"
+                    extra += (ch == "\u{2003}" ? 1 : arial ? 0.557 : 0.5) * em - _glyphWidth(style(kind), ch)
                 }
                 // (A symbol face's glyph drawn by a stand-in takes the face's
                 // own advance: Wingdings 2's box is 0.89 em in Word's print
@@ -12120,6 +12123,16 @@ public final class RichLayout {
                     start = after
                     afterHeld = true
                     heldKind = kind
+                } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
+                          [0x2000, 0x2001, 0x2004, 0x2006, 0x2008, 0x2009, 0x200A, 0x205F].contains(u) {
+                    // (Word does not part a line at these spaces — lab `spaces`, in a body
+                    // paragraph and a fixed cell alike: only U+2002, U+2003, U+2005, U+3000, the
+                    // space and the zero-width space are places to break; the others are held
+                    // like a no-break space, of their own width.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, ch) - _glyphWidth(s, "\u{00A0}"))))
+                    start = after
                 } else if theme.wordRules, let u = ch.unicodeScalars.first?.value, u >= 0xE000, u <= 0xF8FF,
                           let w = latinFace?.missingGlyphAdvance {
                     // (A private-use character no face has is the run's
