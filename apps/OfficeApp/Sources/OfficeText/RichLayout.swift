@@ -18738,6 +18738,11 @@ public final class RichLayout {
         // (Word for Windows) over LibreOffice's tdf153964_firstIndentAfterBreak14,
         // text 4.0pt lower under a border of sz 24 and space 1, 8 under space 8.)
         if y.style.pageBreakInline, y.cell == nil { return false }
+        // (Nor after a page break that ended the paragraph before: the
+        // paragraph after it is first on the new page, its box open there
+        // with its top line — lab bdr, C: "afterbreak" at the margin under a
+        // 3pt top line; lo-cbb7657e drew none of its boxes' lines.)
+        if y.style.pageBreakBefore, !y.style.columnBreak, RichTextTheme.wordWindowsPages, y.cell == nil { return false }
         return true
     }
 
