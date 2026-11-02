@@ -13808,3 +13808,10 @@ A floating table raised over the margin (tblpY negative) that has to be split by
 Limits, honestly: it applies only to a ONE-COLUMN table whose row does not fit whole. The real deciding factor was not found: lo-3b33e295 (4-column, same tblpY style, -289) went the other way in Word (fits to the unreduced foot), and the one-column test is what keeps it right. The exact-height guard and the row-fit guard were added on the way and did not change lo-3b33e295 either (untested on their own).
 lo-a43021ca: every miss is the footer print-date field (Word 30.10.2026, file 27.02.2024) — unfixable as layout, marked here.
 lo-536b79ce lab (nestmargin, wip/lab-nestmargin 3b2efb607): Word's text starts at page margin + the INNER cell's tcMar left (54+13.5=67.5); outer cell margins, the floating attribute and compat mode add nothing; a positive inner tblInd adds its value, negative nothing. So ours must not set the inner table out left by its cell margin.
+
+- lenovo-3 (Linux 01F2SWc8): TRIAGE of starling-bd's four zh docs. Three are line-end fit decisions, handed to amd-opus; the fourth is noise.
+  - zh-7488a70f p7: Word keeps `OGP規範,撰擬「自評報告(Self-AssessmentReport)」,` on one line; ours breaks the English word `Self-AssessmentRe-port` with a hyphen and the next four lines shift. Fit decision (does the long Latin run squeeze/fit at the line end).
+  - zh-6c447317 p16: line `第二十七条以上各项补贴申请材料经人力资源社会保障部门…` — Word holds 保 on the first line (indent 122 vs our 123), ours ends at 会. One char of fit at the line end.
+  - zh-424775e4 p5: `…不要隐瞒我们中国的国际政治动机,` — Word holds 机, ours ends at 动; the paragraph then re-flows. One char of fit at the line end.
+  - zh-74b34f3b p5: only vertical position of table-cell lines (1 pt or less, plus a one-line y shift); no line breaks differ. Sub-point noise, nothing to fix.
+- lenovo-3: lo-677416bef (tdf147485) landed: Georgia WordArt on an arch/circle is placed by Georgia's widths at Word's 0.84 size; the score line stays 96.9 (line metric doesn't see WordArt) but the print now matches Word's extent. lo-7ec36a70 is now 83.9 (Arabic-script justified-space squeeze landed), superseding the "stops at 64.5" line.
