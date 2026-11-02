@@ -1,5 +1,12 @@
 # Headless desktop
 
+**Status (paused, low priority).** The core is done and tested on the
+`headless-agent` branch: headless run with no display, seat or root;
+screenshots; mouse and keyboard input; app launch; window management;
+clipboard; pushed window events; several desktops side by side with a clean
+stop; same-user-only sockets; an idle desktop that costs nothing. The open
+items are listed in the checklist at the end. Smoke test: `test/headless.sh`.
+
 **Question:** is there a headless desktop, controlled only by agents? Can
 existing GNOME do it?
 
@@ -181,6 +188,19 @@ For agent control at density, **use Starling's headless mode**:
   that need the stock desktop's services.
 - Open question: GNOME's frame cost. Install `xvfb` (or `sdl3-freerdp`),
   then drive both desktops with the same workload and compare.
+
+## Follow-ups
+
+- **Signal-killed shells leave an `nmcli monitor` helper behind.** The fix to
+  `NetworkMonitor.stop()` (synchronous, SIGKILL) only helps when the shell
+  stops it: the operator `quit` does, a shell killed by SIGTERM does not.
+  Add a SIGTERM/SIGINT handler to the shell that stops the monitor (and any
+  other helper in its own process group) before exiting. Affects normal
+  sessions, not just headless ones.
+- Semantics tree (the biggest lever for agents): design agreed, nobody on it.
+  The operator socket would proxy a per-app socket (`STARLING_AGENT_ENDPOINT`)
+  and add `semantics.tree` / `act` / `find`.
+- GNOME's cost per frame, still unmeasured: needs `xvfb` or an SDL RDP client.
 
 ## Capability checklist (headless-agent branch)
 
