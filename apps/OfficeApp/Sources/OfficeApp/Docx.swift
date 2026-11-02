@@ -1842,6 +1842,13 @@ enum DocxFormat {
                             // (A float centred in the cell stands at the middle of the cell, as its margins are the same both sides:
                             // lo-c7082c66's, 277.1 in Word's print, was 283 with the left margin added.)
                             for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell && !paragraphs[k].style.centredFloat { paragraphs[k].style.indentLeft += lead }
+                            // (A table floating by the text keeps its right distance from the text out of the room its
+                            // lines have: lo-660753a9's middle table, 141 twips each side, sets "before the inner
+                            // table" in a cell 7pt narrower, and its inner table's "inner table row 1" in two lines.)
+                            if let fp = node.first("w:tblPr")?.first("w:tblpPr"), fp["w:vertAnchor"] == "text" {
+                                let gap = (Double(fp["w:rightFromText"] ?? "") ?? 0) / 20
+                                for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell && !paragraphs[k].style.centredFloat { paragraphs[k].style.indentRight += gap }
+                            }
                             // (Its top margin and top line stand again over a part of it that goes over a
                             // page — see `RichParagraphStyle.nestedTopRepeat`; not over its first paragraph,
                             // which brings its own space. The cell's own line, else the table's: Word for

@@ -2271,7 +2271,10 @@ public final class RichLayout {
                     // zh-454e2e29's 482pt in a column of 468, whose second
                     // column then holds "個案事實" on one line, as Word's
                     // print has it.)
-                    else if theme.wordRules, ts.fixedLayout { scale = 1 }
+                    // (Not a nested one, in a cell that is not fixed itself, whose grid outgrows the cell: Word sets it to
+                    // the room it has — lo-660753a9's inner table, a 117.6pt grid in a 76.5pt cell, wraps "inner table
+                    // row 1" in two lines.)
+                    else if theme.wordRules, ts.fixedLayout, !(RichTextTheme.wordWindowsPages && _nestedBlock && !_nestedInFixedTable) { scale = 1 }
                     // (So does an autofit one of no stated width whose grid
                     // is wider by no more than its cells' side margins —
                     // Word's own fit of a table filling the column, set out
