@@ -19753,7 +19753,14 @@ public final class RichLayout {
         if float.horizontalFrom == "cell", let d = _cells[i] {
             bandLeft = d.colLeft
             bandWidth = d.colWidth
-            if float.fromCellText, theme.wordRules, RichTextTheme.wordWindowsPages {
+            // (One placed against the page, from the margin, stands at its cell's text, not the side gap's
+            // distance: lo-5c5eb1f7's calculator, tblpY 3028 against the page, has its text at 109, the
+            // cell's 98.6 and its 5.4 and the table's own 5.4; the side gap's 9 put ours 4pt right.)
+            if float.fromCellText, float.fromCellTop, theme.wordRules, RichTextTheme.wordWindowsPages {
+                RuleTrace.hit("nested-table-page-anchored-margin-stands-at-cell-text")
+                bandLeft += d.pad.left
+                bandWidth -= d.pad.left
+            } else if float.fromCellText, theme.wordRules, RichTextTheme.wordWindowsPages {
                 RuleTrace.hit("nested-table-margin-anchor-keeps-its-side-gap")
                 bandLeft += _px(float.distanceLeft ?? 0)
                 bandWidth -= _px(float.distanceLeft ?? 0) + _px(float.distanceRight ?? 0)
