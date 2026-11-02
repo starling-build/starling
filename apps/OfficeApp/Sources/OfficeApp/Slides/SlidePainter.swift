@@ -1011,6 +1011,17 @@ final class SlidePainter: CustomPainter {
             let ox = tr.left + cache.textLeft(shape, pxPerPt: px), oy = tr.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             if shape.textSpin != 0 {
+                // Turned about the middle of the text area, not of its lines
+                // (labs vertrot and flip: `vert` at 180° lands where `vert270`
+                // at 0° does, about the box's middle; a flipV box's text the
+                // same half turn).
+                let c = Offset(tr.center.dx - ox + (shape.insets.left - shape.insets.right) / 2 * px,
+                               tr.center.dy - oy + (shape.insets.top - shape.insets.bottom) / 2 * px)
+                canvas.translate(c.dx, c.dy)
+                canvas.rotate(shape.textSpin * .pi / 180)
+                canvas.translate(-c.dx, -c.dy)
+            }
+            if shape.textRev != 0 {
                 // Turned about the middle of the text as set.
                 var lo = Double.infinity, hi = -Double.infinity
                 for i in 0 ..< layout.count {
@@ -1019,13 +1030,9 @@ final class SlidePainter: CustomPainter {
                         lo = min(lo, g.textLeft + m.left); hi = max(hi, g.textLeft + m.left + m.width)
                     }
                 }
-                var c = Offset(hi > lo ? (lo + hi) / 2 : layout.width / 2, layout.totalHeight / 2)
-                // Vertical text turned by `rot` pivots about the middle of the
-                // text area, not of its lines (lab vertrot: `vert` at 180° lands
-                // where `vert270` at 0° does, about the box's middle).
-                if shape.textTurn != 0 { c = Offset(tr.center.dx - ox + (shape.insets.left - shape.insets.right) / 2 * px, tr.center.dy - oy + (shape.insets.top - shape.insets.bottom) / 2 * px) }
+                let c = Offset(hi > lo ? (lo + hi) / 2 : layout.width / 2, layout.totalHeight / 2)
                 canvas.translate(c.dx, c.dy)
-                canvas.rotate(shape.textSpin * .pi / 180)
+                canvas.rotate(shape.textRev * .pi / 180)
                 canvas.translate(-c.dx, -c.dy)
             }
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
@@ -1079,7 +1086,7 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
-            } else if Self.snapsLinesToPoints, shape.kind != .table, shape.columns <= 1, shape.textSpin == 0,
+            } else if Self.snapsLinesToPoints, shape.kind != .table, shape.columns <= 1, shape.textSpin == 0, shape.textRev == 0,
                       abs(shape.rotation.truncatingRemainder(dividingBy: 90)) < 0.01 {
                 // (Not in a box turned other than by quarters: under such a
                 // turn a band's cut leaves every line's text in the PDF —

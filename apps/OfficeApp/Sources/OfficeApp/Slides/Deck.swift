@@ -504,6 +504,8 @@ final class SlideShape {
     /// The text turned about its own middle, degrees clockwise (a
     /// camera's `rev`, the other way).
     var textSpin = 0.0
+    /// A flat camera's `rev`: the text turned about the middle of its lines.
+    var textRev = 0.0
     /// `bodyPr`'s `a:scene3d`/`a:sp3d` on warped text: the letters as a solid.
     var textScene: Scene3D? = nil
     /// A diagram's text: its lines step at its face's own height, not

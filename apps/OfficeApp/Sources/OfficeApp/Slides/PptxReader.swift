@@ -1626,6 +1626,7 @@ private struct SlideContext {
         st.anchorCentred = text.anchorCentred
         st.textTurn = text.textTurn
         st.textSpin = text.textSpin
+        st.textRev = text.textRev
         st.textScene = text.textScene
         st.columns = text.columns
         st.columnGap = text.columnGap
@@ -1634,10 +1635,11 @@ private struct SlideContext {
         st.scene3d = Extrusion.read(spPr, colors: colors)
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
-        // A shape mirrored top to bottom turns its text half round, and the
-        // file's `bodyPr rot` comes on top: tdf165261's pyramid steps are
-        // flipV with rot 180, which together read upright.
-        if st.flipV, sp.first("p:txBody")?.first("a:bodyPr")?["rot"] != nil { st.textSpin += 180 }
+        // A shape mirrored top to bottom turns its text half round (flipH
+        // leaves it), horizontal or vertical, and the file's `bodyPr rot`
+        // comes on top: tdf165261's pyramid steps are flipV with rot 180,
+        // which together read upright (lab flip, all 36 boxes).
+        if st.flipV { st.textSpin += 180 }
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
         // (Its join and ends, else its theme line style's.)
@@ -3008,6 +3010,7 @@ private struct SlideContext {
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
+        var textRev = 0.0
         var textScene: Scene3D? = nil
         /// `bodyPr numCol` and `spcCol` (points).
         var columns = 1
@@ -3538,7 +3541,7 @@ private struct SlideContext {
         if let rot = body?.first("a:bodyPr")?.first("a:scene3d")?.first("a:camera")?.first("a:rot"),
            (rot["lat"].flatMap(Double.init) ?? 0) == 0, (rot["lon"].flatMap(Double.init) ?? 0) == 0,
            let rev = rot["rev"].flatMap(Double.init), rev != 0 {
-            body0.textSpin = -rev / 60000
+            body0.textRev = -rev / 60000
         }
         // `bodyPr rot`: the text turned about the middle of its lines, any
         // angle (tdf149551's "a b c…" in a right triangle at 12°).
