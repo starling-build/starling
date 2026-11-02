@@ -248,6 +248,9 @@ struct Chart: Equatable {
     /// largest of the series' and its points'), as a fraction of the
     /// radius: the pie is that much smaller, to leave them room.
     var pieExplosion: Double = 0
+    /// Each point's own pull (`c:explosion` of the series, a point's own over it), as a fraction of the radius.
+    var piePulls: [Int: Double] = [:]
+    var pieSeriesPull: Double = 0
     /// A 3-D bar or column chart's view (`c:view3D` rotX, rotY, degrees):
     /// each bar a box, its top and side showing, in a box of its own — a
     /// floor and walls one category deep (`depthPercent` of it), the bars
@@ -1648,6 +1651,12 @@ enum ChartXML {
                 ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
             }
             c.pieExplosion = max(0, pulls.max() ?? 0) / 100
+            if let ser = el.all("c:ser").first {
+                c.pieSeriesPull = max(0, ser.first("c:explosion")?["val"].flatMap(Double.init) ?? 0) / 100
+                for d in ser.all("c:dPt") {
+                    if let i = d.first("c:idx")?["val"].flatMap(Int.init), let e = d.first("c:explosion")?["val"].flatMap(Double.init) { c.piePulls[i] = max(0, e) / 100 }
+                }
+            }
         }
         func axisTitle(_ ax: XNode?) -> String? {
             guard let t = ax?.first("c:title") else { return nil }
@@ -5013,17 +5022,22 @@ extension ChartPainter {
         // perspective — and then drawn from the file's eye, centred where it was. LibreOffice's
         // lo-4d273731, perspective 90: its "56%" and "44%" stood 11 and 40pt off Word's.)
         let persp = c.piePerspective ?? 30
-        let eye = !flat && !c.onSlide && !c.onSheet && persp > 0 && abs(persp - 30) > 0.01
+        // (A pie with slices pulled out is seen from the 30 eye whatever the file says, and flatter, and
+        // sits higher in its plot: LibreOffice's lo-4d273731, perspective 90 with a 25% pull, in Word's
+        // print — 239 x 104pt, its top at the plot's top 7pt down, where the 90 eye drew it a fifth too
+        // tall and 15pt low. The only such chart in either corpus: fitted to it.)
+        let pulledPie = !c.onSlide && !c.onSheet && c.pieExplosion > 0
+        let eye = !flat && !c.onSlide && !c.onSheet && persp > 0 && abs(persp - 30) > 0.01 && !pulledPie
             ? eye30 * tan(7.5 * .pi / 180) / tan(min(persp, 200) / 4 * .pi / 180) : eye30
         // (Taller than the eye's 30° makes it: PowerPoint's top is 0.468
         // as tall as wide, the view's 0.509.)
-        let squash = flat ? 0.975 : 0.92   // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
+        let squash = (flat ? 0.975 : 0.92) * (pulledPie ? 0.75 : 1)   // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
         // A point of the disc at angle `a` (0 to the right, a quarter
         // turn toward the viewer), `f` of the radius out and `h` radii
         // down, on a disc of radius 1 centred on 0.
-        func unit(_ a: Double, _ f: Double, _ h: Double, from e: Double? = nil) -> (x: Double, y: Double) {
+        func unit(_ a: Double, _ f: Double, _ h: Double, from e: Double? = nil, pull: (x: Double, z: Double) = (0, 0)) -> (x: Double, y: Double) {
             let eye = e ?? eye
-            let x = f * cos(a), z = -f * sin(a)
+            let x = f * cos(a) + pull.x, z = -f * sin(a) + pull.z
             // (Seen from infinitely far where the file says perspective 0: lab pie7
             // (Word for Windows) draws its pies 0 and 30 apart, the near rim no
             // wider than the far at 0; ours drew both at 30.)
@@ -5050,7 +5064,7 @@ extension ChartPainter {
         // is Word's with them outside.)
         let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && !c.legend && !c.pieLabelsAround
         let scale = min(plot.width * 0.941 / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + c.pieExplosion) * (unbanded ? 1.16 : 1)
-        let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2, plot.center.dy - scale * (lo.y + hi.y) / 2)
+        let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2, plot.center.dy - scale * (lo.y + hi.y) / 2 + (pulledPie ? -18.1 * k : 0))
         // (Drawn, where Word lays it out itself — no title, no legend, no
         // layout of the file's — on the frame's middle and 1.5pt over it,
         // its labels where they were: lab p3dplot (Word for Windows,
@@ -5065,17 +5079,24 @@ extension ChartPainter {
         }()
         canvas.save()
         canvas.translate(drawn.dx, drawn.dy)
-        func at(_ a: Double, _ f: Double = 1, _ h: Double = 0) -> Offset {
-            let q = unit(a, f, h)
+        func at(_ a: Double, _ f: Double = 1, _ h: Double = 0, pull: (x: Double, z: Double) = (0, 0)) -> Offset {
+            let q = unit(a, f, h, pull: pull)
             return Offset(origin.dx + q.x * scale, origin.dy + q.y * scale)
         }
         let centre = at(0, 0)
+        // (A slice pulled out, in a Word document: along its middle, by its own pull or the series'.)
+        let word = !c.onSlide && !c.onSheet
+        func pullOf(_ index: Int, _ mid: Double) -> (x: Double, z: Double) {
+            guard word else { return (0, 0) }
+            let e = c.piePulls[index] ?? c.pieSeriesPull
+            return (e * cos(mid), -e * sin(mid))
+        }
         // The slices, clockwise from twelve o'clock.
-        var slices: [(from: Double, to: Double, color: Color, value: Double)] = []
+        var slices: [(from: Double, to: Double, color: Color, value: Double, index: Int)] = []
         var angle = -Double.pi / 2 + c.pieTurn * .pi / 180
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
-            slices.append((angle, angle + sweep, c.pointColor(i, accents: theme.accents), v))
+            slices.append((angle, angle + sweep, c.pointColor(i, accents: theme.accents), v, i))
             angle += sweep
         }
         let fill = Paint()
@@ -5090,7 +5111,8 @@ extension ChartPainter {
         // half, the eye being near — in steps a few degrees wide, each
         // shaded for the way it faces.
         let side = flat ? 0 : asin(min(1, 1 / (eye * cos(al))))
-        for s in slices {
+        func rim(_ s: (from: Double, to: Double, color: Color, value: Double, index: Int)) {
+            let pull = pullOf(s.index, (s.from + s.to) / 2)
             var a = s.from
             while a < s.to {
                 let b = min(s.to, a + 3 * .pi / 180)
@@ -5101,12 +5123,12 @@ extension ChartPainter {
                     let lo = max(a + turn, side), hi = min(b + turn + 0.01, .pi - side)
                     guard hi > lo else { continue }
                     let p = Path()
-                    let p0 = at(lo)
+                    let p0 = at(lo, 1, 0, pull: pull)
                     p.moveTo(p0.dx, p0.dy)
                     let steps = max(1, Int((hi - lo) / (0.5 * .pi / 180)))
-                    for j in 1 ... steps { let q = at(lo + (hi - lo) * Double(j) / Double(steps)); p.lineTo(q.dx, q.dy) }
+                    for j in 1 ... steps { let q = at(lo + (hi - lo) * Double(j) / Double(steps), 1, 0, pull: pull); p.lineTo(q.dx, q.dy) }
                     for j in stride(from: steps, through: 0, by: -1) {
-                        let q = at(lo + (hi - lo) * Double(j) / Double(steps), 1, deep); p.lineTo(q.dx, q.dy)
+                        let q = at(lo + (hi - lo) * Double(j) / Double(steps), 1, deep, pull: pull); p.lineTo(q.dx, q.dy)
                     }
                     p.close()
                     let facing = .pi / 2 - (lo + hi) / 2
@@ -5122,15 +5144,41 @@ extension ChartPainter {
         edge.isAntiAlias = true
         edge.strokeWidth = max(0.5, 1 * k)
         edge.color = theme.background
-        for s in slices {
+        func top(_ s: (from: Double, to: Double, color: Color, value: Double, index: Int)) {
+            let pull = pullOf(s.index, (s.from + s.to) / 2)
             let p = Path()
-            p.moveTo(centre.dx, centre.dy)
+            let c0 = at(0, 0, 0, pull: pull)
+            p.moveTo(c0.dx, c0.dy)
             let steps = max(2, Int((s.to - s.from) / (1 * .pi / 180)))
-            for j in 0 ... steps { let q = at(s.from + (s.to - s.from) * Double(j) / Double(steps)); p.lineTo(q.dx, q.dy) }
+            for j in 0 ... steps { let q = at(s.from + (s.to - s.from) * Double(j) / Double(steps), 1, 0, pull: pull); p.lineTo(q.dx, q.dy) }
             p.close()
             fill.color = s.color
             canvas.drawPath(p, fill)
             canvas.drawPath(p, edge)
+        }
+        if word, c.pieExplosion > 0 {
+            // A slice's cut faces, where a pulled-out neighbour has left them showing, then its rim and
+            // top; the far slices first.
+            func wall(_ s: (from: Double, to: Double, color: Color, value: Double, index: Int), _ t: Double, leading: Bool) {
+                // (Faces the eye when its outward normal has a part toward it.)
+                let n = leading ? -cos(t) : cos(t)
+                guard n > 0 else { return }
+                let pull = pullOf(s.index, (s.from + s.to) / 2)
+                let p = Path()
+                let a0 = at(t, 0, 0, pull: pull), a1 = at(t, 1, 0, pull: pull), a2 = at(t, 1, deep, pull: pull), a3 = at(t, 0, deep, pull: pull)
+                p.moveTo(a0.dx, a0.dy); p.lineTo(a1.dx, a1.dy); p.lineTo(a2.dx, a2.dy); p.lineTo(a3.dx, a3.dy); p.close()
+                fill.color = scaled(s.color, 0.6)
+                canvas.drawPath(p, fill)
+            }
+            for s in slices.sorted(by: { sin(($0.from + $0.to) / 2) < sin(($1.from + $1.to) / 2) }) {
+                wall(s, s.from, leading: true)
+                wall(s, s.to, leading: false)
+                rim(s)
+                top(s)
+            }
+        } else {
+            for s in slices { rim(s) }
+            for s in slices { top(s) }
         }
         canvas.restore()
         let rx = (at(0).dx - at(.pi).dx) / 2, ry = (at(.pi / 2).dy - at(-.pi / 2).dy) / 2
@@ -5154,7 +5202,12 @@ extension ChartPainter {
                        // the wall's foot at 99.7°, the same at 270° and 265°.
                        // zh-27a874b7's moved "經濟", 95.9°, is moved from the foot.)
                        point: { a, f in at(a, f, f >= 1 && sin(a) > sin(8.5 * .pi / 180) ? deep : 0) },
-                       movedEdge: { a in at(a, 1, sin(a) > 0 ? deep : 0) })
+                       movedEdge: { a in at(a, 1, sin(a) > 0 ? deep : 0) },
+                       pulled: word && c.pieExplosion > 0 ? { i in
+                           guard let m = placed.first(where: { $0.index == i })?.mid else { return .zero }
+                           let q = at(0, 0, 0, pull: pullOf(i, m))
+                           return Offset(q.dx - centre.dx, q.dy - centre.dy)
+                       } : nil)
         } else if c.dataLabels {
             for s in slices {
                 let pt = at((s.from + s.to) / 2, 0.7)
@@ -5230,11 +5283,15 @@ extension ChartPainter {
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
-                           point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil) {
+                           point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil,
+                           pulled: ((Int) -> Offset)? = nil) {
+        // (A slice pulled out: its points stand where the pull puts them, set as each slice's turn comes.)
+        var lift = Offset.zero
         // A point `f` of the radius out along angle `a`: on the flat
         // ellipse, or where a 3-D pie's perspective puts it.
         func on(_ a: Double, _ f: Double) -> Offset {
-            point?(a, f) ?? Offset(centre.dx + cos(a) * rx * f, centre.dy + sin(a) * ry * f)
+            let q = point?(a, f) ?? Offset(centre.dx + cos(a) * rx * f, centre.dy + sin(a) * ry * f)
+            return Offset(q.dx + lift.dx, q.dy + lift.dy)
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return }
@@ -5251,6 +5308,7 @@ extension ChartPainter {
         // The labels' text so far, for an outside label to stand clear of.
         var taken: [Rect] = []
         for s in slices {
+            lift = pulled?(s.index) ?? .zero
             // (A Word pie's label that says where it stands inside — centre, inside end, inside base — is
             // placed so whatever the other labels do: lab pielabel's prints.)
             var l = l
@@ -5373,7 +5431,7 @@ extension ChartPainter {
                     let tw = tp.width, th = tp.height
                     let a0 = s.mid - share * .pi, a1 = s.mid + share * .pi
                     let n = max(4, Int((a1 - a0) / (.pi / 180)))
-                    let wedge = [point(0, 0)] + (0 ... n).map { point(a0 + (a1 - a0) * Double($0) / Double(n), 0.9999) }
+                    let wedge = ([point(0, 0)] + (0 ... n).map { point(a0 + (a1 - a0) * Double($0) / Double(n), 0.9999) }).map { Offset($0.dx + lift.dx, $0.dy + lift.dy) }
                     func contains(_ q: Offset) -> Bool {
                         var inside = false
                         var j = wedge.count - 1
@@ -5441,7 +5499,7 @@ extension ChartPainter {
                 let gap = 4 * k
                 // (Where the file moves it, from `movedEdge`'s point when
                 // given: a 3-D pie's.)
-                let edge = l.moves[s.index] != nil ? movedEdge?(s.mid) ?? on(s.mid, 1) : on(s.mid, 1)
+                let edge = l.moves[s.index] != nil ? movedEdge.map { Offset($0(s.mid).dx + lift.dx, $0(s.mid).dy + lift.dy) } ?? on(s.mid, 1) : on(s.mid, 1)
                 // (Centred on its slice where it stands over or under it, within
                 // about ten degrees of upright: lab tpie's "建築", 0.75% at
                 // twelve o'clock, in Word's print, where ours stood a half
