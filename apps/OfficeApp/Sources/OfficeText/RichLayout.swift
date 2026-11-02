@@ -19593,7 +19593,7 @@ public final class RichLayout {
             let stroke = Paint()
             stroke.style = .stroke
             stroke.strokeWidth = max(1, _px(ts?.borderWidth ?? 0.5).rounded())
-            stroke.color = ts?.borderColor ?? theme.textColor.withOpacity(0.6)
+            stroke.color = ts?.borderColor ?? (theme.wordRules && RichTextTheme.wordWindowsPages ? Color(0xFF000000) : theme.textColor.withOpacity(0.6))
             // Every line lies inside the row (the paint is clipped to the
             // row's page piece, so a stroke centred on the row's bottom
             // edge lost its outer half and the table's last row had no
@@ -22331,7 +22331,7 @@ public final class RichLayout {
         let stroke = Paint()
         stroke.style = .stroke
         stroke.strokeWidth = max(1, _px(ts?.edgeWidths["insideH"] ?? ts?.borderWidth ?? 0.5).rounded())
-        stroke.color = ts?.borderColor ?? theme.textColor.withOpacity(0.6)
+        stroke.color = ts?.borderColor ?? (theme.wordRules && RichTextTheme.wordWindowsPages ? Color(0xFF000000) : theme.textColor.withOpacity(0.6))
         let half = stroke.strokeWidth / 2
         if opens { canvas.drawLine(Offset(left, piece.flowTop + half), Offset(right, piece.flowTop + half), stroke) }
         // (Closed with the table's bottom line where that is the heavier,
