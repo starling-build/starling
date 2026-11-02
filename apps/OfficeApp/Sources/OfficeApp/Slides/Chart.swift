@@ -299,6 +299,9 @@ struct Chart: Equatable {
         var second: Set<Int> = []
         /// Its size, a share of the main pie's (`c:secondPieSize`, 75%).
         var size = 0.75
+        /// Its slices carry no outline (`a:ln` of `noFill` on its points), and
+        /// whether it draws the lines joining the plots (`c:serLines`).
+        var noEdge = false, joined = false
     }
     /// A bar chart of one series whose points each take a colour of
     /// their own (`c:varyColors`): they cycle as a pie's slices do, and
@@ -1781,6 +1784,8 @@ enum ChartXML {
     static func _ofPie(_ el: XNode, values: [Double?]) -> Chart.OfPie {
         var o = Chart.OfPie()
         o.bar = el.first("c:ofPieType")?["val"] == "bar"
+        o.noEdge = el.first("c:ser")?.first("c:dPt")?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil
+        o.joined = el.first("c:serLines") != nil
         if let size = el.first("c:secondPieSize")?["val"].flatMap(Double.init) { o.size = max(0.05, min(2, size / 100)) }
         let n = values.count
         let at = el.first("c:splitPos")?["val"].flatMap(Double.init)
@@ -4448,6 +4453,8 @@ extension ChartPainter {
         edge.strokeWidth = max(0.5, 1.5 * k)
         edge.color = theme.background
         if c.onSlide, !c.styled2013, c.officeStyled { edge.color = Color(0x00000000) }
+        // (zh-b8de3ae2's slices say no outline, and Word draws none.)
+        if o.noEdge, !c.onSlide, !c.onSheet { edge.color = Color(0x00000000) }
         func slice(_ oval: Rect, _ from: Double, _ sweep: Double, _ color: Color) {
             fill.color = color
             canvas.drawArc(oval, from, sweep, true, fill)
@@ -4489,6 +4496,18 @@ extension ChartPainter {
                 canvas.drawRect(r, edge)
                 segments[i] = r
                 top += part
+            }
+            // The lines from the main pie's two edges to the bar's corners
+            // (`c:serLines`, a grey 0.75 pt: zh-b8de3ae2's, in Word's print).
+            if o.joined, !c.onSlide, !c.onSheet {
+                let rule = Paint()
+                rule.style = .stroke
+                rule.isAntiAlias = true
+                rule.strokeWidth = max(0.5, 0.75 * k)
+                rule.color = Color(0xFFA6A6A6)
+                let r = d / 2
+                canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy - r * sin(half)), Offset(x2, centre.dy - h / 2), rule)
+                canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy + r * sin(half)), Offset(x2, centre.dy + h / 2), rule)
             }
             // The bar's labels from their segments' middles, then moved as
             // the file says, no leaders (zh-b8de3ae2's in Word's print).
