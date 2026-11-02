@@ -6728,17 +6728,28 @@ public final class RichLayout {
                 let base = head.map { $0.pageY + $0.height }.max() ?? 0
                 let tail = Array(_allPieces.suffix(seq.count))
                 if seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
-                   seq.allSatisfy({ _cells[$0.paragraph] == nil && !$0.repeated && $0.part == .all }) {
+                   seq.allSatisfy({ (_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true } ?? true) && !$0.repeated && $0.part == .all }) {
+                    // (A floating table in the block stands where it is, a band the
+                    // columns run around: lo-a998edda's A1–A4 in two columns are 2
+                    // and 2 in Word's print, the table across both, the fourth
+                    // line under it.)
+                    let bands = seq.filter { _cells[$0.paragraph] != nil }
                     let total = (first ... lastPage).reduce(0.0) { acc, s in acc + ((_pages[s].filter { p in !head.contains(where: { $0 == p }) }).map { $0.pageY + $0.height }.max().map { $0 - base } ?? 0) }
                     let target = total / Double(nb)
                     var out: [[PagePiece]] = Array(repeating: [], count: nb)
                     var c = 0, cy = 0.0
                     var lastBottom: [Int: Double] = [:]
-                    for piece in seq where !head.contains(where: { $0 == piece }) {
+                    for piece in seq where !head.contains(where: { $0 == piece }) && _cells[piece.paragraph] == nil {
                         let gap = max(0, piece.pageY - (lastBottom[piece.page] ?? base))
                         lastBottom[piece.page] = piece.pageY + piece.height
                         var top = cy > 0.01 ? cy + gap : 0
                         var rest = (from: piece.flowTop, to: piece.flowBottom)
+                        if !bands.isEmpty, theme.wordRules {
+                            let h = rest.to - rest.from
+                            for band in bands.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01 {
+                                top = band.pageY + band.height - base
+                            }
+                        }
                         while true {
                             // (A piece that starts at the even length starts the
                             // next column: zh-b5359de4's cover, two empty 36pt
@@ -6775,7 +6786,7 @@ public final class RichLayout {
                                 }
                                 out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: cut, page: first + c, pageY: base + top))
                                 rest = (cut, rest.to)
-                            } else if top < 0.01 || (_perSection && top < target - 0.5) {
+                            } else if top < 0.01 || ((_perSection || !bands.isEmpty) && top < target - 0.5) {
                                 // (A line that starts before the even length
                                 // ends the column, as the first line that
                                 // reaches it does in a paragraph of several:
@@ -6791,6 +6802,7 @@ public final class RichLayout {
                             cy = 0
                         }
                     }
+                    out[0] += bands
                     let blockBottom = out.map { $0.map { $0.pageY + $0.height }.max() ?? 0 }.max() ?? 0
                     if blockBottom <= contentH + 0.01 {
                         _allPieces.removeLast(seq.count)
