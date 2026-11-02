@@ -3,7 +3,7 @@
 
 Each lab is floating Table1 (19-23 rows, tblpY 323) + empty paragraphs + floating Table2 (6 rows, tblpY 323); the number measured is the baseline of the
 line "26" (Table2's last-row number, the first thing on the page Table2 lands on). Word's: [page, y] from windows' lab prints (the second number of each pair they sent; the first is Table2:A1's baseline), 2026-11-02.
-Known off, 2026-11-02 (18 of 20 agree): rows19 c15 (Word stands Table2 about one empty, 25.4pt, higher than its anchor's place, A1 on page 1 at 503.3 with the empties' two lines above it) and after2 c15 (Word carries the one empty before Table2 where fs11 absorbs two). Run from the repo root. Prints one row per lab and the count that agree (page equal and y within 1.0pt)."""
+All 20 agree, 2026-11-02 (anchor lab test/labs/anchor, wip/lab-anchor: in compat 15 the second table hangs 45pt under the baseline of the empty line just before it, when its first row fits there; a lone empty between the tables that does not fit is carried). Run from the repo root. Prints one row per lab and the count that agree (page equal and y within 1.0pt)."""
 import glob, io, os, subprocess, sys, tarfile
 import pymupdf
 

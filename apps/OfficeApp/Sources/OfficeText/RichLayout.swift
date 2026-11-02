@@ -5971,6 +5971,14 @@ public final class RichLayout {
                         // tdf87460 and floattable-negative-height, tblpY 1 and 9
                         // twips, stand under the line.)
                         y = max(y, before.pageY + _px(down))
+                    } else if RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, i > 0, _cells[i - 1] == nil,
+                              let last = lastEmptyAt, last.i == i - 1, last.page == page, last.y < y - 0.01, last.y + _px(down) + c.ownRowHeight <= contentH + 0.01, Self._tableBeforeEmptiesIsOn(page: page, i: i, cells: _cells, pieces: _pages[page]),
+                              Self._followsFloatingTable(i, c.table, document: document, cells: _cells) {
+                        // (Compat 15, a table floating after another with empty lines between: it hangs
+                        // from the empty line just before it, 45pt under that line's baseline, not
+                        // from where the flow has got to. Lab anchor, Word for Windows.)
+                        RuleTrace.hit("compat15-second-floating-table-hangs-from-the-empty-line-before-it")
+                        y = last.y + _px(down)
                     } else {
                         y += _px(down)
                     }
@@ -6879,7 +6887,9 @@ public final class RichLayout {
             // next page and the second table stands under them, where 0 after leaves the first one.)
             var emptyBegins = y
             if let last = lastEmptyAt, last.i == i - 1, last.page == page { emptyBegins = max(y, last.y + _heights[i - 1]) }
-            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15, resumeCursor == nil, y > 0.01,
+            if theme.wordRules, RichTextTheme.wordWindowsPages, resumeCursor == nil, y > 0.01,
+               // (Compat 15 carries a lone empty between the tables, lab compat1415b after2; of two or more the ones past the foot are absorbed.)
+               (document.compatibilityMode ?? 12) < 15 || (i > 0 && _cells[i - 1] != nil && i + 1 < count && _cells[i + 1] != nil),
                _columns == 1, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil,
                case let pst = document.paragraphs[i].style, case let after = _px(pst.spaceAfter),
                // (Its line counts as a single one, Word's multiple hanging below the foot like the leading.)
@@ -13778,6 +13788,15 @@ public final class RichLayout {
     /// its box, and the PDF lost it. (Scalars, not Characters: "\u{2000}" == "\u{2002}" in Swift,
     /// the two being canonically equivalent.)
     /// What an empty paragraph needs at a page's foot: its line taken as a single one, and its space after.
+    /// Whether the table that precedes the empty paragraphs before `i` starts on `pieces` (this page).
+    private static func _tableBeforeEmptiesIsOn(page: Int, i: Int, cells: [_CellGeo?], pieces: [PagePiece]) -> Bool {
+        var k = i - 1
+        while k >= 0, cells[k] == nil { k -= 1 }
+        guard k >= 0, let t = cells[k]?.table else { return false }
+        while k > 0, cells[k - 1]?.table == t { k -= 1 }
+        return pieces.contains { $0.paragraph == k }
+    }
+
     private static func _needs(_ height: Double, _ after: Double, _ multiple: Double) -> Double {
         (height - after) / max(1, multiple) + after
     }
