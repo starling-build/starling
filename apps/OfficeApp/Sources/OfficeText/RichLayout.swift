@@ -9390,7 +9390,11 @@ public final class RichLayout {
             }
             if indents.contains(where: { $0.left > 0 || $0.right > 0 }), indents.last.map({ $0.left != 0 || $0.right != 0 }) == true { indents.append(LineIndent()) }
             besideLineIndents = indents
-                if !firstBeside || besideRight || besideLeftRoom != nil { lead = original; _leadWidth[i] = lead }
+                if p.style.list != nil, besideRight, besideLeftRoom == nil {
+                // (A list item beside a box at the right keeps its label's box: the bullet's face sets the
+                // line, lo tdf97090's Symbol bullets make a first line 14.09 under text of 13.22.)
+                    _leadWidth[i] = lead
+                } else if !firstBeside || besideRight || besideLeftRoom != nil { lead = original; _leadWidth[i] = lead }
             else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
