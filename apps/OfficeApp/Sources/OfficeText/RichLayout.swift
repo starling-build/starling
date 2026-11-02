@@ -9244,6 +9244,16 @@ public final class RichLayout {
                 width += shift
             }
         }
+        // (A frame on the page with an x and no width runs from that x to the right margin:
+        // lo-af81b53e's centred small-caps frame, x 1675 over a 567 gutter, stands in
+        // [83.75, 517.15] in Word's print, centred on 300.45, where ours took the whole column.)
+        if frameLeft == nil, theme.wordRules, p.cell == nil, let frame = style.frame, frame.width == nil,
+           frame.horizontalAnchor == "page", frame.verticalAnchor == "page", frame.horizontalAlign == nil,
+           (style.frameXML ?? "").containsSubstring("w:x=\"") {
+            let setup = _setup(ofParagraph: i)
+            left += _px(frame.x - setup.marginLeft - setup.gutter - 0.55)
+            width -= _px(7.15)
+        }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
         // (Centred or set right, a numbered line is set across its
         // hanging indent too: zh-3c055c9b's caption "表1　古佳川不實核銷表
