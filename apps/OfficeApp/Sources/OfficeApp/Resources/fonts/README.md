@@ -171,3 +171,9 @@ sha256:
     79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f  NotoSansDevanagari-Regular.ttf
     77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
     9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10  NotoColorEmoji.ttf
+
+## DejaVu Math TeX Gyre
+
+`DejaVuMathTeXGyre.ttf` (fallback_order 9, family "DejaVu Math TeX Gyre", the name WriterMath
+asks for) is the maths face; it keeps the pi in lo-6e71a4d5. Added by amd-4. Licence as Debian
+lists it for DejaVu (Bitstream Vera terms); the TeX Gyre side originates with the GUST e-foundry.
