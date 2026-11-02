@@ -19,12 +19,12 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
 - amd-6: zh-6e6b9821, lo-5c5eb1f7 row 25 (pinned floating tables)
 - amd-7: per-column footnotes step 3 (lab fn-cols-sweep printing); lo-e8c1ae37, lo-40949e85, lo-948cd424, lo-c678e486. (lo-0622682c done)
-- amd-perf: SmartArt (lo-8ab9b90f); lo-db00fd9f handed to amd-opus
-- amd-opus: line-end decision table; lo-db00fd9f; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
+- amd-perf: SmartArt (lo-8ab9b90f)
+- amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
 - lenovo-2: lo-b8885ba2, lo-152d87fe, lo-72e72396, lo-06933f8e, lo-e3095781, lo-512aa398, lo-88b29958 (lab)
 - lenovo-3: lo-7ec36a70, lo-73f1dccc
-- DONE: lo-c996762f (lenovo-3)
-- lenovo-5: lo-e6dce9d6 (drop-cap lab), lo-9c6cc479 last line, n830205 balloons, check-box columns
+- DONE: lo-c996762f (lenovo-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100)
+- lenovo-5: n830205/lo-9f27ef40 balloons, lo-a197b7a8, lo-89daf93d (unless amd-3 holds it)
 - amd-8: tip watch + unit tests
 
 **STRATEGY (the user, 2026-10-29): Windows mode is the focus.** Word for Windows is the reference, and its
