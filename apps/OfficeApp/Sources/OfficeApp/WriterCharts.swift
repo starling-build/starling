@@ -54,7 +54,18 @@ enum WriterCharts {
     static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil, userShapes: XNode? = nil) -> Bool {
         let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
-        let colors = ColorContext(theme: pptxTheme)
+        var colors = ColorContext(theme: pptxTheme)
+        // (The chart's own theme override's colours, where it has one: zh-b8de3ae2's
+        // line chart and pies stand in A5B592, accent 2 …, not the document's blue.)
+        if let scheme = themeOverride.flatMap({ XNode.parse($0) })?.descendant("a:clrScheme") {
+            for child in scheme.children {
+                let name = String(child.name.drop { $0 != ":" }.dropFirst())
+                if let c = child.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex)
+                    ?? child.first("a:sysClr")?["lastClr"].flatMap(PptxTheme.hex) {
+                    colors.theme.colors[name] = c
+                }
+            }
+        }
         let chartex = space.name == "cx:chartSpace"
         guard var chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
         else { return false }
