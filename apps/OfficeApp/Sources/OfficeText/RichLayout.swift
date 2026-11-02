@@ -2092,7 +2092,11 @@ public final class RichLayout {
                             let colW = _flowWidth(k)
                             let anchorLeft = _pxColumnLeft(first.page, column: first.page % _columns, paragraph: k)
                             if image.textBox?.fitsText == true { _ = _textBox(image, document) }
-                            let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity), h = _px(image.height)
+                            // (A fit-to-text box that outgrew its stored width stands as wide as its text: zh-2e7ef069's
+        // "- 11 -" in a 36pt box is set from the margin at 479 in Word's print, 42pt in.)
+        let fitted = image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] }
+        let w = theme.wordRules && RichTextTheme.wordWindowsPages && image.textBox?.fitsOnce == true
+            ? (fitted ?? _px(image.width)) : min(_px(image.width), fitted ?? .infinity), h = _px(image.height)
                             let floatL = anchorLeft + _px(float.x) - _px(float.distanceLeft ?? 9)
                             let floatR = anchorLeft + _px(float.x) + w + _px(float.distanceRight ?? 9)
                             // (Whether it reaches out of its own column at all: the ones that stay in it
@@ -21213,7 +21217,7 @@ public final class RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages {
                 var wide = 0.0
                 for k in 0 ..< sub.paragraphs.count where !sub.paragraphs[k].text.isEmpty
-                    && !sub.paragraphs[k].text.unicodeScalars.contains(where: { $0.value == 0x20 || $0.value >= 0x2E80 }) {
+                    && !sub.paragraphs[k].text.unicodeScalars.contains(where: { ($0.value == 0x20 && !box.fitsOnce) || $0.value >= 0x2E80 }) {
                     let g = layout.geometry(k)
                     let right = k < layout._textWidth.count ? max(0, layout.width - g.textLeft - layout._textWidth[k]) : 0
                     wide = max(wide, g.painter.maxIntrinsicWidth + g.textLeft + right)
@@ -21251,7 +21255,11 @@ public final class RichLayout {
     /// or the paragraph, or set left, centre or right in the column (or
     /// the page, where `frameMargins` says how far that reaches).
     private func _floatRect(_ float: ImageFloat, _ image: ImageAttachment, _ g: ParagraphGeometry, _ i: Int) -> Rect {
-        let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
+        // (A fit-to-text box that outgrew its stored width stands as wide as its text: zh-2e7ef069's
+        // "- 11 -" in a 36pt box is set from the margin at 479 in Word's print, 42pt in.)
+        let fitted = image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] }
+        let w = theme.wordRules && RichTextTheme.wordWindowsPages && image.textBox?.fitsOnce == true
+            ? (fitted ?? _px(image.width)) : min(_px(image.width), fitted ?? .infinity)
         var h = _px(image.height)
         // The page it stands on, in pixels: a header's or footer's from
         // the page it is painted on, a body paragraph's from its section.
