@@ -2697,8 +2697,12 @@ enum OfficeFonts {
                 // (On Linux the fallback is Noto Sans Thai: shaped over
                 // zh-6a4fc013's Thai it is 1/0.70 of Cordia's widths, and
                 // 0.66 sets the document's 614 lines on 26 pages as Word
-                // does — 0.70 gives 627 on 27, unscaled 726 on 30.)
-                face.classScales = [1, 1, 1, 1, 0.66]
+                // does — 0.70 gives 627 on 27, unscaled 726 on 30. That was
+                // measured with the Thai drawn by the host's fallback; with
+                // the bundled Noto Sans Thai in the glyph chain, the scale
+                // that sets 616 lines on 27 pages, as Word's print has them,
+                // is 0.82: 0.66 gives 560 on 25, 0.74 597 on 26.)
+                face.classScales = [1, 1, 1, 1, 0.82]
                 #endif
             }
             // (An embedded face whose font-table entry names an East Asian

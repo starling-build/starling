@@ -145,11 +145,12 @@ asset to download (notofonts' releases begin later), so its provenance is the di
 package plus the sha256 below. The WebAssembly build should fetch these lazily, not ship
 them in the page: about 105 MB together.
 
-Thai is registered but kept out of the glyph-fallback chain (fallback_order 0): with it in,
-zh-6a4fc013's Thai text is drawn in Noto Sans Thai instead of missing-glyph boxes and the
-document drops 91.7 -> 48.1 in the line pair (a page more), because Word sets Thai in a face
-with other advances and the line breaker has no width table for it yet. Turning it on is a
-separate step: give the chain a Thai face with Word's widths, then set the order above 0.
+Thai is in the glyph-fallback chain (fallback_order 9). Before it was, zh-6a4fc013's Thai
+was drawn as missing-glyph boxes, which the line pair counts as matching any character; that
+is where its old 91.7 came from. With real Thai the document scores about 54 in the pair.
+That is honest: the Thai is measured with a size scale of 0.82 (616 lines on 27 pages, as
+Word's print), but Thai lines still break in other places than Word's (Word breaks at Thai
+word boundaries). Thai line breaking is the open item.
 
 sha256:
 
