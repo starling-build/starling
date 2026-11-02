@@ -16464,6 +16464,9 @@ public final class RichLayout {
         // `_topLineSqueeze`.)
         let firstGiven = _topLineSqueeze(p, document) > 0
         var leadOpeners: [Int: Int] = [:]   // a line's giving opener, and where its line ends
+        // (A circled number ①–⑳ is set an em wide, an ideograph at the line's end: zh-30d86fcf's "…申请条件。③" is
+        // taken 0.7 over in Word's print, as the ideographs beside it are.)
+        func circled(_ u: UInt16) -> Bool { RichTextTheme.wordWindowsPages && theme.wordRules && u >= 0x2460 && u <= 0x24FF }
         var closingOpeners = Set<Int>()   // a closing mark that opens its line (Word keeps it whole when it is the only mark to give)
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them
@@ -16577,7 +16580,7 @@ public final class RichLayout {
             // "（3）合理性审核…价格是", 7.3248 over against a half em of
             // 7.3232, is not taken by Word — it ends the line at "格",
             // justified.)
-            let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !isSpace(units[$0]) }
+            let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !circled(units[$0]) && !isSpace(units[$0]) }
             // (And less than nothing, as `hair`, where Word's sum of the
             // room falls short of it: zh-f39e54b6's 第十四條 sends "日"
             // down that starts exactly half of "按" inside — `tieShort`.)
@@ -17152,7 +17155,7 @@ public final class RichLayout {
                     // 12.05 over with four marks, zh-7b125a21's "…车辆安全时" 10.18 at 10.5pt.)
                     let markAlone = RichTextTheme.wordWindowsPages && kinsokuOff && legacy && (!inCell || (document.compatibilityMode ?? 12) < 14) && last == a + 1 && units[a] >= 0x2E80 && Self._closingUnits.contains(units[a])
                     let plain = theme.wordRules && units[a] >= 0x3400 && !Self._closingUnits.contains(units[a]) && !Self._openingUnits.contains(units[a])
-                    let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
+                    let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || circled(units[a]) || wideQuote(a)
                         ? (closesUp(a) || markAlone ? em * 0.5 : wideQuote(a) ? em + quoteSpacing(a) / 2 : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : plain ? (condensed(a) && !inCell ? min(em, boxes(a, a + 1) - (gaps[a] ?? 0)) : em + max(0, boxes(a, a + 1) - (gaps[a] ?? 0) - em) / 2) : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
                     // (And where the character before it is over the margin
                     // itself, the paragraph's last mark gives nothing toward
@@ -17238,7 +17241,7 @@ public final class RichLayout {
                     // an ideograph 15.2 apart and takes one 7.55 over,
                     // not 7.65; spaced -1, 6.9 and not 7.1; unspaced,
                     // 7.9 and not 8.1. Lab `sq`, 2026-10-13.)
-                    let wide = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
+                    let wide = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || circled(units[a]) || wideQuote(a)
                     // (Without the automatic space after it, which is
                     // no part of the character.)
                     let set = wide && !closesUp(a) ? boxes(a, a + 1) - (gaps[a] ?? 0) : em
@@ -17684,7 +17687,8 @@ public final class RichLayout {
                     // in Word's print and opens the next with "①", where ours
                     // set the colon at 13.5 of 16 to take it. In a cell one
                     // does: zh-20ff844e's narrow cells take their "③".)
-                    let circled = !inCell && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
+                    // (Not for a hair over: the same print takes zh-30d86fcf's "…申请条件。③" 0.7 over, the "。" set 15.72.)
+                    let circled = !inCell && a < units.count && (0x2460 ... 0x24FF).contains(units[a]) && !(RichTextTheme.wordWindowsPages && need <= _px(2))
                     if room + spacedGive + kinsokuGive > 0, taken, !circled, need <= room + spacedGive + kinsokuGive - ownGive - finalGive + (gridGive ?? hair) {
                         let share = room > 0 ? min(1, (need + 0.02) / room) : 0
                         // (The marks give first, and the automatic spaces
@@ -17822,7 +17826,7 @@ public final class RichLayout {
                     let oldStretch: Double = spaceEms + autoRoom + allSpaces
                     let oldGive: Double = autoRoom * autoGive + allSpaces / 4
                     let budgetGive: Double = autoRoom * autoGive + giverRoom
-                    let sharesStretch: Bool = onCharacterGrid || units[a] < 0x2E80 || (autos.isEmpty && !windowsAfterMarks)
+                    let sharesStretch: Bool = onCharacterGrid || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
                             ? need * budgetStretch <= budgetGive * (width - x + spaceTrail + hair)
                             : need * oldStretch <= oldGive * (width - x + hair))
