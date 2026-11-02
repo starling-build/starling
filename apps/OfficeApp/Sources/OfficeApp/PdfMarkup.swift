@@ -621,7 +621,34 @@ struct PdfMarkup {
             let plain = TextStyle(color: Color(0xFF000000), fontSize: size, height: lineHeight, fontFamily: note.family ?? family)
             let bold = TextStyle(color: Color(0xFF000000), fontSize: size, fontWeight: .bold, height: lineHeight, fontFamily: family)
             var spans: [InlineSpan] = [TextSpan(text: note.label + " ", style: bold)]
-            spans.append(TextSpan(text: note.paragraphs.joined(separator: "\n"), style: plain))
+            // (A deleted section break alone in its balloon stands on the
+            // label's line, its name in smaller type: lab bal 02 and 04, Word
+            // for Windows, "Deleted:" at 436.9 and "Section Break (Next
+            // Page)" at 500.0, 6.1pt against the 6.8pt of the label.)
+            if windows, note.label == "Deleted:", note.paragraphs.filter({ !$0.isEmpty }).count == 1,
+               let said = note.paragraphs.first(where: { $0.hasPrefix("Section Break (") }) {
+                RuleTrace.hit("deleted-section-break-stands-on-the-labels-line")
+                let small = TextStyle(color: Color(0xFF000000), fontSize: size * 0.9, height: lineHeight, fontFamily: note.family ?? family)
+                spans.append(TextSpan(text: said, style: small))
+            } else if windows, note.label == "Deleted:", note.paragraphs.contains(where: { $0.hasPrefix("Section Break (") }) {
+                // (After deleted text the name is a line of its own, set in
+                // 48.8pt and smaller: lab bal 03, "Section Break (Next Page)"
+                // at 485.7 under "Deleted: XXX¶" at 436.9.)
+                RuleTrace.hit("deleted-section-break-after-text-is-a-small-indented-line")
+                let small = TextStyle(color: Color(0xFF000000), fontSize: size * 0.9, height: lineHeight, fontFamily: note.family ?? family)
+                var first = true
+                for line in note.paragraphs where !(line.isEmpty && !first) {
+                    if !first { spans.append(TextSpan(text: "\n", style: plain)) }
+                    first = false
+                    if line.hasPrefix("Section Break (") {
+                        spans.append(TextSpan(text: String(repeating: "\u{2002}", count: 16) + line, style: small))
+                    } else {
+                        spans.append(TextSpan(text: line, style: plain))
+                    }
+                }
+            } else {
+                spans.append(TextSpan(text: note.paragraphs.joined(separator: "\n"), style: plain))
+            }
             let tp = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
             tp.fractionalLineHeights = true
             // (A deletion's text stands 8.8pt further in: delins's "Deleted:"
