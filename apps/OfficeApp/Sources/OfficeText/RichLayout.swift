@@ -17731,12 +17731,13 @@ public final class RichLayout {
                     // the squeeze: lab `latg` (Word for Windows): a line of 26 ideographs and "R6", "R6B1"
                     // or "R" is left at the margin whatever room the line's marks have to give, and "B1" is
                     // set only where its natural width fits; zh-08e95de4's "…西站片区R6地块" ends at "区",
-                    // 9.7pt over with two marks to give 16, where ours took it. Only past half a cell:
-                    // zh-7654804a's "PCM" (5.2 over), zh-344a8d08's "COVID-" (4.5) are taken by the squeeze.)
+                    // 9.7pt over with two marks to give 16, where ours took it. Only one that starts less than a cell
+                    // inside the margin (R6: 9.0): zh-7654804a's "PCM" (starts 30 in), zh-344a8d08's "COVID-" (46)
+                    // and zh-3c055c9b's "PChome" (37) are taken by the squeeze.)
                     let letterWord = wordRules && RichTextTheme.wordWindowsPages && onCharacterGrid && last - a >= 2
                         && ((units[a] | 0x20) >= 0x61 && (units[a] | 0x20) <= 0x7A) && units[a] < 0x80
                         && (a ..< last).allSatisfy { units[$0] < 0x2E80 && !isSpace(units[$0]) } && x + w > width + hair
-                        && need > before / 2 + hair && need <= room + hair
+                        && w - need < before - hair && need <= room + hair
                     if Self.debugFitLog, letterWord, takenFirst {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("LETTERWORD\t\(String(decoding: units[a ..< last], as: UTF16.self))\tx \(x / pt)\tw \(w / pt)\twidth \(width / pt)\tneed \(need / pt)\troom \(room / pt)\tbefore \(before / pt)\tmarks \(all.count)\tprev \(String(decoding: units[max(0, a - 3) ..< a], as: UTF16.self))\tnext \(String(decoding: units[last ..< min(units.count, last + 2)], as: UTF16.self))\n".utf8))
