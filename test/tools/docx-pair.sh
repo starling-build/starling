@@ -30,6 +30,7 @@
 #   ENGINE_OUT   the engine out dir the binaries were built against (default: the
 #                first of engine/src/out/host_release_arm64, host_release)
 set -u
+BASE_SWEPT=0
 SEED=0; [ "${1:-}" = "--seed" ] && { SEED=1; shift; }
 BASEBIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); FIXBIN=$(cd "$(dirname "$2")" && pwd)/$(basename "$2"); JOBS=${3:-4}
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd); cd "$ROOT" || exit 2
@@ -80,19 +81,24 @@ BASE=$STAGE/base; mkdir -p "$BASE"
 STORED=test/corpus/docx/scores/$HOST
 want=$(test/tools/stamp.sh -r "$BASE_REV" $INPUTS)
 have=$(git show "$BASE_REV:$STORED/STAMP" 2>/dev/null || true)
-if [ $SEED = 0 ] && [ "$want" = "$have" ]; then
+if [ $SEED = 0 ] && [ -n "${BASE_SCORES:-}" ]; then
+  # BASE_SCORES: a directory holding <set>.{v2,v1} of the base — the shared base cache (test/tools/base-cache.sh)
+  echo "base: scores from $BASE_SCORES (shared cache) — base sweep skipped"
+  for S in $SETS; do for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; done
+elif [ $SEED = 0 ] && [ "$want" = "$have" ]; then
   echo "base: stored scores of $HOST match $BASE_REV's stamp — base sweep skipped"
   for S in $SETS; do for v in v2 v1; do git show "$BASE_REV:$STORED/$S.$v" > "$BASE/$S.$v"; done; done
 elif [ $SEED = 0 ]; then
   echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
+  # (swept beside the fix below, not before it: both are waited for together)
   for S in $SETS; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
-  wait_sets base
-  for S in $SETS; do for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
+  BASE_SWEPT=1
 fi
 # the fix
 FIX=$STAGE/fix; mkdir -p "$FIX"
 for S in $SETS; do ( T0=$(date +%s); sweep "$FIXBIN" "$STAGE/work/fix-$S" $S && echo "$(( $(date +%s)-T0 )) s" > "$STAGE/work/fix-$S.time" ) & done
 wait_sets fix
+[ "${BASE_SWEPT:-0}" = 1 ] && for S in $SETS; do for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
 for S in $SETS; do
   echo "fix $S: $(cat "$STAGE/work/fix-$S.time"), failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
   for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done
