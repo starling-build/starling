@@ -637,7 +637,30 @@ struct PdfMarkup {
             // Deleted text and a comment's in their own face at that size.)
             let family = balloon.family, size = balloon.size
             let lineHeight = note.family == nil ? balloon.line : nil
-            let plain = TextStyle(color: Color(0xFF000000), fontSize: size, height: lineHeight, fontFamily: note.family ?? family)
+            // (Deleted text in a document whose default face comes from its theme — no run and no
+            // style names one — is in that face, at its own widths: lo-fc75bd78's Aptos, whose balloon
+            // text is 3% narrower in Word's print than its stand-in's. Set character by character
+            // by the table the body's text goes by.)
+            var exactFace: RichResolvedFace? = nil
+            if windows, note.label == "Deleted:", let name = document.styles[RichNamedStyle.normalId]?.char.fontFamily,
+               note.family == nil || note.family == OfficeFonts.drawn(name),
+               let face = theme.faceResolver?(name, false), face.advances != nil { exactFace = face }
+            let plain = TextStyle(color: Color(0xFF000000), fontSize: size, height: exactFace?.naturalHeight ?? lineHeight, fontFamily: exactFace?.family ?? note.family ?? family)
+            func exactSpans(_ text: String, _ style: Flutter.TextStyle) -> [InlineSpan] {
+                guard let face = exactFace, let table = face.advances else { return [TextSpan(text: text, style: style)] }
+                var out: [InlineSpan] = []
+                for ch in text {
+                    guard ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E, u - 0x20 < UInt32(table.count) else {
+                        out.append(TextSpan(text: String(ch), style: style)); continue
+                    }
+                    let probe = TextPainter(text: TextSpan(text: String(ch), style: style), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100_000)
+                    let natural = probe.width
+                    probe.dispose()
+                    out.append(TextSpan(text: String(ch), style: style.copyWith(letterSpacing: table[Int(u) - 0x20] * size - natural)))
+                }
+                return out
+            }
             let bold = TextStyle(color: Color(0xFF000000), fontSize: size, fontWeight: .bold, height: lineHeight, fontFamily: family)
             var spans: [InlineSpan] = [TextSpan(text: note.label + " ", style: bold)]
             // (A deleted section break alone in its balloon stands on the
@@ -673,7 +696,7 @@ struct PdfMarkup {
                     }
                 }
             } else {
-                spans.append(TextSpan(text: note.paragraphs.joined(separator: "\n"), style: plain))
+                spans.append(contentsOf: exactSpans(note.paragraphs.joined(separator: "\n"), plain))
             }
             let tp = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
             tp.fractionalLineHeights = true
