@@ -2256,7 +2256,15 @@ public final class RichLayout {
         // margins, stand 4.5pt left of ours in Word's print, set out by
         // the table's margin alone; bug57031's SAS tables put their text
         // at the margin.)
-        let left = old ? _px(_tableSpacedOutdent[table] ?? style?.textOutdent ?? 5.4) : 0
+        // (Lab tbl14, Word for Windows, mode 14: a table of no cell margin stands half its left
+        // line out as well, and its text starts where the page's margin is, at the line's middle
+        // plus the larger of the margin and half the line.)
+        var ruleHalf = 0.0
+        if old, RichTextTheme.wordWindowsPages, _tableSpacedOutdent[table] == nil, let ts = style, ts.cellSpacing == nil, ts.floatX == nil,
+           ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) {
+            ruleHalf = (ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) / 2
+        }
+        let left = old ? _px(max(_tableSpacedOutdent[table] ?? style?.textOutdent ?? 5.4, ruleHalf)) : 0
         let right = old ? _px(style?.textOutdentRight ?? 5.4) : 0
         // A floating table placed across (`w:tblpX`): from the page's edge,
         // the margin or the column, set out by its cell margin before 2013's
@@ -9687,7 +9695,7 @@ public final class RichLayout {
                         pad = modern
                             ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
                                          right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
-                            : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
+                            : EdgeInsets(left: max(pad.left, RichTextTheme.wordWindowsPages ? l / 2 : l), top: pad.top, right: pad.right, bottom: pad.bottom)
                         }
                     }
                 }
