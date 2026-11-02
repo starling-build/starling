@@ -2310,8 +2310,12 @@ enum ChartPainter {
             let printed = c.onSlide && !beside
             // (Beside the plot too: aascu 5864's 20 pt column's keys 10.98
             // square, tdf149985's 9 pt 4.94, 2.92 at 12 before the names.)
-            let key = (c.onSlide ? 6.57 : 7) * k * m, gap = (c.onSlide ? 2.92 : 4) * k * m
-            let spacing = (printed ? (c.styled2013 ? 11.2 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m
+            // (A column chart with a line over it, in Word: every key a bar 19.2 pt long and 4.9
+            // high or a stroke as long with its mark in the middle, the entries 1.3 pt further
+            // apart: zh-b8de3ae2's "預算", "決算", "執行率" keys at 220.9, 269.6, 318.4.)
+            let wideKeys = !c.onSlide && !c.onSheet && !c.chartex && !c.lineSeries.isEmpty && c.type != .line && !beside
+            let key = wideKeys ? 19.2 * k : (c.onSlide ? 6.57 : 7) * k * m, gap = (c.onSlide ? 2.92 : 4) * k * m
+            let spacing = (printed ? (c.styled2013 ? 11.2 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
@@ -2477,7 +2481,7 @@ enum ChartPainter {
                             p.style = .stroke
                             p.strokeWidth = 2.25 * k
                             p.color = colour
-                            canvas.drawLine(Offset(x - 2 * k, mid.dy), Offset(x + key + 2 * k, mid.dy), p)
+                            canvas.drawLine(Offset(x - (wideKeys ? 0 : 2 * k), mid.dy), Offset(x + key + (wideKeys ? 0 : 2 * k), mid.dy), p)
                         }
                         Self._mark(l, at: mid, k: k, colour: colour, canvas)
                         e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
@@ -2497,7 +2501,8 @@ enum ChartPainter {
                     } else if c.type == .scatter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
-                        canvas.drawRect(Rect.fromLTWH(x, y + (lineH - key) / 2 + keyDrop, key, key), p)
+                        let high = wideKeys ? 4.9 * k : key
+                        canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), p)
                     }
                     e.tp.paint(canvas, Offset(x + lead, y + (lineH - e.tp.height) / 2))
                     x += lead + e.tp.width + spacing
