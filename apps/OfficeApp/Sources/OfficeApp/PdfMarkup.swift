@@ -44,6 +44,9 @@ struct PdfMarkup {
         // and "Formatted: Font color: Auto").
         var places: [Note] = []
         var gone: [Note] = []
+        // (Where a deleted run that carried a formatting change stood, and what it said:
+        // the "Formatted" stretch goes on through it. Lab bal5, Word for Windows.)
+        var formatsDeleted: [String: String] = [:]
         // A deletion still open: its text so far, and where it stands.
         var open: Note? = nil
         func close() {
@@ -134,6 +137,9 @@ struct PdfMarkup {
                         let anchor = RichPosition(paragraph: paragraphs.count, offset: text.utf16.count)
                         if run.style.revision?.nested == true, places.last?.anchor != anchor {
                             places.append(Note(anchor: anchor, label: "Moved (insertion)", paragraphs: [""], author: run.style.revision?.author ?? ""))
+                        }
+                        if let change = run.style.formatChange, case let said = PdfMarkup._describe(run.style, was: change.oldRPrXML), !said.isEmpty {
+                            formatsDeleted["\(anchor.paragraph)/\(anchor.offset)"] = said
                         }
                         let label = run.style.revision?.moved == true ? "Moved:" : "Deleted:"
                         // (A deletion that begins a paragraph, right after deleted marks and
@@ -234,7 +240,7 @@ struct PdfMarkup {
         // Tika-792's stand.)
         let tos = PdfMarkup._insertedMoves(printed)
         let made = PdfMarkup._moves(tos + places.filter { p in !tos.contains { $0.anchor == p.anchor } } + deletions)
-            + PdfMarkup._comments(printed) + PdfMarkup._formats(printed) + gone
+            + PdfMarkup._comments(printed) + PdfMarkup._formats(printed, deleted: formatsDeleted) + gone
         // (Within one line of the page — a paragraph, or a table row — Word
         // stacks the balloons of text taken out before the ones for text
         // reformatted: n830205's "Deleted" pair before its "Formatted", and
@@ -319,7 +325,7 @@ struct PdfMarkup {
     /// start or end breaks a stretch (a link's text and the words after it
     /// are two); a reformatted paragraph mark joins the stretch it ends
     /// and the next paragraph's, as Word's delins joins three headings'.
-    private static func _formats(_ document: RichDocument) -> [Note] {
+    private static func _formats(_ document: RichDocument, deleted formatsDeleted: [String: String]) -> [Note] {
         var out: [Note] = []
         // The stretch still open: what it says, and the field it is in.
         var last: (text: String, field: Int)? = nil
@@ -371,6 +377,9 @@ struct PdfMarkup {
             // (An empty run, an empty paragraph's, breaks nothing.)
             for run in p.runs where run.length > 0 {
                 defer { at += run.length }
+                // (A deleted run that was reformatted takes up the stretch where it
+                // stands: "F I D F" is one balloon, "F I F" two, "F D I F" two — lab bal5.)
+                if let said = formatsDeleted["\(i)/\(at)"] { RuleTrace.hit("deleted-reformatted-run-carries-the-formatted-stretch"); last = (said, run.style.fieldResult) }
                 var ended: String? = nil
                 if let c = codeChanged, run.style.fieldResult != c.field { ended = c.author; codeChanged = nil }
                 defer {
