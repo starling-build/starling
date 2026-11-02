@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """meas.py DIR > DIG-WORD.tsv: per variant (dig-A/B/C-orig.pdf in DIR) and copied paragraph, in order, the FIRST line's
 text, its last char, and whether it ends with 应.  Paragraph start = "4、装饰".  Right indent = start + 2*idx twips
-(A, C: -18; B: -64)."""
+(A, C: -18; B: -64; D: 20; E: -23)."""
 import sys, os, pymupdf
-START = {'A': -18, 'B': -64, 'C': -18}
+START = {'A': -18, 'B': -64, 'C': -18, 'D': 20, 'E': -23}
 print('# var\tidx\tright_indent_tw\tpage\tlast_char\ttakes_ying\tx1_last_char\tlines_in_para\tfirst_line_text')
 for v, st in START.items():
+    if not os.path.exists(os.path.join(sys.argv[1], 'dig-%s-orig.pdf' % v)): continue
     d = pymupdf.open(os.path.join(sys.argv[1], 'dig-%s-orig.pdf' % v))
     rows = []
     for pn, p in enumerate(d, 1):
