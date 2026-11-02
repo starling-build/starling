@@ -682,6 +682,19 @@ enum DocxFormat {
                 if !breaks, vertical(next) != vertical(sect) { sect.attrs["x-next-vmargins"] = "1" }
             }
         }
+        // (A section of columns that a continuous section follows, and that has
+        // no paragraph of its own after it: the body ends on the paragraph that
+        // closes the columns. Word has a last paragraph mark there all the same,
+        // and the columns are balanced above it: LibreOffice's tdf103931, six
+        // lines of text in three columns of two in Word's print, in one column
+        // in ours, which had no paragraph for the break to be at.)
+        if let last = body.children.last, last.name == "w:sectPr", (last.first("w:type")?["w:val"] ?? "") == "continuous",
+           body.children.count >= 2, case let before = body.children[body.children.count - 2], before.name == "w:p",
+           let closing = before.first("w:pPr")?.first("w:sectPr"), Int(closing.first("w:cols")?["w:num"] ?? "") ?? 1 > 1,
+           closing.first("w:pgSz")?["w:w"] == last.first("w:pgSz")?["w:w"], closing.first("w:pgSz")?["w:h"] == last.first("w:pgSz")?["w:h"] {
+            RuleTrace.hit("docx-last-paragraph-after-the-columns")
+            body.children.insert(XNode(name: "w:p", attrs: [:]), at: body.children.count - 1)
+        }
         for extra in root.all("w:body").dropFirst() {
             let at = body.children.lastIndex { $0.name == "w:sectPr" } ?? body.children.count
             body.children.insert(contentsOf: extra.children.filter { $0.name != "w:sectPr" }, at: at)
