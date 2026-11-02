@@ -5816,7 +5816,7 @@ public final class RichLayout {
                         // tdf87460 and floattable-negative-height, tblpY 1 and 9
                         // twips, stand under the line.)
                         y = max(y, before.pageY + _px(down))
-                    } else {
+                    } else if !Self._followsFloatingTable(i, c.table, document: document, cells: _cells) {
                         y += _px(down)
                     }
                 }
@@ -6682,6 +6682,22 @@ public final class RichLayout {
                !document.paragraphs[i + 1].style.pageBreakInline,
                contentH - y < _markLineHeight(i, document) - 0.01 {
                 newPage()
+            }
+            // (An empty paragraph between two tables floating by the text, in a compat 14 file: Word
+            // carries it to the next page unless its space after fits there too — lab compat1415b,
+            // Calibri 11pt lines 15.4 over 10 after on a page with 16pt left: both empties go to the
+            // next page and the second table stands under them, where 0 after leaves the first one.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15, resumeCursor == nil, y > 0.01,
+               _columns == 1, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil,
+               case let pst = document.paragraphs[i].style, case let after = _px(pst.spaceAfter),
+               // (Its line counts as a single one, Word's multiple hanging below the foot like the leading.)
+               (_heights[i] - after) / max(1, pst.lineSpacing) + after > contentH - y + 0.01, !_pageBreak[i] {
+                var k = i
+                while k < count, _cells[k] == nil, document.paragraphs[k].text.isEmpty { k += 1 }
+                if k < count, _cells[k] != nil, Self._followsFloatingTable(k, _cells[k]!.table, document: document, cells: _cells) {
+                    RuleTrace.hit("compat14-empty-between-floating-tables-carries-with-its-space-after")
+                    newPage()
+                }
             }
             // (A paragraph that is only the break, carried to a page of its
             // own because no line of it fit at the foot under a table,
@@ -13352,6 +13368,17 @@ public final class RichLayout {
     /// lo-11ad5a95's rows of a label, a tab and one 48pt space stood the label 11pt low, out of
     /// its box, and the PDF lost it. (Scalars, not Characters: "\u{2000}" == "\u{2002}" in Swift,
     /// the two being canonically equivalent.)
+    /// Whether the table at `i` floats by the text straight after another floating table, with only
+    /// empty paragraphs between them. compat1415b (Word for Windows, compat 14): the second stands
+    /// where the empties end, without its offset.
+    private static func _followsFloatingTable(_ i: Int, _ table: String, document: RichDocument, cells: [_CellGeo?]) -> Bool {
+        guard RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], ts.floatsOverText else { return false }
+        var k = i - 1
+        while k >= 0, cells[k] == nil, document.paragraphs[k].text.isEmpty { k -= 1 }
+        guard k >= 0, k < i - 1, let before = cells[k], before.table != table, let first = document.tableStyles[before.table] else { return false }
+        return first.floatsOverText && !first.pageAnchored && first.floatOffsetY != nil
+    }
+
     static func _setsNoLineBesideText(_ ch: Character) -> Bool {
         _setsNoLine(ch) || ch == "\t" || (RichTextTheme.wordWindowsPages && (ch.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains(ch.unicodeScalars.first!.value)))
     }
