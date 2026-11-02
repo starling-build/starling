@@ -264,29 +264,33 @@ enum DocxFormat {
     /// read, so every reader of it agrees. Each section's own page.
     static func _applyShareWidths(_ root: XNode) {
         guard let body = root.first("w:body") else { return }
-        func resolve(_ anchors: [XNode], _ sect: XNode?) {
-            guard !anchors.isEmpty, let sect, let sz = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
-                  let w = Double(sz["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") else { return }
-            let gutter = Double(mar["w:gutter"] ?? "") ?? 0
-            for anchor in anchors {
-                guard let rel = anchor.first("wp14:sizeRelH"), let pct = Double(rel.first("wp14:pctWidth")?.text ?? ""), pct > 0,
-                      let extent = anchor.first("wp:extent"), let cx = extent["cx"], Double(cx) != nil else { continue }
-                let span: Double
-                switch rel["relativeFrom"] ?? "" {
-                case "margin": span = w - l - r - gutter
-                case "page": span = w
-                default: continue
-                }
-                let emu = String(Int((span / 20 * 12700 * pct / 100_000).rounded()))
-                extent.attrs["cx"] = emu
-                for ext in anchor.descendants("a:ext") where ext["cx"] == cx { ext.attrs["cx"] = emu }
-            }
-        }
         var pending: [XNode] = []
         for child in body.children {
-            if child.name == "w:sectPr" { resolve(pending, child); pending = []; continue }
+            if child.name == "w:sectPr" { _resolveShareWidths(pending, child); pending = []; continue }
             pending += child.descendants("wp:anchor")
-            if child.name == "w:p", let sect = child.first("w:pPr")?.first("w:sectPr") { resolve(pending, sect); pending = [] }
+            if child.name == "w:p", let sect = child.first("w:pPr")?.first("w:sectPr") { _resolveShareWidths(pending, sect); pending = [] }
+        }
+    }
+
+    /// The share widths of `anchors`, on `sect`'s page. A header's or footer's
+    /// are on the last section's (lo-9c6cc479's footer rule, 100% of the margins:
+    /// 446.6pt in Word's print, the 468pt extent here).
+    static func _resolveShareWidths(_ anchors: [XNode], _ sect: XNode?) {
+        guard !anchors.isEmpty, let sect, let sz = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
+              let w = Double(sz["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") else { return }
+        let gutter = Double(mar["w:gutter"] ?? "") ?? 0
+        for anchor in anchors {
+            guard let rel = anchor.first("wp14:sizeRelH"), let pct = Double(rel.first("wp14:pctWidth")?.text ?? ""), pct > 0,
+                  let extent = anchor.first("wp:extent"), let cx = extent["cx"], Double(cx) != nil else { continue }
+            let span: Double
+            switch rel["relativeFrom"] ?? "" {
+            case "margin": span = w - l - r - gutter
+            case "page": span = w
+            default: continue
+            }
+            let emu = String(Int((span / 20 * 12700 * pct / 100_000).rounded()))
+            extent.attrs["cx"] = emu
+            for ext in anchor.descendants("a:ext") where ext["cx"] == cx { ext.attrs["cx"] = emu }
         }
     }
 
@@ -2941,6 +2945,7 @@ enum DocxFormat {
                 // (Their theme font references too: zh-a4b0f6ea's page
                 // numbers are `majorEastAsia`, 宋体, in a footer.)
                 _resolveThemeFonts(node, theme)
+                Self._resolveShareWidths(node.descendants("wp:anchor"), body.first("w:sectPr") ?? earlier.last)
                 var comps = path.split(separator: "/").map(String.init)
                 let file = comps.popLast() ?? ""
                 let dir = comps.joined(separator: "/")
