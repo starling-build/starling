@@ -18,7 +18,7 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-4: lo-79680f48, lo-52da6bc6, lo-af81b53e, lo-373ee508, lo-6e71a4d5 non-chart rest; Word surface chart
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
 - amd-6: zh-6e6b9821, lo-5c5eb1f7 row 25 (pinned floating tables)
-- amd-7: per-column footnotes (step 3, parted notes), lo-0622682c done
+- amd-7: per-column footnotes step 3 (lab fn-cols-sweep printing); lo-e8c1ae37, lo-40949e85, lo-948cd424, lo-c678e486. (lo-0622682c done)
 - amd-perf: SmartArt (lo-8ab9b90f); lo-db00fd9f handed to amd-opus
 - amd-opus: line-end decision table; lo-db00fd9f; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
 - lenovo-2: lo-b8885ba2, lo-152d87fe, lo-72e72396, lo-06933f8e, lo-e3095781, lo-512aa398, lo-88b29958 (lab)
