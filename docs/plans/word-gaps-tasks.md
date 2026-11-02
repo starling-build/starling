@@ -12,7 +12,9 @@ what next and how to check it.
 
 Take nothing listed here unless you are its owner; ask starling-bd for new work. Keep this block current when LANDED or CLAIM lines change it.
 
-- amd-1: lo-7b8ccfbe slice gradients; visual ranks 161-200
+- amd-1: LANDED chart visual docs: lo-7b8ccfbe 8.02->2.16 (default frame, bigger pie, style-18 colours and slice gradient), lo-1e8fa600 5.69->1.06, lo-452c2f0f 5.2->1.11 (legend box leaves its column); lo-5afb2204 already 1.04; zh-b8de3ae2 p15 chart matches, page sits 3px low = text layout (unowned)
+- amd-1: visual ranks 161-200 of the combined list (all about 2.0-2.3%): chart one first, lo-8743d336; the rest are text pages, handed on if the cause is borders (amd-2), page counts (amd-5), shapes (amd-perf)
+- OPEN, needs amd-opus: pie bestFit labels in/out and the pie radius. Best partial fit from lab pieeq (wip/lab-pieeq, PIEEQ-WORD.tsv): Word keeps a label inside its slice when it fits (47.4x9 one line, or wrapped 33.9x20 in a narrow slice); legend at the bottom shrinks the pie (R 54 at 8/10/12 slices, 63 at 6), no legend or right legend R 70-74. Ours is constant (68.9 / 53.6) and only 22 of 108 labels land within 3pt. No clean rule yet.
 - amd-2: Word VISUAL gate (per-page pixel diff vs Word's print, ranked; *.visual scores), then a top-40 visual worklist. amd-8 adds the gate to the rounds once it exists.
 - amd-3: a second amd-opus line-end class; visual ranks 121-160
 - amd-4: visual ranks 41-80; Word surface chart
