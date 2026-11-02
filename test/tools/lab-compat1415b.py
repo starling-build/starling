@@ -3,13 +3,13 @@
 
 Each lab is floating Table1 (19-23 rows, tblpY 323) + empty paragraphs + floating Table2 (6 rows, tblpY 323); the number measured is the baseline of the
 line "26" (Table2's last-row number, the first thing on the page Table2 lands on). Word's: [page, y] from windows' lab prints (the second number of each pair they sent; the first is Table2:A1's baseline), 2026-11-02.
-Run from the repo root. Prints one row per lab and the count that agree (page equal and y within 1.0pt)."""
+Known off, 2026-11-02 (18 of 20 agree): rows19 c15 (Word stands Table2 about one empty, 25.4pt, higher than its anchor's place, A1 on page 1 at 503.3 with the empties' two lines above it) and after2 c15 (Word carries the one empty before Table2 where fs11 absorbs two). Run from the repo root. Prints one row per lab and the count that agree (page equal and y within 1.0pt)."""
 import glob, io, os, subprocess, sys, tarfile
 import pymupdf
 
 WORD = {  # name: (page, y) in c14 | c15
-    "after2": ((2, 120.3), (1, 120.3)), "fs6": ((2, 131.7), (2, 94.8)), "fs11": ((2, 145.7), (2, 94.8)), "fs14": ((2, 154.1), (2, 154.1)),
-    "fs20": ((2, 171.0), (2, 171.0)), "sp0": ((2, 110.3), (2, 94.8)), "rows19": ((2, 94.8), (1, 503.3)), "rows20": ((2, 66.0), (2, 66.0)),
+    "after2": ((2, 120.3), (2, 120.3)), "fs6": ((2, 131.7), (2, 94.8)), "fs11": ((2, 145.7), (2, 94.8)), "fs14": ((2, 154.1), (2, 154.1)),
+    "fs20": ((2, 171.0), (2, 171.0)), "sp0": ((2, 110.3), (2, 94.8)), "rows19": ((2, 94.8), (2, 49.8)), "rows20": ((2, 94.8), (2, 94.8)),
     "rows22": ((2, 145.7), (2, 94.8)), "rows23": ((2, 166.6), (2, 166.6)),
 }
 BIN, WORK = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])

@@ -6402,6 +6402,14 @@ public final class RichLayout {
                     // line 12pt over the margin on page 2 in Word's print;
                     // ours stood it at the margin.)
                     raiseAtHead(c)
+                    // (A floating table's first row taken whole to the next page by its own part stands its offset
+                    // down that page too, as one taken there before it is set: lab compat1415b rows19, compat 14,
+                    // A1 at 66.0 on page 2 with tblpY 323 twips.)
+                    if theme.wordRules, c.row == 0, c.firstInRow, y < 0.01, i == 0 || _cells[i - 1]?.table != c.table,
+                       let down = document.tableStyles[c.table]?.floatOffsetY, down > 0, !(document.tableStyles[c.table]?.pageAnchored ?? false) {
+                        RuleTrace.hit("floating-table-first-row-carried-whole-stands-its-offset-down")
+                        y += _px(down)
+                    }
                 liftToFoot(c)
                     underPins(c.ownRowHeight)
                     shown = pageHeight()
