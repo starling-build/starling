@@ -384,7 +384,7 @@ enum WordArt {
                 // advance-box fit instead of losing the shape's text.
             }
             if followsPath.contains(warp.preset) {
-                _paintAlongEllipse(lines, warp, area, fits: fitsPath, draw)
+                _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, draw)
                 return
             }
             // The bands: one for the whole text, or several — deflate-inflate's
@@ -566,9 +566,13 @@ enum WordArt {
     /// Arch, circle and button: each line at its own size along the
     /// area's ellipse, its baseline on the curve — shrunk only when it is
     /// longer than its stretch of it.
-    private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect, fits: Bool = false,
+    private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect, fits: Bool = false, narrow: Bool = false,
                                            _ draw: (Glyph, Offset, Offset, Offset) -> Void) {
-        let rx = area.width / 2, ry = area.height / 2, c = area.center
+        // A Word document's own shape text (not a fitted VML path, not a slide) rides an ellipse a
+        // few points narrower than the box: lab prints of a 105 x 11.6 and a
+        // 64 x 8.6 arch (lo-e8c1ae37) shrink the 10pt line to 0.85 and 0.81,
+        // the arcs of boxes 4.7pt narrower each side (the path works in twentieths).
+        let rx = max(1, area.width / 2 - (narrow && !fits ? 94 : 0)), ry = area.height / 2, c = area.center
         /// A line along the arc from `start`, sweeping `sweep` degrees
         /// (clockwise positive, as DrawingML measures).
         func along(_ line: Line, start: Double, sweep: Double) {
