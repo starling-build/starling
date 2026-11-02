@@ -3354,20 +3354,49 @@ enum ChartPainter {
                 plot = Rect.fromLTRB(plot.left + 6.2 * k, plot.top + (inWord ? 5.3 : 3.3) * k,
                                      plot.right - 7.4 * k, plot.bottom - (inWord ? 0.7 : 1.7) * k)
             }
-            let whole = plot
-            for _ in 0 ..< 3 {
-                // Each bar as deep as it is wide, in a box `gapDepth` more:
-                // aascu 5864's one series, its bars 11.2 pt wide, stand in a
-                // box 28 deep, its category; LIBRE_OFFICE-100610's four
-                // abreast with no gap, 46.5 wide, are 46.5 deep in its print
-                // (15.5 across, 12 up), where a category's depth made them
-                // four times that.
-                let slot = (horizontal ? plot.height : plot.width) / Double(max(1, n))
-                let lanes = c.stacked ? 1.0 : Double(max(1, c.series.count))
-                let pitch = c.stacked ? 0 : 1 - c.overlapFraction
-                let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
-                box = depthAt(bar * (1 + v.gapDepth) * v.depth)
-                plot = Rect.fromLTRB(whole.left, whole.top + box.dy, whole.right - box.dx, whole.bottom)
+            var whole = plot
+            // Left to Word's own layout, a 3-D column chart stands a little
+            // higher than ours did and its back wall further in at the sides,
+            // by an amount that follows the wall's height and the chart's
+            // width: zh-b8de3ae2's charts and the lab bar3d (Windows 01QbbApP,
+            // 13 charts in three frames, title on and off, six label and value
+            // widths), fitted to 0.6 pt. The wall is the plot's front moved
+            // back one box depth.
+            let wordAuto3D = inWord && !horizontal && c.plotLayout == nil && c.legend && c.legendPosition == "b"
+            if wordAuto3D {
+                RuleTrace.hit("word-3d-columns-left-to-its-own-layout-stand-by-its-fitted-insets")
+                // (The wall's top stands 27 pt and a title's own height under the
+                // frame's, 13.2 without a title; its foot 65.5 over the frame's.)
+                let titleHeight = c.title?.isEmpty == false ? 27.0 + 1.015 * (c.titleSize ?? 18.62) : 13.2
+                whole = Rect.fromLTRB(whole.left, frame.top + titleHeight * k, whole.right, frame.bottom - 65.5 * k)
+            }
+            var wall: (left: Double, right: Double)? = nil
+            for pass in 0 ..< (wordAuto3D ? 2 : 1) {
+                for _ in 0 ..< 3 {
+                    // Each bar as deep as it is wide, in a box `gapDepth` more:
+                    // aascu 5864's one series, its bars 11.2 pt wide, stand in a
+                    // box 28 deep, its category; LIBRE_OFFICE-100610's four
+                    // abreast with no gap, 46.5 wide, are 46.5 deep in its print
+                    // (15.5 across, 12 up), where a category's depth made them
+                    // four times that.
+                    let slot = (horizontal ? plot.height : plot.width) / Double(max(1, n))
+                    let lanes = c.stacked ? 1.0 : Double(max(1, c.series.count))
+                    let pitch = c.stacked ? 0 : 1 - c.overlapFraction
+                    let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
+                    box = depthAt(bar * (1 + v.gapDepth) * v.depth)
+                    if let wall {
+                        plot = Rect.fromLTRB(wall.left - box.dx, whole.top + box.dy, wall.right - box.dx, whole.bottom + box.dy)
+                    } else {
+                        plot = Rect.fromLTRB(whole.left, whole.top + box.dy, whole.right - box.dx, whole.bottom + (wordAuto3D ? box.dy : 0))
+                    }
+                }
+                if pass == 0, wordAuto3D {
+                    let h = (whole.bottom - whole.top) / k
+                    let w = frame.width / k
+                    let dL = 26.1085 - 0.0627 * h + 0.0449 * (w - 540)
+                    let dR = -25.1969 + 0.0684 * h - 0.0505 * (w - 540)
+                    wall = (plot.left + box.dx + dL * k, plot.right + box.dx + dR * k)
+                }
             }
         }
         guard plot.width > 4, plot.height > 4 else {
