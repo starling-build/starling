@@ -3604,6 +3604,7 @@ enum DocxFormat {
         guard let gw = g["width"].flatMap(_length), let gh = g["height"].flatMap(_length), gw > 0, gh > 0 else { return [] }
         var out: [(content: XNode, place: Rect, atFoot: Bool)] = []
         // A group's children in its own coordinates → points in the outermost.
+        let topGroup = group
         func walk(_ group: XNode, _ map: @escaping (Rect) -> Rect) {
             let origin = pair(group["coordorigin"], (0, 0)), size = pair(group["coordsize"], (1000, 1000))
             guard size.0 > 0, size.1 > 0 else { return }
@@ -3612,6 +3613,14 @@ enum DocxFormat {
                 guard let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
                       let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { continue }
                 var r = map(Rect.fromLTWH(x - origin.0, y - origin.1, w, h))
+                // (A child with `mso-width-percent` is that share of its
+                // group's width, in the group's middle where it centres:
+                // Word's lab 8 (lo-0622682c) sets a 1000 child across the
+                // whole of a group as wide as the page.)
+                if group === topGroup, let pct = sh["mso-width-percent"].flatMap({ Double($0) }), pct > 0, child.name != "v:group" {
+                    let pw = gw * pct / 1000
+                    r = Rect.fromLTWH(sh["mso-position-horizontal"] == "center" ? (gw - pw) / 2 : r.left, r.top, pw, r.height)
+                }
                 if child.name == "v:group" {
                     let inner = pair(child["coordsize"], (1000, 1000))
                     guard inner.0 > 0, inner.1 > 0 else { continue }
