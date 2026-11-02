@@ -3532,6 +3532,9 @@ private struct SlideContext {
            let rev = rot["rev"].flatMap(Double.init), rev != 0 {
             body0.textSpin = -rev / 60000
         }
+        // `bodyPr rot`: the text turned about the middle of its lines, any
+        // angle (tdf149551's "a b c…" in a right triangle at 12°).
+        if let turn = attr("rot").flatMap(Double.init), turn != 0 { body0.textSpin += turn / 60000 }
         if body0.warp != nil, let bp = body?.first("a:bodyPr"), bp.first("a:scene3d") != nil {
             body0.textScene = Extrusion.read(bp, colors: colors)
         }
