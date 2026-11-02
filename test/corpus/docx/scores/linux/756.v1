@@ -254,6 +254,7 @@
    97.8%  lines 134/134  pages 8/8  zh-2c1d91ec85f8dc3d2cbe6f82e56f29f7c793154c8bf2fffd5bbaffb1dd4facc8
    97.8%  lines 228/232  pages 5/5  zh-53b15a2d5eabd4c9a7f4ca0d03da30ea4a03d2d36cca0763b6206b1579c90d3b
    97.8%  lines 2756/2756  pages 81/81  zh-ae2dd08d90a2cf2428293a6fdf1503fa6c22f23da3e4142ff842a67a116ed672
+   97.8%  lines 46/46  pages 2/2  zh-d97c5474722aff7b293a8688dce9402a551b46bac6e8561eb28a6d4f86036173
    97.8%  lines 786/785  pages 27/27  zh-5be7e15667a3f9599507cb13b8ec7b68e10d13fc02068ac29275ff105cc2cdcf
    97.9%  lines 235/235  pages 13/13  zh-167ee06c1b779b4f3f71206c8561a94b6bcadf02fd49068e237358f4c1b4a2cd
    97.9%  lines 3016/3016  pages 135/135  zh-10eab555d43310dcc633c6dd75ec588fdad0599f3706fd6194e55127cafabb9f
@@ -415,7 +416,6 @@
    99.7%  lines 312/312  pages 14/14  zh-60173bb689c6a0e290fdff34a25e2c63a7252c8eb06bc84ccce2fbf5ee18e2a9
    99.7%  lines 313/315  pages 18/18  zh-38d26944c1258819fa8323c053122c5cc531822a035c734d36c392026c5f6346
    99.7%  lines 630/649  pages 21/21  zh-1b74ed91476000c0f9f7886ac49d43810a5cbda430ca96d75bf31a25647752cc
-   99.7%  lines 639/639  pages 28/28  zh-f619d0f7a05c9ef33a1f56bbd266cd851a4c1e4f78e03d8b94a4241183920651
    99.7%  lines 322/322  pages 14/14  zh-d950cedbb512f16e473812ce4681dae14c5656adba14ae4519d72023d5100cd8
    99.7%  lines 673/673  pages 31/31  zh-fa2da6131f931b68f7c791df53137cb8826deaa5a0d2311e2b8c62ac42d49fd6
    99.7%  lines 339/339  pages 14/14  bug57031
@@ -512,7 +512,7 @@
   100.0%  lines 2/2  pages 1/1  VariousPictures
   100.0%  lines 7/7  pages 1/1  WithGIF
   100.0%  lines 1/1  pages 1/1  WithTabs
-  100.0%  lines 38/43  pages 2/2  WordWithAttachments
+  100.0%  lines 38/42  pages 2/2  WordWithAttachments
   100.0%  lines 580/584  pages 15/15  bib-chernigovka.netdo.ru_download_docs_17459
   100.0%  lines 2/2  pages 1/1  bookmarks
   100.0%  lines 6/6  pages 1/1  bug-paragraph-alignment
@@ -720,7 +720,6 @@
   100.0%  lines 169/169  pages 6/6  zh-d79c7f82f74e1ed415ea873313e8c603b1d6bb4273c1c6f6f8151457036222b9
   100.0%  lines 114/114  pages 4/4  zh-d89c384003721521024508d7dae7fdf4567424387311197cc4fc8b5a5322faa4
   100.0%  lines 341/341  pages 13/13  zh-d9563f2f0fa446ed7dad5c488c2074af23cffcd33d700dc41548b57b55ade7ff
-  100.0%  lines 46/46  pages 2/2  zh-d97c5474722aff7b293a8688dce9402a551b46bac6e8561eb28a6d4f86036173
   100.0%  lines 423/423  pages 20/20  zh-d9b085b1e21c9f0dd752652d456dd6187a6495b7a263ce94cdb52f1d663ca80a
   100.0%  lines 23/23  pages 2/2  zh-da4cc8ee70fad77dbd9b35d00fec329fdaaf26745f7d0bc56721cf964d0fec99
   100.0%  lines 145/145  pages 6/6  zh-de073ee5e413ed7e0db900604aae0464fb48babc7b460a967119a3a9c2ef063a
@@ -748,6 +747,7 @@
   100.0%  lines 464/487  pages 23/23  zh-f38025618a6dfbbcbbc4430910296ddb03f4f254c1756a0f1be308236b68c3b9
   100.0%  lines 146/146  pages 5/5  zh-f39e54b6206e52fd1fff607338e9ffd48c44a65d5ebfd0172d3c0134f8e29eb4
   100.0%  lines 335/335  pages 17/17  zh-f43c9edf1774746535d4b75832b8db24ae1ebbbe4bb795a21c1566b37075dec8
+  100.0%  lines 639/639  pages 28/28  zh-f619d0f7a05c9ef33a1f56bbd266cd851a4c1e4f78e03d8b94a4241183920651
   100.0%  lines 137/137  pages 6/6  zh-f784cc401b4a87db9817ab43afc390107bff8e34971f8953ca373932b2a3f18c
   100.0%  lines 120/120  pages 6/6  zh-fb482d33bcbbaedfc66c70840e81776704bf32664a4b8f53607e75a4afa645c0
   100.0%  lines 86/86  pages 3/3  zh-fce5583def841dd2152aa076ff37fb45cb8eedf7763fde5debfd117dff635e85

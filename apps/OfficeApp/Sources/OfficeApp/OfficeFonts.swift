@@ -2580,6 +2580,12 @@ enum OfficeFonts {
             name = "Arial"
             missing = false
         }
+        // (A file that NAMES Times New Roman or Arial for its complex text
+        // has them on Word's machine, whatever this one holds: lo tdf129659's
+        // Hebrew body sets its spaces and marks in Times New Roman, not the
+        // Cambria of a face Word lacks.)
+        let wordHasIt = wordOnWindows && ["times new roman", "arial"].contains(name.trimmingWhitespace().lowercased())
+        if missing, wordHasIt { missing = false }
         if missing { name = "Times New Roman" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
@@ -2593,6 +2599,13 @@ enum OfficeFonts {
         case "times new roman": face.fallback.insert("Liberation Serif", at: 2)
         case "arial": face.fallback.insert("Liberation Sans", at: 2)
         default: break
+        }
+        // (… and its clone first in the chain, so the spaces and marks are set
+        // in the clone and not the Cambria stand-in that comes before it.)
+        if wordHasIt, embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil {
+            let clone = name.trimmingWhitespace().lowercased() == "arial" ? "Liberation Sans" : "Liberation Serif"
+            face.fallback.removeAll { $0 == clone }
+            face.fallback.insert(clone, at: 0)
         }
         // (Word for Windows' Arabic in Arial and Times New Roman, which the
         // stand-ins have none of: Noto Naskh draws it, 11% wider than Arial

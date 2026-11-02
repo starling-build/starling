@@ -1,4 +1,4 @@
-593 documents: mean 87.0% of Word's lines matched, median 100.0%; 461 at 95% or more, 530 at half or more; 579 with Word's page count
+593 documents: mean 87.1% of Word's lines matched, median 100.0%; 461 at 95% or more, 530 at half or more; 579 with Word's page count
     0.0%  lines 0/0  pages 0/0  lo-02c5b89ddc2d9138
     0.0%  lines 6/6  pages 1/1  lo-0622682cda1b279e
     0.0%  lines 0/0  pages 0/0  lo-099d1f3b2085ed7b
@@ -73,7 +73,6 @@
    55.6%  lines 36/36  pages 2/2  lo-6b7d4262fe2a39cb
    55.6%  lines 9/9  pages 1/1  lo-9fa3dedd1f1d716a
    55.6%  lines 9/9  pages 1/1  lo-cccc9676753ee81a
-   60.0%  lines 5/5  pages 1/1  lo-ccca8bf3eae9ede4
    60.0%  lines 15/14  pages 1/1  lo-fc75bd78d5cbd5e5
    61.5%  lines 91/88  pages 2/2  lo-ff3b52d1090fe293
    65.2%  lines 69/70  pages 6/5  lo-5c5eb1f7d326d221
@@ -85,7 +84,6 @@
    68.8%  lines 16/16  pages 1/1  lo-ccd9da4b76bda965
    71.4%  lines 7/7  pages 1/1  lo-43db5218741de0fa
    71.4%  lines 7/7  pages 1/1  lo-7cba90194d9b9eab
-   72.0%  lines 132/132  pages 4/4  lo-000463dfea864c26
    72.2%  lines 108/108  pages 6/6  lo-27446c663903fb83
    75.0%  lines 4/3  pages 1/1  lo-158ec98675629e6e
    75.0%  lines 4/3  pages 1/1  lo-9e08e4895c1b1cbf
@@ -100,12 +98,14 @@
    80.0%  lines 5/5  pages 1/1  lo-8ccd581d8f0ae102
    80.0%  lines 5/5  pages 1/1  lo-b60b72993a0bbbf0
    80.0%  lines 5/4  pages 1/1  lo-be40d67a5e6f7109
+   80.0%  lines 5/5  pages 1/1  lo-ccca8bf3eae9ede4
+   81.1%  lines 132/132  pages 4/4  lo-000463dfea864c26
    81.2%  lines 16/17  pages 1/1  lo-c4c60fcb3248472d
    81.8%  lines 11/11  pages 2/1  lo-16d1ab43f5506741
-   82.8%  lines 64/63  pages 2/2  lo-af36644e14e94c0e
    83.0%  lines 1326/1325  pages 49/49  lo-d1e88d777011989c
    83.3%  lines 18/18  pages 1/1  lo-6e71a4d554ea90df
    83.3%  lines 6/6  pages 1/1  lo-8b6d9004bf99086b
+   84.4%  lines 64/63  pages 2/2  lo-af36644e14e94c0e
    84.6%  lines 13/13  pages 2/2  lo-198cd20047e25c50
    84.6%  lines 13/15  pages 2/2  lo-60fd93680f179e1e
    85.7%  lines 7/7  pages 1/1  lo-4dc8da496a8b5ec3

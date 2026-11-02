@@ -4651,7 +4651,7 @@ enum DocxFormat {
         var stack = [root]   // iterative: a fuzzer's tree is deeper than the call stack
         while let node = stack.popLast() {
             if node.name == "w:rFonts" {
-                for (ref, attr) in [("w:asciiTheme", "w:ascii"), ("w:hAnsiTheme", "w:hAnsi"), ("w:eastAsiaTheme", "w:eastAsia")] {
+                for (ref, attr) in [("w:asciiTheme", "w:ascii"), ("w:hAnsiTheme", "w:hAnsi"), ("w:eastAsiaTheme", "w:eastAsia"), ("w:cstheme", "w:cs")] {
                     guard let t = node.attrs[ref] else { continue }
                     if let face = theme.face(t) { node.attrs[attr] = face }
                 }
