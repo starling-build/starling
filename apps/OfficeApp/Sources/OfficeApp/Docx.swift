@@ -5438,6 +5438,8 @@ enum DocxFormat {
                             if n > 0 { read(b.descendant("w:txbxContent")!) }
                             for q in first ..< inside.count {
                                 inside[q].style.indentLeft += x + l
+                                // (A list's number and text stand at its own left: moved with the box's.)
+                                if let own = inside[q].style.listIndentLeft { inside[q].style.listIndentLeft = own + x + l }
                                 inside[q].style.indentRight += max(0, groupWidth - (x + w) + r)
                                 inside[q].style.boxInsetRight = r
                             }
@@ -5468,6 +5470,7 @@ enum DocxFormat {
                         if n > 0 { read(b.content) }
                         for q in first ..< inside.count {
                             inside[q].style.indentLeft += b.place.left
+                            if let own = inside[q].style.listIndentLeft { inside[q].style.listIndentLeft = own + b.place.left }
                             inside[q].style.indentRight += max(0, att.width - b.place.right)
                         }
                         parts.append(RichTextBox.Part(first: first, top: b.place.top, height: max(0, b.place.height), atFoot: b.atFoot))
