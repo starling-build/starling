@@ -350,6 +350,10 @@ enum WriterGroups {
         /// WordArt (a VML textpath): its text fitted to the box.
         var wordArt: WordArtText? = nil
         var drawingWordArt: DrawingWordArt? = nil
+        /// A gradient fill (the shape's own, or its theme's fill style), drawn in place of `fill`.
+        var gradient: SlideFill? = nil
+        /// A shadow its theme's effect style casts: offset and blur in points, and its colour.
+        var shadow: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
     }
     /// A VML textpath — Word's WordArt — drawn as Slides draws WordArt
     /// (`WordArt`): each line stretched to the shape's box by its warp, in
@@ -537,7 +541,36 @@ enum WriterGroups {
                     if !isLine {
                         if sp.first("a:noFill") != nil { fill = nil }
                         else if let f = sp.first("a:solidFill") { fill = colors.color(in: f) ?? f.first("a:sysClr")?["lastClr"].flatMap { Int64($0, radix: 16) }.map { Color(0xFF00_0000 | $0) } }
-                        else { fill = styled("a:fillRef").0 }
+                        else if sp.first("a:gradFill") == nil { fill = styled("a:fillRef").0 }
+                    }
+                    // (A gradient: the shape's own, or the theme's fill style its style refers to, in the
+                    // shape's colour: lo-7de905dc's rectangle is `fillRef idx=2`, a pale vertical gradient
+                    // in Word's print, where ours was the flat accent.)
+                    var gradient: SlideFill? = nil
+                    if !isLine {
+                        if let g = sp.first("a:gradFill") {
+                            gradient = PptxReader.gradient(g, colors: colors)
+                        } else if sp.first("a:noFill") == nil, sp.first("a:solidFill") == nil,
+                                  let ref = style?.first("a:fillRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+                                  theme.fillStyles.indices.contains(idx - 1), theme.fillStyles[idx - 1].name == "a:gradFill" {
+                            var c = colors
+                            c.placeholder = fill
+                            gradient = PptxReader.gradient(theme.fillStyles[idx - 1], colors: c)
+                        }
+                        if let g = gradient, g.stops.count < 2 { if fill == nil { fill = g.color }; gradient = nil }
+                        if gradient != nil, fill == nil { fill = gradient?.stops.first?.color }
+                    }
+                    var shadow: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
+                    if !isLine, fill != nil || gradient != nil, sp.first("a:effectLst") == nil,
+                       let ref = style?.first("a:effectRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+                       theme.effectStyles.indices.contains(idx - 1),
+                       let sh = theme.effectStyles[idx - 1].descendant("a:outerShdw") {
+                        var c = colors
+                        c.placeholder = styled("a:effectRef").0
+                        let dist = (sh["dist"].flatMap(Double.init) ?? 0) / 12700, dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
+                        if let color = c.color(in: sh) {
+                            shadow = (dist * cos(dir), dist * sin(dir), (sh["blurRad"].flatMap(Double.init) ?? 0) / 12700, color)
+                        }
                     }
                     let ln = sp.first("a:ln")
                     var line: Color? = nil
@@ -573,7 +606,7 @@ enum WriterGroups {
                                         geometry: geometry, rotation: (Double(xfrm["rot"] ?? "") ?? 0) / 60000,
                                         flipH: flipH, flipV: flipV,
                                         headEnd: fromStart ? head : tail, tailEnd: fromStart ? tail : head,
-                                        dash: PptxReader.dash(ln), drawingWordArt: art))
+                                        dash: PptxReader.dash(ln), drawingWordArt: art, gradient: gradient, shadow: shadow))
                 default: continue
                 }
             }
@@ -1067,11 +1100,20 @@ enum WriterGroups {
                     if let e = s.tailEnd { SlidePainter.lineEnd(e, tip: b0, from: a0, base: base, paint: stroke, canvas) }
                 }
             } else if let g = s.geometry {
+                if let cast = s.shadow, s.fill != nil || s.gradient != nil {
+                    let p = Paint()
+                    p.style = .fill
+                    p.isAntiAlias = true
+                    p.color = cast.color
+                    if cast.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, cast.blur * pxPerPt / 2) }
+                    canvas.drawPath(SlidePainter.combinedPath(g, r.shift(Offset(cast.dx * pxPerPt, cast.dy * pxPerPt))), p)
+                }
                 if let fill = s.fill {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
                     p.color = fill
+                    if let gradient = s.gradient, let shader = SlidePainter.gradientShader(gradient, r) { p.shader = shader }
                     canvas.drawPath(SlidePainter.combinedPath(g, r), p)
                 }
                 if s.line != nil {
