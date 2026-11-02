@@ -65,6 +65,11 @@ void starling_host_decode_image(uint32_t requestId, const void* bytes, uint32_t 
 // faces once, then calls starling_fonts_changed after registration.
 HOST(request_font) void starling_host_request_font(const void* utf8, uint32_t length);
 
+// Request the file(s) that are the glyph fallback for a character script
+// (UTF-8 name in OUR memory: fonts.tsv's "cjk-sc", "arabic", ...), because the
+// text just given to a paragraph has characters of it. Same answer as above.
+HOST(request_script) void starling_host_request_script(const void* utf8, uint32_t length);
+
 // The tab's title (UTF-8, in OUR memory).
 HOST(set_title) void starling_host_set_title(const void* utf8, uint32_t length);
 

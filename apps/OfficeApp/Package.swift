@@ -256,7 +256,14 @@ let webAppTarget: Target = .executableTarget(
 // until 2026-10).
 let textDependencies: [Target.Dependency] = {
     #if os(Linux)
-    return [.product(name: "FlutterShared", package: "FlutterSwift")]
+    // (The browser build is compiled on this host too: its framework is the
+    // three modules below, not the shared dylib it has no use for.)
+    if !wasmBuild { return [.product(name: "FlutterShared", package: "FlutterSwift")] }
+    return [
+        .product(name: "Flutter", package: "FlutterSwift"),
+        .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
+        .product(name: "SwiftRuntime", package: "FlutterSwift"),
+    ]
     #else
     return [
         .product(name: "Flutter", package: "FlutterSwift"),

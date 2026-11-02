@@ -87,6 +87,8 @@ SKWASM(skString16_free) void skString16_free(sk_ptr string);
 // --- fonts.cpp --------------------------------------------------------------
 SKWASM(fontCollection_create) sk_ptr fontCollection_create(void);
 SKWASM(typeface_create) sk_ptr typeface_create(sk_ptr fontData);
+// Starling's: face `index` of a font collection (.ttc); 0 for a bad index.
+SKWASM(typeface_createWithIndex) sk_ptr typeface_createWithIndex(sk_ptr fontData, int32_t index);
 SKWASM(fontCollection_registerTypeface)
 void fontCollection_registerTypeface(sk_ptr collection, sk_ptr typeface,
                                      sk_ptr fontName);

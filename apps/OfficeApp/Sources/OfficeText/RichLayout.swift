@@ -2240,7 +2240,7 @@ public final class RichLayout {
             // U+FE10 to FE19 — zh-74b34f3b's "會議、研習、喜宴", where the
             // drop below stood ours 9pt low.)
             let family = styles[k]?.fontFamily ?? ""
-            let plain = family.contains("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
+            let plain = family.containsSubstring("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
             let form = plain ? ch : (Self._verticalForms[ch] ?? ch)
             // (Its own advance, without the run's letter spacing: that
             // follows it — below.)
@@ -9044,7 +9044,7 @@ public final class RichLayout {
             // it is, not quantised: with it quantised too, zh-73534289's
             // cells (auto width, no indent) lost a character a line.)
             let latin = p.text.unicodeScalars.contains { $0.value < 0x2E80 && !$0.properties.isWhitespace }
-            let labSum = !p.text.contains("\t") && (_grid(i, document).chars ?? 0) == 0 && !latin
+            let labSum = !p.text.unicodeScalars.contains("\t") && (_grid(i, document).chars ?? 0) == 0 && !latin
             let sixteenth = { (t: Int) -> Double in labSum ? (Double(t) / 1.25).rounded() * 1.25 : Double(t) / 20 }
             let outdent = { (t: Int) -> Double in labSum ? (t < 0 ? (Double(t) / 1.25).rounded(.up) * 1.25 : sixteenth(t)) : Double(t) / 20 }
             let eps = labSum ? 1e-6 : 0

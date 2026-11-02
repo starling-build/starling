@@ -414,6 +414,11 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     const family = utf8.decode(appBytes().subarray(pointer, pointer + length));
     fontLoader.request(family);
   };
+  // Characters of a script the app's text has no face for: fonts.tsv's script
+  // name ("cjk-sc", "arabic"). A manifest without that script ignores it.
+  host.request_script = (pointer, length) => {
+    fontLoader.requestScript(utf8.decode(appBytes().subarray(pointer, pointer + length)));
+  };
 
   // Starling's additions to skwasm (lib/web_ui/skwasm/pdf.cpp, and
   // text/paragraph_style.cpp's fractional line heights, text_style.cpp's
@@ -422,7 +427,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // bound to a function that answers 0 — what the export itself returns
   // when it fails — so the app still starts and only that feature is off.
   const skImports = { ...sk };
-  for (const name of ['pdf_write', 'paragraphStyle_setFractionalLineHeights', 'textStyle_setScaleX', 'textStyle_setBaselineShift', 'paragraphStyle_addLineIndent', 'textStyle_setMetricsOverride', 'paragraph_getGlyphInkBounds', 'paragraph_getGlyphPath', 'paragraphStyle_setFitReserve']) {
+  for (const name of ['pdf_write', 'paragraphStyle_setFractionalLineHeights', 'textStyle_setScaleX', 'textStyle_setBaselineShift', 'paragraphStyle_addLineIndent', 'textStyle_setMetricsOverride', 'paragraph_getGlyphInkBounds', 'paragraph_getGlyphPath', 'paragraphStyle_setFitReserve', 'typeface_createWithIndex']) {
     if (typeof skImports[name] !== 'function') skImports[name] = () => 0;
   }
   const instance = await WebAssembly.instantiate(await appModule, {
@@ -439,7 +444,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // under several family names — the first entry is also given skwasm's
   // fallback name, so text in a family nobody loaded still draws.
   const encoder = new TextEncoder();
-  const registerFont = (bytes, family) => {
+  const registerFont = (bytes, family, faceIndex = -1) => {
     const data = sk.skData_create(bytes.length);
     skBytes().set(bytes, sk.skData_getPointer(data));
     const name = encoder.encode(family ?? '');
@@ -448,6 +453,22 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     const ok = swift.starling_font_loaded(data, namePointer, name.length);
     if (namePointer) swift.starling_free(namePointer);
     if (!ok) throw new Error(`starling: font for '${family}' did not parse`);
+  };
+  // The faces of one downloaded file (a collection: 19 MB for five CJK
+  // faces), registered from ONE copy of its bytes in skwasm's memory.
+  const registerFile = (bytes, faces) => {
+    const data = sk.skData_create(bytes.length);
+    skBytes().set(bytes, sk.skData_getPointer(data));
+    try {
+      for (const { family, index } of faces) {
+        const name = encoder.encode(family);
+        const namePointer = swift.starling_alloc(name.length);
+        appBytes().set(name, namePointer);
+        const ok = swift.starling_font_face_loaded(data, namePointer, name.length, index);
+        swift.starling_free(namePointer);
+        if (!ok) throw new Error(`starling: face ${index} for '${family}' did not parse`);
+      }
+    } finally { sk.skData_dispose(data); }
   };
   // `fonts` is a list of {url, families}, or the URL of a JSON file holding
   // one (build/web-app.sh writes fonts/manifest.json). An empty families
@@ -476,11 +497,25 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   if (manifest.some(entry => entry.lazy) && !swift.starling_fonts_changed) {
     throw new Error('starling: deferred fonts require a rebuilt app.wasm');
   }
+  if (manifest.some(entry => entry.faces) && !swift.starling_font_face_loaded) {
+    throw new Error('starling: script fonts require a rebuilt app.wasm');
+  }
   fontLoader = createFontLoader(manifest, {
     register: registerFont,
+    registerFile,
     changed: () => swift.starling_fonts_changed(),
     status: state => { fontsPending = state.pending.length; onFontStatus?.(state); },
   });
+  // The glyph-fallback chain of the script fonts, declared now in table order
+  // (not as files arrive): a family nobody has loaded yet resolves to nothing
+  // and is skipped, so which face a character gets never depends on timing.
+  for (const family of fontLoader.fallbackChain()) {
+    const name = encoder.encode(family);
+    const pointer = swift.starling_alloc(name.length);
+    appBytes().set(name, pointer);
+    swift.starling_font_fallback(pointer, name.length);
+    swift.starling_free(pointer);
+  }
 
   const transfer = (bytes, callback) => {
     const pointer = swift.starling_alloc(bytes.length);

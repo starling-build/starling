@@ -171,8 +171,13 @@ FONTS=(
     "$REPO/web/fonts/FluentSystemIcons-Regular.ttf=FluentSystemIcons"
 )
 if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
+    SCRIPT_FONTS="$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts/fonts.tsv"
     for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.otf; do
         [ -e "$f" ] || continue
+        # (The script fonts — CJK, Arabic, Hebrew, Thai… — are listed in
+        # fonts.tsv and go in the manifest below as deferred downloads, by
+        # script, not by family: docs/plans/web-lazy-fonts.md.)
+        if [ -f "$SCRIPT_FONTS" ] && cut -f1 "$SCRIPT_FONTS" | grep -qxF "$(basename "$f")"; then continue; fi
         family=""
         if [ "$TARGET" = OfficeApp ]; then
             # Keep the default document face eager. The paragraph builder asks
@@ -242,6 +247,23 @@ fi
     echo
     echo "]"
 } > "$STAGE/fonts/manifest.json"
+# The script fonts (fonts.tsv): one deferred entry per file, collections
+# included, staged as they are. STARLING_WEB_FONT_GZIP=1 stages `.gz` copies
+# the page inflates itself (build/web-deploy.sh publishes those).
+if [ -f "${SCRIPT_FONTS:-}" ]; then
+    FONT_DIR="$(dirname "$SCRIPT_FONTS")"
+    GZ_FLAG=""; [ "${STARLING_WEB_FONT_GZIP:-0}" = 1 ] && GZ_FLAG="--gzip"
+    for file in $(tail -n +2 "$SCRIPT_FONTS" | cut -f1 | sort -u); do
+        if [ -n "$GZ_FLAG" ]; then gzip -9 -c "$FONT_DIR/$file" > "$STAGE/fonts/$file.gz"
+        else install -m 644 "$FONT_DIR/$file" "$STAGE/fonts/"; fi
+    done
+    python3 - "$STAGE/fonts/manifest.json" "$(python3 "$REPO/build/tools/web-font-manifest.py" "$FONT_DIR" $GZ_FLAG)" <<'PY'
+import json, sys
+path = sys.argv[1]
+manifest = json.load(open(path)) + json.loads(sys.argv[2])
+json.dump(manifest, open(path, 'w'), indent=1, ensure_ascii=False)
+PY
+fi
 
 # skwasm, built from our engine (docs/BUILDING.md §1.7 has emsdk):
 #     cd engine/src && ./flutter/tools/gn --wasm --runtime-mode release

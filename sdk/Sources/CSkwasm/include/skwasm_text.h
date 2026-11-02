@@ -30,6 +30,8 @@ SKWASM(fontCollection_create) sk_ptr fontCollection_create(void);
 SKWASM(fontCollection_dispose) void fontCollection_dispose(sk_ptr collection);
 // Returns 0 when the bytes are not a font. Like SkData, reference counted.
 SKWASM(typeface_create) sk_ptr typeface_create(sk_ptr fontData);
+// Starling's: face `index` of a font collection (.ttc); 0 for a bad index.
+SKWASM(typeface_createWithIndex) sk_ptr typeface_createWithIndex(sk_ptr fontData, int32_t index);
 SKWASM(typeface_dispose) void typeface_dispose(sk_ptr typeface);
 // fontName is an SkString*, or 0 for the family name inside the font file.
 SKWASM(fontCollection_registerTypeface)

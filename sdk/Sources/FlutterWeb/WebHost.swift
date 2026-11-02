@@ -315,6 +315,22 @@ func starlingFontLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ famil
     return WebFonts.register(data: data, family: name) ? 1 : 0
 }
 
+/// One face of a collection (or a plain file, `faceIndex` -1) the page wrote
+/// into an SkData. Unlike `starling_font_loaded`, the SkData stays the
+/// page's: it registers each face of a file from the one copy, then frees it.
+@_expose(wasm, "starling_font_face_loaded")
+@_cdecl("starling_font_face_loaded")
+func starlingFontFaceLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ familyLength: Int32, _ faceIndex: Int32)
+    -> Int32
+{
+    let name = family.flatMap { pointer in
+        familyLength > 0
+            ? String(decoding: UnsafeBufferPointer(start: pointer, count: Int(familyLength)), as: UTF8.self)
+            : nil
+    }
+    return WebFonts.register(data: data, family: name, faceIndex: faceIndex >= 0 ? faceIndex : nil, keep: true) ? 1 : 0
+}
+
 /// Called between frames after a complete deferred family has arrived.
 @_expose(wasm, "starling_fonts_changed")
 @_cdecl("starling_fonts_changed")

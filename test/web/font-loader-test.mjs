@@ -80,3 +80,34 @@ test('invalid font bytes are retryable, not marked loaded', async () => {
   await loader.retry();
   assert.equal(changes, 1);
 });
+
+const script = [
+  { url: 'cjk.ttc', lazy: true, weight: 400, scripts: ['cjk-sc', 'cjk-tc'], fallback: true, order: 1, gzip: true,
+    faces: [{ index: 2, family: 'Noto Sans CJK SC' }, { index: 3, family: 'Noto Sans CJK TC' }] },
+  { url: 'cjk-bold.ttc', lazy: true, weight: 700, scripts: ['cjk-sc', 'cjk-tc'], fallback: true, order: 1,
+    faces: [{ index: 2, family: 'Noto Sans CJK SC' }, { index: 3, family: 'Noto Sans CJK TC' }] },
+  { url: 'arabic.ttf', lazy: true, weight: 400, scripts: ['arabic'], fallback: true, order: 2, faces: [{ index: -1, family: 'Noto Sans Arabic' }] },
+  { url: 'hebrew.ttf', lazy: true, weight: 400, scripts: ['hebrew'], fallback: true, order: 0, faces: [{ index: -1, family: 'Noto Sans Hebrew' }] },
+];
+
+test('a script loads its Regular file once, every face by index; Bold only when asked', async () => {
+  const fetched = [], registered = [];
+  const loader = createFontLoader(script, {
+    fetchBytes: async url => { fetched.push(url); return new Uint8Array([9]); },
+    inflate: async bytes => bytes,
+    register: (bytes, family, index) => registered.push([family, index]),
+    changed() {},
+  });
+  await Promise.all([loader.loadScript('cjk-sc'), loader.loadScript('cjk-tc'), loader.load('Noto Sans CJK TC')]);
+  assert.deepEqual(fetched, ['cjk.ttc.gz'], 'one download, gzip suffix');
+  assert.deepEqual(registered, [['Noto Sans CJK SC', 2], ['Noto Sans CJK TC', 3]]);
+  await loader.loadScript('cjk-sc', { bold: true });
+  assert.deepEqual(fetched, ['cjk.ttc.gz', 'cjk-bold.ttc']);
+  await loader.loadScript('nothing');
+});
+
+test('the fallback chain is table order, not arrival order, and leaves out order 0 and Bold', () => {
+  const loader = createFontLoader(script, { register() {}, changed() {} });
+  assert.deepEqual(loader.fallbackChain(), ['Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Sans Arabic']);
+  assert.ok(loader.hasScript('arabic') && !loader.hasScript('thai'));
+});

@@ -591,7 +591,9 @@ extension flutter.swift_bridge {
             guard let text, text.pointee != 0 else { return true }
             // skwasm takes UTF-16. Decoding repairs malformed UTF-8 (U+FFFD)
             // rather than rejecting it, so there is no failure to report.
-            let text16 = makeSkString16(String(cString: text))
+            let string = String(cString: text)
+            ScriptFonts.request(for: string)
+            let text16 = makeSkString16(string)
             paragraphBuilder_addText(skHandle, text16)
             skString16_free(text16)
             return true
