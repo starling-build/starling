@@ -15106,6 +15106,21 @@ public final class RichLayout {
                         && lineWide > 1 && own.isEmpty && a > 0 && Self._isLatinWordUnit(units[a])
                         ? gaps[a - 1] ?? 0 : 0
                     let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0) + macWordGap
+                    // (A line-end comma hung, a character taken with it: the
+                    // share test as well — lab `hc`/`hc3`, Word for Windows,
+                    // 標楷體 14pt, justified, compressPunctuation, mode 15,
+                    // Latin on the line: 2 inner commas take a character 5.5
+                    // short and not 6.5, 1 takes 3.5, 0 takes 1.6, the comma
+                    // inside or half hung; zh-6d402586's "…之移" then "工，".
+                    // Other marks keep the older test alone: zh-505b9619's
+                    // "…為30%）" is taken with its "）" hung.)
+                    let commaHangRefused: Bool = {
+                        guard hang > 0, modern, !lineOther, !inCell, !paragraphEnd, units[tail] == 0xFF0C || units[tail] == 0x3001 else { return false }
+                        guard lineWide > 1, room > 0 else { return true }
+                        let gapSum: Double = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
+                        let capacity: Double = lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + gapSum - macWordGap + spacedStretch
+                        return !(need * capacity <= room * (stretchRoom + hair))
+                    }()
                     let takenFirst = squeezedFirst && !wordSpaced
                         ? lineWide > 1 && need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
                             <= room * (stretchRoom + hair)
@@ -15173,7 +15188,8 @@ public final class RichLayout {
                             // with 6.1 of stretch before it.)
                             : { let giving = modern && lineOther && wide ? all.filter { !Self._cornerUnits.contains(units[$0]) } : all
                                 return (!giving.isEmpty || giving.count == all.count) && !(hang > 0 && all.isEmpty) && !(document.balancesSpaceWidth && eastAsianAt(a) && all.isEmpty && a > 0 && isSpace(units[a - 1]))
-                                    && need / Double(max(1, giving.count)) <= stretchRoom + (giving.count > 1 ? -_px(0.02) : hair) }())
+                                    && need / Double(max(1, giving.count)) <= stretchRoom + (giving.count > 1 ? -_px(0.02) : hair)
+                                    && !commaHangRefused }())
                         // (… on a line with spaces in it — `ovc`'s had 41. On
                         // one without, a Latin word no more than half an em
                         // over, the automatic space after it aside: lab `sqc`
