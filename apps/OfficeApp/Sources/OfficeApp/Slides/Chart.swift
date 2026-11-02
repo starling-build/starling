@@ -3172,6 +3172,8 @@ enum ChartPainter {
         // (A 2013-style chart in a Word document: its plot and labels sit by their own insets,
         // measured on ten LibreOffice test charts against Word for Windows' prints.)
         let word = !c.onSlide && !c.onSheet && !c.chartex && c.styled2013
+        // (A Word chart of either style.)
+        let inWord = !c.onSlide && !c.onSheet && !c.chartex
         // (Its foot as well where nothing but the category labels stands there: a legend or
         // an axis title under the plot takes the foot's room its own way.)
         // (A Word chart without a title or the 2013 style — LibreOffice's older export — stands
@@ -3326,16 +3328,17 @@ enum ChartPainter {
         var box = Offset.zero
         if let v = c.barView, c.type == .column || c.type == .bar {
             // A walled 3-D column chart whose file places the plot (inner)
-            // is drawn a little inside that place, the walls, floor and
-            // their depth all within it: aascu 5864's census columns, laid
-            // 611 x 317.5 pt, stand 81.3 to 678.8 across and 87.2 to 399.5
-            // down in PowerPoint's print (5.9 / 7.6 / 3.3 / 1.9 pt in).
-            // (Thin evidence: one chart; the unwalled bars of
-            // LIBRE_OFFICE-100610's stand in their places already.)
-            if v.walled, c.plotLayoutInner, c.onSlide, !horizontal, c.plotLayout != nil {
-                RuleTrace.hit("ppt-walled-3d-columns-stand-inside-their-laid-plot")
-                plot = Rect.fromLTRB(plot.left + 0.0096 * plot.width, plot.top + 0.0102 * plot.height,
-                                     plot.right - 0.0124 * plot.width, plot.bottom - 0.0061 * plot.height)
+            // is drawn inside that place, the walls, floor and their depth
+            // all within it, by the same few points in every print:
+            // PowerPoint's aascu 5864 (611 x 317.5 pt, 81.3 to 678.8 across
+            // and 87.2 to 399.5 down: 5.9 / 7.6 / 3.3 / 1.9 pt in) and
+            // Word's lo-1bd2003e (6.7 / 7.3 / 3.3 / about 1).
+            if v.walled, c.plotLayoutInner, !c.onSheet, !horizontal, c.plotLayout != nil {
+                RuleTrace.hit("walled-3d-columns-stand-inside-their-laid-plot")
+                // (Word's value labels, though, stand 5.3 pt in at the top
+                // and 0.7 at the foot: lo-1bd2003e's 4 and 0 at 127 and 259.)
+                plot = Rect.fromLTRB(plot.left + 6.2 * k, plot.top + (inWord ? 5.3 : 3.3) * k,
+                                     plot.right - 7.4 * k, plot.bottom - (inWord ? 0.7 : 1.7) * k)
             }
             let whole = plot
             for _ in 0 ..< 3 {
@@ -3431,7 +3434,9 @@ enum ChartPainter {
                 // stands 1.5 pt lower there, and chart-slide-bg's labels
                 // print 1.1 to 1.5 above where that put them.)
                 let lift = c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : 1.45 * k
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2 - lift))
+                // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
+                let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D, p - tp.height / 2 - lift))
             }
         }
         // The second axis' labels, beside the plot's right edge.
@@ -3546,7 +3551,8 @@ enum ChartPainter {
                 canvas.drawLine(Offset(plot.left + box.dx, zero - box.dy), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
             }
             let slot = plot.width / Double(n)
-            let foot = atZero ? zero : plot.bottom
+            // (Word's walled 3-D columns: the names 6 pt higher, lo-1bd2003e's at 272 and 284.)
+            let foot = (atZero ? zero : plot.bottom) - (inWord && c.barView?.walled == true && c.plotLayoutInner ? 6 * k : 0)
             for (i, tp) in catLabels.enumerated() where table == nil && i % every == 0 {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
