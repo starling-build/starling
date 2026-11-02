@@ -6,6 +6,7 @@ BIN is an OfficeApp beside its libFlutterShared.so and *.resources. Run from the
   wsf  wip/lab-wsf ed7175cee  test/labs/wsf  word spaces: 4 or 8, between ideographs or inside Latin words, commas 0/1/3, balance, face
   hcg  wip/lab-hcg bbd21e4ac  test/labs/hcg  a hung comma or semicolon against an unhung tail, with automatic spaces
   kq   wip/lab-kq  a028f49ef  test/labs/kq   a closing mark as a piece of its own under w:kinsoku 0, modes 12 and 15
+  csq  wip/lab-csq be0b1f83d  test/labs/csq  a cell and the body: 13 or 26 ideographs, 1-3 marks, digits, a digit right before what is taken
   (wip/lab-kq2 68cb29f70: kq again with useFELayout, modes 12, 14, 15, in cells too: same body numbers, not run here.)
 
 For each lab and variant it prints the first width that takes the character: Word's / ours, as points short of (wsf, hcg) or
@@ -15,7 +16,7 @@ and 4 are half a point out."""
 import collections, glob, json, os, subprocess, sys, tarfile, io, zipfile
 import pymupdf
 
-LABS = {"wsf": ("ed7175cee", "test/labs/wsf"), "hcg": ("bbd21e4ac", "test/labs/hcg"), "kq": ("a028f49ef", "test/labs/kq")}
+LABS = {"wsf": ("ed7175cee", "test/labs/wsf"), "hcg": ("bbd21e4ac", "test/labs/hcg"), "kq": ("a028f49ef", "test/labs/kq"), "csq": ("be0b1f83d", "test/labs/csq")}
 BIN, WORK = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
 WHICH = sys.argv[3:] or list(LABS)
 EO = os.path.realpath("engine") + "/src/out/host_release"
@@ -34,7 +35,7 @@ def fetch(lab):
     lab_dir = f"{root}/{path}"
     run = f"{root}/run"
     if not os.path.isdir(run):
-        subprocess.run([sys.executable, "-I", f"{lab_dir}/spec/gen.py", "test", run, f"{lab_dir}/widths.json"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, "-I", f"{lab_dir}/spec/gen.py" if os.path.exists(f"{lab_dir}/spec/gen.py") else f"{lab_dir}/gen.py", "test", run, f"{lab_dir}/widths.json"], check=True, stdout=subprocess.DEVNULL)
         for d in glob.glob(run + "/*.docx"):
             z = zipfile.ZipFile(d); items = {n: z.read(n) for n in z.namelist()}; z.close()
             s = items["word/settings.xml"].decode()
@@ -132,4 +133,23 @@ def hcg():
     compare("hcg (first width taken)", res)
 
 
-for lab in WHICH: {"wsf": wsf, "kq": kq, "hcg": hcg}[lab]()
+def csq():
+    d, run = fetch("csq")
+    word = collections.defaultdict(dict)
+    for f in word_rows(d + "/csq-WORD.tsv"): word[(f[0], int(f[1]))][float(f[3])] = f[4] != "X wrapped"
+    res = []
+    for doc in convert(run, "csq"):
+        n = os.path.basename(doc)[:-5]; meta = json.load(open(doc[:-5] + ".meta"))
+        st = [x for x in lines(doc[:-5] + ".pdf") if x.startswith("各等")]
+        if len(st) != len(meta): print("#", n, len(st), len(meta)); continue
+        per = collections.defaultdict(dict); nat = {}
+        for (k, w, N), x in zip(meta, st): per[k][w] = "移" in x; nat[k] = N
+        for k in sorted(per):
+            o = next((w for w in sorted(per[k]) if per[k][w]), None)
+            W = word[(n, k)]
+            w = next((w for w in sorted(W) if W[w]), None)
+            res.append((f"{n} k{k}", None if w is None else nat[k] - w, None if o is None else nat[k] - o))
+    compare("csq (points short)", res)
+
+
+for lab in WHICH: {"wsf": wsf, "kq": kq, "hcg": hcg, "csq": csq}[lab]()

@@ -14892,6 +14892,11 @@ public final class RichLayout {
             return (l >= 0 && units[l] >= 0x2E80) || (r < units.count && units[r] >= 0x2E80) ? 0.23 : 0.25
         }
         func spaceWeighs(_ k: Int) -> Bool { !(document.balancesSpaceWidth && flankedSpace(k) && !eastAsianRuns[k]) }
+        // (What the line would stretch by at its gaps: a sixty-fourth of an em at each.)
+        func gapStretch() -> Double {
+            guard lineWide > 0 else { return 0 }
+            return lineEms * Double(lineWide - 1) / Double(lineWide) / 64
+        }
         var pastFrom: (x: Double, tab: Int)? = nil   // where a tab to a right stop at the margin starts, the piece before ending with it
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
@@ -15466,7 +15471,10 @@ public final class RichLayout {
                     // side of "80" set at 2.2 of their 3.0 and "，" at its half.)
                     var wordStart = a
                     while wordStart > 0, units[wordStart - 1] < 0x2E80, !isSpace(units[wordStart - 1]) { wordStart -= 1 }
-                    var given = topOnly ? [] : legacy || !inCell ? spaces + ownSpaces
+                    // (Word for Windows: a cell is the body. Lab `csq`, 12pt, the same line in a cell and by a
+                    // right indent take the next ideograph at the same width in every one of its rows, digits and
+                    // all: two commas 9.75 short with no digit, 7.5 with one (two automatic spaces), 6.0 with three.)
+                    var given = topOnly ? [] : legacy || !inCell || RichTextTheme.wordWindowsPages ? spaces + ownSpaces
                         : spaces.filter { $0 == a - 1 || (wordStart < a && $0 == wordStart - 1) }
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
@@ -15546,7 +15554,7 @@ public final class RichLayout {
                     let cellRest: Bool = {
                         guard inCell, !legacy, !topOnly, spaces.contains(a - 1), need > markRoom else { return false }
                         let spaced = (spaces + ownSpaces).reduce(0.0) { $0 + (gaps[$1] ?? 0) }
-                        return (need - markRoom) * (lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64 + spaced)
+                        return (need - markRoom) * (gapStretch() + spaced)
                             <= spaced / 2 * (width - x + hair)
                     }()
                     if cellRest {
@@ -15718,10 +15726,13 @@ public final class RichLayout {
                     // wraps: the latter has four internal spaces to stretch.
                     // Keep the existing Windows, cell, grid and marked-word
                     // rules; these controls measure plain Mac body words.)
+                    // (Word for Windows the same for an ideograph after a digit: lab `csq`, "…5" then "移", two
+                    // commas take it 10.75 short where the same with no digit there takes it 9.75, one 9 and not 6.)
                     let macWordGap = modern && !RichTextTheme.wordWindowsPages
                         && !wide && !inCell && !onCharacterGrid && !lineOther
                         && lineWide > 1 && own.isEmpty && a > 0 && Self._isLatinWordUnit(units[a])
-                        ? gaps[a - 1] ?? 0 : 0
+                        ? gaps[a - 1] ?? 0
+                        : modern && RichTextTheme.wordWindowsPages && wide && !onCharacterGrid && a > 0 && lineWide > 1 ? gaps[a - 1] ?? 0 : 0
                     let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0) + macWordGap
                     // (A line-end comma hung, a character taken with it: the
                     // share test as well — lab `hc`/`hc3`, Word for Windows,
@@ -15740,11 +15751,11 @@ public final class RichLayout {
                         guard hang > 0, modern, !lineOther, !inCell, !paragraphEnd, units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B else { return false }
                         guard lineWide > 1, room > 0 else { return true }
                         let gapSum: Double = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
-                        let capacity: Double = lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
+                        let capacity: Double = gapStretch() + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
                         return !(need * capacity <= room * (stretchRoom + hair))
                     }()
                     let takenFirst = squeezedFirst && !wordSpaced
-                        ? lineWide > 1 && need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
+                        ? lineWide > 1 && need * (gapStretch() + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
                             <= room * (stretchRoom + hair)
                         : modern
                         ? latinWord || ((!lineOther || wordSpaced) && lineWide > 1 && room + spacedGive + kinsokuGive > 0 && hang == 0
@@ -15784,10 +15795,10 @@ public final class RichLayout {
                                 // and "…第4829號、" the same.)
                                 // (Its word spaces weigh too: zh-c2c92639's "…拆除现场" leaves "噪" 6.35 over with
                                 // two spaces of 5.5 and two marks, Word for Windows.)
-                                ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + ($1 == a - 1 ? 0 : gaps[$1] ?? 0) } * 0.44
+                                ? need * (gapStretch() + given.reduce(0.0) { $0 + ($1 == a - 1 ? 0 : gaps[$1] ?? 0) } * 0.44
                                           + (RichTextTheme.wordWindowsPages && eastAsianAt(a) ? wordSpaces.reduce(0.0) { $0 + $1.w } * 0.47 : 0))
                                     <= markRoom * (stretchRoom + hair)
-                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
+                                : need * (gapStretch() + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
                                     <= (room + spacedGive + kinsokuGive) * (stretchRoom + spacedTrail + hair) || cellRest
                                     // (A digit that ends a cell's line, Word for Windows: lab
                                     // `sqc`'s "11" is taken 4.5 over and left from 6, half
@@ -16120,7 +16131,7 @@ public final class RichLayout {
                     // "…為了加強臺灣IC" ends so in Word's print.)
                     let autoRoom = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
                     let spaceTrail = wordSpaces.filter { sp in sp.k < a && (sp.k + 1 ..< a).allSatisfy { isSpace(units[$0]) } }.reduce(0.0) { $0 + $1.w }
-                    let spaceEms: Double = lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64
+                    let spaceEms: Double = gapStretch()
                     let allSpaces: Double = wordSpaces.reduce(0.0) { $0 + $1.w }
                     let weighedSpaces: Double = wordSpaces.filter { spaceWeighs($0.k) }.reduce(0.0) { $0 + $1.w }
                     let giverRoom: Double = givers.reduce(0.0) { $0 + $1.w * spaceGiveShare($1.k) }
