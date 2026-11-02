@@ -9487,6 +9487,7 @@ public final class RichLayout {
                lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
+                held.lineIndents = painter.lineIndents
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                 held.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                 if held.computeLineMetrics().count == lines {
@@ -13218,7 +13219,7 @@ public final class RichLayout {
     /// anchored in the paragraph itself or in one of the few before it in the
     /// same cell (or the body), the paragraphs between standing under it.
     private func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)? {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !p.style.rightToLeft else { return nil }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return nil }
         // (A picture in the header that wraps the text and stands the page's height: every
         // line of the body starts past it. See `PageSetup.headerWrapLeft`.)
         if p.cell == nil, p.style.list == nil, i >= 0 {
@@ -13327,7 +13328,7 @@ public final class RichLayout {
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
                 guard edge > own, column - edge - rightGap >= size * 3 else { continue }
-                let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
+                let band = (top: _px(float.y) - _px(float.distanceTop) + _px(float.wrapTopSkip) - offset,
                             bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }

@@ -3587,6 +3587,22 @@ enum DocxFormat {
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
             if let w = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].lazy.compactMap({ anchor.first($0) }).first,
                let side = w["wrapText"], side == "left" || side == "right" || side == "largest" { f.wrapSide = side }
+            // (A tight wrap's polygon with a cut corner at the top: the right edge reaches its full
+            // reach a few points down, and a line over that stretch is held in by less than the
+            // box. lo tdf163575: 1072 of 21600 down on a 181pt picture, Word's first line at 190.4
+            // over a picture ending at 199.9.)
+            if let tight = anchor.first("wp:wrapTight"), let polygon = tight.first("wp:wrapPolygon"), let ext = anchor.first("wp:extent"),
+               let cy = Double(ext["cy"] ?? "") {
+                let pts = ([polygon.first("wp:start")] + polygon.all("wp:lineTo").map { Optional($0) }).compactMap { $0 }
+                    .compactMap { n -> (Double, Double)? in
+                        guard let x = Double(n["x"] ?? ""), let y = Double(n["y"] ?? "") else { return nil }
+                        return (x, y)
+                    }
+                if let maxX = pts.map(\.0).max(), let minY = pts.map(\.1).min(), let first = pts.filter({ $0.0 >= maxX - 1 }).min(by: { $0.1 < $1.1 }), first.1 > minY {
+                    let skip = (first.1 - minY) / 21600 * cy / 12700
+                    if skip > 0, skip <= 12, skip <= cy / 12700 * 0.12 { f.wrapTopSkip = skip }
+                }
+            }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             // (A height that is a share of the page's or margins': 60316's
