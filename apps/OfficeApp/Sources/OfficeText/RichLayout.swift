@@ -4796,7 +4796,7 @@ public final class RichLayout {
                     let byLines = RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15
                     if byLines, document.tableStyles[c.table]?.rowHeights[c.row] == nil {
                         avail = max(avail, max(edge, _px(setup.height) - _bodyInsets(page: page / _columns, document).top) - y)
-                    } else if byLines || y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) { avail = max(avail, edge - y) }
+                    } else if byLines || y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) && !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && c.row > 0) { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
