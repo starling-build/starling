@@ -370,6 +370,9 @@ private struct LevelStyle {
     /// that has none), and whether the list was there at all.
     var shadow: CharShadow?
     var shadowSet = false
+    /// `a:ln` on the run: its outline (nil under `a:noFill`), and whether it was said.
+    var outline: CharOutline?
+    var outlineSet = false
     /// `a:highlight`: the run's text highlight colour.
     var highlight: Color?
     /// `a:buBlip`: the picture bullet, resolved from the part it is in.
@@ -408,6 +411,7 @@ private struct LevelStyle {
         s.spc = s.spc ?? lower.spc
         s.kern = s.kern ?? lower.kern
         if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
+        if !s.outlineSet { s.outline = lower.outline; s.outlineSet = lower.outlineSet }
         s.highlight = s.highlight ?? lower.highlight
         s.tabs = s.tabs ?? lower.tabs
         s.defTab = s.defTab ?? lower.defTab
@@ -528,6 +532,12 @@ private struct LevelStyle {
         // of no colour at all — tdf114848's red "Word Art Perspective".
         else if let g = r.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
             s.color = SlideFill.colorAt(f.stops, 0.5)
+        }
+        if let ln = r.first("a:ln") {
+            s.outlineSet = true
+            if !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
+                s.outline = CharOutline(color: c, width: ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75)
+            }
         }
         if let h = r.first("a:highlight") { s.highlight = colors.color(in: h) }
         if let link = r.first("a:hlinkClick") {
@@ -3296,6 +3306,8 @@ private struct SlideContext {
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
+                // (WordArt draws its own outline: `RunLook`.)
+                if body?.first("a:bodyPr")?.first("a:prstTxWarp") == nil, (cs.color?.alpha ?? 255) == 255 { cs.outline = s.outline }
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
                 // Hebrew, Arabic and Thai letters in the complex-script
@@ -3329,7 +3341,7 @@ private struct SlideContext {
                     if let script = piece.script, let face = _csFont(s.csFont, script: script), face != plain.fontFamily {
                         c = plain
                         c.fontFamily = face
-                        c.shadow = cs.shadow; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                        c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
                     }
                     if let last = runs.last, last.style == c, runs.count > runsBefore {
                         runs[runs.count - 1].length += piece.length

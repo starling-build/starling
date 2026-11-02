@@ -738,7 +738,22 @@ public final class RichTextTheme {
             // (None on a raised or lowered run held unseen in its line:
             // its shadow goes with the run where `_paintScripts` draws it,
             // where it stood at the baseline under 5864's raised "st".)
-            shadows: scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : style.shadow.map { sh in
+            shadows: scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : { () -> [Shadow]? in
+                guard let line = style.outline, line.width > 0 else { return nil }
+                // (An outline as the letters' copies a half line out all round, in its colour, under the
+                // letters: PowerPoint's is centred on the edge.)
+                let k = pixelsPerPoint * scale, r = line.width * 0.35 * k
+                let d = r * 0.7071
+                return [Offset(r, 0), Offset(d, d), Offset(0, r), Offset(-d, d), Offset(-r, 0), Offset(-d, -d), Offset(0, -r), Offset(d, -d)]
+                    .map { Shadow(color: line.color, offset: $0, blurRadius: 0) }
+            }().map { ring in (style.shadow.map { sh in
+                let k = pixelsPerPoint * scale
+                let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
+                let a = Double(sh.color.alpha) / 255 * (sh.blur > 0 ? device == nil ? 0.45 : 0.55 : 1)
+                let radius = device.map { max(0, (sh.blur * 0.4 * k * $0 - 0.5) / 0.57735) } ?? 0
+                return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
+                               offset: Offset(sh.dx * k, sh.dy * k), blurRadius: radius)]
+            } ?? []) + ring } ?? style.shadow.map { sh in
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 let a = Double(sh.color.alpha) / 255 * (sh.blur > 0 ? device == nil ? 0.45 : 0.55 : 1)

@@ -105,6 +105,12 @@ public struct CharShadow: Hashable, Sendable {
     }
 }
 
+public struct CharOutline: Hashable, Sendable {
+    public var color: Color
+    public var width: Double
+    public init(color: Color, width: Double) { self.color = color; self.width = width }
+}
+
 public struct CharStyle: Hashable, Sendable {
     public var bold = false
     public var italic = false
@@ -179,6 +185,9 @@ public struct CharStyle: Hashable, Sendable {
     public var fontHint: String? = nil
     /// A shadow under the letters; nil for none.
     public var shadow: CharShadow? = nil
+    /// An outline round the letters (PowerPoint's `a:ln` on a run): colour and width in points; nil for none.
+    /// Drawn as a ring of the colour's copies behind the letters.
+    public var outline: CharOutline? = nil
     /// Run properties the editor does not draw by, as the file wrote
     /// them (`w:w` character scale, `w:position`, `w:bdr`, `w:lang`,
     /// `w:em`, `w:fitText`, `w:snapToGrid`): written back with the run.
