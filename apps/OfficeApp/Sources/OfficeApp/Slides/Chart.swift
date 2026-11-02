@@ -4721,7 +4721,8 @@ enum ChartPainter {
             // stands inside its slice, 1.6 where any goes out — amd-1's lab pieeq (Word for Windows, 9pt labels,
             // legend none/right/foot): R 73.6 and 63.2 with all six inside, 70.5-71.6 and 53.8-54.6 with some
             // out, from rooms of ours of 84.2 and 74.2 / 68.9; ours took 1.7 of their size whatever they did.)
-            if c.type == .pie, let l = c.pieLabels, l.fitted, l.moves.isEmpty {
+            // (Slices under a third only, as the lab's: lo-73f1dccc's lone slice keeps the 1.7.)
+            if c.type == .pie, let l = c.pieLabels, l.fitted, l.moves.isEmpty, values.allSatisfy({ $0 / sum < 0.34 }) {
                 let rIn = max(room / 2, room - 1.2 * size)
                 var mids: [(index: Int, mid: Double, value: Double, color: Color)] = []
                 var a = -Double.pi / 2
