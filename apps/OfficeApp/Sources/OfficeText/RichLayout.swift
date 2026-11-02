@@ -9172,7 +9172,7 @@ public final class RichLayout {
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
         // quotes, their first line at the indent and "– Martin Fowler" at
         // the seventh inch, PowerPoint's print to a tenth of a point.)
-        if theme.wordRules || theme.markersAtHang, !style.rightToLeft, p.text.utf16.contains(0x09) {
+        if theme.wordRules || theme.markersAtHang, !style.rightToLeft || theme.wordRules, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
             let probe = TextPainter(text: probeSpan, textAlign: .left, textDirection: .ltr)
             if !probeInline.isEmpty { probe.setPlaceholderDimensions(probeInline.map { $0.dimensions }) }
@@ -9229,7 +9229,29 @@ public final class RichLayout {
                     base = edge(units[w] == 0x0A || units[w] == 0x2028 ? min(w + 1, t) : w)
                 }
                 lastTab = t
-                let at = edge(t), after = edge(t + 1)
+                // (A right-to-left paragraph's tabs are measured from its
+                // start, the right edge, where what stands before the tab on
+                // its line has no right-to-left letters — digits, other tabs:
+                // the note numbers of lo-ccca8bf3 (tdf129659), "1<tab><tab>" —
+                // and only for stops that set left; the probe is laid out
+                // left to right, whose advances are the same.)
+                if style.rightToLeft {
+                    let lineStart = (0 ..< t).last(where: { units[$0] == 0x0A || units[$0] == 0x2028 }).map { $0 + 1 } ?? 0
+                    let rtlLetter: (UInt16) -> Bool = { ($0 >= 0x0590 && $0 <= 0x08FF) || ($0 >= 0xFB1D && $0 <= 0xFDFF) || ($0 >= 0xFE70 && $0 <= 0xFEFF) }
+                    if units[lineStart ..< t].contains(where: rtlLetter) { continue }
+                    let here = stops.first(where: { _px($0.position) > ownLeft + edge(t) - (base ?? origin) + shift + 0.5 })
+                    if let here, here.alignment != .left { continue }
+                }
+                let at = edge(t)
+                var after = edge(t + 1)
+                if style.rightToLeft {
+                    // (The next character is Hebrew, which the left-to-right
+                    // probe sets at the far end of its run: the tab's own
+                    // box is its width.)
+                    let me = probeMap.painter(t)
+                    let box = probe.getBoxesForSelection(TextSelection(baseOffset: me, extentOffset: me + 1)).first
+                    after = at + max(0, (box?.right ?? at) - (box?.left ?? at))
+                }
                 // from the column's left
                 // (Less the engine's shift of the line by half its first
                 // character's spacing, where that is drawn back: the line
@@ -9354,7 +9376,7 @@ public final class RichLayout {
                 for _ in 0 ..< 3 {
                     let (s1, in1, ins1) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                                 adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 })
-                    let trial = TextPainter(text: s1, textAlign: .left, textDirection: .ltr)
+                    let trial = TextPainter(text: s1, textAlign: .left, textDirection: style.rightToLeft ? .rtl : .ltr)
                     if !in1.isEmpty { trial.setPlaceholderDimensions(in1.map { $0.dimensions }) }
                     trial.layout(minWidth: textWidth, maxWidth: textWidth)
                     let found = Array(_lineStarts(trial, _OffsetMap(lead: lead != 0 ? 1 : 0, inserts: ins1), count: units.count).dropFirst())
