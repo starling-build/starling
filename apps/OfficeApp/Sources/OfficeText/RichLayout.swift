@@ -2006,6 +2006,7 @@ public final class RichLayout {
                     let mine = _allPieces[_pieceStart[k] ..< min(end, _allPieces.count)].filter { !$0.repeated }
                     var want: Double? = nil
                     if let first = mine.first, let last = mine.last, first.page != last.page, _bandCap[k] != nil || _besideLead[k] == 0,
+                       k < _inline.count, _inline[k].contains(where: { $0.float.map { $0.wraps && !$0.takesRoom } ?? false }),
                        let own = _besideOwn(k, q, document), own.leftRoom == nil {
                         let cap = first.flowBottom - _tops[k]
                         if own.band.bottom > cap + 0.5, own.band.top < cap { want = cap }
