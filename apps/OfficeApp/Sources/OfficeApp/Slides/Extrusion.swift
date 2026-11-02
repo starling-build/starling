@@ -362,7 +362,7 @@ enum Extrusion {
         // right angle — away, and then the back is what is seen.
         let n0 = turn(P3(x: 0, y: 0, z: 1))
         let frontShows = n0.z + n0.x * (scene.oblique?.dx ?? 0) + n0.y * (scene.oblique?.dy ?? 0) >= 0
-        face(frontShows ? back : front, scene.legacy ? lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))) : litLocal(side, P3(x: 0, y: 0, z: frontShows ? -1 : 1)), edge: nil)
+        face(frontShows ? back : front, scene.legacy && (scene.perspective || n0.z < 0.9) ? lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))) : litLocal(side, P3(x: 0, y: 0, z: frontShows ? -1 : 1)), edge: nil)
         // The sides, far ones first.
         var quads: [(z: Double, pts: [Offset], color: Color)] = []
         for (ri, ring) in front.enumerated() {
@@ -381,7 +381,7 @@ enum Extrusion {
                 let seen = turn(local)
                 if seen.x * n.x + seen.y * n.y + seen.z * n.z < 0 { local = P3(x: -local.x, y: -local.y, z: 0) }
                 quads.append(((a.z + b.z + a2.z + b2.z) / 4, [flat(a), flat(b), flat(b2), flat(a2)],
-                              scene.legacy ? lit(side, n) : litLocal(side, local)))
+                              scene.legacy && (scene.perspective || n0.z < 0.9) ? lit(side, n) : litLocal(side, local)))
             }
         }
         for q in quads.sorted(by: { $0.z < $1.z }) { polygon(q.pts, q.color) }
@@ -398,7 +398,7 @@ enum Extrusion {
         // tilt: twoPt at 60 degrees prints 0.39 of the fill (legacyCamera).
         let tilted = scene.legacy && n0.z > 0 && n0.z < 0.9
         let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
-        let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
+        let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy && scene.perspective ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
         face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
         return true
     }
