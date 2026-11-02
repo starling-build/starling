@@ -5334,8 +5334,13 @@ enum DocxFormat {
                 let colors = ColorContext(theme: PptxTheme(notes.part(_resolvePath("word", themeTarget)).flatMap { XNode.parse($0) }))
                 func rgb(_ n: XNode?) -> Color? {
                     guard let fill = n?.first("a:solidFill") else { return nil }
-                    if let hex = fill.first("a:srgbClr")?["val"], let v = Int64(hex, radix: 16) { return Color(0xFF00_0000 | v) }
-                    return fill.first("a:schemeClr") != nil ? colors.color(in: fill) : nil
+                    // (An `a:alpha` child is how much of it shows: 0 draws nothing.)
+                    func shown(_ c: Color, _ n: XNode?) -> Color {
+                        guard RichTextTheme.wordWindowsPages, let a = n?.first("a:alpha")?["val"].flatMap(Double.init) else { return c }
+                        return Color((Int64((max(0, min(1, a / 100_000)) * Double(c.alpha)).rounded()) << 24) | Int64(c.value & 0xFFFFFF))
+                    }
+                    if let clr = fill.first("a:srgbClr"), let hex = clr["val"], let v = Int64(hex, radix: 16) { return shown(Color(0xFF00_0000 | v), clr) }
+                    return fill.first("a:schemeClr") != nil ? colors.color(in: fill).map { shown($0, fill.first("a:schemeClr")) } : nil
                 }
                 let ln = sp.first("a:ln")
                 var outline = ShapeOutline(kind: geom == "rect" ? .box : .line,
