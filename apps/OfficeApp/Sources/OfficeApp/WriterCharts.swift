@@ -907,9 +907,43 @@ enum WriterGroups {
                 // zh-6e6b9821's side notes are text boxes whose stroke says
                 // `endarrow`, and Word draws them as plain boxes.)
                 let open = (spt.map { _vmlConnectors.contains($0) } ?? false) || (path.map { !$0.containsSubstring("x") } ?? false)
+                // (A gradient fill, `v:fill type="gradient"` with its stops in `colors`, and a shadow
+                // (`v:shadow`): lo-dc0529c3's stars, metallic with a hard shadow in Word's print.)
+                var gradient: SlideFill? = nil
+                if filled, let kind = fillNode?["type"], kind.hasPrefix("gradient") {
+                    var stops: [SlideFill.GradientStop] = []
+                    for item in (fillNode?["colors"] ?? "").split(separator: ";") {
+                        let kv = item.trimmingWhitespace().split(separator: " ", maxSplits: 1)
+                        if kv.count == 2, let at = fraction(String(kv[0])), let c = color(String(kv[1])) { stops.append(SlideFill.GradientStop(position: at, color: c)) }
+                    }
+                    if stops.count < 2, let first = fill {
+                        stops = [SlideFill.GradientStop(position: 0, color: first),
+                                 SlideFill.GradientStop(position: 1, color: color(fillNode?["color2"]) ?? Color(0xFFFFFFFF))]
+                    }
+                    let focus = fraction(fillNode?["focus"]) ?? 0
+                    if abs(focus) > 0.75 { stops = stops.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) } }
+                    else if abs(focus) > 0.25 {
+                        let half = stops.map { SlideFill.GradientStop(position: $0.position / 2, color: $0.color) }
+                        stops = half + half.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) }
+                    }
+                    if stops.count >= 2 {
+                        var g = SlideFill()
+                        g.stops = stops
+                        g.angle = 90 - (Double(fillNode?["angle"] ?? "0") ?? 0)
+                        g.even = true
+                        gradient = g
+                    }
+                }
+                var cast: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
+                if let sd = child.first("v:shadow"), !off(sd["on"] ?? "f"), fill != nil {
+                    let o = (sd["offset"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { points(String($0)) }
+                    let c = (color(sd["color"]) ?? Color(0xFF808080)).withOpacity(max(0, min(1, fraction(sd["opacity"]) ?? 1)))
+                    cast = ((o.count > 0 ? o[0] : nil) ?? 2, (o.count > 1 ? o[1] : nil) ?? 2, 0, c)
+                }
                 shapes.append(Shape(rect: pt, fill: fill, line: line, lineWidth: weight, isLine: false, rising: false,
                                     geometry: geometry, rotation: rotation, flipH: flipH, flipV: flipV,
-                                    headEnd: open ? start : nil, tailEnd: open ? end : nil, dash: dash(stroke?["dashstyle"])))
+                                    headEnd: open ? start : nil, tailEnd: open ? end : nil, dash: dash(stroke?["dashstyle"]),
+                                    gradient: gradient, shadow: cast))
             }
         }
         let size = pair(group["coordsize"], (1000, 1000))
@@ -979,7 +1013,11 @@ enum WriterGroups {
             while out.count < n, i < tokens.count {
                 let t = tokens[i]
                 if t == "," { if expectValue { out.append(0) }; expectValue = true; i += 1; continue }
-                guard let v = Double(t) else { break }
+                guard let v = Double(t) else {
+                    // (A number left out before the next command is 0: lo-dc0529c3's star, `l962343,r…`.)
+                    if expectValue, !out.isEmpty, out.count < n, tokens[max(0, i - 1)] == "," { out.append(0); expectValue = false }
+                    break
+                }
                 out.append(v); expectValue = false; i += 1
             }
             if i < tokens.count, tokens[i] == ",", out.count == n { i += 1 }
