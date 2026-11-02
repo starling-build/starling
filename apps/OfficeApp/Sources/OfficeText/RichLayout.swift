@@ -12714,6 +12714,10 @@ public final class RichLayout {
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
+                if kind == -4, let cjk = Self._cjkFaceFamily {
+                    RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
+                    s = s.copyWith(fontFamily: cjk)
+                }
                 // (A space set in the ideographs' face keeps the stand-in's width.)
                 // (… and no line of its own: the face a space resolves to
                 // is not always the ideographs', and its descent made the
@@ -12961,6 +12965,10 @@ public final class RichLayout {
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
                     && !(latinDash && ch == "\u{2013}")
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
+                // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
+                // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
+                if ea, theme.wordRules, RichTextTheme.wordWindowsPages, Self._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
+                   (0x25A0 ... 0x25EF).contains(u) || u == 0x2605 || u == 0x2606 { kind = -4 }
                 // (A curly quote an embedded subset lacks is Word's fallback face's too, full width:
                 // zh-5450d509's “ ” after 仿宋_GB2312's five glyphs are JhengHei's 12pt in the
                 // print; ours set them as a missing glyph, 17.8 and 12.1, and a line lost a character.)
