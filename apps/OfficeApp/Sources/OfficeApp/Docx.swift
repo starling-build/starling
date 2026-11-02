@@ -6865,7 +6865,9 @@ enum DocxFormat {
                     // "auto" is the text colour: a style based on a blue
                     // heading that says auto is black (65099's Edf Titre 3).
                     cs.color = nil
+                    cs.off.insert(.autoColor)
                 }
+                if cs.color != nil { cs.off.remove(.autoColor) }
             case "w:highlight":
                 cs.highlight = _highlight(child["w:val"] ?? "none")
             case "w:shd":

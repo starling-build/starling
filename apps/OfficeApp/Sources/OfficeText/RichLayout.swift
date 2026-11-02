@@ -613,7 +613,7 @@ public final class RichTextTheme {
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
         var bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
-        var color = style.color ?? named?.char.color ?? normal?.color ?? textColor
+        var color = style.color ?? (wordRules && style.off.contains(.autoColor) ? textColor : named?.char.color ?? normal?.color ?? textColor)
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily
         let complex = style.rightToLeft && !eastAsian
         let familyName = complex ? (style.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily ?? latinName)

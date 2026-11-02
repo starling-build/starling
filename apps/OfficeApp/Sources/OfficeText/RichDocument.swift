@@ -84,6 +84,8 @@ public struct CharSwitches: OptionSet, Hashable, Sendable {
     public static let caps = CharSwitches(rawValue: 16)
     public static let smallCaps = CharSwitches(rawValue: 32)
     public static let hidden = CharSwitches(rawValue: 64)
+    /// The run says its colour is `auto`: the text colour, not the paragraph style's.
+    public static let autoColor = CharSwitches(rawValue: 128)
 }
 
 /// A shadow cast by a run's letters (PowerPoint's `a:outerShdw` on a
