@@ -81,7 +81,27 @@ enum Extrusion {
     /// turned `turn` degrees: a wall (no z) from the curve round the four
     /// measured azimuths, the front from `front`, a slope between by how far
     /// it leans.
-    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double) -> Color {
+    /// What a material does to a wall under the twoPt rig, read off
+    /// PowerPoint's print of oox-Scene3d_material_highlight (orthographic
+    /// camera, light turned a quarter): the wall takes `diffuse` of its colour
+    /// plus `floor` white everywhere, and on the half that faces up a
+    /// highlight of `lobe` more white, centred `centre` degrees above the
+    /// horizontal and `sigma` wide (a lobe above 1 blows out to white); `back`
+    /// is the share of the fill the unlit back face keeps. PROVISIONAL: one
+    /// deck, one rig, and only where the light is turned (modernCamera, turn 0,
+    /// prints pure dark walls with no white floor: Lab D will say why).
+    struct Material { var diffuse, floor, lobe, centre, sigma, back: Double }
+    static func material(_ name: String) -> Material {
+        switch name {
+        case "legacyPlastic", "metal", "plastic": return Material(diffuse: 0.49, floor: 0.13, lobe: 1.1, centre: 20, sigma: 13, back: 0.25)
+        case "matte", "legacyMatte": return Material(diffuse: 0.49, floor: 0.13, lobe: 0.07, centre: 25, sigma: 35, back: 0.25)
+        case "dkEdge": return Material(diffuse: 0.47, floor: 0.11, lobe: 1.1, centre: 20, sigma: 13, back: 0.23)
+        case "legacyMetal": return Material(diffuse: 0.31, floor: 0.12, lobe: 1.1, centre: 20, sigma: 14, back: 0.17)
+        default: return Material(diffuse: 0.49, floor: 0.13, lobe: 0.41, centre: 25, sigma: 35, back: 0.25)
+        }
+    }
+
+    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil) -> Color {
         let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
         let lean = min(1, abs(n.z) / len)
         let w = (1 - lean * lean).squareRoot()
@@ -99,13 +119,22 @@ enum Extrusion {
                 return max(0, c0 + c1 * cos(a) + s1 * sin(a) + c2 * cos(2 * a))
             }
             let wall = [at { $0.0 }, at { $0.1 }, at { $0.2 }]
-            for i in 0..<3 { k[i] = w * wall[i] + (1 - w) * k[i] }
+            if m == nil { for i in 0..<3 { k[i] = w * wall[i] + (1 - w) * k[i] } }
+            if let m {
+                var d = a * 180 / .pi
+                d = d.truncatingRemainder(dividingBy: 360); if d < 0 { d += 360 }
+                let up = d - 90   // degrees above the horizontal of the turned frame
+                let edge = d < 270 ? max(0, min(1, up / 4)) : 0
+                let g = (up - m.centre) / m.sigma
+                for i in 0..<3 { k[i] = w * m.diffuse + (1 - w) * k[i] }
+                spec = w * (m.floor + m.lobe * edge * exp(-0.5 * g * g))
+            }
             // The fourth number is the white a highlight added where Lab A sampled
             // the wall. It moves with the camera and the material, so laid whole over
             // a wall it overshoots (a cyan wall washed out in shape_rotation) and
             // left out it undershoots (isometricRightUp); half is what both decks
             // like. PROVISIONAL until the material model replaces it.
-            spec = 0.5 * w * at { $0.3 }
+            if m == nil { spec = 0.5 * w * at { $0.3 } }
         }
         func ch(_ v: Int, _ f: Double) -> Int { max(0, min(255, Int((Double(v) * f + 255 * spec).rounded()))) }
         return Color(argb: base.alpha, ch(base.red, k[0]), ch(base.green, k[1]), ch(base.blue, k[2]))
@@ -116,6 +145,7 @@ enum Extrusion {
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)
         s.extrusionColor = sp3d?.first("a:extrusionClr").flatMap(colors.color(in:))
         s.wireframe = sp3d?["prstMaterial"] == "legacyWireframe"
+        s.material = sp3d?["prstMaterial"] ?? ""
         if let camera = spPr?.first("a:scene3d")?.first("a:camera") {
             let name = camera["prst"] ?? ""
             s.perspective = name.hasPrefix("legacyPerspective")
@@ -212,7 +242,7 @@ enum Extrusion {
             P3(x: l.x * cos(turnRig) - l.y * sin(turnRig), y: l.x * sin(turnRig) + l.y * cos(turnRig), z: l.z)
         }
         func litLocal(_ base: Color, _ n: P3) -> Color {
-            if let table = Extrusion.rigs[scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn) }
+            if let table = Extrusion.rigs[scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: scene.rig == "twoPt" && scene.rigTurn != 0 ? Extrusion.material(scene.material) : nil) }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
             for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
@@ -317,7 +347,7 @@ enum Extrusion {
         func dark(_ c: Color) -> Color {
             Color(argb: c.alpha, Int(Double(c.red) * 0.3), Int(Double(c.green) * 0.3), Int(Double(c.blue) * 0.3))
         }
-        let shown = !frontShows ? dark(side) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
+        let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
         face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
         return true
     }

@@ -407,6 +407,8 @@ struct Scene3D: Equatable {
     var extrusionColor: Color? = nil
     /// `prstMaterial="legacyWireframe"`: edges only.
     var wireframe = false
+    /// `a:sp3d prstMaterial` ("" when omitted).
+    var material = ""
     /// `a:lightRig`: the rig's name, and how far `dir` turns it about the
     /// line of sight, in degrees clockwise ("t" 0, "r" 90).
     var rig = "threePt"
