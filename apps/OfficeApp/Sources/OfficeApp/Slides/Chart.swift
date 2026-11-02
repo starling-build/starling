@@ -3086,6 +3086,7 @@ enum ChartPainter {
             titleText(s, size, maxWidth)
         }
         var deferredValueTitle: TextPainter? = nil
+        var deferredCategoryTitle: (tp: TextPainter, top: Double)? = nil
         for (t, placed) in [(c.valueAxisTitle, c.valueAxisTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
             guard let t, let placed else { continue }
             let tp = axisText(t, placed.size ?? titleSize, .infinity)
@@ -3149,11 +3150,17 @@ enum ChartPainter {
                 tp.paint(canvas, .zero)
                 canvas.restore()
                 area = Rect.fromLTRB(area.left + tp.height + 4 * k, area.top, area.right, area.bottom)
+            } else if !c.onSlide, !c.onSheet, c.plotLayout == nil {
+                // (In a Word document the title's box is centred over the plot, not the chart:
+                // lo-948cd424's, 295.4 in Word's print over a plot 97.1 to 491.9, ours 286.9
+                // over the chart's middle, and 3.5 pt higher. Painted once the plot is known.)
+                deferredCategoryTitle = (tp, area.bottom - tp.height - 3.5 * k)  // (baselines 295.5 and 307.7 in Word's print, ours 299.0 and 311.1)
+                area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
             } else {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
             }
-            tp.dispose()
+            if deferredCategoryTitle?.tp !== tp { tp.dispose() }
         }
 
         // Where the file places the plot: itself (`inner`), or a box the
@@ -3574,6 +3581,10 @@ enum ChartPainter {
         guard plot.width > 4, plot.height > 4 else {
             for t in valueLabels + catLabels + secondLabels { t.dispose() }
             return
+        }
+        if let (tp, top) = deferredCategoryTitle {
+            tp.paint(canvas, Offset((plot.left + plot.right) / 2 - tp.width / 2, top))
+            tp.dispose()
         }
         if let f = c.plotFill {
             let p = Paint()
