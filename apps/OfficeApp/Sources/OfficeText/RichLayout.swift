@@ -19917,6 +19917,11 @@ public final class RichLayout {
             // top, and the flow there is the line below it.)
             if let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }), piece.flowTop > top, !((float.takesRoom || float.bandsPage) && pushed > 0) { top = piece.flowTop }
             y = top + _px(float.y)
+            // (Mid-page, from the text under the space before it: zh-4e5fe46f p6's
+            // table, in a box anchored in a paragraph 3.5pt before, stands 3.5pt
+            // lower in Word's print than from the paragraph's top.)
+            if RichTextTheme.wordWindowsPages, image.textBox != nil, let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }),
+               piece.pageY > _pxMarginTop(piece.page) + 1, g.textTop > top, g.textTop - top < _px(40) { y = g.textTop + _px(float.y) }
         }
         // (… where the paragraph's own line went under a float of its that
         // left it no room, one in front of the text goes with the line:
