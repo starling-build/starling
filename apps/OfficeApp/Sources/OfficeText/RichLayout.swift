@@ -10282,8 +10282,16 @@ public final class RichLayout {
                 if !trialInline.isEmpty { trial.setPlaceholderDimensions(trialInline.map { $0.dimensions }) }
                 trial.lineIndents = indents
                 trial.layout(minWidth: 0, maxWidth: textWidth)
-                let bottoms = Self._lineBottoms(trial)
+                var bottoms = Self._lineBottoms(trial)
                 trial.dispose()
+                // (Lines of Arabic-script text are tested at the height they are set at: lo tdf163575's 12pt
+                // lines come out 15.9pt of the fallback face here and are set 13.8, and the third line above a
+                // picture, at 41.4 over its top at 43, was held in by it at 47.7.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, p.style.lineHeightPoints == nil,
+                   let nat = theme.naturalLine(for: p.runs[0].style, named: _named(p, document), eastAsian: false).map({ _px($0) }),
+                   let h0 = bottoms.first, h0 > nat + 0.5, bottoms.indices.allSatisfy({ abs(bottoms[$0] - Double($0 + 1) * h0) < 1 }) {
+                    bottoms = bottoms.indices.map { Double($0 + 1) * nat }
+                }
                 var next: [LineIndent] = []
                 if let boxes = colWrapBoxes, !boxes.isEmpty, besideLeftRoom == nil, _besideLead[i] == 0 {
                     for k in 0 ..< bottoms.count {
