@@ -15130,8 +15130,11 @@ public final class RichLayout {
             // gives as a mark does: zh-b9af65b5's cell line "元/建筑平米·月"
             // (mode 14, 10.5pt) sets the dot's 10.56 at 8.16 in Word for
             // Windows' print to keep "月" on the line.)
+            // (A full-width "！" gives nothing for what follows, as "？" does not, in Word for Windows:
+            // zh-ae3d78ee's "…沒差啦！" leaves "也" 4.7pt over with only it to give, its "！" a whole em.)
             let own = (a ..< last).filter {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0) || wideDot($0)) && !closesUp($0)
+                    && !(RichTextTheme.wordWindowsPages && units[$0] == 0xFF01)
             }
             let em = a < ems.count ? ems[a] : 0
             // (Less than nothing on a line whose room Word's sum puts a hair
