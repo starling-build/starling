@@ -11752,7 +11752,20 @@ public final class RichLayout {
             }
             return false
         }
-        func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+        func styled(_ rawText: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+            // (A run marked right-to-left in a left-to-right paragraph is an
+            // embedding of its own: the one neutral mark that ends its Latin
+            // text stands at its start. lo-bbc52bda's "after here:" is
+            // ":after here" in Word's print. Moved, not marked: a direction
+            // mark would reach the text layer of the PDF.)
+            let moved: String? = {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, run.rightToLeft, !p.style.rightToLeft,
+                      let last = rawText.last, ":;.,!?".contains(last), rawText.count > 2,
+                      !rawText.dropLast().contains(where: { ch in ch.unicodeScalars.contains { ArabicForms.isArabic($0.value) || (0x590...0x8FF).contains($0.value) } || ":;.,!?".contains(ch) })
+                else { return nil }
+                return String(last) + rawText.dropLast()
+            }()
+            let text: Substring = moved.map { Substring($0) } ?? rawText
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
             if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.contains("\u{00AD}") {
@@ -12021,16 +12034,6 @@ public final class RichLayout {
             }
             var offset = base
             var i = text.startIndex
-            // (A run marked right-to-left in a left-to-right paragraph is
-            // an embedding of its own: its neutral marks at the end stand
-            // at its start. lo-bbc52bda's "after here:" is ":after here"
-            // in Word's print.)
-            let embedsRTL = theme.wordRules && RichTextTheme.wordWindowsPages && run.rightToLeft && !p.style.rightToLeft
-                && !text.contains(where: { ch in ch.unicodeScalars.contains { ArabicForms.isArabic($0.value) || (0x590...0x8FF).contains($0.value) } })
-            if embedsRTL {
-                spans.append(TextSpan(text: "\u{202B}", style: zeroWidth(0)))
-                inserts.append(base)
-            }
             // (Measured as shown: a run in capitals (`capped`) is spaced,
             // kerned and put on the grid by its capitals — 60810's titles,
             // "Connection to global talent programmes/R200" in caps, lost
@@ -13077,10 +13080,6 @@ public final class RichLayout {
                 i = after
             }
             flush(text.endIndex)
-            if embedsRTL {
-                spans.append(TextSpan(text: "\u{202C}", style: zeroWidth(0)))
-                inserts.append(offset)
-            }
             return spans
         }
         // (A right-aligned paragraph's trailing spaces take room, as
