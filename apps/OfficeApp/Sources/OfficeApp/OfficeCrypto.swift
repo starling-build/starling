@@ -167,7 +167,7 @@ enum OfficeCrypto {
 
 /// The streams of a compound file (MS-CFB), read by name: what an
 /// encrypted package keeps its two streams in.
-struct CompoundFile {
+private struct CompoundFile {
     private let bytes: [UInt8]
     private let sectorSize: Int
     private let miniSectorSize: Int

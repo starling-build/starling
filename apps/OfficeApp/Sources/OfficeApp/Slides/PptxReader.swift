@@ -588,23 +588,6 @@ struct PptxReader {
     let package: PptxPackage
     let images = PptxImages()
 
-    /// The shapes that draw an ActiveX control PowerPoint draws itself, from
-    /// the settings in its `activeXn.bin` (nil: draw its fallback picture).
-    func _controlShapes(_ control: XNode, pic: XNode, slidePart: String) -> XNode? {
-        guard let rid = control["r:id"], let rel = package.rels(slidePart).first(where: { $0.id == rid }),
-              let ocx = package.xml(rel.target), ocx["ax:classid"] == ActiveXTextBox.classID,
-              ocx["ax:persistence"] == "persistStorage", let binID = ocx["r:id"],
-              let bin = package.rels(rel.target).first(where: { $0.id == binID }),
-              let data = package.parts[bin.target],
-              let file = try? CompoundFile([UInt8](data)), let contents = file.stream("contents"),
-              let box = ActiveXTextBox(contents: contents),
-              let xfrm = pic.first("p:spPr")?.first("a:xfrm"), let off = xfrm.first("a:off"), let ext = xfrm.first("a:ext"),
-              let x = off["x"].flatMap(Double.init), let y = off["y"].flatMap(Double.init),
-              let w = ext["cx"].flatMap(Double.init), let h = ext["cy"].flatMap(Double.init)
-        else { return nil }
-        return box.shapeTree(x: x / Pptx.emu, y: y / Pptx.emu, w: w / Pptx.emu, h: h / Pptx.emu)
-    }
-
     init(_ package: PptxPackage) { self.package = package }
 
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
@@ -706,26 +689,13 @@ struct PptxReader {
             // shapes; PowerPoint draws controls over them (rarely overlap).
             if let controls = slide.first("p:cSld")?.first("p:controls") {
                 let tree = XNode(name: "p:spTree", attrs: [:])
-                // (One PowerPoint for Windows draws itself — an MS Forms
-                // TextBox with a border of its own — is built from its
-                // settings: ActiveXControl.swift. The rest, their picture.)
-                var own: [XNode] = []
                 func collect(_ n: XNode) {
-                    for c in n.children {
-                        if c.name == "p:control", let pic = c.first("p:pic") {
-                            if let drawn = _controlShapes(c, pic: pic, slidePart: part) { own.append(drawn) } else { tree.children.append(pic) }
-                        } else if c.name == "p:pic" { tree.children.append(c) } else { collect(c) }
-                    }
+                    for c in n.children { if c.name == "p:pic" { tree.children.append(c) } else { collect(c) } }
                 }
                 collect(controls)
                 var found: [ShapeState] = []
                 ctx.shapes(in: tree, transform: nil, into: &found, id: id)
                 decorations += found.filter { if case .picture = $0.kind { return true } else { return false } }
-                for drawn in own {
-                    var made: [ShapeState] = []
-                    ctx.shapes(in: drawn, transform: nil, into: &made, id: id)
-                    decorations += made.filter { $0.phType == nil && $0.phIdx == nil }
-                }
             }
             let bg = slide.first("p:cSld")?.first("p:bg")
             let themeRoot = themePart.flatMap(package.xml)
