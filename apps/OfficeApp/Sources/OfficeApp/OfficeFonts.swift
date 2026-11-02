@@ -2600,13 +2600,6 @@ enum OfficeFonts {
         case "arial": face.fallback.insert("Liberation Sans", at: 2)
         default: break
         }
-        // (… and its clone first in the chain, so the spaces and marks are set
-        // in the clone and not the Cambria stand-in that comes before it.)
-        if wordHasIt, embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil {
-            let clone = name.trimmingWhitespace().lowercased() == "arial" ? "Liberation Sans" : "Liberation Serif"
-            face.fallback.removeAll { $0 == clone }
-            face.fallback.insert(clone, at: 0)
-        }
         // (Word for Windows' Arabic in Arial and Times New Roman, which the
         // stand-ins have none of: Noto Naskh draws it, 11% wider than Arial
         // over zh-d97c5474's Arabic paragraph — 1817pt to Word's 1634 —
@@ -2624,6 +2617,16 @@ enum OfficeFonts {
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
             default: break
             }
+        }
+        // (… and its clone first in the chain, so the spaces and marks are set
+        // in the clone and not the Cambria stand-in that comes before it.)
+        if wordHasIt, embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil {
+            let clone = name.trimmingWhitespace().lowercased() == "arial" ? "Liberation Sans" : "Liberation Serif"
+            face.fallback.removeAll { $0 == clone }
+            face.fallback.insert(clone, at: 0)
+            // (Arial's own line: 1.1499 em, 13.8pt at 12 — the Cambria stand-in's
+            // 14.0 put lo tdf163575's page 19pt low.)
+            if clone == "Liberation Sans" { face.naturalHeight = 1.1499; face.baseline = 0.9053 }
         }
         return face
     }
