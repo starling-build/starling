@@ -169,9 +169,22 @@ enum WriterMath {
                              textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let m = tp.computeLineMetrics().first
-            ascent = m?.ascent ?? size * 0.8
-            descent = m?.descent ?? size * 0.2
-            baseline = m?.baseline ?? ascent
+            baseline = m?.baseline ?? size * 0.8
+            // (The box is the face's own height, not the height a fallback face's glyph makes
+            // of the line: Word's math boxes stand on the math font's metrics. A Greek σ in
+            // Caladea's run took DejaVu's taller ascent and descent, and lo-4aa628bd's row
+            // was 2pt taller than Word's, its σ 1.7pt low.)
+            var fa = m?.ascent ?? size * 0.8, fd = m?.descent ?? size * 0.2
+            if text.unicodeScalars.contains(where: { $0.value > 0x24F }) {
+                let ref = TextPainter(text: TextSpan(text: "x", style: TextStyle(color: color, fontSize: size, fontStyle: italic ? .italic : .normal,
+                                                                                 height: height, fontFamily: family ?? WriterMath.family,
+                                                                                 fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)),
+                                      textDirection: .ltr)
+                ref.layout(minWidth: 0, maxWidth: .infinity)
+                if let r = ref.computeLineMetrics().first { fa = min(fa, r.ascent); fd = min(fd, r.descent) }
+            }
+            ascent = fa
+            descent = fd
         }
     }
 
@@ -410,8 +423,14 @@ enum WriterMath {
             // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
             // subscript with its own scripts, then the superscript — lo-4aa628bd's
             // "σEx2" is one line of Word's print with the outer 2 apart.)
-            if let sub { parts.append(raised(sub, -down)) }
-            if let sup { parts.append(raised(sup, up)) }
+            // (A script reaches no higher over its own baseline than 0.85 of its size, as an
+            // inline equation's line does: lo-4aa628bd's 8pt "2" over a σ is 6.8 above its
+            // baseline in Word's print, 8.2 in the face's own ascent, and the row stood 2pt
+            // taller than Word's.)
+            let cap = size * 0.73 * 0.85
+            func capped(_ b: Box) -> Box { Box(width: b.width, ascent: min(b.ascent, cap), descent: b.descent, draw: b.draw) }
+            if let sub { parts.append(raised(capped(sub), -down)) }
+            if let sup { parts.append(raised(capped(sup), up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
             return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in
