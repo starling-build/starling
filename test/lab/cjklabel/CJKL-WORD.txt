@@ -1,0 +1,122 @@
+== page 1
+  Alpha        Calibri                sz=8.04 base=129.79 x=352.5
+  34           Calibri                sz=8.04 base=139.63 x=357.8
+  Bravo        Calibri                sz=8.06 base=270.79 x=305.4
+  21           Calibri                sz=8.04 base=280.66 x=310.7
+  Cargo        Calibri                sz=8.04 base=214.25 x=168.6
+  28           Calibri                sz=8.04 base=224.09 x=174.0
+  Delta        Calibri                sz=8.04 base=91.80 x=207.2
+  17           Calibri                sz=8.04 base=101.64 x=211.8
+== page 2
+  捐贈及贈與收入      MS-Gothic              sz=8.04 base=129.77 x=352.9
+  34           Calibri                sz=8.04 base=139.73 x=376.9
+  日本           MS-Gothic              sz=8.06 base=271.27 x=305.3
+  21           Calibri                sz=8.04 base=281.26 x=309.3
+  會員費收入        MS-Gothic              sz=8.04 base=214.54 x=134.9
+  123          Calibri                sz=8.04 base=214.54 x=175.2
+  28           Calibri                sz=8.04 base=224.50 x=157.1
+  其他收入         MS-Gothic              sz=8.04 base=91.63 x=192.3
+  17           Calibri                sz=8.06 base=101.59 x=204.3
+== page 3
+  Alpha        Calibri                sz=9.96 base=127.99 x=352.5
+  34           Calibri                sz=9.96 base=140.11 x=359.2
+  Bravo        Calibri                sz=9.96 base=271.70 x=305.4
+  21           Calibri                sz=9.96 base=283.82 x=312.1
+  Cargo        Calibri                sz=9.96 base=214.73 x=164.0
+  28           Calibri                sz=9.96 base=226.85 x=170.7
+  Delta        Calibri                sz=9.96 base=88.92 x=202.9
+  17           Calibri                sz=9.96 base=101.04 x=208.7
+== page 4
+  捐贈及贈與收入      MS-Gothic              sz=9.96 base=127.99 x=353.0
+  34           Calibri                sz=9.96 base=140.35 x=382.9
+  日本           MS-Gothic              sz=9.96 base=271.51 x=305.4
+  21           Calibri                sz=9.96 base=283.87 x=310.3
+  會員費收入        MS-Gothic              sz=9.96 base=215.09 x=122.0
+  123          Calibri                sz=9.96 base=215.09 x=172.1
+  28           Calibri                sz=9.96 base=227.45 x=149.6
+  其他收入         MS-Gothic              sz=9.96 base=88.73 x=184.4
+  17           Calibri                sz=9.96 base=101.09 x=199.3
+== page 5
+  Alpha        Calibri                sz=12.00 base=126.05 x=352.5
+  34           Calibri                sz=12.00 base=140.69 x=360.5
+  Bravo        Calibri                sz=12.00 base=268.63 x=305.5
+  21           Calibri                sz=12.00 base=283.27 x=313.2
+  Cargo        Calibri                sz=12.00 base=215.14 x=159.4
+  28           Calibri                sz=12.00 base=229.78 x=167.3
+  Delta        Calibri                sz=12.00 base=85.87 x=198.6
+  17           Calibri                sz=12.00 base=100.51 x=205.4
+== page 6
+  捐贈及贈與收       MS-Gothic              sz=12.00 base=113.95 x=353.1
+  入            MS-Gothic              sz=12.00 base=129.55 x=383.1
+  34           Calibri                sz=12.00 base=144.43 x=383.0
+  日本           MS-Gothic              sz=12.00 base=268.39 x=305.4
+  21           Calibri                sz=12.02 base=283.27 x=311.3
+  會員費收入        MS-Gothic              sz=12.00 base=211.15 x=127.1
+  123          Calibri                sz=12.00 base=226.03 x=147.9
+  28           Calibri                sz=12.00 base=240.67 x=151.0
+  其他收入         MS-Gothic              sz=12.00 base=85.63 x=176.2
+  17           Calibri                sz=12.00 base=100.51 x=194.1
+== page 7
+  Alpha        Calibri-Bold           sz=8.04 base=129.79 x=352.5
+  34           Calibri-Bold           sz=8.04 base=139.63 x=358.1
+  Bravo        Calibri-Bold           sz=8.06 base=270.79 x=305.2
+  21           Calibri-Bold           sz=8.04 base=280.66 x=311.0
+  Cargo        Calibri-Bold           sz=8.04 base=214.25 x=168.4
+  28           Calibri-Bold           sz=8.04 base=224.09 x=173.9
+  Delta        Calibri-Bold           sz=8.04 base=91.80 x=206.7
+  17           Calibri-Bold           sz=8.04 base=101.64 x=211.5
+== page 8
+  捐贈及贈與收入      MS-Gothic              sz=8.04 base=129.77 x=352.9
+  34           Calibri-Bold           sz=8.04 base=139.73 x=376.9
+  日本           MS-Gothic              sz=8.06 base=271.27 x=305.3
+  21           Calibri-Bold           sz=8.04 base=281.26 x=309.3
+  會員費收入        MS-Gothic              sz=8.04 base=214.54 x=134.6
+  123          Calibri-Bold           sz=8.04 base=214.54 x=175.2
+  28           Calibri-Bold           sz=8.04 base=224.50 x=157.0
+  其他收入         MS-Gothic              sz=8.04 base=91.63 x=192.2
+  17           Calibri-Bold           sz=8.06 base=101.59 x=204.2
+== page 9
+  Alpha        Calibri-Bold           sz=9.96 base=127.99 x=352.5
+  34           Calibri-Bold           sz=9.96 base=140.11 x=359.6
+  Bravo        Calibri-Bold           sz=9.96 base=271.70 x=305.4
+  21           Calibri-Bold           sz=9.96 base=283.82 x=312.4
+  Cargo        Calibri-Bold           sz=9.96 base=214.73 x=163.6
+  28           Calibri-Bold           sz=9.96 base=226.85 x=170.5
+  Delta        Calibri-Bold           sz=9.96 base=88.92 x=202.3
+  17           Calibri-Bold           sz=9.96 base=101.04 x=208.3
+== page 10
+  捐贈及贈與收入      MS-Gothic              sz=9.96 base=127.99 x=353.0
+  34           Calibri-Bold           sz=9.96 base=140.35 x=383.0
+  日本           MS-Gothic              sz=9.96 base=271.51 x=305.3
+  21           Calibri-Bold           sz=9.96 base=283.87 x=310.3
+  會員費收入        MS-Gothic              sz=9.96 base=215.09 x=121.7
+  123          Calibri-Bold           sz=9.96 base=215.09 x=172.1
+  28           Calibri-Bold           sz=9.96 base=227.45 x=149.5
+  其他收入         MS-Gothic              sz=9.96 base=88.73 x=184.2
+  17           Calibri-Bold           sz=9.96 base=101.09 x=199.2
+== page 11
+  Alpha        Calibri-Bold           sz=12.00 base=126.05 x=352.5
+  34           Calibri-Bold           sz=12.00 base=140.69 x=361.0
+  Bravo        Calibri-Bold           sz=12.00 base=268.63 x=305.4
+  21           Calibri-Bold           sz=12.00 base=283.27 x=313.6
+  Cargo        Calibri-Bold           sz=12.00 base=215.14 x=158.9
+  28           Calibri-Bold           sz=12.00 base=229.78 x=167.1
+  Delta        Calibri-Bold           sz=12.00 base=85.87 x=197.8
+  17           Calibri-Bold           sz=12.00 base=100.51 x=205.0
+== page 12
+  捐贈及贈與收       MS-Gothic              sz=12.00 base=113.95 x=353.1
+  入            MS-Gothic              sz=12.00 base=129.55 x=383.2
+  34           Calibri-Bold           sz=12.00 base=144.43 x=383.1
+  日本           MS-Gothic              sz=12.00 base=268.39 x=305.4
+  21           Calibri-Bold           sz=12.02 base=283.27 x=311.4
+  會員費收入        MS-Gothic              sz=12.00 base=211.15 x=126.9
+  123          Calibri-Bold           sz=12.00 base=226.03 x=147.8
+  28           Calibri-Bold           sz=12.00 base=240.67 x=150.9
+  其他收入         MS-Gothic              sz=12.00 base=85.63 x=176.0
+  17           Calibri-Bold           sz=12.00 base=100.51 x=194.0
+
+== summary (pitch = baseline line2 - line1 of a label; sizes as the PDF reports 8.04/9.96/12.00)
+latin (Calibri / Calibri-Bold both): 8pt 9.84, 9.96pt 12.12, 12pt 14.64  (bold == regular)
+cjk   (MS-Gothic line1 / Calibri(-Bold) digits line2), docDefaults eastAsia MS Mincho or ja-JP/no ea: 8pt 9.96-9.99, 9.96pt 12.36, 12pt 14.88  (bold == regular)
+CJK glyph face drawn: MS-Gothic in all 12 cjk pages, bold or not, zh-TW or ja-JP doc lang; NOT MS Mincho / YuGothic-Bold (their theme/ea context differs; not reproduced).
+Font files (C:\Windows\Fonts): Yu Gothic Bold upm 2048 hhea 1802/-455 gap 1024, typo 1802/-246 gap 1024, win 2024/612; Yu Gothic Regular win 2017/619; MS Gothic upm 256 hhea/win 220/-36.
