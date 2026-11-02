@@ -45,6 +45,72 @@ enum Extrusion {
         return dx == 0 && dy == 0 ? nil : Offset(dx, dy)
     }
 
+    /// PowerPoint's light rigs, as printed (test/labs/p3d, Lab A: a slab under
+    /// `isometricOffAxis1Right`, fill 199,100,50, every rig at dir t/r/b/l).
+    /// The lights sit in the shape's own frame, so a face's brightness is a
+    /// function of how it faces the shape, not the camera: `front` is the
+    /// face's multiple of its colour, and `walls` the four a side wall takes
+    /// as it faces right, down, left, up (azimuth 0, 90, 180, 270 in the
+    /// shape's frame, y down) at `dir="t"` — each as red, green, blue
+    /// multiples and an additive share of white (the specular band). `dir`
+    /// turns the rig a quarter round per step (t, r, b, l); between the four
+    /// a wall is read off a smooth curve through them.
+    struct Rig {
+        var front: (Double, Double, Double)
+        var walls: [(Double, Double, Double, Double)]
+    }
+    static let rigs: [String: Rig] = [
+        "threePt": Rig(front: (1.04, 1.04, 1.04), walls: [(0.12, 0.12, 0.12, 0.00), (1.00, 1.00, 1.00, 0.05), (0.60, 0.60, 0.60, 0.20), (0.74, 0.74, 0.74, 0.00)]),
+        "balanced": Rig(front: (0.96, 0.96, 0.96), walls: [(0.85, 0.85, 0.85, 0.03), (0.73, 0.73, 0.73, 0.02), (0.56, 0.56, 0.56, 0.00), (1.08, 1.08, 1.08, 0.00)]),
+        "soft": Rig(front: (0.97, 0.97, 0.97), walls: [(0.80, 0.80, 0.80, 0.00), (0.43, 0.43, 0.43, 0.00), (0.60, 0.60, 0.60, 0.00), (0.97, 0.97, 0.97, 0.00)]),
+        "harsh": Rig(front: (0.84, 0.84, 0.84), walls: [(0.28, 0.28, 0.28, 0.00), (0.88, 0.88, 0.88, 0.00), (1.50, 1.50, 1.50, 0.00), (0.80, 0.80, 0.80, 0.00)]),
+        "flood": Rig(front: (0.86, 0.86, 0.86), walls: [(0.20, 0.20, 0.20, 0.00), (0.76, 0.76, 0.76, 0.00), (2.02, 2.02, 2.02, 0.00), (0.88, 0.88, 0.88, 0.00)]),
+        "contrasting": Rig(front: (1.00, 1.00, 1.00), walls: [(1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00)]),
+        "morning": Rig(front: (0.92, 0.92, 0.92), walls: [(0.95, 0.95, 0.95, 0.00), (1.08, 1.08, 1.08, 0.00), (1.30, 1.30, 1.30, 0.00), (0.31, 0.31, 0.31, 0.00)]),
+        "sunrise": Rig(front: (0.91, 0.91, 0.91), walls: [(1.28, 1.28, 0.96, 0.00), (1.07, 1.07, 1.07, 0.00), (1.31, 1.31, 1.31, 0.00), (0.44, 0.44, 0.44, 0.00)]),
+        "sunset": Rig(front: (0.98, 0.98, 0.98), walls: [(0.78, 0.78, 0.78, 0.00), (1.00, 0.56, 0.48, 0.00), (1.13, 0.66, 0.52, 0.00), (0.37, 0.37, 0.37, 0.00)]),
+        "chilly": Rig(front: (0.99, 0.99, 0.99), walls: [(0.41, 0.41, 0.41, 0.02), (0.98, 0.98, 0.98, 0.02), (1.02, 1.02, 1.02, 0.02), (0.49, 0.49, 0.49, 0.01)]),
+        "freezing": Rig(front: (0.60, 0.60, 0.60), walls: [(0.80, 0.80, 0.80, 0.12), (0.70, 0.70, 0.70, 0.06), (0.86, 0.86, 0.86, 0.07), (0.25, 0.25, 0.25, 0.03)]),
+        "flat": Rig(front: (1.00, 1.00, 1.00), walls: [(0.94, 0.94, 0.94, 0.15), (0.97, 0.97, 0.97, 0.05), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00)]),
+        "twoPt": Rig(front: (1.00, 1.00, 1.00), walls: [(0.32, 0.32, 0.32, 0.00), (0.69, 0.69, 0.69, 0.00), (0.60, 0.60, 0.60, 0.00), (0.52, 0.52, 0.52, 0.00)]),
+        "glow": Rig(front: (1.00, 1.00, 1.00), walls: [(1.70, 1.70, 1.70, 0.00), (1.00, 1.00, 1.00, 0.00), (1.98, 1.98, 1.98, 0.00), (1.00, 1.00, 1.00, 0.00)]),
+        "brightRoom": Rig(front: (1.00, 1.00, 1.00), walls: [(1.98, 1.98, 1.98, 0.00), (1.50, 1.50, 1.50, 0.00), (2.50, 2.50, 2.50, 0.00), (1.50, 1.50, 1.50, 0.00)]),
+    ]
+
+    /// A face with normal `n` (shape frame, z out of the slide) lit by `rig`
+    /// turned `turn` degrees: a wall (no z) from the curve round the four
+    /// measured azimuths, the front from `front`, a slope between by how far
+    /// it leans.
+    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double) -> Color {
+        let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
+        let lean = min(1, abs(n.z) / len)
+        let w = (1 - lean * lean).squareRoot()
+        var k = [rig.front.0, rig.front.1, rig.front.2]
+        // The back of the solid takes no light: the darkest of the walls (it
+        // is what shows through the hairline between two quads).
+        if n.z < 0 { k = (0..<3).map { i in rig.walls.map { [$0.0, $0.1, $0.2][i] }.min() ?? 0 } }
+        var spec = 0.0
+        if w > 1e-6 {
+            let a = (atan2(n.y, n.x) * 180 / .pi - turn) * .pi / 180
+            func at(_ pick: ((Double, Double, Double, Double)) -> Double) -> Double {
+                let v = rig.walls.map(pick)
+                let c0 = (v[0] + v[1] + v[2] + v[3]) / 4, c1 = (v[0] - v[2]) / 2
+                let s1 = (v[1] - v[3]) / 2, c2 = (v[0] - v[1] + v[2] - v[3]) / 4
+                return max(0, c0 + c1 * cos(a) + s1 * sin(a) + c2 * cos(2 * a))
+            }
+            let wall = [at { $0.0 }, at { $0.1 }, at { $0.2 }]
+            for i in 0..<3 { k[i] = w * wall[i] + (1 - w) * k[i] }
+            // The fourth number is the white a highlight added where Lab A sampled
+            // the wall. It moves with the camera and the material, so laid whole over
+            // a wall it overshoots (a cyan wall washed out in shape_rotation) and
+            // left out it undershoots (isometricRightUp); half is what both decks
+            // like. PROVISIONAL until the material model replaces it.
+            spec = 0.5 * w * at { $0.3 }
+        }
+        func ch(_ v: Int, _ f: Double) -> Int { max(0, min(255, Int((Double(v) * f + 255 * spec).rounded()))) }
+        return Color(argb: base.alpha, ch(base.red, k[0]), ch(base.green, k[1]), ch(base.blue, k[2]))
+    }
+
     static func read(_ spPr: XNode?, colors: ColorContext) -> Scene3D? {
         let sp3d = spPr?.first("a:sp3d")
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)
@@ -65,13 +131,17 @@ enum Extrusion {
             s.rig = rig["rig"] ?? "threePt"
             let turns: [String: Double] = ["t": 0, "tr": 45, "r": 90, "br": 135, "b": 180, "bl": 225, "l": 270, "tl": 315]
             s.rigTurn = turns[rig["dir"] ?? "t"] ?? 0
+            // The rig's own roll about the line of sight is the same as turning it
+            // (Lab A: rev 90 prints as dir="r", pixel for pixel). Its latitude and
+            // longitude tip the lights out of the plane; not drawn yet.
+            if let rev = rig.first("a:rot")?["rev"].flatMap(Double.init) { s.rigTurn += rev / 60000 }
         }
         // Looked at square on, a solid is its own front.
         if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
         return s
     }
 
-    private struct P3 { var x, y, z: Double }
+    struct P3 { var x, y, z: Double }
 
     /// The outline as closed runs of points, a curve as short chords.
     private static func contours(_ path: Path) -> [[Offset]] {
@@ -142,6 +212,7 @@ enum Extrusion {
             P3(x: l.x * cos(turnRig) - l.y * sin(turnRig), y: l.x * sin(turnRig) + l.y * cos(turnRig), z: l.z)
         }
         func litLocal(_ base: Color, _ n: P3) -> Color {
+            if let table = Extrusion.rigs[scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn) }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
             for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
