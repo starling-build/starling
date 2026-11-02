@@ -5323,10 +5323,12 @@ extension ChartPainter {
             // 新加坡's, which it overlapped by 16 x 13 in ours where it stood
             // 15.5 right of Word's.)
             if point != nil, l.outside, !fitsInside, moved == nil, !c.onSlide, !c.onSheet {
-                let gap = 2.6 * k, tw = tp.width, th = tp.height
+                let gap = 2.6 * k, tw = tp.width, th = tp.height, slack = 4 * k
                 for _ in 0 ..< 4 {
-                    guard let hit = taken.first(where: { $0.left - gap < at.dx + tw / 2 && at.dx - tw / 2 < $0.right + gap
-                        && $0.top < at.dy + th / 2 && at.dy - th / 2 < $0.bottom }) else { break }
+                    // (Only a real overlap: lab pie5's long-name outEnd labels at 8% and 5%
+                    // overlap by 5 x 3pt in Word's print, 9 x 8 at 270 degrees, and keep their places.)
+                    guard let hit = taken.first(where: { $0.left + slack < at.dx + tw / 2 && at.dx - tw / 2 < $0.right - slack
+                        && $0.top + slack < at.dy + th / 2 && at.dy - th / 2 < $0.bottom - slack }) else { break }
                     at = Offset(at.dx < centre.dx ? hit.left - gap - tw / 2 : hit.right + gap + tw / 2, at.dy)
                 }
             }
