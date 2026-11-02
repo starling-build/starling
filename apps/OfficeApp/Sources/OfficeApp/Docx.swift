@@ -5701,8 +5701,9 @@ enum DocxFormat {
                     // (… and a lone VML shape that says `v-text-anchor:middle` or
                     // `bottom` sets its text there: lo-ff3b52d1's oval.)
                     if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group", box.anchor == nil,
-                       RichTextTheme.wordWindowsPages, node.name == "v:oval" || node.descendant("v:oval") != nil,
-                       let shapeStyle = (node.name == "v:oval" ? node : node.descendant("v:oval"))?["style"] {
+                       RichTextTheme.wordWindowsPages,
+                       let shape = ["v:oval", "v:rect"].lazy.compactMap({ n in node.name == n ? node : node.descendant(n) }).first,
+                       let shapeStyle = shape["style"] {
                         if shapeStyle.containsSubstring("v-text-anchor:middle") { box.anchor = "ctr"; box.hasFixedFrame = true }
                         else if shapeStyle.containsSubstring("v-text-anchor:bottom") { box.anchor = "b"; box.hasFixedFrame = true }
                     }

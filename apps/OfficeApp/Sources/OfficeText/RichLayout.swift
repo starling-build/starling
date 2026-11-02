@@ -1357,6 +1357,12 @@ public final class RichLayout {
     /// that go on to the next page are set across it (`_capPassing`).
     private var _bandCap: [Int: Double] = [:]
     private var _capPassing = false
+    /// A box the text keeps above and below, set from the top of the part of
+    /// its paragraph its anchor's line is in, in the paragraph's own pixels
+    /// (`_clearPassing`): in several columns that is known only once the
+    /// paragraph is cut into them.
+    private var _clearBand: [Int: (top: Double, bottom: Double)] = [:]
+    private var _clearPassing = false
     /// Paragraphs whose band is the union of two floats' (the page-fit pass leaves them alone).
     private var _besideUnion: Set<Int> = []
     /// … and the stretches the paragraph shares with the rest of that float on the pages
@@ -2031,6 +2037,41 @@ public final class RichLayout {
                 }
                 if changes.isEmpty { break }
                 RuleTrace.hit("word-box-holds-in-only-its-pages-lines")
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
+        // (A box the text keeps above and below, in a paragraph that runs on into
+        // another column: its lines clear it where it stands in the column its
+        // anchor's line is in — lo-ff3b52d1's rectangle, 81pt under the head of
+        // that column's part, with the line that would meet it set under it.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns > 1, !_clearPassing, !_colWrapPassing, !_stripPassing {
+            _clearPassing = true
+            defer { _clearPassing = false }
+            for _ in 0 ..< 3 {
+                var changes: [RichChange] = []
+                for (k, q) in document.paragraphs.enumerated() where q.cell == nil && !q.text.isEmpty && !q.style.rightToLeft && k < _pieceStart.count && _pieceStart[k] < _allPieces.count && k < _tops.count {
+                    var want: (top: Double, bottom: Double)? = nil
+                    let end = k + 1 < _pieceStart.count ? _pieceStart[k + 1] : _allPieces.count
+                    let mine = _allPieces[_pieceStart[k] ..< min(end, _allPieces.count)].filter { !$0.repeated }
+                    if mine.count > 1, k < _inline.count, k < _inlineBoxes.count, let g = Optional(geometry(k)), let all = g.painter.inlinePlaceholderBoxes {
+                        for (n, image) in _inline[k].enumerated() {
+                            guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil,
+                                  float.verticalFrom == "paragraph", float.y > 0, n < _inlineBoxes[k].count, _inlineBoxes[k][n] < all.count else { continue }
+                            let at = g.inkTop + all[_inlineBoxes[k][n]].top
+                            guard let piece = mine.last(where: { $0.flowTop <= at + 0.01 }) else { break }
+                            let base = piece.flowTop - _tops[k]
+                            want = (base + _px(float.y - float.distanceTop), base + _px(float.y + image.height + float.effectBottom + float.distanceBottom))
+                            break
+                        }
+                    }
+                    if let a = want, let b = _clearBand[k], abs(a.top - b.top) < 0.5, abs(a.bottom - b.bottom) < 0.5 { continue }
+                    if want == nil, _clearBand[k] == nil { continue }
+                    _clearBand[k] = want
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                RuleTrace.hit("word-box-kept-clear-in-the-column-its-anchor-is-in")
                 apply(changes, paragraphCount: document.paragraphs.count)
                 ensureLaidOut(document)
             }
@@ -11196,6 +11237,7 @@ public final class RichLayout {
                 break
             }
         }
+        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, p.cell == nil, let band = _clearBand[i] { keepClear = band }
         if (besideLeftRoom != nil && !besideLineIndents.isEmpty) || keepClear != nil {
             Self._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
         }
@@ -20861,6 +20903,21 @@ public final class RichLayout {
             // (Not where the line went under this float: its place is the paragraph's
             // top, and the flow there is the line below it.)
             if let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }), piece.flowTop > top, !((float.takesRoom || float.bandsPage) && pushed > 0) { top = piece.flowTop }
+            // (A paragraph that runs on into another column or page: Word
+            // measures from the top of the part of it the anchor's line is
+            // in — lo-ff3b52d1's rectangle, anchored near the end of a
+            // paragraph three columns long, stands 81pt under the top of the
+            // column its line is in.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, float.horizontalAlign == nil, i < _cells.count, _cells[i] == nil,
+               i < _inline.count, let k = _inline[i].firstIndex(where: { $0.id == image.id }), k < _inlineBoxes[i].count,
+               let all = g.painter.inlinePlaceholderBoxes, _inlineBoxes[i][k] < all.count {
+                let at = g.inkTop + all[_inlineBoxes[i][k]].top
+                let mine = _allPieces.filter { $0.paragraph == i && !$0.repeated }
+                if mine.count > 1, let piece = mine.last(where: { $0.flowTop <= at + 0.01 }), piece.flowTop > top {
+                    RuleTrace.hit("word-float-is-set-from-the-part-of-its-paragraph-its-line-is-in")
+                    top = piece.flowTop
+                }
+            }
             y = top + _px(float.y)
             // (Mid-page, from the text under the space before it: zh-4e5fe46f p6's
             // table, in a box anchored in a paragraph 3.5pt before, stands 3.5pt
@@ -22216,7 +22273,28 @@ public final class RichLayout {
                             // in a 48.8pt exact row with more rows under, has all five in Word's print.)
                             return !_pages[slot].contains { $0.pageY > piece.pageY + piece.height - 0.5 && _cells[$0.paragraph].map { $0.table != c.table } ?? true }
                         }()
-                        if lines != nil || floats {
+                        // (A later part of a paragraph that runs on, holding a float
+                        // that stands in it: lo-ff3b52d1's rectangle, set from the
+                        // column its anchor's line is in.)
+                        let laterFloats: [(ImageFloat, ImageAttachment)] = {
+                            guard theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, !shading, !whole, piece.part == .all, lines == nil,
+                                  piece.flowTop > _tops[i] + 0.5, i < _inline.count, _cells[i] == nil else { return [] }
+                            let g = geometry(i)
+                            return _inline[i].compactMap { image in
+                                guard let float = image.float, !float.takesRoom, float.verticalFrom == "paragraph", float.verticalAlign == nil else { return nil }
+                                let r = _floatRect(float, image, g, i)
+                                return r.top >= piece.flowTop - 0.5 && r.top < piece.flowBottom ? (float, image) : nil
+                            }
+                        }()
+                        if !laterFloats.isEmpty {
+                            let g = geometry(i)
+                            let window = Path()
+                            window.addRect(Rect.fromLTRB(clipL, top, clipR, bottom + _baselineShift(i, document)))
+                            for (float, image) in laterFloats {
+                                window.addRect(_floatRect(float, image, g, i).shift(Offset(left, top - piece.flowTop)))
+                            }
+                            canvas.clipPath(window, doAntiAlias: false)
+                        } else if lines != nil || floats {
                             // Its own lines and no others: nothing to cut off above or below.
                             canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
                         } else if overflowsExactRow {
