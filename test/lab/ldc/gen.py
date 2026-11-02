@@ -5,7 +5,7 @@ mark ("；") is on the line?  zh-8628cfbe's cell paragraph "(1)年度內…（�
 line break before the ，so that the comma opens a line, as in Word's print where "合|計" is refused 9.05 over.  The cell is fixed at
 its text width (209.3pt = 4186 tw, margins 28 tw) and the section is the paragraph's own.
 Variants:  A "(1)…（最高加至2分）<br>，獲選財政部廉潔楷模1名加2分；合計最高加至4分。"  (as in the print)
-           B the same with no comma: "<br>獲選財政部廉潔楷模1名加2分；合計最高加至4分。"  (no line-opening mark)
+           B the comma replaced by an ideograph 之 (same width; no line-opening mark): "<br>之獲選財政部廉潔楷模1名加2分；合計最高加至4分。"  (no line-opening mark)
            C as A with "；" replaced by "及": the opening comma is the only mark on the line (a control: amd-3's rule refuses).
 The right indent steps by 4 twips (0.2pt) so that the first character past the margin, "計" (12pt), overhangs 3 -> 11pt.
 START gives, per variant, the right indent at which it is 3pt over (from our own layout, run.sh), N the number of steps.
@@ -28,7 +28,7 @@ br = '<w:r>%s<w:br/></w:r>' % rpr
 second = '獲選財政部廉潔楷模1名加2分；合計最高加至4分。'
 if var == 'C': second = second.replace('；', '及')
 head = '(1)年度內發現員工違反公務員廉政倫理規範事件（最高加至2分）'
-lead = '' if var == 'B' else '，'
+lead = '之' if var == 'B' else '，'
 body = run(head) + br + run(lead + second)
 i = doc.index(para)
 tb0 = doc.rindex('<w:tbl>', 0, i)
