@@ -3127,6 +3127,10 @@ enum OfficeFonts {
             // lacks falls back as before.)
             var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? (wordOnWindows ? windowsBoldWiden(family) : ea.boldWiden ?? macBoldWiden) : 0,
                                         baseline: ea.baseline)
+            // (細明體_HKSCS sets its first line 1pt higher at 18pt than 細明體 does:
+            // zh-7773163d's lines stand 71, 95, 128 ... in Word for Windows' print and one
+            // point lower in ours, with the same pitch.)
+            if wordOnWindows, family.lowercased().contains("hkscs"), let b = face.baseline { face.baseline = b - 1.0 / 18 }
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
             face.fullWidthSymbols = ea.squareSymbols ?? (ea.latinAdvances == nil)
