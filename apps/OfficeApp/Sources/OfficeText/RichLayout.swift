@@ -17727,7 +17727,15 @@ public final class RichLayout {
                     let timesGlued = wordRules && RichTextTheme.wordWindowsPages && last < units.count && units[last - 1] == 0xD7
                         && (a == 0 || units[a - 1] != 0xD7)
                         && (units[last] == 0xD7 || (units[last] >= 0x30 && units[last] <= 0x39))
-                    let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    // (Nor a Latin word that opens on a letter and is longer than one, on a grid, taken by
+                    // the squeeze: lab `latg` (Word for Windows): a line of 26 ideographs and "R6", "R6B1"
+                    // or "R" is left at the margin whatever room the line's marks have to give, and "B1" is
+                    // set only where its natural width fits; zh-08e95de4's "…西站片区R6地块" ends at "区",
+                    // 9.7pt over with two marks to give 16, where ours took it.)
+                    let letterWord = wordRules && RichTextTheme.wordWindowsPages && onCharacterGrid && last - a >= 2
+                        && ((units[a] | 0x20) >= 0x61 && (units[a] | 0x20) <= 0x7A) && units[a] < 0x80
+                        && (a ..< last).allSatisfy { units[$0] < 0x2E80 && !isSpace(units[$0]) } && x + w > width + hair
+                    let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !letterWord && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
                         let gapSum = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
