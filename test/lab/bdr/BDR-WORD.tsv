@@ -1,0 +1,81 @@
+# doc	page	kind	y_top	y_bot	x0	x1	extra
+bdrA	1	text	72.49	85.77	72.02	120.02	base 83.18 plain line 
+bdrA	1	text	150.37	163.65	72.02	93.74	base 161.06 mid 
+bdrA	1	draw	148.82	164.66	66.62	545.49	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrA	1	draw	145.82	148.82	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	145.82	148.82	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	145.82	148.82	66.62	545.49	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	145.82	148.82	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	145.82	148.82	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	164.66	167.66	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	164.66	167.66	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	164.66	167.66	66.62	545.49	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	164.66	167.66	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	164.66	167.66	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	148.82	164.66	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrA	1	draw	148.82	164.66	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	text	136.57	149.85	72.02	94.34	base 147.26 first 
+bdrB	1	draw	135.02	150.86	66.62	545.49	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrB	1	draw	132.02	135.02	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	132.02	135.02	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	132.02	135.02	66.62	545.49	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	132.02	135.02	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	132.02	135.02	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	150.86	153.86	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	150.86	153.86	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	150.86	153.86	66.62	545.49	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	150.86	153.86	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	150.86	153.86	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	135.02	150.86	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrB	1	draw	135.02	150.86	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	1	text	72.49	85.77	72.02	117.98	base 83.18 page one 
+bdrC	2	text	76.57	89.85	72.02	123.62	base 87.26 afterbreak 
+bdrC	2	draw	75.00	90.86	66.62	545.49	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrC	2	draw	72.00	75.00	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	72.00	75.00	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	72.00	75.00	66.62	545.49	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	72.00	75.00	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	72.00	75.00	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	90.86	93.86	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	90.86	93.86	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	90.86	93.86	66.62	545.49	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	90.86	93.86	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	90.86	93.86	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	75.00	90.86	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrC	2	draw	75.00	90.86	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	text	136.45	149.73	72.02	95.30	base 147.14 colA
+bdrD	1	text	146.29	159.57	324.07	363.67	base 156.98 aftercol 
+bdrD	1	draw	135.02	149.78	66.62	293.44	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrD	1	draw	132.02	135.02	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	132.02	135.02	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	132.02	135.02	66.62	293.44	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	132.02	135.02	293.45	296.45	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	132.02	135.02	293.45	296.45	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	135.02	149.78	63.62	66.62	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	135.02	149.78	293.45	296.45	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	72.00	85.82	318.65	545.50	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrD	1	draw	72.00	85.82	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	72.00	85.82	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	85.82	160.58	318.65	545.50	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrD	1	draw	160.58	163.58	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	160.58	163.58	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	160.58	163.58	318.65	545.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	160.58	163.58	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	160.58	163.58	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	85.82	160.58	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrD	1	draw	85.82	160.58	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	text	72.49	85.77	72.02	92.64	base 83.18 col1
+bdrE	1	text	150.37	163.65	324.07	363.67	base 161.06 aftercol 
+bdrE	1	draw	148.82	164.66	318.65	545.50	type f fill (0.8859999775886536, 0.9369999766349792, 0.8510000109672546) color None w None
+bdrE	1	draw	145.82	148.82	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	145.82	148.82	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	145.82	148.82	318.65	545.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	145.82	148.82	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	145.82	148.82	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	164.66	167.66	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	164.66	167.66	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	164.66	167.66	318.65	545.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	164.66	167.66	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	164.66	167.66	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	148.82	164.66	315.65	318.65	type f fill (0.0, 0.0, 0.0) color None w None
+bdrE	1	draw	148.82	164.66	545.50	548.50	type f fill (0.0, 0.0, 0.0) color None w None
