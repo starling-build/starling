@@ -8455,7 +8455,7 @@ public final class RichLayout {
     /// when the document sets `w:autoHyphenation`, the paragraph does not
     /// suppress it, and a pattern list is bundled for the run's language.
     private func _autoHyphenPoints(_ p: RichParagraph, _ document: RichDocument) -> Set<Int> {
-        guard theme.wordRules, !document.usesEastAsianLayout, p.style.eastAsian["w:suppressAutoHyphens"] != "1",
+        guard theme.wordRules, p.style.eastAsian["w:suppressAutoHyphens"] != "1",
               let setting = document.keptSettings["w:autoHyphenation"], !setting.contains("w:val=\"0\""), !setting.contains("w:val=\"false\""),
               !p.text.isEmpty else { return [] }
         let noCaps = document.keptSettings["w:doNotHyphenateCaps"].map { !$0.contains("w:val=\"0\"") && !$0.contains("w:val=\"false\"") } ?? false
@@ -8482,7 +8482,10 @@ public final class RichLayout {
             defer { word = [] }
             guard word.count >= 5 else { return }
             if noCaps, !word.contains(where: { $0.isLowercase }) { return }
-            guard let h = Hyphenator.forLanguage(lang(at: start)) else { return }
+            // (A Latin word in a run Word has no hyphenation for — an East Asian
+            // run's language — goes by English's: zh-147bdae0's URLs, in
+            // zh-TW runs, part as "Con-tent" and "in-dex" in Word's print.)
+            guard let h = Hyphenator.forLanguage(lang(at: start)) ?? (word.allSatisfy { $0.isASCII } ? Hyphenator.forLanguage("en-US") : nil) else { return }
             var lens: [Int] = [0]
             for ch in word { lens.append(lens.last! + ch.utf16.count) }
             for c in h.breaks(word) { out.insert(start + lens[c]) }
