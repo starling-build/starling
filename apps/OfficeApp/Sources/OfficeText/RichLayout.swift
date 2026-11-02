@@ -1337,6 +1337,9 @@ public final class RichLayout {
     /// hyphen (U+2010) so the line breaking measures it: Word shows the
     /// hyphen only where the line breaks there.
     private var _hyphenShown: [Int: Set<Int>] = [:]
+    /// Where each paragraph may be parted by automatic hyphenation
+    /// (`w:autoHyphenation`): the text offsets the next line may begin at.
+    private var _hyphenPoints: [Int: Set<Int>] = [:]
     private var _heights: [Double] = []
     private var _tops: [Double] = []
     private var _listLabels: [String?] = []
@@ -8149,18 +8152,69 @@ public final class RichLayout {
         return (left, p.style.listFirstLine.map { -$0 } ?? level?.hanging ?? 0)
     }
 
+    /// The offsets automatic hyphenation may part the paragraph's words at:
+    /// when the document sets `w:autoHyphenation`, the paragraph does not
+    /// suppress it, and a pattern list is bundled for the run's language.
+    private func _autoHyphenPoints(_ p: RichParagraph, _ document: RichDocument) -> Set<Int> {
+        guard theme.wordRules, !document.usesEastAsianLayout, p.style.eastAsian["w:suppressAutoHyphens"] != "1",
+              let setting = document.keptSettings["w:autoHyphenation"], !setting.contains("w:val=\"0\""), !setting.contains("w:val=\"false\""),
+              !p.text.isEmpty else { return [] }
+        let noCaps = document.keptSettings["w:doNotHyphenateCaps"].map { !$0.contains("w:val=\"0\"") && !$0.contains("w:val=\"false\"") } ?? false
+        func language(_ xml: String?) -> String? {
+            guard let xml, let r = xml.range(of: "<w:lang ") else { return nil }
+            let rest = xml[r.upperBound...]
+            guard let v = rest.range(of: "w:val=\"") else { return nil }
+            let tail = rest[v.upperBound...]
+            return tail.firstIndex(of: "\"").map { String(tail[..<$0]) }
+        }
+        let fallback = language(document.defaultLangXML) ?? "en-US"
+        var langs: [(Range<Int>, String)] = []
+        var at = 0
+        for run in p.runs {
+            langs.append((at ..< at + run.length, language(run.style.keptXML) ?? fallback))
+            at += run.length
+        }
+        func lang(at k: Int) -> String { langs.first(where: { $0.0.contains(k) })?.1 ?? fallback }
+        var out = Set<Int>()
+        var word: [Character] = []
+        var start = 0
+        var k = 0
+        func finish() {
+            defer { word = [] }
+            guard word.count >= 5 else { return }
+            if noCaps, !word.contains(where: { $0.isLowercase }) { return }
+            guard let h = Hyphenator.forLanguage(lang(at: start)) else { return }
+            var lens: [Int] = [0]
+            for ch in word { lens.append(lens.last! + ch.utf16.count) }
+            for c in h.breaks(word) { out.insert(start + lens[c]) }
+        }
+        for ch in p.text {
+            if ch.isLetter {
+                if word.isEmpty { start = k }
+                word.append(ch)
+            } else { finish() }
+            k += ch.utf16.count
+        }
+        finish()
+        return out
+    }
+
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        let automatic = _autoHyphenPoints(p, document)
+        _hyphenPoints[i] = automatic.isEmpty ? nil : automatic
         _layoutParagraphOnce(i, p, document)
-        // Soft hyphens: the lines that end at one show a hyphen, which takes
+        // Soft hyphens (and the points automatic hyphenation may use): the
+        // lines that end at one show a hyphen, which takes
         // room, so the paragraph is set again with those drawn until the set
         // of lines ending at one no longer changes (a few rounds at most).
-        guard theme.wordRules, p.text.utf16.contains(0x00AD) else { _hyphenShown[i] = nil; return }
+        guard theme.wordRules, !automatic.isEmpty || p.text.utf16.contains(0x00AD) else { _hyphenShown[i] = nil; return }
         let units = Array(p.text.utf16)
         for _ in 0 ..< 5 {
             guard let painter = _painters[i], i < _inserts.count else { return }
             let starts = Set(_lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count))
             var want = Set<Int>()
             for k in 0 ..< units.count where units[k] == 0x00AD && starts.contains(k + 1) { want.insert(k) }
+            for k in automatic where starts.contains(k) { want.insert(k) }
             if want == (_hyphenShown[i] ?? []) { return }
             _hyphenShown[i] = want
             _layoutParagraphOnce(i, p, document)
@@ -11396,6 +11450,16 @@ public final class RichLayout {
                 } else if loose.contains(offset) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if let idx = index, let points = _hyphenPoints[idx], points.contains(offset), !ea {
+                    // (Automatic hyphenation: a place the word may be parted
+                    // at, with the hyphen drawn where the line does end.)
+                    flush(i)
+                    if _hyphenShown[idx]?.contains(offset) == true {
+                        spans.append(TextSpan(text: "-", style: style(kind)))
+                    } else {
+                        spans.append(TextSpan(text: "\u{00AD}", style: zeroWidth(current ?? kind)))
+                    }
                     inserts.append(offset)
                 } else if theme.wordRules, !document.usesEastAsianLayout, spacesAfterNbsp, before == " ", !ea,
                           !ch.isWhitespace, ch != "\u{00A0}" {
