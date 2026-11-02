@@ -5989,6 +5989,54 @@ extension ChartPainter {
                 let ownBox = !c.onSlide && !c.onSheet && !c.chartex && l.own[s.index] != nil
                 let (bw, bh) = ownBox ? (tp.width, tp.height) : (w, h)
                 if !c.onSlide, !c.onSheet, !c.chartex, share >= 0.23, share < 0.99, tp.computeLineMetrics().count == 1, let big = Self._bigSliceLabel(share: share, dx: dx, dy: dy, rx: rx, ry: ry, centre: centre, bw: bw, bh: bh) { return big }
+                // (Word, a flat pie's best fit: inside where the label's box, 2pt taller each way, fits the slice
+                // and the disc ANYWHERE — not only on the slice's middle — else wrapped at its last space if that
+                // fits, else outside; and inside it stands at the middle of all the places its text's box fits.
+                // Lab pieeq (amd-1's, Word for Windows, 6/8/10/12 equal slices, 9pt "datalabelK, 2", legend at the
+                // foot, right, none): 102 of Word's 108 inside/outside choices, and the inside labels within 2.9pt
+                // on average, where ours stood on the middle line 0.6 out or went outside: 22 of 108 within 3pt.)
+                if !c.onSlide, !c.onSheet, !c.chartex, !ownBox, share < 0.99, abs(rx - ry) < 0.5, rx > 0 {
+                    let a0 = s.mid - half, span = 2 * half
+                    func inside(_ x: Double, _ y: Double) -> Bool {
+                        guard hypot(x, y) <= rx else { return false }
+                        var d = atan2(y, x) - a0
+                        while d < 0 { d += 2 * .pi }
+                        while d >= 2 * .pi { d -= 2 * .pi }
+                        return d <= span
+                    }
+                    func places(_ bw: Double, _ bh: Double) -> [Offset] {
+                        var out: [Offset] = []
+                        let step = max(0.5, rx / 120)
+                        var y = -rx
+                        while y <= rx {
+                            var x = -rx
+                            while x <= rx {
+                                if inside(x - bw / 2, y - bh / 2), inside(x + bw / 2, y - bh / 2), inside(x - bw / 2, y + bh / 2), inside(x + bw / 2, y + bh / 2) {
+                                    out.append(Offset(x, y))
+                                }
+                                x += step
+                            }
+                            y += step
+                        }
+                        return out
+                    }
+                    func held() -> Offset? {
+                        guard !places(tp.width, tp.height + 4 * k).isEmpty else { return nil }
+                        let p = places(tp.width, tp.height * 0.83)
+                        guard !p.isEmpty else { return nil }
+                        let mx = p.reduce(0) { $0 + $1.dx } / Double(p.count), my = p.reduce(0) { $0 + $1.dy } / Double(p.count)
+                        return Offset(centre.dx + mx, centre.dy + my)
+                    }
+                    RuleTrace.hit("word-flat-pie-best-fit-inside-anywhere-in-its-slice")
+                    if let p = held() { return p }
+                    if tp.computeLineMetrics().count == 1 {
+                        let one = tp.width
+                        tp.layout(minWidth: 0, maxWidth: one - 1)
+                        if tp.computeLineMetrics().count > 1, let p = held() { return p }
+                        tp.layout(minWidth: 0, maxWidth: one + 1)
+                    }
+                    return nil
+                }
                 // (A lone slice, the whole disc, holds it as far out as the rim lets it:
                 // lo tdf134866's "Cusom label" 0.82 out at six o'clock, where the
                 // measured 0.6 left it 22pt high.)
