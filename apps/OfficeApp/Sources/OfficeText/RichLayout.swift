@@ -5674,6 +5674,48 @@ public final class RichLayout {
                         return d.row < c.row && d.row + d.rowSpan - 1 >= c.row && _tops[m] + _heights[m] > c.rowTop + part + 0.01
                     }
                     if !below { partHeight = part }
+                    // (A centred cell merged down from the rows above, its text on
+                    // this page, is centred in the part of its rows that is on the
+                    // page — down to this row's part — not over every row it
+                    // covers: zh-1eeb9f9a's "依法行政" over three rows, the third
+                    // parting at p10's foot, stands 43pt higher in Word's print.
+                    // Lab `cm1`: centred in the first page's portion.)
+                    if RichTextTheme.wordWindowsPages, c.row > 0 {
+                        var spans: [[Int]] = []
+                        var open: (row: Int, column: Int)? = nil
+                        var k = i - 1
+                        while k >= 0, let d = _cells[k], d.table == c.table {
+                            if d.row < c.row, d.row + d.rowSpan > c.row, !d.vertical {
+                                if let o = open, o.row == d.row, o.column == d.column { spans[spans.count - 1].insert(k, at: 0) }
+                                else { spans.append([k]); open = (d.row, d.column) }
+                            } else { open = nil }
+                            k -= 1
+                        }
+                        for members in spans {
+                            let d = _cells[members[0]]!, lastM = members[members.count - 1]
+                            guard d.verticalAlign == "center" else { continue }
+                            let top = _tops[members[0]], bottom = _tops[lastM] + _heights[lastM]
+                            let free = c.rowTop + part - d.rowTop - d.pad.top - d.pad.bottom - (bottom - top)
+                            let delta = d.rowTop + d.pad.top + max(0, free) * 0.5 - top
+                            guard free >= -0.01, delta < -0.5 else { continue }
+                            let onPage = _allPieces.indices.filter { _allPieces[$0].page == page && members.contains(_allPieces[$0].paragraph) && _allPieces[$0].part != .rules && !_allPieces[$0].repeated }
+                            guard !onPage.isEmpty, onPage.allSatisfy({ _allPieces[$0].flowBottom <= c.rowTop + part + 0.01 || _allPieces[$0].flowBottom <= bottom + 0.01 }) else { continue }
+                            RuleTrace.hit("word-merged-centred-cell-centres-in-its-part-of-the-page")
+                            for n in onPage.reversed() {
+                                let old = _allPieces[n]
+                                var moved = PagePiece(paragraph: old.paragraph, flowTop: old.flowTop, flowBottom: old.flowBottom, page: old.page, pageY: old.pageY + delta)
+                                moved.part = old.part == .all ? .text : old.part
+                                var kept: [PagePiece] = []
+                                if old.part == .all {
+                                    var rules = PagePiece(paragraph: old.paragraph, flowTop: old.flowTop, flowBottom: old.flowBottom, page: old.page, pageY: old.pageY)
+                                    rules.part = .rules
+                                    kept.append(rules)
+                                }
+                                _allPieces.replaceSubrange(n ... n, with: kept + [moved])
+                                if let at = _pages[old.page].lastIndex(of: old) { _pages[old.page].replaceSubrange(at ... at, with: kept + [moved]) }
+                            }
+                        }
+                    }
                     for (n, e) in extent {
                         let d0 = _cells[columns[n].members[0]]!
                         // (Not a turned cell, whose centring is across it:
