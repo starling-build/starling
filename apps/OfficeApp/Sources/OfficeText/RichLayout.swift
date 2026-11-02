@@ -753,6 +753,16 @@ public final class RichTextTheme {
                     // (A glow: the letters' colour all round them, strongest at the edge and gone by about
                     // a quarter of its radius, PowerPoint's print of lo-shape-text-glow-effect's 20 pt glow
                     // on 18 pt text: a green band 4 to 5 pt wide. Ten blurred copies stand in for it.)
+                    if device == nil {
+                        // (Where nothing blurs, as on screen and in Word's PDF: two rings of sharp copies a
+                        // half and the whole band out, eight ways round.)
+                        let band = sh.blur * 0.25 * k, a = Double(sh.color.alpha) / 255 * 0.5
+                        return [0.5, 1.0].flatMap { f in (0 ..< 8).map { i -> Shadow in
+                            let t = Double(i) * Double.pi / 4
+                            return Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
+                                          offset: Offset(cos(t) * band * f, sin(t) * band * f), blurRadius: 0)
+                        } }
+                    }
                     let r = device.map { max(0, (sh.blur * 0.2 * k * $0 - 0.5) / 0.57735) } ?? 0
                     let a = Double(sh.color.alpha) / 255 * 0.85
                     return (0 ..< 10).map { _ in Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a), offset: .zero, blurRadius: r) }
@@ -768,6 +778,16 @@ public final class RichTextTheme {
                     // (A glow: the letters' colour all round them, strongest at the edge and gone by about
                     // a quarter of its radius, PowerPoint's print of lo-shape-text-glow-effect's 20 pt glow
                     // on 18 pt text: a green band 4 to 5 pt wide. Ten blurred copies stand in for it.)
+                    if device == nil {
+                        // (Where nothing blurs, as on screen and in Word's PDF: two rings of sharp copies a
+                        // half and the whole band out, eight ways round.)
+                        let band = sh.blur * 0.25 * k, a = Double(sh.color.alpha) / 255 * 0.5
+                        return [0.5, 1.0].flatMap { f in (0 ..< 8).map { i -> Shadow in
+                            let t = Double(i) * Double.pi / 4
+                            return Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
+                                          offset: Offset(cos(t) * band * f, sin(t) * band * f), blurRadius: 0)
+                        } }
+                    }
                     let r = device.map { max(0, (sh.blur * 0.2 * k * $0 - 0.5) / 0.57735) } ?? 0
                     let a = Double(sh.color.alpha) / 255 * 0.85
                     return (0 ..< 10).map { _ in Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a), offset: .zero, blurRadius: r) }
