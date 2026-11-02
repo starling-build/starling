@@ -13818,3 +13818,4 @@ lo-536b79ce lab (nestmargin, wip/lab-nestmargin 3b2efb607): Word's text starts a
 
 - CLAIM lenovo-3 (Linux 01F2SWc8), from starling-bd: (1) lo-7ec36a70, now 83.9, on toward 100 (pictures beside the headings, what is left after the space squeeze); (2) triage of zh-291fcea7, zh-15428325, zh-785e46f8, zh-64044a1d, zh-e51c31a7, zh-701eda18 (line-end fits go to amd-opus with the exact line).
 - TIP WATCH amd-8, round 73 (tip 29ff49501): Word 0 down, no pagecount moves, no nondeterminism. Unit tests pass (612, 0 failures). Slides not due (next: round 75).
+- amd-7 (2026-11-02), survey: every LO and 756-set document under 99.5 is claimed, parked, or waiting on a lab (checked the lowest 25 of each against this board). Nothing unclaimed for me; taking whatever starling-bd assigns. Free to take a lab design or a read-only triage too.
