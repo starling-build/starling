@@ -15543,6 +15543,20 @@ public final class RichLayout {
         return joins
     }
 
+    /// Whether a right-to-left paragraph's spaces give as a left-to-right one's
+    /// (a quarter of themselves for a word that is over): Arabic script, with no
+    /// Hebrew in it — lo tdf163575's Persian lines take a word more in Word's
+    /// print on them (64.5 -> 83.9), while tdf129659's Hebrew, with its hyphen
+    /// breaks, lost a line it had (100 -> 80) when the same fit was run over it.
+    static func _squeezesRightToLeft(_ text: String) -> Bool {
+        var arabic = false
+        for u in text.unicodeScalars {
+            if (0x0590 ... 0x05FF).contains(u.value) { return false }
+            if (0x0600 ... 0x06FF).contains(u.value) { arabic = true }
+        }
+        return arabic
+    }
+
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
                                     runsPast: Set<Int> = [], tieShort: (first: Bool, rest: Bool) = (false, false),
@@ -15558,7 +15572,7 @@ public final class RichLayout {
         // (Outside East Asian layout only the spaces give, below.)
         let latinOnly = !document.usesEastAsianLayout
         guard theme.wordRules, !latinOnly || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
-              !p.style.rightToLeft, p.text.utf16.count > 2 else { return [:] }
+              !p.style.rightToLeft || (latinOnly && RichTextTheme.wordWindowsPages && Self._squeezesRightToLeft(p.text)), p.text.utf16.count > 2 else { return [:] }
         let legacy = (document.compatibilityMode ?? 12) < 15
         let fitted = !latinOnly && (p.style.alignment == .justify || legacy)
         // (The probe is the text alone: the box before it — the first
