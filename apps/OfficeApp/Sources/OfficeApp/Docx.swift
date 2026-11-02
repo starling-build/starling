@@ -4929,7 +4929,7 @@ enum DocxFormat {
                         ids[key].flatMap { notes.rels[$0] }.flatMap { $0.external ? nil : notes.part(_resolvePath("word", $0.target)) }.flatMap(XNode.parse)
                     }
                     if let tree = DiagramLayout.render(data: model, layout: layoutDef, colors: part("r:cs"), style: part("r:qs"),
-                                                       frame: Rect.fromLTWH(0, 0, w, h)) {
+                                                       frame: Rect.fromLTWH(0, 0, w, h), word: true) {
                         func renamed(_ n: XNode) -> XNode {
                             let c = XNode(name: n.name.hasPrefix("p:") ? "dsp:" + n.name.dropFirst(2) : n.name, attrs: n.attrs)
                             c.text = n.text

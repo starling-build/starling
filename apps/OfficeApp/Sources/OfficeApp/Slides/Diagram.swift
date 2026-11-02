@@ -165,6 +165,7 @@ final class DgmPresNode {
     var derived: [String: (ref: String, fact: Double)] = [:]
     var rect = Rect.zero
     var rotation = 0.0
+    var heldSlot = false
     var laidOut = false
     /// A shape the algorithm draws itself (a pyramid's level), as a
     /// polygon in absolute points.
@@ -240,6 +241,9 @@ struct DiagramLayout {
     /// No font size is set above this (points): how a layout's
     /// `primFontSz` rule shrinks the text, and every size tied to it.
     private var fontCap = Double.infinity
+    /// Word relays a diagram out from its definition (no cached drawing) without
+    /// the author's width scale on text, and keeps a step as tall as its line.
+    private var wordLayout = false
 
     init?(data: XNode, layout: XNode, colors: XNode?, style: XNode?) {
         guard let model = DgmModel(data) else { return nil }
@@ -258,13 +262,14 @@ struct DiagramLayout {
 
     /// The diagram as a `p:spTree` of `p:sp` elements in EMU, the frame's
     /// origin at 0,0.
-    static func render(data: XNode, layout: XNode, colors: XNode?, style: XNode?, frame: Rect) -> XNode? {
+    static func render(data: XNode, layout: XNode, colors: XNode?, style: XNode?, frame: Rect, word: Bool = false) -> XNode? {
         guard let first = DiagramLayout(data: data, layout: layout, colors: colors, style: style),
               let rootDef = layout.first("dgm:layoutNode") else { return nil }
         let box = Rect.fromLTWH(0, 0, frame.width, frame.height)
         func laidOut(fontCap: Double) -> (DiagramLayout, DgmPresNode) {
             var engine = first
             engine.fontCap = fontCap
+            engine.wordLayout = word
             let root = engine.build(rootDef, point: engine.model.root, iter: (0, 1), parent: nil)
             root.rect = box
             engine.layoutNode(root)
@@ -848,7 +853,7 @@ struct DiagramLayout {
             // The author's own resizing (`custScaleX`/`Y`), about the
             // box's middle and after the constraints: composite-infer-right's
             // picture is 70.8% of its fifth, its text where it was.
-            if let pr = model.pres[c.point.id + "|" + c.name] {
+            if !(wordLayout && c.algType == "tx"), let pr = model.pres[c.point.id + "|" + c.name] {
                 if let sx = pr["custScaleX"].flatMap(Double.init), sx > 0 { x += w * (1 - sx / 100_000) / 2; w *= sx / 100_000 }
                 if let sy = pr["custScaleY"].flatMap(Double.init), sy > 0 { y += h * (1 - sy / 100_000) / 2; h *= sy / 100_000 }
             }
@@ -868,7 +873,16 @@ struct DiagramLayout {
         }
         // A composite is as big as what it holds (its slot stays where its
         // parent put it; the size is for alignment).
-        if node.parent != nil, let u = extent(of: node.children) { node.rect = u }
+        if node.parent != nil, let u = extent(of: node.children) {
+            // (Held to its slot's height where a constraint asked for all of it:
+            // hProcess11's two kinds of step are each as tall as the line, text
+            // above or below its circle, and centred by what they hold they
+            // stood off the line's middle.)
+            if wordLayout, let h = node.vals["h"], node.rect.height > 0, h >= node.rect.height - 0.5, node.vals["w"] != nil {
+                node.rect = Rect.fromLTRB(u.left, min(u.top, node.rect.top), u.right, max(u.bottom, node.rect.bottom))
+                node.heldSlot = true
+            } else { node.rect = u }
+        }
     }
 
     /// The box round the visible children (a hidden text box does not count).
@@ -893,7 +907,7 @@ struct DiagramLayout {
             let box: Rect?
             if c.shapeType == nil && !c.isSpace {
                 // A line knows its own run (spaces included) once laid out.
-                box = c.algType == "lin" && c.laidOut ? c.rect : extent(of: c.children)
+                box = (c.algType == "lin" || c.heldSlot) && c.laidOut ? c.rect : extent(of: c.children)
             } else if c.isSpace && c.shapeType == nil {
                 // A space has no box of its own; the line it sits in counts
                 // it along its direction (`layoutLinear`).
