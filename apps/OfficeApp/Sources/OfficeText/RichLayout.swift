@@ -2142,6 +2142,33 @@ public final class RichLayout {
                 // makes 1269.9999…, and bug57031's autofit column, exactly
                 // as wide as "Transform", lost a pixel and wrapped it.)
                 widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
+                // (An autofit table of no stated width whose grid outgrows the room is
+                // shrunk by each column's share of what it has over its narrowest —
+                // its text's longest unbreakable piece and its margins — not by one
+                // factor. Lab ovfit, Word for Windows: grids of 60/180/300pt and
+                // 30/300/300 over 468 lose 5.9/23.9/42.2 and 2.5/79.6/79.9pt, the
+                // shares of (width - narrowest) at 20.8pt apiece to 0.1pt; equal
+                // columns still scale evenly. lo fdo63164-1's 2nd column is 3pt
+                // wider so.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, scale < 1, !_nestedInFixedTable, _columnPreview[c.table] == nil,
+                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil, (ts.cellSpacing ?? 0) == 0 {
+                    let ins = _cellInsets(c.table, document)
+                    var need = Array(repeating: 0.0, count: pts.count)
+                    for (k, q) in document.paragraphs.enumerated() {
+                        guard let cc = q.cell, cc.table == c.table, cc.span == 1, cc.column < pts.count else { continue }
+                        let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
+                        need[cc.column] = max(need[cc.column], sides + _minContent(k, q, document))
+                    }
+                    let grid = pts.map { _px($0) }
+                    let room = width - _px(max(0, ts.indent))
+                    let over = grid.reduce(0, +) - room
+                    let spare = zip(grid, need).map { max(0, $0 - $1) }
+                    let spareSum = spare.reduce(0, +)
+                    if over > 0.5, spareSum > over {
+                        RuleTrace.hit("autofit-shrink-follows-width-over-narrowest")
+                        widths[c.table] = zip(grid, spare).map { ($0 - over * $1 / spareSum + 0.001).rounded(.down) }
+                    }
+                }
                 if theme.wordRules, !_nestedInFixedTable, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                    !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
                     widths[c.table] = _autofit(c.table, base, document)
