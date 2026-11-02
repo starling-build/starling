@@ -2443,8 +2443,12 @@ enum ChartPainter {
             // (A LibreOffice chart in a Word document: keys 5.1 square at 10 pt and 2.2 before
             // the names, the legend ending 10.3 inside the frame: lo-ccd9da4b's.)
             let libreLegend = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil && beside
-            let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : (c.onSlide ? 2.92 : 4) * k * m
-            let spacing = (printed ? (c.styled2013 ? 11.2 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
+            // (A slide chart that sets no text size anywhere, LibreOffice's export: its legend's keys 3.1 pt
+            // square, the names 6.9 from the key's edge and the entries 1.3 pt closer, the row 1.2 pt lower,
+            // in PowerPoint's print of LIBRE_OFFICE-100610-0's pie and bar charts, ours 5.5 and 8.8 away.)
+            let bareLegend = c.onSlide && !beside && c.legendSize == nil && c.textSize == nil && !c.styled2013
+            let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : (c.onSlide ? 2.92 : 4) * k * m
+            let spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
@@ -2600,6 +2604,7 @@ enum ChartPainter {
                 let pt = c.onSheet ? k / 0.75 : 0
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
                 area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
+                if bareLegend { y += 1.2 * k }
             }
             for (n, line) in lines.enumerated() {
                 let lineH = lineHs[n]
