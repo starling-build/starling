@@ -4495,7 +4495,13 @@ public final class RichLayout {
             // LibreOffice's tdf170381, a title and a 694pt nested table in one
             // row, parts over two pages in Word's print; kept whole it ran
             // off the first page's foot.)
-            if theme.wordRules, document.paragraphs[i].style.keepNext, c.ownRowHeight <= contentH + 0.01 { return false }
+            // (Not where that paragraph also keeps its lines together: lo-b8885ba2's
+            // "Xx Xxxx:" row, a first cell of keepNext, keepLines and no widow
+            // control, the fourth of five under a floating table, parts at page 5's
+            // foot in Word's print, as it would without the keepNext. Which of the
+            // three does it is not separated yet; the row of lab `kr` had keepNext
+            // alone and went whole, and so do zh-604e21e5's, zh-457a8d62's.)
+            if theme.wordRules, document.paragraphs[i].style.keepNext, !document.paragraphs[i].style.keepLines, c.ownRowHeight <= contentH + 0.01 { return false }
             // (Nor where the page's footer holds a sized, raised frame and
             // reaches above its bottom margin:
             // there Word parts no row at the page's foot, but sends it to the
@@ -13752,6 +13758,15 @@ public final class RichLayout {
             }
             let xml = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML } ?? ""
             markerChar.underline = xml.containsSubstring("<w:u ") && !xml.containsSubstring("<w:u w:val=\"none\"")
+            // (A level whose run properties carry a `w14:scene3d` prints no number
+            // at all in Word for Windows — lab `lvl3label`, one w14 element at a
+            // time: glow, shadow, reflection, textOutline, props3d, ligatures
+            // show it, scene3d alone hides it, vanish or not; the text stays at
+            // the hanging indent. lo-5b9540e9's "4.2.1" headings.)
+            let suffix = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.suffix }
+            // (Not where the level follows its number with nothing: zh-604e21e5,
+            // zh-457a8d62 and zh-9db183d5 carry the same scene3d and print "(一)".)
+            if xml.containsSubstring("<w14:scene3d"), suffix != "nothing" { markerChar.hidden = true }
             // (And spaced as its level says: zh-90e0cea8's annex headings
             // number "附录%1" under `<w:spacing w:val="100"/>`, "附 录 A"
             // in Word's print, 5pt after each character.)
