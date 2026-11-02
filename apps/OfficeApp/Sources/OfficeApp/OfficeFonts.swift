@@ -3268,7 +3268,9 @@ enum OfficeFonts {
             // in 仿宋 steps 10.44-10.56 at each ″ at 10.5pt in Word for
             // Windows' print; Starling FangSong's own ″ is 3.32, and the
             // line took the "＜" Word sends on.)
-            if ea.latin == mono, face.otherAdvances == nil {
+            // (Not 細明體's: Word for Windows sets zh-7773163d's "§" in 細明體_HKSCS half an em, 9pt
+            // at 18pt, and no blank after it; the table is GB2312's.)
+            if ea.latin == mono, face.otherAdvances == nil, !["細明體", "新細明體", "mingliu", "pmingliu"].contains(where: { family.lowercased().contains($0) }) {
                 let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1, 0x2032: 1, 0x2033: 1]
                 face.otherAdvances = gb
                 face.boldOtherAdvances = gb
