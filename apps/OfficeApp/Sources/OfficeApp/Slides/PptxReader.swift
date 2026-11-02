@@ -2278,6 +2278,20 @@ private struct SlideContext {
                     cell.borders.top = line("a:lnT")
                     cell.borders.bottom = line("a:lnB")
                 }
+                // The style's own rule under its header row and over its last (Medium Style 2's 3 pt
+                // white ones: lo-bnc887225, PowerPoint's print): on both cells that share the edge.
+                func styled(_ part: TablePartStyle?, _ side: KeyPath<BorderEdges, Bool?>) -> CellRef.CellLine? {
+                    guard let part, let e = part.edges, e[keyPath: side] == true, let w = part.borderWidth, w > 1 else { return nil }
+                    return CellRef.CellLine(width: w, color: part.borderColor)
+                }
+                if firstRow {
+                    if r == 0, let l = styled(firstRowPart, \.bottom) { if cell.borders.bottom == nil { cell.borders.bottom = l } }
+                    if r == 1, let l = styled(firstRowPart, \.bottom) { if cell.borders.top == nil { cell.borders.top = l } }
+                }
+                if pr?["lastRow"] == "1", rowCount > 1 {
+                    if r == rowCount - 1, let l = styled(lastRowPart, \.top) { if cell.borders.top == nil { cell.borders.top = l } }
+                    if r == rowCount - 2, let l = styled(lastRowPart, \.top) { if cell.borders.bottom == nil { cell.borders.bottom = l } }
+                }
                 // The header row's text is light and bold in every styled
                 // table PowerPoint offers; a style the deck defines says
                 // exactly what (Light Style 2's header is dark text, no fill).
