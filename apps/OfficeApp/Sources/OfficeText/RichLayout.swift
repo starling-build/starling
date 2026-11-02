@@ -9657,7 +9657,20 @@ public final class RichLayout {
             // contents entry after the first on a line of its own by `w:br`,
             // and measured its tab from the end of the line before, a negative
             // distance, so every page number went to a line of its own.)
-            let wraps = found.map { w in w < units.count && (units[w] == 0x0A || units[w] == 0x2028) ? w + 1 : w }
+            var wraps = found.map { w in w < units.count && (units[w] == 0x0A || units[w] == 0x2028) ? w + 1 : w }
+            // (A word that ends in a tab, the line it would end short by a hair of the room — the
+            // engine's strict fit sends it down, and the line fitting takes it back up: the tab
+            // then stands where the line breaks before it, at the line's start, as Word's does.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, wraps.first != nil {
+                let w = wraps[0]
+                if w > 0, let t = (w ..< units.count).first(where: { units[$0] == 0x09 }),
+                   !(w ..< t).contains(where: { units[$0] == 0x20 || units[$0] == 0x0A || units[$0] == 0x2028 }) {
+                    if edge(t) - textWidth <= _px(1.5) {
+                        wraps[0] = t
+                        RuleTrace.hit("word-before-a-tab-keeps-its-line")
+                    }
+                }
+            }
             tabs = [:]
             hangs = [:]
             runsPast = []
@@ -12620,6 +12633,18 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                }
+                // (A place to break the line before a tab that follows text, where Word for Windows
+                // takes the tab and what stands after it to the next line whole: tdf164499's
+                // "…habe?)<tab>1" in a contents line — the number is no room, the dotted tab and
+                // "1" go down and "habe?)" stays; the engine has no break there, wrapped "habe?)"
+                // with them, and a line behind the contents ran on.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\t", offset > 0, let b = before,
+                        b != " ", b != "\t", b != "\n", b != "\u{2028}", b.isASCII {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                    RuleTrace.hit("break-before-a-tab")
                 }
                 // A zero-width space where Word may break the line and
                 // the engine would not: after spaces set as no-break
