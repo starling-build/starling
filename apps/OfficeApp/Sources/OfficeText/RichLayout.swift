@@ -9940,7 +9940,7 @@ public final class RichLayout {
             // zh-202582e2's item 3, runs of sz 31 then 30, stood 6pt low
             // where Word's print has it at the 31's baseline whatever the
             // later lines' runs are.)
-            if !mixedSizes, onFirst.count > 1, !onFirst.contains(-1), let lo = onFirst.min(), let hi = onFirst.max(), hi - lo <= 1.0 { mixedSizes = true }
+            if !mixedSizes, onFirst.count > 1, !onFirst.contains(-1), let lo = onFirst.min(), let hi = onFirst.max(), hi - lo <= 5.0 { mixedSizes = true }
         }
         if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes,
            let line = painter.computeLineMetrics().first {
