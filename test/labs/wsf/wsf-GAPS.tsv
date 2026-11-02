@@ -1,0 +1,121 @@
+# variant	k	which	W	per-gap advances on that line (pt)
+wsf-b0k-f4	0	first W taking X	374.51824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 0.98
+wsf-b0k-f4	0	last wrapped W	374.01824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 1.61
+wsf-b0k-f4	1	first W taking X	386.5646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 0.91
+wsf-b0k-f4	1	last wrapped W	386.0646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 1.53
+wsf-b0k-f4	3	first W taking X	412.0246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap20.95', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.07
+wsf-b0k-f4	3	last wrapped W	411.5246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap33.44', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0k-f8	0	first W taking X	401.984619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.13
+wsf-b0k-f8	0	last wrapped W	401.484619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.81
+wsf-b0k-f8	1	first W taking X	414.6446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 2.07
+wsf-b0k-f8	1	last wrapped W	414.1446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 2.75
+wsf-b0k-f8	3	first W taking X	441.2246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap49.28', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0k-f8	3	last wrapped W	440.7246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap62.72', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean -0.04
+wsf-b0k-i4	0	first W taking X	451.18463134765625	spaces=[7.02, 7.02, 7.02, 7.02, 3.63] | commas=[] | autospace=['良|A 3.43', 'j|人 3.63'] | ideo-gap mean -0.04
+wsf-b0k-i4	0	last wrapped W	450.68463134765625	spaces=[7.02, 7.02, 7.02, 7.02, 3.55] | commas=[] | autospace=['良|A 3.43', 'j|人 3.55'] | ideo-gap mean -0.03
+wsf-b0k-i4	1	first W taking X	463.6246032714844	spaces=[7.02, 7.02, 7.02, 7.02, 3.53] | commas=['，w14.0 gap-0.13'] | autospace=['良|A 3.43', 'j|人 3.53'] | ideo-gap mean -0.04
+wsf-b0k-i4	1	last wrapped W	463.1246032714844	spaces=[7.02, 7.02, 7.02, 7.02, 3.52] | commas=['，w14.0 gap-0.13'] | autospace=['良|A 3.43', 'j|人 3.52'] | ideo-gap mean -0.03
+wsf-b0k-i4	3	first W taking X	486.09820556640625	spaces=[7.02, 7.02, 7.02, 7.02, 3.5] | commas=['，w14.0 gap-0.13', '，w14.0 gap-0.03', '，w14.0 gap-0.13'] | autospace=['j|人 3.50'] | ideo-gap mean -0.05
+wsf-b0k-i4	3	last wrapped W	485.59820556640625	spaces=[7.02, 7.02, 7.02, 7.02, 3.62] | commas=['，w14.0 gap-0.13', '，w14.0 gap-0.04', '，w14.0 gap-0.13'] | autospace=['j|人 3.62'] | ideo-gap mean -0.03
+wsf-b0k-u4	0	first W taking X	374.51824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 0.98
+wsf-b0k-u4	0	last wrapped W	374.01824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 1.61
+wsf-b0k-u4	1	first W taking X	386.5646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 0.91
+wsf-b0k-u4	1	last wrapped W	386.0646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 1.53
+wsf-b0k-u4	3	first W taking X	412.0246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap20.95', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.07
+wsf-b0k-u4	3	last wrapped W	411.5246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap33.44', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0k-u8	0	first W taking X	401.984619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.13
+wsf-b0k-u8	0	last wrapped W	401.484619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.81
+wsf-b0k-u8	1	first W taking X	414.6446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 2.07
+wsf-b0k-u8	1	last wrapped W	414.1446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 2.75
+wsf-b0k-u8	3	first W taking X	441.2246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap49.28', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0k-u8	3	last wrapped W	440.7246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap62.72', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean -0.04
+wsf-b0t-f4	0	first W taking X	360.97821044921875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 0.42
+wsf-b0t-f4	0	last wrapped W	360.47821044921875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.03
+wsf-b0t-f4	1	first W taking X	372.02459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.19'] | autospace=[] | ideo-gap mean 0.35
+wsf-b0t-f4	1	last wrapped W	371.52459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.00'] | autospace=[] | ideo-gap mean 0.90
+wsf-b0t-f4	3	first W taking X	396.9782409667969	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.95', '，w14.0 gap9.65', '，w14.0 gap-0.95'] | autospace=[] | ideo-gap mean -0.15
+wsf-b0t-f4	3	last wrapped W	396.4782409667969	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13', '，w14.0 gap18.32', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0t-f8	0	first W taking X	374.52459716796875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 0.98
+wsf-b0t-f8	0	last wrapped W	374.02459716796875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.61
+wsf-b0t-f8	1	first W taking X	386.57098388671875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 0.91
+wsf-b0t-f8	1	last wrapped W	386.07098388671875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 1.53
+wsf-b0t-f8	3	first W taking X	412.0246276855469	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13', '，w14.0 gap20.95', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.07
+wsf-b0t-f8	3	last wrapped W	411.5246276855469	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13', '，w14.0 gap33.44', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0t-i4	0	first W taking X	429.8446044921875	spaces=[3.51, 3.51, 3.51, 3.51, 2.86] | commas=[] | autospace=['良|A 3.43', 'j|人 2.86'] | ideo-gap mean -0.04
+wsf-b0t-i4	0	last wrapped W	429.3446044921875	spaces=[3.51, 3.51, 3.51, 3.51, 4.35] | commas=[] | autospace=['良|A 5.11', 'j|人 4.35'] | ideo-gap mean -0.04
+wsf-b0t-i4	1	first W taking X	441.3846130371094	spaces=[3.51, 3.51, 3.51, 3.51, 2.79] | commas=['，w14.0 gap-1.19'] | autospace=['良|A 3.41', 'j|人 2.79'] | ideo-gap mean -0.08
+wsf-b0t-i4	1	last wrapped W	440.8846130371094	spaces=[3.51, 3.51, 3.51, 3.51, 3.17] | commas=['，w14.0 gap-0.13'] | autospace=['良|A 3.92', 'j|人 3.17'] | ideo-gap mean -0.03
+wsf-b0t-i4	3	first W taking X	463.25189208984375	spaces=[3.51, 3.51, 3.51, 3.51, 2.91] | commas=['，w14.0 gap-0.95', '，w14.0 gap-0.89', '，w14.0 gap-0.84'] | autospace=['j|人 2.91'] | ideo-gap mean -0.15
+wsf-b0t-i4	3	last wrapped W	462.75189208984375	spaces=[3.51, 3.51, 3.51, 3.51, 2.99] | commas=['，w14.0 gap-0.13', '，w14.0 gap-0.04', '，w14.0 gap0.00'] | autospace=['j|人 2.99'] | ideo-gap mean -0.04
+wsf-b0t-u4	0	first W taking X	360.97821044921875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 0.42
+wsf-b0t-u4	0	last wrapped W	360.47821044921875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.03
+wsf-b0t-u4	1	first W taking X	372.02459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.19'] | autospace=[] | ideo-gap mean 0.35
+wsf-b0t-u4	1	last wrapped W	371.52459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.00'] | autospace=[] | ideo-gap mean 0.90
+wsf-b0t-u4	3	first W taking X	396.9782409667969	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.95', '，w14.0 gap9.65', '，w14.0 gap-0.95'] | autospace=[] | ideo-gap mean -0.15
+wsf-b0t-u4	3	last wrapped W	396.4782409667969	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13', '，w14.0 gap18.32', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean -0.03
+wsf-b0t-u8	0	first W taking X	374.52459716796875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 0.98
+wsf-b0t-u8	0	last wrapped W	374.02459716796875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.61
+wsf-b0t-u8	1	first W taking X	386.57098388671875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 0.91
+wsf-b0t-u8	1	last wrapped W	386.07098388671875	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 1.53
+wsf-b0t-u8	3	first W taking X	412.0246276855469	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13', '，w14.0 gap20.95', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.07
+wsf-b0t-u8	3	last wrapped W	411.5246276855469	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-0.13', '，w14.0 gap33.44', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b1k-f4	0	first W taking X	378.01824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 1.13
+wsf-b1k-f4	0	last wrapped W	377.51824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 1.76
+wsf-b1k-f4	1	first W taking X	388.5646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-1.68'] | autospace=[] | ideo-gap mean 1.05
+wsf-b1k-f4	1	last wrapped W	388.0646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 1.62
+wsf-b1k-f4	3	first W taking X	413.0246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-1.19', '，w14.0 gap26.81', '，w14.0 gap-1.19'] | autospace=[] | ideo-gap mean -0.18
+wsf-b1k-f4	3	last wrapped W	412.5246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap34.52', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b1k-f8	0	first W taking X	405.984619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.29
+wsf-b1k-f8	0	last wrapped W	405.484619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.99
+wsf-b1k-f8	1	first W taking X	417.6446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-1.19'] | autospace=[] | ideo-gap mean 2.25
+wsf-b1k-f8	1	last wrapped W	417.1446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 2.89
+wsf-b1k-f8	3	first W taking X	442.7246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.84', '，w14.0 gap55.26', '，w14.0 gap-0.95'] | autospace=[] | ideo-gap mean -0.15
+wsf-b1k-f8	3	last wrapped W	442.2246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap64.28', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean -0.03
+wsf-b1k-i4	0	first W taking X	451.18463134765625	spaces=[7.02, 7.02, 7.02, 7.02, 3.63] | commas=[] | autospace=['良|A 3.43', 'j|人 3.63'] | ideo-gap mean -0.04
+wsf-b1k-i4	0	last wrapped W	450.68463134765625	spaces=[7.02, 7.02, 7.02, 7.02, 3.55] | commas=[] | autospace=['良|A 3.43', 'j|人 3.55'] | ideo-gap mean -0.03
+wsf-b1k-i4	1	first W taking X	463.6246032714844	spaces=[7.02, 7.02, 7.02, 7.02, 3.53] | commas=['，w14.0 gap-0.13'] | autospace=['良|A 3.43', 'j|人 3.53'] | ideo-gap mean -0.04
+wsf-b1k-i4	1	last wrapped W	463.1246032714844	spaces=[7.02, 7.02, 7.02, 7.02, 3.52] | commas=['，w14.0 gap-0.13'] | autospace=['良|A 3.43', 'j|人 3.52'] | ideo-gap mean -0.03
+wsf-b1k-i4	3	first W taking X	486.09820556640625	spaces=[7.02, 7.02, 7.02, 7.02, 3.5] | commas=['，w14.0 gap-0.13', '，w14.0 gap-0.03', '，w14.0 gap-0.13'] | autospace=['j|人 3.50'] | ideo-gap mean -0.05
+wsf-b1k-i4	3	last wrapped W	485.59820556640625	spaces=[7.02, 7.02, 7.02, 7.02, 3.62] | commas=['，w14.0 gap-0.13', '，w14.0 gap-0.04', '，w14.0 gap-0.13'] | autospace=['j|人 3.62'] | ideo-gap mean -0.03
+wsf-b1k-u4	0	first W taking X	378.01824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 1.13
+wsf-b1k-u4	0	last wrapped W	377.51824951171875	spaces=[7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 1.76
+wsf-b1k-u4	1	first W taking X	388.5646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-1.68'] | autospace=[] | ideo-gap mean 1.05
+wsf-b1k-u4	1	last wrapped W	388.0646057128906	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 1.62
+wsf-b1k-u4	3	first W taking X	413.0246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-1.19', '，w14.0 gap26.81', '，w14.0 gap-1.19'] | autospace=[] | ideo-gap mean -0.18
+wsf-b1k-u4	3	last wrapped W	412.5246276855469	spaces=[7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap34.52', '，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean -0.03
+wsf-b1k-u8	0	first W taking X	405.984619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.29
+wsf-b1k-u8	0	last wrapped W	405.484619140625	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=[] | autospace=[] | ideo-gap mean 2.99
+wsf-b1k-u8	1	first W taking X	417.6446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-1.19'] | autospace=[] | ideo-gap mean 2.25
+wsf-b1k-u8	1	last wrapped W	417.1446228027344	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13'] | autospace=[] | ideo-gap mean 2.89
+wsf-b1k-u8	3	first W taking X	442.7246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.84', '，w14.0 gap55.26', '，w14.0 gap-0.95'] | autospace=[] | ideo-gap mean -0.15
+wsf-b1k-u8	3	last wrapped W	442.2246398925781	spaces=[7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02, 7.02] | commas=['，w14.0 gap-0.13', '，w14.0 gap64.28', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean -0.03
+wsf-b1t-f4	0	first W taking X	378.02459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.13
+wsf-b1t-f4	0	last wrapped W	377.52459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.77
+wsf-b1t-f4	1	first W taking X	385.07098388671875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-3.59'] | autospace=[] | ideo-gap mean 0.99
+wsf-b1t-f4	1	last wrapped W	384.57098388671875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.24'] | autospace=[] | ideo-gap mean 1.45
+wsf-b1t-f4	3	first W taking X	409.0246276855469	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.80', '，w14.0 gap26.11', '，w14.0 gap-1.92'] | autospace=[] | ideo-gap mean -0.26
+wsf-b1t-f4	3	last wrapped W	408.5246276855469	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.11', '，w14.0 gap28.06', '，w14.0 gap0.11'] | autospace=[] | ideo-gap mean 0.06
+wsf-b1t-f8	0	first W taking X	405.984619140625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 2.29
+wsf-b1t-f8	0	last wrapped W	405.484619140625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 2.98
+wsf-b1t-f8	1	first W taking X	413.1510009765625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-3.48'] | autospace=[] | ideo-gap mean 2.15
+wsf-b1t-f8	1	last wrapped W	412.6510009765625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.24'] | autospace=[] | ideo-gap mean 2.68
+wsf-b1t-f8	3	first W taking X	437.23736572265625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.80', '，w14.0 gap54.06', '，w14.0 gap-1.80'] | autospace=[] | ideo-gap mean -0.26
+wsf-b1t-f8	3	last wrapped W	436.73736572265625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.00', '，w14.0 gap56.02', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean 0.07
+wsf-b1t-i4	0	first W taking X	430.5646057128906	spaces=[3.51, 3.51, 3.51, 3.51, 3.58] | commas=[] | autospace=['良|A 3.43', 'j|人 3.58'] | ideo-gap mean -0.04
+wsf-b1t-i4	0	last wrapped W	430.0646057128906	spaces=[3.51, 3.51, 3.51, 3.51, 5.19] | commas=[] | autospace=['良|A 4.99', 'j|人 5.19'] | ideo-gap mean -0.04
+wsf-b1t-i4	1	first W taking X	442.1046142578125	spaces=[3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.19'] | autospace=['良|A 3.41', 'j|人 3.51'] | ideo-gap mean -0.08
+wsf-b1t-i4	1	last wrapped W	441.6046142578125	spaces=[3.51, 3.51, 3.51, 3.51, 3.88] | commas=['，w14.0 gap-0.13'] | autospace=['良|A 3.80', 'j|人 3.88'] | ideo-gap mean -0.03
+wsf-b1t-i4	3	first W taking X	463.9782409667969	spaces=[3.51, 3.51, 3.51, 3.51, 3.63] | commas=['，w14.0 gap-0.84', '，w14.0 gap-0.88', '，w14.0 gap-0.84'] | autospace=['j|人 3.63'] | ideo-gap mean -0.15
+wsf-b1t-i4	3	last wrapped W	463.4782409667969	spaces=[3.51, 3.51, 3.51, 3.51, 3.71] | commas=['，w14.0 gap-0.13', '，w14.0 gap-0.04', '，w14.0 gap0.00'] | autospace=['j|人 3.71'] | ideo-gap mean -0.04
+wsf-b1t-u4	0	first W taking X	378.02459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.13
+wsf-b1t-u4	0	last wrapped W	377.52459716796875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 1.77
+wsf-b1t-u4	1	first W taking X	385.07098388671875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-3.59'] | autospace=[] | ideo-gap mean 0.99
+wsf-b1t-u4	1	last wrapped W	384.57098388671875	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.24'] | autospace=[] | ideo-gap mean 1.45
+wsf-b1t-u4	3	first W taking X	409.0246276855469	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.80', '，w14.0 gap26.11', '，w14.0 gap-1.92'] | autospace=[] | ideo-gap mean -0.26
+wsf-b1t-u4	3	last wrapped W	408.5246276855469	spaces=[3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.11', '，w14.0 gap28.06', '，w14.0 gap0.11'] | autospace=[] | ideo-gap mean 0.06
+wsf-b1t-u8	0	first W taking X	405.984619140625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 2.29
+wsf-b1t-u8	0	last wrapped W	405.484619140625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=[] | autospace=[] | ideo-gap mean 2.98
+wsf-b1t-u8	1	first W taking X	413.1510009765625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-3.48'] | autospace=[] | ideo-gap mean 2.15
+wsf-b1t-u8	1	last wrapped W	412.6510009765625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.24'] | autospace=[] | ideo-gap mean 2.68
+wsf-b1t-u8	3	first W taking X	437.23736572265625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap-1.80', '，w14.0 gap54.06', '，w14.0 gap-1.80'] | autospace=[] | ideo-gap mean -0.26
+wsf-b1t-u8	3	last wrapped W	436.73736572265625	spaces=[3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51, 3.51] | commas=['，w14.0 gap0.00', '，w14.0 gap56.02', '，w14.0 gap0.00'] | autospace=[] | ideo-gap mean 0.07
