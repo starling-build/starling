@@ -2285,6 +2285,22 @@ extension RichLayout {
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
             }
         }
+        // (A picture wrapped top and bottom that stands at the top of the paragraph holding
+        // its anchor, text and all: the first line goes under it, the picture where it was.
+        // Lab `anc` (Word for Windows, one column and two): 40pt at (20, 0) in p3 puts p3 at
+        // the picture's foot, 40pt down, and the rest after it; 100pt, 100 down.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, !p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
+            for image in p.inlineImages.inOrder {
+                guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil,
+                      float.verticalFrom == "paragraph", float.y.magnitude < 0.01, float.horizontalFrom != "page",
+                      image.height > 0, float.wrapSide == nil, !image.data.isEmpty || Self.drawsObject?(image) == true else { continue }
+                if !lineEndsAbove(-_px(float.distanceTop)) {
+                    RuleTrace.hit("word-first-line-set-under-a-top-and-bottom-picture-at-the-paragraphs-top")
+                    push = max(push, pushUnder(_px(image.height + float.effectBottom + float.distanceBottom)))
+                }
+                break
+            }
+        }
         // (Under a header's box that leaves the text no room: `_headerBoxFloor`.)
         if let under = _headPushUse[i], under > push { push = under }
         if i < _floatPush.count { _floatPush[i] = push }
