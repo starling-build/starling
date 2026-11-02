@@ -147,6 +147,8 @@ struct Chart: Equatable {
     /// `c:legendPos`: "b" below the plot (what a new chart gets), "t" above,
     /// "r", "l" or "tr" beside it, one entry to a line.
     var legendPosition = "b"
+    /// The legend floats over the plot (`c:overlay` 1): the plot gives it no room.
+    var legendOverlay = false
     /// The legend's entries the file deletes (`c:legendEntry/c:delete`):
     /// series, or a pie's points, by index — not drawn.
     var hiddenLegendEntries: Set<Int> = []
@@ -1563,6 +1565,7 @@ enum ChartXML {
         }
         if let l = chart.first("c:legend") {
             c.legendPosition = l.first("c:legendPos")?["val"] ?? "r"
+            c.legendOverlay = (l.first("c:overlay")?["val"] ?? "0") == "1" || l.first("c:overlay")?["val"] == "true"
             if let sz = l.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
                 c.legendSize = sz / 100
             }
@@ -2542,7 +2545,7 @@ enum ChartPainter {
                 // (A box under a legend said to stand at the right, the plot left to Word: the plot
                 // still gives up a legend column's room — lo-1e8fa600's full-width box, its plot
                 // ending 58pt short of where ours did in Word's print.)
-                if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "r" {
+                if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "r", !c.legendOverlay {
                     RuleTrace.hit("legend-box-keeps-its-column-beside-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right - columnW - 9 * k, area.bottom)
                 }
