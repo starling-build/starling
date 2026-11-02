@@ -430,6 +430,9 @@ struct RunLook: Equatable {
     var noFill = false
     var outline: Color? = nil
     var outlineWidth = 0.75
+    /// `a:ln/a:prstDash` (nil solid) and `cap="rnd"` of the text's outline.
+    var outlineDash: String? = nil
+    var outlineRound = false
 
     var isPlain: Bool { fill == nil && !noFill && outline == nil }
 }

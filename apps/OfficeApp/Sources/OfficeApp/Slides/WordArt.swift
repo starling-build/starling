@@ -322,7 +322,16 @@ enum WordArt {
                 stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
                 stroke.strokeJoin = .round
                 stroke.color = o
-                drawn(stroke)
+                if g.look?.outlineDash != nil, let outlinePath = g.painter.glyphPath() {
+                    // A dashed line is cut from the letter's own outline, in its
+                    // unwarped space: the pattern scales with the line's width,
+                    // not the letter (PowerPoint's sysDot is 1 wide on, 1 off).
+                    let round = g.look?.outlineRound ?? false
+                    if round { stroke.strokeCap = .round }
+                    canvas.drawPath(SlidePainter.dashed(outlinePath, g.look?.outlineDash, width: stroke.strokeWidth, capped: round), stroke)
+                } else {
+                    drawn(stroke)
+                }
             }
             canvas.restore()
         }

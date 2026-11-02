@@ -3464,6 +3464,8 @@ private struct SlideContext {
         if let ln = rPr.first("a:ln"), !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
             look.outline = c
             look.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+            look.outlineDash = PptxReader.dash(ln)
+            look.outlineRound = ln["cap"] == "rnd"
             any = true
         }
         return any ? look : nil
