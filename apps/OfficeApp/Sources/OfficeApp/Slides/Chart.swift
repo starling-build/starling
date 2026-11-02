@@ -67,6 +67,9 @@ struct ChartSeries: Equatable {
     /// A scatter series whose points are joined by its line (the file gave
     /// the series a line, or the chart's style is one with lines).
     var joined = false
+    /// A scatter series' own x values (`c:xVal`), where it has them; the
+    /// chart's first series' list is the x of one that has none.
+    var xValues: [Double]? = nil
     /// Labels whose text is another row of the sheet's ("Value From
     /// Cells": `c15:datalabelsRange`), by point, as the file last had
     /// them; and the size, weight and colour the series' labels are set in.
@@ -278,6 +281,12 @@ struct Chart: Equatable {
     var valueMin: Double? = nil
     var valueMax: Double? = nil
     var valueStep: Double? = nil
+    /// A scatter's X axis: its log base (`c:logBase`), fixed bounds, and
+    /// number format where it is not General.
+    var xLogBase: Double? = nil
+    var xMin: Double? = nil
+    var xMax: Double? = nil
+    var xFormat: String? = nil
     /// The data labels' number format where it is not General: the
     /// labels' own (`c:dLbls/c:numFmt`), else the numbers' (`formatCode`).
     var labelFormat: String? = nil
@@ -737,6 +746,12 @@ struct Chart: Equatable {
         case 2: return DeckController.tint(base, 0.6)
         default: return base
         }
+    }
+
+    /// x of point `i` of series `j`: its own list's, else the shared one.
+    func x(_ j: Int, _ i: Int) -> Double {
+        if let xv = series[safe: j]?.xValues, i < xv.count { return xv[i] }
+        return x(i)
     }
 
     /// x of category `i` for a scatter chart: its number, or its position.
@@ -1238,6 +1253,10 @@ enum ChartXML {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
                 let ln = pr?.first("a:ln")
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
+                if let xv = ser.first("c:xVal") {
+                    let pts = _points(xv).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+                    if !pts.isEmpty, pts.allSatisfy({ $0 != nil }) { s.xValues = pts.map { $0! } }
+                }
             }
             // (A line hidden, and its marks: chartex's stock chart sets its
             // three series' lines to none, Close marked by 3pt dots.)
@@ -1790,6 +1809,16 @@ enum ChartXML {
         if let scaling = valueAxis?.first("c:scaling") {
             c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
             c.valueMax = scaling.first("c:max")?["val"].flatMap(Double.init)
+        }
+        if type == .scatter, let xa = plot.all("c:valAx").first(where: { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }) {
+            c.xLogBase = xa.first("c:scaling")?.first("c:logBase")?["val"].flatMap(Double.init).flatMap { $0 > 1 ? $0 : nil }
+            c.xMin = xa.first("c:scaling")?.first("c:min")?["val"].flatMap(Double.init)
+            c.xMax = xa.first("c:scaling")?.first("c:max")?["val"].flatMap(Double.init)
+            if let fmt = xa.first("c:numFmt") {
+                let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
+                let code = (linked ? plot.descendant("c:xVal")?.descendant("c:formatCode")?.text : nil) ?? fmt["formatCode"] ?? ""
+                if !code.isEmpty, code.lowercased() != "general" { c.xFormat = code }
+            }
         }
         c.valueStep = valueAxis?.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
         if let fmt = valueAxis?.first("c:numFmt") {
@@ -2393,6 +2422,7 @@ enum ChartPainter {
             // its width, the line reaching out of it: line-chart's 18 pt
             // legend in PowerPoint's print, its plot where ours was.
             let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
+                || (c.type == .scatter && !c.onSlide && !c.onSheet && !c.series.isEmpty && c.series.allSatisfy(\.joined))
             // Room before an entry's name.
             let lead = lineKeys && !beside ? 24.8 * k : key + gap
             // (In a place of its own a name wider than the place wraps
@@ -2567,6 +2597,11 @@ enum ChartPainter {
                         p.style = .stroke
                         p.strokeWidth = 2.25 * k
                         canvas.drawLine(Offset(x + lead - 21.2 * k, y + lineH / 2), Offset(x + lead - 2 * k, y + lineH / 2), p)
+                        // (A scatter's key has its dot on the line: lo-c4c60fcb's in Word's print.)
+                        if c.type == .scatter {
+                            p.style = .fill
+                            canvas.drawCircle(Offset(x + lead - 11.6 * k, y + lineH / 2), 2.5 * k, p)
+                        }
                     } else if c.type == .scatter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
@@ -3079,12 +3114,26 @@ enum ChartPainter {
             }
             secondScale = s2
         }
+        // (A log axis is laid out in powers: the base's log of each x.)
+        let xt: (Double) -> Double = { v in c.xLogBase.map { log(max(v, 1e-300)) / log($0) } ?? v }
         var xScale = (lo: 0.0, hi: Double(n), step: 1.0)
         if c.type == .scatter {
-            let x = (0 ..< n).map { c.x($0) }
-            xScale = scale(x.min() ?? 0, x.max() ?? 1, intervals: 8)
+            let x = c.series.indices.flatMap { j in (0 ..< max(n, c.series[j].xValues?.count ?? 0)).map { xt(c.x(j, $0)) } }
+            if c.xLogBase != nil {
+                // (Decades: the bounds the file fixes, else whole powers round the data.)
+                let lo = c.xMin.map(xt) ?? (x.min() ?? 0).rounded(.down), hi = c.xMax.map(xt) ?? (x.max() ?? 1).rounded(.up)
+                xScale = (lo: lo, hi: max(hi, lo + 1), step: 1)
+            } else {
+                xScale = scale(x.min() ?? 0, x.max() ?? 1, intervals: 8)
+                if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
+            }
         }
         let xs = xScale
+        let xLabel: (Double) -> String = { v in
+            let real = c.xLogBase.map { pow($0, v) } ?? v
+            if let code = c.xFormat { return NumberFormat.format(real, code, width: 40).text.trimmingWhitespace() }
+            return Self.label(real, percent: false)
+        }
         var area = area0
         // Axis titles take a band at the side and bottom — or, placed by
         // the file, stand there across, taking none: Word sets the text
@@ -3165,6 +3214,10 @@ enum ChartPainter {
                 // over the chart's middle, and 3.5 pt higher. Painted once the plot is known.)
                 deferredCategoryTitle = (tp, area.bottom - tp.height - 3.5 * k)  // (baselines 295.5 and 307.7 in Word's print, ours 299.0 and 311.1)
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
+            } else if !c.onSlide, !c.onSheet, c.type == .scatter, c.plotLayoutInner {
+                // (A plot the file places leaves the title under the numbers, not at the
+                // chart's foot: lo-c4c60fcb's, 15 pt under their line in Word's print.)
+                deferredCategoryTitle = (tp, -1)
             } else {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
@@ -3227,7 +3280,7 @@ enum ChartPainter {
         // Only every so many labels shown (one, the first, of each run).
         var every = 1
         if c.type == .scatter {
-            catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
+            catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(xLabel($0), catSize, .infinity) }
         } else {
             let along = placed.flatMap { c.plotLayoutInner ? $0 : nil } ?? area
             // (Across, the room the value labels take beside the plot is
@@ -3592,7 +3645,8 @@ enum ChartPainter {
             return
         }
         if let (tp, top) = deferredCategoryTitle {
-            tp.paint(canvas, Offset((plot.left + plot.right) / 2 - tp.width / 2, top))
+            let under = c.type == .scatter && top < 0 ? plot.bottom + (c.styled2013 || !c.officeStyled ? 4 : 7.6) * k + belowOut + 14.5 * k : top
+            tp.paint(canvas, Offset((plot.left + plot.right) / 2 - tp.width / 2, under))
             tp.dispose()
         }
         if let f = c.plotFill {
@@ -4149,14 +4203,14 @@ enum ChartPainter {
                     var pen = false
                     for i in 0 ..< n {
                         guard let v = c.series[j].values[safe: i] ?? nil else { pen = false; continue }
-                        let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width
+                        let x = plot.left + (xt(c.x(j, i)) - xs.lo) / (xs.hi - xs.lo) * plot.width
                         if pen { path.lineTo(x, vpos(v)) } else { path.moveTo(x, vpos(v)); pen = true }
                     }
                     canvas.drawPath(path, p)
                 }
                 for i in 0 ..< n {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
-                    let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width
+                    let x = plot.left + (xt(c.x(j, i)) - xs.lo) / (xs.hi - xs.lo) * plot.width
                     canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), fill)
                     if c.onSlide, !c.styled2013, c.officeStyled {
                         let rim = Paint()
