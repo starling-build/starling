@@ -2420,7 +2420,7 @@ enum DocxFormat {
                     if (style.cellSpacing ?? 0) == 0 {
                         let grid = (node.first("w:tblGrid")?.all("w:gridCol") ?? []).compactMap { Double($0["w:w"] ?? "") }
                         let total = grid.reduce(0, +)
-                        worth = grid.count == shares.count && total > 0 && shares.contains { $0.key < grid.count && abs($0.value - 100 * grid[$0.key] / total) > 3 }
+                        worth = grid.count == shares.count && total > 0 && shares.contains { $0.key < grid.count && abs($0.value - 100 * grid[$0.key] / total) > 5 }
                     }
                     if !mixed, !shares.isEmpty, worth { style.columnPercents = shares; style.noWrapColumns = noWrap }
                 }

@@ -2437,7 +2437,7 @@ public final class RichLayout {
                     // rule is left off them: eleven documents moved.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1,
                        case let total = base.reduce(0, +), total > 0,
-                       ts.columnPercents.contains(where: { abs($0.value - 100 * base[$0.key] / total) > 3 }) {
+                       ts.columnPercents.contains(where: { abs($0.value - 100 * base[$0.key] / total) > 5 }) {
                         widths[c.table] = _pctColumns(c.table, widths[c.table] ?? base, ts, document)
                     }
                 } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
