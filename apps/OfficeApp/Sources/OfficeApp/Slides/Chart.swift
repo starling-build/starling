@@ -3710,7 +3710,10 @@ enum ChartPainter {
         let gridPaint = Paint()
         gridPaint.style = .stroke
         gridPaint.strokeWidth = max(0.5, (c.gridWidth ?? 0.75) * k)
-        gridPaint.color = classic && c.gridColor == nil ? Color(0xFF868686) : grid
+        // (A 3-D chart in a Word document with no style number and bare gridlines: Word's own 0.75pt
+        // #868686 there too — lo-8743d336's walls' lines, 134 grey in its print where ours were 217.)
+        let bare3D = inWord && !c.styled2013 && !c.officeStyled && box != .zero
+        gridPaint.color = (classic || bare3D) && c.gridColor == nil ? Color(0xFF868686) : grid
         let axisPaint = Paint()
         axisPaint.style = .stroke
         axisPaint.strokeWidth = max(0.5, 0.75 * k)
@@ -4136,6 +4139,29 @@ enum ChartPainter {
                             let ey = foot.dy - sx * (d.dy / 2) * sn - (top ? apexLift : 0)
                             return Offset(ex, ey)
                         }
+                        if pyramid {
+                            // (Flat faces, the near one in the series' colour and the right one darker — 0.64, as a
+                            // box's side — over a flat base: colshape-pyramid-A's print; the top a small square on a
+                            // ToMax kind that has not reached the axis' top.)
+                            let cc = Offset(foot.dx, foot.dy - apexLift)
+                            func corner(_ x: Double, _ y: Double) -> Offset { Offset(cc.dx + shrink * (x - foot.dx), cc.dy + shrink * (y - foot.dy)) }
+                            let fl = Offset(rect.left, rect.bottom), fr = Offset(rect.right, rect.bottom)
+                            let br = Offset(rect.right + d.dx, rect.bottom - d.dy)
+                            let bl = Offset(rect.left + d.dx, rect.bottom - d.dy)
+                            let tfl = corner(fl.dx, fl.dy), tfr = corner(fr.dx, fr.dy), tbr = corner(br.dx, br.dy), tbl = corner(bl.dx, bl.dy)
+                            func face(_ pts: [Offset], _ f: Double) {
+                                let q = Path()
+                                q.moveTo(pts[0].dx, pts[0].dy)
+                                for o in pts.dropFirst() { q.lineTo(o.dx, o.dy) }
+                                q.close()
+                                fill.color = Self._scaled(base, f)
+                                canvas.drawPath(q, fill)
+                            }
+                            face([fl, fr, tfr, tfl], 1)
+                            face([fr, br, tbr, tfr], 0.64)
+                            if shrink > 0 { face([tfl, tfr, tbr, tbl], 0.757) }
+                            fill.color = base
+                        } else {
                         let steps = 72
                         let frontLo = Double.pi, frontHi = 2 * Double.pi
                         // the front half, left to right across the near side (sin below zero)
@@ -4165,6 +4191,7 @@ enum ChartPainter {
                             fill.color = Self._scaled(base, 0.77)
                             canvas.drawPath(cap, fill)
                             fill.color = base
+                        }
                         }
                     } else {
                     canvas.drawRect(rect, fill)
