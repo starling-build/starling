@@ -1243,6 +1243,8 @@ public final class RichLayout {
         /// foot: how much of it is on the page (px), where its text is
         /// set; nil where the merge is whole on its page.
         var turnedPart: Double? = nil
+        /// Its text was wrapped to that part: not shared out over the rest.
+        var wrapsPart = false
         /// The cell's own edge lines (`CellRef.borders`).
         var borders = CellRef.CellBorders()
         var vertical: Bool { direction != .horizontal }
@@ -1305,6 +1307,8 @@ public final class RichLayout {
     private var _painters: [TextPainter?] = []
     private var _textLeft: [Double] = []
     private var _textWidth: [Double] = []
+    /// A turned merged cell's length before it was wrapped to a page's part.
+    private var _turnedFull: [Int: Double] = [:]
     private var _spaceBefore: [Double] = []
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).
@@ -1525,6 +1529,7 @@ public final class RichLayout {
         _floatReach = Array(repeating: 0, count: n)
         _textLeft = Array(repeating: 0, count: n)
         _textWidth = Array(repeating: 0, count: n)
+        _turnedFull = [:]
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
         _lineLift = Array(repeating: [], count: n)
@@ -3714,6 +3719,46 @@ public final class RichLayout {
             i = k0
         }
         _flowHeight = y
+    }
+
+    /// Re-wraps a turned merged cell's paragraphs `first ... last` to the rows
+    /// of it that stand on the page (`turned`), or back to the whole merge's
+    /// length where it stands whole, and puts its lines across the column again.
+    private func _wrapTurned(_ first: Int, _ last: Int, _ d: _CellGeo, _ turned: Double?, _ document: RichDocument) {
+        var changed = false
+        for m in first ... last {
+            guard let painter = _painters[m] else { continue }
+            let style = document.paragraphs[m].style
+            let inset = d.pad.top + d.pad.bottom + _px(style.indentLeft) + _px(style.indentRight)
+            let full = _turnedFull[m] ?? _textWidth[m]
+            _turnedFull[m] = full
+            var length = turned.map { max(1, $0 - inset) } ?? full
+            if abs(length - _textWidth[m]) < 0.01 { continue }
+            painter.layout(minWidth: length, maxWidth: length)
+            let word = painter.minIntrinsicWidth.rounded(.up)
+            if word > length + 0.01 { length = word; painter.layout(minWidth: length, maxWidth: length) }
+            _textWidth[m] = length
+            _heights[m] = (_spaceBefore[m] + painter.height + _px(style.spaceAfter)).rounded(.up)
+            changed = true
+        }
+        guard changed else { return }
+        let endPad = d.direction == .down ? 0 : d.pad.left
+        let room = d.colWidth - endPad - d.pad.right
+        var content = 0.0, stack: Double? = nil
+        for m in first ... last {
+            let offset = stack.map { $0 - _cellSharedSpace(m, document) } ?? 0
+            stack = offset + _heights[m]
+            content = stack!
+        }
+        let free = max(0, room - content)
+        let shift = d.verticalAlign == "center" ? free / 2 : d.verticalAlign == "bottom" ? free : 0
+        stack = nil
+        for m in first ... last {
+            let offset = stack.map { $0 - _cellSharedSpace(m, document) } ?? 0
+            stack = offset + _heights[m]
+            _cells[m]?.across = d.acrossStart + offset + shift
+        }
+        for m in first ... last { _cells[m]?.wrapsPart = turned != nil }
     }
 
     /// Whether `table` floats over the text after it, taking no room: a
@@ -7015,6 +7060,12 @@ public final class RichLayout {
                         if theme.wordRules, part > 0, r < c.row + d.rowSpan { part += partingKept(r, after: part) }
                         let turned = part > 0 && part < d.rowHeight - 0.01 ? part : nil
                         for k in g.first ... g.last { _cells[k]?.turnedPart = turned }
+                        // (… and wrapped to the rows that fit, not to the whole
+                        // merge: Word's print of zh-b4d36718's "基本公共服务事项",
+                        // merged over rows that part at page 16's foot, is "基本公共
+                        // 服务" and "事项" in two columns of the 59pt left there;
+                        // ours stood it in one eight characters long, off the foot.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages { _wrapTurned(g.first, g.last, d, turned, document) }
                     }
                     for (_, g) in column {
                         let d = _cells[g.first]!
@@ -18753,7 +18804,7 @@ public final class RichLayout {
     private func _turnedFrame(_ i: Int, _ document: RichDocument) -> (origin: Offset, toPage: (Rect) -> Rect, toLocal: (Offset) -> Offset)? {
         guard i >= 0, i < _cells.count, let c = _cells[i], c.vertical, i < document.paragraphs.count else { return nil }
         let height = c.rowSpan > 1 ? c.turnedPart ?? c.rowHeight : c.ownRowHeight
-        let short = c.rowSpan > 1 ? c.rowHeight - height : 0
+        let short = c.rowSpan > 1 && !c.wrapsPart ? c.rowHeight - height : 0
         let aligned = document.paragraphs[i].style.alignment
         let indent = _px(document.paragraphs[i].style.indentLeft)
         let fromStart = document.paragraphs[i].style.eastAsian["w:jc"] == nil && (aligned == .left || aligned == .justify)
@@ -19438,7 +19489,7 @@ public final class RichLayout {
             // (Laid out along the whole merge, set in its part on the
             // page: what the merge loses past the page's foot comes off
             // as its alignment shares it out.)
-            let short = c.rowSpan > 1 ? c.rowHeight - height : 0
+            let short = c.rowSpan > 1 && !c.wrapsPart ? c.rowHeight - height : 0
             let aligned = document.paragraphs[i].style.alignment
             // (Its line starts 2.25pt short of its indent in Word's print —
             // lab `tr`: 3.4 under the row's top at ind 113, 17.7 at 400.)
