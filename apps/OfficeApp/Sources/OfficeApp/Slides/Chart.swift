@@ -177,6 +177,8 @@ struct Chart: Equatable {
     /// them (`c:catAx/c:txPr`); nil is the default, 12.
     var categoryLabelSize: Double? = nil
     var categoryLabelBold = false
+    /// The category axis is a date axis (`c:dateAx`): Word prints its aslant labels as outlines.
+    var dateAxis = false
     /// The turn the file gives the category labels (`c:txPr/a:bodyPr rot`),
     /// degrees, anticlockwise positive: 45 for aascu 5864's country names.
     /// nil where it gives none, and the labels are set aslant only when
@@ -1659,6 +1661,7 @@ enum ChartXML {
         let titledCategory = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name != "c:valAx" }
         let titledValue = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name == "c:valAx" }
         c.categoryAxisTitle = axisTitle(titledCategory)
+        c.dateAxis = axes.contains { $0.name == "c:dateAx" }
         c.valueAxisTitle = axisTitle(titledValue)
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 18 }
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title") {
@@ -3776,10 +3779,10 @@ enum ChartPainter {
                     canvas.save()
                     canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k)
                     canvas.rotate(clockwise ? slant : -slant)
-                    // (Word's print has an aslant label as outlines, not text:
+                    // (Word's print has an aslant date label as outlines, not text:
                     // lo tdf82824's date axis leaves no characters in its PDF,
                     // where ours put each one on a line of its own.)
-                    if inWord, let path = tp.glyphPath(), let color = (tp.text as? TextSpan)?.style?.color {
+                    if inWord, c.dateAxis, let path = tp.glyphPath(), let color = (tp.text as? TextSpan)?.style?.color {
                         let ink = Paint()
                         ink.style = .fill
                         ink.isAntiAlias = true
