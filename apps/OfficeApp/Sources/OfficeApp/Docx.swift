@@ -3648,7 +3648,36 @@ enum DocxFormat {
         }
         let size = pair(group["coordsize"], (1000, 1000))
         guard size.0 > 0, size.1 > 0 else { return [] }
-        walk(group) { r in Rect.fromLTWH(r.left * gw / size.0, r.top * gh / size.1, r.width * gw / size.0, r.height * gh / size.1) }
+        // (A group sized as a share of the margins has its children's
+        // spread for its height: lab grp2 (Word for Windows, lo-0622682c),
+        // the first box's top to the last's foot fill the group — 11018
+        // units of a 12960 coordinate box, 0.0564pt each over 621.95pt,
+        // not 0.048.)
+        var yScale = gh / size.1
+        if g["mso-height-percent"] != nil {
+            let origin = pair(group["coordorigin"], (0, 0))
+            let tops = group.children.compactMap { c -> (Double, Double)? in
+                let sh = style(c)
+                guard let y = sh["top"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { return nil }
+                return (y, y + h)
+            }
+            // (The last box is fitted to its text — its line, 1.15 of the
+            // largest size in it, and its insets — so it ends where the text
+            // does, not at its stated foot: 48pt "TEXT2" is 62.4pt tall in
+            // Word's print, which makes the scale 0.0576 per unit.)
+            if let low = tops.map({ $0.0 }).min(), abs(low - origin.1) < 1,
+               let last = group.children.filter({ style($0)["top"] != nil }).max(by: { (Double(style($0)["top"] ?? "") ?? 0) < (Double(style($1)["top"] ?? "") ?? 0) }),
+               let lastTop = Double(style(last)["top"] ?? ""), lastTop > low,
+               (last.first("v:textbox")?["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t"),
+               let content = last.first("v:textbox")?.descendant("w:txbxContent") {
+                let sizes = content.descendants("w:sz").compactMap { Double($0["w:val"] ?? "") }
+                if let big = sizes.max(), big > 0 {
+                    let fitted = big / 2 * 1.15 + 7.2
+                    yScale = (gh - fitted) / (lastTop - low)
+                }
+            } else if let low = tops.map({ $0.0 }).min(), let high = tops.map({ $0.1 }).max(), high > low, abs(low - origin.1) < 1 { yScale = gh / (high - low) }
+        }
+        walk(group) { r in Rect.fromLTWH(r.left * gw / size.0, r.top * yScale, r.width * gw / size.0, r.height * yScale) }
         return out
     }
 
@@ -3730,6 +3759,7 @@ enum DocxFormat {
         if node.descendant("wp:inline") != nil { return nil }
         if let shape = _vmlTop(node), let st = shape["style"], st.containsSubstring("position:absolute") {
             var f = ImageFloat()
+            var vmlHeightShare: Double? = nil, vmlHeightFrom = ""
             for pair in st.split(separator: ";") {
                 let kv = pair.split(separator: ":", maxSplits: 1)
                 guard kv.count == 2 else { continue }
@@ -3743,8 +3773,17 @@ enum DocxFormat {
                 case "mso-position-vertical": if value != "absolute" { f.verticalAlign = value }
                 case "mso-wrap-distance-top": if let v = _length(value) { f.distanceTop = v }
                 case "mso-wrap-distance-bottom": if let v = _length(value) { f.distanceBottom = v }
+                case "mso-height-percent": if let v = Double(value), v > 0 { vmlHeightShare = v / 1000 }
+                case "mso-height-relative": vmlHeightFrom = value
                 default: break
                 }
+            }
+            // (A group as tall as a share of the margins' room: Word's lab
+            // grp2 (lo-0622682c's group, 100% of the margins, 9in stated):
+            // the margins' height whatever the style height says.)
+            if shape.name == "v:group", let share = vmlHeightShare, vmlHeightFrom == "margin" || vmlHeightFrom == "page" {
+                f.heightShare = share
+                f.heightFrom = vmlHeightFrom
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")

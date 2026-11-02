@@ -12012,6 +12012,16 @@ public final class RichLayout {
             }
             var offset = base
             var i = text.startIndex
+            // (A run marked right-to-left in a left-to-right paragraph is
+            // an embedding of its own: its neutral marks at the end stand
+            // at its start. lo-bbc52bda's "after here:" is ":after here"
+            // in Word's print.)
+            let embedsRTL = theme.wordRules && RichTextTheme.wordWindowsPages && run.rightToLeft && !p.style.rightToLeft
+                && !text.contains(where: { ch in ch.unicodeScalars.contains { ArabicForms.isArabic($0.value) || (0x590...0x8FF).contains($0.value) } })
+            if embedsRTL {
+                spans.append(TextSpan(text: "\u{202B}", style: zeroWidth(0)))
+                inserts.append(base)
+            }
             // (Measured as shown: a run in capitals (`capped`) is spaced,
             // kerned and put on the grid by its capitals — 60810's titles,
             // "Connection to global talent programmes/R200" in caps, lost
@@ -13055,6 +13065,10 @@ public final class RichLayout {
                 i = after
             }
             flush(text.endIndex)
+            if embedsRTL {
+                spans.append(TextSpan(text: "\u{202C}", style: zeroWidth(0)))
+                inserts.append(offset)
+            }
             return spans
         }
         // (A right-aligned paragraph's trailing spaces take room, as
@@ -19612,6 +19626,18 @@ public final class RichLayout {
         // zh-06c46ba9's tree of labels sets four boxes in a row, and the
         // flow stacked them, each under the last, 140pt down the page.)
         var parts = box.parts
+        // (A group sized as a share of the margins' room: its boxes' tops
+        // and heights go with it, as its coordinates scale.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, parts.count > 1, let fl = image.float, let share = fl.heightShare,
+           image.height > 0, let k = holding {
+            let setup = _setup(ofParagraph: k)
+            let span = fl.heightFrom == "page" ? setup.height : setup.height - setup.marginTop - setup.marginBottom
+            let ratio = share * span / image.height
+            if ratio > 0, abs(ratio - 1) > 0.0001 {
+                RuleTrace.hit("vml-group-height-is-a-share-of-the-margins")
+                for n in parts.indices { parts[n].top *= ratio; parts[n].height *= ratio }
+            }
+        }
         var beside: [(layout: RichLayout, document: RichDocument, dy: Double, turn: (degrees: Double, x: Double, y: Double)?)] = []
         if parts.count > 1, (1 ..< parts.count).contains(where: { parts[$0].rotation != 0 || parts[$0].top < parts[$0 - 1].top + parts[$0 - 1].height - 0.5 }) {
             let all = sub.paragraphs
@@ -19715,6 +19741,9 @@ public final class RichLayout {
                 let top = layout._tops[part.first]
                 let bottom = end < layout._tops.count ? layout._tops[end] : layout.totalHeight
                 var want = _px(part.top - box.insetTop)
+                // (A box fitted to its text has no foot to stand at: it is as
+                // tall as its text, which stands from its top. lab grp2,
+                // lo-0622682c's bottom-anchored "TEXT3" box.)
                 if part.atFoot { want += _px(part.height) - (bottom - top) }
                 if part.inMiddle { want += max(0, _px(part.height) - (bottom - top)) / 2 }
                 let delta = want + own - (top + layout._spaceBefore[part.first])
