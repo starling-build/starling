@@ -1,0 +1,77 @@
+ftr-v0-orig.pd p1 '- 1 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v0-orig.pd p2 '- 2 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v0-orig.pd p3 '- 3 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v0-orig.pd p4 '- 4 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v0-orig.pd p5 '- 5 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v0-orig.pd p6 '- 6 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v0-orig.pd p7 '- 7 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v0-orig.pd p8 '- 8 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v0-orig.pd p9 '- 9 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v0-orig.pd p10 '- 10 -'   size 14.04 x   79.3- 117.6 y  773.6
+ftr-v0-orig.pd p11 '- 11 -'   size 14.04 x  486.5- 521.6 y  774.0
+ftr-v1-orig.pd p1 '- 1 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v1-orig.pd p2 '- 2 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v1-orig.pd p3 '- 3 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v1-orig.pd p4 '- 4 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v1-orig.pd p5 '- 5 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v1-orig.pd p6 '- 6 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v1-orig.pd p7 '- 7 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v1-orig.pd p8 '- 8 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v1-orig.pd p9 '- 9 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v1-orig.pd p10 '- 10 -'   size 14.04 x   79.3- 117.6 y  773.6
+ftr-v1-orig.pd p11 '- 11 -'   size 14.04 x  486.5- 521.6 y  774.0
+ftr-v2-orig.pd p1 '- 1 -'    size  9.00 x  498.9- 521.6 y  773.3
+ftr-v2-orig.pd p2 '- 2 -'    size  9.00 x   79.3- 105.1 y  770.4
+ftr-v2-orig.pd p3 '- 3 -'    size  9.00 x  498.9- 521.6 y  773.3
+ftr-v2-orig.pd p4 '- 4 -'    size  9.00 x   79.3- 105.1 y  770.4
+ftr-v2-orig.pd p5 '- 5 -'    size  9.00 x  498.9- 521.6 y  773.3
+ftr-v2-orig.pd p6 '- 6 -'    size  9.00 x   79.3- 105.1 y  770.4
+ftr-v2-orig.pd p7 '- 7 -'    size  9.00 x  498.9- 521.6 y  773.3
+ftr-v2-orig.pd p8 '- 8 -'    size  9.00 x   79.3- 105.1 y  770.4
+ftr-v2-orig.pd p9 '- 9 -'    size  9.00 x  498.9- 521.6 y  773.3
+ftr-v2-orig.pd p10 '- 10 -'   size  9.00 x   79.3- 105.1 y  770.4
+ftr-v2-orig.pd p11 '- 11 -'   size  9.00 x  498.9- 521.6 y  773.3
+ftr-v3-orig.pd p1 '1'        size 14.04 x  514.4- 521.4 y  774.0
+ftr-v3-orig.pd p2 '2'        size 14.04 x   79.3-  89.5 y  773.6
+ftr-v3-orig.pd p3 '3'        size 14.04 x  514.4- 521.4 y  774.0
+ftr-v3-orig.pd p4 '4'        size 14.04 x   79.3-  89.5 y  773.6
+ftr-v3-orig.pd p5 '5'        size 14.04 x  514.4- 521.4 y  774.0
+ftr-v3-orig.pd p6 '6'        size 14.04 x   79.3-  89.5 y  773.6
+ftr-v3-orig.pd p7 '7'        size 14.04 x  514.4- 521.4 y  774.0
+ftr-v3-orig.pd p8 '8'        size 14.04 x   79.3-  89.5 y  773.6
+ftr-v3-orig.pd p9 '9'        size 14.04 x  514.4- 521.4 y  774.0
+ftr-v3-orig.pd p10 '1'        size 14.04 x   79.3-  86.6 y  773.6
+ftr-v3-orig.pd p11 '1'        size 14.04 x  514.4- 521.4 y  774.0
+ftr-v4-orig.pd p1 '- 1 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v4-orig.pd p2 '- 2 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v4-orig.pd p3 '- 3 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v4-orig.pd p4 '- 4 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v4-orig.pd p5 '- 5 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v4-orig.pd p6 '- 6 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v4-orig.pd p7 '- 7 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v4-orig.pd p8 '- 8 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v4-orig.pd p9 '- 9 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v4-orig.pd p10 '- 10 -'   size 14.04 x   79.3- 117.6 y  773.6
+ftr-v4-orig.pd p11 '- 11 -'   size 14.04 x  486.5- 521.6 y  774.0
+ftr-v5-orig.pd p1 '- 1 -'    size 14.04 x  485.9- 523.9 y  774.0
+ftr-v5-orig.pd p2 '- 2 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v5-orig.pd p3 '- 3 -'    size 14.04 x  485.9- 523.9 y  774.0
+ftr-v5-orig.pd p4 '- 4 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v5-orig.pd p5 '- 5 -'    size 14.04 x  485.9- 523.9 y  774.0
+ftr-v5-orig.pd p6 '- 6 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v5-orig.pd p7 '- 7 -'    size 14.04 x  485.9- 523.9 y  774.0
+ftr-v5-orig.pd p8 '- 8 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v5-orig.pd p9 '- 9 -'    size 14.04 x  485.9- 523.9 y  774.0
+ftr-v5-orig.pd p10 '- 10 -'   size 14.04 x   79.3- 118.2 y  773.6
+ftr-v5-orig.pd p11 '- 11 -'   size 14.04 x  485.9- 521.6 y  774.0
+ftr-v6-orig.pd p1 '- 1 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v6-orig.pd p2 '- 2 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v6-orig.pd p3 '- 3 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v6-orig.pd p4 '- 4 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v6-orig.pd p5 '- 5 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v6-orig.pd p6 '- 6 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v6-orig.pd p7 '- 7 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v6-orig.pd p8 '- 8 -'    size 14.04 x   79.3- 117.6 y  773.6
+ftr-v6-orig.pd p9 '- 9 -'    size 14.04 x  486.5- 521.6 y  774.0
+ftr-v6-orig.pd p10 '- 10 -'   size 14.04 x   79.3- 117.6 y  773.6
+ftr-v6-orig.pd p11 '- 11 -'   size 14.04 x  486.5- 521.6 y  774.0
