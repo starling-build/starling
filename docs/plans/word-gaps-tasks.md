@@ -13659,3 +13659,6 @@ TIP WATCH amd-8, round 58 (tip 7b5e62d60): Word 756 and LO: 0 down; LO 1-2 up. U
 TIP WATCH amd-8, round 59 (tip 3e2a95e7f, Slides round): Word 756 and LO: 0 down; LO 2 up. Slides mean 0.9385 -> 0.9385. Unit tests pass (612).
 - amd-perf RELEASE lo-8ab9b90f (SmartArt hProcess11, visual only, line score already 100): ours and Word's renders agree except the node text boxes (Word wraps 'non-climate' one line narrower, text 1.6-4.6pt lower, bevel on circles). No Word-drawn hProcess11 exists in the corpus to calibrate insets against, so one sample would only fit by guess; not built. Next: lo-158ec986 (75%).
 - CLAIM (amd-perf, 2026-11-02): lo-158ec986 (75%, 4 lines vs 3, 1 page).
+
+### amd-3 2026-11-02 — lo-235e3561 and lo-069707e4 (landed aa0890070)
+A floating table raised a few points over its anchor (tblpY -73 twips) no longer pulls the 1.5-spaced line above it onto the next page: the extra of a multiple-spaced line sits under its glyphs, so the line clears the raise. The table then stands its raise up. lo-235e3561 25→32 of 32 lines, lo-069707e4 65→72 of 72. The floattable-in-section case (46 pt raise) is unchanged.
