@@ -179,6 +179,8 @@ struct Chart: Equatable {
     /// nil where it gives none, and the labels are set aslant only when
     /// they do not fit.
     var categoryLabelTurn: Double? = nil
+    /// `c:tickLblSkip`: only every so many category names shown (the first of each run).
+    var categoryLabelSkip = 1
     /// The axes' label colours where the file gives them, and whether the
     /// value axis's are bold.
     var categoryLabelColor: Color? = nil
@@ -1657,6 +1659,7 @@ enum ChartXML {
             c.valueLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.valueLabelColor = color(f) }
         }
+        if let skip = categoryAxis?.first("c:tickLblSkip")?["val"].flatMap(Int.init), skip > 1 { c.categoryLabelSkip = skip }
         // (-60000000 is the charts' "automatic", PowerPoint's own default.)
         if let rot = categoryAxis?.first("c:txPr")?.first("a:bodyPr")?["rot"].flatMap(Double.init), abs(rot) <= 5_400_000 {
             c.categoryLabelTurn = -rot / 60000
@@ -2893,7 +2896,15 @@ enum ChartPainter {
         }
         // (The lines over a combination's columns share the axis — unless
         // they stand on one of their own.)
-        if c.secondValueAxis == nil {
+        // (A second value axis that is deleted, and scaled by nothing of its own,
+        // is no axis: Word stands its lines on the first. lo-1e6077df's line
+        // of 1287 to 423 beside columns to 1925, drawn against 0 to 1400 of
+        // its own, ran off the top where Word's keeps the columns' 0 to 2500.)
+        let sharesFirst = !c.onSlide && !c.onSheet && !c.chartex && c.secondValueAxis.map {
+            $0.deleted && $0.min == nil && $0.max == nil && $0.step == nil
+        } == true
+        if c.secondValueAxis == nil || sharesFirst {
+            if sharesFirst { RuleTrace.hit("word-lines-on-a-deleted-second-axis-stand-on-the-first") }
             for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
         }
         // (A box chart's axis spans every sample, its outliers too.)
@@ -2978,7 +2989,7 @@ enum ChartPainter {
             && c.dataTable == nil && !c.columnsOnRight && !c.chartex
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
-        if let second = c.secondValueAxis, !horizontal {
+        if let second = c.secondValueAxis, !sharesFirst, !horizontal {
             let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
             var s2 = scale(all.min() ?? 0, max(all.max() ?? 1, second.max ?? -Double.infinity), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
@@ -3159,6 +3170,7 @@ enum ChartPainter {
                 }
             }
         }
+        every = max(every, c.categoryLabelSkip)
         // An aslant label's drop below its tick.
         func drop(_ t: TextPainter) -> Double { t.width * sin(slant) + t.height * cos(slant) }
         let lineH = valueLabels.first?.height ?? 12 * k
