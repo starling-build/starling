@@ -1307,6 +1307,8 @@ public final class RichLayout {
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).
     private var _inkShift: [Double] = []
+    /// Per line, how far a paragraph's lines are drawn from where the engine set them (px, down).
+    private var _lineLift: [[Double]] = []
     /// How far each paragraph's last line on a page may reach past the
     /// page's foot (px; `RichTheme.gridOverhang`).
     private var _overhang: [Double] = []
@@ -1523,6 +1525,7 @@ public final class RichLayout {
         _textWidth = Array(repeating: 0, count: n)
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
+        _lineLift = Array(repeating: [], count: n)
         _overhang = Array(repeating: 0, count: n)
         _firstLineLift = Array(repeating: 0, count: n)
         _lineOverhang = Array(repeating: [], count: n)
@@ -1601,6 +1604,7 @@ public final class RichLayout {
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _lineLift.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _overhang.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _firstLineLift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _lineOverhang.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -1643,6 +1647,7 @@ public final class RichLayout {
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
+                _lineLift.removeSubrange(at ..< end)
                 _overhang.removeSubrange(at ..< end)
                 _firstLineLift.removeSubrange(at ..< end)
                 _lineOverhang.removeSubrange(at ..< end)
@@ -10905,6 +10910,25 @@ public final class RichLayout {
                 _inkShift[i] = _px(target) - line.baseline
             }
         }
+        // Over single spacing Word puts all of a line's extra height under its text, so a
+        // line with a taller run in it stands on that run's own ascent from the line's top.
+        // The engine scales every run's box and puts the baseline at the tallest run's
+        // scaled ascent: the first line's correction (`_inkShift`) is right for lines
+        // like it and leaves a taller one low by the difference of the scaled parts. Each
+        // such line is drawn lifted by its own shift (`_paintShiftedLines`). (lo-52da6bc6:
+        // 6.0 lines, a 44pt word in the third, which Word's print has 148pt higher than ours.)
+        _lineLift[i] = []
+        if mixedSizes, theme.wordRules, RichTextTheme.wordWindowsPages,
+           painter.strutStyle == nil, p.inlineImages.isEmpty, p.image == nil, style.lineHeightPoints == nil,
+           p.runs.allSatisfy({ $0.style.script == .normal }),
+           theme.lineSpacingReduction == 0, style.lineSpacing > 1.05 {
+            let metrics = painter.computeLineMetrics()
+            let lift = metrics.map { -(1 - 1 / style.lineSpacing) * ($0.ascent - metrics[0].ascent) }
+            if metrics.count > 1, lift.contains(where: { abs($0) > _px(0.05) }) {
+                RuleTrace.hit("word-multiple-spacing-puts-the-extra-under-the-tallest-run-of-each-line")
+                _lineLift[i] = lift
+            }
+        }
         // (The number's lift sets the first baseline no higher than the
         // layout without the strut does, over whatever baseline the text
         // was given above — not on top of it: zh-76700e5f's "5.3 制棒"
@@ -19359,6 +19383,7 @@ public final class RichLayout {
         }
         // (A cell's line moved, its marker with it.)
         var shifts = lines == nil ? _cellLineShifts(i, g, document) : []
+        if shifts.isEmpty, lines == nil, i < _lineLift.count, !_lineLift[i].isEmpty { shifts = _lineLift[i] }
         if shifts.isEmpty, lines == nil, let pair = Self._paired(g.painter) { shifts = pair.shifts }
         if let first = shifts.first { canvas.save(); canvas.translate(0, first) }
         if let label = listLabel(i, document), theme.marksEmptyListItems || !document.paragraphs[i].text.isEmpty {
