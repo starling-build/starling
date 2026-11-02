@@ -5139,7 +5139,7 @@ extension ChartPainter {
         // ideographs, one line or three; the same 1.16 at rotX 15 and 50
         // and under a title. Ours, its labels' size whatever they were,
         // is Word's with them outside.)
-        let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && !c.legend && !c.pieLabelsAround
+        let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && (!c.legend || c.legendPosition == "r") && !c.pieLabelsAround
         let scale = min(plot.width * (0.941 + 0.014 * wide) / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + (!c.onSlide && !c.onSheet ? 0.91 + 0.42 * wide : 1) * c.pieExplosion) * (unbanded ? 1.16 : 1)
         let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2 - 30 * wide * c.pieExplosion * k, plot.center.dy - scale * (lo.y + hi.y) / 2 - (4.8 * wide + 8.5 * wide * min(1, 10 * c.pieExplosion) + (!c.onSlide && !c.onSheet ? 17 * c.pieExplosion : 0)) * k)
         // (Drawn, where Word lays it out itself — no title, no legend, no
