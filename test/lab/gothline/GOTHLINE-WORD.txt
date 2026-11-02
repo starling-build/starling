@@ -1,0 +1,60 @@
+line=360 p1 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=360 p1 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=360 p1 y=168.5 pitch=26.6 x=72.0 ['Calibri', 'MS-Gothic'] 引》）。 
+line=360 p1 y=204.3 pitch=35.8 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=360 p1 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=360 p2 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=360 p2 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=360 p2 y=173.1 pitch=31.2 x=72.0 ['Calibri', 'MicrosoftJhengHeiRegular'] 总体要求。 
+line=360 p2 y=204.3 pitch=31.2 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=360 p2 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=360 p3 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=360 p3 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=360 p3 y=168.5 pitch=26.6 x=72.0 ['Calibri', 'MS-Gothic'] 无。 
+line=360 p3 y=204.3 pitch=35.8 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=360 p3 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=360 p4 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=360 p4 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=360 p4 y=168.3 pitch=26.4 x=72.0 ['Calibri'] ABC 
+line=360 p4 y=196.5 pitch=28.2 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=360 p4 y=542.3 pitch=345.8 x=72.0 ['DengXian']  
+line=240 p1 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=240 p1 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=240 p1 y=164.5 pitch=22.6 x=72.0 ['Calibri', 'MS-Gothic'] 引》）。 
+line=240 p1 y=204.3 pitch=39.8 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=240 p1 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=240 p2 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=240 p2 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=240 p2 y=173.1 pitch=31.2 x=72.0 ['Calibri', 'MicrosoftJhengHeiRegular'] 总体要求。 
+line=240 p2 y=204.3 pitch=31.2 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=240 p2 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=240 p3 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=240 p3 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=240 p3 y=164.5 pitch=22.6 x=72.0 ['Calibri', 'MS-Gothic'] 无。 
+line=240 p3 y=204.3 pitch=39.8 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=240 p3 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=240 p4 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=240 p4 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=240 p4 y=164.3 pitch=22.4 x=72.0 ['Calibri'] ABC 
+line=240 p4 y=188.7 pitch=24.4 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=240 p4 y=542.3 pitch=353.6 x=72.0 ['DengXian']  
+line=480 p1 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=480 p1 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=480 p1 y=172.3 pitch=30.4 x=72.0 ['Calibri', 'MS-Gothic'] 引》）。 
+line=480 p1 y=204.3 pitch=32.0 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=480 p1 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=480 p2 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=480 p2 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=480 p2 y=173.1 pitch=31.2 x=72.0 ['Calibri', 'MicrosoftJhengHeiRegular'] 总体要求。 
+line=480 p2 y=204.3 pitch=31.2 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=480 p2 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=480 p3 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=480 p3 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=480 p3 y=172.3 pitch=30.4 x=72.0 ['Calibri', 'MS-Gothic'] 无。 
+line=480 p3 y=204.3 pitch=32.0 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=480 p3 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
+line=480 p4 y=110.7 pitch= x=72.0 ['MS-Gothic', 'MicrosoftJhengHeiRegular'] 春风又绿江南岸明月何时照..
+line=480 p4 y=141.9 pitch=31.2 x=72.0 ['MicrosoftJhengHeiRegular'] 览众山小野旷天低树江清月..
+line=480 p4 y=172.1 pitch=30.2 x=72.0 ['Calibri'] ABC 
+line=480 p4 y=204.3 pitch=32.2 x=72.0 ['Calibri-Bold', 'MS-Gothic', 'MicrosoftJhengHeiBold'] 一、总体要求 
+line=480 p4 y=542.3 pitch=338.0 x=72.0 ['DengXian']  
