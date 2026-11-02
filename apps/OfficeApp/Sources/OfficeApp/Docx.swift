@@ -124,6 +124,19 @@ final class XNode {
         "w:hanging", "w:firstLine", "w:before", "w:after", "w:pos", "w:space", "w:firstLine", "w:tblpX", "w:tblpY",
     ]
     private static func _strictMeasures(_ root: XNode, _ data: Data) -> XNode {
+        // A strict chart or drawing part spells its percentages "65%" where
+        // the transitional one has 65000 (thousandths): the colour
+        // modifiers read nothing from "65%" and left a chart's text and
+        // lines black (lo-6e71a4d5: no axis labels, no title, black grid).
+        if data.prefix(4096).range(of: Data("purl.oclc.org/ooxml/drawingml".utf8)) != nil {
+            func percents(_ n: XNode) {
+                for (key, value) in n.attrs where value.hasSuffix("%") && value.count <= 12 {
+                    if let v = Double(value.dropLast()) { n.attrs[key] = String(Int((v * 1000).rounded())) }
+                }
+                for c in n.children { percents(c) }
+            }
+            percents(root)
+        }
         guard data.prefix(4096).range(of: Data("ooxml/wordprocessingml/main".utf8)) != nil,
               data.prefix(4096).range(of: Data("purl.oclc.org".utf8)) != nil else { return root }
         func convert(_ raw: String, per: Double) -> String? {
