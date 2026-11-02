@@ -5022,16 +5022,16 @@ extension ChartPainter {
         // perspective — and then drawn from the file's eye, centred where it was. LibreOffice's
         // lo-4d273731, perspective 90: its "56%" and "44%" stood 11 and 40pt off Word's.)
         let persp = c.piePerspective ?? 30
-        // (A pie with slices pulled out is seen from the 30 eye whatever the file says, and flatter, and
-        // sits higher in its plot: LibreOffice's lo-4d273731, perspective 90 with a 25% pull, in Word's
-        // print — 239 x 104pt, its top at the plot's top 7pt down, where the 90 eye drew it a fifth too
-        // tall and 15pt low. The only such chart in either corpus: fitted to it.)
-        let pulledPie = !c.onSlide && !c.onSheet && c.pieExplosion > 0
-        let eye = !flat && !c.onSlide && !c.onSheet && persp > 0 && abs(persp - 30) > 0.01 && !pulledPie
+        // (In a Word document a pie seen with a wider perspective than 30 is drawn from the 30 eye, flatter and
+        // wider as it grows: lab pieexplode (Word for Windows, lo-4d273731's chart, rotX 30, plot 291 x 146pt) at 30
+        // 242 x 140, at 90 278 x 128, 4.8pt higher, the box 0.955 of the plot's width; ours on the 90 eye 290 x 190,
+        // out of the chart. Taken as it goes from 30 to 90 and held past it.)
+        let wide = !c.onSlide && !c.onSheet && !flat && persp > 30 ? min(1, (persp - 30) / 60) : 0
+        let eye = !flat && !c.onSlide && !c.onSheet && persp > 0 && abs(persp - 30) > 0.01 && persp < 30
             ? eye30 * tan(7.5 * .pi / 180) / tan(min(persp, 200) / 4 * .pi / 180) : eye30
         // (Taller than the eye's 30° makes it: PowerPoint's top is 0.468
         // as tall as wide, the view's 0.509.)
-        let squash = (flat ? 0.975 : 0.92) * (pulledPie ? 0.75 : 1)   // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
+        let squash = (flat ? 0.975 : 0.92) * (1 - 0.205 * wide)  // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
         // A point of the disc at angle `a` (0 to the right, a quarter
         // turn toward the viewer), `f` of the radius out and `h` radii
         // down, on a disc of radius 1 centred on 0.
@@ -5063,8 +5063,8 @@ extension ChartPainter {
         // and under a title. Ours, its labels' size whatever they were,
         // is Word's with them outside.)
         let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && !c.legend && !c.pieLabelsAround
-        let scale = min(plot.width * 0.941 / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + c.pieExplosion) * (unbanded ? 1.16 : 1)
-        let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2, plot.center.dy - scale * (lo.y + hi.y) / 2 + (pulledPie ? -18.1 * k : 0))
+        let scale = min(plot.width * (0.941 + 0.014 * wide) / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + (!c.onSlide && !c.onSheet ? 0.91 + 0.42 * wide : 1) * c.pieExplosion) * (unbanded ? 1.16 : 1)
+        let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2 - 30 * wide * c.pieExplosion * k, plot.center.dy - scale * (lo.y + hi.y) / 2 - (4.8 * wide + 8.5 * wide * min(1, 10 * c.pieExplosion) + (!c.onSlide && !c.onSheet ? 17 * c.pieExplosion : 0)) * k)
         // (Drawn, where Word lays it out itself — no title, no legend, no
         // layout of the file's — on the frame's middle and 1.5pt over it,
         // its labels where they were: lab p3dplot (Word for Windows,
@@ -5206,7 +5206,20 @@ extension ChartPainter {
                        pulled: word && c.pieExplosion > 0 ? { i in
                            guard let m = placed.first(where: { $0.index == i })?.mid else { return .zero }
                            let q = at(0, 0, 0, pull: pullOf(i, m))
-                           return Offset(q.dx - centre.dx, q.dy - centre.dy)
+                           // (At a wider perspective than 30 Word stands the label of a slice on the left of the pie
+                           // higher than the camera's rim does, less as the pull grows: lab pieexplode's "44%", 21, 11.5,
+                           // 9.6 and 6.8pt over ours at pulls 0, 10, 25 and 50%, the other label within 4.)
+                           let table: [(Double, Double)] = [(0, 21), (0.1, 11.5), (0.25, 9.6), (0.5, 6.8), (1, 4)]
+                           let pull = c.piePulls[i] ?? c.pieSeriesPull
+                           var up = 0.0
+                           if cos(m) < 0, wide > 0, let hi = table.firstIndex(where: { $0.0 >= pull }) {
+                               let lo = max(0, hi - 1)
+                               let t = hi == lo ? 0 : (pull - table[lo].0) / (table[hi].0 - table[lo].0)
+                               up = (table[lo].1 + (table[hi].1 - table[lo].1) * t) * wide * k
+                           }
+                           // (One on the right stands 4pt over ours when it is not the one pulled, 1 when it is.)
+                           if cos(m) >= 0, wide > 0 { up = (pull > 0 ? 1 : 4) * wide * k }
+                           return Offset(q.dx - centre.dx, q.dy - centre.dy - up)
                        } : nil)
         } else if c.dataLabels {
             for s in slices {
