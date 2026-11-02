@@ -1,0 +1,26 @@
+1	cam=legacyObliqueTopLeft rig=threePt
+2	cam=legacyObliqueTop rig=threePt
+3	cam=legacyObliqueTopRight rig=threePt
+4	cam=legacyObliqueLeft rig=threePt
+5	cam=legacyObliqueFront rig=threePt
+6	cam=legacyObliqueRight rig=threePt
+7	cam=legacyObliqueBottomLeft rig=threePt
+8	cam=legacyObliqueBottom rig=threePt
+9	cam=legacyObliqueBottomRight rig=threePt
+10	cam=legacyPerspectiveTopLeft rig=threePt
+11	cam=legacyPerspectiveTop rig=threePt
+12	cam=legacyPerspectiveTopRight rig=threePt
+13	cam=legacyPerspectiveLeft rig=threePt
+14	cam=legacyPerspectiveFront rig=threePt
+15	cam=legacyPerspectiveRight rig=threePt
+16	cam=legacyPerspectiveBottomLeft rig=threePt
+17	cam=legacyPerspectiveBottom rig=threePt
+18	cam=legacyPerspectiveBottomRight rig=threePt
+19	cam=legacyObliqueTopRight rig=twoPt
+20	cam=legacyPerspectiveTopRight rig=twoPt
+21	cam=legacyObliqueTopRight rig=harsh
+22	cam=legacyPerspectiveTopRight rig=harsh
+23	cam=legacyObliqueBottomRight rig=threePt rot=0,10,20 extrusionClr=none
+24	cam=legacyObliqueBottomRight rig=threePt rot=0,10,20 extrusionClr=89C064
+25	cam=legacyObliqueBottomRight rig=threePt rot=0,10,20 z=0
+26	cam=legacyObliqueBottomRight rig=threePt rot=0,10,20 z=228600
