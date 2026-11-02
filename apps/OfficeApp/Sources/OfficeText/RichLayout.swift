@@ -17907,7 +17907,10 @@ public final class RichLayout {
                     painter.layout(minWidth: 0, maxWidth: 1_000_000)
                     if painter.width > textWidth {
                         if hyphenated.isEmpty || !hyphenated.contains(where: { piece.contains($0) && $0 > piece.lowerBound }) {
-                            out.formUnion((piece.lowerBound + 1) ..< piece.upperBound)
+                            // (Not right after an opening bracket the word begins with: zh-15f60bac's "（https://www.moea.gov.tw/…"
+                            // stands whole on a line of its own in Word's print, the "(" with it; ours left it
+                            // at the end of the line before and parted the address from its second character.)
+                            for o in (piece.lowerBound + 1) ..< piece.upperBound where !(o == piece.lowerBound + 1 && [0x28, 0x5B, 0x7B].contains(units[piece.lowerBound])) { out.insert(o) }
                         } else {
                             // (Automatic hyphenation on: the line is parted at the LAST hyphenation point that fits
                             // with its hyphen, and only where none does at the character the line ends on — zh-147bdae0's
