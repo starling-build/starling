@@ -267,6 +267,8 @@ struct Chart: Equatable {
     var surface = false
     /// Its value axis on the right (`c:axPos` "r"): the steps' labels stand beside the right edge.
     var surfaceValuesRight = false
+    /// Whether the 3-D chart's series axis (`c:serAx`) is deleted: its names are not drawn.
+    var seriesAxisDeleted = false
     var surfaceView = Offset(15, 20)
     struct BarView: Equatable {
         var x: Double; var y: Double; var depth: Double = 1; var gapDepth: Double = 1.5
@@ -1805,6 +1807,7 @@ enum ChartXML {
         }
         c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
         c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
+        c.seriesAxisDeleted = ["1", "true"].contains(plot.children.first { $0.name == "c:serAx" }?.first("c:delete")?["val"] ?? "")
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         c.categoryLabelsLow = categoryAxis?.first("c:tickLblPos")?["val"] == "low"
         c.columnsOnRight = columnsOnRight
@@ -4762,6 +4765,8 @@ extension ChartPainter {
             let y = (b - lo) / span
             let a = at(0, y, 1).0, m = at(1, y, 1).0
             canvas.drawLine(a, m, rule)
+            // (None where the file deletes the value axis, as for the categories below: lab proj4 set A.)
+            if c.valueAxisDeleted && !c.onSlide && !c.onSheet { continue }
             let tp = text(label(b, percent: false), size, .infinity)
             // (On the right where the file puts the value axis there, as the
             // lo-5afb2204 chart does: Word's print has its 0 to 6 beside the right edge.)
@@ -4833,7 +4838,7 @@ extension ChartPainter {
             tp.paint(canvas, Offset(p.dx - tp.width / 2, p.dy + 3 * k))
             tp.dispose()
         }
-        for j in 0 ..< cols {
+        for j in 0 ..< cols where !(c.seriesAxisDeleted && !c.onSlide && !c.onSheet) {
             let tp = text(c.series[j].name, size, .infinity)
             let p = at(1, 0, Double(j) / Double(cols - 1)).0
             if behind {
