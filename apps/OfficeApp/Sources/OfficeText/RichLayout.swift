@@ -7374,6 +7374,18 @@ public final class RichLayout {
                     floatHold = (tf.y + tf.down, y)
                     y = tf.y
                 }
+                // (Held in by a header picture's strip, a line under a floating table is
+                // stepped down from the anchor's line at its own pitch until it clears
+                // the table, not set at its foot: Word's print of tdf38575 (lab bis)
+                // has the blank after the anchor 269.2, the table's foot 261.3, in
+                // slots of 13.8 from the anchor's 131.1; with the table cut to two
+                // paragraphs 213.9 for a foot of 211.9.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, tf.chained, _cells[i] == nil, tf.page == page, frameReturn == nil,
+                        _setup(ofParagraph: i).headerWrapLeft > 0, bottom - top > 0.01, y > tf.y + 0.01 {
+                    RuleTrace.hit("header-wrap-line-under-floating-table-steps")
+                    let step = bottom - top
+                    y = tf.y + (((y - tf.y) / step) - 0.001).rounded(.up) * step
+                }
             }
             defer { floatHold = nil }
             defer {
