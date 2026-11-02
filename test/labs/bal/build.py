@@ -21,7 +21,7 @@ def p(*parts, mark=None, sect=None, markfmt=False):
     s = ''
     if sect: s = '<w:sectPr>' + ('<w:type w:val="continuous"/>' if sect == 'cont' else '') + '<w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
     return f'<w:p><w:pPr><w:rPr>{m}</w:rPr>{s}</w:pPr>{"".join(parts)}</w:p>'
-L = lambda k: run(f"LINE {k} plain text of the paragraph.")
+L = lambda k: p(run(f"LINE {k} plain text of the paragraph."))
 V = [
  ("del-text-mark",      [L(1), p(dele("XXX"), mark='del'), L(2), L(3)]),
  ("del-sect-cont",      [L(1), p(mark='del', sect='cont'), L(2), L(3)]),

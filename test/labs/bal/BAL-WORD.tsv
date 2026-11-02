@@ -1,0 +1,78 @@
+## bal-01-del-text-mark-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	LINE 2 plain text of the paragraph.
+B	436.9	164.1	172.9	6.8	Deleted: XXX¶
+T	54.6	175.0	182.6	6.8	LINE 3 plain text of the paragraph.
+## bal-02-del-sect-cont-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	LINE 2 plain text of the paragraph.
+B	436.9	164.1	172.9	6.8	Deleted:
+B	500.0	165.4	172.8	6.1	Section Break (Next Page)
+T	54.6	175.0	182.6	6.8	LINE 3 plain text of the paragraph.
+## bal-03-del-text-then-sect-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	LINE 2 plain text of the paragraph.
+B	436.9	164.1	172.9	6.8	Deleted: XXX¶
+B	485.7	173.2	180.6	6.1	Section Break (Next Page)
+T	54.6	175.0	182.6	6.8	LINE 3 plain text of the paragraph.
+## bal-04-del-sect-next-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	LINE 2 plain text of the paragraph.
+B	436.9	164.1	172.9	6.8	Deleted:
+B	500.0	165.4	172.8	6.1	Section Break (Next Page)
+T	54.6	175.0	182.6	6.8	LINE 3 plain text of the paragraph.
+## bal-05-del-mark-ins-text-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	INSERTED TEXT KEPTLINE 2 plain text of the paragraph.
+B	436.9	163.1	171.9	6.8	Deleted: ¶
+T	54.6	175.0	182.6	6.8	LINE 3 plain text of the paragraph.
+## bal-06-del-and-fmt-same-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	Before FORMATTED after
+B	436.9	163.1	171.9	6.8	Deleted: DELETED
+T	54.6	175.0	182.6	6.8	LINE 2 plain text of the paragraph.
+B	437.0	176.1	184.9	6.8	Formatted: Font: Bold
+T	54.6	187.4	195.0	6.8	LINE 3 plain text of the paragraph.
+## bal-07-fmt-then-del-same-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	Before FORMATTED after
+B	436.9	163.1	171.9	6.8	Deleted: DELETED
+T	54.6	175.0	182.6	6.8	LINE 2 plain text of the paragraph.
+B	437.0	176.1	184.9	6.8	Formatted: Font: Bold
+T	54.6	187.4	195.0	6.8	LINE 3 plain text of the paragraph.
+## bal-08-comment-and-del-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	Before COMMENTED after
+B	436.9	164.1	172.9	6.8	Commented [L1]: A comment.
+T	54.6	175.0	182.6	6.8	LINE 2 plain text of the paragraph.
+B	436.9	176.1	184.9	6.8	Deleted: DELETED
+T	54.6	187.4	195.0	6.8	LINE 3 plain text of the paragraph.
+## bal-09-del-and-comment-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	Before COMMENTED after
+B	436.9	164.1	172.9	6.8	Commented [L1]: A comment.
+T	54.6	175.0	182.6	6.8	LINE 2 plain text of the paragraph.
+B	436.9	176.1	184.9	6.8	Deleted: DELETED
+T	54.6	187.4	195.0	6.8	LINE 3 plain text of the paragraph.
+## bal-10-marks-fmt-x4-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	HEADING 0
+B	437.0	164.1	172.9	6.8	Formatted: Font: Bold
+T	54.6	175.0	182.6	6.8	HEADING 1
+T	54.6	187.4	195.0	6.8	HEADING 2
+T	54.6	199.8	207.4	6.8	HEADING 3
+T	54.6	212.2	219.8	6.8	LINE 2 plain text of the paragraph.
+T	54.6	224.6	232.2	6.8	LINE 3 plain text of the paragraph.
+## bal-11-marks-fmt-x2-gap-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	HEADING A
+B	437.0	164.1	172.9	6.8	Formatted: Font: Bold
+T	54.6	175.0	182.6	6.8	plain between
+T	54.6	187.4	195.0	6.8	HEADING B
+B	437.0	189.0	197.8	6.8	Formatted: Font: Bold
+T	54.6	199.8	207.4	6.8	LINE 2 plain text of the paragraph.
+## bal-12-fmt-only-run-then-mark-orig.pdf page width 612.0
+T	54.6	150.2	157.8	6.8	LINE 1 plain text of the paragraph.
+T	54.6	162.6	170.2	6.8	HEADING A
+B	437.0	164.1	172.9	6.8	Formatted: Font: Bold
+T	54.6	175.0	182.6	6.8	LINE 2 plain text of the paragraph.
