@@ -5342,6 +5342,24 @@ public final class RichLayout {
                 if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
                 else if (_cells[i] != nil && !(_cells[i].map { _narrowBesideFloat($0.table, document) } ?? false)) || (_cells[i] == nil && !(blank(p) || (i < _besideLead.count && _besideLead[i] > 0))) { y = beside.bottom; besideTable = nil }
             }
+            // (A table floating in the left margin, wholly outside the text's width, takes no room of
+            // the text's: the paragraph after it stands at its top, beside it. Word for Windows' print of
+            // LibreOffice's floattable-anchorpos: "D" at 290 beside "C"'s table, 76pt wide and 98pt left of
+            // the text; ours set it under the table, at 413.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, besideTable == nil, i > 0, _cells[i] == nil, !blank(document.paragraphs[i]),
+               _cells[i - 1] != nil {
+                // (Over the tables just before it — a page-anchored one between does not stand in the way.)
+                var seen: Set<String> = []
+                var j = i - 1
+                while j >= 0, let d = _cells[j] { seen.insert(d.table); j -= 1 }
+                for prev in seen {
+                    guard let ts = document.tableStyles[prev], ts.floatsOverText, !ts.pageAnchored, ts.keptPosition != nil,
+                          _tableLeft(prev, document) + (_columnWidths[prev] ?? []).reduce(0, +) <= 0.01,
+                          let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 else { continue }
+                    y = top
+                    break
+                }
+            }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0), !ts.pageAnchored, ts.keptPosition != nil,
