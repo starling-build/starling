@@ -4273,6 +4273,12 @@ public final class RichLayout {
             // p8 row 29 when its header got 0.033pt shorter, moving the
             // merged label 8pt away from Word.)
             let half = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 14
+            // (A heavy line between two rows, as the foot of a page closes on it, takes only its
+            // upper half of room there in Word for Windows' print: zh-db07d44e's p7 row
+            // "大口徑管線爆管減少率" (22.7 under a 0.5 line, the 1.5 line round the merge's
+            // foot under it) is 24.4 from the foot and fits, ours asked 24.7.)
+            let line = max(0, spansOn ? lineUnderRow(c) : c.ruleNext)
+            if RichTextTheme.wordWindowsPages, !half, line > _px(1), line > bottom + 0.01 { return line / 2 }
             return max(0, spansOn ? lineUnderRow(c) : c.ruleNext, (document.compatibilityMode ?? 12) >= 14 ? bottom : 0) / (half ? 2 : 1)
         }
         // What a row's part at a page's foot is closed with there: its
