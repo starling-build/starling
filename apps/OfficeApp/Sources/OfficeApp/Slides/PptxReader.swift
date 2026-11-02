@@ -1970,12 +1970,19 @@ private struct SlideContext {
     /// PowerPoint's box for a picture it cannot draw: white, ruled black,
     /// a bevelled icon with a red cross 7 pt in, and "The picture can't be
     /// displayed." in Segoe UI 10.5 pt, 27 pt in — measured on its print.
-    static func brokenPicture(in r: Rect, id: () -> Int) -> [ShapeState] {
+    static func brokenPicture(in r: Rect, onMaster: Bool = false, id: () -> Int) -> [ShapeState] {
         func box(_ f: Rect, fill: Color?, outline: Color? = nil, width: Double = 0, preset: String = "rect") -> ShapeState {
             ShapeState(id: id(), name: "Broken picture", kind: .geometry(ShapePreset(rawValue: preset)), frame: f, rotation: 0,
                        fill: fill, outline: outline, outlineWidth: width, anchor: .top,
                        insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
                        font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+        }
+        if onMaster {
+            // On a master or layout PowerPoint prints the same box at a seventh
+            // of the size (tdf147586): a hairline frame, a speck of icon, and the
+            // message as a black bar 16.6 x 1.1 pt.
+            return [box(r, fill: Color(0xFFFFFFFF), outline: Color(0xFF000000), width: 0.14),
+                    box(Rect.fromLTWH(r.left + 3.4, r.top + 1.2, 16.6, 1.1), fill: Color(0xFF000000))]
         }
         var shapes = [box(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 0.5, r.bottom - 0.5),
                           fill: Color(0xFFFFFFFF), outline: Color(0xFF000000), width: 1)]
@@ -2049,7 +2056,7 @@ private struct SlideContext {
             // its zip cut short, print as nothing.)
             let blip = el.first("p:blipFill")?.first("a:blip")
             if blip?["r:embed"] == nil, blip?["r:link"] == nil, case .opaque(var obj) = o.kind {
-                obj.rendering = Self.brokenPicture(in: o.frame, id: id)
+                obj.rendering = Self.brokenPicture(in: o.frame, onMaster: part.contains("slideMasters/") || part.contains("slideLayouts/"), id: id)
                 obj.clipsRendering = true
                 o.kind = .opaque(obj)
             }
