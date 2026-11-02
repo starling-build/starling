@@ -15076,7 +15076,12 @@ public final class RichLayout {
         // send "化前期设计，" down as "设" | "计，" in Word for Windows'
         // print, 10.05pt over with its one mark, and take "工图、能评、",
         // as over, with two marks giving half each — as a cell does.)
+        // (Nor, in Word for Windows, where the defaults name a Latin face for East Asian text — as its
+        // marks are not compressed there, `squeezes`: zh-cd48112c's print ends no line with a mark past
+        // the margin, and its "…累计扣分30-40 分（含）" sends "的，" down, stretching its one space, where
+        // ours hung the "，".)
         let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
+            && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin)
         // (Nor where the defaults name a Latin face for East Asian text, in
         // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
