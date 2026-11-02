@@ -1255,7 +1255,9 @@ enum ChartXML {
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
                 if let xv = ser.first("c:xVal") {
                     let pts = _points(xv).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
-                    if !pts.isEmpty, pts.allSatisfy({ $0 != nil }) { s.xValues = pts.map { $0! } }
+                    // (The first series' list is the shared one; a later one that repeats it needs none.)
+                    let shared = categories.map { Double($0.trimmingWhitespace()) }
+                    if !series.isEmpty, !pts.isEmpty, pts.allSatisfy({ $0 != nil }), pts != shared { s.xValues = pts.map { $0! } }
                 }
             }
             // (A line hidden, and its marks: chartex's stock chart sets its
