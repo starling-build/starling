@@ -5294,7 +5294,7 @@ extension ChartPainter {
                 // (A 3-D pie's in a Word document: 4-5pt further out across and
                 // 3-4 nearer up and down than the flat rule, lab pie5 outEnd
                 // against Word's print, all 56 labels.)
-                let wide3D = point != nil && !c.onSlide && !c.onSheet && l.moves[s.index] == nil
+                let wide3D = point != nil && !c.onSlide && !c.onSheet && l.moves[s.index] == nil && l.position == "outEnd"
                 let gapX = wide3D ? gap + 4.5 * k : gap, gapY = gap
                 at = Offset(edge.dx + dx * gapX + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * upright * (gapY + h / 2))
             } else {
