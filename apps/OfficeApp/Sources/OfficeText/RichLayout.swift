@@ -10716,6 +10716,17 @@ public final class RichLayout {
                     return held
                 }
             }
+            if painter.strutStyle == nil, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, !picturesInLine, inline.isEmpty,
+               let flat = Self._unstackedFaces(span, painter) {
+                let flatter = TextPainter(text: flat, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                flatter.fractionalLineHeights = painter.fractionalLineHeights
+                flatter.lineIndents = painter.lineIndents
+                flatter.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                if flatter.computeLineMetrics().count == lines {
+                    RuleTrace.hit("latin-standin-shares-ideograph-line")
+                    return flatter
+                }
+            }
             return painter
         }
         for item in inline { if let image = item.image { _ensureDecoded(image) } }
@@ -14440,6 +14451,72 @@ public final class RichLayout {
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
                           fontSize: size, height: h, leadingDistribution: .even, fontWeight: base.fontWeight,
                           forceStrutHeight: true)
+    }
+
+    /// The span with the Latin stretches that share a line with ideographs set no taller than the
+    /// ideographs' own line, or nil where none needs it. A Latin stretch drawn by a stand-in face (a digit
+    /// or a space among 標楷體's ideographs) splits its height above and below the baseline its own way, and
+    /// the line it shares stacks taller than either: zh-15f60bac's 16pt lines with a space in them stood
+    /// 22.2pt apart, 20.8 in Word's print, where the face is one. A paragraph with a strut is held to it;
+    /// this is for the one that has none (its sizes differ) — each such stretch keeps its width and loses
+    /// its height where a taller-or-equal ideograph stretch is on the same line.
+    private static func _unstackedFaces(_ span: TextSpan, _ painter: TextPainter) -> TextSpan? {
+        struct Leaf { var range: Range<Int>; var size: Double; var box: Double; var family: String?; var ascii: Bool; var ideo: Bool }
+        var leaves: [Leaf] = []
+        var at = 0
+        var simple = true
+        func visit(_ s: InlineSpan) {
+            guard let t = s as? TextSpan else { simple = false; return }
+            if let text = t.text {
+                let n = text.utf16.count
+                if let st = t.style, let fs = st.fontSize, let h = st.height, n > 0 {
+                    let blank = text.unicodeScalars.allSatisfy { $0.properties.isWhitespace }
+                    leaves.append(Leaf(range: at ..< at + n, size: fs, box: fs * h, family: st.fontFamily,
+                                       ascii: text.utf16.allSatisfy { $0 < 0x2E80 }, ideo: !blank && text.utf16.contains { $0 >= 0x2E80 }))
+                } else { simple = false }
+                at += n
+            }
+            for c in t.children ?? [] { visit(c) }
+        }
+        visit(span)
+        guard simple, leaves.count > 1 else { return nil }
+        let metrics = painter.computeLineMetrics()
+        guard metrics.count >= 1 else { return nil }
+        func lines(_ r: Range<Int>) -> Set<Int> {
+            var out = Set<Int>()
+            for box in painter.getBoxesForSelection(TextSelection(baseOffset: r.lowerBound, extentOffset: r.upperBound)) {
+                let middle = (box.top + box.bottom) / 2
+                if let k = metrics.firstIndex(where: { middle >= $0.baseline - $0.ascent && middle <= $0.baseline + $0.descent }) { out.insert(k) }
+            }
+            return out
+        }
+        var reference = [Leaf?](repeating: nil, count: metrics.count)
+        var leafLines: [Set<Int>] = []
+        for leaf in leaves {
+            let ls = lines(leaf.range)
+            leafLines.append(ls)
+            guard leaf.ideo else { continue }
+            for k in ls where reference[k].map({ leaf.box > $0.box }) ?? true { reference[k] = leaf }
+        }
+        var marked = Set<Int>()
+        for (i, leaf) in leaves.enumerated() where leaf.ascii && !leafLines[i].isEmpty {
+            let refs = leafLines[i].map { reference[$0] }
+            guard refs.allSatisfy({ $0 != nil }) else { continue }
+            guard refs.allSatisfy({ r in r!.family != leaf.family && leaf.box <= r!.box + 0.01 }) else { continue }
+            marked.insert(i)
+        }
+        guard !marked.isEmpty else { return nil }
+        var index = 0
+        func rebuild(_ s: InlineSpan) -> InlineSpan {
+            guard let t = s as? TextSpan else { return s }
+            var style = t.style
+            if t.text != nil {
+                if marked.contains(index) { style = style?.copyWith(height: 0.01) }
+                index += 1
+            }
+            return TextSpan(text: t.text, children: t.children?.map { rebuild($0) }, style: style, recognizer: t.recognizer, locale: t.locale)
+        }
+        return rebuild(span) as? TextSpan
     }
 
     /// Whether each of `painter`'s lines holds some text of the span's
@@ -18204,7 +18281,12 @@ public final class RichLayout {
                         return sum + 0.5 * px
                     }
                 }
-                if width > textWidth { out.insert(k) }
+                // (After a full-width opening bracket the bracket goes with the word: zh-15f60bac's "（https://www.moea.gov.tw/…"
+                // opens a line in Word's print, the "（" with it, as an opener may not end a line; ours ended
+                // the line before with "（" and parted the address from its first letter.)
+                if width > textWidth {
+                    out.insert(k > 0 && afterIdeograph && Self._openingUnits.contains(units[k - 1]) ? k - 1 : k)
+                }
                 painter.dispose()
             }
             k = end
