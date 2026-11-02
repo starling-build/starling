@@ -406,7 +406,21 @@ enum Extrusion {
         let tilted = scene.legacy && n0.z > 0 && n0.z < 0.9
         let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
         let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy && scene.perspective ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
-        face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
+        // Lab E: a legacy oblique camera's face carries a white sheen the rig
+        // lights it with — the bottom-facing ones under threePt (.19, .24
+        // when the camera is also turned), TopRight under twoPt (.18).
+        var sheen = 0.0
+        if scene.legacy, !scene.perspective, !tilted, frontShows {
+            let nm = scene.cameraName
+            if scene.rig == "threePt", nm.hasSuffix("Bottom") || nm.hasSuffix("BottomRight") { sheen = scene.rigRot != nil || scene.lat != 0 || scene.lon != 0 ? 0.24 : 0.19 }
+            else if scene.rig == "twoPt", nm.hasSuffix("TopRight") { sheen = 0.18 }
+        }
+        var shownFace = shown
+        if sheen > 0 {
+            func lift(_ v: Int) -> Int { min(255, v + Int((255.0 * sheen).rounded())) }
+            shownFace = Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
+        }
+        face(frontShows ? front : back, shownFace, edge: frontShows ? shape.outline : nil)
         if let onFront, frontShows {
             // The picture, carried onto the turned front: the frame's corners
             // say where its axes went.
