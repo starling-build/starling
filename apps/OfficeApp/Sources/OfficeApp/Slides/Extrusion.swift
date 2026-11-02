@@ -188,6 +188,7 @@ enum Extrusion {
         if let camera = spPr?.first("a:scene3d")?.first("a:camera") {
             let name = camera["prst"] ?? ""
             s.perspective = name.hasPrefix("legacyPerspective")
+            s.cameraName = name
             s.oblique = s.depth > 0 ? oblique(name) : nil
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
             s.legacy = name.hasPrefix("legacy")
@@ -251,6 +252,12 @@ enum Extrusion {
             var q = turn(P3(x: p.dx - c.dx, y: p.dy - c.dy, z: z))
             // An oblique camera: what lies behind slides aside as it recedes
             // — and, in perspective, draws in toward a point as it goes.
+            if scene.oblique == nil, scene.cameraName.hasPrefix("perspective") {
+                // The eye ~1100 pt away (swept on perspectiveContrastingLeft,
+                // shape_rotation and cropped_image).
+                let f = 1100 * px / (1100 * px - q.z)
+                q.x *= f; q.y *= f
+            }
             if let o = scene.oblique {
                 let f = scene.perspective ? 250 * px / (250 * px + max(0, -q.z)) : 1
                 q.x = q.x * f - o.dx * q.z * f
