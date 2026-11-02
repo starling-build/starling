@@ -1945,7 +1945,7 @@ public final class RichLayout {
                 var pins: [String: (page: Int, y: Double)] = [:]
                 var firstOf: [String: Int] = [:]
                 for (k, c) in _cells.enumerated() { if let c, firstOf[c.table] == nil { firstOf[c.table] = k } }
-                for (t, f) in firstOf {
+                for (t, f) in firstOf.sorted(by: { $0.value < $1.value }) {
                     guard let ts = document.tableStyles[t], case let gap = Self._floatTopGap(ts), gap > 0, ts.floatsOverText,
                           !ts.pageAnchored, ts.floatRaiseY == nil, f < _pieceStart.count, _pieceStart[f] < _allPieces.count else { continue }
                     let page = _allPieces[_pieceStart[f]].page
@@ -19617,7 +19617,16 @@ public final class RichLayout {
     /// them (wrapped round or not: one behind the text still moves another off it).
     static func _hfWrapBoxes(_ p: RichParagraph) -> [(image: ImageAttachment, float: ImageFloat)] {
         guard p.cell == nil else { return [] }
-        let images = p.inlineImages.sorted { $0.key < $1.key }.map(\.value) + (p.image.map { [$0] } ?? [])
+        // (By where their runs stand: the table is keyed by the images' ids, whose order is no order — two
+        // header boxes of lo-db00fd9f came out either way round, and the page's text with them.)
+        var place: [String: Int] = [:]
+        var at = 0
+        for r in p.runs {
+            if let id = r.style.inlineImage, place[id] == nil { place[id] = at }
+            at += r.length
+        }
+        let images = p.inlineImages.values.sorted { (place[$0.id] ?? Int.max, $0.id) < (place[$1.id] ?? Int.max, $1.id) }
+            + (p.image.map { [$0] } ?? [])
         return images.compactMap { image in
             guard let float = image.float, float.verticalAlign == nil,
                   float.verticalFrom == "page" || float.verticalFrom == "margin",
@@ -19682,7 +19691,14 @@ public final class RichLayout {
 
     static func _hfBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
         guard p.cell == nil else { return nil }
-        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+        // (The first in the file's order, not the image table's, which has none: `_hfWrapBoxes`.)
+        var place: [String: Int] = [:]
+        var at = 0
+        for r in p.runs {
+            if let id = r.style.inlineImage, place[id] == nil { place[id] = at }
+            at += r.length
+        }
+        for image in p.inlineImages.values.sorted(by: { (place[$0.id] ?? Int.max, $0.id) < (place[$1.id] ?? Int.max, $1.id) }) + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
