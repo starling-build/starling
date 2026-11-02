@@ -1,4 +1,4 @@
-756 documents: mean 98.3% of Word's lines matched, median 100.0%; 739 at 95% or more, 745 at half or more; 755 with Word's page count
+756 documents: mean 98.4% of Word's lines matched, median 100.0%; 740 at 95% or more, 746 at half or more; 755 with Word's page count
     0.0%  lines 0/0  pages 0/0  51921-Word-Crash067
     0.0%  lines 0/0  pages 0/0  59378
     0.0%  lines 0/0  pages 0/0  Bug62859
@@ -9,8 +9,7 @@
     0.0%  lines 0/0  pages 0/0  issue_51265_2
     0.0%  lines 0/0  pages 0/0  issue_51265_3
     0.0%  lines 0/0  pages 0/0  zero-length
-   42.9%  lines 7/7  pages 1/1  rtl
-   53.6%  lines 616/624  pages 27/27  zh-6a4fc01369372ac3635490fecb0d2ec5dea2fb82cc1dd535f66a88c04abc2f6a
+   54.4%  lines 616/624  pages 27/27  zh-6a4fc01369372ac3635490fecb0d2ec5dea2fb82cc1dd535f66a88c04abc2f6a
    90.0%  lines 100/103  pages 4/4  zh-d62da4dd45d1cb7451d59b7c9c484f6268b208d79a8bdf7c81403844017cd549
    90.3%  lines 93/96  pages 3/3  zh-27a874b740fff77c81e5ecbf5519d539cfb94540c635af560a682403b69a17bf
    92.8%  lines 737/734  pages 29/29  zh-b8de3ae296a7d835b87cda2593295473438b8bd9462cf5f816a891231bebfa1c
@@ -26,7 +25,6 @@
    97.6%  lines 2221/2216  pages 75/75  zh-147bdae0edc29c8c1bc2d9577674bd84bf79c0b30053eba2ac096541cea621a0
    97.7%  lines 173/173  pages 8/8  zh-27fc8f9de4dc9061af4cb53e47fd7f2433c4ffb74da642f3f92a6480f843dace
    97.7%  lines 177/176  pages 7/7  zh-cd48112c49df236763eee7ba1355af37998ebd2c34b72947375b3d4e9ef26784
-   97.8%  lines 46/46  pages 2/2  zh-d97c5474722aff7b293a8688dce9402a551b46bac6e8561eb28a6d4f86036173
    97.9%  lines 47/48  pages 1/1  zh-d8247da5ce506ccb644981caa96498bf04d08bce325c21bdf7741edcbdb5d2f6
    98.0%  lines 786/785  pages 27/27  zh-5be7e15667a3f9599507cb13b8ec7b68e10d13fc02068ac29275ff105cc2cdcf
    98.0%  lines 688/688  pages 21/21  zh-b00fef0d175e605b42deb92a1f140de6d508f481f399523d67dec6a202b4dcc8
@@ -254,6 +252,7 @@
   100.0%  lines 2/2  pages 1/1  headerFooter
   100.0%  lines 23/23  pages 1/1  heading123
   100.0%  lines 1/1  pages 1/1  protected_sample
+  100.0%  lines 7/7  pages 1/1  rtl
   100.0%  lines 20/20  pages 1/1  sample
   100.0%  lines 5/5  pages 3/3  saut_page
   100.0%  lines 8/8  pages 1/1  shapes-with-text
@@ -677,6 +676,7 @@
   100.0%  lines 169/169  pages 6/6  zh-d79c7f82f74e1ed415ea873313e8c603b1d6bb4273c1c6f6f8151457036222b9
   100.0%  lines 117/117  pages 4/4  zh-d89c384003721521024508d7dae7fdf4567424387311197cc4fc8b5a5322faa4
   100.0%  lines 341/341  pages 13/13  zh-d9563f2f0fa446ed7dad5c488c2074af23cffcd33d700dc41548b57b55ade7ff
+  100.0%  lines 46/46  pages 2/2  zh-d97c5474722aff7b293a8688dce9402a551b46bac6e8561eb28a6d4f86036173
   100.0%  lines 423/423  pages 20/20  zh-d9b085b1e21c9f0dd752652d456dd6187a6495b7a263ce94cdb52f1d663ca80a
   100.0%  lines 23/23  pages 2/2  zh-da4cc8ee70fad77dbd9b35d00fec329fdaaf26745f7d0bc56721cf964d0fec99
   100.0%  lines 342/357  pages 15/15  zh-da56ab3a2d869e96f170989976f5809ecc5cb5a31287e3a9eb4976995506c754
