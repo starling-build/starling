@@ -1,0 +1,2451 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// RichLayout, part "Span": moved out of RichLayout.swift by test/tools/split-richlayout.py (a pure move, so that
+// the parts compile side by side).
+
+import Flutter
+import FlutterSwiftBridge
+import Foundation
+
+extension RichLayout {
+
+    /// The paragraph's runs as a span tree. An empty paragraph lays out a
+    /// single space so it has a line height; offsets are clamped to 0 by
+    /// every caller.
+    /// `autoSpaces` is told each character set wider by Word's automatic
+    /// space after it (paragraph offset, pixels), for the line fitting.
+    func _span(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
+                       held: Set<Int> = [], spread: [Int: Double] = [:], autoSpaces: ((Int, Double) -> Void)? = nil)
+        -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
+        let named = _named(p, document)
+        let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
+        // (`thaiBreaksAtSpaces`: the offsets inside a stretch of Thai with
+        // no space in it that a line can hold — one longer than a line is
+        // broken where the line fills, as in Word's print: zh-6a4fc013's
+        // "1.กระทรวงแรงงาน…" starts its line and breaks in it. But only the
+        // paragraph's first stretch: a longer one later in it is held
+        // whole, so it starts the next line and is broken where that one
+        // fills — Word for Windows' print of zh-6a4fc013 (windows'
+        // 01QbbApP lab th, 2026-10-23) and Word for Mac's alike set
+        // "ตอบ : 1." alone and the overlong stretch after it from the
+        // next line's start. 61.2 -> 67.9 against word-win.)
+        let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
+        let hanJoins = theme.wordRules ? Self._hanJoins(p, document) : []
+        if p.text.isEmpty {
+            // (The mark under a nested table at half a point:
+            // `RichParagraphStyle.markUnderNestedTable`.)
+            var mark = p.runs[0].style
+            if theme.wordRules, p.style.markUnderNestedTable { mark.fontSize = 0.5 }
+            // (A raised or lowered mark is its whole size to the line: lab
+            // `sup` (macOS-doc, Word for Mac) — zh-4a2ab598's empty
+            // paragraph whose mark is 黑体 12pt superscript is 18.00pt tall
+            // in Word, plain 18.24; ours, shrunk to 0.65, 11.75.)
+            if theme.wordRules { mark.script = .normal }
+            var markNamed = named
+            // A paragraph mark can turn off its style's hiding. Resolving
+            // body runs also needs their hidden-mark joining semantics.
+            if theme.wordRules, mark.off.contains(.hidden) { markNamed?.char.hidden = false }
+            let look = theme.textStyle(for: mark, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            if theme.wordRules, p.style.list != nil, lead > 0 {
+                // An empty list still has a number and its suffix. Reserve
+                // their width so centered/right numbers move with the line.
+                let box = RichImageSpan(alignment: .baseline, baseline: .alphabetic, style: look)
+                let dimensions = PlaceholderDimensions(size: Size(lead, 0.01), alignment: .baseline,
+                                                       baseline: .alphabetic, baselineOffset: 0.01)
+                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
+            }
+            return (TextSpan(text: " ", style: look), [], [])
+        }
+        // Ruby wider than its base spreads the base across it, as Word's
+        // distributeSpace does: a share between characters and half a
+        // share before the first and after the last (61470's "東京"
+        // under "とうきょう", 2.75pt between and 1.38 at either end).
+        var spread = spread
+        var rubyTails: [Int: Double] = [:]
+        if theme.wordRules {
+            for g in _rubyGroups(p) where g.to > g.from {
+                let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
+                guard ruby > base + 0.01 else { continue }
+                let share = (ruby - base) / Double(g.to - g.from)
+                for k in g.from ..< g.to { spread[k, default: 0] += k == g.from ? share / 2 : share }
+                rubyTails[g.to, default: 0] += share / 2
+            }
+        }
+        // Where a zero-width space goes in, and what was before the
+        // character at hand (across runs).
+        var inserts: [Int] = []
+        var before: Character? = nil
+        var beforeBefore: Character? = nil
+        // (Whether the plain spaces just before the character at hand
+        // follow a no-break space: see the branch that joins them.)
+        var spacesAfterNbsp = false
+        // (Whether the run of ASCII letters, digits and hyphens the
+        // character at hand ends has a letter in it: see the hyphen before
+        // a digit, below.)
+        var wordHasLetter = false
+        // (Whether the last character that was not a space was an
+        // ideograph, and where the paragraph's trailing spaces start: see
+        // the spaces that end a paragraph after one, below.)
+        var afterIdeograph = false
+        let trailingSpaces = p.text.utf16.count - p.text.utf16.reversed().prefix(while: { $0 == 0x20 }).count
+        let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
+        let percentStarts = _percentStarts(document)
+        let traditionalLists = breaksAtQuotes && Self._traditionalChinese(document)
+        // (A paragraph that turns the line-breaking rules off —
+        // `w:kinsoku` 0 — may start a line with a closing mark (not end
+        // one with an opening mark: Word keeps "（" with what it opens,
+        // zh-c5b5087b, under kinsoku off and an en-US East Asian language
+        // both); the engine allows neither, so a mark
+        // that did not fit stayed on its line past the margin where Word
+        // carries it over: zh-799c91cd's "各執1份為憑" and the "。" alone
+        // under it, whose page 2 then ran a line long.)
+        let kinsokuOff = theme.wordRules && p.style.eastAsian["w:kinsoku"] == "0"
+        // (Not only under `w:useFELayout`: zh-202582e2's settings lack it,
+        // and its “综合验一次” in YaHei for FangSong_GB2312 is an em a
+        // quote in Word's print, where ours set YaHei's own 0.38 em and its
+        // lines took a character more than Word's.)
+        let fullQuotes = theme.wordRules
+        var loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
+            .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
+            .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
+        var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        // (A numbered paragraph's first word, wider than the line, is
+        // parted where the line ends, beside its number: Word sets
+        // LibreOffice's tdf134606 "a)" and "XXXXXXXXXX" in a 68pt text
+        // column as "XXXXXXXXX" / "X", the number on the first line. The
+        // engine, with the number's box on the line already, sends the
+        // whole word down and parts it there, a line the row is taller
+        // for — so it is told it may part anywhere, as for a word on a
+        // line of its own.)
+        if theme.wordRules, !document.usesEastAsianLayout, p.style.list != nil || _wordList(p, document) != nil,
+           let first = p.text.utf16.firstIndex(where: { $0 != 0x20 && $0 != 0x09 }), first == p.text.utf16.startIndex {
+            let units = Array(p.text.utf16)
+            var end = 0
+            while end < units.count, units[end] != 0x20, units[end] != 0x09, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
+            if end >= 3, !units[..<end].contains(where: { $0 >= 0x2E80 || $0 == 0x2D }), let run = p.runs.first {
+                let word = String(decoding: units[..<end], as: UTF16.self)
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                if painter.width > textWidth + 0.01 { loose.formUnion(1 ..< end) }
+                painter.dispose()
+            }
+        }
+        // (In a turned text box a first line indented past the line's
+        // length holds its first character alone, the rest from the next
+        // line: zh-b24b396a's "30" dimension labels — vert270 boxes 7.8pt
+        // long, a 15pt first-line indent — set "3" at the indent, past the
+        // box, and "0" on a line of its own in Word for Windows' print;
+        // the engine kept the number whole on one line. Turned boxes only:
+        // forcing the break across took zh-9e020c95 99.6 -> 19.7, where the
+        // line part there anyway.)
+        if theme.wordRules, let index,
+           (_turnedBox && _px(firstLineIndent(p, at: index, document)) > textWidth + 0.01)
+            || (index < _boxFirstLineShift.count && _boxFirstLineShift[index] > 0),
+           let ch = p.text.first(where: { $0 != "\u{FFFC}" }), let at = p.text.firstIndex(of: ch) {
+            let next = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at) + ch.utf16.count
+            if next < p.text.utf16.count { wideStarts.insert(next) }
+        }
+        // (A text box's paragraph whose first word is too long for its
+        // indented first line, yet fits a whole line, holds its first
+        // character alone on that line, the rest from the next: LibreOffice's
+        // textframe-in-shape, "hello" in a 28.8pt box under Normal's 14.4pt
+        // first-line indent, is "h" / "ello" in Word for Windows' print, where
+        // the engine left the first line empty and set the word whole below.
+        // One letter, not as many as fit: "he" would have.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let index, _boxText, p.cell == nil,
+           p.style.list == nil, p.runs.count == 1, !p.style.rightToLeft,
+           p.style.alignment == .left || p.style.alignment == .justify {
+            let lead = _px(firstLineIndent(p, at: index, document))
+            let units = Array(p.text.utf16)
+            let end = units.firstIndex(where: { $0 == 0x20 || $0 == 0x09 || $0 == 0x0A || $0 == 0x2028 || $0 >= 0x2E80 }) ?? units.count
+            if lead > 0, end > 1, !units[..<end].contains(0x2D), !units[..<end].contains(0xFFFC) {
+                let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                func width(_ n: Int) -> Double {
+                    let painter = TextPainter(text: TextSpan(text: String(decoding: units[..<n], as: UTF16.self), style: style), textDirection: .ltr)
+                    painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                    defer { painter.dispose() }
+                    return painter.width
+                }
+                let whole = width(end)
+                if lead + whole > textWidth + 0.01, whole <= textWidth + 0.01, lead + width(1) <= textWidth + 0.01 {
+                    RuleTrace.hit("first-word-too-long-for-indented-line")
+                    wideStarts.insert(units[0] >= 0xD800 && units[0] < 0xDC00 ? 2 : 1)
+                }
+            }
+        }
+        // (Before a "×" or "÷" after an ideograph or a full-width mark Word
+        // may part a line, as between ideographs; the engine takes "％×1.2"
+        // for one word. zh-7a16a243's "…可達560％×1.2=672％)" ends a line at
+        // "560％" in Word's print; ours parted it before the "％", and the
+        // lines after ran a character late.)
+        if theme.wordRules, document.usesEastAsianLayout {
+            let units = Array(p.text.utf16)
+            for k in units.indices.dropFirst() where (units[k] == 0xD7 || units[k] == 0xF7) && units[k - 1] >= 0x2E80 { loose.insert(k) }
+        }
+        // (A hyphen between Hebrew letters parts a line after it in Word: the
+        // engine's rule keeps a Hebrew letter and its hyphen together, and
+        // lo-ccca8bf3 (tdf129659), "רחוב-" / "השמש,", ran a line late.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.text.utf16.contains(0x2D) {
+            let units = Array(p.text.utf16)
+            func hebrew(_ u: UInt16) -> Bool { u >= 0x05D0 && u <= 0x05EA }
+            for k in units.indices.dropFirst(2) where units[k - 1] == 0x2D && hebrew(units[k - 2]) && hebrew(units[k]) { loose.insert(k) }
+        }
+        // (A run of underlined spaces held under `w:ulTrailSpace`, with the
+        // character before it, is a word to Word: one wider than the line
+        // opens a line of its own and is parted at the margin, as a long
+        // Latin word is. zh-f47b8a74's "因" and 105 spaces of 8pt start a
+        // line in Word's print and fill it, the rest of them opening the
+        // next; held whole, ours ran past the margin.)
+        if theme.wordRules, document.underlinesTrailingSpaces, !held.isEmpty {
+            let units = Array(p.text.utf16)
+            var at = 0
+            for run in p.runs {
+                defer { at += run.length }
+                guard run.style.underline else { continue }
+                var k = at
+                while k < at + run.length {
+                    guard held.contains(k) else { k += 1; continue }
+                    var end = k
+                    while end < at + run.length, held.contains(end) { end += 1 }
+                    let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    let space = document.balancesSpaceWidth ? size / 2 : size / 4
+                    // (The word runs back to where a line may part: an
+                    // ideograph opens it, Latin text and full-width marks
+                    // join it — page 12's "1．" and its blank keep their
+                    // place at the paragraph's start in Word's print, the
+                    // spaces wrapping; ours had parted "1" from "．".)
+                    var from = k
+                    while from > 0, units[from - 1] != 0x20, units[from - 1] != 0x0A, units[from - 1] != 0x2028 {
+                        from -= 1
+                        if (0x3400 ... 0x9FFF).contains(units[from]) || (0xF900 ... 0xFAFF).contains(units[from]) { break }
+                    }
+                    let width = Double(end - k) * space + (from < k ? size : 0)
+                    if _px(width) > textWidth {
+                        if from > 0, units[from - 1] != 0x0A, units[from - 1] != 0x2028 { wideStarts.insert(from) }
+                        loose.formUnion((k + 1) ..< end)
+                    }
+                    k = end
+                }
+            }
+        }
+        // The spaces Word sets half an em wide (UTF-16 offsets): every
+        // run of them but one between two Latin characters — see
+        // `RichDocument.balancesSpaceWidth`.
+        var wideSpaces: Set<Int> = []
+        var ordinaryBalancedSpaces: Set<Int> = []
+        // The spaces to set as no-break ones (`held`, by the layout: see
+        // `_spacesToHold`), with a zero-width space after each run of
+        // them for the break a space allows.
+        let heldSpaces = held.union(_closingSpaceHeld(p).map { [$0] } ?? [])
+        // (Word for Windows' counted closing spaces, and the share of its
+        // width each keeps — the run less half the line, at no less than
+        // nothing — taken at the first of them.)
+        let windowsCounted: Set<Int> = theme.wordRules && RichTextTheme.wordWindowsPages && !document.underlinesTrailingSpaces
+            ? Self._underlinedClosingCounted(p).intersection(held) : []
+        var windowsShare: Double? = nil
+        var afterHeld = false
+        var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
+        // (A run of plain and no-break spaces together is half an em from
+        // its first plain space on, the no-break ones after it too, and
+        // between Latin letters as well; no-break ones alone stay as they
+        // are. Lab `nb` (Word 16.113.3, zh-8415d258's package, 15pt
+        // 仿宋_GB2312): "甲" and ten no-break-and-plain pairs step 4.4 and
+        // then 7.5 each; twenty no-break spaces 4.4 each; twenty plain
+        // ones 7.5. zh-8415d258's signature opens with 155 of them
+        // alternating, over two lines and a part in Word's print; ours
+        // set them at the stand-in's 4.3 and the name rose a line.)
+        // (A space in a run that says it is complex script (`w:cs`) keeps
+        // its face's width: Word for Windows' print of zh-6a4fc013 sets
+        // "คำถามที่ 4 ：" with Browallia's 3.5pt spaces beside the full-width
+        // colon, where half an em took its line's 4.4pt and sent the
+        // question's text down.)
+        var complexSpaces: Set<Int> = []
+        if theme.wordRules, document.balancesSpaceWidth {
+            var start = 0
+            for r in p.runs {
+                defer { start += r.length }
+                guard let kept = r.style.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs w:val=\"1\"")
+                    || kept.containsSubstring("<w:cs w:val=\"true\"") || kept.containsSubstring("<w:cs w:val=\"on\"") else { continue }
+                complexSpaces.formUnion(start ..< start + r.length)
+            }
+        }
+        if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
+            var at = 0
+            var run: [Int] = []
+            var nbsp: Set<Int> = []
+            var left: Character? = nil
+            func close(_ right: Character?) {
+                defer { run = []; nbsp = [] }
+                guard !run.isEmpty, document.balancesSpaceWidth else { return }
+                // (A manual line break is no Latin word before spaces that open the next line, as at a paragraph's start: zh-5313b71d's "…发包结果。" ⏎ "    1.发包公告…"
+                // sets its four spaces half an em each from the margin in Word's print, where ours took them for the gap between
+                // Latin words and lost three.)
+                func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) && !(RichTextTheme.wordWindowsPages && ($0 == "\n" || $0 == "\u{2028}")) } ?? false }
+                if nbsp.isEmpty {
+                    // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
+                    // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
+                    // two spaces between words, nor a page number's "—  10  —".)
+                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") {
+                        let balanced = run.filter { !complexSpaces.contains($0) }
+                        wideSpaces.formUnion(balanced)
+                        ordinaryBalancedSpaces.formUnion(balanced)
+                    }
+                } else if let first = run.first(where: { !nbsp.contains($0) }) {
+                    wideSpaces.formUnion(run.filter { $0 >= first && !complexSpaces.contains($0) })
+                }
+            }
+            for ch in p.text {
+                if ch == " " { run.append(at) }
+                else if ch == "\u{00A0}" { run.append(at); nbsp.insert(at) }
+                else { close(ch); left = ch }
+                at += ch.utf16.count
+            }
+            close(nil)
+        }
+        /// A run's text as shown: capitals for Word's All caps and Small
+        /// caps (the latter with the lowercase letters' capitals at 80%),
+        /// the same number of UTF-16 units as the text, so that offsets
+        /// into the painted text are offsets into the paragraph.
+        func capped(_ text: Substring, _ run: CharStyle, _ style: TextStyle) -> [TextSpan] {
+            let caps = run.caps || ((named?.char.caps ?? false) && !run.off.contains(.caps))
+            let small = !caps && (run.smallCaps || ((named?.char.smallCaps ?? false) && !run.off.contains(.smallCaps)))
+            if !caps && !small { return [TextSpan(text: String(text), style: style)] }
+            var spans: [TextSpan] = []
+            var piece = ""
+            var pieceSmall = false
+            // (Word draws the small letters at a size of its own, on a 0.12pt grid, not 0.8 of the
+            // size: windows' lab smallcaps, 9pt -> 6.96, 10 -> 8.04, 11 and 11.5 -> 9.00, 12 -> 9.48,
+            // 13 -> 10.56, 14 -> 11.04; elsewhere 0.8. The spaces between them are the small size too
+            // (lab SMALLCAPS-CHARS: a TNR 11pt line's six spaces are 9.00, its commas the capitals' 11.04),
+            // and each glyph's advance is the face's at that size.)
+            let smallSize: Double = {
+                let full = style.fontSize ?? 12
+                guard theme.wordRules, RichTextTheme.wordWindowsPages else { return full * 0.8 }
+                let pt = full / _px(1)
+                let known: [Double: Double] = [9: 6.96, 9.5: 7.56, 10: 8.04, 10.5: 8.52, 11: 9.00, 11.5: 9.00, 12: 9.48, 12.5: 9.96, 13: 10.56, 14: 11.04]
+                if let v = known[(pt * 100).rounded() / 100] { return v * _px(1) }
+                return (pt * 0.8 / 0.12).rounded() * 0.12 * _px(1)
+            }()
+            // (The line stays as tall as the full size makes it: a line of small letters alone is not shorter in
+            // Word's print, lo-af81b53e's pitch is 12.6 on every line.)
+            let smallStyle = small ? style.copyWith(fontSize: smallSize, height: style.height.map { $0 * (style.fontSize ?? smallSize) / smallSize }) : style
+            for ch in text {
+                let s = String(ch)
+                let up = s.uppercased()
+                let lower = up != s && up.utf16.count == s.utf16.count
+                let isSmall = small && (lower || (theme.wordRules && RichTextTheme.wordWindowsPages && ch == " "))
+                if isSmall != pieceSmall, !piece.isEmpty {
+                    spans.append(TextSpan(text: piece, style: pieceSmall ? smallStyle : style))
+                    piece = ""
+                }
+                pieceSmall = isSmall
+                piece += lower ? up : s
+            }
+            if !piece.isEmpty { spans.append(TextSpan(text: piece, style: pieceSmall ? smallStyle : style)) }
+            return spans
+        }
+        /// A run's text as spans, East Asian stretches apart from the
+        /// rest: each is set in its own face of the run (Word's
+        /// `w:eastAsia` and `w:ascii`) at that face's line height.
+        // The size that sets the lines' height, as Word has it: the
+        // tallest character that is not a space — a run of 20pt spaces
+        // in 18pt text adds nothing — and the paragraph mark's where
+        // there are only spaces (prints of 2026-10-13: three 20pt spaces
+        // under an 18pt mark are a line of 30.9pt, under a 14pt mark of
+        // 23.9, and 18pt spaces under a 20pt mark of 34.2).
+        let lineSize: (size: Double, blank: Bool)? = {
+            // (Ideographic ones too: zh-64044a1d's form rows whose cells
+            // hold "　" alone are as tall as its empty ones in Word's
+            // print, one pitch of its line grid; ours, set in the East
+            // Asian face, took two.)
+            // (An en, an em and a four-per-em space too, in Word for Windows:
+            // lab `sp`, see below.)
+            let wider = theme.wordRules && RichTextTheme.wordWindowsPages
+            func spaceUnit(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || (wider && (u == 0x2002 || u == 0x2003 || u == 0x2005)) }
+            guard theme.wordRules, p.text.utf16.contains(where: spaceUnit) else { return nil }
+            let normal = _normalChar(document)
+            func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
+            var best: Double? = nil
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                if run.style.inlineImage != nil { return nil }
+                // (Nor does a tab: IllustrativeCases' line of 11pt spaces
+                // and tabs under an 8pt mark is the mark's line.)
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x09 && !spaceUnit($0) }) { best = max(best ?? 0, size(run.style)) }
+                at = end
+            }
+            if let best { return (best, false) }
+            return (size(p.style.mark), true)
+        }()
+        // (Which characters are a note's number: no automatic space stands
+        // beside one, see below.)
+        let raised: [Bool] = p.runs.flatMap { repeatElement($0.style.note != nil, count: $0.length) }
+        // (Whether all the paragraph's text is raised by one `w:position`,
+        // its lines then grown for it: `raisedLineHeight`.)
+        let wholeRaised: Bool = {
+            guard theme.wordRules, p.style.lineHeightPoints == nil else { return false }
+            var raise: Double? = nil
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                if run.style.inlineImage != nil { return false }
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x3000 }) {
+                    let r = run.style.raised ?? named?.char.raised ?? 0
+                    guard r > 0, raise == nil || raise == r else { return false }
+                    raise = r
+                }
+                at = end
+            }
+            return raise != nil
+        }()
+        func eastAsianFaceIsLatin(atOffset o: Int) -> Bool {
+            var c = 0
+            for r in p.runs {
+                if o >= c, o < c + r.length {
+                    // (By name, as `eastAsianDefaultFaceIsLatin` reads the defaults: the resolver's stand-ins
+                    // for East Asian names are not all flagged East Asian.)
+                    guard let name = r.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily else { return false }
+                    return ["times new roman", "times", "arial", "calibri", "cambria", "ms serif", "verdana", "tahoma", "helvetica", "courier new", "segoe ui"]
+                        .contains(name.trimmingWhitespace().lowercased())
+                }
+                c += r.length
+            }
+            return false
+        }
+        func runHinted(atOffset o: Int) -> Bool {
+            var c = 0
+            for r in p.runs {
+                if o >= c, o < c + r.length {
+                    let face = theme.faceResolver?(r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)
+                    let high = (r.style.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
+                    let hint = r.style.fontHint ?? named?.char.fontHint
+                    return hint == "eastAsia" || (face?.isEastAsian ?? false) && (hint != "default" || (high?.isEastAsian ?? true))
+                }
+                c += r.length
+            }
+            return false
+        }
+        func styled(_ rawText: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+            // (A run marked right-to-left in a left-to-right paragraph is an
+            // embedding of its own: the one neutral mark that ends its Latin
+            // text stands at its start. lo-bbc52bda's "after here:" is
+            // ":after here" in Word's print. Moved, not marked: a direction
+            // mark would reach the text layer of the PDF.)
+            let moved: String? = {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, run.rightToLeft, !p.style.rightToLeft,
+                      let last = rawText.last, ":;.,!?".contains(last), rawText.count > 2,
+                      !rawText.dropLast().contains(where: { ch in ch.unicodeScalars.contains { ArabicForms.isArabic($0.value) || (0x590...0x8FF).contains($0.value) } || ":;.,!?".contains(ch) })
+                else { return nil }
+                return String(last) + rawText.dropLast()
+            }()
+            let text: Substring = moved.map { Substring($0) } ?? rawText
+            // (A soft hyphen the line ends at is a hyphen to the line breaking
+            // too — see `_layoutParagraph`.)
+            if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.contains("\u{00AD}") {
+                var out = ""
+                var at = base
+                for ch in text {
+                    out.append(ch == "\u{00AD}" && shownSet.contains(at) ? "-" : ch)
+                    at += ch.utf16.count
+                }
+                if out != String(text) { return styled(Substring(out), run, at: base, next: next, symbolsShown: symbolsShown) }
+            }
+            // (A symbol face's characters drawn as the glyphs they stand
+            // for: zh-d0a207ac's Wingdings 2 checkboxes, "£" in the file,
+            // drew as "£" in the text's face where Word's print has a box.)
+            if !symbolsShown, let glyphs = theme.symbolGlyphs, case let mapped = glyphs(run.fontFamily ?? named?.char.fontFamily, String(text)),
+               mapped != String(text), mapped.utf16.count == text.utf16.count {
+                return styled(Substring(mapped), run, at: base, next: next, symbolsShown: true)
+            }
+            let latinFace = theme.wordRules || theme.setsFaceAdvances
+                ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
+            // (The face Word sets the Latin characters past ASCII in, where
+            // the run names one other than its ASCII face: `w:hAnsi`.)
+            let highFace = latinFace == nil ? nil : (run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
+            // (Not where the run says `w:hint="default"` over a Latin hAnsi
+            // face: its shared marks are that face's then —
+            // zh-785e46f8's "产业链“链长" in 仿宋_GB2312 over a Times hAnsi
+            // has its "“" in Times in Word's print, 7.1pt, where ours set
+            // a full-width one, 16, and the line lost a character.)
+            // (zh-7fd860f9's runs say the same hint over a 仿宋_GB2312
+            // hAnsi, and their "“" is full-width in Word's print: the
+            // hAnsi face decides.)
+            let hint = run.fontHint ?? named?.char.fontHint
+            let hinted = hint == "eastAsia" || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
+            // (… but an en dash, unhinted, is its hAnsi face's where that is
+            // a Latin one: zh-ea70c30e's "辦公室 – 投訴", `w:ascii` PMingLiU
+            // over an inherited Times hAnsi, sets its "–" in Times in Word's
+            // print, half an em, where ours drew PMingLiU's at 0.82. Its
+            // quotes and other marks stay East Asian: taken as Latin too,
+            // eight documents fell.)
+            let hAnsiFace = highFace ?? (run.fontFamily == nil ? nil
+                : (named?.char.hAnsiFontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily).flatMap { theme.faceResolver?($0, false) })
+            let latinDash = theme.wordRules && (run.fontHint ?? named?.char.fontHint) != "eastAsia" && (latinFace?.isEastAsian ?? false)
+                && hAnsiFace.map { !$0.isEastAsian } == true
+            let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+            // (The run's character scale, Word's `w:w`.)
+            let wScale = run.horizontalScale ?? named?.char.horizontalScale ?? 1
+            let closes = _closesUpMarks(run, named, document)
+            // (So may text whose East Asian language has no such rules —
+            // its run's own, else the document's: `eastAsianLineRules`.)
+            let lineRulesOff = kinsokuOff || (theme.wordRules && !Self._eastAsianLineRules(run, document, named: named))
+            // A stretch is of one script, and — where the Latin face
+            // stands in at a scale for each kind of character — of one
+            // kind: -1 East Asian, else the kind (0 where there is one
+            // scale for all).
+            let classed = latinFace?.classScales != nil
+            var styles: [Int: TextStyle] = [:]
+            // (The grid's addition to each character, unless the run opts
+            // out — or its paragraph: zh-268f8d15's footer, "- 1 -" in a
+            // text box whose style sets `w:snapToGrid` 0, is Times's own
+            // widths in Word's print on a grid of -0.28 an em; ours set it
+            // 1.3pt a character closer, and the box, sized so, lost its
+            // closing dash.)
+            // (A run off it by its style's characters is off it too, where
+            // the run says nothing: zh-c25d08c5's Normal sets the characters'
+            // `w:snapToGrid` 0 on a grid of -0.25pt, and Word's print has
+            // its 16pt ideographs 16 apart; ours set them 15.75 and took a
+            // character more a line.)
+            let ownGridSay = run.keptXML?.containsSubstring("<w:snapToGrid") ?? false
+            let runOffGrid = ownGridSay ? (run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
+                : theme.wordRules && (named?.char.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
+            // (Latin text too, in a paragraph that takes itself off the
+            // grid — not one its style takes off, as zh-268f8d15's footer's
+            // and zh-3c055c9b's styles do: zh-c2f6d17a's paragraphs set
+            // `w:snapToGrid` 0 on a grid of -0.207pt, and Word's print has
+            // their Times digits 7.9 apart, half the grid's addition off
+            // 8.0, as on it — ours set them 8.0, and a line of "120" and
+            // "48" left a character Word takes.)
+            let grid = theme.wordRules && !runOffGrid && (p.style.eastAsian["w:snapToGrid"] != "0" || p.style.ownGridOff)
+                ? _grid(index, document).chars : nil
+            // (Ideographs keep the grid's addition in a paragraph off the
+            // grid — not in a run off it, which zh-457a8d62's "(附件一，1頁)"
+            // runs are, set at their face's widths in Word's print. Lab
+            // `sp`, Word for Windows, zh-3c055c9b's package: its "表標題"
+            // text, `w:snapToGrid` 0, at 12pt on a grid of +1pt is set 13
+            // apart spaced 0, 12 spaced -0.5 (its style's, counted twice),
+            // 10.6 spaced -1.2 — in the body and in a text box alike, and
+            // on a grid of -0.5pt 11.5. Ours left the grid out, and the
+            // style's spacing then set its 47.8pt header cell "支出傳票"
+            // where Word's print has "支出傳". Latin text keeps off it, as
+            // zh-268f8d15's footer above.)
+            let ideographGrid = grid ?? (theme.wordRules && !runOffGrid ? _grid(index, document).chars : nil)
+            // (Where single and double byte widths are balanced, a
+            // full-width character takes the run's spacing twice: 16pt
+            // text spaced -0.3 is set 15.4 apart.)
+            let spacing = (run.letterSpacing ?? (theme.wordRules ? named?.char.letterSpacing ?? _normalChar(document)?.letterSpacing : nil) ?? 0)
+                * theme.pixelsPerPoint * scale
+            let doubles = theme.wordRules && document.balancesSpaceWidth && spacing != 0
+            // A character an embedded subset lacks (`RichResolvedFace.covers`)
+            // is set in the face the name has unembedded, Word's fallback,
+            // its line that face's height (kind -3).
+            let subsetFace = theme.wordRules
+                ? theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                      ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true) : nil
+            let uncovered = subsetFace.flatMap { face in face.uncoveredFamily.flatMap { alt in face.covers.map { (alt, $0) } } }
+            // (Where Word takes them from several faces, each its own kind,
+            // -10 down: `RichResolvedFace.uncoveredChain`.)
+            let chain = uncovered != nil ? subsetFace?.uncoveredChain : nil
+            var chainAt: Int? = nil
+            var cambriaWidth = 0.0
+            // (Whether the run's shapes are its Latin face's — no East
+            // Asian hint, a Latin face that is not an East Asian one.)
+            let latinShapes = theme.wordRules && run.fontHint != "eastAsia"
+                && theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true
+            func style(_ kind: Int) -> TextStyle {
+                if let s = styles[kind] { return s }
+                var styled = run
+                let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
+                if let grown { styled.raised = grown.raise }
+                if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
+                if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
+                var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
+                                        characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
+                if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
+                if kind == -4, let cjk = Self._cjkFaceFamily {
+                    RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
+                    s = s.copyWith(fontFamily: cjk)
+                }
+                // (A space set in the ideographs' face keeps the stand-in's width.)
+                // (… and no line of its own: the face a space resolves to
+                // is not always the ideographs', and its descent made the
+                // line taller — zh-1563bd74's footer line, 19.0pt on the
+                // Mac against the ideographs' 18.6, and Word's lab `hfl`
+                // gives trailing spaces no height at all.)
+                if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s), height: 0.01) }
+                // (Set to the original's widths, the stand-in's own
+                // kerning is no part of them: Arial's pair of ones.)
+                if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+                if let grown, s.fontSize ?? 0 > 0.5 { s = s.copyWith(height: grown.height) }
+                // (A run with ruby over it makes its line room for the ruby.)
+                if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
+                   let h = theme.rubyLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
+                    s = s.copyWith(height: h)
+                }
+                // (A run of tabs alone takes no line of its own in a paragraph of
+                // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
+                // — its 16pt bold tab after 14pt text, at the line's end, mid-line
+                // or 14pt, leaves the 1.5 lines 27.24 apart in Word's print, the
+                // 14pt text's; the tab's line set the heading 9pt lower.)
+                // (Text: not a drawing's anchor alone — zh-38d26944's red-headed
+                // rule stands in a paragraph of a tab and its line's anchor,
+                // whose line the tab holds.)
+                if theme.wordRules, !text.isEmpty, text.allSatisfy({ $0 == "\t" }),
+                   p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }), s.fontSize ?? 0 > 0.5 {
+                    s = s.copyWith(height: 0.01)
+                }
+                // (A run of spaces alone takes the line's height, not its own.)
+                // (An en, an em and a four-per-em space are spaces to Word for
+                // Windows as the plain one is, and give a line no height of
+                // their own: lab `sp` (2026-10-30), rows of one 48pt space in a
+                // 12pt row — U+0020, U+2002, U+2003 and U+2005 leave it 14.6pt,
+                // in any colour, bold, highlighted or shaded; U+2000, U+2001,
+                // U+2004, U+2006…200A, U+202F and a letter make it 56.7.
+                // tdf153136 sets them so, 48pt, by the dozen.)
+                let widerSpaces = theme.wordRules && RichTextTheme.wordWindowsPages
+                let spaceLike: (Character) -> Bool = {
+                    $0 == " " || $0 == "\t" || $0 == "\u{3000}"
+                        || (widerSpaces && $0.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains($0.unicodeScalars.first!.value))
+                }
+                if let lineSize, !text.isEmpty, text.allSatisfy(spaceLike), let px = s.fontSize, px > 0.5 {
+                    let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    if !lineSize.blank, kind != -2, !text.containsSubstring("\t"), !text.containsSubstring("\u{3000}") {
+                        // (Beside other characters, spaces have no height
+                        // at all, whatever their face or size: lab `cap2`
+                        // (Word 16, 2026-10-17) — two 14pt or 20pt spaces
+                        // opening a 10.5pt 宋体 caption, in 仿宋_GB2312,
+                        // YaHei, Times or a face no one has, leave it one
+                        // pitch of the grid, and `cap3` 20pt spaces before,
+                        // within or after 10.5pt text one 10.5pt line.
+                        // Sized to the text in their own face they still
+                        // counted: YaHei's 10.5 is two pitches, and
+                        // zh-2a241df1's caption took a line more. A tab, a
+                        // no-break space and a glyph do count.)
+                        s = s.copyWith(height: 0.01)
+                    } else if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
+                        var sized = run
+                        sized.fontSize = lineSize.size
+                        // (The mark's line in the mark's Latin face, where
+                        // the line is of spaces alone: zh-1eeb9f9a's "　"
+                        // cells, 9pt in 仿宋_GB2312 under a 12pt Times New
+                        // Roman mark, are one 15.6pt pitch in Word's print —
+                        // Times' 12pt line; in the run's 仿宋 (YaHei to
+                        // Word on a Mac) ours were two, and p11's row they
+                        // stand in went over whole where Word parts it.)
+                        if theme.wordRules, lineSize.blank, let face = p.style.mark?.fontFamily { sized.fontFamily = face }
+                        let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                                eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
+                                                characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
+                        if let rs = r.fontSize, let rh = r.height, s.height != nil { s = s.copyWith(height: rs * rh / px) }
+                        else if s.height == nil, r.height == nil {
+                            // (Single lines in a face of its own metrics
+                            // have no height to scale: the spaces are set
+                            // at the mark's size, as wide as their own —
+                            // IllustrativeCases' line of 11pt spaces under
+                            // an 8pt mark is 9.2pt in Word's print, and at
+                            // 12.65 the last of three empty lines under a
+                            // table went over the page.)
+                            s = r.copyWith(letterSpacing: (r.letterSpacing ?? 0) + _spaceWidth(s) - _spaceWidth(r))
+                        }
+                    }
+                }
+                styles[kind] = s
+                return s
+            }
+            // (A zero-width character the layout puts in — a break the
+            // engine would not make, or a joiner — in the Latin kind's
+            // style whatever the text around it: in the East Asian style
+            // its glyph is the Latin base family's, whose ascent and
+            // descent split the em otherwise than the CJK face's, and a
+            // line with both grew 0.9pt at 12pt — zh-799c91cd's held
+            // spaces, and every line with a break before a quote.)
+            // (With none of the run's spacing: a run spaced 0.6pt gave
+            // each break it holds 0.6pt the fitter does not count, and
+            // zh-b00fef0d's "…改革决策部署" lost "署" to the next line.)
+            // (Nor any height: it sets no line, as a space sets none beside
+            // other text. zh-7773163d's p38 paragraph, a 17pt "一、" head
+            // over 16pt text (no strut, two sizes), took the Latin face's
+            // deeper descent from its joiners, and its lines stood 24.6pt
+            // apart where Word's print has 23.0. Except in a math face's
+            // run, whose letters are set at 0.6 of its line to keep the
+            // platform math face's split out of it: there the joiners are
+            // what gives the line Cambria Math's 1.17 em, bug59058's
+            // formula lines 15.24pt apart as in Word's print, 15.0 without.)
+            func zeroWidth(_ kind: Int) -> TextStyle {
+                let s = style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0)
+                return theme.wordRules && s.fontSize ?? 0 > 0.5 && !(kind >= 0 && latinFace?.setsMath == true) ? s.copyWith(height: 0.01) : s
+            }
+            // (Arabic set to the original face's joining widths, word by
+            // word — it parts only at spaces: each word its own span, drawn
+            // condensed or widened to the width its joining forms have in
+            // that face (`RichResolvedFace.joinedAdvances`), which the line
+            // breaking then measures too. Spacing would split a joined
+            // word's shaping or, on a zero-width character, be measured and
+            // not drawn right to left — zh-d97c5474's lines broke as Word's
+            // and stood 47pt past the margin — and on the spaces it ran the
+            // words together, Noto Naskh being 11% wider than Arial.)
+            let joinedFace: RichResolvedFace? = {
+                guard theme.wordRules, run.rightToLeft else { return nil }
+                let normal = _normalChar(document)
+                let latin: String? = run.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily
+                let complex: String? = run.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily
+                return theme.complexFaceResolver?(complex ?? latin)
+            }()
+            // (A zero-width non-joiner stays inside the word: Word sets the
+            // two parts as two joined words and the mark at no width, where
+            // the stand-in gave it 3pt and the parts no scale — lo
+            // tdf163575's "می‌توان" 37pt to Word's 27.)
+            func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
+            func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
+                guard let joinedFace, let first = word.first, isArabic(first), first != "\u{200C}", word.allSatisfy(isArabic),
+                      let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5
+                else { return s }
+                var ems = 0.0, shaped = 0.0
+                // (The mark is a grapheme extender: it is one Character with the
+                // letter before it, so the word is cut by its scalars.)
+                for part in word.unicodeScalars.split(separator: "\u{200C}", omittingEmptySubsequences: true) {
+                    guard let e = ArabicForms.width(part.map { $0.value }, table) else { return s }
+                    ems += e
+                    shaped += _wordWidth(s, String(String.UnicodeScalarView(part)))
+                }
+                return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
+            }
+            var notoStyle: TextStyle? = nil
+            var segoeStyle: TextStyle? = nil
+            var spans: [TextSpan] = []
+            var start = text.startIndex
+            var current: Int? = nil
+            func flush(_ end: Substring.Index) {
+                guard let kind = current, start < end else { return }
+                if joinedFace != nil, text[start ..< end].unicodeScalars.contains(where: { $0.value == 0x200C }) {
+                    // (The mark at no width, between two words each at its
+                    // own: Word's print has it so, the stand-in 3pt.)
+                    let word = text[start ..< end]
+                    let base = style(kind)
+                    var part = String.UnicodeScalarView()
+                    func put() {
+                        guard !part.isEmpty else { return }
+                        let piece = String(part)
+                        spans.append(contentsOf: capped(Substring(piece), run, joinedScaled(Substring(piece), base)))
+                        part = String.UnicodeScalarView()
+                    }
+                    for u in word.unicodeScalars {
+                        if u.value == 0x200C {
+                            put()
+                            let alone = TextPainter(text: TextSpan(text: "\u{200C}", style: base), textDirection: .ltr)
+                            alone.layout(minWidth: 0, maxWidth: 100_000)
+                            let own = alone.width
+                            alone.dispose()
+                            spans.append(TextSpan(text: "\u{200C}", style: base.copyWith(letterSpacing: (base.letterSpacing ?? 0) - own)))
+                        } else { part.append(u) }
+                    }
+                    put()
+                    start = end
+                    return
+                }
+                spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], style(kind))))
+                start = end
+            }
+            var offset = base
+            var i = text.startIndex
+            // (Measured as shown: a run in capitals (`capped`) is spaced,
+            // kerned and put on the grid by its capitals — 60810's titles,
+            // "Connection to global talent programmes/R200" in caps, lost
+            // "TA" and "LT"'s kerning and wrapped a line PowerPoint fits.)
+            let shownCaps = theme.measuresShownCaps && (run.caps || ((named?.char.caps ?? false) && !run.off.contains(.caps)))
+            func shown(_ c: Character) -> Character {
+                guard shownCaps else { return c }
+                let up = String(c).uppercased()
+                return up.utf16.count == String(c).utf16.count && up.count == 1 ? Character(up) : c
+            }
+            // (A raised or lowered run's line is its whole size's, unshifted,
+            // as if it were not raised: lab `sup` (macOS-doc, Word for Mac)
+            // — a 12pt 宋体 line with a 10pt YaHei superscript is 17.28pt
+            // in Word, as with it plain (17.04), ours 15.57; a footnote's
+            // mark the same; zh-7654804a's rows of "105" and a superscript
+            // "註3" stand 3pt taller in Word's print. Its glyphs are drawn
+            // shrunk and shifted; a zero-width non-joiner of its whole
+            // size holds the line — part of what stands before it to the
+            // line breaking, where a word joiner kept zh-424775e4's note mark
+            // from opening a line after "韩国。" as Word's print has it.)
+            // (Only where that line is taller than the rest of the paragraph's:
+            // a Times note mark in YaHei text changes nothing, and its joiner
+            // only stirred the line fitting.)
+            // (Not in a line with a page number's field: its raised "/" grows the line by 1.08pt at
+            // 15.5pt on 10, not by the whole size's 6.3 — lab pgf, Word for Windows, lo-198cd200's footer.)
+            if theme.wordRules, run.script != .normal, NativeParagraphBuilder.supportsBaselineShift, let first = text.first,
+               !p.runs.contains(where: { $0.style.field != nil && $0.style.fieldResult != nil && $0.style.script == .normal }),
+               let ownLine = theme.naturalLine(for: { var w = run; w.script = .normal; return w }(), named: named, eastAsian: RichLayout.isEastAsian(first, hinted: hinted)),
+               ownLine > ({ () -> Double in
+                   var most = 0.0, at = 0
+                   let units = Array(p.text.utf16)
+                   for r in p.runs {
+                       defer { at += r.length }
+                       guard r.style.script == .normal, r.length > 0, at + r.length <= units.count else { continue }
+                       let part = String(decoding: units[at ..< at + r.length], as: UTF16.self)
+                       let rh = (r.style.fontHint ?? named?.char.fontHint) == "eastAsia"
+                       let hasEA = part.contains { RichLayout.isEastAsian($0, hinted: rh) }
+                       let hasLatin = part.contains { !RichLayout.isEastAsian($0, hinted: rh) && !$0.isWhitespace }
+                       if hasEA { most = max(most, theme.naturalLine(for: r.style, named: named, eastAsian: true) ?? 0) }
+                       if hasLatin { most = max(most, theme.naturalLine(for: r.style, named: named, eastAsian: false) ?? 0) }
+                   }
+                   return most
+               }()) + 0.01 {
+                var whole = run
+                whole.script = .normal
+                let s = theme.textStyle(for: whole, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        eastAsian: RichLayout.isEastAsian(first, hinted: hinted), gridPitch: pitch, scriptHidden: true)
+                // (No width of its own: shaped alone, as it is set, it has
+                // one, and a line at its limit took a character less.)
+                let alone = TextPainter(text: TextSpan(text: "\u{200C}", style: s), textDirection: .ltr)
+                alone.layout(minWidth: 0, maxWidth: 100_000)
+                let own = alone.width
+                alone.dispose()
+                spans.append(TextSpan(text: "\u{200C}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) - own)))
+                inserts.append(offset)
+            }
+            while i < text.endIndex {
+                let ch = shown(text[i])
+                let after = text.index(after: i)
+                let following = (after < text.endIndex ? text[after] : next).map(shown)
+                // (An ideographic space on a line of spaces alone is set
+                // as the mark is, in the run's Latin face: see `lineSize`.)
+                let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
+                    && !(latinDash && ch == "\u{2013}")
+                var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
+                // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
+                // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
+                if ea, theme.wordRules, RichTextTheme.wordWindowsPages, Self._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
+                   (0x25A0 ... 0x25EF).contains(u) || u == 0x2605 || u == 0x2606 { kind = -4 }
+                // (A curly quote an embedded subset lacks is Word's fallback face's too, full width:
+                // zh-5450d509's “ ” after 仿宋_GB2312's five glyphs are JhengHei's 12pt in the
+                // print; ours set them as a missing glyph, 17.8 and 12.1, and a line lost a character.)
+                if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80 || (RichTextTheme.wordWindowsPages && (0x2018 ... 0x201D).contains(u)) {
+                    if covers.contains(u) { chainAt = nil }
+                    else if let chain {
+                        if let at = chainAt, chain[at].covers?.contains(u) ?? true {
+                            kind = -10 - at
+                        } else if chainAt == nil, let w = Self._cambriaMathOpeners[u] {
+                            // (A symbol that opens a stretch is Cambria Math's,
+                            // at its own width, on no line of its own: every
+                            // "〔", "〕" and circled number so placed in word-win
+                            // — zh-92373179's 31 "①"… at a line's start or after
+                            // a held character, 1.19 em at its grid; zh-540dc149,
+                            // zh-5450d509, zh-c2f6d17a, zh-e68a2f57's brackets
+                            // after a digit. One after a fallen-back character
+                            // keeps that one's face.)
+                            kind = -9
+                            cambriaWidth = w
+                        } else {
+                            chainAt = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1
+                            kind = -10 - chainAt!
+                        }
+                    } else { kind = -3 }
+                } else if chain != nil, !ch.isWhitespace {
+                    // (Any other character seen ends a stretch — a digit as
+                    // a held ideograph does: with that, all of the three
+                    // prints' 13,171 fallen-back characters are so.)
+                    chainAt = nil
+                }
+                // The spaces that end a paragraph after ideographs, in a run
+                // whose Latin letters stand in for an East Asian face's
+                // own, take the ideographs' face, at the stand-in's width
+                // (kind -2): set in the stand-in, its other ascent and
+                // descent made the line taller than either face. The Mac's
+                // lab `hfl` (Word 16): five spaces after "红河县人民政府发布"
+                // in 14pt bold 宋体 make the paragraph no taller; ours stood
+                // 1.2pt taller on Linux, and zh-1563bd74's footer took a
+                // line off a page. (Spaces within the line are left in the
+                // stand-in: set in the ideographs' face, the line fitting
+                // measured them otherwise, and lines parted elsewhere.)
+                if theme.wordRules, ch == " ", afterIdeograph, offset >= trailingSpaces, latinFace?.isEastAsian == true { kind = -2 }
+                if ea { afterIdeograph = true } else if ch != " " { afterIdeograph = false }
+                // A stretch of Latin characters with no space in it is
+                // one word to Word, which parts it only after a hyphen:
+                // an address, a date with strokes, "100%200%", "(a)(b)"
+                // go to the next line whole. The engine would break
+                // after the stroke, the question mark, the percent
+                // sign and the bracket; a word joiner holds them.
+                // (One too long for any line Word parts wherever the
+                // line ends, starting where it stands: a zero-width
+                // space before each of its characters.)
+                if wideStarts.contains(offset) {
+                    // (A word wider than the line opens a line of its own,
+                    // and is parted there: see `_wideWordStarts`.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2028}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if loose.contains(offset) {
+                    flush(i)
+                    // (A word wider than the line parted at a hyphenation
+                    // point ends its line there with the hyphen drawn.)
+                    if !ea, let idx = index, _hyphenPoints[idx]?.contains(offset) == true {
+                        spans.append(TextSpan(text: "-", style: style(kind)))
+                    } else {
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    }
+                    inserts.append(offset)
+                } else if let idx = index, let points = _hyphenPoints[idx], points.contains(offset), !ea {
+                    // (Automatic hyphenation: a place the word may be parted
+                    // at, with the hyphen drawn where the line does end.)
+                    flush(i)
+                    if _hyphenShown[idx]?.contains(offset) == true {
+                        spans.append(TextSpan(text: "-", style: style(kind)))
+                    } else {
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    }
+                    inserts.append(offset)
+                } else if theme.wordRules, !document.usesEastAsianLayout, spacesAfterNbsp, before == " ", !ea,
+                          !ch.isWhitespace, ch != "\u{00A0}" {
+                    // (Plain spaces after a no-break space hold the word
+                    // that follows them: Word parts no line between
+                    // "X)" + U+00A0 + U+0020 and the next word, so one
+                    // wider than what is left of the line is cut where the
+                    // line ends. LibreOffice's tdf134606, "X)\u{00A0} XXXXXXXXXXXX"
+                    // in a 94pt cell: Word sets "X)  XXXXXXXXXXX" / "X
+                    // XXXXXXXXX *", ours sent the 12 X's down whole, a
+                    // third line, the row 12pt taller.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." {
+                    // (A line may part at a space before a stop: the engine keeps
+                    // " ." together — a stop may not start a line, even after a
+                    // space — and Word does not. lo-0349db3a's "Word / .doc" in a
+                    // 116pt frame ends a line "…in Word /" in Word's print.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules || theme.officeLatinBreaks, let b = before,
+                          Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, document.usesEastAsianLayout, ch == ">", let b = before,
+                          let v = b.unicodeScalars.first?.value, (0x3400...0x9FFF).contains(v) || (0xF900...0xFAFF).contains(v) || v >= 0x20000,
+                          !Self._traditionalChinese(document) {
+                    // (">" may not begin a line in Word's Simplified
+                    // Chinese list, and the engine parts it from an
+                    // ideograph before it: zh-3fe252ff's "…28~31行3栏>0,"
+                    // sends "栏" down with it in Word for Windows' print
+                    // (lab `lan`), ours kept "栏" and every page after p22
+                    // ran a line short. Not under Traditional Chinese,
+                    // whose list lacks it — see `_looseWordOffsets`. And
+                    // after an ideograph only: held to a closing bracket,
+                    // zh-4c884684's "…2022年）>" went down whole where
+                    // Word's print ends its line with it.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, ch == "\u{FE30}", let b = before, b != " " {
+                    // ("︰" may not begin a line — see `_noStart` — and the engine parts it from what it
+                    // follows: zh-e51c31a7's "…以為共同遵守︰" sends "守︰" down in Word's print.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, document.usesEastAsianLayout, (document.compatibilityMode ?? 12) < 15,
+                          document.characterSpacingControl?.hasPrefix("compress") == true,
+                          before == "-", ch.isLetter, (ch.unicodeScalars.first?.value ?? 0x3000) < 0x250,
+                          beforeBefore?.isLetter == true, (beforeBefore?.unicodeScalars.first?.value ?? 0x3000) < 0x250 {
+                    // (Latin letters only: zh-c8eb6e92's "评标-定标" parts after the
+                    // hyphen. Nor after a hyphen between letters, before mode 15 where
+                    // punctuation is compressed: labs hyc/hyd (Word for Windows,
+                    // zh-424775e4's package, mode 12, compressPunctuation) send
+                    // "China-sponsored" down whole with 25pt to spare, and
+                    // "langkah-langkah" too; in mode 15, or under doNotCompress,
+                    // it parts after the hyphen — as every other Word-win print
+                    // that breaks there does.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, !document.usesEastAsianLayout, let b = before, Self._breaksAfterHyphen(beforeBefore, b, ch) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, !document.usesEastAsianLayout, before == "-", ch.isNumber,
+                          let bb = beforeBefore, bb.isLetter || bb.isNumber {
+                    // (Word parts a line after a hyphen before a digit —
+                    // "КС-" from "2).", "А-" from "5", "2024-" from "10"
+                    // — which the engine, keeping a number whole with
+                    // its sign, does not. Lab `hy3` in bug65649's
+                    // package, Word 16, 2026-10-15, every width that
+                    // ends a line between them; its page 14's "КС-2)".
+                    // Not under East Asian layout: zh-64044a1d's
+                    // "0988-228598", a cell too narrow for it, Word
+                    // parts after the tenth digit, not at the hyphen.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                // (A distributed line's room before this character: a word
+                // joiner that wide. Spacing on the character itself would
+                // be set half before it, and move the line's first.)
+                if let g = spread[offset], g > 0 {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: style(kind).copyWith(letterSpacing: g)))
+                    inserts.append(offset)
+                }
+                // In East Asian text a curly quote is a full-width mark,
+                // an em with the blank half outside it, as 宋体 and
+                // every face Word sets such text in draw it; the faces
+                // that stand in here draw the Latin one. The closing
+                // one's blank is spacing after it.
+                // A CJK compatibility ideograph Word on a Mac sets in Noto
+                // Sans SC — its East Asian face has none, and its fallback
+                // takes that face for these (`_notoCompatibility`) and
+                // Heiti SC for the rest — gives its line Noto's height: a
+                // word joiner in that face before it. Lab `cj2` (Word 16,
+                // 標楷體 → YaHei 12pt, 2026-10-15): a line holding "行"
+                // U+FA08 stands 1.44pt lower under the line above and
+                // 0.48 higher over the next; one holding "零" U+F9B2, in
+                // Heiti, is as any. zh-8e8d4c40's page 5 ran a line long.
+                if theme.wordRules, ea, let u = ch.unicodeScalars.first?.value, u >= 0xF900, u <= 0xFAFF,
+                   Self._notoCompatibility.contains(u),
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.lacksCompatibilityIdeographs == true {
+                    flush(i)
+                    if notoStyle == nil {
+                        var r = run
+                        r.eastAsiaFontFamily = "Noto Sans SC"
+                        notoStyle = theme.textStyle(for: r, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                                    eastAsian: true, gridPitch: pitch, scriptHidden: true)
+                        // (Noto's line over and under the baseline, not
+                        // its height shared out as the joiner's own face
+                        // shares its ascent and descent: zh-8e8d4c40's
+                        // lines holding "狀" and "行" stood 2.6pt under
+                        // the line above, Word's 1.4, and no deeper.)
+                        if let joiner = _notoJoiner(r, notoStyle!, run, named, style(kind), p.style, pitch, scale) { notoStyle = joiner }
+                    }
+                    // (A joiner keeps the line from parting before the
+                    // character: a zero-width space before it gives the
+                    // break back, the joiner going on with the character.
+                    // zh-5b7ae054's "…基本抗災能力" ends its line at "能" in
+                    // Word's print, "力" U+F98A opening the next; ours
+                    // carried "能力" over and lost a character a line.)
+                    // (After a Latin letter, a digit or a Latin closer too:
+                    // zh-72da925e's "…經行政院於79年" ends a line "於79" in
+                    // Word's print, "年" U+F98E opening the next; the joiner
+                    // held "79年" whole and ours ended the line "於".)
+                    if let b = before, Self.isEastAsian(b, hinted: true) ? !Self._openingMarks.contains(b)
+                        : b.isASCII && (b.isLetter || b.isNumber || ")]}%.,;:!?".contains(b)) {
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                        inserts.append(offset)
+                    }
+                    spans.append(TextSpan(text: "\u{2060}", style: notoStyle!))
+                    inserts.append(offset)
+                }
+                // A shape Word sets in the run's Latin face (no East Asian
+                // hint), which has none, and its fallback in Segoe UI Symbol,
+                // gives its line that face's ascent and descent (its hhea,
+                // 2210 and 514 of 2048): a joiner sized so before it. Lab
+                // `picln` (the Mac 7bd18d8e, Word 16, zh-e68a2f57's package):
+                // its 9pt note, 楷体_GB2312 over Times New Roman, holding "◎"
+                // stands 0.48pt lower under the line above, 0.96 at 12pt, at
+                // single and 1.1 lines alike — its embedded 楷体 has the
+                // glyph; "◇◆★☆" as "◎", "●□▲○■※" (Times has them) and
+                // "①△" (Cambria Math) nothing. Ours drew them in YaHei, its
+                // line as any, and p7's third note line stayed on the page.
+                if latinShapes, let u = ch.unicodeScalars.first?.value, RichTextTheme.segoeSymbolShapes.contains(u) {
+                    flush(i)
+                    if segoeStyle == nil { segoeStyle = _segoeJoiner(run, named, style(-1), p.style, pitch, scale) }
+                    if let joiner = segoeStyle {
+                        // (Its break before kept: see the Noto joiner's.)
+                        if let b = before, Self.isEastAsian(b, hinted: true) ? !Self._openingMarks.contains(b)
+                            : b.isASCII && (b.isLetter || b.isNumber || ")]}%.,;:!?".contains(b)) {
+                            spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                            inserts.append(offset)
+                        }
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
+                // (Not where the face gives the quote a width of its own
+                // (`otherAdvances`): Arial Unicode MS's are narrow, and Word
+                // sets them so with no blank beside them — zh-0aac9d1a.)
+                let narrowQuotes = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?
+                    .otherAdvances?[0x201D] != nil
+                let quote = ea && fullQuotes && (ch == "\u{201C}" || ch == "\u{2018}" || ch == "\u{201D}" || ch == "\u{2019}")
+                    && !narrowQuotes
+                // (None where the face's own quote is the em to a hair: Starling
+                // FangSong's is 15.99997 of 16, and a blank of that hair sent
+                // the squeeze the line fitting asked of an opening quote into a
+                // joiner that cannot be narrower than nothing — zh-8186c98d's
+                // "…中的标准计" lost its "计" on Linux.)
+                let blank = quote ? max(0, em - _glyphWidth(style(kind), ch)) : 0
+                let blankShown = blank > _px(0.01) ? blank : 0
+                var led = false
+                // (A word joiner before spaces that open the paragraph:
+                // the engine moves a line on by half its first character's
+                // letter spacing and, justifying, folds the spaces a line
+                // opens with — zh-b378d8c4's "    1.城市内涝…", four Times
+                // spaces widened to 7pt each, stand from the margin on
+                // every line in Word's print, where ours started its
+                // left-aligned lines 1.8pt in and set its justified ones'
+                // spaces as one, 5pt out of the margin.)
+                if theme.wordRules, offset == 0, ch == " " {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                // (Thai, under `thaiBreaksAtSpaces`, kept together between
+                // its spaces: Word for Mac's print of zh-6a4fc013 ends its
+                // Thai lines only at spaces — "…ในประเทศต้นทาง" / "และพิจารณา…",
+                // a justified line's gaps stretched for it — where the
+                // engine's dictionary broke inside words and set 596 lines
+                // to Word's 614.)
+                else if thaiJoins.contains(offset), let b = before,
+                        let pb = b.unicodeScalars.first?.value, let pc = ch.unicodeScalars.first?.value,
+                        (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                else if hanJoins.contains(offset) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                // (A place to break the line before a tab that follows text, where Word for Windows
+                // takes the tab and what stands after it to the next line whole: tdf164499's
+                // "…habe?)<tab>1" in a contents line — the number is no room, the dotted tab and
+                // "1" go down and "habe?)" stays; the engine has no break there, wrapped "habe?)"
+                // with them, and a line behind the contents ran on.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\t", offset > 0, let b = before,
+                        b != " ", b != "\t", b != "\n", b != "\u{2028}", b.isASCII {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                    RuleTrace.hit("break-before-a-tab")
+                }
+                // A zero-width space where Word may break the line and
+                // the engine would not: after spaces set as no-break
+                // ones (`heldSpaces`), and before an opening curly
+                // quote or after a closing one, as at any bracket —
+                // the engine breaks on neither side of a quote.
+                if afterHeld, ch != " ", !(breaksAtQuotes && !lineRulesOff && Self._closingMarks.contains(ch)) {
+                    flush(i)
+                    // (In the held spaces' own style, not the East Asian
+                    // text's after them: there its glyph is the Latin base
+                    // family's, whose ascent and descent split the em
+                    // otherwise than the CJK face's, and the line grew
+                    // 0.9pt at 12pt — zh-799c91cd's page 1 lost a line.)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
+                    inserts.append(offset)
+                    afterHeld = false
+                } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber || Self._closingMarks.contains($0) } == true)
+                            || (ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true)
+                            || (RichTextTheme.wordWindowsPages && ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isLetter } == true) {
+                    // (… nor after one that follows a closing bracket, before digits: zh-22ecbdc8's
+                    // "…达1000（含）" / "—5000人/年" in Word's print, and lab legsq's "（含）—5000" taken or
+                    // left whole; ours parted "—" from "5000". Word's prints end a line on "—" with digits
+                    // after it 3 times in the corpus, none after a bracket.)
+                    // (Nor on either side of an em dash between digits — a span
+                    // of years: zh-b378d8c4's "（2021—2030年）" goes down whole
+                    // in Word's print, its "（" unable to end a line; the
+                    // engine parted it at the dash.)
+                    // (Before the dash, a Latin dash only, as that one is, in
+                    // Times: one set in the East Asian face, hinted so, may open
+                    // a line, the digits after it kept with it — zh-8d6f702e's
+                    // and zh-c2f6d17a's "…面雨量达100" / "—150毫米" in Word's
+                    // print, where ours took "100—150" down whole, and
+                    // zh-81a32de0's "…以上。（1" / "—5分）". Lab `dash` (Word for
+                    // Windows, zh-8d6f702e's package): the same "—" hinted
+                    // default in Times goes down with "100—150", with or without
+                    // `doNotUseEastAsianBreakRules`; the face decides.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, breaksAtQuotes, !lineRulesOff, before == " ", Self._closingMarks.contains(ch) {
+                    // (Nor before a closing mark after spaces, which may no
+                    // more start a line there than anywhere: zh-f47b8a74's
+                    // "…将罚款缴至" and 19 underlined spaces, then "，账号",
+                    // go down whole in Word's print, "至" opening the line;
+                    // the engine broke after the spaces, and the line after
+                    // began with the "，".)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, ch == "\u{FE6A}", before.map({ $0.isASCII && $0.isNumber }) == true {
+                    // (A line may break between a digit and the small percent
+                    // sign "﹪", which is no Latin "%": zh-146f4e02's "…價值）的8﹪給予"
+                    // ends a line "…的8" in Word for Windows' print, the "﹪"
+                    // opening the next (six such lines); the engine keeps a
+                    // number with its percent sign and carried the "8" down.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, before == "-", ch.isASCII, ch.isNumber,
+                          (wordHasLetter && beforeBefore.map { $0.isASCII && ($0.isLetter || $0.isNumber) } == true)
+                            || beforeBefore.map { !$0.isASCII && Self.isEastAsian($0, hinted: false) } == true {
+                    // (A line may break after a hyphen before a digit, as
+                    // after one before a letter: zh-15f60bac's "…公布之
+                    // CNS11643-2(中文字基礎部件…" ends a line "CNS11643-" in
+                    // Word's print and starts the next "2(中文字"; the
+                    // engine, by Unicode's rules, keeps a hyphen with the
+                    // number after it, and took "CNS11643-2" down whole.
+                    // Not in a number alone: zh-64044a1d's narrow cells set
+                    // "0932-757839" as "0932-75783" and "9", a telephone
+                    // number parted where it fills the line, not at its
+                    // hyphen; nor zh-dd4c6e05's "（110-116", a span of years,
+                    // which Word keeps whole — while its "（110 年-114 年）"
+                    // ends a line "年-": a hyphen after an ideograph.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, !lineRulesOff, before == " ",
+                          ch == "%" || ch == "‰" || ch == "℃" || Self._closingMarks.contains(ch) {
+                    // (Nor after spaces before a mark no line may start
+                    // with: Word goes back to the break before them.
+                    // zh-f43c9edf's "提取    %作为…" — a blank to fill in —
+                    // ends a line "提" and starts the next "取    %" in
+                    // Word's print; the engine parted it at the spaces and
+                    // opened the line with "%".)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if traditionalLists, !lineRulesOff, ch == "\u{FF05}", let b = before, b.isASCII, b.isNumber {
+                    // (Before a full-width percent sign after a number, where
+                    // Word's Traditional Chinese lists hold: they do not keep
+                    // "％" from a line's start, as its Simplified one does.
+                    // zh-499adba6's "…占比為38.54" ends page 25's first line
+                    // in Word's print and "％，女性理事…" opens the next;
+                    // the engine, by Unicode's rules, keeps a number's sign
+                    // with it, took "38.54％" down and set every line after
+                    // two characters behind.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if kinsokuOff && !breaksAtQuotes, let b = before,
+                          Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
+                            || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))
+                                && Self._eastAsianLineRules(run, document, named: named)) {
+                    // The paragraph's explicit kinsoku=0 works without
+                    // useFELayout too: fresh Word's comma/parenthesis controls
+                    // have identical breaks with that switch on and off.
+                    // Keep the other FE-layout break opportunities separate.
+                    // This synthetic break has no line metrics: its Latin
+                    // stand-in otherwise enlarges a mixed-size FangSong line
+                    // (zh-202582e2 p5) despite having no glyph to draw.
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
+                } else if breaksAtQuotes, let b = before,
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages, latinQuotes: theme.wordRules && !hinted) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                            || (theme.wordRules && Self._closingQuote(ch) && (kinsokuOff && hinted && RichTextTheme.wordWindowsPages || !Self._eastAsianLineRules(run, document, named: named)))
+                            // (And end one with an opening mark, where it is
+                            // `w:kinsoku` 0 that turns them off in text of an
+                            // East Asian language: zh-72da925e (zh-TW) ends
+                            // a line "…（下稱「" in Word's print, "中" opening
+                            // the next. Not where the language is not one —
+                            // zh-c5b5087b's en-US carries "（" over.)
+                            || (kinsokuOff && ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch)) && Self._eastAsianLineRules(run, document, named: named))
+                            // (A full-width opening quote the same: zh-b00fef0d's "…其中" sends "“1" down whole,
+                            // the quote unable to stay alone at the line's end 12pt over.)
+                            || (kinsokuOff && RichTextTheme.wordWindowsPages && ch != " " && (b == "\u{201C}" || b == "\u{2018}") && runHinted(atOffset: offset - 1) && Self._eastAsianLineRules(run, document, named: named))
+                            // (In a line too narrow for one character
+                            // every character is a line, the marks
+                            // too: zh-830ef10d's 6pt cell sets
+                            // "个性要求（6分）" one to a line in Word's
+                            // print, "（" and "6" and "分" and "）" each
+                            // alone, where ours kept "（6" and "分）".)
+                            || (b != "\n" && textWidth > 0 && textWidth < (style(kind).fontSize ?? 0)) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                // (The opening quote's blank: a word joiner as wide as
+                // the blank, which no line parts from the quote — at a
+                // line's start the blank leads the mark, as in Word,
+                // and none is left at the end of the line before. What
+                // the line fitting takes off the quote comes off it.)
+                if quote, blankShown > 0, ch == "\u{201C}" || ch == "\u{2018}" {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: style(kind).copyWith(letterSpacing: max(0, blankShown + (adjust[offset] ?? 0)))))
+                    inserts.append(offset)
+                    led = true
+                }
+                beforeBefore = before
+                before = ch
+                if ch == "\u{00A0}" { spacesAfterNbsp = true } else if ch != " " { spacesAfterNbsp = false }
+                wordHasLetter = ch.isASCII && (ch.isLetter || ch.isNumber || ch == "-") ? wordHasLetter || ch.isLetter : false
+                if let c = current, c != kind { flush(i) }
+                else if joinedFace != nil, isArabic(ch) != (beforeBefore.map(isArabic) ?? false) { flush(i) }
+                current = kind
+                // What this character is set wider or narrower by: Word's
+                // automatic space between an ideograph and the Latin
+                // letter or digit beside it (`w:autoSpaceDE` and
+                // `w:autoSpaceDN`, on unless the paragraph says
+                // otherwise); the half em it takes off the first of two
+                // punctuation marks that stand together; and what the
+                // line fitting asked of this one.
+                // (What the joiner could not give, the quote gives.)
+                var extra = led ? min(0, blankShown + (adjust[offset] ?? 0)) : adjust[offset] ?? 0
+                if quote, !led { extra += blankShown }
+                // (Balanced, a half-width character takes half of the
+                // grid's addition, whatever follows it: on a grid of
+                // 1.008pt Word sets a digit 0.504 wider than its face
+                // does, before another and before an ideograph, and a
+                // bracket and a letter the same. Lab `cg3`, 2026-10-13,
+                // glyph by glyph. It was the full addition before an
+                // ideograph here, which the automatic space hid — see
+                // the gap below — and a paragraph with that space off
+                // showed: zh-457a8d62 lost a character a line.)
+                // (The paragraph's last character too: zh-72da925e's 12pt
+                // cell "(內湖)" is 39.02 on its grid of 1.0076 — lab tgr,
+                // windows-1: Word sets each character at whole multiples
+                // of the pitch, half-width ones at half — and fits its
+                // 39.05 column in Word for Windows' print; ours gave the
+                // closing ")" the whole addition, 39.53, and wrapped it.)
+                // (Word for Windows': the Mac's print of the same file
+                // gives that last character the whole addition — its
+                // pair fell 86.7 -> 71.1 with this — so there it stays.)
+                if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ",
+                   following.map({ $0 != " " }) ?? (theme.wordRules && RichTextTheme.wordWindowsPages) {
+                    extra -= _px(g) / 2
+                }
+                // (In a paragraph off the grid, that half alone — no
+                // whole addition to take it from: zh-8d6f702e's "24小时…
+                // 150毫米" paragraph, `w:snapToGrid` 0 on a grid of -0.21,
+                // sets each digit 7.90 in Word's print, Times's 8 less
+                // half; ours 8.00, and the line took nothing Word's does.
+                // Before a space, or a space, nothing: zh-268f8d15's
+                // footer "- 1 -" is Times's own widths. Nor in a header or
+                // footer, which keeps to no grid: zh-3c055c9b's page number.)
+                if !ea, grid == nil, document.balancesSpaceWidth, let g = ideographGrid, g != 0, _grid(index, document).pitch != nil,
+                   ch != " ", let following, following != " " {
+                    extra += _px(g) / 2
+                }
+                // (A symbol set in an East Asian face that gives it a width
+                // of its own takes that width, and half the grid's addition
+                // as a half-width character does: YaHei's "…" is 0.8135 em,
+                // and zh-457a8d62's "……" are 13.52pt apiece at 16pt on its
+                // grid of 1.0076 in Word's print — 13.016 and 0.504 — where
+                // the stand-in's em-wide glyph and the whole addition set
+                // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
+                // its "失".)
+                if kind == -9 { extra += cambriaWidth * em - _glyphWidth(style(kind), ch) }
+                // (A quotation mark in a run that says `w:hint` "default" over
+                // an East Asian ASCII face and a Latin hAnsi one is the hAnsi
+                // face's, at its width: zh-785e46f8's “ ” in 仿宋_GB2312 over
+                // a Times hAnsi are 7.1pt at 16pt in Word's print, where the
+                // stand-in set them 8.0 and the line lost a character.)
+                if theme.wordRules, !ea, ch == "\u{201C}" || ch == "\u{201D}" || ch == "\u{2018}" || ch == "\u{2019}",
+                   (run.fontHint ?? named?.char.fontHint) == "default", latinFace?.isEastAsian == true, highFace.map({ !$0.isEastAsian }) == true,
+                   let high = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily {
+                    var alt = run
+                    alt.fontFamily = high
+                    let s = theme.textStyle(for: alt, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            eastAsian: false, gridPitch: pitch, characterClass: nil, characterGrid: grid, scriptHidden: true)
+                    extra += _glyphWidth(s, ch) - _glyphWidth(style(kind), ch)
+                }
+                // (An em space is an em and an en space half one, whatever face
+                // sets them: zh-8415d258's paragraphs open with two U+2003 in
+                // a 仿宋_GB2312 run, 15pt apiece at 15pt in Word for Windows'
+                // print (in Cambria Math), where the stand-in's fallback set
+                // them 6.7 and every such first line took a character more.)
+                // (Arial has the en space itself, 0.557 em: ten of them are 66.84pt at
+                // 12pt in Word's print — lab `spaces` — where the half em makes them 60.)
+                // (A no-break space is not ASCII to Word: in a run whose ASCII
+                // face is East Asian over a Calibri hAnsi it is Calibri's
+                // space, 0.2261 em, not the East Asian face's half em —
+                // zh-ea43dd6d's signature line, eight U+00A0 then 25 spaces
+                // before "嘉兴市财政局" in 仿宋_GB2312 at 16pt: the eight
+                // are 3.6pt each in Word's print, and ours set them 8 and
+                // wrapped the name.)
+                let nbspHAnsi = theme.wordRules && RichTextTheme.wordWindowsPages && !ea && ch == "\u{00A0}" && latinFace?.isEastAsian == true
+                    && !run.hAnsiNamedAsAscii && !(run.fontFamily == nil && (named?.char.hAnsiNamedAsAscii ?? false))
+                    && hAnsiFace.map({ !$0.isEastAsian && ["calibri", "carlito"].contains($0.family.lowercased()) }) == true
+                if nbspHAnsi {
+                    RuleTrace.hit("no-break-space-is-the-hansi-faces-not-the-east-asian-ones")
+                    extra += 0.2261 * em - _glyphWidth(style(kind), ch)
+                }
+                if theme.wordRules, ch == "\u{2003}" || ch == "\u{2002}" {
+                    let arial = ch == "\u{2002}" && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").lowercased() == "arial"
+                    extra += (ch == "\u{2003}" ? 1 : arial ? 0.557 : 0.5) * em - _glyphWidth(style(kind), ch)
+                }
+                // (A symbol face's glyph drawn by a stand-in takes the face's
+                // own advance: Wingdings 2's box is 0.89 em in Word's print
+                // of zh-d0a207ac, 10.68 at 12pt, where the stand-in's is an
+                // em, and its "☐鲁班杯" line lost its "杯".)
+                if symbolsShown, let w = theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) { extra += w * em - _glyphWidth(style(kind), ch) }
+                if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
+                   let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                    ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
+                   let w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
+                    extra += w * em - _glyphWidth(style(kind), ch)
+                    if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
+                }
+                // (A CJK compatibility ideograph YaHei lacks and Word for
+                // Mac's Noto Sans SC does not give it is YaHei's own
+                // missing-glyph box, 0.697 em, in the line's breaking as
+                // in its drawing: zh-12c4f07a's "於契約…本委" ends at "委"
+                // in Word's print, its "契" U+F909 a box 9.06pt wide at
+                // 13pt, where ours set it an em and "委" went over. Lab
+                // `cj` (Word for Mac): U+F909 and U+FA01 give 0.30 em more
+                // room than U+5951 and U+5EA6, at 13 and 14pt, anywhere on
+                // the line.)
+                if ea, let u = ch.unicodeScalars.first?.value, u >= 0xF900, u <= 0xFAFF, !Self._notoCompatibility.contains(u),
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.lacksCompatibilityIdeographs == true {
+                    extra += 0.697 * em - _glyphWidth(style(kind), ch)
+                }
+                // A symbol an East Asian run sets in its own face (■□●○
+                // ◆△※, the circled numbers, arrows) is an em wide there, as
+                // every such face draws it; the face drawing it here may
+                // be a Latin fallback's narrower glyph — zh-abe7e063's ■
+                // came out 6.04pt at 10pt where Word's SimSun sets 10, and
+                // a table cell's line took a character Word wraps.
+                // (So is the hyphenation point "‧", U+2027 — the zh-TW
+                // middle dot of "亞洲‧矽谷" — and the bullet and two-dot
+                // leader beside it, whichever kind the layout counts
+                // them: PMingLiU sets each an em, and zh-190d730c's
+                // line of it at 6.2pt took a character Word wraps.)
+                if let u = ch.unicodeScalars.first?.value,
+                   !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
+                   (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022),
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {
+                    let g = _glyphWidth(style(kind), ch)
+                    if g > 0.5, g < em - 0.01 { extra += em - g }
+                }
+                if wideSpaces.contains(offset) {
+                    // (Half an em and the run's own spacing once more,
+                    // as Word measures it: 8.31pt at 16pt spaced 0.15.
+                    // A face Word emboldens widens each character by its
+                    // spread, and the space, a half-width character,
+                    // by half of it — not by the whole, and not by the
+                    // Latin stand-in's once more: 5.72pt at 12pt in
+                    // 楷体_GB2312 bold spaced -0.2, where 6.02 wrapped a
+                    // line of zh-232090e0 that Word keeps; lab `sp`,
+                    // 2026-10-14.)
+                    let s = style(kind)
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily
+                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, true)
+                    let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    let spread = bold ? own * theme.pixelsPerPoint * scale : 0
+                    // (The stand-in's spread is in the style's spacing,
+                    // which the engine applies and the line above adds
+                    // once more: off twice.)
+                    // (An embedded subset is different on Mac with an explicit
+                    // Latin face: tc22's embedded FangSong_GB2312 over Times or
+                    // Arial sets plain balanced spaces at 3/8 em, left-aligned
+                    // or justified. Removing the embedding restores 1/2 em, as
+                    // do ordinary named FangSong, SimSun, KaiTi and YaHei.
+                    // Mixed NBSP runs keep their existing half-em rule.)
+                    // (Whether or not the subset holds a space: lab esp, from
+                    // zh-d9b085b1, whose FangSong_GB2312 has one — 3/8 em over
+                    // Times, Arial or Courier New alike, in mode 12 and 15;
+                    // 1/2 em with the embedding stripped, under 宋体, or under
+                    // an embedded 黑体, which Word for Mac draws in its own
+                    // SimHei. Word for Windows: 1/2 em.)
+                    let missingSpace = !RichTextTheme.wordWindowsPages && ordinaryBalancedSpaces.contains(offset)
+                        && latinFace?.isEastAsian == false && eaFace?.drawnFromSubset == true
+                    // (The subset's spaces keep 3/8 em in bold too,
+                    // while its ideographs widen: the 12/16/20pt lab.)
+                    let fraction = missingSpace ? 0.375 : 0.5
+                    // (Half the run's em as scaled, `w:w`: zh-4e5fe46f's space
+                    // at w 95 is 4.32 in Word for Windows' print — 10.5 x 0.95
+                    // / 2 less the doubled spacing — where ours set 4.55.)
+                    extra += em * wScale * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                        - 2 * spread * (latinFace?.boldSpread ?? 0) + (missingSpace ? 0 : spread * (eaFace?.boldSpread ?? 0) / 2)
+                    // (A trailing space set in the ideographs' face (kind -2)
+                    // has the stand-in's width in its spacing: that is not
+                    // the run's own, and not counted twice — zh-9dd9ce6d's
+                    // five after "…发布" at 14.25pt are 7.15 apiece in Word's
+                    // print, ours 13.3, and its footer took a line more.)
+                    if kind == -2 {
+                        let base = style(classed ? RichResolvedFace.characterClass(" ") : 0)
+                        extra -= 2 * ((s.letterSpacing ?? 0) - (base.letterSpacing ?? 0))
+                    }
+                    // (The grid's addition, which the style's spacing holds
+                    // too, half of it, not twice: zh-f0bd9ea8's two spaces
+                    // after "第一条" on a grid of -0.21 are 7.9pt apiece at
+                    // 16pt in Word's print, ours 7.6, and every line took a
+                    // character Word wraps.)
+                    if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
+                } else if !ea, let face = latinFace, face.advances != nil, ch.unicodeScalars.count == 1,
+                          let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
+                    // The width the original face gives this character
+                    // (`RichResolvedFace.advances`), at the size the
+                    // style sets it less the stand-in's scales.
+                    // (A trailing space set in the ideographs' face, kind
+                    // -2, has the stand-in's width already: measured
+                    // against the stand-in's own, as any other.)
+                    let own = kind == -2 ? (classed ? RichResolvedFace.characterClass(" ") : 0) : kind
+                    let s = style(own)
+                    let k = Int(u) - 0x20
+                    if let table = face.advanceTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic), k < table.count, let px = s.fontSize, px > 0.5 {
+                        let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
+                        var target = table[k] * px / (face.sizeScale * classScale)
+                        // (Kerned with the next of the run by the original's
+                        // pair, where the run kerns at its size: zh-d89c3840's
+                        // "（TC）" in YaHei at 16pt, "T" 8.4 in Word's print
+                        // where its advance is 9.17, and its line took "秘".)
+                        let kernsFrom: Double? = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom
+                        let points: Double = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+                        let pairs: [UInt32: Double]? = s.fontWeight == .bold ? face.boldKerns : face.kerns
+                        if theme.wordRules, let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
+                           let v = shown(text[after]).unicodeScalars.first?.value, v >= 0x20, v <= 0x7E, let pair = pairs[u << 8 | v] {
+                            target += pair * px / (face.sizeScale * classScale)
+                        }
+                        // (On the print's grid too, kerned as the stand-in
+                        // kerns, where the theme has one: `advanceGrid`.)
+                        if let grid = theme.advanceGrid, grid > 0 {
+                            let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+                            let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
+                            if kerns, let following { target += _pairAdvance(s, ch, following) - _glyphWidth(s, ch) }
+                            let g = grid * theme.pixelsPerPoint * scale
+                            if g > 0 { target = (target / g).rounded() * g }
+                        }
+                        extra += target - _glyphWidth(s, ch)
+                    }
+                } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
+                          latinFace?.otherAdvances.flatMap({ t in ch.unicodeScalars.first.flatMap { t[$0.value] } }) == nil,
+                          ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
+                    // On the print's grid (`advanceGrid`) — kerned with the
+                    // next where the run kerns at its size (`kerningFrom`).
+                    let s = style(kind)
+                    let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+                    let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
+                    let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
+                    let g = grid * theme.pixelsPerPoint * scale
+                    if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
+                } else if !ea, !nbspHAnsi, let u = ch.unicodeScalars.first?.value,
+                          let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
+                          // (A letter with its marks, where the table has each:
+                          // Thai's "ต่", "คำ" — `OfficeFonts.browalliaAdvances`.)
+                          ch.unicodeScalars.count == 1 || (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.allSatisfy { face.otherAdvances?[$0.value] != nil }),
+                          // (Not a no-break space after an ordinary one, through
+                          // others: that is the Latin text's, the space's half
+                          // em — zh-f3802561's "第一条" + U+00A0, U+0020, U+00A0,
+                          // U+00A0 in a 10.5pt 仿宋 run sets them 10.5, 5.25,
+                          // 5.25 and 5.25 in Word's print; ours set every
+                          // no-break one an em, and the line lost its "发".)
+                          // (Nor one after a Latin letter or digit: zh-a7a889eb's
+                          // 12pt 宋体 "3.5" + U+00A0 + U+0020 sets them 6 and 6,
+                          // and its line took "业 贰 级" ours left for the next.
+                          // After a "." it is an em still — zh-17749c13's
+                          // "1." + U+00A0 + "船" is 14 at 14pt.)
+                          !(theme.wordRules && u == 0xA0 && text[..<i].reversed().first(where: { $0 != "\u{00A0}" }).map({ $0 == " " || ($0.isASCII && ($0.isLetter || $0.isNumber)) }) == true) {
+                    // … and the width it gives one the stand-in lacks.
+                    // (Past ASCII, the `w:hAnsi` face's, where it has its own:
+                    // zh-17749c13's no-break spaces in 仿宋_GB2312 runs whose
+                    // hAnsi is 宋体 are SimSun's, an em each in Word's print.)
+                    let s = style(kind)
+                    let own = face.family == latinFace?.family
+                    let table = s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances
+                    let each = ch.unicodeScalars.map { table?[$0.value] }
+                    if !each.contains(where: { $0 == nil }), let w = Optional(each.reduce(0) { $0 + ($1 ?? 0) }), let px = s.fontSize, px > 0.5 {
+                        let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
+                        var target = own ? w * px / (face.sizeScale * classScale) : w * em
+                        // (On the print's grid, where the theme has one.)
+                        if let grid = theme.advanceGrid, grid > 0 {
+                            let g = grid * theme.pixelsPerPoint * scale
+                            if g > 0 { target = (target / g).rounded() * g }
+                        }
+                        extra += target - _glyphWidth(s, ch)
+                    }
+                }
+                if let following {
+                    // (Not beside a note's number: zh-499adba6's — "（SDGs）⁷作
+                    // 為", "權能⁸，" (mode 14, 12pt) — have none either side in
+                    // Word's print, and its line "…增強所有婦女和女" takes the
+                    // last "女" there, 3pt nearer than ours. Other raised or
+                    // lowered text keeps them: zh-27083953's "PM₂.₅为", "O₃为".)
+                    let nextAt = offset + ch.utf16.count
+                    let besideRaised = theme.wordRules && ((offset < raised.count && raised[offset]) || (nextAt < raised.count && raised[nextAt]))
+                    // (Not where the Latin character's run names a Latin face for East Asian text, in Word for
+                    // Windows: zh-cd48112c's digit runs say eastAsia "Times New Roman", and its print has no space
+                    // either side of 138 digits; zh-a0e932c2's say 宋体, and it has its 5.3 at 39.)
+                    // (Nor anywhere in a document whose defaults name a Latin face for East Asian text: lab `asd`
+                    // (Word for Windows, mode 15, 15pt): docDefaults eastAsia Times New Roman sets "…30…" between
+                    // 宋体 ideographs with no space at all, whatever the digit run says — none, Times, Times with
+                    // hint eastAsia, all Times, 宋体 with the hint; with 宋体 there, a quarter em in all five.
+                    // zh-a0e932c2's gaps of 5.3 are its typed spaces.)
+                    if theme.wordRules, document.usesEastAsianLayout, !besideRaised, Self._autoSpaced(ch, following, p.style),
+                       !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin),
+                       !(RichTextTheme.wordWindowsPages && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
+                        let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
+                        // (Of the grid's character, where there is a grid
+                        // of them, and of the run's spacing with it; a
+                        // flat quarter of the two where the widths are
+                        // balanced — measured 4.0pt at 16pt, and 3.6 in
+                        // Times without.)
+                        // (… and of the grid's: 4.25pt either side of a
+                        // digit at 16pt on that grid of 1.008.)
+                        var gap = document.balancesSpaceWidth
+                            // (A shrunk grid does not shrink it in a cell: lab `dig` (Word for Windows, zh-9c162f26's 9pt
+                            // mode-14 cell, grid -0.21) cuts "应" between 4.21 and 4.31 over on a line with three digit
+                            // boundaries and between 4.31 and 4.41 with none, the 0.15pt a quarter of the full em (2.25) over
+                            // a quarter of the shrunk one (2.20) makes three times. In the body it does shrink it: zh-d68ac84a
+                            // (grid -1.35), zh-eb54d3b0 and zh-8d6f702e lose lines with the full em.)
+                            ? (em + _px(p.cell != nil ? max(0, grid ?? 0) : (grid ?? 0)) + 2 * spacing) / 4
+                            : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
+                        // (Twice inside text ruled round where the widths are
+                        // balanced: labs `ap1`–`ap4`, zh-06c46ba9's boxed
+                        // "範例1" sets "例" and "1" 21.1pt apart at 14pt in
+                        // Word's print, 17.5 without the border or without
+                        // the balance. Its reference lists took a character
+                        // a line that Word wraps.)
+                        // (A border said to be none is none: zh-f10c8f34's body runs
+                        // carry `<w:bdr w:val="none"/>`, and Word sets "14号" with
+                        // 2pt between, a quarter of its 8pt; ours took the run for
+                        // ruled and set 4, and every line held a character less.)
+                        if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.rangeOfSubstring("<w:bdr "),
+                           case let tag = xml[r.upperBound...].prefix(while: { $0 != ">" }),
+                           !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") { gap *= 2 }
+                        extra += gap
+                        autoSpaces?(offset, gap)
+                    } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
+                                // (The quote's own run says whether it is full-width, where the mark
+                                // ends its run: zh-3ab8a2fb's "，" unhinted before a "“" hinted East
+                                // Asian closes up, 7.13 in Word's print, and its line takes "机".)
+                                || (fullQuotes && !narrowQuotes && (following == "\u{201C}" || following == "\u{2018}") && Self._closingMarks.contains(ch)
+                                    && Self.isEastAsian(following, hinted: after < text.endIndex ? hinted : runHinted(atOffset: base + text.utf16.count)))
+                                // (Not a face's own narrow quote, which has no
+                                // blank to give: zh-0aac9d1a's Arial Unicode MS
+                                // "黑名单”。" keeps its 5.52pt "”" before the "。" in
+                                // Word's print; ours took half an em off it, all of
+                                // it, and the line took a "省" Word wraps.)
+                                || (fullQuotes && !narrowQuotes && (ch == "\u{201D}" || ch == "\u{2019}") && Self.isEastAsian(ch, hinted: hinted)
+                                    && (Self._closingMarks.contains(following) || Self._openingMarks.contains(following)
+                                        || ((following == "\u{201C}" || following == "\u{2018}") && Self.isEastAsian(following, hinted: hinted)))) {
+                        // (A closing mark before a full-width opening quote
+                        // gives its half as before any opening mark: zh-15728c84's
+                        // "微信、“12345”" sets "、" 5pt wide at 10pt in Word's print.)
+                        // (And a full-width closing quote is a closing mark
+                        // itself: the same document's "线上线下”、“舆情" sets
+                        // "”" and "、" 5.2 and 5.3pt wide at 10.5, and a cell
+                        // line took the character after "主体；" that ours
+                        // left for the next. Where punctuation does not kern
+                        // — `w:noPunctuationKerning`, zh-d68ac84a's "”（" —
+                        // the quote keeps its em, as the marks do.)
+                        // (Half its cell, on a character grid: labs `og3`/`og4`
+                        // (Word for Windows, zh-eb54d3b0's package, 16pt)
+                        // set "》，" "）、" "，“" 7.9 apart on a grid of -0.21
+                        // and 8.5 on one of +1 — half the em and half the
+                        // addition. Ours kept the whole addition, and
+                        // zh-eb54d3b0's "…政策》，助推茶" took "产" 7.81 over
+                        // where Word's is 7.91 and goes down.)
+                        // (A spaced closing quote gives half its spaced width:
+                        // lab `p01`, zh-01bbcd4d's "…组织成员”。" at 16pt spaced
+                        // to 17 sets the "”" 8.49 before the "。" in Word's
+                        // print; ours, half the em off, 9.0.)
+                        // (And a mark condensed keeps half its condensed width:
+                        // zh-5be7e156's Normal, spaced -0.3 with the widths
+                        // balanced (so -0.6 a full-width character) on a grid
+                        // of -0.21, sets "）、" and "》（" 7.6 apart in Word's
+                        // print — half of 15.2 — where ours, half the em off
+                        // and all of the spacing kept, set 7.3, and its p1
+                        // line took a "家" Word leaves.)
+                        // (Any closing mark the same: zh-01bbcd4d's "…不提交竣工材料）；" sets the "）" 8.52 before the "；"
+                        // in Word's print, half of its 17; ours, 9.0, left "料）；" 0.2pt short of the line Word takes.)
+                        let quoteAdd = theme.wordRules ? max(0, spacing) * (doubles ? 2 : 1) : 0
+                        let condensed = theme.wordRules && spacing < 0 ? spacing * (doubles ? 2 : 1) : 0
+                        extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0) + quoteAdd + condensed) / 2
+                    }
+                }
+                if heldSpaces.contains(offset) {
+                    flush(i)
+                    let s = style(kind)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !document.underlinesTrailingSpaces, windowsCounted.contains(offset) {
+                        // (Counted under Word for Windows' rule for a paragraph's
+                        // closing spaces that open underlined
+                        // (`_underlinedClosingCounted`): held to the word before
+                        // them, the run as wide as it reaches past half the
+                        // line, and not underlined.)
+                        let width = _glyphWidth(s, " ") + extra
+                        if windowsShare == nil {
+                            let whole = width * Double(windowsCounted.count)
+                            // (No more than lets the word before them stand on a
+                            // line of its own whole: Word sets it there however
+                            // far the spaces reach, where the engine would part
+                            // a word wider than the line.)
+                            let units = Array(p.text.utf16)
+                            var word = 0.0, k = offset - 1
+                            while k >= 0, units[k] != 0x20, units[k] < 0x2E80, let u = Unicode.Scalar(units[k]) {
+                                word += _glyphWidth(s, Character(u))
+                                k -= 1
+                            }
+                            let reach = min(whole - textWidth / 2, textWidth - word - _px(0.5))
+                            windowsShare = whole > 0 ? max(0, reach) / whole : 0
+                        }
+                        var plain = s.copyWith(decoration: TextDecoration.none)
+                        plain = plain.copyWith(letterSpacing: (s.letterSpacing ?? 0) + width * (windowsShare ?? 0) - _glyphWidth(s, "\u{2007}"))
+                        spans.append(TextSpan(text: "\u{2007}", style: plain))
+                    } else if theme.wordRules, document.underlinesTrailingSpaces, run.underline {
+                        // (An underlined one under `w:ulTrailSpace` as a figure
+                        // space of the space's width: the engine hangs a run of
+                        // no-break spaces past the margin as it does plain ones,
+                        // where Word wraps it.)
+                        spans.append(TextSpan(text: "\u{2007}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, " ") - _glyphWidth(s, "\u{2007}"))))
+                    } else {
+                        spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                    }
+                    start = after
+                    afterHeld = true
+                    heldKind = kind
+                } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
+                          [0x2000, 0x2001, 0x2004, 0x2006, 0x2008, 0x2009, 0x200A, 0x205F].contains(u) {
+                    // (Word does not part a line at these spaces — lab `spaces`, in a body
+                    // paragraph and a fixed cell alike: only U+2002, U+2003, U+2005, U+3000, the
+                    // space and the zero-width space are places to break; the others are held
+                    // like a no-break space, of their own width.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, ch) - _glyphWidth(s, "\u{00A0}"))))
+                    start = after
+                } else if theme.wordRules, let u = ch.unicodeScalars.first?.value, u >= 0xE000, u <= 0xF8FF,
+                          let w = latinFace?.missingGlyphAdvance {
+                    // (A private-use character no face has is the run's
+                    // face's missing-glyph box, blank: bug59058's formulas
+                    // hold U+E037/E038 from an HTML converter, 10.11pt
+                    // each at 13pt in Word's print — Times' .notdef, 0.7778
+                    // em — where a fallback drew a glyph near twice that
+                    // and pushed every formula past the line.)
+                    flush(i)
+                    let s = style(kind)
+                    // (A no-break space: the box is no place to part a line.)
+                    spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, "\u{00A0}"))))
+                    start = after
+                } else if theme.wordRules, !ea, let u = ch.unicodeScalars.first?.value, u >= 0x25A0, u <= 0x25FF,
+                          (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.lowercased() == "times new roman" {
+                    // (A geometric shape in a Times New Roman run is that
+                    // face's — Word's Times New Roman has "○", the stand-in
+                    // has not; where Word's Latin face lacks it, Word falls
+                    // back to YaHei as ours does, zh-454e2e29's "○" and "△",
+                    // and the platform's fallback, a CJK face, made the line
+                    // its own: zh-cec9d337's 22pt "○" cells on an 18pt grid
+                    // are two pitches in Word's print, 36pt, and ours 37.8
+                    // a row, the table's last row going over. Its line asks
+                    // an em at most — off the grid. On it, the line is the
+                    // Times line the grid snapped: lab `g44` in zh-cec9d337's
+                    // package (Word 16, 2026-10-18), a row of these at 14pt
+                    // is its 28.3pt "at least", at 18 and 22pt two pitches,
+                    // 36.5, where ours, held to the em after the grid had
+                    // snapped it, stood 28.25 at every size.)
+                    flush(i)
+                    let s = style(kind)
+                    let height = pitch != nil && s.height != nil ? s.height : min(s.height ?? 1, 1.0)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: height)))
+                    start = after
+                } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
+                          (u >= 0x1D400 && u <= 0x1D7FF) || (u > 0x7F && latinFace?.setsMath == true && !ea) {
+                    // (A mathematical letter, which no shipped face has,
+                    // comes from the platform's math face — STIX Two Math
+                    // on a Mac, 0.762 above and 0.238 below with a quarter
+                    // em of leading — whose own split of the run's height
+                    // set bug59058's formula lines 16.4pt apart where
+                    // Word's, in Cambria Math, are 15.2. At four fifths of
+                    // the run's height it sits inside the line the text
+                    // makes; its glyphs stand on the same baseline.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: (s.height ?? 1) * 0.6)))
+                    start = after
+                } else if ea, theme.wordRules, let u = ch.unicodeScalars.first?.value,
+                          [0x25B2, 0x25B3, 0x25BC, 0x25BD, 0x2605, 0x2606].contains(u),
+                          let symbols = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                            ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)
+                              .flatMap({ face in face.symbolsInBold || !(run.bold || (named?.char.bold ?? false) && !run.off.contains(.bold)) ? face.symbolFamily : nil }) {
+                    // (A triangle or star in a face Word lacks is SimSun's,
+                    // and so is its line — circles and squares are YaHei's
+                    // own in Word's prints, zh-7dc3afad's ○ and □: lab `tr2`, zh-6cd1befe's "▲" in
+                    // 12pt 仿宋_GB2312 on a 15.6pt grid takes one pitch in
+                    // Word's print, where YaHei's line took two and every
+                    // row of its task table stood 5pt tall.)
+                    flush(i)
+                    var r = run
+                    r.eastAsiaFontFamily = symbols
+                    let s = theme.textStyle(for: r, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            eastAsian: true, gridPitch: pitch)
+                    spans.append(TextSpan(text: String(ch), style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                    start = after
+                } else if ea, theme.wordRules, let cjk = Self._cjkFaceFamily, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) {
+                    // (A Roman numeral in East Asian text is the CJK face's,
+                    // an em wide: zh-78729cf9's "（Ⅰ级）、重大（Ⅱ级）" in a
+                    // hinted 仿宋_GB2312 run is YaHei's in Word's print, each
+                    // numeral a full cell. The Latin stand-in has none, and
+                    // the fallback found DejaVu's, 0.34 to 0.73 em: the line
+                    // took a character more than Word's, three times.)
+                    flush(i)
+                    let s = style(kind)
+                    var numeral = (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)
+                    #if os(Linux)
+                    // (Linux's CJK face may be absent, and the glyph then
+                    // the fallback's, 4.7pt where Word's print has the
+                    // 仿宋_GB2312 numeral a full 16: zh-94f12659's "（Ⅰ级）"
+                    // kept "故：" on a line Word wrapped. Pad to the cell.)
+                    numeral = numeral.copyWith(letterSpacing: (numeral.letterSpacing ?? 0) + max(0, em - _glyphWidth(numeral, ch)))
+                    #endif
+                    spans.append(TextSpan(text: String(ch), style: numeral))
+                    start = after
+                } else if ea, theme.wordRules, ch == "\u{02D9}" {
+                    // (A dot above in East Asian text is a full cell: the
+                    // Bopomofo tone mark of Taiwan's faces, 標楷體's among
+                    // them, an em wide in Word's print as zh-ab34d9cb's "˙"
+                    // bullets are, 14pt apiece where the stand-in's Latin
+                    // fallback gave 4.7 and each such line took a character
+                    // more than Word's.)
+                    flush(i)
+                    let s = style(kind)
+                    let width = _glyphWidth(s, ch)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + max(0, em - width))))
+                    start = after
+                } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
+                    // (A dash or an ellipsis in East Asian text is the
+                    // CJK face's glyph, with its metrics: the Latin
+                    // stand-in the East Asian style is built on has one
+                    // too, and its ascent and descent split the em
+                    // otherwise, so a line with it grew — zh-90e0cea8's
+                    // header "DB 37/T 4497—2022" stood 1.1pt taller than
+                    // Word's, and its pages' text that much lower.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: String(ch), style: (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)))
+                    start = after
+                } else if extra != 0 {
+                    flush(i)
+                    let s = style(kind)
+                    if theme.wordRules, ch == "\u{00A0}" {
+                        // (A no-break space's width on a word joiner after
+                        // it: the engine sets no spacing on the space
+                        // itself — zh-17749c13's "第十三条  受理…", 宋体
+                        // no-break spaces an em apiece in Word's print, came
+                        // out at the stand-in's 0.29 em with the em's
+                        // spacing on them.)
+                        spans.append(TextSpan(text: "\u{00A0}", style: s))
+                        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
+                        inserts.append(offset + 1)
+                    } else if theme.wordRules, ea, ch == "\u{2013}" {
+                        // (So too an East Asian dash the East Asian face
+                        // lacks, drawn by the glyph fallback: its own
+                        // spacing came out only before a space — lab `ds`,
+                        // PMingLiU's em-wide "–" stood 6.67 before "基",
+                        // 12.0 before " ".)
+                        spans.append(TextSpan(text: String(ch), style: s))
+                        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
+                        inserts.append(offset + 1)
+                    } else {
+                        // (The engine spaces every glyph, so a Thai letter
+                        // drawn with its marks as several takes its share
+                        // on each: Cordia's "คำ" is three glyphs, and the
+                        // 0.5pt it wanted made zh-6a4fc013's every "คำ"
+                        // 1.5 wider; "คำถามที่ 4 ：" ran a point long and
+                        // sent its question to the next line.)
+                        var spacing = (s.letterSpacing ?? 0) + extra
+                        // (And any character past ASCII the face draws in
+                        // pieces: on the Mac the fallback for zh-d97c5474's
+                        // Cambria Greek sets "ή", "ό" as a letter and an
+                        // accent, and each took Cambria's width correction
+                        // twice — its lines 1.7% short, a word more each.)
+                        if theme.wordRules, extra != 0, let u = ch.unicodeScalars.first?.value,
+                           (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.count > 1) || (u >= 0x80 && !(0x0E00 ..< 0x0E80).contains(u)) {
+                            spacing /= Double(_glyphCount(s, ch))
+                        }
+                        spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: spacing)))
+                    }
+                    start = after
+                }
+                offset += ch.utf16.count
+                i = after
+            }
+            flush(text.endIndex)
+            return spans
+        }
+        // (A right-aligned paragraph's trailing spaces take room, as
+        // Word's do: a word joiner after them, so the engine does not let
+        // them hang past the margin. zh-c5b5087b's footer, "…人民政府发布"
+        // and five spaces in a 203pt line, wraps four of them to a line
+        // of their own in Word's print, and its page number stands a line
+        // higher.)
+        // (After an ideograph only: zh-7dc3afad's right-aligned figures,
+        // "7,567 " in a table cell, stand where the space hangs past the
+        // margin in Word's print — counted, 87 figures moved 3.5pt left.)
+        let roomyTrail = theme.wordRules && p.style.alignment == .right && p.text.hasSuffix(" ")
+            && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
+        let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox }
+        if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
+            var spans = styled(p.text[...], p.runs[0].style)
+            // (A right-to-left paragraph of one plain run is the
+            // left-to-right stretch whole: see the embeddings below.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, !p.runs[0].style.rightToLeft, !(named?.char.rightToLeft ?? false) {
+                let look = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                           gridPitch: pitch, scriptHidden: true)
+                spans = [TextSpan(text: "\u{202A}", style: look)] + spans + [TextSpan(text: "\u{202C}", style: look)]
+                return (TextSpan(children: spans), [], [0, p.text.utf16.count])
+            }
+            if spans.count == 1 { return (spans[0], [], inserts) }
+            return (TextSpan(children: spans), [], inserts)
+        }
+        var children: [InlineSpan] = []
+        var inline: [(image: ImageAttachment?, dimensions: PlaceholderDimensions)] = []
+        children.reserveCapacity(p.runs.count + 1)
+        if lead != 0 {
+            // The first line's indent is a box of that width before the
+            // text — of less than no width for a hanging one, which sets
+            // the line out to the left and leaves it that much longer.
+            // It is one more character in the painter's text than in the
+            // paragraph's: `_lead` says so to every offset that crosses.
+            // (A floating object's anchor opening the paragraph is no text: the label
+            // is set against the first run of text — lo-eb12e7d4's "4.2", a picture
+            // wrapped top and bottom in its first run, stood 5.1pt low of Word's.)
+            let anchorFirst = theme.wordRules && RichTextTheme.wordWindowsPages
+                && p.runs[0].style.inlineImage.map({ p.inlineImages[$0]?.float != nil }) == true
+            let firstLook: CharStyle = anchorFirst ? (_firstTextRun(p)?.style ?? p.runs[0].style) : p.runs[0].style
+            var leadChar = firstLook
+            // (A list paragraph's first line is as tall as its number's
+            // face asks: Word sets the bullet in its level's font, and
+            // form_footnotes' Symbol bullets make its 10pt lines 12.24
+            // in Word's print where the text's face gives 11.5 — so the
+            // box before the text takes the level's face.)
+            var symbolLevel = false
+            if theme.wordRules, p.style.list != nil,
+               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+               let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:hAnsi=\"") {
+                let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
+                // (Only the symbol faces, whose lines differ from any
+                // text face's: a zero-width space before every list
+                // paragraph's text, in whatever face, cost zh-90e0cea8
+                // 20 points — the first character's place is read by
+                // more than the offset map.)
+                if ["symbol", "wingdings", "wingdings 2", "wingdings 3"].contains(family.lowercased()) {
+                    leadChar.fontFamily = family
+                    // (At the level's own size where it says one: delins's
+                    // 10pt Symbol bullets under 12pt Times make a 12.25pt
+                    // line of the face, under the text's 13.8 — Word's line
+                    // is the text's; at the text's size it was 14.7.)
+                    if let size = _levelNumberSize(p, document) { leadChar.fontSize = size }
+                    symbolLevel = true
+                }
+            }
+            // (A number set larger than the text — its level's own size —
+            // makes the first line as tall above its baseline as a line
+            // of that size, and no deeper than the text's below it.
+            // bug65649's "3.1.1." in 14pt over 12pt text: its first lines
+            // stand 15.72pt under the line above in Word's print, the
+            // next 13.8 under them, as under any line of the text; a
+            // whole 14pt line was 0.45pt deeper, and every numbered
+            // paragraph set what followed that much lower.)
+            var rise: Double? = nil
+            if theme.wordRules, let size = _levelNumberSize(p, document) ?? (p.style.list != nil ? _markSize(p, document) : nil),
+               size > (firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
+                leadChar.fontSize = size
+                // (On a line grid the whole line of that size, as before:
+                // the grid sets lines by pitches, and zh-64044a1d's "圖1"
+                // captions, a 12pt number over 11pt text, stood 6pt low
+                // with the number's height alone.)
+                if !symbolLevel, pitch != nil {
+                    symbolLevel = true
+                } else if !symbolLevel {
+                    let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)),
+                                            textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: .infinity)
+                    rise = probe.computeDistanceToActualBaseline(.alphabetic)
+                    probe.dispose()
+                }
+            }
+            // (A number in a face of its own, at the text's size and taller above its baseline
+            // than the text: the first line stands as high as the number does, and no deeper
+            // than the text. lo-be1a88f4, Arial Black 11pt numbers over Consolas 11pt: Word's
+            // lines are 15.9pt apart, ours 13.9 — the number's ascent 12.1 over the text's 10.1.)
+            if rise == nil, !symbolLevel, pitch == nil, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list != nil,
+               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+               let r = xml.rangeOfSubstring("w:ascii=\"") {
+                let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
+                if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: true) }) {
+                    // (Its face's own ascent, not a line's: the line's carries the spacing multiple.)
+                    let textFace = firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
+                    let size = _px(firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
+                    if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
+                       (numberBase - textBase) * size > 0.5 {
+                        RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
+                        rise = numberBase * size
+                    }
+                }
+            }
+            let style = theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+            inline.append((nil, PlaceholderDimensions(size: Size(lead, 0.01), alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
+            // (A box sets no line height of its own: the level's face
+            // reaches the line through a zero-width space in it, one
+            // more character before the text.)
+            if symbolLevel {
+                children.append(TextSpan(text: "\u{200B}", style: style))
+                inserts.append(0)
+            } else if let rise {
+                // (The number's height above the line, as a box on the
+                // baseline that reaches no lower: see `_risesForNumber`.)
+                children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((nil, PlaceholderDimensions(size: Size(0, rise), alignment: PlaceholderAlignment.baseline,
+                                                          baseline: TextBaseline.alphabetic, baselineOffset: rise)))
+                inserts.append(0)
+            }
+        }
+        var pos = 0
+        let utf16 = p.text.utf16
+        // On a line of pictures, tabs are horizontal gaps, not text with
+        // an ascent/descent or letter spacing. Letter-spacing a tab after
+        // the first placeholder shifts the entire line by half that gap
+        // in the engine; it also adds text descent below the pictures.
+        let pictureTabs = theme.wordRules && !adjust.isEmpty && Self._picturesAndTabs(p)
+        // (In a right-to-left paragraph each run takes the direction its own
+        // `w:rtl` gives it: a stretch of runs without it is laid out left to
+        // right as one piece, set among the rest as a whole. Word for
+        // Windows, lab rtl1: "Right and RTL in M$" keeps its "$" after the
+        // M, a Hebrew word and Latin text in one plain run stand in the order
+        // they are written, left to right, and a "$" in a run of its own
+        // marked `w:rtl` stands at the far left. A left-to-right embedding
+        // round each such stretch does that.)
+        let embeds = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.rightToLeft
+        var isolated = false
+        for run in p.runs where run.length > 0 {
+            let a = utf16.index(utf16.startIndex, offsetBy: pos)
+            let b = utf16.index(a, offsetBy: run.length)
+            pos += run.length
+            if embeds, run.style.inlineImage == nil {
+                let plain = !(run.style.rightToLeft || (named?.char.rightToLeft ?? false))
+                if plain != isolated {
+                    let look = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                               gridPitch: pitch, scriptHidden: true)
+                    children.append(TextSpan(text: plain ? "\u{202A}" : "\u{202C}", style: look))
+                    inserts.append(pos - run.length)
+                    isolated = plain
+                }
+            }
+            if let id = run.style.inlineImage, let image = p.inlineImages[id] {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                // A picture in the line, sitting on the baseline as Word
+                // sets it; shrunk to the column when wider.
+                var w = _px(image.width), h = _px(image.height)
+                if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
+                // (Or laid out again to the line's width, where it can be:
+                // `objectFitter`.)
+                var fittedBaseline: Double? = nil
+                if theme.wordRules, image.float == nil, image.data.isEmpty, w > textWidth + 0.5, textWidth > 0,
+                   let fit = Self.objectFitter?(image, textWidth / (theme.pixelsPerPoint * scale)) {
+                    w = _px(fit.width); h = _px(fit.height); fittedBaseline = fit.baseline
+                }
+                // (A box in the line fitted to its text's height: that tall.)
+                if theme.wordRules, image.float == nil, let box = image.textBox, box.fitsHeight, let inside = _textBox(image, document) {
+                    h = inside.layout.totalHeight + _px(box.insetTop + box.insetBottom)
+                }
+                // (A floating object takes no room in the line.)
+                if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0 }
+                // (With its character border and effects round it.)
+                if theme.wordRules, image.float == nil {
+                    let room = _pictureRoom(image)
+                    w += room.left + room.right
+                    h += room.top + room.bottom
+                }
+                var size = Size(w.rounded(), h.rounded())
+                // (An object in the line too wide for the room beside a header
+                // picture that stands the page's height: Word sets it at the top of
+                // the next page and fills that page, so the paragraph after it
+                // starts a page further — tdf38575, lab T255. Its box is as tall as
+                // the page, hung from the baseline, and the object is drawn in its
+                // top: `_pageFill`.)
+                var hung: Double? = nil
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let at = index, at >= 0, p.cell == nil, image.float == nil {
+                    let setup = _setup(ofParagraph: at)
+                    let inset = _px(setup.headerWrapLeft) - _px(p.style.indentLeft)
+                    if setup.headerWrapLeft > 0, inset > 0, w > _flowWidth(at) - inset + _px(0.5) {
+                        RuleTrace.hit("header-wrap-object-next-page")
+                        hung = size.height
+                        _pageFill[image.id] = size.height
+                        size = Size(size.width, max(size.height, _px(setup.contentHeight) - _px(2)))
+                    }
+                }
+                // (Word's `w:textAlignment` "center" sets what is on a
+                // line by its middle: a letterhead's words half way up
+                // the emblem beside them, not on its foot.)
+                let centred = theme.wordRules && p.style.eastAsian["w:textAlignment"] == "center" && image.float == nil
+                // (Its middle, effect extent and all, at the middle of a
+                // line of the paragraph's text as Word sets one — not of
+                // the stand-in face's own ascent and descent: zh-e37f8d40's
+                // 16pt 宋体 stood 1.6pt high of Word's beside its emblem,
+                // which Word sets 5.73pt — 0.358 em — under the box's
+                // middle.)
+                let middle: Double? = centred ? p.runs.first(where: { $0.length > 0 && $0.style.inlineImage == nil }).flatMap { r in
+                    theme.lineMiddle(for: r.style, named: named, eastAsian: p.text.contains { Self.isEastAsian($0, hinted: false) })
+                } : nil
+                let alignment = centred && middle == nil ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
+                // (And its line as tall as its run's text: Word's line that
+                // holds a picture alone is a line of that text at least —
+                // drawing.docx's mastheads, tiny pictures between line
+                // breaks in 8.5pt Arial, are a band 32pt tall in its print
+                // where each of ours was its picture's height, 17 in all.
+                // A zero-width space in the run's style before it, one
+                // more character in the painter's text — only where the
+                // picture stands alone between breaks, and is narrower
+                // than the line (chartex's chart, as wide as its column,
+                // went to the next line after the space) and shorter than
+                // a line of the text: a taller one's line is its own
+                // height, with no depth of the text under it — the
+                // masthead's 12.8pt picture between two breaks is a line
+                // of 12.7 in Word's print, the band 9.8 + 12.7 + 9.8.)
+                let at = pos - run.length
+                let units = p.text.utf16
+                func breaks(_ k: Int) -> Bool {
+                    let u = units[units.index(units.startIndex, offsetBy: k)]
+                    return u == 0x0A || u == 0x2028 || u == 0x0B
+                }
+                // (Or the first of the pictures that are all a line of an exact
+                // height holds: Word sets the baseline of such a line where
+                // text's would stand, 4/5 down; with nothing but pictures
+                // in it ours put it at the tallest picture's foot, 10pt down
+                // an 18pt line — LibreOffice's tdf119200, seven equation
+                // objects, each 6.6pt high of Word's print.)
+                let exactPictures: Bool = {
+                    guard theme.wordRules, at == 0, image.float == nil, let exact = p.style.lineHeightPoints, exact > 0,
+                          !p.style.lineHeightIsMinimum, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }) else { return false }
+                    return p.inlineImages.values.allSatisfy { $0.float == nil }
+                }()
+                if theme.wordRules, image.float == nil, w < textWidth - 1,
+                   exactPictures || (at == 0 || breaks(at - 1)) && (pos >= units.count || breaks(pos)) {
+                    // (In the text's own style: the picture's run keeps no
+                    // look of its own, the break beside it does — the
+                    // masthead's 8.5pt Arial, where the paragraph's is
+                    // 12pt Times.)
+                    var line = style
+                    var k = 0
+                    for r in p.runs {
+                        if r.length > 0, k <= (pos < units.count ? pos : at - 1), (pos < units.count ? pos : at - 1) < k + r.length, r.style.inlineImage == nil {
+                            line = theme.textStyle(for: r.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                            break
+                        }
+                        k += r.length
+                    }
+                    let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: line), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: .infinity)
+                    if h < probe.height {
+                        children.append(TextSpan(text: "\u{200B}", style: line))
+                        inserts.append(at)
+                    }
+                    probe.dispose()
+                }
+                children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
+                                                             baselineOffset: (hung ?? middle.map { size.height / 2 + _px($0) }
+                                                                ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)
+                                                                // (Raised or lowered as its run's `w:position` says: Word
+                                                                // sets a MathType object that far under the baseline
+                                                                // — tdf119200's equations, lowered 2 to 4pt.)
+                                                                + (theme.wordRules && image.float == nil ? _px(run.style.raised ?? named?.char.raised ?? 0) : 0))))
+                // (Before 2013's layout a space after a picture wider than
+                // the line goes to a line of its own: lab `ps` (Word 16, a
+                // cell of 74.35pt) sets the paragraph under a 76 or 80pt
+                // picture and a space 13.8pt lower in mode 14 than with no
+                // space, and not in mode 15, nor under a 74pt picture.
+                // zh-9c5d0c3f's road signs, 75pt in such cells, stood a
+                // line high of their captions — "車道縮減" 21pt.)
+                if theme.wordRules, (document.compatibilityMode ?? 12) < 15, image.float == nil, w > textWidth + _px(0.01),
+                   pos < units.count, units[units.index(units.startIndex, offsetBy: pos)] == 0x20 {
+                    children.append(TextSpan(text: "\n", style: style))
+                    inserts.append(pos)
+                }
+                continue
+            }
+            if pictureTabs, p.text[a ..< b].allSatisfy({ $0 == "\t" }) {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let own = _glyphWidth(style, "\t")
+                for offset in (pos - run.length) ..< pos {
+                    children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                    inline.append((nil, PlaceholderDimensions(size: Size(max(0, own + (adjust[offset] ?? 0)), 0),
+                                                              alignment: PlaceholderAlignment.baseline,
+                                                              baseline: TextBaseline.alphabetic, baselineOffset: 0)))
+                }
+                continue
+            }
+            // Two lines in one (`w:eastAsianLayout w:combine`): Word sets
+            // the run's text as two lines at half its size, the first
+            // half over the second, together as tall as a line of the
+            // run's own size and standing where one would. zh-454e2e29's
+            // table title combines "機關名稱機關代號" at 24pt: two 12pt
+            // lines 20.64 apart, 48pt wide, the upper's baseline 15.12
+            // over the line's; set flat, the title took two lines and its
+            // row ran 34pt tall. Drawn as a box of the two lines before
+            // the run (one more character in the painter's text, as an
+            // insert), the run's own text kept and hidden.
+            if theme.wordRules, let kept = run.style.keptXML, kept.containsSubstring("w:combine=\"1\"") || kept.containsSubstring("w:combine=\"true\"") || kept.containsSubstring("w:combine=\"on\""),
+               case let chars = Array(String(p.text[a ..< b])), chars.count > 1, !chars.contains(where: { $0.isNewline }),
+               let box = _combineBox(chars, run.style, p, named: named, document) {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                let baseline = theme.baseline(for: run.style, in: p.style, named: named, eastAsian: true, gridPitch: nil, centresInLine: document.spacesForUnderline) ?? size * 0.88
+                let dims = PlaceholderDimensions(size: Size(_px(box.width).rounded(), _px(box.height).rounded()), alignment: PlaceholderAlignment.baseline,
+                                                 baseline: TextBaseline.alphabetic, baselineOffset: _px(baseline))
+                children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((box, dims))
+                inserts.append(pos - run.length)
+                var hidden = run.style
+                hidden.hidden = true
+                children.append(contentsOf: styled(p.text[a ..< b], hidden, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
+                continue
+            }
+            // A form's check box ("☐", "☒" — the reader's FORMCHECKBOX)
+            // is a drawn square in Word's print, not a character: at 10pt
+            // a 9.36pt box stroked 0.72, 1.06 before it and 1.08 after (an
+            // 11.5pt advance), its foot 0.96 under the baseline —
+            // form_footnotes' "☐ Yes ☐ No", whose "Yes" stood 2.5pt left
+            // of Word's behind the glyph's 8.96. A box in the line before
+            // the character, which is kept and hidden, as a combined run's.
+            if theme.wordRules, run.style.formBox, p.text[a ..< b].contains(where: { $0 == "\u{2610}" || $0 == "\u{2612}" }) {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                var hidden = run.style
+                hidden.hidden = true
+                var start = a
+                for idx in p.text[a ..< b].indices where p.text[idx] == "\u{2610}" || p.text[idx] == "\u{2612}" {
+                    let at = pos - run.length + utf16.distance(from: a, to: idx)
+                    if start < idx {
+                        children.append(contentsOf: styled(p.text[start ..< idx], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: p.text[idx]))
+                    }
+                    var box = ImageAttachment(data: Data(), width: size * 0.936, height: size * 0.936, name: p.text[idx] == "\u{2612}" ? "checkbox-on" : "checkbox")
+                    box.outline = ShapeOutline(kind: .box, color: run.style.color ?? theme.textColor, width: size * 0.072)
+                    box.effectLeft = size * 0.106
+                    box.effectRight = size * 0.108
+                    // (After the character, which a tab before it sets at
+                    // its stop; and a zero-width space in the run's style
+                    // with it, so a line of the box alone is a line of
+                    // the text — Word's cells of one box are 11.52 tall
+                    // at 10pt, not the box's 9.36.)
+                    let after = p.text.index(after: idx)
+                    children.append(contentsOf: styled(p.text[idx ..< after], hidden, at: at, next: after < p.text.endIndex ? p.text[after] : nil))
+                    children.append(TextSpan(text: "\u{200B}", style: style))
+                    inserts.append(at + 1)
+                    children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                    inline.append((box, PlaceholderDimensions(size: Size(_px(size * 1.15), _px(size * 0.936)), alignment: PlaceholderAlignment.baseline,
+                                                              baseline: TextBaseline.alphabetic, baselineOffset: _px(size * 0.84))))
+                    inserts.append(at + 1)
+                    start = after
+                }
+                if start < b {
+                    children.append(contentsOf: styled(p.text[start ..< b], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: b < utf16.endIndex ? p.text[b] : nil))
+                }
+                continue
+            }
+            let runStart = pos - run.length
+            children.append(contentsOf: styled(p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
+            // (The half share after a ruby's base: a word joiner that wide.)
+            if let tail = rubyTails[pos], tail > 0, run.style.ruby != nil {
+                rubyTails[pos] = nil
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            gridPitch: pitch, scriptHidden: true)
+                children.append(TextSpan(text: "\u{2060}", style: style.copyWith(letterSpacing: tail)))
+                inserts.append(pos)
+            }
+        }
+        if isolated, let last = p.runs.last {
+            let look = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                       gridPitch: pitch, scriptHidden: true)
+            children.append(TextSpan(text: "\u{202C}", style: look))
+            inserts.append(p.text.utf16.count)
+        }
+        if roomyTrail, let last = p.runs.last {
+            // (In a style that adds nothing to the text's line, tried
+            // beside the last ideograph: which face each style resolves
+            // the joiner to differs by machine. In the run's Latin style its
+            // descent — Liberation Mono's on Linux — made zh-1563bd74's
+            // footer 1.2pt taller and its document a page long, though
+            // alone it is the shorter line; in the ideographs' style the
+            // Mac's stand-in ran a point tall. The ideographs' style first,
+            // which also gives a line of the spaces alone the text's
+            // height, as Word's is; else the Latin one; else one that takes
+            // no part in the line.)
+            func lastIdeograph(_ spans: [InlineSpan]) -> (style: TextStyle?, ch: Character)? {
+                for span in spans.reversed() {
+                    guard let t = span as? TextSpan else { continue }
+                    if let inner = t.children, let found = lastIdeograph(inner) { return found }
+                    if let text = t.text, let ch = text.last(where: { Self.isEastAsian($0, hinted: false) }) { return (t.style, ch) }
+                }
+                return nil
+            }
+            let latin = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        gridPitch: pitch, scriptHidden: true)
+            func height(_ spans: [InlineSpan]) -> Double {
+                let t = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
+                t.layout(minWidth: 0, maxWidth: 100_000)
+                defer { t.dispose() }
+                return t.height
+            }
+            var style = latin
+            if let found = lastIdeograph(children), let own = found.style {
+                let glyph = TextSpan(text: String(found.ch), style: own)
+                let alone = height([glyph])
+                // (Within half a point: on the Mac the Latin one sets the pair
+                // 0.4pt taller, the ideographs' 0.8, and at no height a line
+                // of the spaces alone — zh-c5b5087b's four — takes none,
+                // where Word's is a line of the text; on Linux the
+                // ideographs' adds nothing and the Latin 1.2.)
+                // (Where the spaces fit the line, the joiner keeps them on it
+                // and is no part of its height: on the Mac either style adds
+                // to it — the Latin 0.4pt, which made zh-6e653ca0's footer,
+                // "X隆阳区人民政府发布" and its spaces on one line in Word's
+                // print (bold 宋体 14pt), 18.6 where Word's is 18.2, and sent
+                // p8's "第四章" heading over. Where they run past the line,
+                // the joiner parts them and a line of them alone takes its
+                // height, as above: zh-c5b5087b's.)
+                let probe = TextPainter(text: TextSpan(children: children), textAlign: .left, textDirection: .ltr)
+                if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+                probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
+                let count = probe.plainText.utf16.count
+                let end = probe.getBoxesForSelection(TextSelection(baseOffset: max(0, count - 1), extentOffset: count)).map(\.right).max() ?? 0
+                probe.dispose()
+                let overflows = end > textWidth + _px(0.01)
+                style = !theme.wordRules || overflows
+                    ? [own.copyWith(letterSpacing: 0), latin].first { height([glyph, TextSpan(text: "\u{2060}", style: $0)]) <= alone + _px(0.5) }
+                        ?? latin.copyWith(height: 0.01)
+                    : latin.copyWith(height: 0.01)
+            }
+            children.append(TextSpan(text: "\u{2060}", style: style))
+            inserts.append(p.text.utf16.count)
+        }
+        return (TextSpan(children: children), inline, inserts)
+    }
+
+    /// The stretches of paragraph `p` that carry one ruby (UTF-16
+    /// offsets), with the first run's look.
+    func _rubyGroups(_ p: RichParagraph) -> [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] {
+        var out: [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] = []
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard let ruby = run.style.ruby, run.length > 0 else { continue }
+            if let last = out.last, last.ruby == ruby, last.to == at { out[out.count - 1].to = at + run.length }
+            else { out.append((at, at + run.length, ruby, run.style)) }
+        }
+        return out
+    }
+
+    /// A ruby's own look: the base's face at the ruby's size.
+    func _rubyStyle(_ g: (from: Int, to: Int, ruby: RubyText, style: CharStyle), _ p: RichParagraph, named: RichNamedStyle?,
+                            _ document: RichDocument) -> TextStyle {
+        var look = g.style
+        look.ruby = nil
+        look.letterSpacing = nil
+        look.fontSize = g.ruby.size > 0 ? g.ruby.size : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2
+        let s = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: true)
+        return TextStyle(color: s.color, fontSize: s.fontSize, fontWeight: s.fontWeight, fontStyle: s.fontStyle,
+                         fontFamily: s.fontFamily, fontFamilyFallback: s.fontFamilyFallback)
+    }
+
+    /// The widths of a ruby and of its base, in pixels.
+    func _rubyWidths(_ g: (from: Int, to: Int, ruby: RubyText, style: CharStyle), _ p: RichParagraph, named: RichNamedStyle?,
+                             _ document: RichDocument, pitch: Double?) -> (ruby: Double, base: Double) {
+        func width(_ text: String, _ style: TextStyle) -> Double {
+            let tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            defer { tp.dispose() }
+            return tp.maxIntrinsicWidth
+        }
+        let units = Array(p.text.utf16)
+        let base = String(decoding: units[g.from ..< min(g.to, units.count)], as: UTF16.self)
+        let ea = base.first.map { Self.isEastAsian($0, hinted: (g.style.fontHint ?? named?.char.fontHint) == "eastAsia") } ?? true
+        let baseStyle = theme.textStyle(for: g.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        eastAsian: ea, gridPitch: pitch, scriptHidden: true)
+        return (width(g.ruby.text, _rubyStyle(g, p, named: named, document)), width(base, baseStyle))
+    }
+
+    /// The ruby over paragraph `p`'s text, drawn where it belongs: its
+    /// baseline `raise` over its base's, centred over the base — spread
+    /// across it where the base is the wider, as Word's distributeSpace
+    /// sets it. `painter` is the paragraph's (or its lines'), painted at
+    /// `origin`; `map` as for `_paintScripts`.
+    func _paintRuby(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                            _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
+        guard theme.wordRules, p.runs.contains(where: { $0.style.ruby != nil }) else { return }
+        let named = _named(p, document)
+        let lines = painter.computeLineMetrics()
+        for g in _rubyGroups(p) where g.to > g.from && !g.ruby.text.isEmpty {
+            let a = map?.painter(g.from) ?? g.from, b = (map?.painter(g.to - 1) ?? g.to - 1) + 1
+            guard let first = painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: b)).first?.toRect() else { continue }
+            let (rubyWidth, baseWidth) = _rubyWidths(g, p, named: named, document, pitch: nil)
+            let wide = max(rubyWidth, baseWidth)
+            let left = first.left - (rubyWidth > baseWidth ? (rubyWidth - baseWidth) / Double(g.to - g.from) / 2 : 0)
+            // (The line it stands on: the one whose baseline is under the
+            // base's box.)
+            guard let line = lines.min(by: { abs($0.baseline - first.bottom) < abs($1.baseline - first.bottom) }) else { continue }
+            var style = _rubyStyle(g, p, named: named, document)
+            let count = Double(g.ruby.text.count)
+            var x = left + (wide - rubyWidth) / 2
+            if baseWidth > rubyWidth, count > 0, g.ruby.align == nil || g.ruby.align == "distributeSpace" {
+                let share = (baseWidth - rubyWidth) / count
+                style = style.copyWith(letterSpacing: share)
+                x = left + share / 2
+            }
+            let tp = TextPainter(text: TextSpan(text: g.ruby.text, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            let raise = _px(g.ruby.raise > 0 ? g.ruby.raise : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2)
+            tp.paint(canvas, Offset(origin.dx + x, origin.dy + line.baseline - raise - tp.computeDistanceToActualBaseline(.alphabetic)))
+            tp.dispose()
+        }
+    }
+
+    /// Where every stretch of a paragraph has one line height but not
+    /// one face, each face splits that height about the baseline its own
+    /// way and a line that mixes two comes out taller than either — and
+    /// which lines those are depends on which face the platform falls
+    /// back to for a character. A strut of that height holds every line
+    /// to it. (Stretches of different heights are left to the tallest.)
+    /// White space whose face and size set no line in Word's print, where
+    /// the line holds anything else: the space and U+3000 (lab `el`). Not
+    /// a no-break space, which stands in for a glyph no face has — the
+    /// Symbol box of form_footnotes' "D - ", whose line is Symbol's.
+    /// What sets no line of its own beside other text, for the first baseline: a space, and in
+    /// Word a tab and (for Windows) the en, em and four-per-em spaces (lab `sp`, `ttab`) —
+    /// lo-11ad5a95's rows of a label, a tab and one 48pt space stood the label 11pt low, out of
+    /// its box, and the PDF lost it. (Scalars, not Characters: "\u{2000}" == "\u{2002}" in Swift,
+    /// the two being canonically equivalent.)
+    /// What an empty paragraph needs at a page's foot: its line taken as a single one, and its space after.
+    /// Whether the table that precedes the empty paragraphs before `i` starts on `pieces` (this page).
+    static func _tableBeforeEmptiesIsOn(page: Int, i: Int, cells: [_CellGeo?], pieces: [PagePiece]) -> Bool {
+        var k = i - 1
+        while k >= 0, cells[k] == nil { k -= 1 }
+        guard k >= 0, let t = cells[k]?.table else { return false }
+        while k > 0, cells[k - 1]?.table == t { k -= 1 }
+        return pieces.contains { $0.paragraph == k }
+    }
+
+    static func _needs(_ height: Double, _ after: Double, _ multiple: Double) -> Double {
+        (height - after) / max(1, multiple) + after
+    }
+
+    /// Where the paragraph at `i` begins on the page: `y`, or below the paragraph before it where that one stands on this page and `y` has not moved past it.
+    static func _effectiveY(_ y: Double, _ i: Int, _ page: [PagePiece], _ heights: [Double]) -> Double {
+        guard i > 0, let last = page.last(where: { $0.paragraph == i - 1 }) else { return y }
+        return max(y, last.pageY + heights[i - 1])
+    }
+
+    /// Whether the table at `i` floats by the text straight after another floating table, with only
+    /// empty paragraphs between them. compat1415b (Word for Windows, compat 14): the second stands
+    /// where the empties end, without its offset.
+    static func _followsFloatingTable(_ i: Int, _ table: String, document: RichDocument, cells: [_CellGeo?]) -> Bool {
+        guard RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], ts.floatsOverText else { return false }
+        var k = i - 1
+        while k >= 0, cells[k] == nil, document.paragraphs[k].text.isEmpty { k -= 1 }
+        guard k >= 0, k < i - 1, let before = cells[k], before.table != table, let first = document.tableStyles[before.table] else { return false }
+        return first.floatsOverText && !first.pageAnchored && first.floatOffsetY != nil
+    }
+
+    static func _setsNoLineBesideText(_ ch: Character) -> Bool {
+        _setsNoLine(ch) || ch == "\t" || (RichTextTheme.wordWindowsPages && (ch.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains(ch.unicodeScalars.first!.value)))
+    }
+
+    static func _setsNoLine(_ ch: Character) -> Bool {
+        // (The bidirectional controls a right-to-left run is wrapped in set none either: lo tdf163575's
+        // headings end in a 20pt right-to-left space, and Word sets their lines by the 15pt text.)
+        ch == " " || ch == "\u{3000}" || ch.unicodeScalars.allSatisfy { $0.value == 0x200E || $0.value == 0x200F || ($0.value >= 0x202A && $0.value <= 0x202E) || ($0.value >= 0x2066 && $0.value <= 0x2069) }
+    }
+
+    /// Whether two stretches set the same line: the same size, and heights
+    /// within 1.5% (a face's bold beside its regular — see `_strut`).
+    static func _sameLine(_ s1: Double, _ h1: Double, _ s2: Double, _ h2: Double) -> Bool {
+        abs(s1 * h1 - s2 * h2) < 0.01 || (abs(s1 - s2) < 0.01 && abs(s1 * h1 - s2 * h2) <= 0.015 * max(s1 * h1, s2 * h2))
+    }
+}
