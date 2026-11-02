@@ -3039,8 +3039,8 @@ private struct SlideContext {
         // (Archivo Black is heavy as it stands: asked for bold it was
         // thickened again by a stroke, which a translucent fill shows as a
         // darker ring: ThemeColorTransparency.)
-        if cs.fontFamily?.lowercased() == "arial black", !SlideFonts.hasHeavyStandIn {
-            cs.bold = true
+        if cs.fontFamily?.lowercased() == "arial black" {
+            cs.bold = !SlideFonts.hasHeavyStandIn
         }
         // Aptos, set in Liberation Sans: that much tighter, as
         // Aptos runs narrower — PowerPoint's lines in it are 3.5%
