@@ -1325,6 +1325,10 @@ public final class RichLayout {
     /// after the first it stands on (from the paragraph's own top, so the
     /// page break falls inside them): a float whose rows run over two pages.
     private var _besideMoreBands: [Int: [(top: Double, bottom: Double)]] = [:]
+    /// The boxes with room at both sides that a paragraph is set round, when
+    /// there are two or more (the text then stands in the room between and
+    /// outside them): top, bottom, left edge and right edge, from the text's start.
+    private var _besideBoxes: [Int: [(top: Double, bottom: Double, left: Double, right: Double)]] = [:]
     /// How far a paragraph's text is set down to clear an object that
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
@@ -3628,7 +3632,7 @@ public final class RichLayout {
         var pushed = false
         for k in 0 ..< bottoms.count {
             let before = k == 0 ? 0 : bottoms[k - 1]
-            if k > 0, k < indents.count, indents[k].left > 0, indents[k].right == 0 {
+            if k > 0, k < indents.count, indents[k].left > 0, indents[k].right == 0 || indents[k - 1].right > 0 {
                 let previous = before - (k >= 2 ? bottoms[k - 2] : 0), own = bottoms[k] - before
                 shifts[k] = acc - previous
                 acc -= min(own, previous)
@@ -9660,7 +9664,33 @@ public final class RichLayout {
                 let bottoms = Self._lineBottoms(trial)
                 trial.dispose()
                 var next: [LineIndent] = []
-                if let leftRoom = besideLeftRoom {
+                if besideLeftRoom != nil, let boxes = _besideBoxes[i], boxes.count >= 2 {
+                    // (Round two boxes or more: a row of the page is the room
+                    // left of the first, between them, and right of the last,
+                    // each a line of the painter, the later ones lifted level
+                    // with the first by `_registerPairs`. Word's print of
+                    // lo-6e93e16d: a tight object and a square one.)
+                    let minRoom = _px(p.runs.first?.style.fontSize ?? theme.fontSize) * 2
+                    var saved = 0.0, k = 0
+                    while k < bottoms.count {
+                        let before = k == 0 ? 0 : bottoms[k - 1]
+                        let top = before - saved, bottom = bottoms[k] - saved
+                        let active = boxes.filter { bottom > $0.top + 0.01 && top < $0.bottom - 0.01 }.sorted { $0.left < $1.left }
+                        var segments: [(from: Double, to: Double)] = []
+                        var x0 = 0.0
+                        for b in active {
+                            if b.left - x0 >= minRoom { segments.append((x0, b.left)) }
+                            x0 = max(x0, b.right)
+                        }
+                        if !active.isEmpty, textWidth - x0 >= minRoom { segments.append((x0, textWidth)) }
+                        if active.isEmpty || segments.isEmpty { next.append(LineIndent()); k += 1; continue }
+                        for (j, seg) in segments.enumerated() where k + j < bottoms.count {
+                            next.append(LineIndent(left: seg.from, right: max(textWidth - seg.to, 0)))
+                            if j > 0 { saved += min(bottoms[k + j] - bottoms[k + j - 1], bottoms[k] - before) }
+                        }
+                        k += segments.count
+                    }
+                } else if let leftRoom = besideLeftRoom {
                     // (Both sides: a line level with the box is the left piece, in
                     // the room at its left, and the line after it the right
                     // piece, level with it. The lines after the pair stand where
@@ -13751,6 +13781,9 @@ public final class RichLayout {
         let inner = cell.map { max(0, $0.colWidth - $0.pad.left - $0.pad.right) } ?? _flowWidth(i)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)?
+        var boxes: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+        _besideBoxes[i] = nil
+        defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         var offset = 0.0
         var k = i
         while k >= 0, k >= i - 6 {
@@ -13801,6 +13834,7 @@ public final class RichLayout {
                     if w > 0, leftEdge - own >= size * 3, inner - rightEdge - rightGap >= size * 3 {
                         let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                                     bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                        if band.bottom > 0.01 { boxes.append((band.top, band.bottom, leftEdge - own, rightEdge - own)) }
                         if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent { best = (rightEdge - own, band, false, leftEdge - own) }
                         continue
                     }
