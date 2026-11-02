@@ -510,6 +510,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// table, a cell of 5.65pt top margin in a cell of the same, opens
     /// page 2 12.3pt down, twice the room one cell takes.
     public var nestedTopRepeat: Double = 0
+    /// A table floating in a cell, centred (`w:tblpXSpec` center), read as paragraphs of the cell: its indent is already the middle
+    /// of the cell, and a nested cell's left margin is not added to it.
+    public var centredFloat = false
     /// Points. The same for the room under: the bottom margins and bottom lines
     /// of the nested cells the paragraph stands in and that go on past it. A
     /// part of the row that ends a page keeps that room clear of the foot, as

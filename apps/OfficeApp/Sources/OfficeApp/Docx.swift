@@ -1611,6 +1611,7 @@ enum DocxFormat {
                         for k in first ..< paragraphs.count {
                             paragraphs[k].style.indentLeft += left
                             paragraphs[k].style.indentRight += right
+                            if pos?["w:tblpXSpec"] == "center" { paragraphs[k].style.centredFloat = true }
                             if let least, least < 500 {
                                 paragraphs[k].style.keepLines = true
                                 if k < paragraphs.count - 1 { paragraphs[k].style.keepNext = true }
@@ -1766,7 +1767,9 @@ enum DocxFormat {
                             let edge = (node.first("w:tblPr")?.first("w:tblBorders")?.first("w:left")).flatMap { b -> Double? in
                                 (b["w:val"] ?? "none") == "none" ? nil : Double(b["w:sz"] ?? "").map { $0 / 16 } } ?? 0
                             let lead = (m.left ?? 5.4) + edge
-                            for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell { paragraphs[k].style.indentLeft += lead }
+                            // (A float centred in the cell stands at the middle of the cell, as its margins are the same both sides:
+                            // lo-c7082c66's, 277.1 in Word's print, was 283 with the left margin added.)
+                            for k in first ..< paragraphs.count where paragraphs[k].cell == currentCell && !paragraphs[k].style.centredFloat { paragraphs[k].style.indentLeft += lead }
                             // (Its top margin and top line stand again over a part of it that goes over a
                             // page — see `RichParagraphStyle.nestedTopRepeat`; not over its first paragraph,
                             // which brings its own space. The cell's own line, else the table's: Word for
