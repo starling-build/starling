@@ -4822,7 +4822,10 @@ public final class RichLayout {
                     // (Not a row with a height of its own: LibreOffice's lo-e3dca7be, a one-line 1014-twip row 2pt above the margin of a
                     // 395pt page, goes whole to page 2 in Word's print, where the page's foot would hold it.)
                     let byLines = RichTextTheme.wordWindowsPages && startsHere && !nestedSlack && (document.compatibilityMode ?? 12) < 15
-                    if byLines, document.tableStyles[c.table]?.rowHeights[c.row] == nil {
+                    // (A row of eight lines under a stated 1014 twips grows by its text, and parts by lines like one with none:
+                    // lo-c9b8c5ab's A5, four lines on page 1 to 594 on a 612pt page in Word's print.)
+                    let growsPastStated = document.tableStyles[c.table]?.rowHeights[c.row].map { c.ownRowHeight > _px($0) + _px(2) } ?? true
+                            if byLines, growsPastStated {
                         avail = max(avail, max(edge, _px(setup.height) - _bodyInsets(page: page / _columns, document).top) - y)
                     } else if byLines || y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) && !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && c.row > 0) { avail = max(avail, edge - y) }
                 }
@@ -6378,7 +6381,14 @@ public final class RichLayout {
                     keptPastFoot = nil
                 }
                 if theme.wordRules, !pastFoot, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
-                    if y > contentH - 0.01, !tableEndsOverAnchor(c, j) { newPage() }
+                    // (A row that ends at the margin leaves the next of a page-anchored table in compat 12 to part by lines to the
+                    // page's own foot, where it is the table's own and begun here: lo-c9b8c5ab's A4 ends 468.1 of 468 and A5
+                    // stands four lines on page 1 in Word's print.)
+                    let nextParts = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 15 && j < count
+                        && document.tableStyles[c.table]?.pageAnchored == true && _cells[j]?.table == c.table
+                        && document.tableStyles[c.table]?.rowHeights[_cells[j]!.row].map({ _cells[j]!.ownRowHeight > _px($0) + _px(2) }) ?? true
+                        && y < _px(pageSetup(forPage: page / _columns).height) - _bodyInsets(page: page / _columns, document).top - _px(14)
+                    if y > contentH - 0.01, !tableEndsOverAnchor(c, j), !nextParts { newPage() }
                     i = j
                     continue
                 }
