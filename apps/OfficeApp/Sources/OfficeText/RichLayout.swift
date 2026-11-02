@@ -4572,6 +4572,15 @@ public final class RichLayout {
                 guard theme.wordRules, let k = column.members.first(where: { _tops[$0] + _heights[$0] > column.cut + 0.01 }) else { return 0 }
                 return _px(document.paragraphs[k].style.nestedTopRepeat)
             }
+            // (What a part that goes on to the next page is held clear of the foot by, besides the nested cells' own
+            // bottoms: the outer cell's top margin under its rule and the nested tops, which the next part stands
+            // under again — Word ends lo-c7082c66's page 3 a line sooner than the bottoms alone allow; the 3pt more is fitted, any
+            // value from 1.1 to 7pt gives its page: a float's rules and frame, not pinned by one document.)
+            func nestedGap(_ column: Column) -> Double {
+                let r = nestedRepeat(column)
+                guard r > 0 else { return 0 }
+                return r + max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + 60
+            }
             func nestedFoot(_ owner: Int) -> Double {
                 guard theme.wordRules, owner >= 0, owner < document.paragraphs.count else { return 0 }
                 return _px(document.paragraphs[owner].style.nestedBottomRepeat)
@@ -4917,10 +4926,10 @@ public final class RichLayout {
                             // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules ? d0.margin : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedRepeat(column) }),
+                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules ? d0.margin : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }),
                                   case let owner = column.owners.indices.contains(at) ? column.owners[at] : -1,
                                   let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner })
-                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules ? d0.margin : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedRepeat(column) }).map({ column.cuts[$0] }) {
+                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules ? d0.margin : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }).map({ column.cuts[$0] }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line
