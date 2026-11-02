@@ -2432,12 +2432,8 @@ public final class RichLayout {
                     // those shares of its width — LibreOffice's
                     // floattable-nested-rowspan, a 4997-pct form on a grid of
                     // 1444 + 5159 twips whose cells say 727 and 4273 of 5000:
-                    // its first column is 48.0pt in Word's print, not 72.2.
-                    // Shares that are the grid's own change nothing, and the
-                    // rule is left off them: eleven documents moved.)
-                    if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1,
-                       case let total = base.reduce(0, +), total > 0,
-                       ts.columnPercents.contains(where: { abs($0.value - 100 * base[$0.key] / total) > 5 }) {
+                    // its first column is 48.0pt in Word's print, not 72.2.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1 {
                         widths[c.table] = _pctColumns(c.table, widths[c.table] ?? base, ts, document)
                     }
                 } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],

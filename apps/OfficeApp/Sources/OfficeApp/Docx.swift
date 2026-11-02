@@ -2414,15 +2414,13 @@ enum DocxFormat {
                             col += span
                         }
                     }
-                    // (A table of no cell spacing keeps the shares only where they are not its grid's own: they
-                    // would give it a style of its own otherwise, and eleven documents moved.)
-                    var worth = true
-                    if (style.cellSpacing ?? 0) == 0 {
-                        let grid = (node.first("w:tblGrid")?.all("w:gridCol") ?? []).compactMap { Double($0["w:w"] ?? "") }
-                        let total = grid.reduce(0, +)
-                        worth = grid.count == shares.count && total > 0 && shares.contains { $0.key < grid.count && abs($0.value - 100 * grid[$0.key] / total) > 5 }
+                    // (A table of no cell spacing keeps its shares only: its no-wrap columns are the layout's
+                    // wrap rule for spaced tables (`noWrapColumns`), and eleven documents' unspaced pct
+                    // tables moved when they were set on those too.)
+                    if !mixed, !shares.isEmpty {
+                        style.columnPercents = shares
+                        if (style.cellSpacing ?? 0) > 0 { style.noWrapColumns = noWrap }
                     }
-                    if !mixed, !shares.isEmpty, worth { style.columnPercents = shares; style.noWrapColumns = noWrap }
                 }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
