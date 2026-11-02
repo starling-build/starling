@@ -11431,7 +11431,11 @@ public final class RichLayout {
             else if theme.wordRules, image.float == nil, image.textBox?.growsToFit != true, let exact = style.lineHeightPoints,
                     !style.lineHeightIsMinimum, exact > 0, h + room.top + room.bottom > _px(exact) + 0.5 {
                 bodyHeight = _px(exact)
-                _imageDrop[i] = _px(exact * 4 / 5) - h - room.bottom
+                // (Lowered as its run's `w:position` says, as on any line: zh-06c46ba9 p66's
+                // 265.5pt outline group, in a 265.45pt exact line and a run at -52.5, has its
+                // top at the line's in Word's print; ours stood it 52.5pt high.)
+                let lowered = p.runs.first(where: { $0.style.inlineImage == image.id }).flatMap { $0.style.raised } ?? 0
+                _imageDrop[i] = _px(exact * 4 / 5) - h - room.bottom - _px(lowered)
             }
             // (A picture shorter than its paragraph's line of text stands
             // at the foot of that text's own line, which the line takes
