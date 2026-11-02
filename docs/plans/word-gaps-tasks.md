@@ -18,7 +18,7 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-4: lo-af81b53e (small-caps lab), zh-51af781b, zh-f59a76e9, zh-c2cd4b3f, zh-9e020c95, zh-bdae17c0 (ours sets extra lines); Word surface chart
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
 - amd-6: pct-share side effect (remove the 5-point threshold); zh-b4d36718, zh-e68a2f57, zh-20c1d74a, zh-38d26944, zh-e1b09977, zh-08e95de4, zh-9ef811c8, zh-0a56c942 (triage)
-- amd-7: ALL DONE 2026-11-02 (step 3 footnotes in columns, lo-e8c1ae37, lo-948cd424 landed; lo-40949e85 already 100; lo-c678e486 parked). Waiting for the next list.
+- amd-7: pre-digest amd-opus's line-end queue (fit-decisions table); triage zh-e61c3dff, zh-c6da60a9, zh-c15af02e, zh-cec9d337, zh-60c80728, zh-875759ff, zh-cd8987db, zh-faccbb01, zh-d950cedb, zh-0243e7fc, zh-27083953, zh-4b8e0abc, zh-f47b8a74, zh-18cb2079, zh-a7a889eb, zh-9c162f26, zh-8628cfbe, zh-fec5fa30, zh-694447ca.
 - amd-perf: lo-8ab9b90f (7-node lab), lo-af36644e re-check, zh-ae2dd08d, zh-264d7516, zh-e49d7943, zh-ee2d19e6, zh-15f60bac (triage)
 - amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c; handed over from lenovo-2: zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-df9310bd, zh-31d580df; handed over from lenovo-3: zh-7488a70f, zh-6c447317, zh-424775e4
 - lenovo-2: zh-9ba2ead7 + zh-1eeb9f9a (merged-cell lab cm1), zh-30d86fcf, zh-60173bb6, zh-c9d38b65, zh-01bbcd4d, zh-621d8756, zh-72da925e, zh-df505e38, zh-5313b71d, zh-ae655121, zh-6b242483 (triage)
