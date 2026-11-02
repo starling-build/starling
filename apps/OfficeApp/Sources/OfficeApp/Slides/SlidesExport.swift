@@ -65,7 +65,7 @@ enum SlidesPdf {
     /// blocks there, tdf93830's 16-pixel icon too): a viewer then smooths it. Nil when the file
     /// is not laid out as the PDF backend writes it — one classic
     /// cross-reference table — and is left as it is.
-    static func smoothPictures(_ data: Data) -> Data? {
+    static func smoothPictures(_ data: Data, jpeg jpegSizes: Set<UInt64> = SlideTextCache.jpegSizes, otherSizes: Set<UInt64> = []) -> Data? {
         let bytes = [UInt8](data)
         let mark = Array("/Subtype /Image".utf8), add = Array("\n/Interpolate true".utf8)
         // (Not the soft mask of a grey picture: PowerPoint leaves such a
@@ -122,14 +122,15 @@ enum SlidesPdf {
         }
         var at: [Int] = []  // where each mark ends
         var i = 0
-        let jpeg = SlideTextCache.jpegSizes
+        let jpeg = jpegSizes
         while let r = _find(mark, in: bytes, from: i) {
             // (A picture with an alpha channel is not the JPEG: PowerPoint
             // writes one made so as false.)
             if let open = (0 ..< r).reversed().first(where: { bytes[$0] == 0x3C && bytes[$0 + 1] == 0x3C }),
                let close = _find(Array(">>".utf8), in: bytes, from: r),
                let w = value("/Width ", in: bytes[open ..< close]), let h = value("/Height ", in: bytes[open ..< close]),
-               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) || _find(smask, in: Array(bytes[open ..< close]), from: 0) != nil {
+               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) || _find(smask, in: Array(bytes[open ..< close]), from: 0) != nil
+                || (otherSizes.contains(UInt64(w) << 32 | UInt64(h)) && !_isGrey(bytes, dict: bytes[open ..< close], close: close, value: { value($0, in: $1) })) {
                 i = r + mark.count
                 continue
             }
@@ -158,6 +159,20 @@ enum SlidesPdf {
         out += Array(lines.joined(separator: "\n").utf8)
         out += Array("startxref\n\(moved(table))\n%%EOF\n".utf8)
         return Data(out)
+    }
+
+    /// Whether the picture whose dictionary is `dict` holds only grey pixels
+    /// (a JPEG of one component, as Skia writes it: three equal channels).
+    private static func _isGrey(_ bytes: [UInt8], dict: ArraySlice<UInt8>, close: Int, value: (String, ArraySlice<UInt8>) -> Int?) -> Bool {
+        guard let w = value("/Width ", dict), let h = value("/Height ", dict), let length = value("/Length ", dict),
+              let start = _find(Array("stream\n".utf8), in: bytes, from: close).map({ $0 + 7 }),
+              start + length <= bytes.count, length > 2, w > 0, h > 0, w * h <= 4_000_000,
+              let pixels = try? Zip.inflate(Data(bytes[(start + 2) ..< (start + length)]), expected: w * h * 3),
+              pixels.count >= w * h * 3 else { return false }
+        return pixels.withUnsafeBytes { (b: UnsafeRawBufferPointer) -> Bool in
+            for i in 0 ..< w * h where b[i * 3] != b[i * 3 + 1] || b[i * 3] != b[i * 3 + 2] { return false }
+            return true
+        }
     }
 
     private static func _find(_ needle: [UInt8], in hay: [UInt8], from: Int) -> Int? {

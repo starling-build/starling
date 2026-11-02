@@ -18010,6 +18010,12 @@ public final class RichLayout {
             || _textBoxCache.values.contains { $0.layout.hasPendingImages }
     }
 
+    /// The pixel sizes (width << 32 | height) of the pictures decoded from a
+    /// JPEG, and of those from anything else: Word for Windows marks a JPEG's
+    /// picture smooth in its PDF (`/Interpolate true`) and a PNG's not.
+    nonisolated(unsafe) public static var jpegSizes: Set<UInt64> = []
+    nonisolated(unsafe) public static var otherPictureSizes: Set<UInt64> = []
+
     private func _ensureDecoded(_ image: ImageAttachment) {
         // (An attachment with no picture in it — a drawn shape kept for
         // the file — is nothing to decode.)
@@ -18024,6 +18030,10 @@ public final class RichLayout {
                 let frame = try await codec.getNextFrame()
                 codec.dispose()
                 decoded = frame.image
+                if let d = decoded {
+                    let key = UInt64(d.width) << 32 | UInt64(d.height)
+                    if bytes.starts(with: [0xFF, 0xD8]) { RichLayout.jpegSizes.insert(key) } else { RichLayout.otherPictureSizes.insert(key) }
+                }
             } catch {
                 if ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil {
                     FileHandle.standardError.write(Data("image \(id): not decoded: \(error) (\(bytes.count) bytes, \(bytes.prefix(8)))\n".utf8))

@@ -80,7 +80,12 @@ enum PdfExport {
             pages.append(PdfDocument.Page(picture: recorder.endRecording(),
                                           width: pageSetup.width, height: pageSetup.height))
         }
-        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName())
+        guard PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) else { return false }
+        if theme.wordRules, !RichLayout.jpegSizes.isEmpty, let data = FileManager.default.contents(atPath: path),
+           let smooth = SlidesPdf.smoothPictures(data, jpeg: RichLayout.jpegSizes, otherSizes: RichLayout.otherPictureSizes) {
+            try? smooth.write(to: URL(fileURLWithPath: path))
+        }
+        return true
     }
 }
 
