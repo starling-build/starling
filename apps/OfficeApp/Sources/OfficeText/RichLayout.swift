@@ -17400,9 +17400,17 @@ public final class RichLayout {
                     // with it, and what stands before them stretches by that much more.)
                     let windowsSpaced = wordSpaced && RichTextTheme.wordWindowsPages && eastAsianAt(a)
                     let spacedTrail = windowsSpaced ? wordSpaces.filter { sp in sp.k < a && (sp.k + 1 ..< a).allSatisfy { isSpace(units[$0]) } }.reduce(0.0) { $0 + $1.w } : 0
+                    func latinBetween(_ k: Int) -> Bool {
+                        k > 0 && k + 1 < units.count && Self._isLatinWordUnit(units[k - 1]) && Self._isLatinWordUnit(units[k + 1])
+                    }
                     let spacedStretch = !wordSpaced ? 0 : windowsSpaced
                         ? max(0, wordSpaces.filter { spaceWeighs($0.k) }.reduce(0.0) { $0 + $1.w } - spacedTrail) * 0.47
-                        : wordSpaces.reduce(0.0) { $0 + $1.w } * 0.44
+                        // (A Latin piece at the line's end, the spaces between two Latin words weigh less than 0.44 of themselves:
+                        // lab `dbw` (Word for Windows, zh-cd8987db's own line, three spaces: two between Latin words, one beside an
+                        // ideograph) takes "DB" up to 5.2pt over, where ours stopped at 4.6; with the two Latin spaces removed Word's
+                        // limit is 8.6 and ours the same, so the space beside the ideograph keeps 0.44. The 0.2pt steps fix a range:
+                        // every weight from 0 to 0.29 reproduces Word's 22 steps, 0.30 gives 21. 0.23 sits inside it.)
+                        : wordSpaces.reduce(0.0) { $0 + $1.w * (RichTextTheme.wordWindowsPages && !legacy && !wide && !inCell && !onCharacterGrid && latinBetween($1.k) ? 0.23 : 0.44) }
                     // (From 2013's layout, under `w:kinsoku` 0, a closing mark that is a piece of its own gives
                     // its half and 0.36 of an em by hanging: lab `kq` (mode 15, 16pt, 26 ideographs) keeps
                     // it 11 over with no other mark, 12 with one, 12.5 with two, 13.5 with four; and in Word's
