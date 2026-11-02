@@ -5107,6 +5107,8 @@ enum DocxFormat {
             }
             func textBoxContent(_ n: XNode) -> XNode? {
                 if drawingWordArt[ObjectIdentifier(n)] != nil { return nil }
+                // (The VML twin of a drawing whose text is warped is that text again, plain.)
+                if n.name == "mc:Fallback", !drawingWordArt.isEmpty { return nil }
                 if n.name == "w:txbxContent" { return n }
                 for child in n.children { if let content = textBoxContent(child) { return content } }
                 return nil
