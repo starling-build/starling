@@ -19765,7 +19765,7 @@ public final class RichLayout {
             // (The table's line on that side at its own width: lab `ef2b`
             // (Word 16 Mac), a 2.25pt bottom under 0.5pt sides and inside
             // lines, drawn 0.5 where Word's print has the heavy line.)
-            func line(_ own: CellRef.CellLine?, _ ruled: Bool, _ from: Offset, _ to: Offset, inward: Offset, side: String) {
+            func line(_ own: CellRef.CellLine?, _ ruled: Bool, _ from: Offset, _ to: Offset, inward: Offset, side: String, cell: CellRef? = nil, cellSide: String = "") {
                 if let own {
                     guard let color = own.color, own.width > 0 else { return }
                     let p = Paint()
@@ -19796,9 +19796,45 @@ public final class RichLayout {
                     }
                     canvas.restore()
                 } else if ruled {
+                    // (A double, or thin-and-thick, rule — the cell's own side over the table's — as its lines:
+                    // zh-e51c31a7's 1.5pt double cell sides are two 1.5pt lines in Word's print, one 0.5pt here.)
+                    var cellWidth: Double? = nil
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !cellSide.isEmpty {
+                        let said = cell.flatMap { Self._cellSide($0.bordersXML, cellSide) ?? Self._cellSide($0.rowBordersXML, cellSide) }
+                        let style = said?.style ?? ts?.edgeStyles[side] ?? ts?.borderStyle
+                        let width = said?.width ?? ts?.edgeWidths[side] ?? ts?.borderWidth ?? 0.5
+                        let parts = Self._ruleLines(style, width)
+                        if parts.count > 1, said != nil, side != "insideH", side != "insideV" {
+                            RuleTrace.hit("word-table-compound-rule-is-drawn-as-its-lines")
+                            let room = _px(Self._ruleRoom(style, width))
+                            let centred = side == "insideH" || side == "insideV"
+                            let cp = Paint()
+                            cp.style = .stroke
+                            cp.color = stroke.color
+                            canvas.save()
+                            canvas.clipRect(Rect.fromLTRB(-1e6, rowTop - (centred ? room : 0), 1e6, rowBottom + (centred ? room : 0)))
+                            // (A rule between two cells is one band both cells draw alike: the first part
+                            // above or left, the next below or right — zh-8f70b676's thick-and-thin
+                            // separators, the thick line over the thin one in Word's print.)
+                            let sign: Double = inward.dx + inward.dy > 0 ? 1 : -1
+                            for part in parts {
+                                cp.strokeWidth = _px(part.width)
+                                let dist = centred ? sign * (-room + _px(part.at) + cp.strokeWidth / 2) : _px(part.at) + cp.strokeWidth / 2
+                                canvas.drawLine(from + inward * dist, to + inward * dist, cp)
+                            }
+                            canvas.restore()
+                            return
+                        }
+                        // (A single rule the cell states thicker than the table's is that thick: zh-fec5fa30's calendar
+                        // cells say 2.25pt, "auto", under a table of 0.5pt, and Word's print has the heavy line.)
+                        if let said, said.style == "single", _px(said.width).rounded() > (ts?.edgeWidths[side].map { max(1, _px($0).rounded()) } ?? stroke.strokeWidth) {
+                            RuleTrace.hit("word-table-cell-rule-states-its-own-width")
+                            cellWidth = max(1, _px(said.width).rounded())
+                        }
+                    }
                     let p = Paint()
                     p.style = .stroke
-                    p.strokeWidth = ts?.edgeWidths[side].map { max(1, _px($0).rounded()) } ?? stroke.strokeWidth
+                    p.strokeWidth = cellWidth ?? ts?.edgeWidths[side].map { max(1, _px($0).rounded()) } ?? stroke.strokeWidth
                     p.color = stroke.color
                     // (The table's top and bottom lines wholly inside the room
                     // its first and last rows keep for them, as Word draws
@@ -19821,23 +19857,23 @@ public final class RichLayout {
                 }
                 return false
             }
-            func paintEdges(_ d: _CellGeo, bottomHere: Bool, ownTop: Bool) {
+            func paintEdges(_ d: _CellGeo, ref: CellRef?, bottomHere: Bool, ownTop: Bool) {
                 let cellRight = (d.colLeft + d.colWidth).rounded()
                 line(d.borders.left, on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV),
-                     Offset(d.colLeft, rowTop), Offset(d.colLeft, rowBottom), inward: Offset(1, 0), side: d.column == 0 ? "left" : "insideV")
+                     Offset(d.colLeft, rowTop), Offset(d.colLeft, rowBottom), inward: Offset(1, 0), side: d.column == 0 ? "left" : "insideV", cell: ref, cellSide: "left")
                 // The row above drew this cell's top, unless the cell has
                 // its own line there (on the first row it covers).
                 if (c.row == 0 && d.row == 0) || (ownTop && d.borders.top != nil) {
                     line(d.borders.top, c.row == 0 && d.row == 0 && on(d.edges?.top, te?.top),
-                         Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1), side: c.row == 0 && d.row == 0 ? "top" : "insideH")
+                         Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1), side: c.row == 0 && d.row == 0 ? "top" : "insideH", cell: ref, cellSide: "top")
                 }
                 if bottomHere {
                     line(d.borders.bottom, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH),
-                         Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1), side: lastRow ? "bottom" : "insideH")
+                         Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1), side: lastRow ? "bottom" : "insideH", cell: ref, cellSide: "bottom")
                 }
                 if cellRight >= right - 0.5 {
                     line(d.borders.right, on(d.edges?.right, te?.right),
-                         Offset(right, rowTop), Offset(right, rowBottom), inward: Offset(-1, 0), side: "right")
+                         Offset(right, rowTop), Offset(right, rowBottom), inward: Offset(-1, 0), side: "right", cell: ref, cellSide: "right")
                 } else if d.borders.right != nil {
                     line(d.borders.right, false, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0), side: "insideV")
                 } else if theme.wordRules, d.edges?.right == true, !leftDrawn(at: cellRight) {
@@ -19856,7 +19892,7 @@ public final class RichLayout {
             var lastColumn = -1
             while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
                 if d.column != lastColumn {
-                    paintEdges(d, bottomHere: d.rowSpan - 1 <= d.ghostRows, ownTop: true)
+                    paintEdges(d, ref: document.paragraphs[j].cell, bottomHere: d.rowSpan - 1 <= d.ghostRows, ownTop: true)
                     lastColumn = d.column
                 }
                 j += 1
@@ -19866,7 +19902,7 @@ public final class RichLayout {
             while k >= 0, let d = _cells[k], d.table == c.table {
                 if d.rowSpan > 1, d.row < c.row, d.row + d.rowSpan > c.row, !seen.contains(d.column) {
                     seen.insert(d.column)
-                    paintEdges(d, bottomHere: d.row + d.rowSpan - 1 <= c.row + c.ghostRows, ownTop: false)
+                    paintEdges(d, ref: document.paragraphs[k].cell, bottomHere: d.row + d.rowSpan - 1 <= c.row + c.ghostRows, ownTop: false)
                 }
                 k -= 1
             }
