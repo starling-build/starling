@@ -11942,7 +11942,7 @@ public final class RichLayout {
                     if _hyphenShown[idx]?.contains(offset) == true {
                         spans.append(TextSpan(text: "-", style: style(kind)))
                     } else {
-                        spans.append(TextSpan(text: "\u{00AD}", style: zeroWidth(current ?? kind)))
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     }
                     inserts.append(offset)
                 } else if theme.wordRules, !document.usesEastAsianLayout, spacesAfterNbsp, before == " ", !ea,
