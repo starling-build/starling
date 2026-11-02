@@ -4653,6 +4653,20 @@ public final class RichLayout {
                 guard r > 0 else { return 0 }
                 return r + max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + 0.3 * _cells[column.members[0]]!.pad.top
             }
+            // (A flattened row, a floating table's, is no shorter than its least height on EACH page its part stands on:
+            // lab nf1, Word for Windows — the last part of lo-c7082c66's float row, six lines on page 4, stands 169.6pt
+            // tall, its least height, and the cell's next paragraphs under that.)
+            func partPad(_ column: Column) -> (at: Double, amount: Double)? {
+                guard theme.wordRules else { return nil }
+                for k in column.members {
+                    guard let least = document.paragraphs[k].style.blockMinHeight, _tops[k] < column.cut - 0.01 else { continue }
+                    let end = _tops[k] + _heights[k]
+                    guard end > column.cut + 0.01 else { continue }
+                    let amount = _px(least) - (end - column.cut)
+                    if amount > 0.01 { return (end, amount) }
+                }
+                return nil
+            }
             func nestedFoot(_ owner: Int) -> Double {
                 guard theme.wordRules, owner >= 0, owner < document.paragraphs.count else { return 0 }
                 return _px(document.paragraphs[owner].style.nestedBottomRepeat)
@@ -4785,7 +4799,7 @@ public final class RichLayout {
                 let left = max(carried, columns.map { column in
                     // (With the cell's top margin under the rule again —
                     // see where the pieces are set below.)
-                    max(0, column.bottom - column.cut)
+                    max(0, column.bottom + (partPad(column)?.amount ?? 0) - column.cut)
                         + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + nestedRepeat(column) : 0)
                 }.max() ?? 0)
                 // (A part whose text fits is no taller than the room to the
@@ -4988,7 +5002,7 @@ public final class RichLayout {
                             setWhole[n] = y + d0.pad.top + max(0, room) * (d0.verticalAlign == "center" ? 0.5 : 1) - blockTop
                             next[n] = max(column.cut, rowBottom)
                             moved = true
-                        } else if column.bottom <= (RichTextTheme.wordWindowsPages ? closed : limit) {
+                        } else if column.bottom + (partPad(column)?.amount ?? 0) <= (RichTextTheme.wordWindowsPages ? closed : limit) {
                             // (All that is left of this cell is on this page.)
                             // (Above the line the part is closed with, as a cut
                             // must be: zh-e1b09977's p13 closes under its table's
@@ -5050,7 +5064,7 @@ public final class RichLayout {
                     if theme.wordRules, first, !setWhole.isEmpty {
                         let kept = columns.indices.filter { setWhole[$0] == nil }.map { n -> Double in
                             let column = columns[n]
-                            let end = next[n] >= rowBottom - 0.01 ? column.bottom : next[n] + _cells[column.members[0]]!.pad.bottom
+                            let end = next[n] >= rowBottom - 0.01 ? column.bottom + (partPad(column)?.amount ?? 0) : next[n] + _cells[column.members[0]]!.pad.bottom
                             return end - column.cut
                         }
                         // (No shorter than the row says, nor than the cells
@@ -5136,7 +5150,7 @@ public final class RichLayout {
                     var extent: [Int: (top: Double, bottom: Double)] = [:]
                     for (n, column) in columns.enumerated() where setWhole[n] == nil {
                         let d0 = _cells[column.members[0]]!
-                        let bottom = next[n] >= rowBottom - 0.01 ? column.bottom : next[n] + d0.pad.bottom
+                        let bottom = next[n] >= rowBottom - 0.01 ? column.bottom + (partPad(column)?.amount ?? 0) : next[n] + d0.pad.bottom
                         let textTop = max(column.cut, _tops[column.members[0]] - d0.pad.top)
                         extent[n] = (textTop, bottom)
                     }
@@ -5219,7 +5233,7 @@ public final class RichLayout {
                         // foot, go on 5pt lower on page 6 in Word's print
                         // than ours, which had only the rule.)
                         let again = !first && theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + nestedRepeat(column) : 0
-                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut) + (shift[n] ?? 0) + again)
+                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut) + (shift[n] ?? 0) + again + (fits ? ((partPad(column).map { lo >= $0.at - 0.01 ? $0.amount : 0 }) ?? 0) : 0))
                         piece.part = .text
                         pieces[k, default: []].append(piece)
                         _pages[page].append(piece)
