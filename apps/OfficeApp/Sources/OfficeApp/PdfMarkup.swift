@@ -181,12 +181,13 @@ struct PdfMarkup {
                                 author: p.style.markRevision?.author ?? "")
                     open!.indentLeft = p.style.indentLeft
                     open!.indentRight = p.style.indentRight
-                } else if p.style.frame != nil || !p.runs.contains(where: { $0.style.revision?.kind == .inserted }) {
+                } else {
+                    // (Its own "Deleted: ¶" even where the text is an insertion that stays: lab bal 05,
+                    // Word for Windows, one "Deleted: ¶" beside the kept text; n830205's 14th.)
                     // (A framed paragraph's mark cannot run into the next: its
                     // own "Deleted: ¶", tdf125894's third. Nor does the mark of a
                     // paragraph with text and no deletion in it: its own
-                    // "Deleted: ¶" at the end of the line, merge_hidden_redline's 8 and 10; but
-                    // not where the text is itself an insertion, n830205's 2.x.)
+                    // "Deleted: ¶" at the end of the line, merge_hidden_redline's 8 and 10.)
                     RuleTrace.hit("deleted-mark-own-balloon")
                     deletions.append(Note(anchor: RichPosition(paragraph: paragraphs.count, offset: p.text.utf16.count), label: "Deleted:",
                                           paragraphs: ["¶"], author: p.style.markRevision?.author ?? ""))
@@ -697,6 +698,17 @@ struct PdfMarkup {
                 }
             }
             entries.append((note, anchor, tp, indent, want))
+        }
+        // (Word stacks them by the line of the page each stands at — the
+        // comments, then the deletions, then the reformatting within one line —
+        // not by paragraph: n830205's paragraph 22 has a "Formatted" balloon
+        // first, two deletions, another "Formatted", and its deletions again.)
+        if windows {
+            func lineRank(_ n: Note) -> Int { n.label == "Formatted:" || n.label == "Field Code Changed" ? 2 : n.isComment ? 0 : 1 }
+            entries = entries.enumerated().sorted { a, b in
+                let ka = ((a.element.anchor.top * 2).rounded(), lineRank(a.element.note), a.offset), kb = ((b.element.anchor.top * 2).rounded(), lineRank(b.element.note), b.offset)
+                return ka < kb
+            }.map(\.element)
         }
         defer { for e in entries { e.tp.dispose() } }
         // Where each box stands: under its anchor and clear of the one before.
