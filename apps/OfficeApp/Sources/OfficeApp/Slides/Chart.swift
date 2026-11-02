@@ -561,6 +561,8 @@ struct Chart: Equatable {
         /// keeps inside its slices.
         var fitted = false
         var moves: [Int: [Double]] = [:]
+        /// A point's label box's own width, as a share of the chart's (`c15:layout`'s `c:w`).
+        var boxWidths: [Int: Double] = [:]
         /// A point's own `c:dLblPos`.
         var pointPositions: [Int: String] = [:]
         /// A point's own text size, from its label's own rich text.
@@ -1651,6 +1653,10 @@ enum ChartXML {
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
                     l.moves[i] = [x, y]
+                }
+                if let m = one.first("c:extLst")?.descendant("c15:layout")?.first("c:manualLayout"),
+                   let w = m.first("c:w")?["val"].flatMap(Double.init), w > 0 {
+                    l.boxWidths[i] = w
                 }
             }
             if let sp = d.first("c:spPr") {
@@ -5814,6 +5820,13 @@ extension ChartPainter {
             // comma. A label that wraps already keeps the fifth's box.)
             if tp.computeLineMetrics().count == 1, tp.width > max(20 * k, frame.width * 0.1857) {
                 tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.1857))
+            }
+            // (A label the file gives a box of its own size (`c15:layout`'s `c:w`) wraps at that share of the frame:
+            // zh-b8de3ae2's 3-D pie sizes "人事費, 87,167,004, 15.29%" 0.127, and Word's print sets it in three lines,
+            // "人事費" / "87,167,004," / "15.29%"; ours took the fifth and kept "人事費87,167,004," on one. Less the
+            // label's 7.7pt of margin, it broke "87,167,004" from its comma.)
+            if !c.onSlide, !c.onSheet, !c.chartex, let bw = l.boxWidths[s.index] {
+                tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * bw))
             }
             // (In a Word document a label, its 3pt of room counted, taller than half the chart ends in an
             // ellipsis where it is full: lo-f391267c's, nine lines of a 160pt
