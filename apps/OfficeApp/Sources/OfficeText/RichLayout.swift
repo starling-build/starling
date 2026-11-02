@@ -7084,7 +7084,12 @@ public final class RichLayout {
                            let e = _cells[first], document.tableStyles[c.table]?.rowsCantSplit.contains(r) != true,
                            !document.paragraphs[first].style.keepNext,
                            _px(document.tableStyles[c.table]?.rowHeights[r] ?? 0) <= contentH - y - part - ruleUnder(e, parted: true) + 0.01 else { return 0 }
-                            let limit = e.rowTop + (contentH - y - part) - ruleUnder(e, parted: true) + 0.01
+                            // (The line that closes the page, as `splitRow` cuts the row by it:
+                            // zh-e1b09977's "農委會", merged over a row that parts under the table's
+                            // 2.16 bottom line, stands in the nine lines that stay, 9pt higher than
+                            // the ten the smaller line counted.)
+                            let closing = theme.wordRules && RichTextTheme.wordWindowsPages ? ruleClosing(e) : ruleUnder(e, parted: true)
+                            let limit = e.rowTop + (contentH - y - part) - closing + 0.01
                             // (A row whose cells are merged down over rows that
                             // hold nothing parts only at one of those rows' tops
                             // (lab `mg`, `ghostBounds`): it keeps the last that
@@ -7202,6 +7207,9 @@ public final class RichLayout {
                         // 43.65pt with 33 left on page 48, and Word centres it
                         // in the rows above that one.)
                         if !partsAfterFirst, r < c.row + d.rowSpan { part += partingKept(r, after: part) }
+                        if Self.debugRows == page + 1 {
+                            FileHandle.standardError.write(Data("centred-span cell \(g.first): part \(part / _px(1)) rowHeight \(d.rowHeight / _px(1)) rows \(c.row)..\(r) of \(d.rowSpan) partsAfterFirst \(partsAfterFirst) avail \((contentH - y) / _px(1))\n".utf8))
+                        }
                         guard part > 0, part < d.rowHeight - 0.01 else { continue }
                         // (What it was given to spare over the whole span:
                         // above its text and below it, less its margins.)
@@ -9855,12 +9863,22 @@ public final class RichLayout {
             // line draws its "5" past the cell, 20pt and on draw nothing;
             // `ovi`: in a 40pt column at 5.4pt margins 31.6pt draws, 60 does
             // not, and "5 abc def" loses only the "5"; zh-08e95de4's 31.2pt in
-            // a 33.75pt cell, 22.95 of text, draws its "基". zh-9bcea239's scores
+            // a 33.75pt cell, 22.95 of text, draws no "基" — lab `ci` (windows, 95.7 text
+            // left): the glyph stands at the indent less 0.3, drawn to 24pt (119.4) and gone
+            // from 28 (123.4 against the border at 123.5), the line still taking its 15pt,
+            // so the edge is the cell's right border, not the cell's width from the text's
+            // left as this once read. zh-9bcea239's scores
             // (31.6pt in 19.45) are in no line of Word's print.
             // Word for Windows only: Word for Mac's print of zh-9bcea239
             // keeps lines that this leaves out, 95.9 -> 94.7 with it.)
-            if RichTextTheme.wordWindowsPages, p.cell != nil, let c = _cells[i], lead >= textWidth + ownLeft + right + c.pad.left + c.pad.right - 0.01 {
-                p = Self._hidingFirstWord(p, keeping: true)
+            if RichTextTheme.wordWindowsPages, p.cell != nil, let c = _cells[i], lead >= textWidth + ownLeft + right + c.pad.right - _px(0.35) {
+                // (An East Asian first character is a line of its own that draws nothing —
+                // lab `ci`: nine 15pt lines, the first blank — so it stays as a space of
+                // its width, not taken out: zh-08e95de4's "基基本分值…".)
+                // (Word's print still carries the glyph, clipped by the cell, at the
+                // indent: 94.0 in zh-08e95de4's p2, 68.1 + 31.2 - 5.4 less the cell's margin.)
+                if let f = p.text.utf16.first, f >= 0x2E80 { p = Self._hidingFirstWord(p, unseenCharacter: true) }
+                else { p = Self._hidingFirstWord(p, keeping: true) }
             }
             // (In a text box the same, from the box's width less its left
             // inset: lab `tbi` (`windows`, zh-b24b396a's package, each a fresh
@@ -14798,9 +14816,29 @@ public final class RichLayout {
     /// `p` with its first word hidden — up to and with its first space, or
     /// its first character where that is East Asian: what a first line
     /// indented past its cell shows of it (see `_layoutParagraph`).
-    static func _hidingFirstWord(_ p: RichParagraph, keeping: Bool = false, characterOnly: Bool = false) -> RichParagraph {
+    static func _hidingFirstWord(_ p: RichParagraph, keeping: Bool = false, characterOnly: Bool = false, unseenCharacter: Bool = false) -> RichParagraph {
         let units = Array(p.text.utf16)
         guard let first = units.first else { return p }
+        if unseenCharacter {
+            // (The first character kept in its place and drawn clear: it holds its line, as
+            // Word's does, and a copy of it stands past the cell — see `_unseenShift`.)
+            let n = UTF16.isLeadSurrogate(first) ? 2 : 1
+            var q = p
+            var runs: [Run] = [], at = 0
+            for r in p.runs {
+                let end = at + r.length
+                if at < n, end > n {
+                    var clear = r.style; clear.unseen = true
+                    runs.append(Run(length: n - at, style: clear)); runs.append(Run(length: end - n, style: r.style))
+                } else if end <= n {
+                    var clear = r.style; clear.unseen = true
+                    runs.append(Run(length: r.length, style: clear))
+                } else { runs.append(r) }
+                at = end
+            }
+            q.runs = runs
+            return q
+        }
         var n = 1
         if first < 0x2E80, !characterOnly {
             // (Up to a line's break too: a turned box's first line ends after
@@ -19998,6 +20036,14 @@ public final class RichLayout {
                     g.painter.paint(canvas, textAt); canvas.restore()
                 }
                 leadersPainted = true
+            } else if shifts.isEmpty, let shift = _unseenShift[i], case let length = g.painter.plainText.utf16.count,
+                      case let end = g.painter.getLineBoundary(TextPosition(offset: 0)).end, end > 0, end < length,
+                      let onlyFirst = _clearedPainter(g.painter, [end..<length], key: 4, clearBackgroundAndDecoration: true),
+                      let onlyRest = _clearedPainter(g.painter, [0..<end], key: 5, clearBackgroundAndDecoration: true) {
+                // (A first line held past the cell by its indent: only it stands where Word's does,
+                // the lines after it at the paragraph's own place.)
+                onlyFirst.paint(canvas, Offset(textAt.dx + shift, textAt.dy))
+                onlyRest.paint(canvas, textAt)
             } else if shifts.isEmpty { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
