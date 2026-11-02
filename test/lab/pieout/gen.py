@@ -5,7 +5,7 @@ Source: amd-1's lab pieeq document (lo-f9b9a8fc's chart, 360 x 212.25pt inline f
 colour, its rim a darker shade of it. One page per variant (VARIANTS below: rotX, perspective, depthPercent, hPercent).
 Read (meas.py): in the picture, the disc's left/right extremes, and down its middle column the top face's far edge,
 its near edge (where the rim's darker colour starts) and the rim's bottom.
-gen.py OUT.docx"""
+gen.py OUT.docx [N]   (N: only the first N pages, to bisect)"""
 import sys, re, zipfile, os
 HERE = os.path.dirname(os.path.abspath(__file__))
 VARIANTS = [(rx, p, None, None) for p in (0, 30, 60) for rx in (10, 20, 30, 45, 60, 75)] + \
@@ -36,21 +36,26 @@ if __name__ == '__main__':
     keep = [r for r in runs if '<c:chart ' in r]
     assert len(keep) == 1, len(keep)
     rid = re.search(r'r:id="([^"]+)"', keep[0]).group(1)
-    body = ''.join('<w:p><w:pPr>%s</w:pPr>%s</w:p>' % ('' if k == 0 else '<w:pageBreakBefore/>', keep[0].replace('r:id="%s"' % rid, 'r:id="rIdP%d"' % k)) for k in range(len(VARIANTS)))
+    npages = int(sys.argv[2]) if len(sys.argv) > 2 else len(VARIANTS)
+    # (Each drawing its own docPr id.)
+    body = ''.join('<w:p><w:pPr>%s</w:pPr>%s</w:p>' % ('' if k == 0 else '<w:pageBreakBefore/>',
+                   re.sub(r'(<wp:docPr id=")\d+(")', r'\g<1>%d\2' % (100 + k), keep[0].replace('r:id="%s"' % rid, 'r:id="rIdP%d"' % k))) for k in range(npages))
     d = re.sub(r'<w:body>.*<w:sectPr', lambda m: '<w:body>' + body + '<w:sectPr', doc, count=1, flags=re.S)
     rels = z.read('word/_rels/document.xml.rels').decode('utf-8')
-    rels = rels.replace('</Relationships>', ''.join('<Relationship Id="rIdP%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/p%d.xml"/>' % (k, k) for k in range(len(VARIANTS))) + '</Relationships>')
+    rels = rels.replace('</Relationships>', ''.join('<Relationship Id="rIdP%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/p%d.xml"/>' % (k, k) for k in range(npages)) + '</Relationships>')
     ct = z.read('[Content_Types].xml').decode('utf-8')
-    ct = ct.replace('</Types>', ''.join('<Override PartName="/word/charts/p%d.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>' % k for k in range(len(VARIANTS))) + '</Types>')
+    ct = ct.replace('</Types>', ''.join('<Override PartName="/word/charts/p%d.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>' % k for k in range(npages)) + '</Types>')
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zo:
         for n in z.namelist():
             if n == 'word/document.xml': zo.writestr(n, d)
             elif n == 'word/_rels/document.xml.rels': zo.writestr(n, rels)
             elif n == '[Content_Types].xml': zo.writestr(n, ct)
             else: zo.writestr(n, z.read(n))
-        for k, v in enumerate(VARIANTS):
+        for k, v in enumerate(VARIANTS[:npages]):
             zo.writestr('word/charts/p%d.xml' % k, chart(base, *v))
-            # (Each chart part its own copy of chart1's rels: the embedded workbook, colours, style.)
-            try: zo.writestr('word/charts/_rels/p%d.xml.rels' % k, z.read('word/charts/_rels/chart1.xml.rels'))
-            except KeyError: pass
-    print(len(VARIANTS), 'pages ->', out)
+            # (Each chart part its own rels with the external workbook only: a chartStyle and chartColorStyle part
+            # shared by 22 charts made Word refuse the file.)
+            rel = z.read('word/charts/_rels/chart1.xml.rels').decode('utf-8')
+            rel = re.sub(r'<Relationship [^>]*(chartColorStyle|chartStyle)"[^>]*/>', '', rel)
+            zo.writestr('word/charts/_rels/p%d.xml.rels' % k, rel)
+    print(npages, 'pages ->', out)
