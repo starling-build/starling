@@ -5312,6 +5312,15 @@ public final class RichLayout {
             }
             return true
         }
+        // (A table placed against the page, down from the text above it, whose last row
+        // ends past the margin does not take the page's end with it: the paragraph after
+        // it is its anchor, and stands where the flow stood, over the table — zh-0b87285b's
+        // title, a 29pt line at 90, over a table 126.8pt down that ends past a 451pt
+        // margin, is on the table's page in Word's print; ours took it to a page of its own.)
+        func tableEndsOverAnchor(_ c: _CellGeo, _ j: Int) -> Bool {
+            theme.wordRules && RichTextTheme.wordWindowsPages && j < count && _cells[j] == nil
+                && tableReturn.map { $0.table == c.table && $0.page == page && $0.y + _heights[j] <= $0.top + 0.01 } == true
+        }
         func placeDeferred() {
             for piece in deferredUnder {
                 let h = piece.flowBottom - piece.flowTop
@@ -6284,7 +6293,7 @@ public final class RichLayout {
                     keptPastFoot = nil
                 }
                 if theme.wordRules, !pastFoot, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
-                    if y > contentH - 0.01 { newPage() }
+                    if y > contentH - 0.01, !tableEndsOverAnchor(c, j) { newPage() }
                     i = j
                     continue
                 }
@@ -6609,7 +6618,7 @@ public final class RichLayout {
                     add(rules)
                 }
                 y += c.ownRowHeight
-                if y > contentH - 0.01 { newPage() }
+                if y > contentH - 0.01, !tableEndsOverAnchor(c, j) { newPage() }
                 i = j
                 continue
             }
