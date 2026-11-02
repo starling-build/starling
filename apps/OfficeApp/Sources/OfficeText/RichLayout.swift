@@ -5283,7 +5283,7 @@ public final class RichLayout {
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0), !ts.pageAnchored, ts.keptPosition != nil,
-               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) >= _px(18) || _stripBesideLeftTable(prev, i, document),
+               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document),
                let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 {
                 besideTable = (y, page)
                 y = top
