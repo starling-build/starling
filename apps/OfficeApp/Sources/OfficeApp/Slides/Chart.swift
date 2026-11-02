@@ -531,6 +531,8 @@ struct Chart: Equatable {
         /// keeps inside its slices.
         var fitted = false
         var moves: [Int: [Double]] = [:]
+        /// A point's own `c:dLblPos`.
+        var pointPositions: [Int: String] = [:]
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
         /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
@@ -1572,6 +1574,7 @@ enum ChartXML {
             var ends = pos == "outEnd"
             for one in d.all("c:dLbl") {
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init) else { continue }
+                if let p = one.first("c:dLblPos")?["val"] { l.pointPositions[i] = p }
                 if let p = one.first("c:dLblPos")?["val"], ["outEnd", "bestFit"].contains(p) {
                     l.outside = true
                     if p == "outEnd" { ends = true }
@@ -5237,6 +5240,12 @@ extension ChartPainter {
         // The labels' text so far, for an outside label to stand clear of.
         var taken: [Rect] = []
         for s in slices {
+            // (A Word pie's label that says where it stands inside — centre, inside end, inside base — is
+            // placed so whatever the other labels do: lab pielabel's prints.)
+            var l = l
+            if !c.onSlide, !c.onSheet, !c.chartex, c.type == .pie, let own = l.pointPositions[s.index], ["ctr", "inEnd", "inBase"].contains(own) {
+                l.outside = false; l.fitted = false; l.position = own
+            }
             let own = !c.onSlide && !c.onSheet ? l.own[s.index] : nil
             let size = max(3, (l.sizes[s.index] ?? own?.size ?? c.series[0].labelSize ?? c.baseTextSize) * k)
             var parts: [String] = []
@@ -5297,17 +5306,26 @@ extension ChartPainter {
             // chart, stops after seven, "even…".)
             if !c.onSlide, !c.onSheet, !c.chartex {
                 let n = tp.computeLineMetrics().count
-                let allowed = max(1, Int(frame.height * 0.5 / (tp.height / Double(max(1, n)))))
+                // (Word's limit is a little under half: lab pielabel's 4-line 16 pt label, 0.48 of a 148 pt chart,
+                // is cut to three lines; lo-f391267c's seven of 0.45 stay.)
+                let allowed = max(1, Int(frame.height * 0.465 / (tp.height / Double(max(1, n)))))
                 if n > allowed {
                     RuleTrace.hit("word-data-label-taller-than-half-the-chart-ends-in-an-ellipsis")
                     // (The engine's ellipsis only cuts a line that overflows its width, so
                     // the text is cut at the last line's end and the dots added here.)
                     let lineH = tp.height / Double(n)
                     let end = tp.getLineBoundary(tp.getPositionForOffset(Offset(1, (Double(allowed) - 0.5) * lineH))).end
-                    let kept = String(text.prefix(max(0, end))).trimmingWhitespace()
+                    var kept = String(text.prefix(max(0, end))).trimmingWhitespace()
                     tp.dispose()
                     tp = makeLabel(nil, kept + "\u{2026}")
                     tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+                    // (The dots take room of their own: a last word that no longer fits with them goes.)
+                    while tp.computeLineMetrics().count > allowed, kept.count > 1 {
+                        kept = String(kept.dropLast()).trimmingWhitespace()
+                        tp.dispose()
+                        tp = makeLabel(nil, kept + "\u{2026}")
+                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+                    }
                 }
             }
             let pad = 3 * k
@@ -5397,7 +5415,7 @@ extension ChartPainter {
                 // (+24.6,+18.4), (+22.3,+20.6) for middles 0, 20, 45, 60° below the horizontal, R 53.4.)
                 let ownBox = !c.onSlide && !c.onSheet && !c.chartex && l.own[s.index] != nil
                 let (bw, bh) = ownBox ? (tp.width, tp.height) : (w, h)
-                if ownBox, share > 0.5, let big = Self._bigSliceLabel(share: share, dx: dx, dy: dy, rx: rx, ry: ry, centre: centre, bw: bw, bh: bh) { return big }
+                if !c.onSlide, !c.onSheet, !c.chartex, share >= 0.23, share < 0.99, tp.computeLineMetrics().count == 1, let big = Self._bigSliceLabel(share: share, dx: dx, dy: dy, rx: rx, ry: ry, centre: centre, bw: bw, bh: bh) { return big }
                 // (A lone slice, the whole disc, holds it as far out as the rim lets it:
                 // lo tdf134866's "Cusom label" 0.82 out at six o'clock, where the
                 // measured 0.6 left it 22pt high.)
@@ -5447,9 +5465,25 @@ extension ChartPainter {
                 // a two-slice pie, 24 shares and turns at each of rotX 15, 30
                 // and 45): all 72 labels within 0.4pt of 0.5 of the radius,
                 // the camera 4.65 radii off.)
-                let f = inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? (l.position == "ctr" && !c.onSlide && !c.onSheet ? 0.5 : 0.9) : 0.7
+                // (A flat pie's, in a Word document: "ctr" half way out along the slice's middle, "inEnd" as far
+                // out as lab pielabel's prints stand it — a taller label's about 0.5 too, within 8pt of the
+                // four 3-line prints (Word 29.3, 27.8, 18.7, 19.5 out at 0, 19, 40, 53°). A one-line 32 x 17.7 pt label, R 53.4: 0.5 of the radius
+                // at every angle; at 32.5, 31.4, 36.6 and 39.5 for a middle 0, 20, 45 and 60° below the horizontal.)
+                let wordFlat = !c.onSlide && !c.onSheet && !c.chartex && point == nil && inner == 0 && abs(rx - ry) < 0.5
+                var inEndAt: Offset? = nil
+                if wordFlat, l.position == "inEnd", tp.computeLineMetrics().count == 1 {
+                    let m: Double = atan2(abs(dy), abs(dx)) * 180 / Double.pi
+                    let table: [(Double, Double)] = [(0, 32.5), (20, 31.4), (45, 36.6), (60, 39.5), (90, 39.5)]
+                    if let hi = table.firstIndex(where: { $0.0 >= m }) {
+                        let lo = max(0, hi - 1)
+                        let t: Double = hi == lo ? 0 : (m - table[lo].0) / (table[hi].0 - table[lo].0)
+                        let d: Double = (table[lo].1 + (table[hi].1 - table[lo].1) * t) * rx / 53.4
+                        inEndAt = Offset(centre.dx + dx * d, centre.dy + dy * d)
+                    }
+                }
+                let f = inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? (l.position == "ctr" && !c.onSlide && !c.onSheet ? 0.5 : 0.9) : (wordFlat && (l.position == "ctr" || (l.position == "inEnd" && tp.computeLineMetrics().count > 1)) ? 0.5 : 0.7)
                 if point != nil, l.position == "ctr", !c.onSlide, !c.onSheet { RuleTrace.hit("word-pie3d-centre-label-at-half-radius") }
-                at = on(s.mid, f)
+                at = inEndAt ?? on(s.mid, f)
             }
             // (A pie of pie's bar's labels in Word stand with their right edge 42 pt past the bar,
             // before the file's move: zh-b8de3ae2 p9's four, their edges at 571 for a bar ending 529.)
