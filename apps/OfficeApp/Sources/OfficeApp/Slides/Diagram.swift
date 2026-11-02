@@ -1386,12 +1386,34 @@ struct DiagramLayout {
             let (cw, ch) = sizes(items[0])
             placed.append((items[0], Offset.zero, cw, ch, 0))
         }
+        // cycle7's arrows are 0.8 of the smallest gap between neighbouring nodes (`connDist` equal for all, `begPad` and
+        // `endPad` a tenth of it each), measured along the line between their centres from edge to edge, and as thick as
+        // half of the layout's 0.35-of-a-node `w` (lo-smartart-multidirectional's three nodes: PowerPoint's arrows are 86.34
+        // long at nodes 165.7 wide, 29.0 thick, the diagonal ones as long as the horizontal one).
+        let cycle7 = layout["uniqueId"] == "urn:microsoft.com/office/officeart/2008/layout/cycle7"
+            || layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/cycle7"
+        var connDist: Double? = nil
+        if cycle7, ring.count > 1, full {
+            var smallest = Double.infinity
+            for i in 0 ..< ring.count {
+                let p0 = placed[i], p1 = placed[(i + 1) % ring.count]
+                let dx = p1.1.dx - p0.1.dx, dy = p1.1.dy - p0.1.dy
+                let d = (dx * dx + dy * dy).squareRoot()
+                guard d > 0 else { continue }
+                let ux = abs(dx / d), uy = abs(dy / d)
+                func exit(_ cw: Double, _ ch: Double) -> Double { min(ux > 1e-9 ? cw / 2 / ux : .infinity, uy > 1e-9 ? ch / 2 / uy : .infinity) }
+                smallest = min(smallest, d - exit(p0.2, p0.3) - exit(p1.2, p1.3))
+            }
+            if smallest.isFinite, smallest > 0 { connDist = smallest }
+        }
         for (i, c) in conns.enumerated() where ring.count > 1 {
             let a = stAng + (Double(i) + 0.5) * step
             // Sized against the nodes as they ended up, not as preferred.
-            let cw = (c.value("w") ?? preferredW * 0.25) * (preferredW > 0 ? w / preferredW : 1)
+            var cw = (c.value("w") ?? preferredW * 0.25) * (preferredW > 0 ? w / preferredW : 1)
             var ch = (c.value("h") ?? cw) * (preferredW > 0 ? w / preferredW : 1)
             if let d = c.derived["h"], d.ref == "w" { ch = cw * d.fact }
+            else if cycle7 { ch = cw * 0.5 }
+            if let cd = connDist { cw = cd * 0.8 }
             // Between its two neighbours, on the straight line from one to
             // the other — nearer the centre than the ring by the chord's sag.
             let at = pos(a), sag = cos(abs(step) / 2 * .pi / 180)
