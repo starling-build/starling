@@ -20887,6 +20887,19 @@ public final class RichLayout {
            i < _cells.count, let d = _cells[i], !d.vertical, x < d.colLeft + _px(image.effectLeft) {
             x = d.colLeft + _px(image.effectLeft)
         }
+        // (An anchor in a cell, `layoutInCell`, set from the page at both
+        // offsets, is set from the cell's own corner: zh-d8247da5's two 14pt
+        // marks "面" and "積" in a header cell, 16.3 and 25.8pt over and 29.1
+        // and 48.9pt down "the page", are 16.3 and 25.8 over and 29.1 and
+        // 48.9 down the cell's corner in Word's print; ours drew them at
+        // the page's corner.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "page", float.verticalFrom == "page",
+           float.horizontalAlign == nil, float.verticalAlign == nil, i < _cells.count, let d = _cells[i], !d.vertical,
+           !(image.name == "table") {
+            RuleTrace.hit("page-offsets-of-an-anchor-in-a-cell-are-from-the-cell")
+            x = d.colLeft + _px(float.x)
+            y = d.rowTop + _px(float.y)
+        }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
