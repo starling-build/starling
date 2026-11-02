@@ -1,0 +1,6 @@
+# font	unitsPerEm	hhea_asc	hhea_desc	hhea_gap	typo_asc	typo_desc	typo_gap	winAscent	winDescent	USE_TYPO_METRICS	fsSelection
+cambria.ttc#0 Cambria	2048	1946	-455	0	1593	-455	353	1946	455	0	64
+cambria.ttc#1 Cambria Math	2048	1595	-455	353	1593	-455	353	6383	5045	1	192
+cambriab.ttf Cambria Bold	2048	1946	-455	0	1593	-455	353	1946	455	0	32
+cambriai.ttf Cambria Italic	2048	1946	-455	0	1593	-455	353	1946	455	0	1
+cambriaz.ttf Cambria Bold Italic	2048	1946	-455	0	1593	-455	353	1946	455	0	33

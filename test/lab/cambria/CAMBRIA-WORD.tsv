@@ -1,0 +1,8 @@
+# case	size_pt	first_baseline_y	first_baseline_minus_top_margin(72)	pitches(6 lines -> 5 values)	mean_pitch	font
+s12	12	83.4	11.4	14.06 14.04 14.16 14.04 14.04	14.068	Cambria  # 6 lines
+s48	48	117.62	45.62	56.28 56.28 56.31 56.28 56.28	56.286	Cambria  # 6 lines
+s11	11	82.44	10.44	12.86 12.96 12.84 12.96 12.84	12.892	Cambria  # 6 lines
+s10	10	81.48	9.48	11.66 11.76 11.76 11.64 11.76	11.716	Cambria  # 6 lines
+s48br12	48	117.62	45.62	56.28 56.28 56.31 56.28 56.28	56.286	Cambria  # 6 lines
+b48	48	117.62	45.62	56.28 56.28 56.31 56.28 56.28	56.286	Cambria-Bold  # 6 lines
+i48	48	117.62	45.62	56.28 56.28 56.31 56.28 56.28	56.286	Cambria-Italic  # 6 lines
