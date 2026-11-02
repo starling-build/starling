@@ -4218,7 +4218,10 @@ enum DocxFormat {
             if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
         }
         if let bidi = pPr.first("w:bidi") { style.rightToLeft = !_isOff(bidi) }
-        if let shd = pPr.first("w:shd"), let hex = shd["w:fill"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
+        // (A fill written with a leading "#" — `#ff00ff`, as lo-f17a56168c9e's Title
+        // style has it — prints as that colour in Word.)
+        if let shd = pPr.first("w:shd"), let raw = shd["w:fill"], case let hex = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw,
+           hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
             style.fill = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
         }
         if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
