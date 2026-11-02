@@ -1131,7 +1131,7 @@ enum OfficeFonts {
         default: return "mincho"
         }
     }
-    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 1024.0 / 1229.0, fakeBold: true, baseline: 1.005)
+    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 0.85, fakeBold: true, baseline: 1.005)
     // (YaHei's bold, msyhbd.ttc, is a face of its own and a line of it
     // is taller: Word sets bold YaHei lines 1.73 ems apart — 24.21 at
     // 14pt (zh-33aa9899's body), 27.66 at 16 and 34.62 at 20 (zh-7dc3afad's
@@ -3329,6 +3329,20 @@ enum OfficeFonts {
         face.boldBaseline = ea.boldBaseline
         face.advances = ea.latinAdvances
         face.boldAdvances = ea.latinBoldAdvances
+        // (The square faces' Latin is half an em a character — SimSun's, MingLiU's — and the stand-in is
+        // drawn at 85% of the size, Liberation Mono's 0.6em then 0.51: the width is the table's,
+        // not the drawn glyph's. At the 0.833 that made it exactly half, the matcher took a
+        // row number "11" at 9.2pt beside 11pt text for a mark of the next cell's line:
+        // zh-8415d258's numbered rows.)
+        // 仿宋 and 標楷體 keep the old drawn-width stand-in: its digits stand ~1% wider than a half em in Word
+        // (zh-5450d509), and widening them breaks ~100 documents on a knife-edge.
+        let fangsong = ["仿宋", "fangsong", "標楷", "dfkai", "kaiu"].contains(where: { family.lowercased().contains($0) })
+        if fangsong, ea.latin == mono, ea.latinAdvances == nil, ea.latinScale == 0.85 {
+            face.sizeScale = 1024.0 / 1229.0
+        } else if ea.latin == mono, ea.latinAdvances == nil, ea.latinScale == 0.85 {
+            face.advances = [Double](repeating: 0.5, count: 95)
+            face.boldAdvances = [Double](repeating: 0.5, count: 95)
+        }
         face.kerns = ea.latinKerns
         face.boldKerns = ea.latinBoldKerns
         face.symbolFamily = ea.symbols
