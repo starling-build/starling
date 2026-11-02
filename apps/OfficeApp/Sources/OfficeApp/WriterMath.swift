@@ -425,12 +425,12 @@ enum WriterMath {
             // "σEx2" is one line of Word's print with the outer 2 apart.)
             // (A script reaches no higher over its own baseline than 0.85 of its size, as an
             // inline equation's line does: lo-4aa628bd's 8pt "2" over a σ is 6.8 above its
-            // baseline in Word's print, 8.2 in the face's own ascent, and the row stood 2pt
+            // baseline in Word's print, 7.6 in the face's own ascent; a superscript with no subscript is not capped (lo-6e71a4d5's "A=πr2" stands where it did); the row stood 2pt
             // taller than Word's.)
             let cap = size * 0.73 * 0.85
             func capped(_ b: Box) -> Box { Box(width: b.width, ascent: min(b.ascent, cap), descent: b.descent, draw: b.draw) }
             if let sub { parts.append(raised(capped(sub), -down)) }
-            if let sup { parts.append(raised(capped(sup), up)) }
+            if let sup { parts.append(raised(sub != nil ? capped(sup) : sup, up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
             return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in
