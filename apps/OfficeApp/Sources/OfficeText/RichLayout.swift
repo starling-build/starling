@@ -9856,7 +9856,19 @@ public final class RichLayout {
         // stands 4.2pt over where ours did, and the page's rows with it.)
         let cellBreakLead = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15
             && style.cellBreakOpens && p.cell != nil && (i == 0 || document.paragraphs[i - 1].cell != p.cell)
-        let before = (theme.wordRules ? (cellBreakLead ? 0 : spacing.before) + bTop : (spacing.before + bTop).rounded()) + _px(frameGap)
+        // (A document with `suppressTopSpacing` stands the first line of a page of exact
+        // lines higher by 0.8 x (the height - 12pt), and the lines under it with it. Lab
+        // stsp, Word for Windows: 9.6, 4.8, 14.4 and 19.2pt at 24, 18, 30 and 36pt
+        // whatever the font size; nothing at 12pt or at an automatic height; a space
+        // before stays. Here for the document's first paragraph and one that opens a page
+        // by a break; lo orrick's body, 9.5pt high in Word's print.)
+        var topRaise = 0.0
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.suppressesTopSpacing, p.cell == nil,
+           i == 0 || _pageBreak[i], !style.lineHeightIsMinimum, let h = style.lineHeightPoints, h > 12 {
+            RuleTrace.hit("suppress-top-spacing-raises-the-page-first-exact-line")
+            topRaise = _px(0.8 * (h - 12))
+        }
+        let before = (theme.wordRules ? (cellBreakLead ? 0 : spacing.before) + bTop : (spacing.before + bTop).rounded()) + _px(frameGap) - topRaise
         let after = spacing.after + bBottom
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.

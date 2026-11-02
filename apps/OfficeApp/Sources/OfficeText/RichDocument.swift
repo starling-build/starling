@@ -2313,6 +2313,9 @@ public struct RichDocument: Hashable, Sendable {
     /// break ends are not made even; the next section starts under the
     /// longest (LibreOffice's unbalanced-columns-compat).
     public var leavesColumnsUnbalanced = false
+    /// `w:suppressTopSpacing` (compat): the first line of a page with an exact line
+    /// height stands 0.8 x (height - 12pt) higher (lab stsp, Word for Windows).
+    public var suppressesTopSpacing = false
     /// The settings' `compatibilityMode` (15 for Word 2013 on; nil
     /// where they name none, which Word takes for an older one). Below
     /// 15 a line's punctuation hangs and gives in a paragraph set any
