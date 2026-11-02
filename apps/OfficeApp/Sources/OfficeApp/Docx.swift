@@ -5757,6 +5757,17 @@ enum DocxFormat {
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex)
             }
+            // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
+            // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
+            // superscript result prints Arial Bold 10pt on the baseline, only the "/" beside it
+            // raised; lo-198cd200's footer.)
+            if notes.inHeaderFooter, let f = notes.fields.last, f.result, DocxFormat._isPageField(f.instr), f.instr.uppercased().containsSubstring("MERGEFORMAT"),
+               cs.script != .normal {
+                // (A superscript's shrunk size stays, its raise does not: 15.5pt prints 10.)
+                RuleTrace.hit("page-field-result-with-mergeformat-keeps-bold-only")
+                cs.script = .normal
+                cs.fontSize = cs.fontSize.map { $0 * 0.65 }
+            }
             // A link the file does not underline (no Hyperlink character
             // style on its run, or one that says so): the save names the
             // style again, so the run has to say "none" over it —

@@ -12046,7 +12046,10 @@ public final class RichLayout {
             // (Only where that line is taller than the rest of the paragraph's:
             // a Times note mark in YaHei text changes nothing, and its joiner
             // only stirred the line fitting.)
+            // (Not in a line with a page number's field: its raised "/" grows the line by 1.08pt at
+            // 15.5pt on 10, not by the whole size's 6.3 — lab pgf, Word for Windows, lo-198cd200's footer.)
             if theme.wordRules, run.script != .normal, NativeParagraphBuilder.supportsBaselineShift, let first = text.first,
+               !p.runs.contains(where: { $0.style.field != nil && $0.style.fieldResult != nil && $0.style.script == .normal }),
                let ownLine = theme.naturalLine(for: { var w = run; w.script = .normal; return w }(), named: named, eastAsian: RichLayout.isEastAsian(first, hinted: hinted)),
                ownLine > ({ () -> Double in
                    var most = 0.0, at = 0
