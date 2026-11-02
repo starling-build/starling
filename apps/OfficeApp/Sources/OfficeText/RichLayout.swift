@@ -16426,6 +16426,7 @@ public final class RichLayout {
         // `_topLineSqueeze`.)
         let firstGiven = _topLineSqueeze(p, document) > 0
         var leadOpeners: [Int: Int] = [:]   // a line's giving opener, and where its line ends
+        var closingOpeners = Set<Int>()   // a closing mark that opens its line (Word keeps it whole when it is the only mark to give)
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
@@ -17044,7 +17045,11 @@ public final class RichLayout {
                     // 5.35 over) sends "員。" down in Word's print with the "：" full
                     // width, where ours squeezed it and hung the "。". Under 3pt it gives:
                     // zh-d746674a's "…編碼意義等。" is 1.6 over and takes it.)
-                    let all = (marks + own).filter { (!kept || $0 != tail) && !(hang > 0 && over - hang > 60 && paragraphEnd && theme.wordRules && !legacy && document.marksCentred && (document.compatibilityMode ?? 12) >= 15 && $0 != tail && units[$0] == 0xFF1A) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
+                    var all = (marks + own).filter { (!kept || $0 != tail) && !(hang > 0 && over - hang > 60 && paragraphEnd && theme.wordRules && !legacy && document.marksCentred && (document.compatibilityMode ?? 12) >= 15 && $0 != tail && units[$0] == 0xFF1A) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
+                    // (A closing mark that opens the line is not squeezed when it is the only mark that could give:
+                    // zh-72da925e p8 sends "大" down in Word's print where ours took it 0.0014 short from the opening "，".
+                    // With another mark to give beside it, it gives too: zh-c15af02e's "，已違反…，應依" has both at 10.2.)
+                    if RichTextTheme.wordWindowsPages, over > 100, all.count == 1, closingOpeners.contains(all[0]) { all = [] }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
@@ -17959,6 +17964,7 @@ public final class RichLayout {
                 leadOpeners[k] = units.count
                 marks.append(k)
             }
+            if RichTextTheme.wordWindowsPages, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._closingUnits.contains(units[k]) { closingOpeners.insert(k) }
             marks.append(contentsOf: own.filter { k in
                 k > (lastTab ?? -1) && (k != lineOpener || !(Self._openingUnits.contains(units[k]) || (wideQuote(k) && (units[k] == 0x201C || units[k] == 0x2018))))
             })
