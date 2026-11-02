@@ -638,14 +638,21 @@ struct PdfMarkup {
                 // at 485.7 under "Deleted: XXX¶" at 436.9.)
                 RuleTrace.hit("deleted-section-break-after-text-is-a-small-indented-line")
                 let small = TextStyle(color: Color(0xFF000000), fontSize: size * 0.9, height: lineHeight, fontFamily: note.family ?? family)
+                // (A break first in the balloon stands on the label's line, as
+                // a lone one does: n830205's "Deleted:  Section Break
+                // (Continuous)" with the next page's break under it.)
                 var first = true
+                var lead = true
                 for line in note.paragraphs where !(line.isEmpty && !first) {
                     if !first { spans.append(TextSpan(text: "\n", style: plain)) }
                     first = false
                     if line.hasPrefix("Section Break (") {
-                        spans.append(TextSpan(text: String(repeating: "\u{2002}", count: 16) + line, style: small))
+                        if lead { spans.append(TextSpan(text: line, style: small)) }
+                        else { spans.append(TextSpan(text: String(repeating: "\u{2002}", count: 16) + line, style: small)) }
+                        lead = false
                     } else {
                         spans.append(TextSpan(text: line, style: plain))
+                        lead = false
                     }
                 }
             } else {
