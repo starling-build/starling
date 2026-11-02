@@ -306,6 +306,9 @@ struct Chart: Equatable {
     /// colour — greys, the accents, then one accent each in shades — by
     /// six rows of effects. nil for none (PowerPoint's default, 2).
     var style: Int? = nil
+    /// The file names Office 2007's style 18 (colourful, with the 3-D effects): a Word pie in it is
+    /// drawn in deeper colours with a gradient down each slice.
+    var style18 = false
     /// The accent (1–6) a monochrome style shades every series from.
     var monochromeAccent: Int? {
         guard let s = style, (1 ... 48).contains(s) else { return nil }
@@ -1760,6 +1763,7 @@ enum ChartXML {
         let styleNode = space.first("c:style") ?? space.first("mc:AlternateContent")?.first("mc:Fallback")?.first("c:style")
         // (Kept where it colours the chart its own way: a monochrome one.)
         c.style = styleNode?["val"].flatMap(Int.init)
+        c.style18 = c.style == 18
         if c.monochromeAccent == nil { c.style = nil }
         if let m = plot.first("c:layout")?.first("c:manualLayout"),
            (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
@@ -5175,12 +5179,26 @@ extension ChartPainter {
             let e = c.piePulls[index] ?? c.pieSeriesPull
             return (e * cos(mid), -e * sin(mid))
         }
+        // (Style 18 in a Word document, lab-less but read off lo-7b8ccfbe's print: the accents come out
+        // at 0.84 of their lightness and 1.2 of their saturation — per channel within 1.6 levels of
+        // 1.04 R - 0.05 G - 0.06 B - 12.5 and its two kin — the second round of them 0.4 of the way to
+        // white; each slice shades from 5% toward white at its top to 0.92 of its colour at its foot.)
+        let shaded18 = word && c.style18 && c.pointColors.isEmpty && c.monochromeAccent == nil
+        func deep18(_ i: Int) -> Color {
+            let n = max(1, theme.accents.count)
+            let b = theme.accents[i % n].value
+            let r = Double((b >> 16) & 0xFF), g = Double((b >> 8) & 0xFF), bl = Double(b & 0xFF)
+            func cl(_ v: Double) -> Double { max(0, min(255, v)) }
+            var o = [cl(1.038 * r - 0.052 * g - 0.059 * bl - 12.488), cl(-0.054 * r + 1.064 * g - 0.026 * bl - 20.429), cl(-0.075 * r - 0.047 * g + 1.06 * bl - 13.984)]
+            if (i / n) % 2 == 1 { o = o.map { $0 + (255 - $0) * 0.4 } }
+            return Color(Int64(0xFF00_0000) | Int64(o[0].rounded()) << 16 | Int64(o[1].rounded()) << 8 | Int64(o[2].rounded()))
+        }
         // The slices, clockwise from twelve o'clock.
         var slices: [(from: Double, to: Double, color: Color, value: Double, index: Int)] = []
         var angle = -Double.pi / 2 + c.pieTurn * .pi / 180
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
-            slices.append((angle, angle + sweep, c.pointColor(i, accents: theme.accents), v, i))
+            slices.append((angle, angle + sweep, shaded18 ? deep18(i) : c.pointColor(i, accents: theme.accents), v, i))
             angle += sweep
         }
         let fill = Paint()
@@ -5237,7 +5255,18 @@ extension ChartPainter {
             for j in 0 ... steps { let q = at(s.from + (s.to - s.from) * Double(j) / Double(steps), 1, 0, pull: pull); p.lineTo(q.dx, q.dy) }
             p.close()
             fill.color = s.color
+            if shaded18 {
+                let bb = p.getBounds()
+                let v = s.color.value
+                func mix(_ f: Double, white: Bool) -> Color {
+                    func ch(_ sh: Int64) -> Int64 { let x = Double((v >> sh) & 0xFF); return Int64((white ? x + (255 - x) * 0.05 : x * f).rounded()) }
+                    return Color(Int64(0xFF00_0000) | ch(16) << 16 | ch(8) << 8 | ch(0))
+                }
+                fill.shader = Gradient(linear: Offset(0, bb.top), to: Offset(0, bb.bottom),
+                                       colors: [mix(1, white: true), mix(0.92, white: false)], colorStops: [0, 1])
+            }
             canvas.drawPath(p, fill)
+            fill.shader = nil
             canvas.drawPath(p, edge)
         }
         if word, c.pieExplosion > 0 {
