@@ -3425,7 +3425,7 @@ enum ChartPainter {
         // outward ticks, 5.7 pt long, all 0.75 pt of #868686 (line-chart's
         // print), where a newer chart's gridlines are 15% grey and its axes
         // bare.
-        let classic = c.onSlide && !c.styled2013 && c.officeStyled && box == .zero
+        let classic = (c.onSlide || inWord) && !c.styled2013 && c.officeStyled && box == .zero
         let gridPaint = Paint()
         gridPaint.style = .stroke
         gridPaint.strokeWidth = max(0.5, (c.gridWidth ?? 0.75) * k)
