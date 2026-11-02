@@ -107,4 +107,15 @@ if [ -x /usr/bin/wl-copy ] && [ -x /usr/bin/wl-paste ]; then
 else
     echo "  skip  clipboard round trip (apt install wl-clipboard)"
 fi
+# 7. events: a subscriber hears a window open and close without polling
+python3 "$DRIVE" -s "$SOCK" "events 60" > "$RT/events.out" &
+evpid=$!
+for _ in $(seq 50); do grep -q subscribed "$RT/events.out" && break; sleep 0.2; done
+grep -q subscribed "$RT/events.out" || fail "event subscription never acknowledged"
+d "launch settings" >/dev/null || fail "launch settings failed"
+d "waitwin settings open 15" "close settings" "waitwin settings gone 5" >/dev/null || fail "settings open/close failed"
+sleep 1.5; kill "$evpid" 2>/dev/null; wait "$evpid" 2>/dev/null
+grep -q '"event": "window_opened".*"app": "settings"\|"app": "settings".*"event": "window_opened"' "$RT/events.out" || { cat "$RT/events.out"; fail "no window_opened event for settings"; }
+grep -q '"event": "window_closed".*"app": "settings"\|"app": "settings".*"event": "window_closed"' "$RT/events.out" || fail "no window_closed event for settings"
+echo "  ok    events: window_opened and window_closed are pushed"
 echo "all headless checks passed"

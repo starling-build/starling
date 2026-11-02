@@ -41,7 +41,8 @@ It controls the **whole** desktop, so:
 not tested (needs a second user).
 
 Protocol: JSON lines. Ops: hello, screen, shot, windows, launch, focus, close, minimize,
-maximize, unmaximize, winmove, resize, wait_window, move, down/up, click,
+maximize, unmaximize, winmove, resize, wait_window, clipboard_set,
+clipboard_get, subscribe/unsubscribe (pushes `{"event": ...}` lines, no id), move, down/up, click,
 dblclick, drag, scroll, key/keydown/keyup, type, stats, quit.
 Coordinates are logical pixels. Client: `build/headless-drive.py`.
 
@@ -181,6 +182,7 @@ For agent control at density, **use Starling's headless mode**:
 | Shell surfaces (dock, launcher, notifications, control centre) | not started |
 | Clipboard read/write (clipboard_set / clipboard_get) | done (round trip in smoke test) |
 | Drag-and-drop, file dialogs, IME | not started |
-| Event subscription, wait-for-condition | not started |
+| Event subscription (`subscribe`: window_opened / closed / focused / minimized / restored / title) | done (smoke-tested) |
+| Wait-for-condition: wait_window done; element-appears / text-matches waits | not started (needs the semantics tree) |
 | N-desktop orchestration, Python client, CLI | not started |
 | End-to-end suite under test/ | smoke test only |

@@ -17,6 +17,7 @@ Actions (each one argv element, like shell-drive.py; coordinates LOGICAL px):
     type TEXT            US-ASCII text
     launch APP           launch or focus an app by registry id
     clip [TEXT]          set the clipboard to TEXT, or print it with no TEXT
+    events [SECS]        subscribe; print window_opened/closed/focused/... as they happen
     windows              print every window as JSON
     focus|close|minimize|maximize|unmaximize [APP|win=ID]   window management
     winmove [APP|win=ID] X Y     resize [APP|win=ID] W H     (logical px)
@@ -53,20 +54,46 @@ class Op:
         self.s.connect(path)
         self.buf = b""
         self.n = 0
+        self.events = []          # pushed events that arrived while waiting for a reply
+
+    def _line(self, timeout=None):
+        """One JSON line from the socket, or None on timeout."""
+        self.s.settimeout(timeout)
+        try:
+            while b"\n" not in self.buf:
+                chunk = self.s.recv(1 << 20)
+                if not chunk:
+                    raise SystemExit("operator socket closed")
+                self.buf += chunk
+        except socket.timeout:
+            return None
+        finally:
+            self.s.settimeout(None)
+        line, self.buf = self.buf.split(b"\n", 1)
+        return json.loads(line)
 
     def call(self, op, **kw):
         self.n += 1
         self.s.sendall((json.dumps({"id": self.n, "op": op, **kw}) + "\n").encode())
-        while b"\n" not in self.buf:
-            chunk = self.s.recv(1 << 20)
-            if not chunk:
-                raise SystemExit("operator socket closed")
-            self.buf += chunk
-        line, self.buf = self.buf.split(b"\n", 1)
-        r = json.loads(line)
-        if not r.get("ok"):
-            raise SystemExit(f"{op}: {r.get('error')}")
-        return r
+        while True:
+            r = self._line()
+            if "event" in r:          # pushed, not our reply
+                self.events.append(r)
+                continue
+            if not r.get("ok"):
+                raise SystemExit(f"{op}: {r.get('error')}")
+            return r
+
+    def watch(self, secs):
+        """Print pushed events for `secs` seconds."""
+        for e in self.events:
+            print(json.dumps(e))
+        self.events = []
+        end = time.time() + secs
+        while (left := end - time.time()) > 0:
+            r = self._line(left)
+            if r and "event" in r:
+                print(json.dumps(r), flush=True)
 
 
 def main(argv):
@@ -85,7 +112,7 @@ def main(argv):
     for a in argv:
         w = a.split(" ", 1)
         verb, rest = w[0], (w[1] if len(w) > 1 else "")
-        nums = [float(x) for x in rest.split()] if verb not in ("type", "key", "keydown", "keyup", "launch", "shot", "sleep", "stats", "focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize", "waitwin", "clip") and rest else []
+        nums = [float(x) for x in rest.split()] if verb not in ("type", "key", "keydown", "keyup", "launch", "shot", "sleep", "stats", "focus", "close", "minimize", "maximize", "unmaximize", "winmove", "resize", "waitwin", "clip", "events") and rest else []
         if verb == "shot":
             r = c.call("shot", path=os.path.abspath(rest))
             print(f"shot {rest}: {r['w']}x{r['h']} {r['bytes']}B total {r['ms']:.0f} ms (frame {r['frame_ms']:.0f} ms)")
@@ -128,6 +155,10 @@ def main(argv):
             if tail:
                 kw["timeout"] = float(tail[0])
             c.call("wait_window", **kw)
+        elif verb == "events":
+            c.call("subscribe")
+            print(json.dumps({"subscribed": True}), flush=True)
+            c.watch(float(rest or 5))
         elif verb == "clip":
             if rest:
                 c.call("clipboard_set", text=rest)

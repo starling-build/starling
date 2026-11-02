@@ -1079,7 +1079,19 @@ class WindowManagerState {
     /// where (add/close/minimize/restore/space changes). DesktopShell wires
     /// this to a retile so tiled layouts stay current without every call
     /// site knowing about tiling.
-    var onWindowsChanged: (() -> Void)? = nil
+    /// The shell's own hook. Reassigned during shell start-up, so anything
+    /// else that wants to hear about changes uses `windowsObserver` instead.
+    var onWindowsChanged: (() -> Void)? {
+        get {
+            guard _onWindowsChanged != nil || windowsObserver != nil else { return nil }
+            return { [self] in _onWindowsChanged?(); windowsObserver?() }
+        }
+        set { _onWindowsChanged = newValue }
+    }
+    private var _onWindowsChanged: (() -> Void)? = nil
+    /// A second listener (the operator socket's event stream) that the shell
+    /// cannot overwrite.
+    var windowsObserver: (() -> Void)? = nil
 
     /// Windows that participate in tiling on one space: visible, not
     /// fullscreen (fullscreen lives in its own private space), not

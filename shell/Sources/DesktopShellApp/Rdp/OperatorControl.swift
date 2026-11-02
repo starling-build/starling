@@ -225,7 +225,7 @@ final class OperatorControl: @unchecked Sendable {
     }
 
     private func serve(fd: Int32) {
-        defer { close(fd) }
+        defer { removeSubscriber(fd: fd); close(fd) }
         let writeLock = NSLock()
         let reply: ([String: Any]) -> Void = { obj in
             // A reply that cannot be serialised (NaN, a non-JSON type) must
@@ -265,6 +265,19 @@ final class OperatorControl: @unchecked Sendable {
                     continue
                 }
                 let id = obj["id"] ?? NSNull()
+                if let op = obj["op"] as? String, op == "subscribe" || op == "unsubscribe" {
+                    if op == "subscribe" {
+                        // Acknowledge only once the baseline snapshot exists, so
+                        // anything that happens after the reply is reported.
+                        subLock.lock(); subscribers[fd] = reply; subLock.unlock()
+                        let ack = reply
+                        onMain { self.startWatching(); ack(["id": id, "ok": true]) }
+                    } else {
+                        removeSubscriber(fd: fd)
+                        reply(["id": id, "ok": true])
+                    }
+                    continue
+                }
                 onMain {
                     self.handle(obj) { r in
                         var r = r
@@ -316,6 +329,92 @@ final class OperatorControl: @unchecked Sendable {
         if p.terminationStatus != 0 { return ["ok": true, "text": "", "empty": true] }
         let data = outPipe.fileHandleForReading.readDataToEndOfFile()
         return ["ok": true, "text": String(decoding: data, as: UTF8.self)]
+    }
+
+    // MARK: events (window opened / closed / focused / minimised / retitled)
+
+    private let subLock = NSLock()
+    private var subscribers: [Int32: ([String: Any]) -> Void] = [:]
+    private var watching = false
+    private var hooked = false
+    private var lastWins: [String: [String: Any]] = [:]
+    private var lastFocus: String?
+
+    private func addSubscriber(fd: Int32, push: @escaping ([String: Any]) -> Void) {
+        subLock.lock(); subscribers[fd] = push; subLock.unlock()
+        onMain { self.startWatching() }
+    }
+
+    private func removeSubscriber(fd: Int32) {
+        subLock.lock(); subscribers[fd] = nil; subLock.unlock()
+    }
+
+    /// Main queue. Diffs the window list every 150 ms, only while someone is
+    /// subscribed — an unwatched desktop pays nothing.
+    private func startWatching() {
+        guard !watching, let shell = _shellState else { return }
+        watching = true
+        warn("watch: start")
+        let wm = shell.windowManager
+        lastWins = Dictionary(uniqueKeysWithValues: wm.windows.map { ($0.id, snapshot($0)) })
+        lastFocus = wm.focusedWindowId
+        if !hooked {
+            // Opens and closes are reported the moment the window manager
+            // announces them; the poll below only has to catch title and
+            // focus changes. (A window that lives <150 ms is otherwise
+            // invisible to a poll.)
+            hooked = true
+            wm.windowsObserver = { [weak self] in self?.diffNow() }
+        }
+        tickWatch()
+    }
+
+    /// Main queue: report what changed since the last look, to everyone listening.
+    private func diffNow() {
+        subLock.lock(); let subs = Array(subscribers.values); subLock.unlock()
+        guard !subs.isEmpty, let shell = _shellState else { return }
+        emitDiff(shell.windowManager, subs)
+    }
+
+    private func snapshot(_ w: WindowInfo) -> [String: Any] {
+        ["win": w.id, "app": w.appId, "title": w.title, "minimized": w.isMinimized,
+         "rect": [w.rect.left, w.rect.top, w.rect.width, w.rect.height]]
+    }
+
+    private func tickWatch() {
+        subLock.lock(); let subs = Array(subscribers.values); subLock.unlock()
+        guard !subs.isEmpty, let shell = _shellState else { warn("watch: stop"); watching = false; return }
+        emitDiff(shell.windowManager, subs)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [self] in tickWatch() }
+    }
+
+    private func emitDiff(_ wm: WindowManagerState, _ subs: [([String: Any]) -> Void]) {
+        var now: [String: [String: Any]] = [:]
+        for w in wm.windows { now[w.id] = snapshot(w) }
+        var events: [[String: Any]] = []
+        for (id, cur) in now {
+            guard let old = lastWins[id] else {
+                events.append(["event": "window_opened"].merging(cur) { a, _ in a }); continue
+            }
+            if (old["title"] as? String) != (cur["title"] as? String) {
+                events.append(["event": "window_title"].merging(cur) { a, _ in a })
+            }
+            if (old["minimized"] as? Bool) != (cur["minimized"] as? Bool) {
+                events.append(["event": (cur["minimized"] as? Bool) == true ? "window_minimized" : "window_restored"]
+                    .merging(cur) { a, _ in a })
+            }
+        }
+        for (id, old) in lastWins where now[id] == nil {
+            events.append(["event": "window_closed"].merging(old) { a, _ in a })
+        }
+        if wm.focusedWindowId != lastFocus {
+            lastFocus = wm.focusedWindowId
+            if let f = lastFocus, let cur = now[f] {
+                events.append(["event": "window_focused"].merging(cur) { a, _ in a })
+            }
+        }
+        lastWins = now
+        for e in events { for push in subs { push(e) } }
     }
 
     private func pickWindow(_ req: [String: Any], _ wm: WindowManagerState, requireSelector: Bool = false) -> WindowInfo? {
