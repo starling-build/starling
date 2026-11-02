@@ -11532,6 +11532,20 @@ public final class RichLayout {
             }
             return raise != nil
         }()
+        func eastAsianFaceIsLatin(atOffset o: Int) -> Bool {
+            var c = 0
+            for r in p.runs {
+                if o >= c, o < c + r.length {
+                    // (By name, as `eastAsianDefaultFaceIsLatin` reads the defaults: the resolver's stand-ins
+                    // for East Asian names are not all flagged East Asian.)
+                    guard let name = r.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily else { return false }
+                    return ["times new roman", "times", "arial", "calibri", "cambria", "ms serif", "verdana", "tahoma", "helvetica", "courier new", "segoe ui"]
+                        .contains(name.trimmingWhitespace().lowercased())
+                }
+                c += r.length
+            }
+            return false
+        }
         func runHinted(atOffset o: Int) -> Bool {
             var c = 0
             for r in p.runs {
@@ -12561,7 +12575,11 @@ public final class RichLayout {
                     // lowered text keeps them: zh-27083953's "PM₂.₅为", "O₃为".)
                     let nextAt = offset + ch.utf16.count
                     let besideRaised = theme.wordRules && ((offset < raised.count && raised[offset]) || (nextAt < raised.count && raised[nextAt]))
-                    if theme.wordRules, document.usesEastAsianLayout, !besideRaised, Self._autoSpaced(ch, following, p.style) {
+                    // (Not where the Latin character's run names a Latin face for East Asian text, in Word for
+                    // Windows: zh-cd48112c's digit runs say eastAsia "Times New Roman", and its print has no space
+                    // either side of 138 digits; zh-a0e932c2's say 宋体, and it has its 5.3 at 39.)
+                    if theme.wordRules, document.usesEastAsianLayout, !besideRaised, Self._autoSpaced(ch, following, p.style),
+                       !(RichTextTheme.wordWindowsPages && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                         // (Of the grid's character, where there is a grid
                         // of them, and of the run's spacing with it; a
