@@ -2201,6 +2201,12 @@ enum DocxFormat {
                     if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         if pos["w:vertAnchor"] == nil { style.marginOffsetY = v / 20 } else { style.floatOffsetY = v / 20 }
                     }
+                    // (`w:tblpYSpec="top"` with no anchor stated stands at the margin's top, over the empty
+                    // paragraph before it: LibreOffice's lo-0dd5bc0a, a cover-page SDT; Word's print has it 26pt
+                    // higher than ours, which set it under that paragraph.)
+                    if pos["w:tblpYSpec"] == "top", pos["w:vertAnchor"] == nil || pos["w:vertAnchor"] == "margin", pos["w:tblpY"] == nil {
+                        style.marginOffsetY = 0
+                    }
                     // (A table placed "inside" the text's line takes no room in it either: LibreOffice's
                     // tdf-less lo-4c84a541 has "After table1" level with it in Word's print.)
                     if vertText, pos["w:tblpYSpec"] == nil || pos["w:tblpYSpec"] == "inside" { style.floatsOverText = true }
