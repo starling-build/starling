@@ -2244,7 +2244,12 @@ private struct SlideContext {
                                           right: margin("marR", 7.2), bottom: margin("marB", 3.6))
                 if let tcPr {
                     switch tcPr["anchor"] { case "ctr": cell.verticalAlign = "center"; case "b": cell.verticalAlign = "bottom"; default: break }
-                    switch tcPr["vert"] { case "vert", "eaVert": cell.textDirection = .down; case "vert270": cell.textDirection = .up; default: break }
+                    switch tcPr["vert"] {
+                    case "vert", "eaVert": cell.textDirection = .down
+                    case "vert270": cell.textDirection = .up
+                    case "wordArtVert": cell.textDirection = .down; cell.stackedUpright = true
+                    default: break
+                    }
                     if let f = tcPr.first("a:solidFill") {
                         cell.fill = colors.color(in: f)
                     } else if let g = tcPr.first("a:gradFill") {

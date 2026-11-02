@@ -1177,6 +1177,9 @@ public struct CellRef: Hashable, Sendable {
     /// and "经济行为类型" in Word's print. (PowerPoint's `vert` turns
     /// every glyph; its upright kind is `eaVert`.)
     public var uprightIdeographs = false
+    /// PowerPoint's `wordArtVert`: every character upright, one to a row down the cell, the next column
+    /// to the right when the cell's height runs out (lo-tcPr-vert-roundtrip's "Stacked text"). Read with `.down`.
+    public var stackedUpright = false
     /// `w:textDirection` as the file wrote it, written back while the
     /// cell still runs the way it read as (`tbRlV` and `tbLrV` read as
     /// `.down`, which would be written `tbRl`).

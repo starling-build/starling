@@ -1061,6 +1061,10 @@ extension RichLayout {
             }
             return
         }
+        if let c = _cells[i], c.vertical, c.direction == .down, document.paragraphs[i].cell?.stackedUpright == true,
+           _paintStacked(i, g.painter, c, document, canvas) {
+            return
+        }
         if let c = _cells[i], c.vertical {
             // The block painted in its own horizontal space, turned a
             // quarter about the cell's corner it reads from: text reading

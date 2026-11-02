@@ -1248,6 +1248,58 @@ extension RichLayout {
         return true
     }
 
+    /// A cell's paragraph stacked (PowerPoint's `wordArtVert`): every character upright, one to a square place
+    /// 1.414 em on a side, down the cell and then on to the next column to its right when the cell's height
+    /// is spent. PowerPoint's print of lo-tcPr-vert-roundtrip: 18pt "Stacked text" in a 173pt row is six
+    /// to a column, 25.45pt apart both ways, each letter centred in its place and a space holding one.
+    func _paintStacked(_ i: Int, _ painter: TextPainter, _ c: _CellGeo, _ document: RichDocument, _ canvas: Canvas) -> Bool {
+        guard let root = painter.text else { return false }
+        let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+        var styles: [TextStyle?] = []
+        func walk(_ span: InlineSpan, _ inherited: TextStyle?) {
+            guard let t = span as? TextSpan else { styles.append(inherited); return }
+            let own = inherited.map { $0.merge(t.style) } ?? t.style
+            if let s = t.text { styles.append(contentsOf: repeatElement(own, count: s.utf16.count)) }
+            for child in t.children ?? [] { walk(child, own) }
+        }
+        walk(root, nil)
+        guard styles.count == text.count, !text.isEmpty else { return false }
+        let height = c.rowSpan > 1 ? c.turnedPart ?? c.rowHeight : c.ownRowHeight
+        func rows(_ size: Double) -> Int { max(1, Int((height - c.pad.top - c.pad.bottom) / (1.414 * size) + 1e-6)) }
+        // (The columns the cell's earlier paragraphs took: the next one starts beyond them.)
+        var taken = 0
+        for j in 0 ..< i {
+            guard let o = _cells[j], o.table == c.table, o.row == c.row, o.column == c.column,
+                  document.paragraphs[j].cell?.stackedUpright == true else { continue }
+            let n = document.paragraphs[j].text.utf16.count
+            let size = max(1, document.paragraphs[j].runs.first?.style.fontSize ?? 18)
+            taken += max(1, (n + rows(size) - 1) / rows(size))
+        }
+        let firstSize = styles.first??.fontSize ?? 18
+        var row = 0, column = taken
+        var k = 0
+        while k < text.count {
+            let size = styles[k]?.fontSize ?? firstSize
+            let pitch = 1.414 * size
+            let perColumn = rows(size)
+            if row >= perColumn { row = 0; column += 1 }
+            let unit = text[k]
+            let end = (unit >= 0xD800 && unit <= 0xDBFF && k + 1 < text.count) ? k + 2 : k + 1
+            if unit != 0x20 && unit != 0x00A0 {
+                let glyph = TextPainter(text: TextSpan(text: String(decoding: text[k ..< end], as: UTF16.self),
+                                                       style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                glyph.layout()
+                let left = c.colLeft + c.pad.left + Double(column) * pitch + pitch / 2 - glyph.width / 2
+                let baseline = c.rowTop + c.pad.top + Double(row) * pitch + pitch / 2 + 0.54 * size
+                glyph.paint(canvas, Offset(left, baseline - glyph.computeDistanceToActualBaseline(.alphabetic)))
+                glyph.dispose()
+            }
+            row += 1
+            k = end
+        }
+        return true
+    }
+
     /// Word's re-fit of an autofit table (`w:tblLayout` autofit, the
     /// default), as office.md's "Autofit tables" has it (labs `at1`–`at5`,
     /// `sp1`, `sp2`, `cap*`): the saved grid is kept, as a fixed table's
