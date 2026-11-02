@@ -11029,8 +11029,15 @@ public final class RichLayout {
                 // blank page; the East Asian face's 3.6 keeps Word's.)
                 let look = p.text.isEmpty ? (style.mark ?? p.runs.first?.style ?? CharStyle()) : p.runs[0].style
                 if p.text.isEmpty {
-                    _overhang[i] = _px(min(theme.gridOverhang(for: look, in: style, named: named, eastAsian: true, gridPitch: pitch),
-                                           theme.gridOverhang(for: look, in: style, named: named, eastAsian: false, gridPitch: pitch)))
+                    // (Word's lab `ec`: an empty line's allowance is its Latin face's — Times over
+                    // 16pt 標楷體 on a 36pt line hangs 8.8, 14pt 7.5 on 31.2, 12pt 2.1 on 18 —
+                    // when the East Asian face is 標楷體, which the lab had. Others, whose natural
+                    // height the lab could not measure (方正小标宋 was not installed; zh-6d1afa56's
+                    // 14pt marks on 15.6 keep Word's page break only at the least of both): the least.)
+                    let latinOverhang = theme.gridOverhang(for: look, in: style, named: named, eastAsian: false, gridPitch: pitch)
+                    _overhang[i] = _px((look.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? "").contains("標楷")
+                        ? latinOverhang
+                        : min(theme.gridOverhang(for: look, in: style, named: named, eastAsian: true, gridPitch: pitch), latinOverhang))
                 } else {
                     // (By the deepest face on the line, not the first run's:
                     // the foot must reach each face's natural line under the
