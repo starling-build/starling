@@ -349,6 +349,7 @@ extension RichLayout {
                         // 120pt cells, 5.4 margins, lines 0.5 to 3pt) agrees. The table's left line stands inside
                         // it, `_edgeShift`, its first column's text where it was.)
                         let shift = _edgeShift(c.table, document)
+                        let half = RichTextTheme.wordWindowsPages && document.compatibilityMode == 14   // (lab tbl14 is mode 14; mode 12 keeps the whole line)
                         if modern, shift > 0 || inside {
                             pad = EdgeInsets(left: max(pad.left, l / 2) + (inside ? 0 : max(0, l / 2 - shift)), top: pad.top,
                                              right: max(pad.right, r / 2), bottom: pad.bottom)
@@ -356,7 +357,7 @@ extension RichLayout {
                         pad = modern
                             ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
                                          right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
-                            : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
+                            : EdgeInsets(left: max(pad.left, half ? l / 2 : l), top: pad.top, right: half && (c.padding == nil || pad.right == 0) ? max(pad.right, r / 2) : pad.right, bottom: pad.bottom)
                         }
                     }
                 }
