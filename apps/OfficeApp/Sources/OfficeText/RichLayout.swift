@@ -9854,7 +9854,7 @@ public final class RichLayout {
                         // (Nor a run of white space alone: see `_strut`.)
                         let from = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(start, p.text.utf16.count))
                         let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
-                        if p.text[from ..< to].allSatisfy(Self._setsNoLine) { continue }
+                        if p.text[from ..< to].allSatisfy({ Self._setsNoLine($0) || $0 == "\t" }) { continue }
                         if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                             if style.lineHeightPoints != nil,
                                let own = theme.baseline(for: run.style, in: naturalStyle, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
@@ -9928,7 +9928,9 @@ public final class RichLayout {
                             if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) { target = max(target, b) }
                             tallest = max(tallest, theme.naturalLine(for: run.style, named: named, eastAsian: true) ?? .infinity)
                         }
-                        if text.contains(where: { !Self._setsNoLine($0) && !Self.isEastAsian($0, hinted: hinted) }) { latin.append(run.style) }
+                        // (A tab sets no line beside text — lab `ttab`: a 48pt tab run at the end of
+                        // lo-11ad5a95's "U+0009" rows stood the 12pt label 11pt low, out of its line.)
+                        if text.contains(where: { !Self._setsNoLine($0) && !(theme.wordRules && $0 == "\t") && !Self.isEastAsian($0, hinted: hinted) }) { latin.append(run.style) }
                     }
                     // (… and a Latin run's, where its line is the taller:
                     // zh-77bd4900's "①+②-③=④", PMingLiU circled digits
