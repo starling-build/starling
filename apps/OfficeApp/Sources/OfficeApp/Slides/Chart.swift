@@ -5995,7 +5995,9 @@ extension ChartPainter {
                 // Lab pieeq (amd-1's, Word for Windows, 6/8/10/12 equal slices, 9pt "datalabelK, 2", legend at the
                 // foot, right, none): 102 of Word's 108 inside/outside choices, and the inside labels within 2.9pt
                 // on average, where ours stood on the middle line 0.6 out or went outside: 22 of 108 within 3pt.)
-                if !c.onSlide, !c.onSheet, !c.chartex, !ownBox, share < 0.99, abs(rx - ry) < 0.5, rx > 0 {
+                // (Slices under a third only, as the lab's: zh-61aaad09's 84% slice keeps the older
+                // placement, within 2pt of Word's print, where the middle of its places stood 12pt high.)
+                if !c.onSlide, !c.onSheet, !c.chartex, !ownBox, share < 0.34, abs(rx - ry) < 0.5, rx > 0 {
                     let a0 = s.mid - half, span = 2 * half
                     func inside(_ x: Double, _ y: Double) -> Bool {
                         guard hypot(x, y) <= rx else { return false }
