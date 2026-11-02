@@ -2164,10 +2164,8 @@ public final class RichLayout {
                 // wider so.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, scale < 1, !_nestedInFixedTable, _columnPreview[c.table] == nil,
                    let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil, (ts.cellSpacing ?? 0) == 0,
-                   // (Not one set out by an indent: lab ovfit's A3 has Word narrow it by the indent too, but
-                   // lo fdo63164-1, indented 6.2pt with a checkbox column, comes out 2pt off on its first
-                   // column — what Word counts as a checkbox's narrowest is not known. Left as it was.)
-                   abs(ts.indent) < 0.5 {
+                   // (An outdent keeps the old way, untested.)
+                   ts.indent > -0.5 {
                     let ins = _cellInsets(c.table, document)
                     var need = Array(repeating: 0.0, count: pts.count)
                     for (k, q) in document.paragraphs.enumerated() {
@@ -2176,7 +2174,14 @@ public final class RichLayout {
                         need[cc.column] = max(need[cc.column], sides + _minContent(k, q, document))
                     }
                     let grid = pts.map { _px($0) }
-                    let room = width
+                    // (Room: the column, less the table's indent; before 2013's layout the
+                    // table also reaches a cell margin past each side of the column — lab
+                    // cbcol, Word for Windows, no compat setting: its right edge stands at
+                    // the margin + 5.4 whatever the indent, the indent moving the left edge
+                    // alone, so the room is the column + 10.8 - indent. Lab ovfit's A3 (2013's
+                    // layout) lost the indent from a room of the column's width.)
+                    let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4))
+                    let room = width + reach - _px(max(0, ts.indent))
                     let over = grid.reduce(0, +) - room
                     let spare = zip(grid, need).map { max(0, $0 - $1) }
                     let spareSum = spare.reduce(0, +)
@@ -10925,6 +10930,22 @@ public final class RichLayout {
             // (And stands as far above or below the text it is anchored
             // to as the frame says: a page number 11.75pt up.)
             if let frame = style.frame, frame.verticalAnchor == "text", frame.verticalAlign == nil { _spaceBefore[i] = before + push + _px(frame.y) }
+        }
+        // (A label in a text-anchored "notBeside" frame of no stated height, outside a
+        // table, is drawn lower than the flow sets it by what the paragraph above's
+        // space after and its own space before would have merged to: the two are added,
+        // not collapsed, in the frame, and the text under it stays where it was. Lab
+        // fhang, Word for Windows: label 3.0pt under the unframed twin's (6pt before
+        // under 3pt after), the text below unmoved at 15, 20, 12pt and automatic lines
+        // and whatever the picture in the line. Not in a table cell.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, let frame = style.frame, frame.verticalAnchor == "text",
+           let xml = style.frameXML, xml.containsSubstring("w:wrap=\"notBeside\""), !xml.containsSubstring("w:h=\""),
+           document.paragraphs[i - 1].style.frameXML == nil, document.paragraphs[i - 1].cell == nil {
+            let drop = min(_spacing(i - 1, document).after, _spacing(i, document).before)
+            if drop > 0.01 {
+                RuleTrace.hit("frame-label-adds-the-space-after-above-instead-of-merging")
+                _inkShift[i] += drop
+            }
         }
         _topsValid = false
     }

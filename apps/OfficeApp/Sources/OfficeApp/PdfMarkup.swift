@@ -307,6 +307,10 @@ struct PdfMarkup {
         var codeChanged: (field: Int, author: String)? = nil
         var cellsSeen: Set<String> = []
         var paragraphLast: String? = nil
+        // (A run of paragraph marks reformatted alike is one balloon, at the last of
+        // them: lo n830205 in Word for Windows' print — four headings each reformatted
+        // in their words and in their marks say "Font: 9 pt" once, under the four.)
+        var markNote: (index: Int, paragraph: Int, text: String)? = nil
         for (i, p) in document.paragraphs.enumerated() {
             // (A cell deleted with its row's tracked change: one "Deleted
             // Cells" for the cell, at its first paragraph — tdf123001's.)
@@ -355,6 +359,13 @@ struct PdfMarkup {
             let text = _describe(mark, was: change.oldRPrXML)
             guard !text.isEmpty else { last = nil; continue }
             if let l = last, l.text == text, l.field == 0 { continue }
+            if let m = markNote, m.paragraph == i - 1, m.text == text {
+                out[m.index].anchor = RichPosition(paragraph: i, offset: p.text.utf16.count)
+                markNote = (m.index, i, text)
+                last = (text, 0)
+                continue
+            }
+            markNote = (out.count, i, text)
             out.append(Note(anchor: RichPosition(paragraph: i, offset: p.text.utf16.count), label: "Formatted:", paragraphs: [text],
                             author: change.author))
             last = (text, 0)
