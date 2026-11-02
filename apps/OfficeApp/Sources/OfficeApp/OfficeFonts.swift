@@ -85,6 +85,11 @@ enum OfficeFonts {
              "lucida console", "cousine":
             return mono
         case "carlito", "calibri", "calibri light":
+            // (The Windows box has no Carlito, and a file with no font-table
+            // entry for it gives Word nothing to go by: its print draws the
+            // run in Cambria — lo-47598455's 6pt marks are 7.03pt lines. With
+            // an entry (lo-ff3b52d1) it is Calibri.)
+            if wordOnWindows, n == "carlito", fontEntry(family) == nil { return cambria }
             return calibri
         case "caladea", "cambria":
             return cambria
@@ -3020,7 +3025,7 @@ enum OfficeFonts {
             // MinionPro-Regular text, 13pt at least 15, steps 15.17 in
             // Word's print over 29 lines and its MinionPro-It titles
             // beside Times 15.16 over 69; Caladea's line made both 15.24.)
-            if clone == cambria, !["cambria", "caladea"].contains(family.trimmingWhitespace().lowercased()) {
+            if clone == cambria, !["cambria", "caladea", "carlito"].contains(family.trimmingWhitespace().lowercased()) {
                 face.naturalHeight = 0.95 + 0.2163
             }
             if clone == serif {

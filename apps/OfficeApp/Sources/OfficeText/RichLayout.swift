@@ -4634,7 +4634,24 @@ public final class RichLayout {
             } else if !lines.isEmpty {
                 lines.removeLast()
             }
-            return lines + [_tops[k] + _heights[k]]
+            // (A picture wrapped square that hangs from a cell's line is cut with it: the line
+            // goes to the next page unless the whole picture fits, as Word's print has it —
+            // lo-47598455's fifth 92pt ball, begun at 715 on a foot at 728, opens page 2.)
+            var end = _tops[k] + _heights[k]
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[k].cell != nil,
+               document.paragraphs[k].text.unicodeScalars.allSatisfy({ $0 == "\u{FFFC}" || $0 == " " || $0 == "\n" }) {
+                var images: [ImageAttachment] = []
+                if k < _floatImages.count, let image = _floatImages[k] { images.append(image) }
+                if k < _inline.count { images += _inline[k] }
+                for image in images {
+                    if let float = image.float, float.wraps, !float.takesRoom, float.verticalFrom == "paragraph", float.verticalAlign == nil,
+                       !image.data.isEmpty {
+                        let hang = _tops[k] + _px(float.y) + _px(image.height) + _px(float.effectBottom)
+                        if hang > end + 0.01 { RuleTrace.hit("word-cell-line-with-a-square-picture-parts-after-the-picture"); end = hang }
+                    }
+                }
+            }
+            return lines + [end]
         }
         // A cell merged down from a row above (Word's `w:vMerge`) is
         // one cell over the rows it covers, and its text is cut at a
