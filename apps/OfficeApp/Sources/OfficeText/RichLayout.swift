@@ -11207,6 +11207,14 @@ public final class RichLayout {
             let units = Array(p.text.utf16)
             for k in units.indices.dropFirst() where (units[k] == 0xD7 || units[k] == 0xF7) && units[k - 1] >= 0x2E80 { loose.insert(k) }
         }
+        // (A hyphen between Hebrew letters parts a line after it in Word: the
+        // engine's rule keeps a Hebrew letter and its hyphen together, and
+        // lo-ccca8bf3 (tdf129659), "רחוב-" / "השמש,", ran a line late.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.text.utf16.contains(0x2D) {
+            let units = Array(p.text.utf16)
+            func hebrew(_ u: UInt16) -> Bool { u >= 0x05D0 && u <= 0x05EA }
+            for k in units.indices.dropFirst(2) where units[k - 1] == 0x2D && hebrew(units[k - 2]) && hebrew(units[k]) { loose.insert(k) }
+        }
         // (A run of underlined spaces held under `w:ulTrailSpace`, with the
         // character before it, is a word to Word: one wider than the line
         // opens a line of its own and is parted at the margin, as a long
