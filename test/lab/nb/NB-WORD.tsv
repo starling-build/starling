@@ -1,0 +1,81 @@
+# doc	page	kind	y	x0	x1	colour
+nb-a	1	hrule	737.98	36.0	559.4	purple
+nb-a	1	hrule	737.26	36.5	558.9	black
+nb-a	1	hrule	524.29	185.7	305.7	black
+nb-a	1	hrule	503.53	41.6	221.7	black
+nb-a	1	hrule	482.77	353.7	545.7	black
+nb-a	1	hrule	482.77	41.6	161.7	black
+nb-a	1	hrule	462.01	41.6	545.7	black
+nb-a	1	hrule	385.79	248.4	350.5	black
+nb-a	1	vmax	737.62			purple
+nb-a	1	vmax	737.02			black
+nb-b	1	hrule	735.10	36.0	559.4	purple
+nb-b	1	hrule	734.50	36.5	558.9	black
+nb-b	1	hrule	521.53	185.7	305.7	black
+nb-b	1	hrule	500.77	41.6	221.7	black
+nb-b	1	hrule	480.01	353.7	545.7	black
+nb-b	1	hrule	480.01	41.6	161.7	black
+nb-b	1	hrule	459.25	41.6	545.7	black
+nb-b	1	hrule	383.03	248.4	350.5	black
+nb-b	1	vmax	734.74			purple
+nb-b	1	vmax	734.26			black
+nb-b2	1	hrule	735.10	36.0	559.4	purple
+nb-b2	1	hrule	734.50	36.5	558.9	black
+nb-b2	1	hrule	521.53	185.7	305.7	black
+nb-b2	1	hrule	500.77	41.6	221.7	black
+nb-b2	1	hrule	480.01	353.7	545.7	black
+nb-b2	1	hrule	480.01	41.6	161.7	black
+nb-b2	1	hrule	459.25	41.6	545.7	black
+nb-b2	1	hrule	383.03	248.4	350.5	black
+nb-b2	1	vmax	734.74			purple
+nb-b2	1	vmax	734.26			black
+nb-b3	1	hrule	737.98	36.0	559.4	purple
+nb-b3	1	hrule	737.26	36.5	558.9	black
+nb-b3	1	hrule	524.29	185.7	305.7	black
+nb-b3	1	hrule	503.53	41.6	221.7	black
+nb-b3	1	hrule	482.77	353.7	545.7	black
+nb-b3	1	hrule	482.77	41.6	161.7	black
+nb-b3	1	hrule	462.01	41.6	545.7	black
+nb-b3	1	hrule	385.79	248.4	350.5	black
+nb-b3	1	vmax	737.62			purple
+nb-b3	1	vmax	737.02			black
+nb-c	1	hrule	758.74	36.0	559.4	purple
+nb-c	1	hrule	737.26	36.5	558.9	black
+nb-c	1	hrule	524.29	185.7	305.7	black
+nb-c	1	hrule	503.53	41.6	221.7	black
+nb-c	1	hrule	482.77	353.7	545.7	black
+nb-c	1	hrule	482.77	41.6	161.7	black
+nb-c	1	hrule	462.01	41.6	545.7	black
+nb-c	1	hrule	385.79	248.4	350.5	black
+nb-c	1	vmax	758.38			purple
+nb-c	1	vmax	737.02			black
+nb-c2	1	hrule	755.86	36.0	559.4	purple
+nb-c2	1	hrule	734.50	36.5	558.9	black
+nb-c2	1	hrule	521.53	185.7	305.7	black
+nb-c2	1	hrule	500.77	41.6	221.7	black
+nb-c2	1	hrule	480.01	353.7	545.7	black
+nb-c2	1	hrule	480.01	41.6	161.7	black
+nb-c2	1	hrule	459.25	41.6	545.7	black
+nb-c2	1	hrule	383.03	248.4	350.5	black
+nb-c2	1	vmax	755.50			purple
+nb-c2	1	vmax	734.26			black
+nb-d	1	hrule	756.70	36.0	559.4	purple
+nb-d	1	hrule	737.86	36.0	559.4	purple
+nb-d	1	hrule	737.26	36.5	558.9	black
+nb-d	1	hrule	524.29	185.7	305.7	black
+nb-d	1	hrule	503.53	41.6	221.7	black
+nb-d	1	hrule	482.77	353.7	545.7	black
+nb-d	1	hrule	482.77	41.6	161.7	black
+nb-d	1	hrule	462.01	41.6	545.7	black
+nb-d	1	vmax	737.50			purple
+nb-d	1	vmax	737.02			black
+nb-d2	1	hrule	750.58	36.0	559.4	purple
+nb-d2	1	hrule	735.10	36.0	559.4	purple
+nb-d2	1	hrule	734.50	36.5	558.9	black
+nb-d2	1	hrule	521.53	185.7	305.7	black
+nb-d2	1	hrule	500.77	41.6	221.7	black
+nb-d2	1	hrule	480.01	353.7	545.7	black
+nb-d2	1	hrule	480.01	41.6	161.7	black
+nb-d2	1	hrule	459.25	41.6	545.7	black
+nb-d2	1	vmax	734.74			purple
+nb-d2	1	vmax	734.26			black
