@@ -3611,7 +3611,18 @@ public final class RichLayout {
                 var content: [Int: Double] = [:]
                 for k in row.first ..< row.end {
                     let column = _cells[k]!.column
-                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k]
+                    // (An empty last paragraph in a cell whose end mark is hidden
+                    // (`w:hideMark`) is not part of what Word centres: zh-20c1d74a's
+                    // "嘉義縣" over two rows, the empty line after it left out, stands
+                    // 151.0, centred on its own; ours put it at the top, 142.0.)
+                    var spare = 0.0
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, k > row.first, _cells[k - 1]!.column == column,
+                       k + 1 == row.end || _cells[k + 1]!.column != column {
+                        let q = document.paragraphs[k]
+                        if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty,
+                           q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spare = _heights[k] }
+                    }
+                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare
                 }
                 // (… which reaches to the foot of a box floating over the
                 // text from one of its paragraphs: Word centres
