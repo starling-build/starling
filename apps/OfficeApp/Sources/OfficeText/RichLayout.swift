@@ -9702,6 +9702,16 @@ public final class RichLayout {
                     lead >= frame - 0.01 {
                 p = Self._hidingFirstWord(p)
             }
+            // (In the body, a right-aligned paragraph whose first line is indented to the
+            // margin or past it has its first character alone on a first line that shows nothing: windows' lab
+            // footx, zh-51af781b's footer "X元阳县人民政府发布" under a 320pt first-line indent
+            // has its "元" on a line of its own that shows nothing, the rest from the next; "YZ"
+            // draws "Z" with the text, "YYY" "YY".)
+            if RichTextTheme.wordWindowsPages, p.cell == nil, _fixedTextFrame == nil, style.boxInsetRight == nil,
+               style.alignment == .right, !p.text.isEmpty, !p.runs.contains(where: { $0.style.hidden }) {
+                RuleTrace.hit("word-body-first-line-indented-past-the-margin-drops-its-first-character")
+                p = Self._hidingFirstWord(p, characterOnly: true)
+            }
             // (The first character's em: zh-70094a34's footer opens with
             // a 16pt "山" after a drawing's anchor, over 14pt text, and an
             // em of the text's left it no room — the line held nothing.)
@@ -14472,15 +14482,26 @@ public final class RichLayout {
     /// `p` with its first word hidden — up to and with its first space, or
     /// its first character where that is East Asian: what a first line
     /// indented past its cell shows of it (see `_layoutParagraph`).
-    static func _hidingFirstWord(_ p: RichParagraph, keeping: Bool = false) -> RichParagraph {
+    static func _hidingFirstWord(_ p: RichParagraph, keeping: Bool = false, characterOnly: Bool = false) -> RichParagraph {
         let units = Array(p.text.utf16)
         guard let first = units.first else { return p }
         var n = 1
-        if first < 0x2E80 {
+        if first < 0x2E80, !characterOnly {
             // (Up to a line's break too: a turned box's first line ends after
             // its first character — `_turnedBox`'s U+2028.)
             while n < units.count, units[n - 1] != 0x20, units[n] != 0x2028, units[n] != 0x0A, units[n] != 0x09,
                   units[n] < 0x2E80 || units[n] == 0x20 { n += 1 }
+        }
+        if characterOnly {
+            // (The first character that is text, a drawing's anchor before it not counting: it
+            // keeps the line it stands on and draws nothing, so an em space of its
+            // own width stands for it.)
+            var chars = Array(units)
+            guard let start = chars.firstIndex(where: { $0 != 0xFFFC }), !UTF16.isLeadSurrogate(chars[start]) else { return p }
+            chars[start] = 0x2003
+            var q = p
+            q.text = String(decoding: chars, as: UTF16.self)
+            return q
         }
         var q = p
         var runs: [Run] = [], at = 0
