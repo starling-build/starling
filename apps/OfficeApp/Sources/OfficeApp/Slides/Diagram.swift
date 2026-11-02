@@ -338,6 +338,7 @@ struct DiagramLayout {
             if let best { (engine, root) = best }
         }
         engine.fit(root, into: box)
+        if word { engine.placeProcessCircles(root) }
         if word { engine.fitWordText(root); engine.growForText(root) }
         #if !os(WASI)
         if ProcessInfo.processInfo.environment["STARLING_DIAGRAM_DEBUG"] != nil {
@@ -1560,6 +1561,35 @@ struct DiagramLayout {
         }
         for c in node.children { out += shapeRects(c) }
         return out
+    }
+
+    /// Word's print of hProcess11 (lab hp0..hp2, seven steps): the circles do not stand at an even pitch
+    /// (63.6 59.9 52.4 59.7 63.6 64.2 in a 421.2 line, whatever the texts say) and no rule in the
+    /// definition gives that, so they are set at the shares Word printed, each step carrying its text
+    /// with it. Only the seven-step diagram is known. Done after the fit, which would read a step
+    /// leaving the line as a diagram too wide and shrink it.
+    private func placeProcessCircles(_ root: DgmPresNode) {
+        guard layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/hProcess11" else { return }
+        func circle(_ n: DgmPresNode) -> DgmPresNode? {
+            if n.name.hasPrefix("circle") { return n }
+            for k in n.children { if let r = circle(k) { return r } }
+            return nil
+        }
+        func visit(_ node: DgmPresNode) {
+            if node.name == "points" {
+                let steps = node.children.filter { !$0.isSpace && !$0.isConnector }
+                let shares = [26.81, 90.44, 150.35, 202.72, 262.38, 325.99, 390.22].map { $0 / 421.2 }
+                if steps.count == shares.count, node.params["linDir"] != "fromR" {
+                    for (c, share) in zip(steps, shares) {
+                        guard let ring = circle(c) else { continue }
+                        shift(c, Offset(node.rect.left + share * node.rect.width - ring.rect.center.dx, 0))
+                    }
+                }
+                return
+            }
+            for k in node.children { visit(k) }
+        }
+        visit(root)
     }
 
     private func shift(_ node: DgmPresNode, _ d: Offset) {
