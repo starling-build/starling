@@ -539,6 +539,9 @@ struct Chart: Equatable {
         /// The points whose own rich text says Traditional Chinese
         /// (`Chart.macTraditionalFace`).
         var traditional: Set<Int> = []
+        /// A point's own text look from its label's `c:txPr` (Word: size, bold, face, colour).
+        var own: [Int: OwnText] = [:]
+        struct OwnText: Equatable { var size: Double?; var bold: Bool?; var face: String?; var color: Color? }
         var fill: Color? = nil
         var line: Color? = nil
         var lineWidth = 0.75
@@ -1574,6 +1577,12 @@ enum ChartXML {
                     if p == "outEnd" { ends = true }
                 }
                 if let sz = one.first("c:tx")?.descendant("a:rPr")?["sz"].flatMap(Double.init) { l.sizes[i] = sz / 100 }
+                if let d = one.first("c:txPr")?.descendant("a:defRPr") {
+                    l.own[i] = Chart.PieLabels.OwnText(size: d["sz"].flatMap(Double.init).map { $0 / 100 },
+                                                       bold: d["b"].map { $0 == "1" || $0 == "true" },
+                                                       face: d.first("a:latin")?["typeface"],
+                                                       color: d.first("a:solidFill").flatMap { color($0) })
+                }
                 if let rich = one.first("c:tx")?.first("c:rich") {
                     // (A field — the category's name, the value — kept as a
                     // mark the label fills in: zh-b8de3ae2's bar of pie says
@@ -4205,7 +4214,10 @@ enum ChartPainter {
         // (A LibreOffice pie in a Word document: 128 pt in a frame 171 high, 0.823 of the room, and no
         // white rims between its slices — lo-ccd9da4b's.)
         let libre = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil && c.plotLayout == nil
-        var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : 0.97)
+        // (Where a Word chart's file places the plot itself, the pie fills that box: lo-9fa3dedd's 107 pt
+        // across a plot 107 high, where 0.97 made 103.7.)
+        let fills = !c.onSlide && !c.onSheet && !c.chartex && c.plotLayout != nil
+        var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : fills ? 1.0 : 0.97)
         // On a sheet, a line of the labels' less each side where they
         // stand round the pie: Excel's prints of five labelled pies are
         // 8.5 to 17 pt smaller a side than ours were, the unlabelled
@@ -5161,6 +5173,25 @@ extension ChartPainter {
 
     static let _pieLog = ProcessInfo.processInfo.environment["STARLING_PIE_LOG"] != nil
 
+    /// Word's best-fit label inside a slice of more than half a flat pie: the box's outer corner 0.916 of
+    /// the radius out, its height from the middle line's angle (lab pielabel, see `_pieLabels`).
+    private static func _bigSliceLabel(share: Double, dx: Double, dy: Double, rx: Double, ry: Double,
+                                       centre: Offset, bw: Double, bh: Double) -> Offset? {
+        guard rx > 0, abs(rx - ry) < 0.5 else { return nil }
+        let m: Double = atan2(abs(dy), abs(dx)) * 180 / Double.pi
+        let table: [(Double, Double)] = [(0, 0), (20, 13.8), (45, 18.4), (60, 20.6)]
+        guard m <= 60, let hi = table.firstIndex(where: { $0.0 >= m }) else { return nil }
+        let lo = max(0, hi - 1)
+        let t: Double = hi == lo ? 0 : (m - table[lo].0) / (table[hi].0 - table[lo].0)
+        let yAbs: Double = (table[lo].1 + (table[hi].1 - table[lo].1) * t) * rx / 53.4
+        let reach: Double = 0.916 * rx
+        let up: Double = yAbs + bh / 2
+        let rest: Double = reach * reach - up * up
+        guard rest > 0 else { return nil }
+        let xAbs: Double = rest.squareRoot() - bw / 2
+        return Offset(centre.dx + (dx < 0 ? -xAbs : xAbs), centre.dy + (dy < 0 ? -yAbs : yAbs))
+    }
+
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
@@ -5185,7 +5216,8 @@ extension ChartPainter {
         // The labels' text so far, for an outside label to stand clear of.
         var taken: [Rect] = []
         for s in slices {
-            let size = max(3, (l.sizes[s.index] ?? c.series[0].labelSize ?? c.baseTextSize) * k)
+            let own = !c.onSlide && !c.onSheet ? l.own[s.index] : nil
+            let size = max(3, (l.sizes[s.index] ?? own?.size ?? c.series[0].labelSize ?? c.baseTextSize) * k)
             var parts: [String] = []
             if l.series { parts.append(c.series[0].name) }
             if l.category, s.index < c.categories.count { parts.append(c.categories[s.index]) }
@@ -5210,11 +5242,14 @@ extension ChartPainter {
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
             }()
-            let colour = c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
+            let colour = own?.color ?? c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
+            let labelBold: Bool = own?.bold ?? c.series[0].labelBold
+            let labelWeight: FontWeight = labelBold ? .bold : .normal
+            let labelFace: String = own?.face ?? c.font ?? theme.bodyFont
             func makeLabel(_ maxLines: Int?, _ shown: String? = nil) -> TextPainter {
                 TextPainter(text: Self.labelSpan(c, shown ?? text, Flutter.TextStyle(
-                    color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
-                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
+                    color: colour, fontSize: size, fontWeight: labelWeight,
+                    fontFamily: OfficeFonts.substitute(labelFace),
                     fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index))), traditional: l.traditional.contains(s.index)), textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
             }
@@ -5333,9 +5368,18 @@ extension ChartPainter {
                     return stride(from: 0.68, through: 0.0, by: -0.02).first(where: { fits(on(s.mid, $0)) }).map { on(s.mid, $0) }
                 }
                 let half = share * .pi
+                // (Word, a label with its own text settings, in a flat pie: held where its text's own box
+                // fits the wedge, no margin — lo-9fa3dedd's 20% at 16 pt bold in a 72° slice stands 0.6 out.
+                // And in a slice of more than half the pie, not on its middle line: the box's outer corner
+                // 0.916 of the radius out, its height from the middle line's angle — lab pielabel (Word for
+                // Windows, a 32 x 17.7 pt label, 180-300° slices at bestFit): centres (+32.0,+0.3), (+27.6,+13.8),
+                // (+24.6,+18.4), (+22.3,+20.6) for middles 0, 20, 45, 60° below the horizontal, R 53.4.)
+                let ownBox = !c.onSlide && !c.onSheet && !c.chartex && l.own[s.index] != nil
+                let (bw, bh) = ownBox ? (tp.width, tp.height) : (w, h)
+                if ownBox, share > 0.5, let big = Self._bigSliceLabel(share: share, dx: dx, dy: dy, rx: rx, ry: ry, centre: centre, bw: bw, bh: bh) { return big }
                 return stride(from: 0.6, through: 0.3, by: -0.05).first(where: { f in
                     let c0 = on(s.mid, f)
-                    return [(-w / 2, -h / 2), (w / 2, -h / 2), (-w / 2, h / 2), (w / 2, h / 2)].allSatisfy { cx, cy in
+                    return [(-bw / 2, -bh / 2), (bw / 2, -bh / 2), (-bw / 2, bh / 2), (bw / 2, bh / 2)].allSatisfy { cx, cy in
                         let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
                         guard hypot(x, y) < 1 else { return false }
                         var d = atan2(y, x) - s.mid
