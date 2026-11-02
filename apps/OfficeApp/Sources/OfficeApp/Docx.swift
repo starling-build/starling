@@ -3857,6 +3857,18 @@ enum DocxFormat {
         return crop
     }
 
+    /// Where the picture stands in the drawing canvas it is the only thing in, from `a:xfrm`, or nil.
+    static func _canvasInset(_ drawing: XNode) -> PictureCrop? {
+        guard drawing.descendant("wpc:wpc") != nil,
+              let extent = drawing.descendant("wp:extent"), let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx > 0, cy > 0,
+              let pic = drawing.descendant("pic:pic"), let xfrm = pic.descendant("a:xfrm"),
+              let off = xfrm.first("a:off"), let ext = xfrm.first("a:ext"),
+              let x = Double(off["x"] ?? ""), let y = Double(off["y"] ?? ""), let w = Double(ext["cx"] ?? ""), let h = Double(ext["cy"] ?? ""),
+              w > 0, h > 0, x >= 0, y >= 0, x + w <= cx + 1, y + h <= cy + 1,
+              w < cx * 0.98 || h < cy * 0.98 else { return nil }
+        return PictureCrop(left: x / cx, top: y / cy, right: max(0, 1 - (x + w) / cx), bottom: max(0, 1 - (y + h) / cy))
+    }
+
     static func _float(_ node: XNode) -> ImageFloat? {
         if let anchor = node.name == "wp:anchor" ? node : node.descendant("wp:anchor") {
             var f = ImageFloat()
@@ -5244,7 +5256,7 @@ enum DocxFormat {
         /// embedded object, a VML picture: kept as the file wrote it, with
         /// the parts it names, and shown as an empty box of its size.
         func addObject(_ node: XNode) {
-            if let att = objectAttachment(node) { addInline(att) }
+            if var att = objectAttachment(node) { att.inset = Self._canvasInset(node); addInline(att) }
         }
         /// The kept-verbatim attachment for `node`, or nil when a part it
         /// names is missing.
@@ -5939,6 +5951,7 @@ enum DocxFormat {
             // crop), used while the editor has not resized it.
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
             att.crop = Self._pictureCrop(drawing)
+            att.inset = Self._canvasInset(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {
                 att.effectLeft = max(0, (Double(effect["l"] ?? "") ?? 0) / 12700)
                 att.effectRight = max(0, (Double(effect["r"] ?? "") ?? 0) / 12700)

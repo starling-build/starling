@@ -19026,7 +19026,14 @@ public final class RichLayout {
     /// What `objectPainter` draws for an object with no picture — or one
     /// whose picture it draws itself (`drawsObject`: a metafile no codec
     /// reads) — in `rect`; true where it drew it.
-    private func _paintObject(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
+    private func _insetBox(_ image: ImageAttachment, _ box: Rect) -> Rect {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let inset = image.inset else { return box }
+        return Rect.fromLTRB(box.left + box.width * inset.left, box.top + box.height * inset.top,
+                             box.right - box.width * inset.right, box.bottom - box.height * inset.bottom)
+    }
+
+    private func _paintObject(_ image: ImageAttachment, _ rect0: Rect, _ canvas: any Canvas) -> Bool {
+        let rect = _insetBox(image, rect0)
         guard theme.wordRules, image.data.isEmpty || Self.drawsObject?(image) == true, let paint = Self.objectPainter else { return false }
         canvas.save()
         defer { canvas.restore() }
@@ -21636,7 +21643,10 @@ public final class RichLayout {
     /// A decoded picture into its box, turned as the file turns it: the
     /// box is the turned one, and the picture is drawn unturned about
     /// the same centre and then turned.
-    private func _drawPicture(_ decoded: Image, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) {
+    private func _drawPicture(_ decoded: Image, _ image: ImageAttachment, _ box0: Rect, _ canvas: any Canvas) {
+        // (In its canvas, smaller than the box it is the only thing in: lo-587930f8's bus stands
+        // 89pt in a 432 by 252pt canvas.)
+        let box = _insetBox(image, box0)
         var src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
         // (Cut to the part Word shows, from the file's crop: zh-6aa8bd7c's satellite
         // picture is a browser screenshot cropped to the picture inside it.)

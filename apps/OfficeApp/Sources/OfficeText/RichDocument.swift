@@ -1009,6 +1009,9 @@ public struct ImageAttachment: Hashable, Sendable {
     /// The part of the picture's pixels that shows, as shares cut off each side (`a:srcRect`, a VML
     /// `croptop`…); nil when the whole picture shows.
     public var crop: PictureCrop? = nil
+    /// Where the picture stands inside its box, as shares from each side: a picture in a Word drawing
+    /// canvas (`wpc:wpc`), which is the box, smaller than it; nil when it fills the box.
+    public var inset: PictureCrop? = nil
     /// The picture's turn, in degrees clockwise (`a:xfrm rot` / 60000):
     /// its size is the unturned one, and it turns about its centre.
     /// Laid out and drawn for a floating picture only.
