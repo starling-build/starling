@@ -20551,8 +20551,12 @@ public final class RichLayout {
                 let units = Array(para.text.utf16)
                 var hintedAt = Set<Int>(), latinAt = Set<Int>(), eastAsianFace = false, at = 0
                 for run in para.runs {
-                    if run.style.fontHint == "eastAsia" { hintedAt.formUnion(at ..< at + run.length) }
-                    if run.style.fontHint == "default" { latinAt.formUnion(at ..< at + run.length) }
+                    // (A run hinted East Asian whose East Asian face is itself a Latin one is set in it: zh-ee2d19e6's
+                    // footer "— 10 —", dashes hinted East Asian over `w:eastAsia` "Times New Roman", stands whole in Word's
+                    // print where zh-a4b0f6ea's, over a CJK face, parts.)
+                    let eaIsLatin = run.style.eastAsiaFontFamily.flatMap { theme.faceResolver?($0, false) }?.isEastAsian == false
+                    if run.style.fontHint == "eastAsia", !eaIsLatin { hintedAt.formUnion(at ..< at + run.length) }
+                    if run.style.fontHint == "default" || (run.style.fontHint == "eastAsia" && eaIsLatin) { latinAt.formUnion(at ..< at + run.length) }
                     let latin = run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                     if theme.faceResolver?(latin, false)?.isEastAsian == true { eastAsianFace = true }
                     at += run.length
