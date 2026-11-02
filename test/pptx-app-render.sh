@@ -37,6 +37,8 @@ else
   IN=$1; PPT=$2; WORK=$3; shift 3
 fi
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/release/OfficeApp}"
+# Against the Mac prints (test/corpus/pptx/powerpoint) the app draws as Mac PowerPoint does where the two differ.
+[ "$(basename "$PPT")" = powerpoint ] && export STARLING_PPT_MAC=1
 [ -d "$IN" ] && [ -d "$PPT" ] || { echo "usage: $0 IN_DIR PPT_DIR WORK [names]" >&2; exit 2; }
 mkdir -p "$WORK/pdf" "$WORK/pairs"
 # The page diff is CoreGraphics on a Mac and MuPDF anywhere else
