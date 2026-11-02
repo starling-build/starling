@@ -9855,12 +9855,22 @@ public final class RichLayout {
                 // so, where ours took the face's half em and every item's
                 // first line held a character fewer; zh-753cd6a8's SimSun
                 // numbers too.)
+                // (So too where the level hints its number East Asian and the number has East Asian
+                // characters, whatever Latin face the paragraph names: zh-27fc8f9d's bold "第%1条",
+                // `w:hint` eastAsia over a Times paragraph, has its text 0.28 em on in Word's print, 18
+                // lines so; ours took Times' quarter em and its "…节点：" line took the "点：" Word sends down.)
                 let markerChar = _markerChar(p, document), named = _named(p, document)
+                let hintedEastAsian = theme.wordRules
+                    && (p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML })?.containsSubstring("w:hint=\"eastAsia\"") ?? false)
+                    && label.contains(where: { Self.isEastAsian($0, hinted: false) })
                 if theme.wordRules, RichTextTheme.wordWindowsPages,
                    let face = _levelNumberFonts(p, document).latin ?? markerChar.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily,
-                   theme.faceResolver?(face, false)?.isEastAsian == true {
+                   hintedEastAsian || theme.faceResolver?(face, false)?.isEastAsian == true {
                     let size = _px(_levelNumberSize(p, document) ?? markerChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
-                    end = _px(wl.first) + marker.width + 0.2778 * size - back
+                    // (Arial's own space, 569 of 2048: zh-27fc8f9d's "…22个节点：" is 8.0453pt over with it, past
+                    // half "节" by the tolerance a line with Latin text keeps, and Word sends "点：" down; at
+                    // 0.2778 it was 8.0448 and ours took it.)
+                    end = _px(wl.first) + marker.width + 569.0 / 2048.0 * size - back
                 }
             default:
                 // (A tab stop of the paragraph's own between the number's
@@ -12882,6 +12892,12 @@ public final class RichLayout {
                     // after an ideograph only: held to a closing bracket,
                     // zh-4c884684's "…2022年）>" went down whole where
                     // Word's print ends its line with it.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, ch == "\u{FE30}", let b = before, b != " " {
+                    // ("︰" may not begin a line — see `_noStart` — and the engine parts it from what it
+                    // follows: zh-e51c31a7's "…以為共同遵守︰" sends "守︰" down in Word's print.)
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -17463,7 +17479,15 @@ public final class RichLayout {
                         && units[a] >= 0x2E80 && Self._openingUnits.contains(units[a]) && closesUp(a - 1) && legacy
                         && !Self._pauseMarks.contains(units[a - 1])
                         && all.contains(a) && all.count >= 2 && need > room - em * 0.22 + hair
-                    let taken = takenFirst && !gridCapped && !pairedOpener && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    // (Nor a multiplication sign squeezed in where another, or a digit, follows it: Word for Windows
+                    // takes "×" there only where it fits whole. Lab `lef` (windows, zh-621d8756's "…今天要对××情况",
+                    // mode 14, the right indent stepped by 20 twips) takes the first "×" from 0.3pt inside the
+                    // margin and not 0.7 over, three marks able to give 21; zh-6b242483's "（家）×1（每年1次）" leaves
+                    // its "×" 5.1 over. Six such takes of ours in the 756, none of Word's. After it an ideograph,
+                    // the marks give as for any: zh-621d8756's "…请提供×××" keeps its first.)
+                    let timesGlued = wordRules && RichTextTheme.wordWindowsPages && last < units.count && units[last - 1] == 0xD7
+                        && (units[last] == 0xD7 || (units[last] >= 0x30 && units[last] <= 0x39))
+                    let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
                         let gapSum = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
@@ -17938,6 +17962,9 @@ public final class RichLayout {
     private static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
     private static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)
+        // (And the vertical two-dot leader "︰", Taiwan's colon: no line of Word's prints opens with it,
+        // 13 inside lines; zh-e51c31a7's "…以為共同遵守︰" sends "守︰" down where ours opened a line with it.)
+        .union("\u{FE30}".utf16)
     private static let _noEnd = _openingUnits.union("([{$#￥＄£".utf16)
     private static let _quotes = Set("\"'“”‘’".utf16)
 
@@ -18579,6 +18606,10 @@ public final class RichLayout {
         // the next "○至○○段", and zh-06c46ba9's line parts in its print.)
         if shapesPart, let u = a.unicodeScalars.first?.value, let v = b.unicodeScalars.first?.value,
            (0x25A0 ... 0x25FF).contains(u), (0x25A0 ... 0x25FF).contains(v) { return true }
+        // (And after one before a Latin word, which the engine keeps with the shape as one word: zh-c9d38b65's
+        // "…宁波城市大脑●XX…" ends a line "…城市大脑●" in Word for Windows' print, the shape set an em wide; ours
+        // carried "●XX" down and the paragraph ran a character behind.)
+        if shapesPart, let u = a.unicodeScalars.first?.value, (0x25A0 ... 0x25FF).contains(u), b.isASCII, b.isLetter || b.isNumber { return true }
         // (And after a multiplication sign, which the engine reads as a
         // letter of the number after it: zh-b56eeded's "…總數)×" ends a
         // line before "100%" in Word's print.)
