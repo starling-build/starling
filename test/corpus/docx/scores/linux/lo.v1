@@ -1,4 +1,4 @@
-593 documents: mean 85.1% of Word's lines matched, median 100.0%; 445 at 95% or more, 521 at half or more; 578 with Word's page count
+593 documents: mean 84.8% of Word's lines matched, median 100.0%; 440 at 95% or more, 520 at half or more; 578 with Word's page count
     0.0%  lines 0/0  pages 0/0  lo-02c5b89ddc2d9138
     0.0%  lines 6/6  pages 1/1  lo-0622682cda1b279e
     0.0%  lines 0/0  pages 0/0  lo-099d1f3b2085ed7b
@@ -35,6 +35,7 @@
     0.0%  lines 0/0  pages 0/0  lo-8cdeaea8d69a43b8
     0.0%  lines 1/1  pages 1/1  lo-91e56c047edfd702
     0.0%  lines 0/0  pages 0/0  lo-9444eb35780f2b37
+    0.0%  lines 2/2  pages 1/1  lo-9d2d78c160d28ea5
     0.0%  lines 0/0  pages 0/0  lo-a185cc8f8fc80ac2
     0.0%  lines 0/0  pages 0/0  lo-a1b8e9ce8ef4d1b5
     0.0%  lines 0/0  pages 0/0  lo-ad478aff51820d92
@@ -57,9 +58,9 @@
     0.0%  lines 0/0  pages 0/0  lo-fc0b25c54dbc0357
     1.6%  lines 61/62  pages 4/2  lo-c6d022b650e67cb5
     7.7%  lines 13/12  pages 2/2  lo-425b63cbb4697507
-    9.7%  lines 31/27  pages 1/1  lo-7ec36a70d03c79fb
    11.1%  lines 9/5  pages 1/1  lo-8ab9b90ffc9bf988
    11.1%  lines 9/5  pages 1/1  lo-f391267c751309b6
+   12.9%  lines 31/27  pages 1/1  lo-7ec36a70d03c79fb
    26.9%  lines 26/31  pages 1/1  lo-9749f2b54199da9c
    33.3%  lines 3/3  pages 2/3  lo-47598455d65caba8
    33.3%  lines 36/34  pages 2/2  lo-6b7d4262fe2a39cb
@@ -96,6 +97,7 @@
    60.0%  lines 5/5  pages 1/1  lo-ccca8bf3eae9ede4
    60.0%  lines 15/14  pages 1/1  lo-fc75bd78d5cbd5e5
    62.1%  lines 132/133  pages 4/4  lo-000463dfea864c26
+   66.7%  lines 3/3  pages 1/1  lo-38e0894c85041da4
    66.7%  lines 3/3  pages 1/1  lo-796c371e29f0b36d
    66.7%  lines 3/4  pages 3/6  lo-a48482e7b65814c7
    66.7%  lines 3/3  pages 1/1  lo-db00fd9f4baaecb1
@@ -105,7 +107,6 @@
    73.3%  lines 90/91  pages 3/3  lo-f47abfe05a4a1d21
    75.0%  lines 4/3  pages 1/1  lo-158ec98675629e6e
    75.0%  lines 4/3  pages 1/1  lo-9e08e4895c1b1cbf
-   75.0%  lines 64/63  pages 2/2  lo-af36644e14e94c0e
    75.0%  lines 4/4  pages 2/2  lo-bbc52bda4ba22d33
    75.0%  lines 4/3  pages 1/1  lo-c16569997ca5e397
    75.0%  lines 60/60  pages 3/3  lo-ca9b51bc71acc608
@@ -116,20 +117,24 @@
    78.6%  lines 28/28  pages 2/2  lo-cf2ad77e4308cf76
    80.0%  lines 10/10  pages 1/1  lo-4aa628bda291091a
    80.0%  lines 25/28  pages 1/1  lo-5afb220423472cb1
+   80.0%  lines 5/5  pages 1/1  lo-8ccd581d8f0ae102
    80.0%  lines 5/5  pages 1/1  lo-b60b72993a0bbbf0
    80.0%  lines 5/4  pages 1/1  lo-be40d67a5e6f7109
    81.2%  lines 16/17  pages 1/1  lo-c4c60fcb3248472d
    81.8%  lines 11/11  pages 2/1  lo-16d1ab43f5506741
    82.7%  lines 156/156  pages 6/6  lo-b8885ba2c340b23e
+   82.8%  lines 64/63  pages 2/2  lo-af36644e14e94c0e
    83.3%  lines 18/18  pages 1/1  lo-6e71a4d554ea90df
+   83.3%  lines 6/6  pages 1/1  lo-8b6d9004bf99086b
    83.5%  lines 97/97  pages 5/5  lo-5b9540e909559942
    83.8%  lines 37/39  pages 1/1  lo-08b61fb0c5d16c56
-   84.6%  lines 13/15  pages 2/2  lo-198cd20047e25c50
+   84.6%  lines 13/13  pages 2/2  lo-198cd20047e25c50
    84.6%  lines 13/15  pages 2/2  lo-60fd93680f179e1e
+   85.7%  lines 7/7  pages 1/1  lo-4dc8da496a8b5ec3
    85.7%  lines 7/7  pages 2/2  lo-52da6bc61ec7ff55
    85.7%  lines 14/12  pages 2/2  lo-660753a9df95b5c4
    85.7%  lines 7/7  pages 1/1  lo-79680f48b0365e48
-   87.2%  lines 47/45  pages 1/1  lo-c678e48606fbcb06
+   87.2%  lines 47/46  pages 1/1  lo-c678e48606fbcb06
    87.5%  lines 8/8  pages 1/1  lo-af81b53e196c72c4
    87.5%  lines 8/7  pages 1/1  lo-f9b9a8fc47c97aa6
    87.8%  lines 41/37  pages 3/3  lo-11ad5a950bc534cc
@@ -154,6 +159,7 @@
    96.7%  lines 30/30  pages 3/3  lo-512aa398fedf4a98
    97.4%  lines 39/39  pages 3/3  lo-e1104febe4508f96
    97.7%  lines 43/43  pages 2/2  lo-72e7239635dee3b7
+   97.9%  lines 94/94  pages 3/3  lo-23180ba143507ab0
    97.9%  lines 48/48  pages 3/3  lo-89daf93dd3d7e0ba
    98.0%  lines 49/49  pages 2/2  lo-06933f8e86b10092
    98.3%  lines 59/59  pages 2/2  lo-e30957810e467cc8
@@ -221,7 +227,6 @@
   100.0%  lines 10/10  pages 1/1  lo-222628bcdb587c23
   100.0%  lines 3/3  pages 1/1  lo-22a53e2b229752d3
   100.0%  lines 1/1  pages 1/1  lo-22b9d6c36eb8ef14
-  100.0%  lines 94/94  pages 3/3  lo-23180ba143507ab0
   100.0%  lines 9/9  pages 1/1  lo-24edac1633bccd6d
   100.0%  lines 1/1  pages 1/1  lo-258ce53be7efbe25
   100.0%  lines 1/1  pages 1/1  lo-25c072f70b05ae45
@@ -253,7 +258,6 @@
   100.0%  lines 1/1  pages 1/1  lo-36398db3d4b267fe
   100.0%  lines 10/10  pages 1/1  lo-3682890592f43f57
   100.0%  lines 1/1  pages 1/1  lo-38c4ff8a4cfc4129
-  100.0%  lines 3/3  pages 1/1  lo-38e0894c85041da4
   100.0%  lines 4/4  pages 1/1  lo-396f5587c99de02a
   100.0%  lines 7/7  pages 1/1  lo-3a0ca937b73d8486
   100.0%  lines 6/6  pages 2/2  lo-3a105ce5a9092e35
@@ -287,7 +291,6 @@
   100.0%  lines 3/3  pages 1/1  lo-4aa850a112948a40
   100.0%  lines 1/1  pages 1/1  lo-4c2ac4f78f9dc280
   100.0%  lines 2/2  pages 1/1  lo-4c84a54132986bb0
-  100.0%  lines 7/7  pages 1/1  lo-4dc8da496a8b5ec3
   100.0%  lines 8/8  pages 4/4  lo-4dd08ddc036ffd90
   100.0%  lines 1/1  pages 1/1  lo-4dec07ec0a2d8236
   100.0%  lines 2/2  pages 1/1  lo-4ef2ff3c10c1d468
@@ -395,10 +398,8 @@
   100.0%  lines 15/15  pages 1/1  lo-8882730ac6bc0cb7
   100.0%  lines 7/7  pages 2/2  lo-88dbf98cd74204fe
   100.0%  lines 44/45  pages 2/3  lo-8ab44df57b3960fe
-  100.0%  lines 6/6  pages 1/1  lo-8b6d9004bf99086b
   100.0%  lines 2/2  pages 1/1  lo-8bd99b19c746d5e3
   100.0%  lines 18/18  pages 6/6  lo-8c9436cd38005566
-  100.0%  lines 5/5  pages 1/1  lo-8ccd581d8f0ae102
   100.0%  lines 2/2  pages 2/2  lo-8d3622957fbdcdd1
   100.0%  lines 5/5  pages 1/1  lo-8d6e26817fdac1a1
   100.0%  lines 3/3  pages 3/3  lo-8ea0936246b32175
@@ -436,7 +437,6 @@
   100.0%  lines 3/3  pages 2/2  lo-9cc5d6ef75160a4f
   100.0%  lines 2/2  pages 3/3  lo-9cce1f791d3f2dec
   100.0%  lines 13/13  pages 1/1  lo-9cce40f917a7cae1
-  100.0%  lines 2/2  pages 1/1  lo-9d2d78c160d28ea5
   100.0%  lines 42/42  pages 2/2  lo-9eaf41a60433cdc7
   100.0%  lines 36/36  pages 1/1  lo-9eff85e50b6aa34d
   100.0%  lines 56/56  pages 2/2  lo-9f46ceca1ee66638
