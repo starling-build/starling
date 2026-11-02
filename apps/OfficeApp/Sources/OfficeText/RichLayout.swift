@@ -18723,7 +18723,10 @@ public final class RichLayout {
                    qf.x == float.x, qf.y == float.y, qf.horizontalAlign == float.horizontalAlign,
                    k < _imageSize.count, let size = _imageSize[k] {
                     RuleTrace.hit("nested-floating-table-stands-under-the-one-before")
-                    y += size.height + _px(qf.distanceBottom) + _px(float.distanceTop)
+                    // (Under its foot, not that much further down: an empty paragraph
+                    // between them has already carried this one part of the way —
+                    // lo-d096abe2, the same cell with one more line.)
+                    y = max(y, d.rowTop + d.pad.top + _px(qf.y) + size.height + _px(qf.distanceBottom) + _px(float.distanceTop))
                 }
                 k -= 1
             }
