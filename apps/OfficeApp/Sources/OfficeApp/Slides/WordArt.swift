@@ -71,6 +71,15 @@ enum WordArt {
     /// tried; 1.3 best in sum, ImportWordArtGradient's own best, the
     /// tdf155327 and tdf125085 ones a little further apart).
     static let linePitch = 1.3
+    /// Text on an ellipse in PowerPoint's prints (tdf116350's 20 arcs, tdf125582, and a lab
+    /// of text circles, test/labs/textcircle): the last line's baseline sits `circleInset` of its
+    /// size inside the box's ellipse; each line before it rides a line's pitch (`circlePitch` of
+    /// its size and 4.5pt) further out; and every line's letters are set a little closer than
+    /// their advances — 1 - spacing x size in points (outer lines a touch less than the innermost).
+    static let circleInset = 0.165
+    static let circleSpacing = 0.004
+    static let circleSpacingOuter = 0.0035
+    static let circlePitch = 0.975
 
     /// The presets whose text follows the area's ellipse.
     static let followsPath: Set<String> = ["textArchUp", "textArchDown", "textCircle", "textButton"]
@@ -92,6 +101,8 @@ enum WordArt {
         /// stand-in drawn is not that face (Georgia): the glyph is placed
         /// by it, as Word places it.
         var advance: Double? = nil
+        /// The font size the glyph was set at, in the canvas's units.
+        var size = 0.0
         var width: Double { advance ?? painter.width }
     }
 
@@ -142,10 +153,11 @@ enum WordArt {
         guard let warp = shape.warp, draws(warp), let doc = shape.text?.document, let theme = shape.textTheme else { return false }
         // Text on a path keeps the body's insets; text fitted to the box
         // is fitted to all of it.
-        let area = followsPath.contains(warp.preset)
-            ? Rect.fromLTRB(r.left + shape.drawInsets.left * px, r.top + shape.drawInsets.top * px,
-                            r.right - shape.drawInsets.right * px, r.bottom - shape.drawInsets.bottom * px)
-            : r
+        // (PowerPoint's print of text on an ellipse — tdf116350's 20 arcs and a lab
+        // of text circles — rides the WHOLE box, not the box inside its insets: the
+        // last line's baseline lies 0.165 of its size inside the box's ellipse and
+        // each earlier line a line's pitch further out; see `_paintAlongEllipse`.)
+        let area = r
         guard area.width > 1, area.height > 1 else { return false }
         let scale = px / theme.pixelsPerPoint
         let keepLooks = shape.runLooks.count == doc.paragraphs.count
@@ -266,6 +278,7 @@ enum WordArt {
         let tp = TextPainter(text: TextSpan(text: ch, style: style(fill)), textDirection: .ltr)
         tp.layout(minWidth: 0, maxWidth: Double.infinity)
         var g = Glyph(painter: tp, text: ch, style: style, look: look)
+        g.size = base.fontSize ?? 14
         if RichTextTheme.wordWindowsPages, family?.lowercased() == "georgia", base.fontWeight == nil || base.fontWeight == .normal,
            base.fontStyle != .italic, let u = ch.unicodeScalars.first, ch.unicodeScalars.count == 1,
            u.value >= 32, Int(u.value) - 32 < OfficeFonts.georgiaAdvances.count {
@@ -427,7 +440,7 @@ enum WordArt {
                 // advance-box fit instead of losing the shape's text.
             }
             if followsPath.contains(warp.preset) {
-                _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, draw)
+                _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, slide: cache != nil, pxPerPt: px, draw)
                 return
             }
             // The bands: one for the whole text, or several — deflate-inflate's
@@ -609,16 +622,21 @@ enum WordArt {
     /// Arch, circle and button: each line at its own size along the
     /// area's ellipse, its baseline on the curve — shrunk only when it is
     /// longer than its stretch of it.
-    private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect, fits: Bool = false, narrow: Bool = false,
+    private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect, fits: Bool = false, narrow: Bool = false, slide: Bool = false, pxPerPt: Double = 1,
                                            _ draw: (Glyph, Offset, Offset, Offset) -> Void) {
         // A Word document's own shape text (not a fitted VML path, not a slide) rides an ellipse a
         // few points narrower than the box: lab prints of a 105 x 11.6 and a
         // 64 x 8.6 arch (lo-e8c1ae37) shrink the 10pt line to 0.85 and 0.81,
         // the arcs of boxes 4.7pt narrower each side (the path works in twentieths).
-        let rx = max(1, area.width / 2 - (narrow && !fits ? 94 : 0)), ry = area.height / 2, c = area.center
+        let rx0 = max(1, area.width / 2 - (narrow && !fits ? 94 : 0)), ry0 = area.height / 2, c = area.center
         /// A line along the arc from `start`, sweeping `sweep` degrees
         /// (clockwise positive, as DrawingML measures).
-        func along(_ line: Line, start: Double, sweep: Double) {
+        func along(_ line: Line, start: Double, sweep: Double, ring: Int = 0) {
+            // A slide's line rides inside the box's ellipse by 0.165 of its size, and each
+            // line after it (toward the middle) a pitch nearer.
+            let size = line.glyphs.map(\.size).max() ?? 0
+            let lift = slide ? -Self.circleInset * size + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0
+            let rx = max(1, rx0 + lift), ry = max(1, ry0 + lift)
             let steps = 720
             var pts: [Offset] = [], lens: [Double] = [0]
             for i in 0 ... steps {
@@ -634,7 +652,7 @@ enum WordArt {
             // 450 x 88 box's upper half in Word's print, about 52pt.)
             // Word sets a Georgia line on a warp at 0.84 of its size (labs: textArch*, textCircle).
             let top = line.glyphs.contains { $0.advance != nil } ? 0.84 : 1.0
-            let k = fits ? arc / line.width : min(top, arc / line.width)
+            let k = (fits ? arc / line.width : min(top, arc / line.width)) * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
             let used = line.width * k
             var s = line.alignment == .center ? (arc - used) / 2 : line.alignment == .right ? arc - used : 0
             func at(_ d: Double) -> (Offset, Offset) {
@@ -664,16 +682,16 @@ enum WordArt {
             let a = angle(10_800_000)
             var sweep = (540 - a).truncatingRemainder(dividingBy: 360) - a
             while sweep <= 0 { sweep += 360 }
-            for l in lines { along(l, start: a, sweep: sweep) }
+            for (i, l) in lines.enumerated() { along(l, start: a, sweep: sweep, ring: lines.count - 1 - i) }
         case "textArchDown":
             let a = angle(0)
             let start = 180 - a
             var sweep = start - a
             while sweep <= 0 { sweep += 360 }
-            for l in lines { along(l, start: start, sweep: -sweep) }
+            for (i, l) in lines.enumerated() { along(l, start: start, sweep: -sweep, ring: i) }
         case "textCircle":
             let a = angle(10_800_000)
-            for l in lines { along(l, start: a, sweep: 360) }
+            for (i, l) in lines.enumerated() { along(l, start: a, sweep: 360, ring: lines.count - 1 - i) }
         default:   // textButton: over the top, straight across, under the bottom
             let a = angle(10_800_000)
             var sweep = (540 - a).truncatingRemainder(dividingBy: 360) - a
