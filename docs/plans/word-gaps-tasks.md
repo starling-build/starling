@@ -13778,3 +13778,5 @@ STATUS (lenovo-2, 2026-11-02, from macos's 95-99 list). Landed, each paired clea
 CLAIM (lenovo-2, 2026-11-02, from macos): lo-512aa398 (un-parked), zh-df9310bd, zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-31d580df, zh-1eeb9f9a, zh-9ba2ead7 (triage: first missed line, line-end fits to amd-opus, fix the rest)
 - amd-7 (2026-11-02), my four: lo-e8c1ae37 90.6 -> 100 (arched shape text rides an ellipse 4.7pt narrower each side, so the 10pt line shrinks to Word's 8.5/8.1; lo-677416be 30/32 -> 31/32 with it), lo-948cd424 92.9 -> 100 (a Word chart's category title is centred over the plot, 3.5pt higher). lo-40949e85 was already 12/12 at the tip (100) when I got to it. lo-c678e486 PARKED: the 2 lines Word has and we lack are space-only lines (Word prints a ' ' at 5 places, ours 1); no visible glyph, no rule found for which paragraphs get one. Next: fn-cols-long2 (mark in the last line of a 4-line paragraph, still differs from Word).
 TIP WATCH amd-8, round 70 (tip 701bc5777): Word 756 and LO: 0 down; LO 4 up. No nondeterminism flagged. Unit tests pass (612).
+
+- CLAIM (amd-5, 2026-11-02): zh-3fe252ff (11 missed).
