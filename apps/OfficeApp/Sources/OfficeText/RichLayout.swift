@@ -20045,7 +20045,9 @@ public final class RichLayout {
                     _paintFrame(image, rect, canvas)
                     if clipped { canvas.restore() }
                 } else if let inside = _textBox(image, document), let text = image.textBox {
-                    _ = _paintObject(image, rect, canvas)
+                    // (A text box in the line keeps its fill and outline as a floating one does:
+                    // lo-ffef711a's two boxes, red and blue fills, stood bare in ours.)
+                    if theme.wordRules { _paintOutline(image, rect, canvas) } else { _ = _paintObject(image, rect, canvas) }
                     _paintTurnedTextBox(inside, text, image, rect, canvas)
                 } else if theme.wordRules, image.name == "checkbox" || image.name == "checkbox-on", let outline = image.outline {
                     // (A form's check box: see where it is set. Stroked
