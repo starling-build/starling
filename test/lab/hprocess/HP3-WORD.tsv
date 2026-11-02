@@ -1,0 +1,108 @@
+== hp3_n11_eq n=11
+circle_cx 95.00 133.50 171.50 210.50 248.50 287.00 325.50 364.00 402.50 440.50 479.50
+pitch 38.50 38.00 39.00 38.00 38.50 38.50 38.50 38.50 38.00 39.00
+circle_cy 193.50 d 26.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 84.43..105.46	cx 94.94	top 154.91	base 161.66
+text	below	x 122.86..143.92	cx 133.39	top 223.46	base 230.21
+text	above	x 161.30..182.32	cx 171.81	top 154.91	base 161.66
+text	below	x 199.75..220.77	cx 210.26	top 223.46	base 230.21
+text	above	x 238.20..259.22	cx 248.71	top 154.91	base 161.66
+text	below	x 276.65..297.67	cx 287.16	top 223.46	base 230.21
+text	above	x 315.10..336.12	cx 325.61	top 154.91	base 161.66
+text	below	x 353.54..374.56	cx 364.05	top 223.46	base 230.21
+text	above	x 391.99..413.01	cx 402.50	top 154.91	base 161.66
+text	below	x 430.44..451.46	cx 440.95	top 223.46	base 230.21
+text	above	x 468.89..489.91	cx 479.40	top 154.91	base 161.66
+== hp3_n11_long n=11
+circle_cx 95.00 133.50 171.50 210.50 248.50 287.00 325.50 364.00 402.50 440.50 479.50
+pitch 38.50 38.00 39.00 38.00 38.50 38.50 38.50 38.50 38.00 39.00
+circle_cy 193.50 d 26.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 84.43..105.46	cx 94.94	top 154.91	base 161.66
+text	below	x 122.86..145.95	cx 134.41	top 223.46	base 230.21
+text	below	x 122.86..145.95	cx 134.41	top 233.42	base 240.17
+text	below	x 122.86..145.95	cx 134.41	top 243.26	base 250.01
+text	below	x 122.86..145.95	cx 134.41	top 253.10	base 259.85
+text	below	x 122.86..145.98	cx 134.42	top 263.04	base 269.81
+text	below	x 122.86..145.95	cx 134.41	top 272.92	base 279.67
+text	below	x 122.86..145.95	cx 134.41	top 282.88	base 289.63
+text	below	x 122.86..143.92	cx 133.39	top 292.72	base 299.47
+text	above	x 161.30..182.32	cx 171.81	top 154.91	base 161.66
+text	below	x 199.75..220.77	cx 210.26	top 223.46	base 230.21
+text	above	x 238.20..259.22	cx 248.71	top 154.91	base 161.66
+text	below	x 276.65..297.67	cx 287.16	top 223.46	base 230.21
+text	above	x 315.10..336.12	cx 325.61	top 154.91	base 161.66
+text	below	x 353.54..374.56	cx 364.05	top 223.46	base 230.21
+text	above	x 391.99..413.01	cx 402.50	top 154.91	base 161.66
+text	below	x 430.44..451.46	cx 440.95	top 223.46	base 230.21
+text	above	x 468.89..489.91	cx 479.40	top 154.91	base 161.66
+== hp3_n3_eq n=3
+circle_cx 144.50 287.00 429.50
+pitch 142.50 142.50
+circle_cy 193.50 d 25.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 134.09..155.11	cx 144.60	top 154.91	base 161.66
+text	below	x 276.65..297.67	cx 287.16	top 223.46	base 230.21
+text	above	x 419.21..440.23	cx 429.72	top 154.91	base 161.66
+== hp3_n3_long n=3
+circle_cx 144.50 287.00 429.50
+pitch 142.50 142.50
+circle_cy 193.50 d 25.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 134.09..155.11	cx 144.60	top 154.91	base 161.66
+text	above	x 419.21..440.23	cx 429.72	top 154.91	base 161.66
+== hp3_n5_eq n=5
+circle_cx 117.50 202.00 287.00 372.00 457.00
+pitch 84.50 85.00 85.00 85.00
+circle_cy 193.50 d 25.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 106.58..127.60	cx 117.09	top 154.91	base 161.66
+text	below	x 191.57..212.59	cx 202.08	top 223.46	base 230.21
+text	above	x 276.58..297.60	cx 287.09	top 154.91	base 161.66
+text	below	x 361.56..382.58	cx 372.07	top 223.46	base 230.21
+text	above	x 446.54..467.56	cx 457.05	top 154.91	base 161.66
+== hp3_n5_long n=5
+circle_cx 117.50 202.00 287.00 372.00 457.00
+pitch 84.50 85.00 85.00 85.00
+circle_cy 193.50 d 25.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 106.58..127.60	cx 117.09	top 154.91	base 161.66
+text	above	x 276.58..297.60	cx 287.09	top 154.91	base 161.66
+text	below	x 361.56..382.58	cx 372.07	top 223.46	base 230.21
+text	above	x 446.54..467.56	cx 457.05	top 154.91	base 161.66
+== hp3_n9_eq n=9
+circle_cx 99.00 146.00 193.00 240.00 287.00 334.00 381.50 428.50 475.50
+pitch 47.00 47.00 47.00 47.00 47.00 47.50 47.00 47.00
+circle_cy 193.50 d 26.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 88.51..109.54	cx 99.02	top 154.91	base 161.66
+text	below	x 135.55..156.57	cx 146.06	top 223.46	base 230.21
+text	above	x 182.57..203.59	cx 193.08	top 154.91	base 161.66
+text	below	x 229.61..250.63	cx 240.12	top 223.46	base 230.21
+text	above	x 276.65..297.67	cx 287.16	top 154.91	base 161.66
+text	below	x 323.66..344.68	cx 334.17	top 223.46	base 230.21
+text	above	x 370.70..391.72	cx 381.21	top 154.91	base 161.66
+text	below	x 417.74..438.76	cx 428.25	top 223.46	base 230.21
+text	above	x 464.76..485.78	cx 475.27	top 154.91	base 161.66
+== hp3_n9_long n=9
+circle_cx 99.00 146.00 193.00 240.00 287.00 334.00 381.50 428.50 475.50
+pitch 47.00 47.00 47.00 47.00 47.00 47.50 47.00 47.00
+circle_cy 193.50 d 26.00
+arrow_img x0 73.20 x1 547.44 | vector 73.32..547.68 76.50..544.50
+text	above	x 88.51..109.54	cx 99.02	top 154.91	base 161.66
+text	below	x 135.55..158.57	cx 147.06	top 223.46	base 230.21
+text	below	x 135.55..158.57	cx 147.06	top 233.42	base 240.17
+text	below	x 135.55..158.57	cx 147.06	top 243.26	base 250.01
+text	below	x 135.55..158.57	cx 147.06	top 253.10	base 259.85
+text	below	x 135.55..158.58	cx 147.06	top 263.04	base 269.81
+text	below	x 135.55..158.57	cx 147.06	top 272.92	base 279.67
+text	below	x 135.55..158.57	cx 147.06	top 282.88	base 289.63
+text	below	x 135.55..156.57	cx 146.06	top 292.72	base 299.47
+text	above	x 182.57..203.59	cx 193.08	top 154.91	base 161.66
+text	below	x 229.61..250.63	cx 240.12	top 223.46	base 230.21
+text	above	x 276.65..297.67	cx 287.16	top 154.91	base 161.66
+text	below	x 323.66..344.68	cx 334.17	top 223.46	base 230.21
+text	above	x 370.70..391.72	cx 381.21	top 154.91	base 161.66
+text	below	x 417.74..438.76	cx 428.25	top 223.46	base 230.21
+text	above	x 464.76..485.78	cx 475.27	top 154.91	base 161.66
