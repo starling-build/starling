@@ -9423,9 +9423,10 @@ public final class RichLayout {
            frame.horizontalAnchor == "page", frame.verticalAnchor == "page", frame.horizontalAlign == nil,
            (style.frameXML ?? "").containsSubstring("w:x=\"") {
             let setup = _setup(ofParagraph: i)
-            left += _px(frame.x - setup.marginLeft - setup.gutter - 0.55)
-            // (A hair narrower than Word's ink, 433.1pt, because our small capitals set 0.6% short of Word's
-            // on this document's lines: with the box at Word's 433.4 ours takes "NULLA" onto the fourth line.)
+            left += _px(frame.x - setup.marginLeft - setup.gutter - 0.32)
+            // (Narrower than Word's ink, 433.1pt: glyph and space advances now agree with Word's to 0.05pt and a line's ink ends
+            // within 0.3pt of it, but with the box at Word's width ours still takes "NULLA" onto the fourth line, so
+            // something in the fit test, not the widths, is a hair apart.)
             width -= _px(10.0)
         }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
