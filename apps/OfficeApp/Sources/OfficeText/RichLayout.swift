@@ -15943,6 +15943,17 @@ public final class RichLayout {
                         ? gaps[a - 1] ?? 0
                         : modern && RichTextTheme.wordWindowsPages && wide && !onCharacterGrid && a > 0 && lineWide > 1 ? gaps[a - 1] ?? 0 : 0
                     let stretchRoom = width - x - (partedOpener ? boxes(a - 1, a) - (gaps[a - 1] ?? 0) : 0) + macWordGap
+                    // (Plain spaces between two ideographs, in the older layouts, are not counted against the
+                    // candidate that follows them: Word's print of zh-bbbb2e6a sets "…拍攝及受  訪" with its two
+                    // spaces, the line 1.95pt over before "訪", and takes "訪" 19.95 over by its four marks;
+                    // ours counted the spaces in where the candidate starts and sent "訪" down.)
+                    var spacesBefore = 0.0
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, legacy, !onCharacterGrid, !inCell, wide,
+                       a > 0, units[a] >= 0x2E80, units[a - 1] == 0x20 {
+                        var k = a
+                        while k > 0, units[k - 1] == 0x20 { k -= 1 }
+                        if k > 0, units[k - 1] >= 0x2E80 { spacesBefore = boxes(k, a) }
+                    }
                     // (A line-end comma hung, a character taken with it: the
                     // share test as well — lab `hc`/`hc3`, Word for Windows,
                     // 標楷體 14pt, justified, compressPunctuation, mode 15,
@@ -16067,7 +16078,7 @@ public final class RichLayout {
                             // print leaves it and squeezes nothing.)
                             || ((a ..< last).contains { units[$0] >= 0x2E80 }
                                 && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
-                            || x + min(lead, w) - width <= before / 2 + (legacy ? gridGive ?? edge : edge)
+                            || x - spacesBefore + min(lead, w) - width <= before / 2 + (legacy ? gridGive ?? edge : edge)
                             // (Under `w:kinsoku` off, where it does not hang, the
                             // paragraph's last mark gives its blank half besides:
                             // lab `lab7b` k0 (macOS-doc, Word for Mac,
