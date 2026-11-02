@@ -21602,7 +21602,12 @@ public final class RichLayout {
     /// box is the turned one, and the picture is drawn unturned about
     /// the same centre and then turned.
     private func _drawPicture(_ decoded: Image, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) {
-        let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+        var src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+        // (Cut to the part Word shows, from the file's crop: zh-6aa8bd7c's satellite
+        // picture is a browser screenshot cropped to the picture inside it.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let crop = image.crop {
+            src = Rect.fromLTRB(src.width * crop.left, src.height * crop.top, src.width * (1 - crop.right), src.height * (1 - crop.bottom))
+        }
         guard image.float != nil, abs(image.rotation) > 0.01 else {
             canvas.drawImageRect(decoded, src, box, Paint())
             return

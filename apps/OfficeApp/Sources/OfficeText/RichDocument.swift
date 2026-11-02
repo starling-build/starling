@@ -944,6 +944,12 @@ public struct ShapeOutline: Hashable, Sendable {
     public init(kind: Kind, color: Color?, width: Double) { self.kind = kind; self.color = color; self.width = width }
 }
 
+/// Shares of a picture's width and height cut off each side.
+public struct PictureCrop: Hashable, Sendable {
+    public var left = 0.0, top = 0.0, right = 0.0, bottom = 0.0
+    public init(left: Double, top: Double, right: Double, bottom: Double) { self.left = left; self.top = top; self.right = right; self.bottom = bottom }
+}
+
 public struct ImageAttachment: Hashable, Sendable {
     public let id: String
     /// The order the attachments were made in — the order a file's reader meets them, which is document
@@ -1000,6 +1006,9 @@ public struct ImageAttachment: Hashable, Sendable {
     /// room for it in the line, and none above and below unless it
     /// `takesRoom`. nil for an object in the line.
     public var float: ImageFloat? = nil
+    /// The part of the picture's pixels that shows, as shares cut off each side (`a:srcRect`, a VML
+    /// `croptop`…); nil when the whole picture shows.
+    public var crop: PictureCrop? = nil
     /// The picture's turn, in degrees clockwise (`a:xfrm rot` / 60000):
     /// its size is the unturned one, and it turns about its centre.
     /// Laid out and drawn for a floating picture only.

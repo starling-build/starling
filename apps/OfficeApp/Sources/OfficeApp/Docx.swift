@@ -3831,6 +3831,27 @@ enum DocxFormat {
     /// drawing canvas in the line (`v:group`, WordWithAttachments'
     /// "Словарь" box) holds shapes placed absolutely in it, and floated
     /// by its text box it took no room.
+    /// The part of a picture that shows: a DrawingML `a:srcRect` (hundred-thousandths) or a VML
+    /// `v:imagedata`'s `croptop`… (sixty-five-thousandths with an "f", or percent). Cut-ins only
+    /// (a negative share would pad the picture, which is not drawn).
+    static func _pictureCrop(_ node: XNode) -> PictureCrop? {
+        func share(_ text: String?, per: Double) -> Double {
+            guard var t = text, !t.isEmpty else { return 0 }
+            var scale = per
+            if t.hasSuffix("f") { t.removeLast(); scale = 65536 } else if t.hasSuffix("%") { t.removeLast(); scale = 100 }
+            return max(0, (Double(t) ?? 0) / scale)
+        }
+        var crop = PictureCrop(left: 0, top: 0, right: 0, bottom: 0)
+        if let r = node.descendant("a:srcRect") {
+            crop = PictureCrop(left: share(r["l"], per: 100000), top: share(r["t"], per: 100000), right: share(r["r"], per: 100000), bottom: share(r["b"], per: 100000))
+        } else if let d = node.descendant("v:imagedata") {
+            crop = PictureCrop(left: share(d["cropleft"], per: 65536), top: share(d["croptop"], per: 65536), right: share(d["cropright"], per: 65536), bottom: share(d["cropbottom"], per: 65536))
+        }
+        guard crop.left + crop.right < 0.99, crop.top + crop.bottom < 0.99,
+              crop.left > 0 || crop.top > 0 || crop.right > 0 || crop.bottom > 0 else { return nil }
+        return crop
+    }
+
     static func _float(_ node: XNode) -> ImageFloat? {
         if let anchor = node.name == "wp:anchor" ? node : node.descendant("wp:anchor") {
             var f = ImageFloat()
@@ -5776,6 +5797,7 @@ enum DocxFormat {
                 if !WriterMetafiles.register(data, for: att.id), !Metafile.isMetafile(data), Self._isRasterImage(data) {
                     att.data = data
                     att.name = rel.target.lastPathComponent
+                    att.crop = Self._pictureCrop(node)
                 }
             }
             // A group's lines and boxes, each in its place (`WriterGroups`);
@@ -5898,6 +5920,7 @@ enum DocxFormat {
                 // editor shows the picture in the line.
                 att.data = data
                 att.name = target.lastPathComponent
+                att.crop = Self._pictureCrop(drawing)
                 if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
                 // (Turned, a photo taken sideways: a quarter turn makes
                 // its box as tall as it was wide — zh-37b6536f.)
@@ -5910,6 +5933,7 @@ enum DocxFormat {
             // An inline picture keeps its markup too (effectExtent, docPr,
             // crop), used while the editor has not resized it.
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
+            att.crop = Self._pictureCrop(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {
                 att.effectLeft = max(0, (Double(effect["l"] ?? "") ?? 0) / 12700)
                 att.effectRight = max(0, (Double(effect["r"] ?? "") ?? 0) / 12700)
