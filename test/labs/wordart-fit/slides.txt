@@ -1,0 +1,17 @@
+1 JAVA-textPlain-300
+2 JAVA-textInflate-300
+3 JAVA-textDeflateInflate-300
+4 HIHI-textPlain-300
+5 HIHI-textInflate-300
+6 HIHI-textDeflateInflate-300
+7 jaWj-textPlain-300
+8 jaWj-textInflate-300
+9 jaWj-textDeflateInflate-300
+10 JAVA-textPlain-200
+11 JAVA-textPlain-420
+12 JAVA-textInflate-420
+13 JAVA-textPlain-300-spAuto
+14 JAVA+HIHI-textPlain-300
+15 JAVA+HIHI-textInflate-300
+16 JAVA+jaWjjj-textPlain-300
+17 JAVA-textPlain-slant-300
