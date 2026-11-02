@@ -17687,8 +17687,10 @@ public final class RichLayout {
                     // in Word's print and opens the next with "①", where ours
                     // set the colon at 13.5 of 16 to take it. In a cell one
                     // does: zh-20ff844e's narrow cells take their "③".)
-                    // (Not for a hair over: the same print takes zh-30d86fcf's "…申请条件。③" 0.7 over, the "。" set 15.72.)
-                    let circled = !inCell && a < units.count && (0x2460 ... 0x24FF).contains(units[a]) && !(RichTextTheme.wordWindowsPages && need <= _px(2))
+                    // (Not for Word for Windows, where the half-character rule does it: a circled number counts as wide, so
+                    // zh-30d86fcf's "…条件：①" (8.7 over, half an em 8) stays refused and its "…申请条件。③" (0.7 over, the "。"
+                    // set 15.72) is taken.)
+                    let circled = !inCell && !RichTextTheme.wordWindowsPages && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
                     if room + spacedGive + kinsokuGive > 0, taken, !circled, need <= room + spacedGive + kinsokuGive - ownGive - finalGive + (gridGive ?? hair) {
                         let share = room > 0 ? min(1, (need + 0.02) / room) : 0
                         // (The marks give first, and the automatic spaces
