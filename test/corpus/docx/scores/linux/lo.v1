@@ -1,4 +1,4 @@
-593 documents: mean 86.6% of Word's lines matched, median 100.0%; 456 at 95% or more, 527 at half or more; 579 with Word's page count
+593 documents: mean 86.7% of Word's lines matched, median 100.0%; 456 at 95% or more, 528 at half or more; 579 with Word's page count
     0.0%  lines 0/0  pages 0/0  lo-02c5b89ddc2d9138
     0.0%  lines 6/6  pages 1/1  lo-0622682cda1b279e
     0.0%  lines 0/0  pages 0/0  lo-099d1f3b2085ed7b
@@ -55,7 +55,6 @@
     0.0%  lines 1/1  pages 1/1  lo-f225432f2cbdbc6b
     0.0%  lines 4/4  pages 1/1  lo-f860132614b4f586
     0.0%  lines 0/0  pages 0/0  lo-fc0b25c54dbc0357
-   19.4%  lines 36/34  pages 2/2  lo-6b7d4262fe2a39cb
    33.3%  lines 3/3  pages 2/3  lo-47598455d65caba8
    33.3%  lines 3/5  pages 1/1  lo-a998eddac7ced1b3
    33.3%  lines 3/3  pages 1/1  lo-be1a88f4378b6b40
@@ -73,6 +72,7 @@
    50.0%  lines 4/4  pages 1/1  lo-99590fe5ca083be1
    50.0%  lines 6/3  pages 1/1  lo-c6cd222fb0e62252
    54.5%  lines 11/17  pages 3/3  lo-085e8dbbb0674ac7
+   55.6%  lines 36/36  pages 2/2  lo-6b7d4262fe2a39cb
    55.6%  lines 9/9  pages 1/1  lo-9fa3dedd1f1d716a
    55.6%  lines 9/9  pages 1/1  lo-cccc9676753ee81a
    60.0%  lines 5/5  pages 2/2  lo-382401e902ed9090

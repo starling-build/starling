@@ -11242,7 +11242,10 @@ public final class RichLayout {
                 guard !run.isEmpty, document.balancesSpaceWidth else { return }
                 func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) } ?? false }
                 if nbsp.isEmpty {
-                    if !(latin(left) && latin(right)) {
+                    // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
+                    // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
+                    // two spaces between words, nor a page number's "—  10  —".)
+                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") {
                         let balanced = run.filter { !complexSpaces.contains($0) }
                         wideSpaces.formUnion(balanced)
                         ordinaryBalancedSpaces.formUnion(balanced)
