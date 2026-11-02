@@ -5080,6 +5080,20 @@ public final class RichLayout {
             var first = true
             while true {
                 var avail = contentH - y
+                // (A table floating by the text and raised over its place, up past the
+                // margin: Word sets the page's room by the place it would have stood,
+                // not the raised one, so the page ends as much sooner as the raise.
+                // LibreOffice's lo-1709e655, tblpY -345 twips, one cell of 60 lines:
+                // 48 on the page in Word's print, 50 in ours.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, first, let ts = document.tableStyles[c.table],
+                   ts.floatsOverText, ts.floatOffsetY == nil, !ts.pageAnchored, let up = ts.floatRaiseY, ts.rowsExactHeight.isEmpty,
+                   let top = _pages[page].filter({ !$0.repeated && _cells[$0.paragraph]?.table == c.table }).map(\.pageY).min(), top < -0.01,
+                   // (A table taller than the page only: one that ends on it keeps
+                   // its room — lo-3b33e295's two small raised tables.)
+                   case let whole = (0 ..< count).compactMap({ k in _cells[k].flatMap { $0.table == c.table ? $0.rowTop + $0.ownRowHeight : nil } }).max() ?? 0,
+                   whole > contentH + 0.01, c.ownRowHeight > avail + 0.01, _columnWidths[c.table]?.count == 1 {
+                    avail -= min(_px(up), -top)
+                }
                 // (A table placed against the page whose rows from here on
                 // end above the footer's place sets them on this page, past
                 // the margin: zh-0b87285b's 13-row list ends 524.9pt down a
