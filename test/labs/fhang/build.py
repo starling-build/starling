@@ -24,17 +24,22 @@ V = [
  ("N15-P0",    False, 15, 0,  "Note ", False),
  ("F15-P12-T", True, 15, 12, "Note ", True),    # inside a one-cell table
  ("F15-P0-T",  True, 15, 0,  "Note ", True),
+ ("F15-P12-I13", True, 15, 12, "Note ", False),  # intro paragraph on an exact 13pt line (the corpus list item's)
+ ("N15-P12-I13", False, 15, 12, "Note ", False),
+ ("F15-P12-I13-L", True, 15, 12, "Note ", False),  # intro 13pt exact, label indented 18pt (a label in a list)
 ]
+INTRO13 = ("I13",)
 def label(frame, ex, ph, txt):
     fp = '<w:framePr w:wrap="notBeside" w:vAnchor="text" w:hAnchor="text" w:y="1"/>' if frame else ''
     sp = f'<w:spacing w:before="120" w:after="0" w:line="{ex*20}" w:lineRule="exact"/>' if ex else '<w:spacing w:before="120" w:after="0"/>'
     return f'<w:p><w:pPr><w:keepNext/>{fp}{sp}</w:pPr>' + (pict(ph) if ph else '') + f'<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">{txt}</w:t></w:r></w:p>'
 def plain(t, ex=0):
-    sp = '<w:spacing w:before="60" w:after="60" w:line="280" w:lineRule="exact"/>'
+    sp = f'<w:spacing w:before="60" w:after="60" w:line="{ex*20 if ex else 280}" w:lineRule="exact"/>'
     return f'<w:p><w:pPr>{sp}<w:ind w:left="360" w:right="360"/></w:pPr><w:r><w:t>{t}</w:t></w:r></w:p>'
-def doc(frame, ex, ph, txt, tbl):
+def doc(frame, ex, ph, txt, tbl, code=""):
     lab = label(frame, ex, ph, txt)
-    intro = plain('INTRO LINE before the label.')
+    if code.endswith("-L"): lab = lab.replace('<w:spacing', '<w:ind w:left="360"/><w:spacing', 1) if False else lab.replace('</w:pPr>', '<w:ind w:left="360"/></w:pPr>', 1)
+    intro = plain('INTRO LINE before the label.', 13 if "-I13" in code else 0)
     after = plain('AFTER LINE one, the paragraph that follows the label and hangs below it.') + plain('AFTER LINE two.')
     if tbl:
         body = intro + '<w:tbl><w:tblPr><w:tblW w:w="8640" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="8640"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="8640" w:type="dxa"/></w:tcPr>' + lab + after + '</w:tc></w:tr></w:tbl><w:p/>'
@@ -51,7 +56,7 @@ def main(out):
     for n, (code, fr, ex, ph, txt, tb) in enumerate(V, 1):
         with zipfile.ZipFile(os.path.join(out, f"fhang-{n:02d}-{code}.docx"), "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("[Content_Types].xml", CT); z.writestr("_rels/.rels", RELS)
-            z.writestr("word/document.xml", doc(fr, ex, ph, txt, tb)); z.writestr("word/styles.xml", STYLES)
+            z.writestr("word/document.xml", doc(fr, ex, ph, txt, tb, code)); z.writestr("word/styles.xml", STYLES)
             z.writestr("word/_rels/document.xml.rels", DRELS); z.writestr("word/media/p.png", png())
     print(len(V), "documents in", out)
 if __name__ == "__main__": main(sys.argv[1])
