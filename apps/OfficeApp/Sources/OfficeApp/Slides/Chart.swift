@@ -4715,7 +4715,26 @@ enum ChartPainter {
         // round a pie of 198pt in Word's print, ours 229.
         if values.contains(where: { $0 > 0 }), !c.onSheet, !c.onSlide, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil {
             RuleTrace.hit("word-pie-with-outside-labels-leaves-room-for-them")
-            radius = max(radius / 2, radius - 1.7 * (c.series[0].labelSize ?? c.baseTextSize) * k)
+            let size = (c.series[0].labelSize ?? c.baseTextSize) * k, room = radius
+            radius = max(room / 2, room - 1.7 * size)
+            // (A best fit leaves only as much room as its labels take: 1.2 of their size a side where every one
+            // stands inside its slice, 1.6 where any goes out — amd-1's lab pieeq (Word for Windows, 9pt labels,
+            // legend none/right/foot): R 73.6 and 63.2 with all six inside, 70.5-71.6 and 53.8-54.6 with some
+            // out, from rooms of ours of 84.2 and 74.2 / 68.9; ours took 1.7 of their size whatever they did.)
+            if c.type == .pie, let l = c.pieLabels, l.fitted, l.moves.isEmpty {
+                let rIn = max(room / 2, room - 1.2 * size)
+                var mids: [(index: Int, mid: Double, value: Double, color: Color)] = []
+                var a = -Double.pi / 2
+                for (i, v) in values.enumerated() where v > 0 {
+                    let sweep = v / sum * 2 * .pi
+                    mids.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
+                    a += sweep
+                }
+                let probeCentre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
+                let out = _pieLabels(c, l, canvas, frame: frame ?? area, slices: mids, centre: probeCentre, rx: rIn, ry: rIn, inner: 0,
+                                     k: k, theme: theme, ink: ink ?? theme.text, probe: true)
+                radius = out ? max(room / 2, room - 1.6 * size) : rIn
+            }
         }
         let centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
@@ -5778,11 +5797,13 @@ extension ChartPainter {
         return Offset(centre.dx + (dx < 0 ? -xAbs : xAbs), centre.dy + (dy < 0 ? -yAbs : yAbs))
     }
 
-    static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
+    @discardableResult static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
                            point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil,
-                           pulled: ((Int) -> Offset)? = nil) {
+                           pulled: ((Int) -> Offset)? = nil, probe: Bool = false) -> Bool {
+        // (`probe`: nothing painted; whether any label would stand outside its slice is all that comes back.)
+        var anyOutside = false
         // (A slice pulled out: its points stand where the pull puts them, set as each slice's turn comes.)
         var lift = Offset.zero
         // A point `f` of the radius out along angle `a`: on the flat
@@ -5792,7 +5813,7 @@ extension ChartPainter {
             return Offset(q.dx + lift.dx, q.dy + lift.dy)
         }
         let sum = slices.reduce(0) { $0 + $1.value }
-        guard sum > 0 else { return }
+        guard sum > 0 else { return false }
         if Self._pieLog, let point {
             // (STARLING_PIE_LOG: the top face's rim, a point a degree, from the frame's top left.)
             var line = "PIER"
@@ -6006,14 +6027,36 @@ extension ChartPainter {
                         while d >= 2 * .pi { d -= 2 * .pi }
                         return d <= span
                     }
-                    func places(_ bw: Double, _ bh: Double) -> [Offset] {
+                    // The label's lines as boxes about its middle, each as wide as its own text (a wrapped
+                    // label is a wide line over a narrow one), `pad` more above the first and below the last.
+                    func shape(_ pad: Double, _ shrink: Double) -> [(Double, Double, Double, Double)] {
+                        let ms = tp.computeLineMetrics()
+                        guard ms.count > 1 else { let h = tp.height * shrink; return [(-tp.width / 2, -h / 2 - pad, tp.width / 2, h / 2 + pad)] }
+                        let total = tp.height * shrink
+                        var y = -total / 2
+                        return ms.enumerated().map { i, m in
+                            let h = m.height * shrink
+                            defer { y += h }
+                            return (-m.width / 2, y - (i == 0 ? pad : 0), m.width / 2, y + h + (i == ms.count - 1 ? pad : 0))
+                        }
+                    }
+                    func places(_ boxes: [(Double, Double, Double, Double)]) -> [Offset] {
                         var out: [Offset] = []
-                        let step = max(0.5, rx / 120)
-                        var y = -rx
-                        while y <= rx {
-                            var x = -rx
-                            while x <= rx {
-                                if inside(x - bw / 2, y - bh / 2), inside(x + bw / 2, y - bh / 2), inside(x - bw / 2, y + bh / 2), inside(x + bw / 2, y + bh / 2) {
+                        let step = max(0.25, rx / 300)
+                        // (Over the slice's own bounds: its corners and any quarter point of the rim inside it.)
+                        var xs = [0.0, rx * cos(a0), rx * cos(a0 + span)], ys = [0.0, rx * sin(a0), rx * sin(a0 + span)]
+                        for q in 0 ..< 4 {
+                            let a = Double(q) * .pi / 2
+                            if inside(rx * cos(a) * 0.999, rx * sin(a) * 0.999) { xs.append(rx * cos(a)); ys.append(rx * sin(a)) }
+                        }
+                        let x0 = xs.min()!, x1 = xs.max()!, y1 = ys.max()!
+                        var y = ys.min()!
+                        while y <= y1 {
+                            var x = x0
+                            while x <= x1 {
+                                if inside(x, y), boxes.allSatisfy({ b in
+                                    inside(x + b.0, y + b.1) && inside(x + b.2, y + b.1) && inside(x + b.0, y + b.3) && inside(x + b.2, y + b.3)
+                                }) {
                                     out.append(Offset(x, y))
                                 }
                                 x += step
@@ -6023,8 +6066,8 @@ extension ChartPainter {
                         return out
                     }
                     func held() -> Offset? {
-                        guard !places(tp.width, tp.height + 4 * k).isEmpty else { return nil }
-                        let p = places(tp.width, tp.height * 0.83)
+                        guard !places(shape(1.5 * k, 1)).isEmpty else { return nil }
+                        let p = places(shape(0, 0.83))
                         guard !p.isEmpty else { return nil }
                         let mx = p.reduce(0) { $0 + $1.dx } / Double(p.count), my = p.reduce(0) { $0 + $1.dy } / Double(p.count)
                         return Offset(centre.dx + mx, centre.dy + my)
@@ -6056,6 +6099,8 @@ extension ChartPainter {
                 }).map { on(s.mid, $0) }
             }()
             let fitsInside = insideAt != nil
+            if l.outside && !fitsInside { anyOutside = true }
+            if probe { tp.dispose(); continue }
             if let p = insideAt {
                 at = p
             } else if l.outside {
@@ -6209,6 +6254,7 @@ extension ChartPainter {
             tp.paint(canvas, Offset(box.left + pad, box.top + pad / 2))
             tp.dispose()
         }
+        return anyOutside
     }
 }
 
