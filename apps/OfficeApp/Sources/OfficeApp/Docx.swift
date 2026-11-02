@@ -1657,7 +1657,7 @@ enum DocxFormat {
                 // (Word for Windows' labs T0-T2: the cell that holds a table is taller by that table's own
                 // cell margins, top and bottom, once more — lo-eb12e7d4's groups stand 2.8pt, the 28 twips
                 // of a pair, short of its print.)
-                if saved.1 != nil, node.first("w:tblPr")?.first("w:tblpPr") == nil, node.descendants("w:drawing").isEmpty, let tcMar = node.descendants("w:tcMar").first {
+                if let outer = saved.1, (outer.padding?.top ?? 0) == 0, (outer.padding?.bottom ?? 0) == 0, node.first("w:tblPr")?.first("w:tblpPr") == nil, node.descendants("w:drawing").isEmpty, let tcMar = node.descendants("w:tcMar").first {
                     let pr = XNode(name: "w:tcPr", attrs: [:]); pr.children = [tcMar]
                     let m = _cellMargins(pr, "w:tcMar")
                     box.insetBottom = (m.top ?? 0) + (m.bottom ?? 0)
