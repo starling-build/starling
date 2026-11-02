@@ -17721,7 +17721,11 @@ public final class RichLayout {
                     // margin and not 0.7 over, three marks able to give 21; zh-6b242483's "（家）×1（每年1次）" leaves
                     // its "×" 5.1 over. Six such takes of ours in the 756, none of Word's. After it an ideograph,
                     // the marks give as for any: zh-621d8756's "…请提供×××" keeps its first.)
+                    // (Only the FIRST "×" of its run: every take behind the rule opens one. Inside a run Word squeezes to take
+                    // it: zh-621d8756's p47 "…违反了《×××××" sets the fifth "×" 0.3pt past the margin, six marks giving
+                    // 4.4pt of the 4.7 over, ~0.95 each.)
                     let timesGlued = wordRules && RichTextTheme.wordWindowsPages && last < units.count && units[last - 1] == 0xD7
+                        && (a == 0 || units[a - 1] != 0xD7)
                         && (units[last] == 0xD7 || (units[last] >= 0x30 && units[last] <= 0x39))
                     let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if Self.debugFitLog {
