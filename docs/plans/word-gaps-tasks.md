@@ -14,8 +14,8 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 
 - amd-1: Word charts (zh-b8de3ae2 rest; lo-5afb2204's 3 non-surface charts; lo-9fa3dedd pie fonts/size; the inside-label lab; lo-ccd9da4b done)
 - amd-2: lo-ff3b52d1 (rect, oval text), lo-4aa628bd, lo-b60b7299, lo-60fd9368, lo-085e8dbb 'zz' line
-- amd-3: lo-a43021ca, lo-1709e655, lo-536b79ce, zh-5450d509 (gothline + face lab)
-- amd-4: lo-79680f48, lo-52da6bc6, lo-af81b53e, lo-373ee508, lo-6e71a4d5 non-chart rest; Word surface chart
+- amd-3: lo-1709e655, lo-536b79ce, zh-5450d509 (gothline + face lab)
+- amd-4: lo-af81b53e, then lo-52da6bc6 (multiple line spacing: extra space below); Word surface chart
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
 - amd-6: zh-6e6b9821, lo-5c5eb1f7 row 25 (pinned floating tables)
 - amd-7: per-column footnotes step 3 (lab fn-cols-sweep printing); lo-e8c1ae37, lo-40949e85, lo-948cd424, lo-c678e486. (lo-0622682c done)
@@ -23,8 +23,9 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c
 - lenovo-2: lo-b8885ba2, lo-152d87fe, lo-72e72396, lo-06933f8e, lo-e3095781, lo-512aa398, lo-88b29958 (lab)
 - lenovo-3: lo-7ec36a70, lo-73f1dccc
-- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100)
-- lenovo-5: n830205/lo-9f27ef40 balloons, lo-a197b7a8, lo-89daf93d (unless amd-3 holds it)
+- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4)
+- UNFIXABLE: lo-a43021ca (print-date field)
+- lenovo-5: n830205 + lo-a197b7a8 (both waiting on labs), zh-27fc8f9d, zh-d8247da5, zh-cf8b03a5, zh-ea43dd6d (triage)
 - amd-8: tip watch + unit tests
 
 **STRATEGY (the user, 2026-10-29): Windows mode is the focus.** Word for Windows is the reference, and its
