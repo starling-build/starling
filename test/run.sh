@@ -307,11 +307,16 @@ else
 fi
 
 step "web: size gate"
-if swift sdk list 2>/dev/null | grep -q "_wasm$"; then
+skwasm_dir="${STARLING_SKWASM_DIR:-$REPO/engine/src/out/wasm_release/flutter_web_sdk/canvaskit}"
+if ! swift sdk list 2>/dev/null | grep -q "_wasm$"; then
+    echo "  SKIPPED — no wasm Swift SDK (swift sdk install …_wasm.artifactbundle.tar.gz)"
+elif [ "${STARLING_SKWASM_DIR:-}" != published ] && [ ! -f "$skwasm_dir/skwasm.wasm" ]; then
+    echo "  SKIPPED — no skwasm in this engine ($skwasm_dir; docs/BUILDING.md §1.7)"
+elif ! command -v wasm-opt >/dev/null; then
+    echo "  SKIPPED — no wasm-opt (binaryen) to size the module with"
+else
     as_user "$REPO/build/web-app.sh" --check 2>&1 | grep -vE "^\[|^Compiling|^Build" \
         || fails=$((fails + 1))
-else
-    echo "  SKIPPED — no wasm Swift SDK (swift sdk install …_wasm.artifactbundle.tar.gz)"
 fi
 
 # Office lays out the same natively and in the browser, and a saved copy
