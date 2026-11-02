@@ -5729,11 +5729,33 @@ public final class RichLayout {
                             let d = _cells[members[0]]!, lastM = members[members.count - 1]
                             guard d.verticalAlign == "center" else { continue }
                             let top = _tops[members[0]], bottom = _tops[lastM] + _heights[lastM]
-                            let free = c.rowTop + part - d.rowTop - d.pad.top - d.pad.bottom - (bottom - top)
-                            let delta = d.rowTop + d.pad.top + max(0, free) * 0.5 - top
-                            guard free >= -0.01, delta < -0.5 else { continue }
+                            var reach = part
+                            if below {
+                                // (A cell merged from above that runs on to the foot: the part
+                                // reaches the last of its lines that stands on the page.)
+                                for m in (0 ..< i).reversed().prefix(while: { _cells[$0]?.table == c.table }) {
+                                    guard let e = _cells[m], e.row < c.row, e.row + e.rowSpan - 1 >= c.row, !e.vertical,
+                                          let last = cellCuts(m).last(where: { $0 <= c.rowTop + avail + 0.01 }) else { continue }
+                                    reach = max(reach, last - c.rowTop)
+                                }
+                            }
+                            // (Only where the row is a sliver beside that cell, 30pt or more shorter
+                            // than the cell's reach: zh-64044a1d's 18.5pt row. Where the row has
+                            // text of its own that parts it, Word centres in the row's part.)
+                            let onFoot = below && reach - part >= _px(30)
+                            if !onFoot { reach = part }
+                            let free = c.rowTop + reach - d.rowTop - d.pad.top - d.pad.bottom - (bottom - top)
+                            guard free >= -0.01 else { continue }
                             let onPage = _allPieces.indices.filter { _allPieces[$0].page == page && members.contains(_allPieces[$0].paragraph) && _allPieces[$0].part != .rules && !_allPieces[$0].repeated }
-                            guard !onPage.isEmpty, onPage.allSatisfy({ _allPieces[$0].flowBottom <= c.rowTop + part + 0.01 || _allPieces[$0].flowBottom <= bottom + 0.01 }) else { continue }
+                            guard let first0 = onPage.first else { continue }
+                            // (Where the text stands now, by its piece; where it should stand, by the row's page y.)
+                            let nowAt = _allPieces[first0].pageY + (top - _allPieces[first0].flowTop)
+                            let wantAt = y + (d.rowTop + d.pad.top + max(0, free) * 0.5 - c.rowTop)
+                            // (Only for a cell merged from above that runs on: the other cells keep the
+                            // flow's own offset and move up only, as the first lab-checked rule did.)
+                            let delta = onFoot ? wantAt - nowAt : d.rowTop + d.pad.top + max(0, free) * 0.5 - top
+                            guard onFoot ? abs(delta) > 0.5 : delta < -0.5 else { continue }
+                            guard !onPage.isEmpty, onPage.allSatisfy({ _allPieces[$0].flowBottom <= c.rowTop + reach + 0.01 || _allPieces[$0].flowBottom <= bottom + 0.01 || (onFoot && bottom <= c.rowTop + reach + 0.01) }) else { continue }
                             RuleTrace.hit("word-merged-centred-cell-centres-in-its-part-of-the-page")
                             for n in onPage.reversed() {
                                 let old = _allPieces[n]
