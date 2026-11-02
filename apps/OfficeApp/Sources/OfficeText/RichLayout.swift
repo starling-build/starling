@@ -3205,6 +3205,16 @@ public final class RichLayout {
                                 default: continue
                                 }
                                 rowHeight = max(rowHeight, top + h)
+                                // (A table floating in the cell with no room beside it — wider than the cell's text
+                                // from its offset — has the anchor's empty line set under it, and the row holds that
+                                // line: lo-9fa3dedd's Table3 ends at 531 in a cell that ends at 545 in Word's print.)
+                if RichTextTheme.wordWindowsPages, image.textBox?.growsToFit == true, f.horizontalFrom == "cell", f.fromCellText, !f.fromCellTop,
+                                   f.horizontalAlign == nil, document.paragraphs[k].text.unicodeScalars.allSatisfy({ $0 == "\u{FFFC}" || $0 == "\n" }),
+                                   _px(f.x) > 0, _px(f.x) + _px(image.width) > cell.colWidth + 0.01,
+                                   rowHeight < top + h + max(_heights[k], _markLineHeight(k, document)) {
+                                    RuleTrace.hit("word-cell-line-under-a-floating-table-with-no-room-beside-it")
+                                    rowHeight = top + h + max(_heights[k], _markLineHeight(k, document))
+                                }
                                 if f.fromCellTop, RichTextTheme.wordWindowsPages, image.textBox?.growsToFit == true { _floatReach[k] = max(_floatReach[k], top + h - cell.pad.top) }
                             }
                         }
@@ -11438,7 +11448,8 @@ public final class RichLayout {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.wrapSide == nil || float.wrapSide == "both",
                       float.verticalAlign == nil, float.verticalFrom == "paragraph", float.horizontalAlign == nil,
                       float.horizontalFrom == "column" || float.horizontalFrom == "cell",
-                      image.sourceXML?.containsSubstring("drawingml/2006/chart") == true else { continue }
+                      image.sourceXML?.containsSubstring("drawingml/2006/chart") == true
+                        || (image.textBox?.growsToFit == true && float.fromCellText && !float.fromCellTop) else { continue }
                 let x = _px(float.x), w = _px(image.width)
                 guard w > 0, x - _px(float.distanceLeft ?? 9) < size * 3, inner - (x + w + _px(float.distanceRight ?? 9)) < size * 3 else { continue }
                 down = max(down, _px(float.y) + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
@@ -20265,6 +20276,14 @@ public final class RichLayout {
         default: x = bandLeft + _px(float.x)
         }
         if theme.wordRules, _floatColumnShift != 0, float.horizontalFrom == "page", float.horizontalAlign == nil { x -= _floatColumnShift }
+        // (A table floating in a cell from the margin, set out past the cell's right edge, is drawn back to fit
+        // it, and no further left than the cell: lo-9fa3dedd's 255pt Table3, tblpX +21pt in a 234pt cell, has
+        // its left rule on the cell's, 333.4; ours put it 30pt in, with the offset and the side gap.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "cell", float.fromCellText, !float.fromCellTop,
+           float.horizontalAlign == nil, float.x > 0, i < _cells.count, let d = _cells[i], x + w > d.colLeft + d.colWidth + 0.01 {
+            RuleTrace.hit("nested-table-past-the-cell-is-drawn-back-to-fit-it")
+            x = max(d.colLeft, d.colLeft + d.colWidth - w)
+        }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
         // (From the character's own place: in a line set centred or right the
         // line's first box, not the paragraph's edge — zh-f47b8a74 p58's
