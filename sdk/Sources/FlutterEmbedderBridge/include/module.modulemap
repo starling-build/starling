@@ -1,4 +1,0 @@
-module FlutterEmbedderBridge {
-  header "FlutterEmbedderBridge.h"
-  export *
-}

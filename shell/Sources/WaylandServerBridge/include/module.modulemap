@@ -1,4 +1,0 @@
-module WaylandServerBridge {
-    header "shim.h"
-    export *
-}

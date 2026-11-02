@@ -1,0 +1,35 @@
+1	mat=legacyMatte rect
+2	mat=legacyMatte ellipse
+3	mat=legacyPlastic rect
+4	mat=legacyPlastic ellipse
+5	mat=legacyMetal rect
+6	mat=legacyMetal ellipse
+7	mat=legacyWireframe rect
+8	mat=legacyWireframe ellipse
+9	mat=matte rect
+10	mat=matte ellipse
+11	mat=plastic rect
+12	mat=plastic ellipse
+13	mat=metal rect
+14	mat=metal ellipse
+15	mat=warmMatte rect
+16	mat=warmMatte ellipse
+17	mat=translucentPowder rect
+18	mat=translucentPowder ellipse
+19	mat=powder rect
+20	mat=powder ellipse
+21	mat=dkEdge rect
+22	mat=dkEdge ellipse
+23	mat=softEdge rect
+24	mat=softEdge ellipse
+25	mat=clear rect
+26	mat=clear ellipse
+27	mat=flat rect
+28	mat=flat ellipse
+29	mat=softmetal rect
+30	mat=softmetal ellipse
+31	mat=default(omitted) rect
+32	mat=default(omitted) ellipse
+33	mat=matte ellipse rig=harsh dir=t
+34	mat=plastic ellipse rig=harsh dir=t
+35	mat=metal ellipse rig=harsh dir=t

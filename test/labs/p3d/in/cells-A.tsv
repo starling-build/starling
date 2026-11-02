@@ -1,0 +1,74 @@
+1	rig=threePt dir=t
+2	rig=threePt dir=r
+3	rig=threePt dir=b
+4	rig=threePt dir=l
+5	rig=balanced dir=t
+6	rig=balanced dir=r
+7	rig=balanced dir=b
+8	rig=balanced dir=l
+9	rig=soft dir=t
+10	rig=soft dir=r
+11	rig=soft dir=b
+12	rig=soft dir=l
+13	rig=harsh dir=t
+14	rig=harsh dir=r
+15	rig=harsh dir=b
+16	rig=harsh dir=l
+17	rig=flood dir=t
+18	rig=flood dir=r
+19	rig=flood dir=b
+20	rig=flood dir=l
+21	rig=contrasting dir=t
+22	rig=contrasting dir=r
+23	rig=contrasting dir=b
+24	rig=contrasting dir=l
+25	rig=morning dir=t
+26	rig=morning dir=r
+27	rig=morning dir=b
+28	rig=morning dir=l
+29	rig=sunrise dir=t
+30	rig=sunrise dir=r
+31	rig=sunrise dir=b
+32	rig=sunrise dir=l
+33	rig=sunset dir=t
+34	rig=sunset dir=r
+35	rig=sunset dir=b
+36	rig=sunset dir=l
+37	rig=chilly dir=t
+38	rig=chilly dir=r
+39	rig=chilly dir=b
+40	rig=chilly dir=l
+41	rig=freezing dir=t
+42	rig=freezing dir=r
+43	rig=freezing dir=b
+44	rig=freezing dir=l
+45	rig=flat dir=t
+46	rig=flat dir=r
+47	rig=flat dir=b
+48	rig=flat dir=l
+49	rig=twoPt dir=t
+50	rig=twoPt dir=r
+51	rig=twoPt dir=b
+52	rig=twoPt dir=l
+53	rig=glow dir=t
+54	rig=glow dir=r
+55	rig=glow dir=b
+56	rig=glow dir=l
+57	rig=brightRoom dir=t
+58	rig=brightRoom dir=r
+59	rig=brightRoom dir=b
+60	rig=brightRoom dir=l
+61	rig=threePt dir=t lightrot=0,0,0
+62	rig=threePt dir=t lightrot=0,90,0
+63	rig=threePt dir=t lightrot=0,180,0
+64	rig=threePt dir=t lightrot=315,330,0
+65	rig=threePt dir=t lightrot=45,0,0
+66	rig=threePt dir=t lightrot=0,0,90
+67	rig=threePt dir=t cam=perspectiveRelaxed
+68	rig=threePt dir=r cam=perspectiveRelaxed
+69	rig=harsh dir=t cam=perspectiveRelaxed
+70	rig=harsh dir=r cam=perspectiveRelaxed
+71	rig=soft dir=t cam=perspectiveRelaxed
+72	rig=soft dir=r cam=perspectiveRelaxed
+73	rig=flood dir=t cam=perspectiveRelaxed
+74	rig=flood dir=r cam=perspectiveRelaxed

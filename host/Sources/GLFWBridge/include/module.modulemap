@@ -1,4 +1,0 @@
-module GLFWBridge {
-  header "GLFWBridge.h"
-  export *
-}

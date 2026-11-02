@@ -1,5 +1,0 @@
-# Build artifacts
-build/
-SwiftUIShim/.build/
-*.dSYM/
-.DS_Store

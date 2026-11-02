@@ -1,0 +1,18 @@
+1	bevelT=circle 0.15
+2	bevelT=relaxedInset 0.15
+3	bevelT=cross 0.15
+4	bevelT=coolSlant 0.15
+5	bevelT=angle 0.15
+6	bevelT=softRound 0.15
+7	bevelT=convex 0.15
+8	bevelT=slope 0.15
+9	bevelT=divot 0.15
+10	bevelT=riblet 0.15
+11	bevelT=hardEdge 0.15
+12	bevelT=artDeco 0.15
+13	bevelT=circle w=45720 h=45720
+14	bevelT=circle w=137160 h=137160
+15	bevelT=circle w=274320 h=274320
+16	bevelT=circle w=274320 h=91440
+17	bevelB=circle 0.15
+18	bevelT=circle ext=0
