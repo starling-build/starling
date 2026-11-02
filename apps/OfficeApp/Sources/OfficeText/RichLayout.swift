@@ -5490,8 +5490,13 @@ public final class RichLayout {
                // (… but only where the text does not fit whole beside those rows and goes on
                // over the page: a line or a few that fit stand on the table's last page, as in
                // Word's print of LibreOffice's lo-9cc5d6ef "AB" and lo-eba386b0.)
-               case let startPage = firstPage == page - 1 && i < _heights.count && _pages[firstPage].contains(where: { _cells[$0.paragraph] == nil })
-                   && _heights[i] > contentH - (_pages[firstPage].filter({ _cells[$0.paragraph]?.table == prev && !$0.repeated }).map(\.pageY).min() ?? 0) + 0.01 ? firstPage : page,
+               case let startPage = firstPage == page - 1 && i < _heights.count
+                   && ((_pages[firstPage].contains(where: { _cells[$0.paragraph] == nil })
+                       && _heights[i] > contentH - (_pages[firstPage].filter({ _cells[$0.paragraph]?.table == prev && !$0.repeated }).map(\.pageY).min() ?? 0) + 0.01)
+                       // (Nor where the table has nothing on this page: its last row ended past the first
+                       // page's foot and the page opened after it is empty of it. lo-853c06a0, two 91pt rows
+                       // on a 166pt page: "Anchor paragraph." stands beside A1 on page 1 in Word's print.)
+                       || (theme.wordRules && RichTextTheme.wordWindowsPages && !_pages[page].contains(where: { _cells[$0.paragraph]?.table == prev }))) ? firstPage : page,
                let top = _pages[startPage].filter({ _cells[$0.paragraph]?.table == prev && (startPage == page || !$0.repeated) }).map(\.pageY).min(), top < y - 0.01 || startPage < page {
                 // (Text beside a table whose rows run over two pages starts on
                 // the page of its FIRST rows, level with the table's top: Word's
