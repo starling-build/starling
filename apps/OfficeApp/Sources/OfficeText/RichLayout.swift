@@ -12999,9 +12999,9 @@ public final class RichLayout {
             // lines are 15.9pt apart, ours 13.9 — the number's ascent 12.1 over the text's 10.1.)
             if rise == nil, !symbolLevel, pitch == nil, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list != nil,
                let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
-               let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:hAnsi=\"") {
+               let r = xml.rangeOfSubstring("w:ascii=\"") {
                 let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
-                if !family.isEmpty {
+                if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: true) }) {
                     // (Its face's own ascent, not a line's: the line's carries the spacing multiple.)
                     let textFace = firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
                     let size = _px(firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
