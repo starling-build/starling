@@ -83,6 +83,8 @@ struct ChartSeries: Equatable {
     /// and colours, the points that show none (`c:dPt` with symbol none),
     /// and whether the line between them is hidden (`a:ln/a:noFill`).
     var marker: String? = nil
+    /// A line series' own stroke width (`a:ln w`), where the file gives it.
+    var lineW: Double? = nil
     var markerSize = 5.0
     var markerFill: Color? = nil
     var markerLine: Color? = nil
@@ -574,6 +576,8 @@ struct Chart: Equatable {
     /// A scatter chart's gridlines up from its X axis (`c:majorGridlines`
     /// on the bottom or top `c:valAx`).
     var scatterXGrid = true
+    /// A column or line chart's gridlines between its categories (`c:majorGridlines` on its category axis).
+    var categoryGrid = false
     /// An axis the file deletes (`c:delete`): no labels, no room for them.
     var valueAxisDeleted = false
     /// The axes' tick marks stand outside them (`c:majorTickMark` "out" or
@@ -1219,6 +1223,7 @@ enum ChartXML {
             // circles on each point.)
             if type == .line {
                 s.lineHidden = pr?.first("a:ln")?.has("a:noFill") == true
+                s.lineW = pr?.first("a:ln")?["w"].flatMap(Double.init).map { $0 / 12700 }
                 // (A shown line's "none" is no marker at all, as it was
                 // before its marks were read: what this app writes for one,
                 // and what a round trip must give back.)
@@ -1653,6 +1658,7 @@ enum ChartXML {
             : axes.first { $0.name != "c:valAx" }
         c.categoryTicksOut = ["out", "cross"].contains(categoryAxis?.first("c:majorTickMark")?["val"] ?? "")
         if type == .scatter, let categoryAxis { c.scatterXGrid = categoryAxis.first("c:majorGridlines") != nil }
+        if type != .scatter, let categoryAxis { c.categoryGrid = categoryAxis.first("c:majorGridlines") != nil }
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
@@ -3639,6 +3645,13 @@ enum ChartPainter {
                 }
             }
         }
+        // (Between the categories, as Word draws them: zh-b8de3ae2's line chart.)
+        if c.categoryGrid, inWord, c.type != .scatter, !horizontal, n > 1 {
+            for i in 1 ..< n {
+                let x = plot.left + plot.width * Double(i) / Double(n)
+                canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint)
+            }
+        }
         if c.type == .scatter {
             let xTicks = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step))
             for (i, v) in xTicks.enumerated() {
@@ -3995,7 +4008,7 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .stroke
                     p.isAntiAlias = true
-                    p.strokeWidth = max(1, 2.25 * k)
+                    p.strokeWidth = max(1, (c.onSlide || c.onSheet ? 2.25 : c.series[j].lineW ?? 2.25) * k)
                     p.strokeCap = .round
                     p.strokeJoin = .round
                     p.color = c.lineColor(series: j, accents: theme.accents)
@@ -4646,6 +4659,22 @@ extension ChartPainter {
         // (Office's "dot" is a short dash: chartex's Close marks, and its
         // legend's key, in Word's print.)
         case "dot": shape.addRect(Rect.fromLTRB(q.dx - r, q.dy - r / 4, q.dx + r, q.dy + r / 4))
+        case "x", "plus", "star":
+            // (Open marks: strokes only.)
+            let open = Paint()
+            open.isAntiAlias = true
+            open.style = .stroke
+            open.strokeWidth = max(0.5, 0.75 * k)
+            open.color = l.markerLine ?? l.markerFill ?? colour
+            if symbol != "plus" {
+                canvas.drawLine(Offset(q.dx - r, q.dy - r), Offset(q.dx + r, q.dy + r), open)
+                canvas.drawLine(Offset(q.dx - r, q.dy + r), Offset(q.dx + r, q.dy - r), open)
+            }
+            if symbol != "x" {
+                canvas.drawLine(Offset(q.dx - r, q.dy), Offset(q.dx + r, q.dy), open)
+                canvas.drawLine(Offset(q.dx, q.dy - r), Offset(q.dx, q.dy + r), open)
+            }
+            return
         case "diamond":
             shape.moveTo(q.dx, q.dy - r); shape.lineTo(q.dx + r, q.dy); shape.lineTo(q.dx, q.dy + r); shape.lineTo(q.dx - r, q.dy); shape.close()
         case "triangle":
