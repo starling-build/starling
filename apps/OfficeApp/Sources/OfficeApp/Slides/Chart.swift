@@ -4611,6 +4611,11 @@ extension ChartPainter {
             let sy = Y * cos(rx) + z1 * sin(rx), depth = z1 * cos(rx) - Y * sin(rx)
             return (Offset(x1, -sy), depth)
         }
+        // (Word seen from behind, rotX 20 and rotY about 170, the value axis on the right: where
+        // Word's print has the labels is fitted to lab surf's views, in points from the frame —
+        // the value steps along its right edge, the series' names running down its left, the
+        // middle one of three dropped. Other views keep the projection's places.)
+        let behind = c.surfaceValuesRight && !c.onSlide && !c.onSheet && abs(c.surfaceView.dx - 20) < 6 && abs(c.surfaceView.dy - 170) < 12
         var corners: [Offset] = []
         for x in [0.0, 1] { for y in [0.0, 1] { for z in [0.0, 1] { corners.append(project(x, y, z).0) } } }
         let minX = corners.map(\.dx).min()!, maxX = corners.map(\.dx).max()!
@@ -4644,7 +4649,12 @@ extension ChartPainter {
             // lo-5afb2204 chart does: Word's print has its 0 to 6 beside the right edge.)
             let right = c.surfaceValuesRight && !c.onSlide && !c.onSheet
             let p = at(right ? 1 : 0, y, 0).0
-            tp.paint(canvas, Offset(right ? p.dx + 4 * k : p.dx - tp.width - 4 * k, p.dy - tp.height / 2))
+            if behind {
+                let bottom = area.bottom - 17.3 * k, top = area.top + 39.8 * k
+                tp.paint(canvas, Offset(area.right - 5.6 * k, bottom + (top - bottom) * y - tp.height / 2))
+            } else {
+                tp.paint(canvas, Offset(right ? p.dx + 4 * k : p.dx - tp.width - 4 * k, p.dy - tp.height / 2))
+            }
             tp.dispose()
         }
         typealias Vertex = (p: Offset, v: Double)
@@ -4708,7 +4718,15 @@ extension ChartPainter {
         for j in 0 ..< cols {
             let tp = text(c.series[j].name, size, .infinity)
             let p = at(1, 0, Double(j) / Double(cols - 1)).0
-            tp.paint(canvas, Offset(p.dx + 4 * k, p.dy - tp.height / 2))
+            if behind {
+                // (Word keeps the first and last of three, and every one past three.)
+                if cols != 3 || j != 1 {
+                    let f = Double(j) / Double(cols - 1)
+                    tp.paint(canvas, Offset(area.left + (11.8 + 15.8 * f) * k, area.top + (67.3 + 37.1 * f) * k - tp.height / 2 + tp.height / 2))
+                }
+            } else {
+                tp.paint(canvas, Offset(p.dx + 4 * k, p.dy - tp.height / 2))
+            }
             tp.dispose()
         }
     }
