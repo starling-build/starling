@@ -10648,7 +10648,21 @@ public final class RichLayout {
                 // or a point: set to the hair, the engine's rounding can
                 // put the last character, a ")" in zh-454e2e29's
                 // "(所屬機關名稱)", on a line of its own.)
-                for short in [_px(0.05), _px(1)] {
+                // (One character alone on a line that wraps on from the lines above is centred by
+                // an indent of that line: a room before it would be dropped at the line's start.
+                // lo zh-419ea527's "邮政编/码", the 码 at the middle, 418.5, in Word's print, where
+                // ours stood at the start, 404.)
+                var centred = false
+                if chars.count == 1, last > 0, starts.count > 1, painter.lineIndents.allSatisfy({ $0.left == 0 && $0.right == 0 }) {
+                    let room = textWidth - (box.right - box.left)
+                    if room > _px(0.05) {
+                        painter.lineIndents = Array(repeating: LineIndent(), count: starts.count - 1) + [LineIndent(left: room / 2, right: 0)]
+                        painter.layout(minWidth: textWidth + (theme.wordRules ? _px(tieSlack) : 0), maxWidth: textWidth + (theme.wordRules ? _px(tieSlack) : 0))
+                        centred = true
+                        RuleTrace.hit("word-distributed-lone-last-character-is-centred")
+                    }
+                }
+                for short in centred ? [] : [_px(0.05), _px(1)] {
                     let spare = textWidth - box.right - short
                     guard spare > 0 else { break }
                     var spread: [Int: Double] = [:]
