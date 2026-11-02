@@ -1326,6 +1326,9 @@ public final class RichLayout {
     /// it stands level with, the room it is held in and the band, from the paragraph's top.
     private var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
     private var _stripPassing = false
+    /// A table floating by the text whose room above it (`w:topFromText`) reaches the text
+    /// before it: the place in the flow it is held at, by table, once that text wraps beside it.
+    private var _floatPin: [String: (page: Int, y: Double)] = [:]
     /// The stretch of a float that a paragraph set beside it really shares,
     /// from the paragraph's own top, as the page it fell on made it
     /// (`_besideBand` takes it over the whole float's).
@@ -1767,7 +1770,11 @@ public final class RichLayout {
                     let mine = _pages[first.page].filter { _cells[$0.paragraph]?.table == table && !$0.repeated }
                     guard let floor = mine.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max(),
                           let ceiling = mine.map({ $0.pageY }).min() else { continue }
-                    let band = (top: max(0, ceiling - first.pageY), bottom: max(0, floor - first.pageY))
+                    // (The room under it that its bottomFromText keeps is beside it too: lo-f48e444e's
+                    // second paragraph has its fourth line 50pt under the table's foot, inside its
+                    // 56.7pt distance, beside it in Word's print, and the fifth at the margin.)
+                    let keep = _px(document.tableStyles[table]?.floatBottomGap ?? 0)
+                    let band = (top: max(0, ceiling - first.pageY), bottom: max(0, floor + keep - first.pageY))
                     // (… and on the pages after it: the paragraph's piece there, level with
                     // the rest of the float.)
                     var more: [(top: Double, bottom: Double)] = []
@@ -1797,7 +1804,9 @@ public final class RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_stripPassing,
            document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0) != nil })
             || (theme.wordRules && RichTextTheme.wordWindowsPages && pageSetup != nil && _columns == 1 && !_stripPassing
-                && document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfBox($0) != nil } })) {
+                && document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfBox($0) != nil } }))
+            || (theme.wordRules && RichTextTheme.wordWindowsPages && pageSetup != nil && _columns == 1 && !_stripPassing
+                && document.tableStyles.values.contains(where: { Self._floatTopGap($0) > 0 })) {
             _stripPassing = true
             defer { _stripPassing = false }
             for _ in 0 ..< 4 {
@@ -1913,7 +1922,48 @@ public final class RichLayout {
                         }
                     }
                 }
+                // (A table floating by the text whose room above it, `w:topFromText`, reaches up into
+                // the text before it on its page: the lines level with that room or the table wrap
+                // beside it, as the text after it does, and the table keeps the place it had before
+                // they did. lo-f48e444e, a 319pt table at tblpY 1 twip with 567 twips kept above it
+                // and 1134 below: Word's print sets all four lines of the 21-word paragraph before it
+                // beside it at 390.3, where ours had one line across the page; the table stays at
+                // 121.8, where that one line leaves it; and the paragraph after it goes on under the
+                // four lines, 170.2, beside it still.)
+                var pins: [String: (page: Int, y: Double)] = [:]
+                var firstOf: [String: Int] = [:]
+                for (k, c) in _cells.enumerated() { if let c, firstOf[c.table] == nil { firstOf[c.table] = k } }
+                for (t, f) in firstOf {
+                    guard let ts = document.tableStyles[t], case let gap = Self._floatTopGap(ts), gap > 0, ts.floatsOverText,
+                          !ts.pageAnchored, ts.floatRaiseY == nil, f < _pieceStart.count, _pieceStart[f] < _allPieces.count else { continue }
+                    let page = _allPieces[_pieceStart[f]].page
+                    let rows = _pages[page].filter { _cells[$0.paragraph]?.table == t && !$0.repeated }
+                    guard let ceiling = rows.map(\.pageY).min(),
+                          let floor = rows.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max() else { continue }
+                    let top = ceiling - _px(gap), bottom = floor + _px(ts.floatBottomGap ?? 0)
+                    var reached = false
+                    for piece in _pages[page] where piece.paragraph < f && !piece.repeated {
+                        let k = piece.paragraph
+                        let q = document.paragraphs[k]
+                        guard q.cell == nil, q.style.frame == nil, k < _heights.count, want[k] == nil else { continue }
+                        let rise = piece.flowBottom - piece.flowTop
+                        guard piece.pageY < bottom - 0.01, piece.pageY + rise > top + 0.01,
+                              let side = _besideIndent(k, q, document, table: t) else { continue }
+                        let fromTop = piece.flowTop - (k < _tops.count ? _tops[k] : 0)
+                        want[k] = (side.indent, (top: top - piece.pageY + fromTop, bottom: bottom - piece.pageY + fromTop), side.right)
+                        reached = true
+                    }
+                    if reached {
+                        RuleTrace.hit("word-text-before-a-float-wraps-beside-it-where-its-top-distance-reaches")
+                        pins[t] = _floatPin[t] ?? (page, ceiling - _px(ts.floatOffsetY ?? 0))
+                    }
+                }
                 var changes: [RichChange] = []
+                for t in Set(pins.keys).union(_floatPin.keys) {
+                    if let a = pins[t], let b = _floatPin[t], a.page == b.page, abs(a.y - b.y) < 0.01 { continue }
+                    if let f = firstOf[t] { changes.append(.changed(f)) }
+                }
+                _floatPin = pins
                 for k in Set(want.keys).union(_stripUse.keys) {
                     let a = want[k], b = _stripUse[k]
                     if let a, let b, abs(a.indent - b.indent) < 0.5, a.right == b.right, abs(a.band.top - b.band.top) < 0.5, abs(a.band.bottom - b.band.bottom) < 0.5 { continue }
@@ -3896,6 +3946,8 @@ public final class RichLayout {
         var floatHold: (limit: Double, back: Double)? = nil
         // The text place the last text-anchored floating table hung from.
         var floatRunBase: (table: String, page: Int, y: Double)? = nil
+        // A table held at its `_floatPin` above where the text before it now ends: that end.
+        var pinnedFrom: (table: String, page: Int, y: Double)? = nil
         // (A floating table kept with its anchor whose offset takes it past
         // the margin: its first row stands there.)
         var keptPastFoot: String? = nil
@@ -5541,6 +5593,10 @@ public final class RichLayout {
                 if ts.floatOffsetY == nil, first > 0, first - 1 < _heights.count, _anchorBesideLeftTable(prev, i, document) {
                     y = top + _px(ts.floatRaiseY ?? 0) + _heights[first - 1]
                 }
+                // (A table held above where the text before it ends: what follows goes on from
+                // that end, beside the table still. lo-f48e444e's second paragraph at 170.2,
+                // under the first's four lines, in Word's print.)
+                if let pf = pinnedFrom, pf.table == prev, pf.page == page { y = max(y, pf.y) }
             }
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
@@ -5859,6 +5915,12 @@ public final class RichLayout {
                        let fb = floatRunBase, fb.table == prevT, fb.page == page,
                        document.tableStyles[prevT]?.floatOffsetY != nil, document.tableStyles[prevT]?.pageAnchored != true {
                         y = fb.y
+                    }
+                    // (Held where it stood before the text above it wrapped beside it: see `_floatPin`.)
+                    if let pin = _floatPin[c.table], pin.page == page, pin.y < y - 0.01 {
+                        RuleTrace.hit("word-float-keeps-its-place-when-the-text-before-it-wraps-beside-it")
+                        pinnedFrom = (c.table, page, y)
+                        y = pin.y
                     }
                     floatRunBase = (c.table, page, y)
                     textFloatTop = (c.table, page, y, _px(down), false)
@@ -14053,13 +14115,13 @@ public final class RichLayout {
         return nil
     }
 
-    private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, right: Bool)? {
+    private func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument, table: String? = nil) -> (indent: Double, right: Bool)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
               !p.style.clearsFloat,
-              let before = _besideSource(i, document)?.cell,
-              let ts = document.tableStyles[before.table], ts.floatsOverText, !ts.pageAnchored,
+              let source = table ?? _besideSource(i, document)?.cell.table,
+              let ts = document.tableStyles[source], ts.floatsOverText, !ts.pageAnchored,
               let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
-              let widths = _columnWidths[before.table] else { return nil }
+              let widths = _columnWidths[source] else { return nil }
         // (A table set at the right margin, `w:tblpXSpec="right"`, takes the text at its left
         // as one placed across does; and a list's items stand there too: lo-717ff943's
         // bullets beside its right-hand table of albums, tdf97090.)
@@ -14070,7 +14132,7 @@ public final class RichLayout {
             return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
         }
         let column = _flowWidth(i)
-        let left = _tableLeft(before.table, document)
+        let left = _tableLeft(source, document)
         let right = left + widths.reduce(0, +)
         // The text's edge: the table's right side and the clear it asks.
         // (Before 2013's layout the text keeps off the table's right cell margin too: lab
@@ -14080,7 +14142,7 @@ public final class RichLayout {
         // exactly that far from the table in Word's print, 390.3, where the outdent
         // as well put ours at 395.4.)
         let edge = right + _px(twips("w:rightFromText") / 20)
-            + ((document.compatibilityMode ?? 0) < 15 && twips("w:rightFromText") < 200 ? _px(document.tableStyles[before.table]?.textOutdentRight ?? 5.4) : 0)
+            + ((document.compatibilityMode ?? 0) < 15 && twips("w:rightFromText") < 200 ? _px(document.tableStyles[source]?.textOutdentRight ?? 5.4) : 0)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         // (A table in the left half, or one that fills most of the column, whose
         // text beside it in the strip left at its right is a few words wide:
@@ -19115,6 +19177,14 @@ public final class RichLayout {
     static func _framePlaced(_ f: ParagraphFrame) -> Bool {
         guard let a = f.verticalAlign else { return true }
         return f.verticalAnchor == "margin" && f.height != nil && (a == "top" || a == "center" || a == "bottom")
+    }
+
+    /// The room a table floating by the text keeps clear above it (`w:topFromText`, points),
+    /// for one anchored to the text; 0 for none.
+    static func _floatTopGap(_ ts: TableStyle) -> Double {
+        guard let kept = ts.keptPosition, kept.containsSubstring("w:vertAnchor=\"text\""),
+              let r = kept.rangeOfSubstring("w:topFromText=\"") else { return 0 }
+        return (Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0) / 20
     }
 
     /// A frame a style defines, of an exact height and a width, aligned on the margins
