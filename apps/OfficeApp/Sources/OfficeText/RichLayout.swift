@@ -17137,6 +17137,7 @@ public final class RichLayout {
             return out
         }
         guard textWidth > 1, textWidth < 50_000, units.count >= 20 else { return [] }
+        let hyphenated = _autoHyphenPoints(p, document)
         var k = 0
         while k < units.count {
             guard units[k] > 0x20, units[k] < 0x7F else { k += 1; continue }
@@ -17164,7 +17165,32 @@ public final class RichLayout {
                     let word = String(decoding: units[piece], as: UTF16.self)
                     let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
                     painter.layout(minWidth: 0, maxWidth: 1_000_000)
-                    if painter.width > textWidth { out.formUnion((piece.lowerBound + 1) ..< piece.upperBound) }
+                    if painter.width > textWidth {
+                        if hyphenated.isEmpty || !hyphenated.contains(where: { piece.contains($0) && $0 > piece.lowerBound }) {
+                            out.formUnion((piece.lowerBound + 1) ..< piece.upperBound)
+                        } else {
+                            // (Automatic hyphenation on: the line is parted at the LAST hyphenation point that fits
+                            // with its hyphen, and only where none does at the character the line ends on — zh-147bdae0's
+                            // "(https://www.ndc.gov.tw/Con-" / "tent_List.aspx?n=…" and "…/lflt/in-" / "dex.html)".)
+                            func width(_ r: Range<Int>) -> Double {
+                                let p = TextPainter(text: TextSpan(text: String(decoding: units[r], as: UTF16.self), style: style), textDirection: .ltr)
+                                p.layout(minWidth: 0, maxWidth: 1_000_000)
+                                defer { p.dispose() }
+                                return p.width
+                            }
+                            let hyphenWidth = width(0x2D ..< 0x2E)
+                            var s = piece.lowerBound
+                            while s < piece.upperBound, width(s ..< piece.upperBound) > textWidth {
+                                var e = s + 1
+                                while e < piece.upperBound, width(s ..< (e + 1)) <= textWidth { e += 1 }
+                                if let h = hyphenated.filter({ $0 > s && $0 <= e && width(s ..< $0) + hyphenWidth <= textWidth }).max() {
+                                    s = h
+                                } else {
+                                    out.insert(e); s = e
+                                }
+                            }
+                        }
+                    }
                     painter.dispose()
                 }
             }
