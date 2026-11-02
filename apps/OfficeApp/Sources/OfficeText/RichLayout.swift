@@ -20833,7 +20833,11 @@ public final class RichLayout {
                 // zh-875759ff's even pages, the same runs in a VML box sized
                 // by "— 2 —", part "— 10" / "—".)
                 let latinDashes = box.fitsAsDrawing ? latinAt : []
-                let anyEastAsian = eastAsianFace || units.indices.contains { setEastAsian($0) || (units[$0] == 0x2014 && !latinDashes.contains($0)) }
+                // (A paragraph of a Chinese face with no space and no East Asian
+                // character has nowhere to part: zh-0a56c942's page number "10", digits
+                // in a 4.6pt box fitted by "9", is one line in Word's print where
+                // ours set "1" over "0".)
+                let anyEastAsian = (eastAsianFace && (!RichTextTheme.wordWindowsPages || units.contains(0x20))) || units.indices.contains { setEastAsian($0) || (units[$0] == 0x2014 && !latinDashes.contains($0)) }
                 var spaces = 0.0
                 if anyEastAsian, line > room + 0.5 {
                     let map = layout._map(k)
@@ -20850,6 +20854,22 @@ public final class RichLayout {
             layout.ensureLaidOut(sub)
             _fitWidths["\(image.id)|\(box.hashValue)"] = max(room, need.rounded(.up) + (need > 0 ? 1 : 0)) + _px(box.insetLeft + box.insetRight)
         } else if box.fitsText {
+            // (A paragraph with no space and no East Asian character stands on one line in a box
+            // fitted to its text, wider than the box was sized for: zh-0a56c942's page number "10"
+            // in a 4.6pt box fitted by "9", one line in Word's print, "1" over "0" here.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages {
+                var wide = 0.0
+                for k in 0 ..< sub.paragraphs.count where !sub.paragraphs[k].text.isEmpty
+                    && !sub.paragraphs[k].text.unicodeScalars.contains(where: { $0.value == 0x20 || $0.value >= 0x2E80 }) {
+                    let g = layout.geometry(k)
+                    let right = k < layout._textWidth.count ? max(0, layout.width - g.textLeft - layout._textWidth[k]) : 0
+                    wide = max(wide, g.painter.maxIntrinsicWidth + g.textLeft + right)
+                }
+                if wide > layout.width + 0.5 {
+                    layout.width = wide.rounded(.up) + 1
+                    layout.ensureLaidOut(sub)
+                }
+            }
             var natural = 0.0
             for k in 0 ..< sub.paragraphs.count {
                 let g = layout.geometry(k)
