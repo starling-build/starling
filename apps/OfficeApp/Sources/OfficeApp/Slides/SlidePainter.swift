@@ -1254,6 +1254,15 @@ final class SlidePainter: CustomPainter {
         let w = min(b.width * px, min(box.width, box.height) / 2)
         guard w > 0.25 * px else { return }
         let k = min(1, b.height / b.width / 0.4)
+        // A powder material lays white over the face: translucentPowder prints
+        // as 0.70 of the fill and 30% white under the chilly rig (customGeo's
+        // headers, PowerPoint's print) and 0.60 and 51% under threePt (Lab B).
+        var fill = fill
+        if b.material == "translucentPowder" {
+            let (mul, white) = b.rig == "threePt" ? (0.60, 0.51) : (0.70, 0.30)
+            func ch(_ v: Int) -> Int { min(255, Int((Double(v) * mul + 255 * white).rounded())) }
+            fill = Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue))
+        }
         func shade(_ f: (Int) -> Double) -> Color {
             Color(rgbo: Int(max(0, min(255, f(fill.red))).rounded()), Int(max(0, min(255, f(fill.green))).rounded()),
                   Int(max(0, min(255, f(fill.blue))).rounded()), Double(fill.alpha) / 255)
