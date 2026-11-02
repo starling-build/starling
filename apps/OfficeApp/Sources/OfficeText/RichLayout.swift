@@ -16042,7 +16042,11 @@ public final class RichLayout {
         // held space then occupied an extra blank line before the long
         // Thai word (zh-6a4fc013 Q5). Let the tab and the engine's long-word
         // rule place the following word, without stranding the tab.
-        func parts(_ u: UInt16) -> Bool { u == 0x09 || u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
+        // (The Latin ligatures U+FB00-FB06 are Latin letters, not wide
+        // ones: lo-d1e88d77's "coosnﬁgoosoossr…", 36 letters with a ﬁ in
+        // it, is one word to Word, which sets it on a line of its own.)
+        func wide(_ u: UInt16) -> Bool { u >= 0x2E80 && !(0xFB00 ... 0xFB06).contains(u) }
+        func parts(_ u: UInt16) -> Bool { u == 0x09 || u == 0x20 || u == 0x0A || u == 0x2028 || wide(u) }
         while k < units.count {
             guard !parts(units[k]) else { k += 1; continue }
             var end = k
@@ -16062,7 +16066,7 @@ public final class RichLayout {
             // underscores alone, and "Note: " and the same where it stands.)
             var before = k - 1
             while before > 0, units[before] == 0x20 { before -= 1 }
-            let spaceAfterIdeograph = before >= 0 && units[before] >= 0x2E80
+            let spaceAfterIdeograph = before >= 0 && wide(units[before])
             // (… and in a cell of any width under East Asian layout, after
             // any space: zh-15f60bac's 282pt cell "…研究院(網址: http://www.tri.
             // org.tw/page/consumer.php)及…" ends its line at "(網址: " in Word's
@@ -16070,9 +16074,9 @@ public final class RichLayout {
             let afterSpace = k > 0 && units[k - 1] == 0x20
                 && (narrowCell || p.cell != nil && document.usesEastAsianLayout
                     || p.cell == nil && (!document.usesEastAsianLayout || spaceAfterIdeograph))
-            let afterIdeograph = k > 0 && units[k - 1] >= 0x2E80
+            let afterIdeograph = k > 0 && wide(units[k - 1])
             if afterSpace || afterIdeograph, part - k >= (narrowCell && afterSpace ? 3 : 20),
-               !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {
+               !(k ..< part).contains(where: { wide(units[$0]) }) {
                 var at = 0
                 var run = p.runs[0].style
                 for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
