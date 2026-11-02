@@ -11711,6 +11711,9 @@ public final class RichLayout {
                             // the next. Not where the language is not one —
                             // zh-c5b5087b's en-US carries "（" over.)
                             || (kinsokuOff && ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch)) && Self._eastAsianLineRules(run, document, named: named))
+                            // (A full-width opening quote the same: zh-b00fef0d's "…其中" sends "“1" down whole,
+                            // the quote unable to stay alone at the line's end 12pt over.)
+                            || (kinsokuOff && RichTextTheme.wordWindowsPages && ch != " " && (b == "\u{201C}" || b == "\u{2018}") && runHinted(atOffset: offset - 1) && Self._eastAsianLineRules(run, document, named: named))
                             // (In a line too narrow for one character
                             // every character is a line, the marks
                             // too: zh-830ef10d's 6pt cell sets
@@ -14353,6 +14356,7 @@ public final class RichLayout {
             // (… and an opening one end it, under `w:kinsoku` 0 in text of
             // an East Asian language — zh-72da925e's "…（下稱「": see `_span`.)
             if kinsokuOff, !runRulesOff(o - 1), Self._openingMarks.contains(Character(a)) || Self._latinOpener(Character(a), Character(b)) { return true }
+            if kinsokuOff, RichTextTheme.wordWindowsPages, !runRulesOff(o - 1), a.value == 0x201C || a.value == 0x2018, eastAsianRunAt(o - 1) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
@@ -14707,7 +14711,8 @@ public final class RichLayout {
             // Word's print. Nothing gives for it: zh-c8eb6e92's cell
             // "定标监督小组人员（签名）" carries the "（", 1.15pt over, to the
             // next line.)
-            let openingAlone = kinsokuOff && last - a == 1 && Self._openingUnits.contains(units[a])
+            let openingAlone = kinsokuOff && last - a == 1 && (Self._openingUnits.contains(units[a])
+                || (RichTextTheme.wordWindowsPages && wideQuote(a) && (units[a] == 0x201C || units[a] == 0x2018)))
             if openingAlone, !fits, x + w - width <= _px(0.05) { fits = true }
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
@@ -14735,7 +14740,8 @@ public final class RichLayout {
             // "，", "(" and ")" given 2.3, 2.3 and 2.4 in Word's print. Not under
             // the alternative kinsoku rules: zh-c8eb6e92's cell carries "（签名）"'s
             // "（" over at 1.15pt.)
-            let macBodyOpener = openingAlone && (RichTextTheme.wordWindowsPages ? !document.hangsHalf : !inCell)
+            // (Not a full-width quote before 2013's layout: zh-b00fef0d's "…其中" (mode 12) sends its "“" down 4.05 over with two marks to give.)
+            let macBodyOpener = openingAlone && (RichTextTheme.wordWindowsPages ? !document.hangsHalf && !(legacy && wideQuote(a)) : !inCell)
             let overAtStart = !fits
             if Self.debugFitLog, overAtStart {
                 let pt = theme.pixelsPerPoint * scale
@@ -14932,7 +14938,14 @@ public final class RichLayout {
                 // other faces: there Word hangs them — zh-4c5da793 and
                 // zh-2b955411 fell to 16 and 36 with every such mark kept in.)
                 let spacedEnd = paragraphEnd && uncompressed(tail)
-                let hung = hangs && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                // (Under `w:kinsoku` 0 before 2013's layout a closing mark that is a piece of its own
+                // hangs all the same, and opens the next line only where the line is already full: labs
+                // `kq`, `kq2` (Word for Windows, modes 12 and 14, 16pt, direct or on Normal): "，", "、" and
+                // "”" stay from 15.5 over with any number of marks on the line, and go down at 16.
+                // zh-b00fef0d's "…协同更高效" is squeezed full for its "效", and its "、" opens the next.)
+                let kinsokuHang = RichTextTheme.wordWindowsPages && legacy && fitted && kinsokuOff && !inCell && !turned && last == a + 1
+                    && x < width - _px(0.01) && units[a] >= 0x2000 && p.style.eastAsian["w:overflowPunct"] != "0"
+                let hung = (hangs || kinsokuHang) && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma)
@@ -15389,7 +15402,7 @@ public final class RichLayout {
                     // its half and 0.36 of an em by hanging: lab `kq` (mode 15, 16pt, 26 ideographs) keeps
                     // it 11 over with no other mark, 12 with one, 12.5 with two, 13.5 with four; and in Word's
                     // print zh-72da925e's "…的角色" sends "，" down 12.85 over with one.)
-                    let kinsokuGive = RichTextTheme.wordWindowsPages && !legacy && kinsokuOff && !inCell && !onCharacterGrid && last == a + 1 && units[a] >= 0x2000 && Self._closingUnits.contains(units[a]) && runRulesOff(a) == false ? em * 0.36 : 0
+                    let kinsokuGive = RichTextTheme.wordWindowsPages && !legacy && kinsokuOff && !inCell && !onCharacterGrid && last == a + 1 && units[a] >= 0x2000 && (Self._closingUnits.contains(units[a]) || (wideQuote(a) && (units[a] == 0x201D || units[a] == 0x2019))) && runRulesOff(a) == false ? em * 0.36 : 0
                     let spacedGive = windowsSpaced ? wordSpaces.filter { spaceGives($0.k) }.reduce(0.0) { $0 + $1.w * spaceGiveShare($1.k) } : 0
                     // (The paragraph's last mark kept from hanging, by the
                     // share test with the automatic spaces weighed at half:
@@ -15437,7 +15450,7 @@ public final class RichLayout {
                         guard hang > 0, modern, !lineOther, !inCell, !paragraphEnd, units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B else { return false }
                         guard lineWide > 1, room > 0 else { return true }
                         let gapSum: Double = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
-                        let capacity: Double = lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + gapSum * (RichTextTheme.wordWindowsPages ? 2.05 : 1) - macWordGap + spacedStretch
+                        let capacity: Double = lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
                         return !(need * capacity <= room * (stretchRoom + hair))
                     }()
                     let takenFirst = squeezedFirst && !wordSpaced
@@ -15818,7 +15831,10 @@ public final class RichLayout {
                     let allSpaces: Double = wordSpaces.reduce(0.0) { $0 + $1.w }
                     let weighedSpaces: Double = wordSpaces.filter { spaceWeighs($0.k) }.reduce(0.0) { $0 + $1.w }
                     let giverRoom: Double = givers.reduce(0.0) { $0 + $1.w * spaceGiveShare($1.k) }
-                    let budgetStretch: Double = spaceEms + autoRoom + max(0, weighedSpaces - spaceTrail) * 0.47
+                    // (A hung comma or semicolon weighs the automatic spaces double here too, with no mark on
+                    // the line: lab `hcg`, "工，" and "工；" 1.7 short and not 2.7, where "工並" takes 3.7.)
+                    let hungComma = hang > 0 && (units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B)
+                    let budgetStretch: Double = spaceEms + autoRoom * (hungComma ? 2.08 : 1) + max(0, weighedSpaces - spaceTrail) * 0.47
                     let oldStretch: Double = spaceEms + autoRoom + allSpaces
                     let oldGive: Double = autoRoom * autoGive + allSpaces / 4
                     let budgetGive: Double = autoRoom * autoGive + giverRoom
