@@ -12384,7 +12384,10 @@ public final class RichLayout {
             func close(_ right: Character?) {
                 defer { run = []; nbsp = [] }
                 guard !run.isEmpty, document.balancesSpaceWidth else { return }
-                func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) } ?? false }
+                // (A manual line break is no Latin word before spaces that open the next line: zh-5313b71d's "…发包结果。" ⏎ "    1.发包公告…"
+                // sets its four spaces half an em each from the margin in Word's print, where ours took them for the gap between
+                // Latin words and lost three.)
+                func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) && !(RichTextTheme.wordWindowsPages && ($0 == "\n" || $0 == "\u{2028}")) } ?? false }
                 if nbsp.isEmpty {
                     // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
                     // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
