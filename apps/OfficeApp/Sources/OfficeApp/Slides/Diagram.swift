@@ -2084,7 +2084,14 @@ struct DiagramLayout {
         // (Word sets a diagram's text about 1.9pt lower in its box than the text engine's centring does: lab
         // sa1a-sa4's single lines 1.2 to 2.5pt, lo-8ab9b90f's labels 1.6 to 2.8, whichever way anchored.)
         if wordLayout, let t = bodyPr["tIns"].flatMap(Double.init), let b = bodyPr["bIns"].flatMap(Double.init) {
-            let d = min(b, 1.9 * 12700)
+            // (hProcess11's two texts, lab hp3's prints at 3 to 11 steps: the one above its circle, anchored at the
+            // bottom, stands 0.9pt lower than that 1.9 gives and the one below, anchored at the top, 2.2pt higher —
+            // fixed in Word's box whatever the text's length: baselines 161.66 and 230.21.)
+            var shift = 1.9
+            if layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/hProcess11" {
+                shift = anchor == "b" ? 2.83 : -0.31
+            }
+            let d = shift >= 0 ? min(b, shift * 12700) : shift * 12700
             bodyPr.attrs["tIns"] = String(Int((t + d).rounded()))
             bodyPr.attrs["bIns"] = String(Int((b - d).rounded()))
         }
