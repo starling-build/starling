@@ -7648,6 +7648,8 @@ public final class RichLayout {
     /// a character apart, this says which rule let it on. Every such
     /// paragraph's width against its column's, too.
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
+    /// A machine-readable record of each over-the-margin decision in `_fitEastAsianLines`, to stderr: test/tools/fit-decisions.py joins them with Word's lines.
+    static let debugFitLog = ProcessInfo.processInfo.environment["STARLING_FIT_LOG"] != nil
     /// `STARLING_RICHTEXT_ROWS=<page>`: each table row set on that page,
     /// to stderr (see `_paginate`).
     static let debugRows = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_ROWS"].flatMap { Int($0) }
@@ -10958,6 +10960,19 @@ public final class RichLayout {
             }
             return raise != nil
         }()
+        func runHinted(atOffset o: Int) -> Bool {
+            var c = 0
+            for r in p.runs {
+                if o >= c, o < c + r.length {
+                    let face = theme.faceResolver?(r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)
+                    let high = (r.style.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
+                    let hint = r.style.fontHint ?? named?.char.fontHint
+                    return hint == "eastAsia" || (face?.isEastAsian ?? false) && (hint != "default" || (high?.isEastAsian ?? true))
+                }
+                c += r.length
+            }
+            return false
+        }
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
@@ -11986,8 +12001,11 @@ public final class RichLayout {
                         extra += gap
                         autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
+                                // (The quote's own run says whether it is full-width, where the mark
+                                // ends its run: zh-3ab8a2fb's "，" unhinted before a "“" hinted East
+                                // Asian closes up, 7.13 in Word's print, and its line takes "机".)
                                 || (fullQuotes && !narrowQuotes && (following == "\u{201C}" || following == "\u{2018}") && Self._closingMarks.contains(ch)
-                                    && Self.isEastAsian(following, hinted: hinted))
+                                    && Self.isEastAsian(following, hinted: after < text.endIndex ? hinted : runHinted(atOffset: base + text.utf16.count)))
                                 // (Not a face's own narrow quote, which has no
                                 // blank to give: zh-0aac9d1a's Arial Unicode MS
                                 // "黑名单”。" keeps its 5.52pt "”" before the "。" in
@@ -14006,8 +14024,8 @@ public final class RichLayout {
     /// (`w:kern`, from that size up) and the document's punctuation may.
     private func _closesUpMarks(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
         guard theme.wordRules, document.usesEastAsianLayout, document.kernsPunctuation,
-              let from = run.kerningFrom ?? named?.char.kerningFrom, from > 0 else { return false }
-        return (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) >= from
+              let from = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom, from > 0 else { return false }
+        return (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) >= from
     }
 
     /// What to take off which characters (paragraph offset → pixels,
@@ -14413,6 +14431,7 @@ public final class RichLayout {
                 pieces.append(Piece(a: a, b: b, last: last, w: lineWidth, trail: trail, hard: hard))
             }
         }
+        var loggedParagraph = false
         var adjust: [Int: Double] = [:]
         // (A stretch no line of the cell can hold gives its closing marks'
         // halves before the engine parts it: zh-007ca091's unit cells,
@@ -14467,6 +14486,15 @@ public final class RichLayout {
         var lineBlank = false   // a space character (U+0020) on the line so far
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
         var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
+        // (A space between two Latin characters — inside a word, as against one beside East
+        // Asian text. zh-604e21e5's "…(Backup & Restore)的標準程" sets its two 5.88 of 7 for "程".)
+        func latinFaceSpace(_ k: Int) -> Bool {
+            guard k < runOf.count, !eastAsianRuns[k], units[k] == 0x20 else { return false }
+            return k > 0 && k + 1 < units.count && (units[k - 1] >= 0x2E80 || isSpace(units[k - 1])) && (units[k + 1] >= 0x2E80 || isSpace(units[k + 1]))
+        }
+        func insideLatin(_ k: Int) -> Bool {
+            k > 0 && k + 1 < units.count && units[k - 1] < 0x2E80 && units[k + 1] < 0x2E80 && !isSpace(units[k - 1]) && !isSpace(units[k + 1])
+        }
         var pastFrom: (x: Double, tab: Int)? = nil   // where a tab to a right stop at the margin starts, the piece before ending with it
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
@@ -14601,6 +14629,17 @@ public final class RichLayout {
             // the alternative kinsoku rules: zh-c8eb6e92's cell carries "（签名）"'s
             // "（" over at 1.15pt.)
             let macBodyOpener = openingAlone && (RichTextTheme.wordWindowsPages ? !document.hangsHalf : !inCell)
+            let overAtStart = !fits
+            if Self.debugFitLog, overAtStart {
+                let pt = theme.pixelsPerPoint * scale
+                if !loggedParagraph {
+                    loggedParagraph = true
+                    let flat = String(decoding: units, as: UTF16.self).map { $0.isNewline || $0 == "\t" ? "\u{1F}" : $0 }
+                    let head = "FITP\t\(i)\t\(baseWidth / pt)\t\(document.compatibilityMode ?? 12)\t\(document.characterSpacingControl ?? "-")\t\(inCell ? 1 : 0)\t\(p.style.alignment == .justify ? 1 : 0)\t\(kinsokuOff ? 1 : 0)\t\(document.hangsHalf ? 1 : 0)\t\(document.marksCentred ? 1 : 0)\t\(document.balancesSpaceWidth ? 1 : 0)\t\(onCharacterGrid ? 1 : 0)\t\(_inTextBox ? 1 : 0)\t\(String(flat))\n"
+                    FileHandle.standardError.write(Data(head.utf8))
+                }
+                FileHandle.standardError.write(Data("FITO\t\(i)\t\(lineNumber)\t\(a)\t\(last)\t\(x / pt)\t\(w / pt)\t\(width / pt)\t\(after / pt)\t\(marks.count)\t\(own.count)\t\(lineWide)\t\(lineEms / pt)\t\(lineOther ? 1 : 0)\n".utf8))
+            }
             if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
                 let over = x + w - width
                 let tail = last - 1
@@ -15226,7 +15265,7 @@ public final class RichLayout {
                     // "(五)…須上傳「台灣社區通」" takes "通」" 2.96pt over, its
                     // "」" halved to end on the margin in Word's print.)
                     let wordSpaced = modern && lineOther && !onCharacterGrid && !inCell && !(paragraphEnd && hung == 0 && (!own.contains(tail) || Self._pauseMarks.contains(units[tail])))
-                    let spacedStretch = wordSpaced ? wordSpaces.reduce(0.0) { $0 + $1.w } * 0.44 : 0
+                    let spacedStretch = wordSpaced ? wordSpaces.filter { !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && latinFaceSpace($0.k)) }.reduce(0.0) { $0 + $1.w } * 0.44 : 0
                     // (The paragraph's last mark kept from hanging, by the
                     // share test with the automatic spaces weighed at half:
                     // see `squeezedFirst`. zh-d746674a's "…應予以提供。" and
@@ -15491,6 +15530,13 @@ public final class RichLayout {
                         return need > min(mid, 0.823 * em) + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
                     }()
                     let taken = takenFirst && !gridCapped && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    if Self.debugFitLog {
+                        let pt = theme.pixelsPerPoint * scale
+                        let gapSum = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
+                        let wsSum = wordSpaces.reduce(0.0) { $0 + $1.w }
+                        let flags = "\(modern ? 1 : 0)\t\(legacy ? 1 : 0)\t\(wide ? 1 : 0)\t\(lineOther ? 1 : 0)\t\(wordSpaced ? 1 : 0)\t\(squeezedFirst ? 1 : 0)\t\(paragraphEnd ? 1 : 0)\t\(latinWord ? 1 : 0)\t\(oneLatin ? 1 : 0)\t\(gridCapped ? 1 : 0)\t\(kept ? 1 : 0)\t\(commaHangRefused ? 1 : 0)"
+                        FileHandle.standardError.write(Data("FITQ\t\(i)\t\(a)\t\(over / pt)\t\(hung / pt)\t\(hang / pt)\t\(need / pt)\t\(room / pt)\t\(markRoom / pt)\t\(all.count)\t\(given.count)\t\(gapSum / pt)\t\(wordSpaces.count)\t\(wsSum / pt)\t\(stretchRoom / pt)\t\(lead / pt)\t\(set / pt)\t\(before / pt)\t\(em / pt)\t\(finalGive / pt)\t\(takenFirst ? 1 : 0)\t\(taken ? 1 : 0)\t\(flags)\n".utf8))
+                    }
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken) — \(lineWide) characters of \(lineEms / pt) ems, \(given.count) spaces, other \(lineOther)\n".utf8))
@@ -15545,8 +15591,14 @@ public final class RichLayout {
                 // Without the balance they give after a space too: zh-f2ca3070's
                 // "…共同工作空間   席", 4.80 of 6. A Latin word after them keeps
                 // lab `jg`'s rule: zh-4b8e0abc's Indonesian, balanced, mode 15.)
+                // (Nor, in Word for Windows, anywhere before it on a line with no automatic
+                // space: nothing but word spaces to give, or marks that have already failed
+                // their test, and an ideograph goes down. zh-dc9cfa34's "…内各类需实" leaves
+                // "际" 0.4pt over with two spaces of 8; zh-e0ca7252's "…非經機關同意，" "廠"
+                // 6.05 with eight and three marks.)
                 if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
+                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && !inCell && eastAsianAt(a) && (spaces + ownSpaces).isEmpty && !wordSpaces.contains { insideLatin($0.k) }),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     let need = x + w - after - width - hang
@@ -15630,6 +15682,10 @@ public final class RichLayout {
                         || need * (lineEms * Double(max(0, lineWide - 1)) / Double(max(1, lineWide)) / 64 + autoRoom
                                    + wordSpaces.reduce(0.0) { $0 + $1.w })
                             <= (autoRoom / 2 + wordSpaces.reduce(0.0) { $0 + $1.w } / 4) * (width - x + hair)
+                    if Self.debugFitLog {
+                        let pt = theme.pixelsPerPoint * scale
+                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\n".utf8))
+                    }
                     if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
@@ -15656,6 +15712,7 @@ public final class RichLayout {
                         fits = true
                     }
                 }
+                if Self.debugFitLog, overAtStart { FileHandle.standardError.write(Data("FITR\t\(i)\t\(a)\t\(fits ? 1 : 0)\n".utf8)) }
                 if fits {
                     // The line is full: whatever comes next starts another.
                     x = width
@@ -15786,6 +15843,15 @@ public final class RichLayout {
             // with them gone — Windows mode keeps the old weighing.)
             let flanked = theme.wordRules && !RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && last > a && piece.b < units.count
                 && units[last - 1] >= 0x2E80 && units[piece.b] >= 0x2E80
+            // (Spaces inside a stretch — a closing mark kept with what its spaces
+            // follow — are the line's word spaces too: zh-e0ca7252's "…費用達", nine
+            // underlined spaces, "元(上限，…" stretches them 7 to 8 and leaves
+            // "能" 7.3pt over rather than squeeze its three marks.)
+            if squeezesSpaces, !flanked, RichTextTheme.wordWindowsPages, last > a {
+                for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) }) {
+                    wordSpaces.append((k, boxes(k, k + 1)))
+                }
+            }
             if squeezesSpaces || pageBox, piece.trail > 0, last < piece.b, !flanked {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
