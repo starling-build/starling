@@ -3300,6 +3300,8 @@ enum ChartPainter {
         let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
         let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
+        var valueLabelsBack = 0.0
+        let widenedPlain = plainUntitledWord && c.valueTicksOut && c.type == .column
         if horizontal {
             // (A 2007-style slide chart's plot stands 1.9 pt further right
             // and 3.8 pt higher at the bottom: bar-chart's in PowerPoint's
@@ -3392,6 +3394,10 @@ enum ChartPainter {
                    // 60.58 / 55.73 / 50.88 under the frame's top for a title of 18 / 14 / 10pt, ours 55.2 / 50.4 /
                    // 45.5; untitled they agree, 29.81 and 29.7. zh-b8de3ae2's four charts: 121 against 117.)
                    : word && c.barView != nil && titled ? 5.4 * k : 0)
+            // (An untitled 2007-style chart in a Word document, ticks out: its plot is 7.4 pt wider
+            // at the left and 5.4 at the right than ours stood — lo-79680f48's axis from 97.9 to 305.3
+            // in Word for Windows' print, ours 105.3 to 299.9, its value labels where ours are.)
+            if widenedPlain { left -= 7.4 * k; right -= 5.4 * k; valueLabelsBack = 7.4 * k }
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
@@ -3642,7 +3648,7 @@ enum ChartPainter {
                 let lift = libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D, p - tp.height / 2 - lift))
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
             }
         }
         // The second axis' labels, beside the plot's right edge.
@@ -3803,7 +3809,7 @@ enum ChartPainter {
                     }
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k))
                 }
             }
         }
