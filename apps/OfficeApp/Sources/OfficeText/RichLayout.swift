@@ -2551,7 +2551,7 @@ public final class RichLayout {
     /// print. A vertical cell's too: zh-74b34f3b's tbRlV "東引鄉活動中心
     /// 2樓" keeps its ideographs upright and lays the "2" on its side,
     /// where its "2" had turned ours whole.)
-    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, mixed: Bool = false, centred: Bool = false) -> Bool {
+    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         func wide(_ u: UInt16) -> Bool { u >= 0x2E80 && !(u >= 0xD800 && u <= 0xDFFF) && u != 0xFFFC }
@@ -2596,8 +2596,13 @@ public final class RichLayout {
         let ownBoxes = shown.map { painter.getBoxesForSelection(TextSelection(baseOffset: $0, extentOffset: $0 + 1)).first }
         func across(_ box: TextBox) -> Double {
             var tallest = box
-            for case let other? in ownBoxes where other.top < box.bottom && other.bottom > box.top
-                && other.bottom - other.top > tallest.bottom - tallest.top { tallest = other }
+            // (Overlapping by more than half, and taller by more than
+            // rounding: exact-height lines overlap their neighbours by a
+            // sliver, and equal boxes differing in the last bit made
+            // every character take the next column's place — zh-264d7516.)
+            let half = (box.bottom - box.top) / 2
+            for case let other? in ownBoxes where min(other.bottom, box.bottom) - max(other.top, box.top) > half
+                && other.bottom - other.top > tallest.bottom - tallest.top + 0.01 { tallest = other }
             return (tallest.top + tallest.bottom) / 2
         }
         // (Each column on by half its first character's letter spacing, as
@@ -2626,6 +2631,19 @@ public final class RichLayout {
                 let advance = box.right - box.left
                 let left = Double(n) * (painter.width - advance) / Double(shown.count - 1)
                 box = TextBox(fromLTRBD: left, box.top, left + advance, box.bottom, box.direction)
+            }
+            // (A justified paragraph's full columns spread over the
+            // width, the last one not: zh-264d7516's tbRlV "被征地农户人员信息"
+            // in a 33pt cell, two to a column 16.2pt apart in Word's print.)
+            if justify, !distribute {
+                let first = painter.getLineBoundary(TextPosition(offset: k)).start
+                let mates = shown.filter { painter.getLineBoundary(TextPosition(offset: $0)).start == first }
+                if mates.count > 1, let at = mates.firstIndex(of: k), shown.last.map({ painter.getLineBoundary(TextPosition(offset: $0)).start != first }) ?? false {
+                    let head = ownBoxes[shown.firstIndex(of: mates[0]) ?? n]
+                    let advance = head.map { $0.right - $0.left } ?? box.right - box.left
+                    let left = Double(at) * (painter.width - advance) / Double(mates.count - 1)
+                    box = TextBox(fromLTRBD: left, box.top, left + advance, box.bottom, box.direction)
+                }
             }
             // (DFKai-SB has no vertical forms: Word's prints of its tbRlV
             // columns hold the plain "、" at the plain step, none of
@@ -19895,10 +19913,10 @@ public final class RichLayout {
             let fromStart = document.paragraphs[i].style.eastAsian["w:jc"] == nil && (aligned == .left || aligned == .justify)
             let along = c.alongStart + indent
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
-                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 ? min(indent, _px(2.25)) : 0)
+                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i])
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
-               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", mixed: true, centred: aligned == .center) {
+               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
                 canvas.restore()
                 return
             }
