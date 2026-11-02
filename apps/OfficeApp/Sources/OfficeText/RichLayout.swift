@@ -4913,6 +4913,17 @@ public final class RichLayout {
             // keepNext alone sends the row whole, with or without keepLines or
             // widow control; zh-604e21e5's and zh-457a8d62's rows are such.)
             if theme.wordRules, document.paragraphs[i].style.keepNext, ts.keptPosition == nil, c.ownRowHeight <= contentH + 0.01 { return false }
+            // (Nor a row with a table floating in one of its cells, that a page could hold: lo-5c5eb1f7's
+            // "26" row, a float table in each of two cells, goes whole to page 6 in Word's print
+            // where ours parted it at page 5's foot.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, c.ownRowHeight <= contentH + 0.01 {
+                for k in i ..< j {
+                    let q = document.paragraphs[k]
+                    for image in Array(q.inlineImages.values) + [q.image].compactMap({ $0 }) {
+                        if image.textBox?.growsToFit == true, image.float != nil { RuleTrace.hit("row-with-a-floating-table-in-a-cell-goes-whole"); return false }
+                    }
+                }
+            }
             // (Nor where the page's footer holds a sized, raised frame and
             // reaches above its bottom margin:
             // there Word parts no row at the page's foot, but sends it to the
