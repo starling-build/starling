@@ -12711,7 +12711,13 @@ public final class RichLayout {
             // the line out to the left and leaves it that much longer.
             // It is one more character in the painter's text than in the
             // paragraph's: `_lead` says so to every offset that crosses.
-            var leadChar = p.runs[0].style
+            // (A floating object's anchor opening the paragraph is no text: the label
+            // is set against the first run of text — lo-eb12e7d4's "4.2", a picture
+            // wrapped top and bottom in its first run, stood 5.1pt low of Word's.)
+            let anchorFirst = theme.wordRules && RichTextTheme.wordWindowsPages
+                && p.runs[0].style.inlineImage.map({ p.inlineImages[$0]?.float != nil }) == true
+            let firstLook: CharStyle = anchorFirst ? (_firstTextRun(p)?.style ?? p.runs[0].style) : p.runs[0].style
+            var leadChar = firstLook
             // (A list paragraph's first line is as tall as its number's
             // face asks: Word sets the bullet in its level's font, and
             // form_footnotes' Symbol bullets make its 10pt lines 12.24
@@ -12747,7 +12753,7 @@ public final class RichLayout {
             // paragraph set what followed that much lower.)
             var rise: Double? = nil
             if theme.wordRules, let size = _levelNumberSize(p, document) ?? (p.style.list != nil ? _markSize(p, document) : nil),
-               size > (p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
+               size > (firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
                 leadChar.fontSize = size
                 // (On a line grid the whole line of that size, as before:
                 // the grid sets lines by pitches, and zh-64044a1d's "圖1"
