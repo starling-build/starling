@@ -1,0 +1,27 @@
+# doc	page	n	x0	y0	y1	h	pitch	text
+a	1	1	433.5	150.02	161.21	11.19		Deleted: D1
+a	1	2	433.5	162.02	173.23	11.21	12.00	Deleted: D2
+a	1	3	433.5	174.05	186.43	12.38	12.03	Formatted: Font: 9 pt
+a	1	4	433.5	187.25	199.54	12.29	13.20	Formatted: Font: 9 pt
+# a p1: 4 balloons, page h 792
+b	1	1	433.5	150.02	161.21	11.19		Deleted: D1 D2 D3 D4 D5
+b	1	2	433.5	162.02	173.23	11.21	12.00	Deleted: D6
+b	1	3	433.5	174.05	186.43	12.38	12.03	Formatted: Font: 9 pt
+# b p1: 3 balloons, page h 792
+c	1	1	433.5	150.02	162.31	12.29		Formatted: Font: 9 pt
+c	1	2	433.5	163.22	175.51	12.29	13.20	Formatted: Font: 9 pt
+# c p1: 2 balloons, page h 792
+d	1	1	433.5	150.02	161.21	11.19		Deleted: D1
+d	1	2	433.5	162.02	174.41	12.39	12.00	Formatted: Font: 9 pt
+# d p1: 2 balloons, page h 792
+e	1	1	433.5	150.02	161.21	11.19		Deleted: D1
+e	1	2	433.5	162.02	174.41	12.39	12.00	Formatted: Font: 9 pt
+e	1	3	433.5	175.22	187.51	12.29	13.20	Formatted: Font: 9 pt
+# e p1: 3 balloons, page h 792
+f	1	1	433.5	150.02	161.21	11.19		Deleted: D1
+f	1	2	433.5	162.02	173.23	11.21	12.00	Deleted: D2
+f	1	3	433.5	174.05	185.26	11.21	12.03	Deleted: D3 D4 D5 D6 D7
+f	1	4	433.5	186.07	197.26	11.19	12.02	Deleted: D8
+f	1	5	433.5	198.07	210.46	12.39	12.00	Formatted: Font: 9 pt
+f	1	6	433.5	211.27	223.66	12.39	13.20	Formatted: Font: 9 pt
+# f p1: 6 balloons, page h 792
