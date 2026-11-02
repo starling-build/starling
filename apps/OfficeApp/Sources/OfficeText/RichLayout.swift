@@ -9834,7 +9834,15 @@ public final class RichLayout {
                 }
             }
         }
-        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs)
+        // (A run of tabs in Word for Windows does not hang past the margin as spaces do: each
+        // goes to the next line when its stop is past the margin, and the stops start again
+        // there — tdf92157's signature block, 9 and 23 tabs, "Zaken," five stops in on the
+        // third line; ours let them all hang and set the text at the margin's start.)
+        let tabRuns: Set<Int> = theme.wordRules && RichTextTheme.wordWindowsPages
+            ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
+            : []
+        if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
+        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth
