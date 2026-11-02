@@ -12,3 +12,5 @@ b_text: the anchor paragraph holds the letter X before the logo.
 b_before0: the anchor paragraph has spacing before 0, after 0, single line.
 b_margin / b_page: the table's vertAnchor margin / page (tblpY the same 28.8pt).
 b_offset0: the logo's paragraph offset 0 instead of -70pt.
+Round 2 (same questions; Normal 36pt etc. as above): b_fy1000 / b_fy2400 = frame paragraph at y 1000 / 2400 twips from the page (orig 1705);
+b_ty0 / b_ty1152 = the table's tblpY 0 / 1152 twips (orig 576). Please send: the table's first text baseline, the empty anchor line's span top, the text paragraph's first baseline.
