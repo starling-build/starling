@@ -1948,6 +1948,24 @@ enum DocxFormat {
                         }
                     }
                     if wider { tableColumns[id] = widest }
+                    // (A table nested in a cell takes its columns from its cells' stated
+                    // widths, scaled to the room its grid has: lo-5c5eb1f7's header table,
+                    // cells of 1266 and 7868 twips over a grid of 1253 and 5354, has its
+                    // first column 45pt in Word's print, 1266 of 9134 of the grid's
+                    // 330pt, where the grid's own gave 62.7.)
+                    else if currentCell != nil || depth > 0, let first = unwrapped(node, "w:tr").first, first.first("w:trPr")?.first("w:gridBefore") == nil {
+                        var widths: [Double] = []
+                        var ok = true
+                        for tc in unwrapped(first, "w:tc") {
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            guard w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? ""), v > 0, tc.first("w:tcPr")?.first("w:gridSpan") == nil else { ok = false; break }
+                            widths.append(v / 20)
+                        }
+                        let total = widths.reduce(0, +)
+                        if ok, widths.count == cols.count, total > gridTotal * 1.05 {
+                            tableColumns[id] = widths.map { $0 / total * gridTotal }
+                        }
+                    }
                 }
                 // (A table with no grid at all has its first row's cells for one:
                 // LibreOffice's floattable-nested-3tables, tables of 2000-twip

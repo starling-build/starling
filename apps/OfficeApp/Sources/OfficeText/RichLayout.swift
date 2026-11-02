@@ -1247,6 +1247,8 @@ public final class RichLayout {
     private var _flowHeight = 0.0
     private var _columnWidths: [String: [Double]] = [:]   // px, per table
     private var _nestedInFixedTable = false
+    /// A table nested in a cell, set as a block: Word's nested table is not set out by its cell margin, as a body's is.
+    private var _nestedBlock = false
     /// The room a nested table has where its autofitting parent already
     /// spans its page's text: past it the child keeps its saved grid and
     /// its content overflows (pixels; nil elsewhere).
@@ -1949,7 +1951,7 @@ public final class RichLayout {
         // compatibility mode 15 on the indent is the edge's place and
         // nothing is set out (labs `tc` and `tc15`, 2026-10-14: zh-4c3793e8's
         // centred table had been 5.4pt left of Word's).
-        let old = theme.wordRules && (document.compatibilityMode ?? 0) < 15
+        let old = theme.wordRules && (document.compatibilityMode ?? 0) < 15 && !(RichTextTheme.wordWindowsPages && _nestedBlock)
         let style = document.tableStyles[table]
         // (One of cell spacing by its first cell's whole text inset —
         // its own margin, the spacing twice and half its line — the
@@ -18775,6 +18777,7 @@ public final class RichLayout {
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout._nestedInFixedTable = fixedParent
+        layout._nestedBlock = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell } != nil
         layout._nestedNarrowed = fitted.map { $0 < image.width - 0.5 } ?? false
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
