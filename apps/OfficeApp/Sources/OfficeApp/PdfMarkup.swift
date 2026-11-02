@@ -26,6 +26,8 @@ struct PdfMarkup {
         /// sets its balloon text in from them, at a quarter (lab ctdel).
         var indentLeft = 0.0
         var indentRight = 0.0
+        /// The deleted pictures standing in its text, one to each U+FFFC, as (width, height) in points.
+        var pictures: [(Double, Double)] = []
         var isComment: Bool { label.hasPrefix("Commented") }
     }
 
@@ -99,6 +101,7 @@ struct PdfMarkup {
                     own = head.text.utf16.count
                     head.text += p.text
                     head.runs = runs
+                    for (key, image) in p.inlineImages { head.inlineImages[key] = image }
                     head.style = p.style
                     p = head
                 } else if head.cell != nil, head.text.isEmpty, head.image == nil {
@@ -150,6 +153,9 @@ struct PdfMarkup {
                         // A list item deleted with its mark loses its number
                         // too, which Word writes "<#>" (delins's tika items).
                         if start == own, run.length > 0, p.style.list != nil, p.style.markRevision?.kind == .deleted { piece = "<#>" + piece }
+                        if piece.contains("\u{FFFC}"), let id = run.style.inlineImage, let image = p.inlineImages[id] {
+                            for u in piece.unicodeScalars where u == "\u{FFFC}" { open!.pictures.append((image.width, image.height)) }
+                        }
                         open!.paragraphs[open!.paragraphs.count - 1] += piece
                     } else {
                         // (Text of a joined head's own, before the deletion that
@@ -646,11 +652,22 @@ struct PdfMarkup {
                note.family == nil || note.family == OfficeFonts.drawn(name),
                let face = theme.faceResolver?(name, false), face.advances != nil { exactFace = face }
             let plain = TextStyle(color: Color(0xFF000000), fontSize: size, height: exactFace?.naturalHeight ?? lineHeight, fontFamily: exactFace?.family ?? note.family ?? family)
+            var pictureAt = 0
+            var placeholders: [PlaceholderDimensions] = []
             func exactSpans(_ text: String, _ style: Flutter.TextStyle) -> [InlineSpan] {
-                guard let face = exactFace, let table = face.advances else { return [TextSpan(text: text, style: style)] }
+                guard windows, note.label == "Deleted:", exactFace != nil || text.contains("\u{FFFC}") else { return [TextSpan(text: text, style: style)] }
+                let table = exactFace?.advances ?? []
                 var out: [InlineSpan] = []
                 for ch in text {
-                    guard ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E, u - 0x20 < UInt32(table.count) else {
+                    // (A deleted picture stands in the balloon at its own size, on the line's baseline: lo-fc75bd78.)
+                    if ch == "\u{FFFC}", pictureAt < note.pictures.count {
+                        let (w, h) = note.pictures[pictureAt]
+                        pictureAt += 1
+                        out.append(BalloonImageSpan(alignment: .baseline, baseline: .alphabetic, style: style))
+                        placeholders.append(PlaceholderDimensions(size: Size(w, h), alignment: .baseline, baseline: .alphabetic))
+                        continue
+                    }
+                    guard exactFace != nil, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E, u - 0x20 < UInt32(table.count) else {
                         out.append(TextSpan(text: String(ch), style: style)); continue
                     }
                     let probe = TextPainter(text: TextSpan(text: String(ch), style: style), textDirection: .ltr)
@@ -700,6 +717,7 @@ struct PdfMarkup {
             }
             let tp = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
             tp.fractionalLineHeights = true
+            if !placeholders.isEmpty { tp.setPlaceholderDimensions(placeholders) }
             // (A deletion's text stands 8.8pt further in: delins's "Deleted:"
             // lines start at 424.0 where its "Formatted:" ones do at 417.9,
             // scaled, and part where Word's do. Word for Windows indents only
@@ -813,4 +831,28 @@ struct PdfMarkup {
             }
         }
     }
+}
+
+/// The span a picture in a balloon occupies: a placeholder on the baseline, sized by the painter's
+/// dimensions (`RichImageSpan`'s twin, which OfficeText keeps to itself).
+final class BalloonImageSpan: PlaceholderSpan {
+    override func build(
+        _ builder: any FlutterSwiftBridge.ParagraphBuilder,
+        textScaler: any TextScaler = TextScalers.noScaling,
+        dimensions: [PlaceholderDimensions]? = nil
+    ) {
+        let hasStyle = style != nil
+        if hasStyle { builder.pushStyle(style!.getTextStyle(textScaler: textScaler)) }
+        let index = builder.placeholderCount
+        if let dimensions, index < dimensions.count {
+            let d = dimensions[index]
+            builder.addPlaceholder(d.size.width, d.size.height, d.alignment,
+                                   scale: 1.0, baselineOffset: d.baselineOffset, baseline: d.baseline)
+        } else {
+            builder.addPlaceholder(0, 0, alignment, scale: 1.0, baselineOffset: nil, baseline: baseline)
+        }
+        if hasStyle { builder.pop() }
+    }
+
+    override func debugAssertIsValid() -> Bool { true }
 }
