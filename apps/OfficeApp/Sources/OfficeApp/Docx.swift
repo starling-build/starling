@@ -462,6 +462,12 @@ enum DocxFormat {
             if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, f["w:w"] == nil, f["w:h"] == nil,
                f["w:vAnchor"] == "text", f["w:hAnchor"] == "page", f["w:xAlign"] == "outside" || f["w:xAlign"] == "inside",
                f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
+            // (A frame of no stated size, at an x on the page beside the text: its
+            // box stands at that x whatever column the text is in, as wide as the
+            // column — LibreOffice's tdf135035, in a column section of three.)
+            if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, f["w:w"] == nil, f["w:h"] == nil,
+               f["w:vAnchor"] == "text", f["w:hAnchor"] == "page", f["w:xAlign"] == nil, Double(f["w:x"] ?? "") != nil,
+               f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
                   f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
@@ -505,7 +511,27 @@ enum DocxFormat {
             var kept: [XNode] = []
             for (frame, range) in runs {
                 var w = Int((Double(frame["w:w"] ?? "") ?? 0) * 635), h = Int((Double(frame["w:h"] ?? "") ?? 0) * 635)
-                if w == 0, h == 0 {
+                let sizedByColumn = w == 0 && h == 0 && frame["w:hAnchor"] == "page" && frame["w:x"] != nil && frame["w:xAlign"] == nil
+                    && frame["w:vAnchor"] == "text" && kids[range.lowerBound].descendant("w:t") != nil
+                var columnPoints = 0.0
+                if sizedByColumn {
+                    // (The column the section sets: the page less its margins, less the
+                    // gaps, over the columns — the section that ends at or after the frame.)
+                    var sect: XNode? = nil
+                    var q = range.lowerBound
+                    while q < kids.count, sect == nil { sect = kids[q].first("w:pPr")?.first("w:sectPr") ?? (kids[q].name == "w:sectPr" ? kids[q] : nil); q += 1 }
+                    if let sect, let size = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
+                       let pw = Double(size["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") {
+                        let n = max(1, Double(sect.first("w:cols")?["w:num"] ?? "") ?? 1)
+                        let gap = Double(sect.first("w:cols")?["w:space"] ?? "") ?? 720
+                        columnPoints = ((pw - l - r - gap * (n - 1)) / n) / 20
+                    }
+                }
+                if sizedByColumn, columnPoints > 0 {
+                    // (Its lines wrap at the column, its borders outside the text.)
+                    RuleTrace.hit("docx-frame-without-size-is-a-column-wide-box")
+                    w = Int((columnPoints + 3.5) * 12700); h = Int(14 * 12700)
+                } else if w == 0, h == 0 {
                     // (Sized by its text: the characters at the run's size, and the exact line.)
                     let pPr = kids[range.lowerBound].first("w:pPr")
                     let chars = kids[range.lowerBound].descendants("w:t").reduce(0) { $0 + ($1.text.count) }
@@ -539,10 +565,14 @@ enum DocxFormat {
                 let relH = ["page": "page", "margin": "margin"][frame["w:hAnchor"] ?? ""] ?? "column"
                 let horizontal: String
                 if let a = frame["w:xAlign"] { horizontal = "<wp:align>\(a)</wp:align>" }
-                else { horizontal = "<wp:posOffset>\(Int((Double(frame["w:x"] ?? "") ?? 0) * 635))</wp:posOffset>" }
+                else {
+                    // (The text, not its border, is at the x.)
+                    let inset = 0.0
+                    horizontal = "<wp:posOffset>\(Int(((Double(frame["w:x"] ?? "") ?? 0) / 20 - inset) * 12700))</wp:posOffset>"
+                }
                 let wrap = frame["w:wrap"] == "notBeside" ? "<wp:wrapTopAndBottom/>" : "<wp:wrapSquare wrapText=\"bothSides\"/>"
                 let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
-                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpaceL)\" distR=\"\(hSpaceR)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"\(relV)\">\(vertical)</wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\"\(direction.map { " vert=\"\($0)\"" } ?? "") lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+                let xml = "<w:r \(ns)><w:drawing><wp:anchor distT=\"\(vSpace)\" distB=\"\(vSpace)\" distL=\"\(hSpaceL)\" distR=\"\(hSpaceR)\" simplePos=\"0\" relativeHeight=\"0\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"\(relH)\">\(horizontal)</wp:positionH><wp:positionV relativeFrom=\"\(relV)\">\(vertical)</wp:positionV><wp:extent cx=\"\(w)\" cy=\"\(h)\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>\(wrap)<wp:docPr id=\"1\" name=\"Frame\"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp><wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(w)\" cy=\"\(h)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent/></wps:txbx><wps:bodyPr wrap=\"square\"\(direction.map { " vert=\"\($0)\"" } ?? "") lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\" anchor=\"t\">\(sizedByColumn && columnPoints > 0 ? "<a:spAutoFit/>" : "<a:noAutofit/>")</wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
                 guard let drawing = XNode.parse(Data(xml.utf8)), let content = drawing.descendant("w:txbxContent") else {
                     kept.append(contentsOf: kids[range]); continue
                 }

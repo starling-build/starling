@@ -19246,6 +19246,7 @@ public final class RichLayout {
         case "left": x = bandLeft
         default: x = bandLeft + _px(float.x)
         }
+        if theme.wordRules, _floatColumnShift != 0, float.horizontalFrom == "page", float.horizontalAlign == nil { x -= _floatColumnShift }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
         // (From the character's own place: in a line set centred or right the
         // line's first box, not the paragraph's edge — zh-f47b8a74 p58's
@@ -19549,6 +19550,14 @@ public final class RichLayout {
 
     /// How far paragraph `i`'s text starts from its column's left edge
     /// (its indents; a cell's place is left out of it).
+    /// How far the column being painted stands right of the page's first
+    /// column (pixels): a box placed from the page is placed from the page
+    /// whatever column its anchor is in, and the paint moves by the column.
+    private var _floatColumnShift = 0.0
+    private func _pageFloat(_ i: Int) -> Bool {
+        let images = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
+        return images.contains { $0.float?.horizontalFrom == "page" && $0.float?.horizontalAlign == nil }
+    }
     private func _marginFloat(_ i: Int) -> Bool {
         let images = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
         return images.contains { $0.float?.horizontalFrom == "margin" }
@@ -20368,6 +20377,7 @@ public final class RichLayout {
                         // stands outside its anchor's column: lo-7afc5602.)
                         let across = acrossTable || _fullWidthCover.contains(piece.paragraph)
                             || (_perSection && manyColumns && _marginFloat(piece.paragraph))
+                            || (manyColumns && RichTextTheme.wordWindowsPages && _pageFloat(piece.paragraph) && _cells[piece.paragraph] == nil)
                         let clipL = across ? 0 : columnClipL
                         let clipR = across ? _pxPageW(p) : columnClipR
                         let top = pageTop + piece.pageY + (verticalShifts?[slot * 1_000_000 + pieceIndex] ?? 0)
@@ -20455,7 +20465,9 @@ public final class RichLayout {
                         }
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _paintShading(piece.paragraph, canvas, document, part: piece.part) } else {
+                            _floatColumnShift = (manyColumns && RichTextTheme.wordWindowsPages && _cells[piece.paragraph] == nil) ? left - _pxMarginLeft(p) : 0
                             _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                            _floatColumnShift = 0
                             _paintPartedRules(piece, canvas, document)
                         }
                         lines?.painter.dispose()
