@@ -9574,7 +9574,13 @@ public final class RichLayout {
             // line was the fallback face's own, 29.1. The engine's forced
             // strut does not see the box, so its lift is measured from a
             // layout without the strut.)
-            let strut = picturesInLine ? nil : _strut(span, near: spacedOver)
+            // (A picture in a line makes that line its own height, and a held strut
+            // would take it down to the text's: kept, in a right-to-left paragraph of Word's
+            // Windows print, where the pictures stand in the first line, which is then lifted
+            // as the picture's height takes it — see below. lo-7ec36a70's rows of Persian, 13.8pt
+            // in Word's print, were 16.2 in the fallback face's own height, a 43pt picture
+            // opening one of them.)
+            let strut = picturesInLine && !(theme.wordRules && RichTextTheme.wordWindowsPages && style.rightToLeft) ? nil : _strut(span, near: spacedOver)
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
@@ -9647,7 +9653,24 @@ public final class RichLayout {
                 let whole = painter.maxIntrinsicWidth.rounded(.up) + 1
                 if whole > lineWidth { painter.layout(minWidth: whole, maxWidth: whole) }
             }
-            if rises, strut != nil, let first = painter.computeLineMetrics().first {
+            if picturesInLine, strut != nil, let first = painter.computeLineMetrics().first {
+                let free = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                free.fractionalLineHeights = painter.fractionalLineHeights
+                free.lineIndents = painter.lineIndents
+                free.setPlaceholderDimensions(inline.map { $0.dimensions })
+                free.layout(minWidth: painter.width, maxWidth: painter.width)
+                let own = free.computeLineMetrics()
+                let boxes = free.inlinePlaceholderBoxes ?? []
+                if let top = own.first, own.count == painter.computeLineMetrics().count,
+                   boxes.allSatisfy({ $0.toRect().top < top.height - 1 }), !rises {
+                    RuleTrace.hit("word-picture-in-the-first-line-lifts-it-and-the-rest-keep-the-strut")
+                    numberLift = max(0, top.baseline - first.baseline)
+                    free.dispose()
+                } else {
+                    painter.dispose()
+                    return free
+                }
+            } else if rises, strut != nil, let first = painter.computeLineMetrics().first {
                 let free = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
                 free.fractionalLineHeights = painter.fractionalLineHeights
                 free.setPlaceholderDimensions(inline.map { $0.dimensions })
