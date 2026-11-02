@@ -13880,3 +13880,4 @@ TRIAGE (lenovo-2, 2026-11-02, the ten-document zh list; Windows mode, bundled fo
   - zh-291fcea7, zh-785e46f8: as in the lines above; not looked at past the first different line.
 
 - CLAIM lenovo-3 (Linux 01F2SWc8) again, from starling-bd: zh-15428325, zh-291fcea7, zh-785e46f8, zh-64044a1d (asked lenovo-2 first whether its merged-cell rule from lab cm1 covers it), zh-701eda18 (position and the badge cut, in one change); and lo-7ec36a70's headings. This replaces the "released for anyone" line above.
+- TIP WATCH amd-8, round 76 (tip 25a01eb46): Word 0 down (v2 5 up, v1 5 up), no pagecount moves, no nondeterminism. UNIT TESTS: 1 failure, ChartTests.testEveryKindSurvivesItsOwnXML, from 39116d783 (Word scatter own x values, lo-c4c60fcb): a scatter with no x values comes back from its own XML with x values = categories. amd-1 told; fix the reader or the test fixture. Slides next round 78.
