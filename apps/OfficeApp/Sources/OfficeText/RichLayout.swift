@@ -17087,6 +17087,9 @@ public final class RichLayout {
             guard let u = c.unicodeScalars.first?.value else { return false }
             switch u {
             case 0x1100 ... 0x11FF, 0x3040 ... 0x30FF, 0x3400 ... 0x9FFF, 0xAC00 ... 0xD7FF, 0xF900 ... 0xFAFF, 0x20000 ... 0x3FFFF: return true
+            // (The square units too, in Word for Windows: zh-0060058e's "≤13000㎡，" has its automatic space before
+            // the "㎡", and "…三级绿地人" leaves "均" 0.7pt over; without it ours took "均".)
+            case 0x3300 ... 0x33FF: return RichTextTheme.wordWindowsPages
             default: return false
             }
         }
