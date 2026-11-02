@@ -13509,3 +13509,4 @@ Not ICU vs Uniscribe dictionary: Word breaks this document's Thai only at spaces
 
 - **amd-5, font metrics survey + Century (landed 31e03ccfa).** Faces actually in Word's prints with no free twin: Tahoma, Segoe UI, Aptos, Verdana, Lucida Sans Unicode are already wired with their own widths; Century was the last one with real lines (lo-6b7d4262, 24 missed -> 0). Comic Sans, Garamond, Georgia, Corbel, Consolas, Century Gothic show in 1-3 documents at under 10 lines each — not worth a table yet. Dump: wip/lab-fontmetrics (test/labs/fontmetrics). Century's Regular only (no bold/italic installed on the box).
 - **amd-5, lo-000463df:** windows' wc3 says the "carry the previous line" behaviour belongs to pages with a footer, not wrapped paragraphs in general; not modelled yet.
+TIP WATCH amd-8, round 44 (tip 33b6599e2, Slides round): Word 756 and LO: 0 down. LO 2 up on v2. Slides mean 0.9385 -> 0.9385. No action needed.
