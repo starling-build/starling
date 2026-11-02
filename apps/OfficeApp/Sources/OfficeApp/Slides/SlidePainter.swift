@@ -156,6 +156,9 @@ final class SlideTextCache {
     /// are whole, as PowerPoint lays it out).
     static func autofitScale(_ shape: SlideShape, wholeWords: Bool = false) -> Double {
         guard let text = shape.text, let theme = shape.textTheme else { return 1 }
+        // (One-size text, an org chart's boxes, fits as laid out.)
+        let twoSizes = shape.insetsFollowFont && wholeWords
+            && Set(text.document.paragraphs.compactMap { $0.runs.first?.style.fontSize }).count > 1
         func fits(_ scale: Double) -> Bool {
             // (The geometry's share of the insets stays: an oval's text
             // was fitted to a box wider than its inscribed one, 53 pt where
@@ -175,7 +178,10 @@ final class SlideTextCache {
             layout.spacingFollowsFont = shape.insetsFollowFont
             layout.width = width * res
             layout.ensureLaidOut(text.document)
-            let height = layout.totalHeight / res
+            // A diagram's text needs 3.57 lines of its size where this
+            // lays out 3.44 (smartfit lab: PowerPoint's largest fitting
+            // size per frame height), so its need is taken a bit taller.
+            let height = layout.totalHeight / res * (twoSizes ? 1.038 : 1)
             return height <= room + 0.5 / res && (!wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5)
         }
         // A diagram laid out here (its margins follow its font) shrinks by
