@@ -926,6 +926,10 @@ public struct PageSetup: Hashable, Sendable {
     public var height: Double
     public var marginTop: Double
     public var marginBottom: Double
+    /// A margin the file wrote negative: Word reads it as exact, the text kept
+    /// to it whatever the header or footer needs (`w:pgMar`).
+    public var marginTopExact = false
+    public var marginBottomExact = false
     public var marginLeft: Double
     public var marginRight: Double
     /// Space between pages on the canvas, in points.
@@ -19132,10 +19136,13 @@ public final class RichLayout {
     private func _bodyInsets(page p: Int, _ document: RichDocument) -> (top: Double, bottom: Double) {
         let setup = pageSetup(forPage: p)
         var top = _px(setup.marginTop), bottom = _px(setup.marginBottom)
-        if let header = _headerFooter(.header, page: p, document, pageCount: 1) {
+        let exactTop = theme.wordRules && RichTextTheme.wordWindowsPages && setup.marginTopExact
+        let exactBottom = theme.wordRules && RichTextTheme.wordWindowsPages && setup.marginBottomExact
+        if exactTop || exactBottom { RuleTrace.hit("negative-margin-is-exact") }
+        if !exactTop, let header = _headerFooter(.header, page: p, document, pageCount: 1) {
             top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height)
         }
-        if let footer = _headerFooter(.footer, page: p, document, pageCount: 1) {
+        if !exactBottom, let footer = _headerFooter(.footer, page: p, document, pageCount: 1) {
             // (Its frames too, where they stand above it — a page number
             // set 11.75pt up from the footer's empty paragraph keeps the
             // body clear of it in Word's print: zh-6cd1befe's last row on

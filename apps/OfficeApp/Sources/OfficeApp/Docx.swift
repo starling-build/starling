@@ -4055,6 +4055,8 @@ enum DocxFormat {
         if let mar = sect.first("w:pgMar") {
             setup.marginTop = Double(mar["w:top"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginBottom = Double(mar["w:bottom"] ?? "1440").map { abs($0) / 20 } ?? 72
+            setup.marginTopExact = (Double(mar["w:top"] ?? "") ?? 0) < 0
+            setup.marginBottomExact = (Double(mar["w:bottom"] ?? "") ?? 0) < 0
             setup.marginLeft = Double(mar["w:left"] ?? mar["w:start"] ?? "1440").map { $0 / 20 } ?? 72
             // (The gutter, kept clear beside the left margin unless the
             // settings put it at the top.)
