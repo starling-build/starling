@@ -2095,6 +2095,7 @@ private struct SlideContext {
         let xfrm = el.first("p:spPr")?.first("a:xfrm")
         s.flipH = xfrm?["flipH"] == "1"
         s.flipV = xfrm?["flipV"] == "1"
+        if let spPr = el.first("p:spPr") { s.scene3d = Extrusion.read(spPr, colors: colors) }
         if let prst = el.first("p:spPr")?.first("a:prstGeom")?["prst"], prst != "rect" {
             s.pictureGeometry = ShapePreset(rawValue: prst)
         } else if let geom = el.first("p:spPr")?.first("a:custGeom") {
@@ -2113,9 +2114,7 @@ private struct SlideContext {
         // Its outline (graphic-stroke's green frame round an OLE object's
         // picture): the line's own colour, else its style's.
         let ln = el.first("p:spPr")?.first("a:ln"), lnRef = el.first("p:style")?.first("a:lnRef")
-        // (Not one turned in 3-D, which is drawn flat here: its frame
-        // would stand where the picture does not — Scene3d_pureImage.)
-        if ln?.has("a:noFill") != true, el.first("p:spPr")?.first("a:scene3d") == nil {
+        if ln?.has("a:noFill") != true {
             if let f = ln?.first("a:solidFill") { s.outline = colors.color(in: f) }
             else if let ref = lnRef, ref["idx"] != "0" { s.outline = colors.lineColor(in: ref) }
             if s.outline != nil {

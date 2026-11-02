@@ -641,7 +641,12 @@ final class SlidePainter: CustomPainter {
         // inside its outline faded out of it before it is put down.
         let softEdge = shape.softEdge.map { $0 * px }
         if let softEdge { canvas.saveLayer(r.inflate(softEdge), Paint()) }
-        if let image = shape.picture {
+        // A picture on a solid turned by the camera: the solid is drawn
+        // first and the picture goes onto its turned front.
+        let picture3D = shape.picture != nil && shape.scene3d.map { !$0.isFlatTurn } == true && shape.chart == nil && shape.opaque == nil
+        let drawPicture: () -> Void = {
+          guard let image = shape.picture else { return }
+          do {
             if let metafile = cache.metafile(image) {
                 // A WMF or EMF, as vectors: the whole picture placed so that
                 // the crop's share of it fills the frame.
@@ -726,7 +731,9 @@ final class SlidePainter: CustomPainter {
                 p.color = Color(0xFFEDEDED)
                 canvas.drawRect(r, p)
             }
+          }
         }
+        if !picture3D { drawPicture() }
         if let chart = shape.chart {
             if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
             var onSlide = chart
@@ -769,13 +776,13 @@ final class SlidePainter: CustomPainter {
         let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath : nil)
         // A shape with depth: its solid, in place of the flat outline.
         var solid = false
-        if shape.scene3d != nil, shape.picture == nil, shape.chart == nil, shape.opaque == nil {
+        if shape.scene3d != nil, shape.chart == nil, shape.opaque == nil {
             let outline: Path
             if let freeform { outline = Self.combinedPath(freeform, r) }
-            else if let p = shape.preset ?? shape.inheritedPreset, !p.isLine { outline = geometryPath(p, r) }
+            else if let p = shape.preset ?? shape.inheritedPreset ?? shape.pictureGeometry, !p.isLine { outline = PresetGeometry.path(p.rawValue, in: r) ?? geometryPath(p, r) }
             else { outline = Path(); outline.addRect(r) }
             if mirrored { mirror() }
-            solid = Extrusion.paint(shape, outline: outline, r, canvas, pxPerPt: px)
+            solid = Extrusion.paint(shape, outline: outline, r, canvas, pxPerPt: px, onFront: picture3D ? drawPicture : nil)
             if mirrored { canvas.restore() }
         }
         if solid {

@@ -233,8 +233,8 @@ enum Extrusion {
     /// Draws `shape` as its solid. `outline` is the shape's outline in the
     /// canvas's space (`r` its frame). False when there is nothing to
     /// draw this way, and the shape is then drawn flat.
-    static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double) -> Bool {
-        guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color else { return false }
+    static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
+        guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
@@ -400,6 +400,20 @@ enum Extrusion {
         let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
         let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy && scene.perspective ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
         face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
+        if let onFront, frontShows {
+            // The picture, carried onto the turned front: the frame's corners
+            // say where its axes went.
+            let tl = place(Offset(r.left, r.top), 0), tr = place(Offset(r.right, r.top), 0), bl = place(Offset(r.left, r.bottom), 0)
+            let a = (tr.x - tl.x) / r.width, b = (tr.y - tl.y) / r.width, cc = (bl.x - tl.x) / r.height, d = (bl.y - tl.y) / r.height
+            let e = c.dx + tl.x - a * r.left - cc * r.top, f = c.dy + tl.y - b * r.left - d * r.top
+            canvas.save()
+            let clip = Path()
+            for ring in front { clip.addPolygon(ring.map(flat), true) }
+            canvas.clipPath(clip)
+            canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
+            onFront()
+            canvas.restore()
+        }
         return true
     }
 }
