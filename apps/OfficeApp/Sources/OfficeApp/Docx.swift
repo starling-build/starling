@@ -891,6 +891,7 @@ enum DocxFormat {
         // document lays out (and saves) in Cambria or Aptos; the theme part
         // itself rides along in keptParts.
         let theme = _themeFonts(entries)
+        _themeColors = _themePalette(entries)
         _resolveThemeFonts(root, theme)
 
         // Styles: which paragraph styles are ours (headings, Title, Quote…),
@@ -6889,6 +6890,63 @@ enum DocxFormat {
         }
     }
 
+    /// The theme's colours by scheme name ("accent2", "dk1", ...), set when a document is read.
+    nonisolated(unsafe) private static var _themeColors: [String: (Int, Int, Int)] = [:]
+
+    private static func _themePalette(_ entries: [ZipEntry]) -> [String: (Int, Int, Int)] {
+        guard let e = entries.first(where: { $0.name.hasPrefix("word/theme/") && $0.name.hasSuffix(".xml") }),
+              let root = XNode.parse(e.data), let scheme = root.descendant("a:clrScheme") else { return [:] }
+        var out: [String: (Int, Int, Int)] = [:]
+        for c in scheme.children {
+            guard c.name.hasPrefix("a:") else { continue }
+            let name = String(c.name.dropFirst(2))
+            var hex: String? = c.first("a:srgbClr")?["val"]
+            if hex == nil { hex = c.first("a:sysClr")?["lastClr"] }
+            if let h = hex, let v = Int(h, radix: 16) { out[name] = ((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF) }
+        }
+        out["tx1"] = out["dk1"]; out["bg1"] = out["lt1"]; out["tx2"] = out["dk2"]; out["bg2"] = out["lt2"]
+        return out
+    }
+
+    /// A `w14:srgbClr` / `w14:schemeClr`'s colour with its tint, shade and saturation / luminance modifiers applied
+    /// (tint toward white, shade toward black, the rest in HSL).
+    private static func _w14Color(_ node: XNode) -> (Int, Int, Int)? {
+        var rgb: (Int, Int, Int)
+        if node.name == "w14:srgbClr", let v = Int(node["w14:val"] ?? "", radix: 16) { rgb = ((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF) }
+        else if node.name == "w14:schemeClr", let c = _themeColors[node["w14:val"] ?? ""] { rgb = c }
+        else { return nil }
+        var r = Double(rgb.0) / 255, g = Double(rgb.1) / 255, b = Double(rgb.2) / 255
+        func hsl() -> (Double, Double, Double) {
+            let mx = max(r, g, b), mn = min(r, g, b), l = (mx + mn) / 2
+            guard mx != mn else { return (0, 0, l) }
+            let d = mx - mn, s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+            let h = mx == r ? (g - b) / d + (g < b ? 6 : 0) : mx == g ? (b - r) / d + 2 : (r - g) / d + 4
+            return (h / 6, s, l)
+        }
+        func setHSL(_ h: Double, _ s: Double, _ l: Double) {
+            func f(_ p: Double, _ q: Double, _ t0: Double) -> Double {
+                var t = t0; if t < 0 { t += 1 }; if t > 1 { t -= 1 }
+                return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p
+            }
+            if s == 0 { r = l; g = l; b = l; return }
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q
+            r = f(p, q, h + 1 / 3); g = f(p, q, h); b = f(p, q, h - 1 / 3)
+        }
+        for m in node.children {
+            let v = (Double(m["w14:val"] ?? "") ?? 100000) / 100000
+            switch m.name {
+            case "w14:tint": r = r * v + (1 - v); g = g * v + (1 - v); b = b * v + (1 - v)
+            case "w14:shade": r *= v; g *= v; b *= v
+            case "w14:satMod": let (h, s, l) = hsl(); setHSL(h, min(1, s * v), l)
+            case "w14:lumMod": let (h, s, l) = hsl(); setHSL(h, s, min(1, l * v))
+            case "w14:lumOff": let (h, s, l) = hsl(); setHSL(h, s, min(1, max(0, l + v)))
+            default: break
+            }
+        }
+        func byte(_ x: Double) -> Int { Int((min(1, max(0, x)) * 255).rounded()) }
+        return (byte(r), byte(g), byte(b))
+    }
+
     /// `complexText` says whether the run's characters are complex-script
     /// ones (Arabic, Hebrew, ...): Word applies w:bCs/w:iCs/w:szCs to those
     /// characters only, so a Latin "Reino de España" inside an Arabic
@@ -6929,6 +6987,32 @@ enum DocxFormat {
                                           dx: 0, dy: 0, blur: (Double(child["w14:rad"] ?? "") ?? 0) / 12700)
                     glow.glow = true
                     cs.shadow = glow
+                }
+            case "w14:shadow":
+                // (A run's shadow, `w14:dist` EMU out along `w14:dir` (sixty-thousandths of a degree), blurred by `w14:blurRad`:
+                // bib-chernigovka's title, a 39001 EMU shadow at 91 degrees, 62% black.)
+                if let c = child.children.first(where: { $0.name == "w14:srgbClr" || $0.name == "w14:schemeClr" }), let rgb = _w14Color(c) {
+                    let alpha = c.first("w14:alpha").flatMap { Double($0["w14:val"] ?? "") }.map { $0 / 100000 } ?? 1
+                    let dist = (Double(child["w14:dist"] ?? "") ?? 0) / 12700, dir = (Double(child["w14:dir"] ?? "") ?? 0) / 60000 * Double.pi / 180
+                    cs.shadow = CharShadow(color: Color(argb: Int((alpha * 255).rounded()), rgb.0, rgb.1, rgb.2),
+                                           dx: dist * cos(dir), dy: dist * sin(dir), blur: (Double(child["w14:blurRad"] ?? "") ?? 0) / 12700)
+                }
+            case "w14:textFill":
+                // (A gradient fill drawn as the solid colour a quarter of the way along it: the text takes no shader yet. Word's print
+                // of bib-chernigovka's title, accent2 tinted and shaded, is a bright orange; a solid fill keeps the run's own colour.)
+                if let g = child.first("w14:gradFill"), let list = g.first("w14:gsLst") {
+                    let stops: [(Double, (Int, Int, Int))] = list.children.compactMap { st in
+                        guard st.name == "w14:gs", let pos = Double(st["w14:pos"] ?? ""), let c = st.children.first(where: { $0.name == "w14:srgbClr" || $0.name == "w14:schemeClr" }),
+                              let rgb = _w14Color(c) else { return nil }
+                        return (pos / 100000, rgb)
+                    }.sorted { $0.0 < $1.0 }
+                    let at = 0.25
+                    if let a = stops.last(where: { $0.0 <= at }), let b = stops.first(where: { $0.0 >= at }) {
+                        let t = b.0 > a.0 ? (at - a.0) / (b.0 - a.0) : 0
+                        func mix(_ x: Int, _ y: Int) -> Int { Int((Double(x) + (Double(y) - Double(x)) * t).rounded()) }
+                        cs.color = Color(argb: 0xFF, mix(a.1.0, b.1.0), mix(a.1.1, b.1.1), mix(a.1.2, b.1.2))
+                        cs.off.remove(.autoColor)
+                    }
                 }
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
