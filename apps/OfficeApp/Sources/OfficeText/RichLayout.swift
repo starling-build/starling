@@ -18936,6 +18936,19 @@ public final class RichLayout {
         for run in document.paragraphs[i].runs {
             if let n = run.style.note, n.kind == .footnote, document.footnotes[n.id] != nil, !out.contains(n.id) { out.append(n.id) }
         }
+        // (A small table nested in a cell is a block laid out apart, and its
+        // marks are its paragraph's: lo-f47abfe0's "Number of vesting lots"
+        // marks footnote 2, which Word sets at page 1's foot, taking the
+        // room of the next row; ours never set it.)
+        if let box = document.paragraphs[i].image?.textBox, box.growsToFit {
+            var stack = box.paragraphs
+            while let q = stack.popLast() {
+                for run in q.runs {
+                    if let n = run.style.note, n.kind == .footnote, document.footnotes[n.id] != nil, !out.contains(n.id) { out.append(n.id) }
+                }
+                if let inner = q.image?.textBox, inner.growsToFit { stack.append(contentsOf: inner.paragraphs) }
+            }
+        }
         return out
     }
 
