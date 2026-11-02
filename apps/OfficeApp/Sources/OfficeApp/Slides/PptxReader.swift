@@ -3347,6 +3347,15 @@ private struct SlideContext {
                     style.indentLeft = 36 * Double(lvl) - shapeIndent * Double(lvl + 1)
                     style.firstLineIndent = shapeIndent
                 }
+                // (The bullet PowerPoint's own body style gives, in a deck whose master has no text styles at
+                // all: its print of lo-subtitle-animation-save puts the text 17.6 pt from the bullet's left,
+                // the bullet's 9.8 and an Arial space after it. A bullet the paragraph names, ececapstone's,
+                // has the text right after it.)
+                if level.marL == nil, level.indent == nil, lvl == 0, master?.first("p:txStyles") == nil,
+                   pPr?.first("a:buChar") == nil, pPr?.first("a:buAutoNum") == nil, ["body", "subTitle"].contains(ph?["type"] ?? "") {
+                    style.indentLeft = 17.6 - shapeIndent
+                    style.firstLineIndent = shapeIndent - 17.6
+                }
                 SlideContext.hangPositiveIndent(&style, own: pPr?["indent"].flatMap(Double.init), indent: level.indent,
                                                 marL: level.marL, shapeIndent: shapeIndent, level: lvl)
             default:
