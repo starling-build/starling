@@ -1309,6 +1309,10 @@ public final class RichLayout {
     private var _besideBandUse: [Int: (top: Double, bottom: Double)] = [:]
     /// Paragraphs whose band is the union of two floats' (the page-fit pass leaves them alone).
     private var _besideUnion: Set<Int> = []
+    /// … and the stretches the paragraph shares with the rest of that float on the pages
+    /// after the first it stands on (from the paragraph's own top, so the
+    /// page break falls inside them): a float whose rows run over two pages.
+    private var _besideMoreBands: [Int: [(top: Double, bottom: Double)]] = [:]
     /// How far a paragraph's text is set down to clear an object that
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
@@ -1737,9 +1741,20 @@ public final class RichLayout {
                     guard let floor = mine.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max(),
                           let ceiling = mine.map({ $0.pageY }).min() else { continue }
                     let band = (top: max(0, ceiling - first.pageY), bottom: max(0, floor - first.pageY))
-                    if let old = _besideBandUse[k], abs(old.top - band.top) < 0.5, abs(old.bottom - band.bottom) < 0.5 { continue }
-                    if _besideBandUse[k] == nil, let was = _besideBand(k, document), abs(was.top - band.top) < 0.5, abs(was.bottom - band.bottom) < 0.5 { continue }
+                    // (… and on the pages after it: the paragraph's piece there, level with
+                    // the rest of the float.)
+                    var more: [(top: Double, bottom: Double)] = []
+                    let end = k + 1 < _pieceStart.count ? _pieceStart[k + 1] : _allPieces.count
+                    for piece in _allPieces[(_pieceStart[k] + 1) ..< max(_pieceStart[k] + 1, min(end, _allPieces.count))] where piece.page != first.page {
+                        let rows = _pages[piece.page].filter { _cells[$0.paragraph]?.table == table && !$0.repeated }
+                        guard let f = rows.map({ $0.pageY + ($0.flowBottom - $0.flowTop) }).max(), let c = rows.map(\.pageY).min() else { continue }
+                        more.append((top: piece.flowTop - first.flowTop + max(0, c - piece.pageY), bottom: piece.flowTop - first.flowTop + max(0, f - piece.pageY)))
+                    }
+                    let sameMore = (_besideMoreBands[k] ?? []).count == more.count && zip(_besideMoreBands[k] ?? [], more).allSatisfy { abs($0.top - $1.top) < 0.5 && abs($0.bottom - $1.bottom) < 0.5 }
+                    if sameMore, let old = _besideBandUse[k], abs(old.top - band.top) < 0.5, abs(old.bottom - band.bottom) < 0.5 { continue }
+                    if sameMore, _besideBandUse[k] == nil, let was = _besideBand(k, document), abs(was.top - band.top) < 0.5, abs(was.bottom - band.bottom) < 0.5 { continue }
                     _besideBandUse[k] = band
+                    _besideMoreBands[k] = more
                     changes.append(.changed(k))
                 }
                 if changes.isEmpty { break }
@@ -5300,8 +5315,15 @@ public final class RichLayout {
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0), !ts.pageAnchored, ts.keptPosition != nil,
                (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document),
-               let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 {
+               case let startPage = _beside_firstPage(of: prev, upTo: page, text: i < _besideLead.count && _besideLead[i] > 0 && !blank(document.paragraphs[i])),
+               let top = _pages[startPage].filter({ _cells[$0.paragraph]?.table == prev && !$0.repeated }).map(\.pageY).min(), top < y - 0.01 || startPage < page {
+                // (Text beside a table whose rows run over two pages starts on
+                // the page of its FIRST rows, level with the table's top: Word's
+                // print of LibreOffice's floattable-wrap-on-all-pages. It goes on
+                // from there to the next page, beside the rest of the table.)
+                if startPage < page { RuleTrace.hit("text-beside-a-split-floating-table-starts-on-its-first-page") }
                 besideTable = (y, page)
+                page = startPage
                 y = top
                 // From the line the table hangs from, where its first row
                 // is on this page: its tblpY stands it lower than that,
@@ -9414,7 +9436,8 @@ public final class RichLayout {
                 } else {
                     for k in 0 ..< bottoms.count {
                         let top = k == 0 ? 0 : bottoms[k - 1]
-                        let beside = bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01
+                        let beside = (bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01)
+                            || (_besideMoreBands[i] ?? []).contains { bottoms[k] > $0.top + _px(3) && top < $0.bottom - _px(3) }
                         next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
                     }
                 }
@@ -13496,6 +13519,14 @@ public final class RichLayout {
             k -= 1
         }
         return best
+    }
+
+    /// The first page (up to `page`) that holds rows of table `t`; `page` itself for
+    /// all but text beside it.
+    private func _beside_firstPage(of t: String, upTo page: Int, text: Bool) -> Int {
+        guard text, theme.wordRules, RichTextTheme.wordWindowsPages else { return page }
+        for q in 0 ..< page where _pages[q].contains(where: { _cells[$0.paragraph]?.table == t && !$0.repeated }) { return q }
+        return page
     }
 
     /// The vertical stretch, from paragraph `i`'s top, that the table floating
