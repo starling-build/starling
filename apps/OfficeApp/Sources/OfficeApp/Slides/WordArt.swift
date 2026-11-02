@@ -631,7 +631,7 @@ enum WordArt {
         let rx0 = max(1, area.width / 2 - (narrow && !fits ? 94 : 0)), ry0 = area.height / 2, c = area.center
         /// A line along the arc from `start`, sweeping `sweep` degrees
         /// (clockwise positive, as DrawingML measures).
-        func along(_ line: Line, start: Double, sweep: Double, ring: Int = 0) {
+        func along(_ line: Line, start: Double, sweep: Double, ring: Int = 0, room: Double = 1) {
             // A slide's line rides inside the box's ellipse by 0.165 of its size, and each
             // line after it (toward the middle) a pitch nearer.
             let size = line.glyphs.map(\.size).max() ?? 0
@@ -654,7 +654,8 @@ enum WordArt {
             let top = line.glyphs.contains { $0.advance != nil } ? 0.84 : 1.0
             let k = (fits ? arc / line.width : min(top, arc / line.width)) * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
             let used = line.width * k
-            var s = line.alignment == .center ? (arc - used) / 2 : line.alignment == .right ? arc - used : 0
+            let free = arc * (slide ? room : 1) - used
+            var s = line.alignment == .center ? free / 2 : line.alignment == .right ? free : 0
             func at(_ d: Double) -> (Offset, Offset) {
                 let d = max(0, min(arc, d))
                 var i = lens.firstIndex { $0 >= d } ?? steps
@@ -691,7 +692,16 @@ enum WordArt {
             for (i, l) in lines.enumerated() { along(l, start: start, sweep: -sweep, ring: i) }
         case "textCircle":
             let a = angle(10_800_000)
-            for (i, l) in lines.enumerated() { along(l, start: a, sweep: 360, ring: lines.count - 1 - i) }
+            // A slide's circle text that is centred or right-aligned sits in a half circle,
+            // the left half (from the bottom) or the right half (from the top) — whichever
+            // the start angle is nearer, the right at a tie (lab prints, test/labs/textcircle:
+            // 30 and 90 degrees centre on the left, 180 and 270 on the right).
+            func gap(_ x: Double, _ y: Double) -> Double { abs(((x - y).truncatingRemainder(dividingBy: 360) + 540).truncatingRemainder(dividingBy: 360) - 180) }
+            let half = gap(a, 90) < gap(a, 270) ? 90.0 : 270.0
+            for (i, l) in lines.enumerated() {
+                let sits = slide && l.alignment != .left
+                along(l, start: sits ? half : a, sweep: 360, ring: lines.count - 1 - i, room: sits ? 0.5 : 1)
+            }
         default:   // textButton: over the top, straight across, under the bottom
             let a = angle(10_800_000)
             var sweep = (540 - a).truncatingRemainder(dividingBy: 360) - a
