@@ -3305,7 +3305,17 @@ public final class RichLayout {
                 }
                 // (A row of spanning or turned cells alone is still its
                 // margins tall.)
-                rowHeight = max(rowHeight, ins.top + ins.bottom)
+                // (The margins its own cells state, where they state them: lo-152d87fe's
+                // footer table, a top margin of 32.4pt for its icon cells and 7.2 for its
+                // text row's, set that row 32.4 tall by the table's, and its footer stood
+                // 12.5pt too high under Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, k0 < j {
+                    let own = (k0 ..< j).map { _cells[$0]!.pad.top + _cells[$0]!.pad.bottom }.max() ?? 0
+                    if abs(own - (ins.top + ins.bottom)) > 0.01 { RuleTrace.hit("word-row-is-its-cells-own-margins-tall") }
+                    rowHeight = max(rowHeight, own)
+                } else {
+                    rowHeight = max(rowHeight, ins.top + ins.bottom)
+                }
                 // A row the file gave a height: at least that tall.
                 // (And its rules: the height is the room between them.)
                 // An exact one is that tall with its rules, whatever is in it.
