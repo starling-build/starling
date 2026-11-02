@@ -3480,7 +3480,14 @@ public final class RichLayout {
                     let endPad = theme.wordRules && cell.direction == .down ? 0 : cell.pad.left
                     let room = cell.vertical ? cell.colWidth - endPad - cell.pad.right
                         : spanned - cell.pad.top - cell.pad.bottom - rules[r].above - rules[last].below
-                    let free = max(0, room - max(content[cell.column] ?? 0, _floatReach[k]))
+                    // (The reach of a table floating in the cell is the whole cell's, not its own paragraph's:
+                    // lo-158ec986's "outer B1" stands at the cell's top in Word, beside the 39.7pt table that
+                    // is anchored to the paragraph above it in the same cell, where ours centred it.)
+                    var reach = _floatReach[k]
+                    if theme.wordRules, RichTextTheme.wordWindowsPages {
+                        for m in row.first ..< row.end where _cells[m]!.column == cell.column { reach = max(reach, _floatReach[m]) }
+                    }
+                    let free = max(0, room - max(content[cell.column] ?? 0, reach))
                     let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0
                     if cell.vertical {
                         _tops[k] = row.top
