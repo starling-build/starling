@@ -46,6 +46,7 @@ export function createFontLoader(entries, { register, registerFile, changed, sta
   // that names 宋体 has the Serif collection, which has the characters).
   const wanted = new Set();
   const files = new Map(), pending = new Map(), loaded = new Set(), failed = new Map(), retries = new Map();
+  let holdStart = null;
   const report = () => status({ pending: [...pending.keys()], failed: [...failed.keys()] });
 
   function fetchEntry(entry) {
@@ -116,6 +117,21 @@ export function createFontLoader(entries, { register, registerFile, changed, sta
     requestScript(script, options) {
       const key = `script:${script}${options?.bold ? ':bold' : ''}`;
       if (!failed.has(key)) loadScript(script, options).catch(error => console.warn('starling: font download failed', error));
+    },
+    // True from the request until the script's files are in (or failed).
+    scriptPending: script => pending.has(`script:${script}`),
+    // Resolves when no script download is pending, or when `cap` ms have passed
+    // since the first one began (the hold is bounded, not per call); null when
+    // nothing is pending. A failed download settles it too.
+    holdForScripts(cap = 4000, now = () => Date.now()) {
+      const keys = [...pending.keys()].filter(key => key.startsWith('script:'));
+      if (!keys.length) { holdStart = null; return null; }
+      holdStart ??= now();
+      const left = Math.max(0, cap - (now() - holdStart));
+      return Promise.race([
+        Promise.allSettled(keys.map(key => pending.get(key))),
+        new Promise(resolve => setTimeout(resolve, left)),
+      ]);
     },
     retry() { return Promise.all([...failed.keys()].map(key => retries.get(key)())); },
   };

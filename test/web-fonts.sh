@@ -57,4 +57,26 @@ check "Chinese" "NotoSansCJK-Regular.ttc:1 "
 sleep 2; rm -rf "$CHROME_PROFILE" 2>/dev/null || true; : > "$WORK/serve.log"
 drive "$WORK/mixed.docx" mixed.docx
 check "Arabic, Thai, emoji" "NotoColorEmoji.ttf:1 NotoNaskhArabic-Regular.ttf:1 NotoSansArabic-Regular.ttf:1 NotoSansThai-Regular.ttf:1 "
+
+# (Ink = dark pixels on the canvas: mid-load it must match the screen before
+# the open — the document not drawn, no boxes — and differ once text is up.)
+# Mid-load. The Chinese font is slowed to 2.5 s. The page must (1) draw no ink
+# for the document while its font is on the way — no box glyphs — and (2) hold
+# its first layout for that font (the page logs how long each hold lasted).
+INK='(async()=>{const c=document.querySelector("canvas");const u=c.toDataURL("image/png");const i=new Image();i.src=u;await i.decode();const k=document.createElement("canvas");k.width=i.width;k.height=i.height;const x=k.getContext("2d");x.drawImage(i,0,0);const d=x.getImageData(0,0,k.width,k.height).data;let n=0;for(let p=0;p<d.length;p+=4)if(d[p]+d[p+1]+d[p+2]<240&&d[p+3]>200)n++;return n})()'
+sleep 2; kill $SERVER 2>/dev/null; sleep 1
+STARLING_SERVE_FONT_DELAY_MS=2500 python3 -u "$REPO/build/tools/web-serve.py" "$STAGE" "$SERVE" > "$WORK/serve.log" 2>&1 &
+SERVER=$!
+for _ in $(seq 1 20); do curl -sf "$URL" >/dev/null && break; sleep 0.5; done
+rm -rf "$CHROME_PROFILE" 2>/dev/null || true
+out="$(node "$REPO/build/tools/web-drive.mjs" wait 12000 click 700 400 chord ctrl o wait 1500 eval "$INK" setfile "$WORK/zh.docx" wait 1200 eval "$INK" eval 'window.__starlingFontHolds||[]' settle zh.docx wait 800 eval "$INK" eval 'window.__starlingFontHolds||[]' 2>&1 | grep '^eval:' || true)"
+val() { echo "$out" | sed -n "${1}p" | sed -E 's/^eval: //'; }
+before="$(val 1)"; mid="$(val 2)"; final="$(val 4)"
+echo "  (ink before=$before mid-load=$mid final=$final; holds: $(val 5))"
+if [ -n "${before:-}" ] && [ -n "${mid:-}" ] && [ -n "${final:-}" ] && [ "$mid" -le $((before + 150)) ] && [ "$mid" -ge $((before - 150)) ] && [ $((final > before ? final - before : before - final)) -gt 500 ]; then
+    echo "  ok   no box glyphs while the font loads, text after"
+else echo "  FAIL ink: before=${before:-?} mid=${mid:-?} final=${final:-?}"; fails=$((fails + 1)); fi
+holdlast="$(echo "$out" | sed -n '5p' | sed -E 's/^eval: \[//; s/\]$//; s/.*,//')"
+if [ -n "$holdlast" ] && [ "$holdlast" -ge 1500 ] 2>/dev/null; then echo "  ok   first layout waited ${holdlast} ms for the CJK face"
+else echo "  FAIL the first layout did not wait for the font (holds: $(val 5))"; fails=$((fails + 1)); fi
 exit $fails

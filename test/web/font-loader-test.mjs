@@ -126,3 +126,23 @@ test('a script asks for its fallback face only when no face of it is wanted alre
     assert.deepEqual(fetched, expected, first);
   }
 });
+
+test('holdForScripts waits for a script download, bounded by the cap', async () => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const loader = createFontLoader(
+    [{ lazy: true, url: 'a.ttc', weight: 400, faces: [{ index: 0, family: 'A' }], scripts: ['cjk-sc'], fallback: true, order: 1 }],
+    { register() {}, registerFile() {}, changed() {}, fetchBytes: async () => { await gate; return new Uint8Array(1); } });
+  assert.equal(loader.holdForScripts(), null);
+  loader.requestScript('cjk-sc');
+  await Promise.resolve();
+  assert.equal(loader.scriptPending('cjk-sc'), true);
+  let held = true;
+  const hold = loader.holdForScripts(4000).then(() => { held = false; });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(held, true);
+  release();
+  await hold;
+  assert.equal(loader.scriptPending('cjk-sc'), false);
+  assert.equal(loader.holdForScripts(), null);
+});

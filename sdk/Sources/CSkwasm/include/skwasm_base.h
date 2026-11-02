@@ -69,6 +69,8 @@ HOST(request_font) void starling_host_request_font(const void* utf8, uint32_t le
 // (UTF-8 name in OUR memory: fonts.tsv's "cjk-sc", "arabic", ...), because the
 // text just given to a paragraph has characters of it. Same answer as above.
 HOST(request_script) void starling_host_request_script(const void* utf8, uint32_t length);
+/* 1 while the file(s) behind a requested script are still downloading. */
+HOST(script_pending) int32_t starling_host_script_pending(const void* utf8, uint32_t length);
 
 // The tab's title (UTF-8, in OUR memory).
 HOST(set_title) void starling_host_set_title(const void* utf8, uint32_t length);

@@ -35,4 +35,38 @@ public enum ScriptFonts {
             bytes.withUnsafeBytes { starling_host_request_script($0.baseAddress, UInt32($0.count)) }
         }
     }
+
+    /// Whether a script's files are still downloading (the page answers).
+    static func pending(_ name: String) -> Bool {
+        let bytes = Array(name.utf8)
+        return bytes.withUnsafeBytes { starling_host_script_pending($0.baseAddress, UInt32($0.count)) } != 0
+    }
+
+    /// `text` cut into (substring, hidden) pieces: hidden pieces are the runs
+    /// whose script is still downloading, drawn transparent rather than as
+    /// boxes. Nil when nothing needs hiding (the usual case).
+    static func hiddenRuns(in text: String) -> [(String, Bool)]? {
+        if text.utf8.allSatisfy({ $0 < 0x80 }) { return nil }
+        var cache: [String: Bool] = [:]
+        var pieces: [(String, Bool)] = []
+        var current = String.UnicodeScalarView()
+        var currentHidden = false
+        var any = false
+        for scalar in text.unicodeScalars {
+            var hidden = false
+            if scalar.value >= 0x0590, let name = script(of: scalar.value) {
+                if cache[name] == nil { cache[name] = pending(name) }
+                hidden = cache[name]!
+            }
+            if hidden != currentHidden, !current.isEmpty {
+                pieces.append((String(current), currentHidden))
+                current = String.UnicodeScalarView()
+            }
+            currentHidden = hidden
+            any = any || hidden
+            current.append(scalar)
+        }
+        if !current.isEmpty { pieces.append((String(current), currentHidden)) }
+        return any ? pieces : nil
+    }
 }

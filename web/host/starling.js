@@ -354,7 +354,14 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
         });
     },
     request_frame() {
-      requestAnimationFrame((now) => swift.starling_begin_frame(now));
+      const draw = () => requestAnimationFrame((now) => swift.starling_begin_frame(now));
+      // Hold frames while a script's fonts download (at most 4 s from the
+      // first), so a document is laid out once with its real faces.
+      const hold = fontLoader?.holdForScripts?.();
+      if (!hold) return draw();
+      const log = (window.__starlingFontHolds ??= []);
+      const began = performance.now();
+      hold.then(() => { log.push(Math.round(performance.now() - began)); draw(); });
     },
     segment(builder) {
       const sp = sk.emscripten_stack_get_current();
@@ -419,6 +426,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   host.request_script = (pointer, length) => {
     fontLoader.requestScript(utf8.decode(appBytes().subarray(pointer, pointer + length)));
   };
+
+  host.script_pending = (pointer, length) =>
+    fontLoader.scriptPending(utf8.decode(appBytes().subarray(pointer, pointer + length))) ? 1 : 0;
 
   // Starling's additions to skwasm (lib/web_ui/skwasm/pdf.cpp, and
   // text/paragraph_style.cpp's fractional line heights, text_style.cpp's

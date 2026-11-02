@@ -593,6 +593,26 @@ extension flutter.swift_bridge {
             // rather than rejecting it, so there is no failure to report.
             let string = String(cString: text)
             ScriptFonts.request(for: string)
+            if let pieces = ScriptFonts.hiddenRuns(in: string), var hiddenStyle = styles.last {
+                // Text in a script whose face is still downloading would draw
+                // as boxes; draw it clear instead and lay it out again when
+                // the face arrives.
+                hiddenStyle.color = 0
+                hiddenStyle.foreground = nil
+                hiddenStyle.foregroundPaint = nil
+                for (piece, hidden) in pieces {
+                    if hidden {
+                        let native = hiddenStyle.makeNative()
+                        paragraphBuilder_pushStyle(skHandle, native)
+                        textStyle_dispose(native)
+                    }
+                    let text16 = makeSkString16(piece)
+                    paragraphBuilder_addText(skHandle, text16)
+                    skString16_free(text16)
+                    if hidden { paragraphBuilder_pop(skHandle) }
+                }
+                return true
+            }
             let text16 = makeSkString16(string)
             paragraphBuilder_addText(skHandle, text16)
             skString16_free(text16)

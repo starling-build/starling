@@ -459,6 +459,11 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _open(_ path: String, opened: OpenedDocument) throws {
+        #if os(WASI)
+        // Ask the page for the script fonts the text needs before its first
+        // layout; the page holds that layout (a few seconds at most) for them.
+        for paragraph in opened.document.paragraphs { ScriptFonts.request(for: paragraph.text) }
+        #endif
         controller.load(opened.document)
         session.path = path
         _savedRevision = controller.revision
