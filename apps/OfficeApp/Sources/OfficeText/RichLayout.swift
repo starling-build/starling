@@ -10231,8 +10231,15 @@ public final class RichLayout {
                         }
                     }
                 } else {
+                    // (A line of "at least" height is tested by its text's own extent — its leading stands above the
+                    // text and takes no room from a box above it: lo-717ff943's 10pt lines at 18.65pt, whose
+                    // baseline 13.5 under a picture's foot Word's print sets across the page, as it does a line level with its
+                    // top; ours narrowed it to the picture's width for the leading.)
+                    let textLine: Double? = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.lineHeightPoints != nil && p.style.lineHeightIsMinimum
+                        ? theme.naturalLine(for: p.runs[0].style, named: _named(p, document), eastAsian: false).map { _px($0) } : nil
                     for k in 0 ..< bottoms.count {
-                        let top = k == 0 ? 0 : bottoms[k - 1]
+                        var top = k == 0 ? 0 : bottoms[k - 1]
+                        if let textLine { top = max(top, bottoms[k] - textLine) }
                         let beside = (bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01)
                             || (_besideMoreBands[i] ?? []).contains { bottoms[k] > $0.top + _px(3) && top < $0.bottom - _px(3) }
                         next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
@@ -10868,8 +10875,14 @@ public final class RichLayout {
            _levelNumberFonts(p, document).latin?.lowercased() == "symbol",
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
-            let markerSize = _markerChar(p, document).fontSize ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-            let need = _px(markerSize * 1.005) - line.baseline
+            // (A mark of no size of its own is the paragraph style's, not the first run's — and a bullet so set larger than
+            // the text stands the line's first baseline 0.12 em more than its ascent under the top: lo-717ff943's
+            // 10pt lines under Normal's 11pt, 12.33pt to the baseline in Word's print where 10pt ones are 11.39.)
+            let ownMark = _markerChar(p, document).fontSize
+            let styleSize = named?.char.fontSize ?? _normalChar(document)?.fontSize
+            let larger = ownMark == nil && p.style.mark != nil && (styleSize ?? 0) > (p.runs[0].style.fontSize ?? .infinity) + 0.01
+            let markerSize = ownMark ?? (larger ? styleSize : nil) ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            let need = _px(markerSize * (larger ? 1.125 : 1.005)) - line.baseline
             if need > _px(0.05) {
                 _inkShift[i] += max(0, need - _inkShift[i])
                 segoeLift += max(0, _px(markerSize * 1.225) - line.height) / _px(1)
