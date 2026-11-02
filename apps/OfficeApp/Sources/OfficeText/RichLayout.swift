@@ -5475,8 +5475,18 @@ public final class RichLayout {
                         // parted it where centring over the four put it, two
                         // lines on the page. Not over rows with lines of their
                         // own: that cost zh-e37f8d40, which has none of these.)
+                        // (A centred cell merged down whose text all stands inside the
+                        // page, beside a cell of the row that parts: Word for Windows
+                        // keeps it whole on the table's first page, centred in the
+                        // part there, never its lines split at the cut. Lab `cm1`,
+                        // ten tables: three lines centred over two rows beside a
+                        // right cell of fourteen lines and more, baselines 142.37,
+                        // 157.03, 171.67 on page 1 in every one.)
+                        let centredInPart = theme.wordRules && RichTextTheme.wordWindowsPages && d0.rowSpan > 1 && d0.verticalAlign == "center"
+                            && room >= -0.01 && c.ghostRows == 0
                         let wholeMerged = d0.rowSpan > 1 && (!column.cuts.contains { $0 > column.cut + 0.01 && $0 <= limit }
-                            || d0.rowSpan - 1 <= c.ghostRows)
+                            || d0.rowSpan - 1 <= c.ghostRows || centredInPart)
+                        if centredInPart, wholeMerged { RuleTrace.hit("word-centred-merged-cell-stays-whole-on-the-first-page") }
                         if theme.wordRules, column.cut <= c.rowTop + 0.01, d0.rowSpan == 1 || wholeMerged, !d0.vertical,
                            d0.verticalAlign == "center" || d0.verticalAlign == "bottom", room >= -0.01 {
                             // A centred cell (or one set at the bottom)
