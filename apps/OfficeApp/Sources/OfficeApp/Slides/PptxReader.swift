@@ -720,7 +720,10 @@ struct PptxReader {
                 if b.first("p:bgPr")?["shadeToTitle"] == "1", bgFill?.path != nil, size.width > 0, size.height > 0,
                    let title = shapes.first(where: { $0.phType == "title" || $0.phType == "ctrTitle" })?.frame {
                     let cx = min(1, max(0, (title.left + title.right) / 2 / size.width)), top = min(1, max(0, title.top / size.height))
-                    bgFill?.fillTo = Rect.fromLTRB(cx, top, 1 - cx, 1 - top)
+                    // (A rect or shape path is stepped from the fill-to POINT: its edges in fractions across and
+                    // down, as `gradient` writes them; a circle's keeps the insets it was fitted with.)
+                    let isCircle = bgFill?.path == .circle
+                    bgFill?.fillTo = isCircle ? Rect.fromLTRB(cx, top, 1 - cx, 1 - top) : Rect.fromLTRB(cx, top, cx, top)
                 }
             } else {
                 for (owner, xml) in [(layoutPart, layout), (masterPart, master)] {
