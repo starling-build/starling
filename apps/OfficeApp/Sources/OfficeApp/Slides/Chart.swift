@@ -3329,6 +3329,10 @@ enum ChartPainter {
             let legendBeside = c.legend && c.legendBox == nil && ["r", "l", "tr"].contains(c.legendPosition)
             var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
+            // (An area chart's first date, turned, reaches its horizontal extent left of the plot's
+            // edge, and Word keeps it clear of the frame, fitted on one witness: lo-c996762f's plot starts
+            // 35.0 in where ours stood 26.8, the values with it.)
+            if word, c.type == .area, aslant, let first = catLabels.first { left = max(left, drop(first) - 6.2 * k) }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
