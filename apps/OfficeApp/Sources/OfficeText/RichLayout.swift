@@ -14704,7 +14704,9 @@ public final class RichLayout {
             // zh-360c1df1's first line started 0.15pt early and took the "展" Word
             // refuses.)
             if RichTextTheme.wordWindowsPages, p.style.eastAsian["w:indentStored"] == "1", p.style.firstLineIndent != 0,
-               (chars > 0) == (p.style.firstLineIndent > 0), abs(abs(p.style.firstLineIndent) - abs(counted)) <= 1.5 {
+               (chars > 0) == (p.style.firstLineIndent > 0),
+               abs(abs(p.style.firstLineIndent) - abs(counted)) <= 1.5
+                || (grid != 0 && abs(abs(p.style.firstLineIndent) - abs((chars / 100 * (size * wide + spacing) * 20).rounded() / 20)) <= 1.5) {
                 return p.style.firstLineIndent - _topLineSqueeze(p, document)
             }
             return counted - _topLineSqueeze(p, document)
