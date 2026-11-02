@@ -6201,8 +6201,8 @@ enum DocxFormat {
     /// with a floating table in it stay flattened.
     static func _formHoldingATable(_ node: XNode) -> Bool {
         _nestingDepth(node) == 2
-            && node.children.filter { $0.name == "w:tr" }.count >= 3
-            && node.descendant("w:tblpPr") == nil
+            && node.children.filter { $0.name == "w:tr" }.count >= 2
+            && (node.children.filter { $0.name == "w:tr" }.count >= 3 || node.first("w:tblPr")?.first("w:tblpPr") == nil)
     }
 
     static func _nestingDepth(_ node: XNode) -> Int {
