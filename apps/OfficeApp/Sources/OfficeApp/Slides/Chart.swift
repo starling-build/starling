@@ -2164,6 +2164,7 @@ enum ChartPainter {
         // Word-made chart with outside labels (zh-37b6536f) stands elsewhere, so
         // that one keeps the room under the title.)
         var titleDrop = 0.0
+        var titleLines = 1
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
             // each line centred. (A Word document's chart that gives no size anywhere: 10pt, as
@@ -2195,6 +2196,7 @@ enum ChartPainter {
             // chart wraps before "left" in Word for Windows' print, its first
             // line 340.5pt wide; ours took "left when" on it, 397pt.)
             tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide || !c.onSheet ? min(area.width, 0.8 * r.width) : area.width))
+            titleLines = max(1, tp.computeLineMetrics().count)
             // (Where Word for Windows sets the theme's text in Mincho, a
             // title line holding a character Mincho lacks is JhengHei's,
             // 1.729 em to Mincho's 1.3 (`_tableRows`): it grows by the
@@ -2548,7 +2550,7 @@ enum ChartPainter {
             }
             _pie(c, canvas, area, k: k, theme: theme, text: text, frame: r, ink: ink)
         } else {
-            _axes(c, canvas, area, frame: r, k: k, theme: theme, grid: c.gridColor ?? grid, text: text,
+            _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
@@ -2872,7 +2874,7 @@ enum ChartPainter {
         }
     }
 
-    private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme,
+    private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme, titleLines: Int = 1,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
                               categoryText: (String, Double, Double) -> TextPainter,
                               valueText: (String, Double, Double) -> TextPainter) {
@@ -3365,13 +3367,28 @@ enum ChartPainter {
             // 13 charts in three frames, title on and off, six label and value
             // widths), fitted to 0.6 pt. The wall is the plot's front moved
             // back one box depth.
-            let wordAuto3D = inWord && !horizontal && c.plotLayout == nil && c.legend && c.legendPosition == "b"
+            let wordAuto3D = inWord && !horizontal && c.plotLayout == nil
             if wordAuto3D {
                 RuleTrace.hit("word-3d-columns-left-to-its-own-layout-stand-by-its-fitted-insets")
                 // (The wall's top stands 27 pt and a title's own height under the
                 // frame's, 13.2 without a title; its foot 65.5 over the frame's.)
-                let titleHeight = c.title?.isEmpty == false ? 27.0 + 1.015 * (c.titleSize ?? 18.62) : 13.2
-                whole = Rect.fromLTRB(whole.left, frame.top + titleHeight * k, whole.right, frame.bottom - 65.5 * k)
+                // (Lab set B: a legend at the top lowers the wall's top 23.2 pt and gives
+                // the foot the legend's 22.9 pt back, as no legend does; names that
+                // do not fit level turn a quarter and take their turned height less
+                // the level one's from the foot: 40.2 pt for seven CJK names.)
+                let legendTop = c.legend && c.legendPosition == "t" ? 23.2 : 0.0
+                let legendFoot = c.legend && c.legendPosition == "b" ? 22.9 : 0.0
+                var turnedExtra = 0.0
+                if aslant, let widest = catLabels.max(by: { drop($0) < drop($1) }), let one = catLabels.first {
+                    turnedExtra = max(0, drop(widest) - one.height) / k
+                }
+                let titleHeight = c.title?.isEmpty == false ? 27.0 + 1.015 * (c.titleSize ?? 18.62) + 1.3 * (c.titleSize ?? 18.62) * Double(titleLines - 1) : 13.2
+                // (Narrower frames reserve less at the foot, 0.035 pt a point under 540 wide, and
+                // names in Latin letters stand 4.1 pt lower than CJK ones: lab sets A and B.)
+                let latin = c.categories.allSatisfy { $0.unicodeScalars.allSatisfy { $0.isASCII } }
+                let reserve = 42.6 + legendFoot + turnedExtra - 0.035 * (540 - frame.width / k) - (latin ? 4.1 : 0)
+                whole = Rect.fromLTRB(whole.left, frame.top + (titleHeight + legendTop) * k, whole.right,
+                                      frame.bottom - reserve * k)
             }
             var wall: (left: Double, right: Double)? = nil
             for pass in 0 ..< (wordAuto3D ? 2 : 1) {
@@ -3394,11 +3411,54 @@ enum ChartPainter {
                     }
                 }
                 if pass == 0, wordAuto3D {
-                    let h = (whole.bottom - whole.top) / k
                     let w = frame.width / k
-                    let dL = 26.1085 - 0.0627 * h + 0.0449 * (w - 540)
-                    let dR = -25.1969 + 0.0684 * h - 0.0505 * (w - 540)
-                    wall = (plot.left + box.dx + dL * k, plot.right + box.dx + dR * k)
+                    func fitted() -> (left: Double, right: Double) {
+                        let h = (whole.bottom - whole.top) / k
+                        let dL = 26.1085 - 0.0627 * h + 0.0449 * (w - 540)
+                        let dR = -25.1969 + 0.0684 * h - 0.0505 * (w - 540)
+                        return (plot.left + box.dx + dL * k, plot.right + box.dx + dR * k)
+                    }
+                    var fit = fitted()
+                    // (Names that do not fit their slots of the wall as Word sets it turn
+                    // a quarter: lab set B, seven CJK names in 63 pt slots are turned
+                    // and in 70 pt slots level.)
+                    if !aslant, c.categoryLabelTurn == nil, !c.categoryAxisDeleted, n > 0 {
+                        let room = (fit.right - fit.left) / Double(n)
+                        let widest = c.categories.flatMap { $0.split(separator: " ").map(String.init) }.map { w -> Double in
+                            let t = categoryText(w, catSize, .infinity)
+                            defer { t.dispose() }
+                            return t.width
+                        }.max() ?? 0
+                        if widest + 4 * k > room {
+                            aslant = true
+                            for t in catLabels { t.dispose() }
+                            catLabels = c.categories.map { categoryText($0, catSize, .infinity) }
+                            if let wide = catLabels.max(by: { drop($0) < drop($1) }), let one = catLabels.first {
+                                whole = Rect.fromLTRB(whole.left, whole.top, whole.right, whole.bottom - max(0, drop(wide) - one.height))
+                                fit = fitted()
+                            }
+                        } else {
+                            // (Level names wrap to the slot and each line past the first
+                            // takes its height from the foot: "Category number one long" in
+                            // 70 pt slots is three lines, 22 pt more than one.)
+                            let wrapped = c.categories.map { categoryText($0, catSize, max(room - 2 * k, 8 * k)) }
+                            let level = c.categories.map { n -> Double in
+                                let t = categoryText(n, catSize, .infinity)
+                                defer { t.dispose() }
+                                return t.height
+                            }
+                            let extra = (wrapped.map(\.height).max() ?? 0) - (level.max() ?? 0)
+                            if extra > 0.5 * k {
+                                for t in catLabels { t.dispose() }
+                                catLabels = wrapped
+                                whole = Rect.fromLTRB(whole.left, whole.top, whole.right, whole.bottom - extra)
+                                fit = fitted()
+                            } else {
+                                for t in wrapped { t.dispose() }
+                            }
+                        }
+                    }
+                    wall = fit
                 }
             }
         }
