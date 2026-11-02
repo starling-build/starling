@@ -88,7 +88,11 @@ enum WordArt {
         let style: (Paint) -> Flutter.TextStyle
         let look: RunLook?
         var ink: Rect? { painter.getGlyphInkBounds() }
-        var width: Double { painter.width }
+        /// The width of the face Word sets the character in, where the
+        /// stand-in drawn is not that face (Georgia): the glyph is placed
+        /// by it, as Word places it.
+        var advance: Double? = nil
+        var width: Double { advance ?? painter.width }
     }
 
     private struct Line {
@@ -168,7 +172,7 @@ enum WordArt {
                 for ch in text {
                     defer { offset += String(ch).utf16.count }
                     guard ch != "\n" else { continue }
-                    line.glyphs.append(_glyph(String(ch), base, look(at: offset)))
+                    line.glyphs.append(_glyph(String(ch), base, look(at: offset), family: run.style.fontFamily))
                 }
             }
             line.glyphs = visualOrder(line.glyphs)
@@ -198,14 +202,14 @@ enum WordArt {
     @discardableResult
     static func paint(lines paragraphs: [[(text: String, style: Flutter.TextStyle, look: RunLook?)]], alignment: ParagraphAlignment,
                       warp: TextWarp, area: Rect, canvas: any Canvas, pxPerPt px: Double, shadow: Shadow? = nil,
-                      fitsPath: Bool = false, fitsInk: Bool = false) -> Bool {
+                      fitsPath: Bool = false, fitsInk: Bool = false, family: String? = nil) -> Bool {
         guard draws(warp), area.width > 1, area.height > 1 else { return false }
         var lines: [Line] = []
         for runs in paragraphs {
             var line = Line()
             line.alignment = alignment
             for run in runs {
-                for ch in run.text where ch != "\n" { line.glyphs.append(_glyph(String(ch), run.style, run.look)) }
+                for ch in run.text where ch != "\n" { line.glyphs.append(_glyph(String(ch), run.style, run.look, family: family)) }
             }
             line.glyphs = visualOrder(line.glyphs)
             if !line.glyphs.isEmpty { lines.append(line) }
@@ -218,7 +222,7 @@ enum WordArt {
 
     /// One character as WordArt measures and draws it: at `base`'s face and
     /// size on a line one em high.
-    private static func _glyph(_ ch: String, _ base: Flutter.TextStyle, _ look: RunLook?) -> Glyph {
+    private static func _glyph(_ ch: String, _ base: Flutter.TextStyle, _ look: RunLook?, family: String? = nil) -> Glyph {
         func style(_ paint: Paint) -> Flutter.TextStyle {
             Flutter.TextStyle(fontSize: base.fontSize, fontWeight: base.fontWeight, fontStyle: base.fontStyle, height: 1.0,
                               foreground: paint, fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback)
@@ -228,7 +232,13 @@ enum WordArt {
         fill.color = base.color ?? Color(0xFF000000)
         let tp = TextPainter(text: TextSpan(text: ch, style: style(fill)), textDirection: .ltr)
         tp.layout(minWidth: 0, maxWidth: Double.infinity)
-        return Glyph(painter: tp, text: ch, style: style, look: look)
+        var g = Glyph(painter: tp, text: ch, style: style, look: look)
+        if RichTextTheme.wordWindowsPages, family?.lowercased() == "georgia", base.fontWeight == nil || base.fontWeight == .normal,
+           base.fontStyle != .italic, let u = ch.unicodeScalars.first, ch.unicodeScalars.count == 1,
+           u.value >= 32, Int(u.value) - 32 < OfficeFonts.georgiaAdvances.count {
+            g.advance = OfficeFonts.georgiaAdvances[Int(u.value) - 32] * (base.fontSize ?? 14)
+        }
+        return g
     }
 
     /// The lines fitted into `area` and drawn: the shadow first, if any,
@@ -589,7 +599,9 @@ enum WordArt {
             // WordArt — the line runs the arc's whole length, grown or
             // shrunk: F13's 30pt "Arch Up: Open software" spans its
             // 450 x 88 box's upper half in Word's print, about 52pt.)
-            let k = fits ? arc / line.width : min(1, arc / line.width)
+            // Word sets a Georgia line on a warp at 0.84 of its size (labs: textArch*, textCircle).
+            let top = line.glyphs.contains { $0.advance != nil } ? 0.84 : 1.0
+            let k = fits ? arc / line.width : min(top, arc / line.width)
             let used = line.width * k
             var s = line.alignment == .center ? (arc - used) / 2 : line.alignment == .right ? arc - used : 0
             func at(_ d: Double) -> (Offset, Offset) {

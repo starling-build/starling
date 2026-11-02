@@ -1095,7 +1095,8 @@ enum WriterGroups {
                 let area = Rect.fromLTRB(r.left + art.insets.left * sx, r.top + art.insets.top * sy,
                                          r.right - art.insets.right * sx, r.bottom - art.insets.bottom * sy)
                 WordArt.paint(lines: lines, alignment: art.paragraphs.first?.style.alignment ?? .left,
-                              warp: art.warp, area: area, canvas: canvas, pxPerPt: (sx + sy) / 2, fitsInk: true)
+                              warp: art.warp, area: area, canvas: canvas, pxPerPt: (sx + sy) / 2, fitsInk: true,
+                              family: art.paragraphs.first?.runs.first?.style.fontFamily)
             }
             canvas.restore()
         }
