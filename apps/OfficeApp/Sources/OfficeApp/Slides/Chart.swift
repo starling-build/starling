@@ -3325,6 +3325,18 @@ enum ChartPainter {
         }
         var box = Offset.zero
         if let v = c.barView, c.type == .column || c.type == .bar {
+            // A walled 3-D column chart whose file places the plot (inner)
+            // is drawn a little inside that place, the walls, floor and
+            // their depth all within it: aascu 5864's census columns, laid
+            // 611 x 317.5 pt, stand 81.3 to 678.8 across and 87.2 to 399.5
+            // down in PowerPoint's print (5.9 / 7.6 / 3.3 / 1.9 pt in).
+            // (Thin evidence: one chart; the unwalled bars of
+            // LIBRE_OFFICE-100610's stand in their places already.)
+            if v.walled, c.plotLayoutInner, c.onSlide, !horizontal, c.plotLayout != nil {
+                RuleTrace.hit("ppt-walled-3d-columns-stand-inside-their-laid-plot")
+                plot = Rect.fromLTRB(plot.left + 0.0096 * plot.width, plot.top + 0.0102 * plot.height,
+                                     plot.right - 0.0124 * plot.width, plot.bottom - 0.0061 * plot.height)
+            }
             let whole = plot
             for _ in 0 ..< 3 {
                 // Each bar as deep as it is wide, in a box `gapDepth` more:
