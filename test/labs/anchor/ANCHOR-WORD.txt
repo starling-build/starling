@@ -1,0 +1,7 @@
+# baselines (pt, page top-left origin y), Word for Windows, compat 15, pages 595.35x558.5 (A4-wide, short)
+an_a    E1 p1 46.4; Z1 p1 458.4; Table2:A1 p1 91.5; 26 p1 120.3 | last T1 row ('18', 1, 440.9)
+an_b    E1 p1 46.4; E2 p1 458.4; Table2:A1 p1 503.3; Z1 p2 155.1; 26 p2 49.8 | last T1 row ('18', 1, 440.9)
+an_c    E1 p1 46.4; E2 p1 458.4; E3 p1 483.8; Z1 p2 46.4; Table2:A1 p2 66.0; 26 p2 94.8 | last T1 row ('18', 1, 440.9)
+an_d    E1 p1 46.4; E2 p1 458.4; Table2:A1 p1 503.3; Z1 p2 155.1; Z2 p2 180.5; 26 p2 49.8 | last T1 row ('18', 1, 440.9)
+an_b18  E1 p1 46.4; E2 p1 437.9; Table2:A1 p1 483.0; 26 p1 511.8; Z1 p2 134.7 | last T1 row ('17', 1, 420.5)
+an_b20  E1 p1 46.4; E2 p1 478.7; Z1 p2 46.4; Table2:A1 p2 66.0; 26 p2 94.8 | last T1 row ('19', 1, 461.3)
