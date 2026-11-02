@@ -3069,7 +3069,14 @@ public final class RichLayout {
                                 }
                                 let top: Double
                                 switch f.verticalFrom {
-                                case "paragraph", "line": top = max(0, (f.fromCellTop && RichTextTheme.wordWindowsPages ? 0 : offset) + cell.pad.top + _px(f.y))
+                                case "paragraph", "line":
+                                    // (A float anchored after a block that stepped down keeps the place it had: `_avoidPush`.)
+                                    var kept = 0.0
+                                    if RichTextTheme.wordWindowsPages, !f.fromCellTop, f.againstText {
+                                        var m = k - 1
+                                        while m >= 0, let e = _cells[m], e.table == cell.table, e.row == cell.row, e.column == cell.column { kept += _blockPush[m] ?? 0; m -= 1 }
+                                    }
+                                    top = max(0, (f.fromCellTop && RichTextTheme.wordWindowsPages ? 0 : offset - kept) + cell.pad.top + _px(f.y))
                                 // (From under the row's top line, as its text:
                                 // Word's p17 row is the chart's 632.4pt and 0.7,
                                 // 121.9 to 755.0 between its lines; from the
