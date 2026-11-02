@@ -1563,13 +1563,17 @@ struct DiagramLayout {
         return out
     }
 
-    /// Word's print of hProcess11 (lab hp0..hp2, seven steps): the circles do not stand at an even pitch
-    /// (63.6 59.9 52.4 59.7 63.6 64.2 in a 421.2 line, whatever the texts say) and no rule in the
-    /// definition gives that, so they are set at the shares Word printed, each step carrying its text
+    /// Word's print of hProcess11 (lab hp0..hp2, seven steps, texts resized by `custScaleX`): the circles do not
+    /// stand at an even pitch (63.6 59.9 52.4 59.7 63.6 64.2 in a 421.2 line, whatever the texts say) and no rule
+    /// in the definition gives that, so they are set at the shares Word printed, each step carrying its text
     /// with it. Only the seven-step diagram is known. Done after the fit, which would read a step
     /// leaving the line as a diagram too wide and shrink it.
     private func placeProcessCircles(_ root: DgmPresNode) {
         guard layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/hProcess11" else { return }
+        // (Only where the author resized the texts (`custScaleX`, as in the lab's files): without it the fit's
+        // own even pitch is Word's, as its prints of 3, 5, 9 and 11 steps with no stored sizes show — lab hp3,
+        // circles at 144.5/287.0/429.5, 117.5…457.0, 99.0…475.5, 95.0…479.5, all within the print's 0.5 pt.)
+        guard model.pres.contains(where: { $0.key.hasSuffix("|textA") || $0.key.hasSuffix("|textB") ? $0.value["custScaleX"] != nil : false }) else { return }
         func circle(_ n: DgmPresNode) -> DgmPresNode? {
             if n.name.hasPrefix("circle") { return n }
             for k in n.children { if let r = circle(k) { return r } }
