@@ -1322,6 +1322,10 @@ public final class RichLayout {
     private var _mirrored: Set<Int> = []
     private var _mirrorPassing = false
     private var _besidePassing = false
+    /// The first paragraph of a page whose header holds a box the body may not run under
+    /// (`_headerBoxFloor`): how far its line goes down to clear it (pixels), by paragraph.
+    private var _headPushUse: [Int: Double] = [:]
+    private var _headPassing = false
     /// The strips beside a frame the page fixes (`_stripFrame`): for each paragraph a line of
     /// it stands level with, the room it is held in and the band, from the paragraph's top.
     private var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
@@ -2035,6 +2039,37 @@ public final class RichLayout {
                 }
                 if changes.isEmpty { break }
                 RuleTrace.hit("word-wraps-the-other-columns-round-a-shape")
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
+        // (A page's text starts under its header's boxes that reach into the body and leave no
+        // room beside them: `_headerBoxFloor`. The first paragraph's line goes down, as under a
+        // float of its own, and the objects it holds keep their place.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_headPassing,
+           document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfWrapBoxes($0).contains { $0.float.wraps || $0.float.bandsPage } } }) {
+            _headPassing = true
+            defer { _headPassing = false }
+            for _ in 0 ..< 3 {
+                var want: [Int: Double] = [:]
+                for page in _pages.indices {
+                    let physical = page / max(1, _columns)
+                    guard physical < _pageInsetTop.count, let hf = _headerFooter(.header, page: page, document, pageCount: 1),
+                          let floor = _headerBoxFloor(hf, pageSetup(forPage: page)),
+                          let first = _pages[page].first(where: { !$0.repeated }), first.paragraph < document.paragraphs.count,
+                          first.paragraph < _cells.count, _cells[first.paragraph] == nil,
+                          first.paragraph < _pieceStart.count, _pieceStart[first.paragraph] < _allPieces.count,
+                          _allPieces[_pieceStart[first.paragraph]] == first else { continue }
+                    let under = floor - _pageInsetTop[physical] - first.pageY
+                    if under > 0.5 { want[first.paragraph] = under }
+                }
+                var changes: [RichChange] = []
+                for k in Set(want.keys).union(_headPushUse.keys) {
+                    if let a = want[k], let b = _headPushUse[k], abs(a - b) < 0.5 { continue }
+                    _headPushUse[k] = want[k]
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
                 apply(changes, paragraphCount: document.paragraphs.count)
                 ensureLaidOut(document)
             }
@@ -11059,6 +11094,8 @@ public final class RichLayout {
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
             }
         }
+        // (Under a header's box that leaves the text no room: `_headerBoxFloor`.)
+        if let under = _headPushUse[i], under > push { push = under }
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height + _px(segoeLift)
@@ -19475,6 +19512,73 @@ public final class RichLayout {
     }
 
     /// A box in a header's or footer's paragraph that the body's text goes round.
+    /// A header's or footer's paragraph's boxes placed against the page, in the order the file has
+    /// them (wrapped round or not: one behind the text still moves another off it).
+    static func _hfWrapBoxes(_ p: RichParagraph) -> [(image: ImageAttachment, float: ImageFloat)] {
+        guard p.cell == nil else { return [] }
+        let images = p.inlineImages.sorted { $0.key < $1.key }.map(\.value) + (p.image.map { [$0] } ?? [])
+        return images.compactMap { image in
+            guard let float = image.float, float.verticalAlign == nil,
+                  float.verticalFrom == "page" || float.verticalFrom == "margin",
+                  image.width > 0, image.height > 0 else { return nil }
+            return (image, float)
+        }
+    }
+
+    /// Where a page's text must start below its header's boxes (pixels from the page's top), or
+    /// nil. A box the text wraps round, in front of it, that reaches from above the top margin into
+    /// the body and leaves no line's room at either side, holds the text under it; and a box that may
+    /// not be overlapped (`allowOverlap` 0) that a box before it, also not to be overlapped, stands
+    /// over, goes down under that one first. LibreOffice's lo-db00fd9f: an empty full-width box at
+    /// 92.6-108.15 and a 56pt one behind the text at 99.75-156, both allowOverlap 0. Word for Windows'
+    /// print (labs hdr, hdr2) sets the empty one under the other, 156.6-172.15, and the text under
+    /// it: the empty first line at 181.3 and "nonumy…" at 208.8, where ours ran it at 132.8. With
+    /// the empty box alone, the text goes under its 108.15 (144.7); with the other alone, it stays
+    /// at the margin (134.9) — that one is behind the text.
+    private func _headerBoxFloor(_ hf: _HeaderFooter, _ setup: PageSetup) -> Double? {
+        var boxes: [(top: Double, bottom: Double, x0: Double, x1: Double, front: Bool, solid: Bool, gap: Double)] = []
+        let marginTop = _px(setup.marginTop)
+        let left = _px(setup.marginLeft + setup.gutter), across = _px(setup.contentWidth)
+        for p in hf.document.paragraphs {
+            for (image, float) in Self._hfWrapBoxes(p) {
+                let xml = image.sourceXML ?? ""
+                let w = _px(image.width), h = _px(image.height)
+                let top = (float.verticalFrom == "page" ? 0 : marginTop) + _px(float.y)
+                let base = float.horizontalFrom == "page" ? 0 : left
+                let span = float.horizontalFrom == "page" ? _px(setup.width) : across
+                let x0: Double
+                switch float.horizontalAlign {
+                case "center": x0 = base + (span - w) / 2
+                case "right": x0 = base + span - w
+                case "left": x0 = base
+                default: x0 = base + _px(float.x)
+                }
+                boxes.append((top, top + h, x0, x0 + w, (float.wraps || float.bandsPage) && !xml.containsSubstring("behindDoc=\"1\""),
+                              xml.containsSubstring("allowOverlap=\"0\""), _px(float.distanceBottom)))
+            }
+        }
+        guard !boxes.isEmpty else { return nil }
+        let original = boxes
+        for b in boxes.indices where boxes[b].solid {
+            for _ in 0 ..< boxes.count {
+                guard let a = boxes[..<b].first(where: { a in a.solid && a.x0 < boxes[b].x1 && boxes[b].x0 < a.x1
+                    && a.top < boxes[b].bottom - 0.01 && boxes[b].top < a.bottom - 0.01 }) else { break }
+                let h = boxes[b].bottom - boxes[b].top
+                boxes[b].top = a.bottom
+                boxes[b].bottom = a.bottom + h
+            }
+        }
+        var floor: Double? = nil
+        let room = _px(18)
+        for (k, b) in boxes.enumerated() where b.front {
+            guard original[k].top < marginTop, original[k].bottom > marginTop,
+                  b.x0 - left < room, left + across - b.x1 < room else { continue }
+            floor = max(floor ?? 0, b.bottom + b.gap)
+        }
+        if floor != nil { RuleTrace.hit("word-header-box-with-no-room-beside-it-holds-the-text-under-it") }
+        return floor
+    }
+
     static func _hfBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
         guard p.cell == nil else { return nil }
         for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
