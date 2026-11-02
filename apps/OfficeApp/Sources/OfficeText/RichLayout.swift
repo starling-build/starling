@@ -9764,7 +9764,11 @@ public final class RichLayout {
                     // Word's print than ours; zh-8e8d4c40's "2、" (MS Mincho)
                     // over 12pt DFKai-SB, 0.6.)
                     if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
-                       p.style.list != nil, let label = listLabel(i, document), !label.isEmpty {
+                       p.style.list != nil, let label = listLabel(i, document), !label.isEmpty,
+                       // (Not a bullet of a symbol face, whose private-use character is no
+                       // East Asian one: lo-ca9b51bc's 12pt Wingdings bullet over 9pt text
+                       // lifted its lines 9pt, where Word's stand the text's own.)
+                       !["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(_levelNumberFonts(p, document).latin?.lowercased() ?? "") {
                         let markerChar = _markerChar(p, document)
                         let ea = label.contains(where: { Self.isEastAsian($0, hinted: true) })
                         // (Only a label set in an East Asian face: zh-de073ee5's
