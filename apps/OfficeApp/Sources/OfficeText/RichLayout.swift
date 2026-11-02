@@ -21231,6 +21231,9 @@ public final class RichLayout {
                                piece.flowBottom < _tops[piece.paragraph] + _heights[piece.paragraph] - 0.5 {
                                 canvas.restore()
                                 canvas.save()
+                                // (Only what lies under the cut: the lines the
+                                // row shows are not drawn twice.)
+                                canvas.clipRect(Rect.fromLTRB(clipL, bottom + _baselineShift(piece.paragraph, document), clipR, pageRect(p).bottom))
                                 canvas.translate(left, top - piece.flowTop)
                                 let ghost = Paint()
                                 ghost.color = Color(0x01000000)
