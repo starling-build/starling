@@ -683,6 +683,7 @@ enum DocxFormat {
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
         _hoistTablesOutOfParagraphs(root)
+        _renumberSequences(root)
         let kept = _keptParts(entries, part)
         // Relationships: hyperlink targets and media parts.
         var rels: [String: String] = [:]
@@ -4770,6 +4771,70 @@ enum DocxFormat {
     /// type) is what every empty cell's paragraph wears; skipping it set
     /// those cells in Normal's 10pt + 10pt after, grew every table, and
     /// cost the copy a fourth page.
+    /// Word counts its `SEQ` fields again when it prints, whatever number the
+    /// file cached: lo-c4c60fcb's only "Figure" caption holds 2 and prints 1, and
+    /// lo-dcf44597's holds 72 and prints 1. Each identifier counts in document order
+    /// (`\r n` starts again at n, `\c` repeats the last, `\h` and a `\*` format
+    /// other than Arabic are counted but left as the file wrote them); a text
+    /// box's fallback copy takes the number its first copy has.
+    private static func _renumberSequences(_ root: XNode) {
+        var counts: [String: Int] = [:]
+        // Each open complex field: its text, whether its result has begun,
+        // and the number it shows (nil to leave the cached one).
+        var open: [(instr: String, result: Bool, shown: String?, placed: Bool)] = []
+        func number(_ instr: String, fallback: Bool) -> String? {
+            let tokens = instr.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" }).map(String.init)
+            guard tokens.count >= 2, tokens[0].uppercased() == "SEQ", !tokens[1].hasPrefix("\\") else { return nil }
+            let id = tokens[1]
+            var hidden = false, arabic = true, repeating = false, reset: Int? = nil
+            var i = 2
+            while i < tokens.count {
+                let t = tokens[i].lowercased()
+                if t == "\\s" { return nil }
+                if t == "\\h" { hidden = true }
+                if t == "\\c" { repeating = true }
+                if t == "\\r", i + 1 < tokens.count { reset = Int(tokens[i + 1]); i += 1 }
+                if t == "\\*", i + 1 < tokens.count { arabic = arabic && tokens[i + 1].uppercased() == "ARABIC"; i += 1 }
+                i += 1
+            }
+            if !fallback {
+                if let reset { counts[id] = reset } else if !repeating { counts[id, default: 0] += 1 }
+            }
+            guard let n = counts[id] ?? (fallback ? nil : 0), arabic, !hidden else { return nil }
+            return String(n)
+        }
+        func walk(_ node: XNode, fallback: Bool) {
+            for child in node.children {
+                switch child.name {
+                case "w:fldChar":
+                    switch child["w:fldCharType"] {
+                    case "begin": open.append((instr: "", result: false, shown: nil, placed: false))
+                    case "separate":
+                        if !open.isEmpty {
+                            open[open.count - 1].result = true
+                            open[open.count - 1].shown = number(open[open.count - 1].instr, fallback: fallback)
+                        }
+                    case "end": if !open.isEmpty { open.removeLast() }
+                    default: break
+                    }
+                case "w:instrText":
+                    if !open.isEmpty, !open[open.count - 1].result { open[open.count - 1].instr += child.text }
+                case "w:t":
+                    if let f = open.last, f.result, let shown = f.shown {
+                        child.text = f.placed ? "" : shown
+                        open[open.count - 1].placed = true
+                    }
+                case "w:fldSimple":
+                    if let shown = number(child["w:instr"] ?? "", fallback: fallback), let t = child.descendant("w:t") { t.text = shown }
+                    walk(child, fallback: fallback)
+                default:
+                    walk(child, fallback: fallback || child.name == "mc:Fallback")
+                }
+            }
+        }
+        walk(root, fallback: false)
+    }
+
     /// A table written inside a paragraph (LibreOffice's tdf111550 has one in a cell's
     /// paragraph, after a line break) is read by Word as standing after it.
     private static func _hoistTablesOutOfParagraphs(_ root: XNode) {
