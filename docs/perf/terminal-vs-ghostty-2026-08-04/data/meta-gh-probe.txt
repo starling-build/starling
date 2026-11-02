@@ -1,4 +1,0 @@
-label gh-probe
-terminal_pid 909457
-terminal_comm ghostty
-grid 47x201

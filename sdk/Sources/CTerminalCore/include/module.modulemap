@@ -1,4 +1,0 @@
-module CTerminalCore {
-    header "starling_term.h"
-    export *
-}
