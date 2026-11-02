@@ -4634,12 +4634,12 @@ public final class RichLayout {
             }
             // (What a part that goes on to the next page is held clear of the foot by, besides the nested cells' own
             // bottoms: the outer cell's top margin under its rule and the nested tops, which the next part stands
-            // under again — Word ends lo-c7082c66's page 3 a line sooner than the bottoms alone allow; the 3pt more is fitted, any
-            // value from 1.1 to 7pt gives its page: a float's rules and frame, not pinned by one document.)
+            // under again — Word ends lo-c7082c66's page 3 a line sooner than the bottoms alone allow; 0.3 of the cell's top margin more is fitted to lab nf1
+            // (Word for Windows, margins 0 / 113 / 300 twips: pages 1-3 end where Word's do; a flat 3pt broke the 0 one).)
             func nestedGap(_ column: Column) -> Double {
                 let r = nestedRepeat(column)
                 guard r > 0 else { return 0 }
-                return r + max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + 60
+                return r + max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) + 0.3 * _cells[column.members[0]]!.pad.top
             }
             func nestedFoot(_ owner: Int) -> Double {
                 guard theme.wordRules, owner >= 0, owner < document.paragraphs.count else { return 0 }

@@ -6257,10 +6257,19 @@ enum DocxFormat {
         // twip under its paragraph.)
         if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
            (Double(pos["w:tblpY"] ?? "") ?? 0) / 20 <= 1, (Double(pos["w:tblpX"] ?? "") ?? 0) >= 0 { return false }
+        // (A row is as tall as its least height or as its text, set at about 5pt a character in the column,
+        // whichever is more: lab nf1, Word for Windows, prints the float of lo-c7082c66 whose rows state 10pt
+        // as it prints the one whose last row states 170pt — four pages, the same lines on the first three —
+        // where ours, reading only the stated heights, set the 86pt column as a wide block.)
+        let colWide = (Double(node.first("w:tblGrid")?.all("w:gridCol").first?["w:w"] ?? "") ?? 0) / 20
         var total = 0.0
         for tr in node.all("w:tr") {
             if tr.all("w:tc").count != 1 { return false }
-            if let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact", let v = Double(h["w:val"] ?? "") { total += v / 20 }
+            var stated = 0.0
+            if let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact", let v = Double(h["w:val"] ?? "") { stated = v / 20 }
+            let chars = Double(tr.descendants("w:t").reduce(0) { $0 + $1.text.count })
+            let lines = colWide > 12 ? (chars * 5 / (colWide - 11)).rounded(.up) : 0
+            total += max(stated, lines * 13.4)
         }
         return total >= 200
     }
