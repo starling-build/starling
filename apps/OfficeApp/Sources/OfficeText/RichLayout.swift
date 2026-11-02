@@ -3882,6 +3882,8 @@ public final class RichLayout {
         // (A floating table kept with its anchor whose offset takes it past
         // the margin: its first row stands there.)
         var keptPastFoot: String? = nil
+        // The last empty paragraph the compat 14 carry rule looked at: where it began, and on which page.
+        var lastEmptyAt: (i: Int, page: Int, y: Double)? = nil
         var deferredTable: String? = nil
         // A table placed against the page further down than the text has
         // come: where the text stood, to go on from there round it.
@@ -6751,11 +6753,13 @@ public final class RichLayout {
             // carries it to the next page unless its space after fits there too — lab compat1415b,
             // Calibri 11pt lines 15.4 over 10 after on a page with 16pt left: both empties go to the
             // next page and the second table stands under them, where 0 after leaves the first one.)
+            var emptyBegins = y
+            if let last = lastEmptyAt, last.i == i - 1, last.page == page { emptyBegins = max(y, last.y + _heights[i - 1]) }
             if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15, resumeCursor == nil, y > 0.01,
                _columns == 1, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil,
                case let pst = document.paragraphs[i].style, case let after = _px(pst.spaceAfter),
                // (Its line counts as a single one, Word's multiple hanging below the foot like the leading.)
-               (_heights[i] - after) / max(1, pst.lineSpacing) + after > contentH - y + 0.01, !_pageBreak[i] {
+               Self._needs(_heights[i], after, pst.lineSpacing) > contentH - emptyBegins + 0.01, !_pageBreak[i] {
                 var k = i
                 while k < count, _cells[k] == nil, document.paragraphs[k].text.isEmpty { k += 1 }
                 if k < count, _cells[k] != nil, Self._followsFloatingTable(k, _cells[k]!.table, document: document, cells: _cells) {
@@ -6763,6 +6767,7 @@ public final class RichLayout {
                     newPage()
                 }
             }
+            if _cells[i] == nil, document.paragraphs[i].text.isEmpty { lastEmptyAt = (i, page, y) }
             // (A paragraph that is only the break, carried to a page of its
             // own because no line of it fit at the foot under a table,
             // stays on the page it ends where the table reached the foot,
@@ -13552,6 +13557,17 @@ public final class RichLayout {
     /// lo-11ad5a95's rows of a label, a tab and one 48pt space stood the label 11pt low, out of
     /// its box, and the PDF lost it. (Scalars, not Characters: "\u{2000}" == "\u{2002}" in Swift,
     /// the two being canonically equivalent.)
+    /// What an empty paragraph needs at a page's foot: its line taken as a single one, and its space after.
+    private static func _needs(_ height: Double, _ after: Double, _ multiple: Double) -> Double {
+        (height - after) / max(1, multiple) + after
+    }
+
+    /// Where the paragraph at `i` begins on the page: `y`, or below the paragraph before it where that one stands on this page and `y` has not moved past it.
+    private static func _effectiveY(_ y: Double, _ i: Int, _ page: [PagePiece], _ heights: [Double]) -> Double {
+        guard i > 0, let last = page.last(where: { $0.paragraph == i - 1 }) else { return y }
+        return max(y, last.pageY + heights[i - 1])
+    }
+
     /// Whether the table at `i` floats by the text straight after another floating table, with only
     /// empty paragraphs between them. compat1415b (Word for Windows, compat 14): the second stands
     /// where the empties end, without its offset.
