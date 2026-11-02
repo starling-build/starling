@@ -807,8 +807,18 @@ final class SlidePainter: CustomPainter {
             if let style = shape.fillStyle {
                 // A gradient or picture, within every filled subpath at once.
                 canvas.save()
-                canvas.clipPath(Self.combinedPath(freeform, r))
-                paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+                let outline = Self.combinedPath(freeform, r)
+                canvas.clipPath(outline)
+                let named = (shape.preset ?? shape.inheritedPreset)?.rawValue
+                if style.path == .shape, Self.shapePathIsCircle(named) {
+                    var circle = style
+                    circle.path = .circle
+                    paintFill(circle, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+                } else if style.path == .shape, style.stops.count >= 2, style.overlay == nil {
+                    Self.paintShapePath(style, outline, r, canvas, ellipse: named == "ellipse")
+                } else {
+                    paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+                }
                 canvas.restore()
             }
             // Every fill, then every outline — PowerPoint's order whatever
@@ -884,7 +894,15 @@ final class SlidePainter: CustomPainter {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
             if let path { canvas.clipPath(path) } else { canvas.clipRect(area) }
-            paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            if style.path == .shape, Self.shapePathIsCircle(preset?.rawValue) {
+                var circle = style
+                circle.path = .circle
+                paintFill(circle, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            } else if style.path == .shape, let path, preset?.rawValue != "rect", style.stops.count >= 2, style.overlay == nil {
+                Self.paintShapePath(style, path, area, canvas, ellipse: preset?.rawValue == "ellipse")
+            } else {
+                paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            }
             canvas.restore()
         } else if let fill = shape.fill, shape.preset?.isOpenPath != true, !drawnAlready {
             let p = Paint()
@@ -1366,6 +1384,52 @@ final class SlidePainter: CustomPainter {
         canvas.restore()
     }
 
+    /// The presets whose `path="shape"` PowerPoint prints as a circle gradient (lab gradshape: the ellipse
+    /// the right arrow; an ellipse, a star and a heart nest their own outline instead).
+    static func shapePathIsCircle(_ preset: String?) -> Bool { preset == "rightArrow" }
+
+    /// The colour a path gradient has `u` of the way from its focus (0) to its edge (1).
+    static func pathRampColor(_ colors: [Color], _ positions: [Double]) -> (Double) -> Color {
+        func at(_ u: Double) -> Color {
+            guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
+            if j == 0 { return colors[0] }
+            let a = positions[j - 1], b = positions[j]
+            let k = b > a ? (u - a) / (b - a) : 0
+            func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
+            func m(_ sh: Int) -> Int64 { Int64((ch(colors[j - 1], sh) * (1 - k) + ch(colors[j], sh) * k).rounded()) }
+            let al = Int64((Double(colors[j - 1].alpha) * (1 - k) + Double(colors[j].alpha) * k).rounded())
+            return Color(al << 24 | m(16) << 16 | m(8) << 8 | m(0))
+        }
+        return at
+    }
+
+    /// `path="shape"` on a shape that is not a box: the outline itself, shrunk toward the fill-to point
+    /// in as many steps, each in the colour that far along (PowerPoint's print of lab gradshape: nested
+    /// ellipses, stars, hearts; with a corner point the copies crowd into that corner).
+    static func paintShapePath(_ fill: SlideFill, _ outline: Path, _ r: Rect, _ canvas: any Canvas, ellipse: Bool = false) {
+        let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops) : (fill.stops.map(\.color), fill.stops.map(\.position))
+        let at = pathRampColor(colors, positions)
+        let f = fill.fillTo
+        // (An ellipse keeps to its middle whatever the fill-to point, as a circle does: lab gradshape.)
+        let mid = ellipse && cornerFocus(f)
+        let fx = r.left + (mid ? 0.5 : (f.left + f.right) / 2) * r.width, fy = r.top + (mid ? 0.5 : (f.top + f.bottom) / 2) * r.height
+        let p = Paint()
+        p.style = .fill
+        p.color = at(1)
+        canvas.drawRect(r, p)
+        let steps = 96
+        for k in 0 ... steps {
+            let t = 1 - Double(k) / Double(steps)
+            p.color = at(t)
+            canvas.save()
+            canvas.translate(fx, fy)
+            canvas.scale(t, t)
+            canvas.translate(-fx, -fy)
+            canvas.drawPath(outline, p)
+            canvas.restore()
+        }
+    }
+
     static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1,
                           turn: Double = 0) {
         if let overlay = fill.overlay {
@@ -1398,16 +1462,7 @@ final class SlidePainter: CustomPainter {
             let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
                 : fill.even || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
                                                 : Self.linearLight(fill.stops, eased: fill.eased, shifted: false)
-            func at(_ u: Double) -> Color {
-                guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
-                if j == 0 { return colors[0] }
-                let a = positions[j - 1], b = positions[j]
-                let k = b > a ? (u - a) / (b - a) : 0
-                func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
-                func m(_ sh: Int) -> Int64 { Int64((ch(colors[j - 1], sh) * (1 - k) + ch(colors[j], sh) * k).rounded()) }
-                let al = Int64((Double(colors[j - 1].alpha) * (1 - k) + Double(colors[j].alpha) * k).rounded())
-                return Color(al << 24 | m(16) << 16 | m(8) << 8 | m(0))
-            }
+            let at = Self.pathRampColor(colors, positions)
             let f = fill.fillTo
             // (`fillTo` holds the fill-to rectangle's edges as fractions across and down: its right and
             // bottom are `1 - r` and `1 - b`. A corner point, l 100% b 100%, once read as r.left to r.right
