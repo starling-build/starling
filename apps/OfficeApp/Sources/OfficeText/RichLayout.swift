@@ -7230,7 +7230,16 @@ public final class RichLayout {
                             for k in g.first ... g.last {
                                 for cut in cellCuts(k) where cut - _tops[g.first] <= room + 0.01 { shown = max(shown, cut - _tops[g.first]) }
                             }
-                            if shown > 0 { up = max(0, free / 2 - (room - shown) / 2) }
+                            if shown > 0 {
+                                // (Word centres the lines that stay in the part, even when that is lower
+                                // than the whole span's centre: zh-38d26944's "成果精度", one 26pt line
+                                // of three, in a 45pt row at page 12's foot, 9.5 down in Word's print.)
+                                let want = free / 2 - (room - shown) / 2
+                                up = theme.wordRules && RichTextTheme.wordWindowsPages ? want : max(0, want)
+                            }
+                            if Self.debugRows == page + 1 {
+                                FileHandle.standardError.write(Data("centred-part cell \(g.first): part \(part / _px(1)) free \(free / _px(1)) text \(text / _px(1)) room \(room / _px(1)) shown \(shown / _px(1)) cuts \((g.first ... g.last).map { k in cellCuts(k).map { ($0 - _tops[g.first]) / _px(1) } })\n".utf8))
+                            }
                         }
                         for k in g.first ... g.last { lift[k] = up }
                     }
@@ -7238,7 +7247,7 @@ public final class RichLayout {
                 for k in i ..< j {
                     // A cell spanning rows paints through every row it covers.
                     let bottom = _cells[k]!.rowSpan > 1 ? c.rowTop + _cells[k]!.rowHeight : rowBottom
-                    guard let up = lift[k], up > 0.01 else {
+                    guard let up = lift[k], abs(up) > 0.01 else {
                         add(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: bottom, page: page, pageY: y))
                         continue
                     }
