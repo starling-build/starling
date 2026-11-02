@@ -4911,13 +4911,23 @@ extension ChartPainter {
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
             }()
             let colour = c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
-            let tp = TextPainter(text: Self.labelSpan(c, text, Flutter.TextStyle(
-                color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
-                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
-                fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))), textAlign: .center, textDirection: .ltr)
+            func makeLabel(_ maxLines: Int?, _ shown: String? = nil) -> TextPainter {
+                TextPainter(text: Self.labelSpan(c, shown ?? text, Flutter.TextStyle(
+                    color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
+                    fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))), textAlign: .center, textDirection: .ltr,
+                    maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
+            }
+            var tp = makeLabel(nil)
             // (Excel wraps a long label at about a fifth of the chart's width:
             // 45544's "Finance - Investment Banking" is three lines.)
-            tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))
+            // (In a Word document a fifth less the label box's 7.7 pt of margin:
+            // lo-f391267c's 193pt chart wraps "long data" (34.5pt) and keeps
+            // "label 1" (24.2) — between 24.3 and 34.5 — where a fifth, 38.6,
+            // held "data label". Not for Chinese text: zh-61aaad09's pie labels
+            // stand where they did with the whole fifth.)
+            let wordLabelRoom = !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k : 0
+            tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
             // (And a one-line label a little narrower: past 0.1857 of the
             // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
             // wide, keeps "補助及協助收入, 2.35%" (99.9pt at 10pt) on one line in
@@ -4925,6 +4935,24 @@ extension ChartPainter {
             // comma. A label that wraps already keeps the fifth's box.)
             if tp.computeLineMetrics().count == 1, tp.width > max(20 * k, frame.width * 0.1857) {
                 tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.1857))
+            }
+            // (In a Word document a label taller than half the chart ends in an
+            // ellipsis where it is full: lo-f391267c's, nine lines of a 160pt
+            // chart, stops after seven, "even…".)
+            if !c.onSlide, !c.onSheet, !c.chartex {
+                let n = tp.computeLineMetrics().count
+                let allowed = max(1, Int(frame.height * 0.5 / (tp.height / Double(max(1, n)))))
+                if n > allowed {
+                    RuleTrace.hit("word-data-label-taller-than-half-the-chart-ends-in-an-ellipsis")
+                    // (The engine's ellipsis only cuts a line that overflows its width, so
+                    // the text is cut at the last line's end and the dots added here.)
+                    let lineH = tp.height / Double(n)
+                    let end = tp.getLineBoundary(tp.getPositionForOffset(Offset(1, (Double(allowed) - 0.5) * lineH))).end
+                    let kept = String(text.prefix(max(0, end))).trimmingWhitespace()
+                    tp.dispose()
+                    tp = makeLabel(nil, kept + "\u{2026}")
+                    tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+                }
             }
             let pad = 3 * k
             let w = tp.width + pad * 2, h = tp.height + pad
@@ -5070,7 +5098,7 @@ extension ChartPainter {
             }
             // (Kept inside the frame: Word's labels over a 3-D pie's top
             // stand under the frame's edge in lab p3d, where ours were cut.)
-            if l.fitted {
+            if l.fitted || (!c.onSlide && !c.onSheet && !c.chartex && h > frame.height * 0.4) {
                 at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
                             min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
             }
