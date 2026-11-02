@@ -1258,6 +1258,21 @@ enum OfficeFonts {
         0.4658, 0.3560, 0.2559, 0.3560, 0.5342,
     ]
 
+    // Century's own widths, U+0020 to U+007E, and its own line: 1.2021 ems by
+    // its hhea (ascent 2019, descent 443 of 2048, no gap). Numbers only, read
+    // from the box's century.ttf by windows' lab fontmetrics (2026-11-02). It
+    // has no metric-compatible free clone; only its Regular is installed on
+    // Word's box, so bold and italic keep the stand-in's widths.
+    static let centuryAdvances: [Double] = [
+        0.2778, 0.2959, 0.3892, 0.5562, 0.5562, 0.8330, 0.8149, 0.2041, 0.3330, 0.3330, 0.5000, 0.6060, 0.2778, 0.3330, 0.2778,
+        0.2778, 0.5562, 0.5562, 0.5562, 0.5562, 0.5562, 0.5562, 0.5562, 0.5562, 0.5562, 0.5562, 0.2778, 0.2778, 0.6060, 0.6060,
+        0.6060, 0.4438, 0.7368, 0.7222, 0.7222, 0.7222, 0.7778, 0.7222, 0.6670, 0.7778, 0.8330, 0.4072, 0.5562, 0.7778, 0.6670,
+        0.9438, 0.8149, 0.7778, 0.6670, 0.7778, 0.7222, 0.6299, 0.6670, 0.8149, 0.7222, 0.9810, 0.7041, 0.7041, 0.6108, 0.3330,
+        0.6060, 0.3330, 0.6060, 0.5000, 0.3330, 0.5562, 0.5562, 0.4438, 0.5742, 0.5000, 0.3330, 0.5371, 0.6108, 0.3149, 0.2959,
+        0.5928, 0.3149, 0.8892, 0.6108, 0.5000, 0.5742, 0.5562, 0.4438, 0.4629, 0.3892, 0.6108, 0.5371, 0.7778, 0.5371, 0.5371,
+        0.4810, 0.3330, 0.6060, 0.3330, 0.6060,
+    ]
+
     // Tahoma's own widths, U+0020 to U+007E, in its Regular and Bold, and its
     // own line: 1.2070 ems by its hhea (ascent 2049, descent 423 of 2048, no
     // gap). Numbers only, read from the subsets Word's and PowerPoint's
@@ -2724,6 +2739,14 @@ enum OfficeFonts {
                 face.boldOtherAdvances?.merge(verdanaBoldOtherAdvances) { $1 }
                 face.naturalHeight = 1.2153
                 face.baseline = 1.0054
+            }
+            // (Century, at its own widths and line: lo-6b7d4262's lines set a
+            // letter wider in Word's print than the stand-in's.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "century" {
+                face.advances = centuryAdvances
+                face.naturalHeight = 1.2021
+                face.baseline = 0.9858
+                RuleTrace.hit("century-own-widths")
             }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "tahoma" {
