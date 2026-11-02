@@ -1,0 +1,361 @@
+# variant	k	which	W	advances on that line (pt)
+csq-c14-cell-L13-mc-d0-p0	2	first W taking X	186.0	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.23
+csq-c14-cell-L13-mc-d0-p0	2	last wrapped W	185.75	marks=['，w12.0 gap0.47', '，w12.0 gap0.35'] | autospace=[] | ideo-gap mean 0.39
+csq-c14-cell-L13-mc-d0-p1	2	first W taking X	199.55	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c14-cell-L13-mc-d0-p1	2	last wrapped W	199.3	marks=['，w12.0 gap0.48', '，w12.0 gap0.48'] | autospace=['兼|4 6.54'] | ideo-gap mean 0.49
+csq-c14-cell-L13-mc-d1-p0	2	first W taking X	198.02	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.25
+csq-c14-cell-L13-mc-d1-p0	2	last wrapped W	197.77	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.90', '3|級 5.88'] | ideo-gap mean 0.00
+csq-c14-cell-L13-mc-d1-p1	2	first W taking X	211.55	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.20
+csq-c14-cell-L13-mc-d1-p1	2	last wrapped W	211.3	marks=['，w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=['等|3 6.14', '3|級 6.12', '兼|4 6.24'] | ideo-gap mean 0.07
+csq-c14-cell-L13-mc-d3-p0	2	first W taking X	222.02	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c14-cell-L13-mc-d3-p0	2	last wrapped W	221.77	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c14-cell-L13-mc-d3-p1	2	first W taking X	235.55	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.24
+csq-c14-cell-L13-mc-d3-p1	2	last wrapped W	235.3	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.46', '3|級 4.44', '體|5 4.44', '5|訓 4.44', '單|7 4.45', '7|位 4.47', '兼|4 4.44'] | ideo-gap mean 0.01
+csq-c14-cell-L13-md-d0-p0	2	first W taking X	186.0	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.23
+csq-c14-cell-L13-md-d0-p0	2	last wrapped W	185.75	marks=['、w12.0 gap0.47', '、w12.0 gap0.35'] | autospace=[] | ideo-gap mean 0.39
+csq-c14-cell-L13-md-d0-p1	2	first W taking X	199.55	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c14-cell-L13-md-d0-p1	2	last wrapped W	199.3	marks=['、w12.0 gap0.48', '、w12.0 gap0.48'] | autospace=['兼|4 6.54'] | ideo-gap mean 0.49
+csq-c14-cell-L13-md-d1-p0	2	first W taking X	198.02	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.25
+csq-c14-cell-L13-md-d1-p0	2	last wrapped W	197.77	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.90', '3|級 5.88'] | ideo-gap mean 0.00
+csq-c14-cell-L13-md-d1-p1	2	first W taking X	211.55	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.20
+csq-c14-cell-L13-md-d1-p1	2	last wrapped W	211.3	marks=['、w12.0 gap0.11', '、w12.0 gap0.11'] | autospace=['等|3 6.14', '3|級 6.12', '兼|4 6.24'] | ideo-gap mean 0.07
+csq-c14-cell-L13-md-d3-p0	2	first W taking X	222.02	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c14-cell-L13-md-d3-p0	2	last wrapped W	221.77	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c14-cell-L13-md-d3-p1	2	first W taking X	235.55	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.24
+csq-c14-cell-L13-md-d3-p1	2	last wrapped W	235.3	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.46', '3|級 4.44', '體|5 4.44', '5|訓 4.44', '單|7 4.45', '7|位 4.47', '兼|4 4.44'] | ideo-gap mean 0.01
+csq-c14-cell-L13-ms-d0-p0	2	first W taking X	186.0	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.23
+csq-c14-cell-L13-ms-d0-p0	2	last wrapped W	185.75	marks=['，w12.0 gap0.47', '；w12.0 gap0.35'] | autospace=[] | ideo-gap mean 0.39
+csq-c14-cell-L13-ms-d0-p1	2	first W taking X	199.55	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c14-cell-L13-ms-d0-p1	2	last wrapped W	199.3	marks=['，w12.0 gap0.48', '；w12.0 gap0.48'] | autospace=['兼|4 6.54'] | ideo-gap mean 0.49
+csq-c14-cell-L13-ms-d1-p0	2	first W taking X	198.02	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.25
+csq-c14-cell-L13-ms-d1-p0	2	last wrapped W	197.77	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.90', '3|級 5.88'] | ideo-gap mean 0.00
+csq-c14-cell-L13-ms-d1-p1	2	first W taking X	211.55	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.20
+csq-c14-cell-L13-ms-d1-p1	2	last wrapped W	211.3	marks=['，w12.0 gap0.11', '；w12.0 gap0.11'] | autospace=['等|3 6.14', '3|級 6.12', '兼|4 6.24'] | ideo-gap mean 0.07
+csq-c14-cell-L13-ms-d3-p0	2	first W taking X	222.02	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c14-cell-L13-ms-d3-p0	2	last wrapped W	221.77	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c14-cell-L13-ms-d3-p1	2	first W taking X	235.55	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.24
+csq-c14-cell-L13-ms-d3-p1	2	last wrapped W	235.3	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.46', '3|級 4.44', '體|5 4.44', '5|訓 4.44', '單|7 4.45', '7|位 4.47', '兼|4 4.44'] | ideo-gap mean 0.01
+csq-c14-cell-L26-mc-d0-p0	2	first W taking X	342.0	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.11
+csq-c14-cell-L26-mc-d0-p0	2	last wrapped W	341.75	marks=['，w12.0 gap0.23', '，w12.0 gap0.23'] | autospace=[] | ideo-gap mean 0.20
+csq-c14-cell-L26-mc-d0-p1	2	first W taking X	355.57	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.09
+csq-c14-cell-L26-mc-d0-p1	2	last wrapped W	355.32	marks=['，w12.0 gap0.24', '，w12.0 gap0.24'] | autospace=['績|4 6.36'] | ideo-gap mean 0.26
+csq-c14-cell-L26-mc-d1-p0	2	first W taking X	354.02	marks=['，w12.0 gap-1.44', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.12
+csq-c14-cell-L26-mc-d1-p0	2	last wrapped W	353.77	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.90', '3|級 5.88'] | ideo-gap mean 0.00
+csq-c14-cell-L26-mc-d1-p1	2	first W taking X	367.57	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.09
+csq-c14-cell-L26-mc-d1-p1	2	last wrapped W	367.32	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 6.02', '3|級 6.12', '績|4 6.15'] | ideo-gap mean 0.04
+csq-c14-cell-L26-mc-d3-p0	2	first W taking X	378.05	marks=['，w12.0 gap-1.44', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.14
+csq-c14-cell-L26-mc-d3-p0	2	last wrapped W	377.8	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '之|7 3.99', '7|招 3.96'] | ideo-gap mean 0.00
+csq-c14-cell-L26-mc-d3-p1	2	first W taking X	391.57	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.10
+csq-c14-cell-L26-mc-d3-p1	2	last wrapped W	391.32	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.46', '3|級 4.44', '體|5 4.44', '5|訓 4.44', '之|7 4.48', '7|招 4.44', '績|4 4.47'] | ideo-gap mean 0.01
+csq-c14-cell-L26-md-d0-p0	2	first W taking X	342.0	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.11
+csq-c14-cell-L26-md-d0-p0	2	last wrapped W	341.75	marks=['、w12.0 gap0.23', '、w12.0 gap0.23'] | autospace=[] | ideo-gap mean 0.20
+csq-c14-cell-L26-md-d0-p1	2	first W taking X	355.57	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.09
+csq-c14-cell-L26-md-d0-p1	2	last wrapped W	355.32	marks=['、w12.0 gap0.24', '、w12.0 gap0.24'] | autospace=['績|4 6.36'] | ideo-gap mean 0.26
+csq-c14-cell-L26-md-d1-p0	2	first W taking X	354.02	marks=['、w12.0 gap-1.44', '、w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.12
+csq-c14-cell-L26-md-d1-p0	2	last wrapped W	353.77	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.90', '3|級 5.88'] | ideo-gap mean 0.00
+csq-c14-cell-L26-md-d1-p1	2	first W taking X	367.57	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.09
+csq-c14-cell-L26-md-d1-p1	2	last wrapped W	367.32	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 6.02', '3|級 6.12', '績|4 6.15'] | ideo-gap mean 0.04
+csq-c14-cell-L26-md-d3-p0	2	first W taking X	378.05	marks=['、w12.0 gap-1.44', '、w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.14
+csq-c14-cell-L26-md-d3-p0	2	last wrapped W	377.8	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '之|7 3.99', '7|招 3.96'] | ideo-gap mean 0.00
+csq-c14-cell-L26-md-d3-p1	2	first W taking X	391.57	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.10
+csq-c14-cell-L26-md-d3-p1	2	last wrapped W	391.32	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.46', '3|級 4.44', '體|5 4.44', '5|訓 4.44', '之|7 4.48', '7|招 4.44', '績|4 4.47'] | ideo-gap mean 0.01
+csq-c14-cell-L26-ms-d0-p0	2	first W taking X	342.0	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.11
+csq-c14-cell-L26-ms-d0-p0	2	last wrapped W	341.75	marks=['，w12.0 gap0.23', '；w12.0 gap0.23'] | autospace=[] | ideo-gap mean 0.20
+csq-c14-cell-L26-ms-d0-p1	2	first W taking X	355.57	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.09
+csq-c14-cell-L26-ms-d0-p1	2	last wrapped W	355.32	marks=['，w12.0 gap0.24', '；w12.0 gap0.24'] | autospace=['績|4 6.36'] | ideo-gap mean 0.26
+csq-c14-cell-L26-ms-d1-p0	2	first W taking X	354.02	marks=['，w12.0 gap-1.44', '；w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.12
+csq-c14-cell-L26-ms-d1-p0	2	last wrapped W	353.77	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.90', '3|級 5.88'] | ideo-gap mean 0.00
+csq-c14-cell-L26-ms-d1-p1	2	first W taking X	367.57	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.09
+csq-c14-cell-L26-ms-d1-p1	2	last wrapped W	367.32	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 6.02', '3|級 6.12', '績|4 6.15'] | ideo-gap mean 0.04
+csq-c14-cell-L26-ms-d3-p0	2	first W taking X	378.05	marks=['，w12.0 gap-1.44', '；w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.14
+csq-c14-cell-L26-ms-d3-p0	2	last wrapped W	377.8	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '之|7 3.99', '7|招 3.96'] | ideo-gap mean 0.00
+csq-c14-cell-L26-ms-d3-p1	2	first W taking X	391.57	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.10
+csq-c14-cell-L26-ms-d3-p1	2	last wrapped W	391.32	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.46', '3|級 4.44', '體|5 4.44', '5|訓 4.44', '之|7 4.48', '7|招 4.44', '績|4 4.47'] | ideo-gap mean 0.01
+csq-c15-body-L13-mc-d0-p0	2	first W taking X	182.25	marks=['，w12.0 gap-2.40', '，w12.0 gap-2.52'] | autospace=[] | ideo-gap mean -0.37
+csq-c15-body-L13-mc-d0-p0	2	last wrapped W	182.0	marks=['，w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-body-L13-mc-d0-p1	2	first W taking X	193.3	marks=['，w12.0 gap-2.64', '，w12.0 gap-2.76'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.44
+csq-c15-body-L13-mc-d0-p1	2	last wrapped W	193.05	marks=['，w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=['兼|4 6.17'] | ideo-gap mean 0.07
+csq-c15-body-L13-mc-d1-p0	2	first W taking X	196.52	marks=['，w12.0 gap-1.92', '，w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.31
+csq-c15-body-L13-mc-d1-p0	2	last wrapped W	196.27	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16'] | ideo-gap mean -0.01
+csq-c15-body-L13-mc-d1-p1	2	first W taking X	207.05	marks=['，w12.0 gap-2.28', '，w12.0 gap-2.28'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.40
+csq-c15-body-L13-mc-d1-p1	2	last wrapped W	206.8	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.94', '3|級 4.92', '兼|4 4.95'] | ideo-gap mean 0.00
+csq-c15-body-L13-mc-d3-p0	2	first W taking X	222.02	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c15-body-L13-mc-d3-p0	2	last wrapped W	221.77	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c15-body-L13-mc-d3-p1	2	first W taking X	232.55	marks=['，w12.0 gap-1.92', '，w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.41
+csq-c15-body-L13-mc-d3-p1	2	last wrapped W	232.3	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '單|7 4.08', '7|位 4.11', '兼|4 4.08'] | ideo-gap mean -0.01
+csq-c15-body-L13-md-d0-p0	2	first W taking X	182.25	marks=['、w12.0 gap-2.40', '、w12.0 gap-2.52'] | autospace=[] | ideo-gap mean -0.37
+csq-c15-body-L13-md-d0-p0	2	last wrapped W	182.0	marks=['、w12.0 gap0.11', '、w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-body-L13-md-d0-p1	2	first W taking X	193.3	marks=['、w12.0 gap-2.64', '、w12.0 gap-2.76'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.44
+csq-c15-body-L13-md-d0-p1	2	last wrapped W	193.05	marks=['、w12.0 gap0.11', '、w12.0 gap0.11'] | autospace=['兼|4 6.17'] | ideo-gap mean 0.07
+csq-c15-body-L13-md-d1-p0	2	first W taking X	196.52	marks=['、w12.0 gap-1.92', '、w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.31
+csq-c15-body-L13-md-d1-p0	2	last wrapped W	196.27	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16'] | ideo-gap mean -0.01
+csq-c15-body-L13-md-d1-p1	2	first W taking X	207.05	marks=['、w12.0 gap-2.28', '、w12.0 gap-2.28'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.40
+csq-c15-body-L13-md-d1-p1	2	last wrapped W	206.8	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.94', '3|級 4.92', '兼|4 4.95'] | ideo-gap mean 0.00
+csq-c15-body-L13-md-d3-p0	2	first W taking X	222.02	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c15-body-L13-md-d3-p0	2	last wrapped W	221.77	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c15-body-L13-md-d3-p1	2	first W taking X	232.55	marks=['、w12.0 gap-1.92', '、w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.41
+csq-c15-body-L13-md-d3-p1	2	last wrapped W	232.3	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '單|7 4.08', '7|位 4.11', '兼|4 4.08'] | ideo-gap mean -0.01
+csq-c15-body-L13-ms-d0-p0	2	first W taking X	182.25	marks=['，w12.0 gap-2.40', '；w12.0 gap-2.52'] | autospace=[] | ideo-gap mean -0.37
+csq-c15-body-L13-ms-d0-p0	2	last wrapped W	182.0	marks=['，w12.0 gap0.11', '；w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-body-L13-ms-d0-p1	2	first W taking X	193.3	marks=['，w12.0 gap-2.64', '；w12.0 gap-2.76'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.44
+csq-c15-body-L13-ms-d0-p1	2	last wrapped W	193.05	marks=['，w12.0 gap0.11', '；w12.0 gap0.11'] | autospace=['兼|4 6.17'] | ideo-gap mean 0.07
+csq-c15-body-L13-ms-d1-p0	2	first W taking X	196.52	marks=['，w12.0 gap-1.92', '；w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.31
+csq-c15-body-L13-ms-d1-p0	2	last wrapped W	196.27	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16'] | ideo-gap mean -0.01
+csq-c15-body-L13-ms-d1-p1	2	first W taking X	207.05	marks=['，w12.0 gap-2.28', '；w12.0 gap-2.28'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.40
+csq-c15-body-L13-ms-d1-p1	2	last wrapped W	206.8	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.94', '3|級 4.92', '兼|4 4.95'] | ideo-gap mean 0.00
+csq-c15-body-L13-ms-d3-p0	2	first W taking X	222.02	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c15-body-L13-ms-d3-p0	2	last wrapped W	221.77	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c15-body-L13-ms-d3-p1	2	first W taking X	232.55	marks=['，w12.0 gap-1.92', '；w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.41
+csq-c15-body-L13-ms-d3-p1	2	last wrapped W	232.3	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '單|7 4.08', '7|位 4.11', '兼|4 4.08'] | ideo-gap mean -0.01
+csq-c15-body-L26-mc-d0-p0	2	first W taking X	339.75	marks=['，w12.0 gap-2.04', '，w12.0 gap-2.04'] | autospace=[] | ideo-gap mean -0.16
+csq-c15-body-L26-mc-d0-p0	2	last wrapped W	339.5	marks=['，w12.0 gap0.12', '，w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-body-L26-mc-d0-p1	2	first W taking X	350.32	marks=['，w12.0 gap-2.40', '，w12.0 gap-2.40'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-body-L26-mc-d0-p1	2	last wrapped W	350.07	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['績|4 6.27'] | ideo-gap mean 0.07
+csq-c15-body-L26-mc-d1-p0	2	first W taking X	353.27	marks=['，w12.0 gap-1.68', '，w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.13
+csq-c15-body-L26-mc-d1-p0	2	last wrapped W	353.02	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.54', '3|級 5.52'] | ideo-gap mean 0.00
+csq-c15-body-L26-mc-d1-p1	2	first W taking X	363.57	marks=['，w12.0 gap-2.04', '，w12.0 gap-2.04'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-body-L26-mc-d1-p1	2	last wrapped W	363.32	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16', '績|4 5.21'] | ideo-gap mean -0.00
+csq-c15-body-L26-mc-d3-p0	2	first W taking X	378.3	marks=['，w12.0 gap-1.44', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.13
+csq-c15-body-L26-mc-d3-p0	2	last wrapped W	378.05	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 4.08', '5|訓 3.96', '之|7 4.00', '7|招 3.96'] | ideo-gap mean 0.01
+csq-c15-body-L26-mc-d3-p1	2	first W taking X	388.82	marks=['，w12.0 gap-1.80', '，w12.0 gap-1.80'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.16
+csq-c15-body-L26-mc-d3-p1	2	last wrapped W	388.57	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '之|7 4.11', '7|招 4.08', '績|4 4.10'] | ideo-gap mean 0.00
+csq-c15-body-L26-md-d0-p0	2	first W taking X	339.75	marks=['、w12.0 gap-2.04', '、w12.0 gap-2.04'] | autospace=[] | ideo-gap mean -0.16
+csq-c15-body-L26-md-d0-p0	2	last wrapped W	339.5	marks=['、w12.0 gap0.12', '、w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-body-L26-md-d0-p1	2	first W taking X	350.32	marks=['、w12.0 gap-2.40', '、w12.0 gap-2.40'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-body-L26-md-d0-p1	2	last wrapped W	350.07	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['績|4 6.27'] | ideo-gap mean 0.07
+csq-c15-body-L26-md-d1-p0	2	first W taking X	353.27	marks=['、w12.0 gap-1.68', '、w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.13
+csq-c15-body-L26-md-d1-p0	2	last wrapped W	353.02	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.54', '3|級 5.52'] | ideo-gap mean 0.00
+csq-c15-body-L26-md-d1-p1	2	first W taking X	363.57	marks=['、w12.0 gap-2.04', '、w12.0 gap-2.04'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-body-L26-md-d1-p1	2	last wrapped W	363.32	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16', '績|4 5.21'] | ideo-gap mean -0.00
+csq-c15-body-L26-md-d3-p0	2	first W taking X	378.3	marks=['、w12.0 gap-1.44', '、w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.13
+csq-c15-body-L26-md-d3-p0	2	last wrapped W	378.05	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 4.08', '5|訓 3.96', '之|7 4.00', '7|招 3.96'] | ideo-gap mean 0.01
+csq-c15-body-L26-md-d3-p1	2	first W taking X	388.82	marks=['、w12.0 gap-1.80', '、w12.0 gap-1.80'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.16
+csq-c15-body-L26-md-d3-p1	2	last wrapped W	388.57	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '之|7 4.11', '7|招 4.08', '績|4 4.10'] | ideo-gap mean 0.00
+csq-c15-body-L26-ms-d0-p0	2	first W taking X	339.75	marks=['，w12.0 gap-2.04', '；w12.0 gap-2.04'] | autospace=[] | ideo-gap mean -0.16
+csq-c15-body-L26-ms-d0-p0	2	last wrapped W	339.5	marks=['，w12.0 gap0.12', '；w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-body-L26-ms-d0-p1	2	first W taking X	350.32	marks=['，w12.0 gap-2.40', '；w12.0 gap-2.40'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-body-L26-ms-d0-p1	2	last wrapped W	350.07	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['績|4 6.27'] | ideo-gap mean 0.07
+csq-c15-body-L26-ms-d1-p0	2	first W taking X	353.27	marks=['，w12.0 gap-1.68', '；w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.13
+csq-c15-body-L26-ms-d1-p0	2	last wrapped W	353.02	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.54', '3|級 5.52'] | ideo-gap mean 0.00
+csq-c15-body-L26-ms-d1-p1	2	first W taking X	363.57	marks=['，w12.0 gap-2.04', '；w12.0 gap-2.04'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-body-L26-ms-d1-p1	2	last wrapped W	363.32	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16', '績|4 5.21'] | ideo-gap mean -0.00
+csq-c15-body-L26-ms-d3-p0	2	first W taking X	378.3	marks=['，w12.0 gap-1.44', '；w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.13
+csq-c15-body-L26-ms-d3-p0	2	last wrapped W	378.05	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 4.08', '5|訓 3.96', '之|7 4.00', '7|招 3.96'] | ideo-gap mean 0.01
+csq-c15-body-L26-ms-d3-p1	2	first W taking X	388.82	marks=['，w12.0 gap-1.80', '；w12.0 gap-1.80'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.16
+csq-c15-body-L26-ms-d3-p1	2	last wrapped W	388.57	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '之|7 4.11', '7|招 4.08', '績|4 4.10'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d0-p0	1	first W taking X	174.0	marks=['，w12.0 gap-3.00'] | autospace=[] | ideo-gap mean -0.23
+csq-c15-cell-L13-mc-d0-p0	1	last wrapped W	173.75	marks=['，w12.0 gap0.47'] | autospace=[] | ideo-gap mean 0.44
+csq-c15-cell-L13-mc-d0-p0	2	first W taking X	182.25	marks=['，w12.0 gap-2.40', '，w12.0 gap-2.52'] | autospace=[] | ideo-gap mean -0.37
+csq-c15-cell-L13-mc-d0-p0	2	last wrapped W	182.0	marks=['，w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-cell-L13-mc-d0-p0	3	first W taking X	193.75	marks=['，w12.0 gap-1.68', '，w12.0 gap-1.68', '，w12.0 gap-1.68'] | autospace=[] | ideo-gap mean -0.40
+csq-c15-cell-L13-mc-d0-p0	3	last wrapped W	193.5	marks=['，w12.0 gap0.12', '，w12.0 gap0.12', '，w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.10
+csq-c15-cell-L13-mc-d0-p1	1	first W taking X	183.05	marks=['，w12.0 gap-3.00'] | autospace=['兼|4 1.61', '4|移 1.56'] | ideo-gap mean -0.25
+csq-c15-cell-L13-mc-d0-p1	1	last wrapped W	182.8	marks=['，w12.0 gap0.11'] | autospace=['兼|4 6.21'] | ideo-gap mean 0.22
+csq-c15-cell-L13-mc-d0-p1	2	first W taking X	193.3	marks=['，w12.0 gap-2.64', '，w12.0 gap-2.76'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.44
+csq-c15-cell-L13-mc-d0-p1	2	last wrapped W	193.05	marks=['，w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=['兼|4 6.17'] | ideo-gap mean 0.07
+csq-c15-cell-L13-mc-d0-p1	3	first W taking X	204.3	marks=['，w12.0 gap-1.92', '，w12.0 gap-1.92', '，w12.0 gap-1.92'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.49
+csq-c15-cell-L13-mc-d0-p1	3	last wrapped W	204.05	marks=['，w12.0 gap0.00', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['兼|4 6.05'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d1-p0	1	first W taking X	185.77	marks=['，w12.0 gap-3.00'] | autospace=['等|3 2.90', '3|級 2.88'] | ideo-gap mean -0.25
+csq-c15-cell-L13-mc-d1-p0	1	last wrapped W	185.52	marks=['，w12.0 gap0.00'] | autospace=['等|3 5.78', '3|級 5.76'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d1-p0	2	first W taking X	196.52	marks=['，w12.0 gap-1.92', '，w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.31
+csq-c15-cell-L13-mc-d1-p0	2	last wrapped W	196.27	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16'] | ideo-gap mean -0.01
+csq-c15-cell-L13-mc-d1-p0	3	first W taking X	207.52	marks=['，w12.0 gap-1.44', '，w12.0 gap-1.44', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.35
+csq-c15-cell-L13-mc-d1-p0	3	last wrapped W	207.27	marks=['，w12.0 gap0.00', '，w12.0 gap-0.12', '，w12.0 gap0.00'] | autospace=['等|3 4.70', '3|級 4.68'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d1-p1	1	first W taking X	196.3	marks=['，w12.0 gap-3.00'] | autospace=['等|3 2.54', '3|級 2.52', '兼|4 2.56', '4|移 2.52'] | ideo-gap mean -0.26
+csq-c15-cell-L13-mc-d1-p1	1	last wrapped W	196.05	marks=['，w12.0 gap0.00'] | autospace=['等|3 5.42', '3|級 5.40', '兼|4 5.43'] | ideo-gap mean -0.01
+csq-c15-cell-L13-mc-d1-p1	2	first W taking X	207.05	marks=['，w12.0 gap-2.28', '，w12.0 gap-2.28'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.40
+csq-c15-cell-L13-mc-d1-p1	2	last wrapped W	206.8	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.94', '3|級 4.92', '兼|4 4.95'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d1-p1	3	first W taking X	218.05	marks=['，w12.0 gap-1.68', '，w12.0 gap-1.68', '，w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.45
+csq-c15-cell-L13-mc-d1-p1	3	last wrapped W	217.8	marks=['，w12.0 gap0.00', '，w12.0 gap0.11', '，w12.0 gap0.00'] | autospace=['等|3 4.58', '3|級 4.56', '兼|4 4.60'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d3-p0	1	first W taking X	211.02	marks=['，w12.0 gap-2.52'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.00'] | ideo-gap mean -0.25
+csq-c15-cell-L13-mc-d3-p0	1	last wrapped W	210.77	marks=['，w12.0 gap0.11'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.20', '5|訓 4.08', '單|7 4.09', '7|位 4.11'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d3-p0	2	first W taking X	222.02	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c15-cell-L13-mc-d3-p0	2	last wrapped W	221.77	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d3-p0	3	first W taking X	233.3	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.20', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.03'] | ideo-gap mean -0.32
+csq-c15-cell-L13-mc-d3-p0	3	last wrapped W	233.05	marks=['，w12.0 gap0.00', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.86', '3|級 3.84', '體|5 3.84', '5|訓 3.84', '單|7 3.87', '7|位 3.84'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d3-p1	1	first W taking X	221.55	marks=['，w12.0 gap-3.00'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 2.88', '5|訓 3.00', '單|7 3.00', '7|位 3.00', '兼|4 2.91', '4|移 3.00'] | ideo-gap mean -0.35
+csq-c15-cell-L13-mc-d3-p1	1	last wrapped W	221.3	marks=['，w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '單|7 4.20', '7|位 4.23', '兼|4 4.20'] | ideo-gap mean 0.00
+csq-c15-cell-L13-mc-d3-p1	2	first W taking X	232.55	marks=['，w12.0 gap-1.92', '，w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.41
+csq-c15-cell-L13-mc-d3-p1	2	last wrapped W	232.3	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '單|7 4.08', '7|位 4.11', '兼|4 4.08'] | ideo-gap mean -0.01
+csq-c15-cell-L13-mc-d3-p1	3	first W taking X	243.55	marks=['，w12.0 gap-1.44', '，w12.0 gap-1.32', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.03', '兼|4 3.00', '4|移 3.12'] | ideo-gap mean -0.48
+csq-c15-cell-L13-mc-d3-p1	3	last wrapped W	243.3	marks=['，w12.0 gap0.00', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.84', '5|訓 3.96', '單|7 3.99', '7|位 3.96', '兼|4 3.96'] | ideo-gap mean -0.03
+csq-c15-cell-L13-md-d0-p0	1	first W taking X	174.0	marks=['、w12.0 gap-3.00'] | autospace=[] | ideo-gap mean -0.23
+csq-c15-cell-L13-md-d0-p0	1	last wrapped W	173.75	marks=['、w12.0 gap0.47'] | autospace=[] | ideo-gap mean 0.44
+csq-c15-cell-L13-md-d0-p0	2	first W taking X	182.25	marks=['、w12.0 gap-2.40', '、w12.0 gap-2.52'] | autospace=[] | ideo-gap mean -0.37
+csq-c15-cell-L13-md-d0-p0	2	last wrapped W	182.0	marks=['、w12.0 gap0.11', '、w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-cell-L13-md-d0-p0	3	first W taking X	193.75	marks=['、w12.0 gap-1.68', '、w12.0 gap-1.68', '、w12.0 gap-1.68'] | autospace=[] | ideo-gap mean -0.40
+csq-c15-cell-L13-md-d0-p0	3	last wrapped W	193.5	marks=['、w12.0 gap0.12', '、w12.0 gap0.12', '、w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.10
+csq-c15-cell-L13-md-d0-p1	1	first W taking X	183.05	marks=['、w12.0 gap-3.00'] | autospace=['兼|4 1.61', '4|移 1.56'] | ideo-gap mean -0.25
+csq-c15-cell-L13-md-d0-p1	1	last wrapped W	182.8	marks=['、w12.0 gap0.11'] | autospace=['兼|4 6.21'] | ideo-gap mean 0.22
+csq-c15-cell-L13-md-d0-p1	2	first W taking X	193.3	marks=['、w12.0 gap-2.64', '、w12.0 gap-2.76'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.44
+csq-c15-cell-L13-md-d0-p1	2	last wrapped W	193.05	marks=['、w12.0 gap0.11', '、w12.0 gap0.11'] | autospace=['兼|4 6.17'] | ideo-gap mean 0.07
+csq-c15-cell-L13-md-d0-p1	3	first W taking X	204.3	marks=['、w12.0 gap-1.92', '、w12.0 gap-1.92', '、w12.0 gap-1.92'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.49
+csq-c15-cell-L13-md-d0-p1	3	last wrapped W	204.05	marks=['、w12.0 gap0.00', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['兼|4 6.05'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d1-p0	1	first W taking X	185.77	marks=['、w12.0 gap-3.00'] | autospace=['等|3 2.90', '3|級 2.88'] | ideo-gap mean -0.25
+csq-c15-cell-L13-md-d1-p0	1	last wrapped W	185.52	marks=['、w12.0 gap0.00'] | autospace=['等|3 5.78', '3|級 5.76'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d1-p0	2	first W taking X	196.52	marks=['、w12.0 gap-1.92', '、w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.31
+csq-c15-cell-L13-md-d1-p0	2	last wrapped W	196.27	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16'] | ideo-gap mean -0.01
+csq-c15-cell-L13-md-d1-p0	3	first W taking X	207.52	marks=['、w12.0 gap-1.44', '、w12.0 gap-1.44', '、w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.35
+csq-c15-cell-L13-md-d1-p0	3	last wrapped W	207.27	marks=['、w12.0 gap0.00', '、w12.0 gap-0.12', '、w12.0 gap0.00'] | autospace=['等|3 4.70', '3|級 4.68'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d1-p1	1	first W taking X	196.3	marks=['、w12.0 gap-3.00'] | autospace=['等|3 2.54', '3|級 2.52', '兼|4 2.56', '4|移 2.52'] | ideo-gap mean -0.26
+csq-c15-cell-L13-md-d1-p1	1	last wrapped W	196.05	marks=['、w12.0 gap0.00'] | autospace=['等|3 5.42', '3|級 5.40', '兼|4 5.43'] | ideo-gap mean -0.01
+csq-c15-cell-L13-md-d1-p1	2	first W taking X	207.05	marks=['、w12.0 gap-2.28', '、w12.0 gap-2.28'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.40
+csq-c15-cell-L13-md-d1-p1	2	last wrapped W	206.8	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.94', '3|級 4.92', '兼|4 4.95'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d1-p1	3	first W taking X	218.05	marks=['、w12.0 gap-1.68', '、w12.0 gap-1.68', '、w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.45
+csq-c15-cell-L13-md-d1-p1	3	last wrapped W	217.8	marks=['、w12.0 gap0.00', '、w12.0 gap0.11', '、w12.0 gap0.00'] | autospace=['等|3 4.58', '3|級 4.56', '兼|4 4.60'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d3-p0	1	first W taking X	211.02	marks=['、w12.0 gap-2.52'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.00'] | ideo-gap mean -0.25
+csq-c15-cell-L13-md-d3-p0	1	last wrapped W	210.77	marks=['、w12.0 gap0.11'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.20', '5|訓 4.08', '單|7 4.09', '7|位 4.11'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d3-p0	2	first W taking X	222.02	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c15-cell-L13-md-d3-p0	2	last wrapped W	221.77	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d3-p0	3	first W taking X	233.3	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.20', '、w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.03'] | ideo-gap mean -0.32
+csq-c15-cell-L13-md-d3-p0	3	last wrapped W	233.05	marks=['、w12.0 gap0.00', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.86', '3|級 3.84', '體|5 3.84', '5|訓 3.84', '單|7 3.87', '7|位 3.84'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d3-p1	1	first W taking X	221.55	marks=['、w12.0 gap-3.00'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 2.88', '5|訓 3.00', '單|7 3.00', '7|位 3.00', '兼|4 2.91', '4|移 3.00'] | ideo-gap mean -0.35
+csq-c15-cell-L13-md-d3-p1	1	last wrapped W	221.3	marks=['、w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '單|7 4.20', '7|位 4.23', '兼|4 4.20'] | ideo-gap mean 0.00
+csq-c15-cell-L13-md-d3-p1	2	first W taking X	232.55	marks=['、w12.0 gap-1.92', '、w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.41
+csq-c15-cell-L13-md-d3-p1	2	last wrapped W	232.3	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '單|7 4.08', '7|位 4.11', '兼|4 4.08'] | ideo-gap mean -0.01
+csq-c15-cell-L13-md-d3-p1	3	first W taking X	243.55	marks=['、w12.0 gap-1.44', '、w12.0 gap-1.32', '、w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.03', '兼|4 3.00', '4|移 3.12'] | ideo-gap mean -0.48
+csq-c15-cell-L13-md-d3-p1	3	last wrapped W	243.3	marks=['、w12.0 gap0.00', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.84', '5|訓 3.96', '單|7 3.99', '7|位 3.96', '兼|4 3.96'] | ideo-gap mean -0.03
+csq-c15-cell-L13-ms-d0-p0	1	first W taking X	174.0	marks=['，w12.0 gap-3.00'] | autospace=[] | ideo-gap mean -0.23
+csq-c15-cell-L13-ms-d0-p0	1	last wrapped W	173.75	marks=['，w12.0 gap0.47'] | autospace=[] | ideo-gap mean 0.44
+csq-c15-cell-L13-ms-d0-p0	2	first W taking X	182.25	marks=['，w12.0 gap-2.40', '；w12.0 gap-2.52'] | autospace=[] | ideo-gap mean -0.37
+csq-c15-cell-L13-ms-d0-p0	2	last wrapped W	182.0	marks=['，w12.0 gap0.11', '；w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-cell-L13-ms-d0-p0	3	first W taking X	193.75	marks=['，w12.0 gap-1.68', '；w12.0 gap-1.68', '，w12.0 gap-1.68'] | autospace=[] | ideo-gap mean -0.40
+csq-c15-cell-L13-ms-d0-p0	3	last wrapped W	193.5	marks=['，w12.0 gap0.12', '；w12.0 gap0.12', '，w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.10
+csq-c15-cell-L13-ms-d0-p1	1	first W taking X	183.05	marks=['，w12.0 gap-3.00'] | autospace=['兼|4 1.61', '4|移 1.56'] | ideo-gap mean -0.25
+csq-c15-cell-L13-ms-d0-p1	1	last wrapped W	182.8	marks=['，w12.0 gap0.11'] | autospace=['兼|4 6.21'] | ideo-gap mean 0.22
+csq-c15-cell-L13-ms-d0-p1	2	first W taking X	193.3	marks=['，w12.0 gap-2.64', '；w12.0 gap-2.76'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.44
+csq-c15-cell-L13-ms-d0-p1	2	last wrapped W	193.05	marks=['，w12.0 gap0.11', '；w12.0 gap0.11'] | autospace=['兼|4 6.17'] | ideo-gap mean 0.07
+csq-c15-cell-L13-ms-d0-p1	3	first W taking X	204.3	marks=['，w12.0 gap-1.92', '；w12.0 gap-1.92', '，w12.0 gap-1.92'] | autospace=['兼|4 3.05', '4|移 3.00'] | ideo-gap mean -0.49
+csq-c15-cell-L13-ms-d0-p1	3	last wrapped W	204.05	marks=['，w12.0 gap0.00', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['兼|4 6.05'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d1-p0	1	first W taking X	185.77	marks=['，w12.0 gap-3.00'] | autospace=['等|3 2.90', '3|級 2.88'] | ideo-gap mean -0.25
+csq-c15-cell-L13-ms-d1-p0	1	last wrapped W	185.52	marks=['，w12.0 gap0.00'] | autospace=['等|3 5.78', '3|級 5.76'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d1-p0	2	first W taking X	196.52	marks=['，w12.0 gap-1.92', '；w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.31
+csq-c15-cell-L13-ms-d1-p0	2	last wrapped W	196.27	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16'] | ideo-gap mean -0.01
+csq-c15-cell-L13-ms-d1-p0	3	first W taking X	207.52	marks=['，w12.0 gap-1.44', '；w12.0 gap-1.44', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.35
+csq-c15-cell-L13-ms-d1-p0	3	last wrapped W	207.27	marks=['，w12.0 gap0.00', '；w12.0 gap-0.12', '，w12.0 gap0.00'] | autospace=['等|3 4.70', '3|級 4.68'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d1-p1	1	first W taking X	196.3	marks=['，w12.0 gap-3.00'] | autospace=['等|3 2.54', '3|級 2.52', '兼|4 2.56', '4|移 2.52'] | ideo-gap mean -0.26
+csq-c15-cell-L13-ms-d1-p1	1	last wrapped W	196.05	marks=['，w12.0 gap0.00'] | autospace=['等|3 5.42', '3|級 5.40', '兼|4 5.43'] | ideo-gap mean -0.01
+csq-c15-cell-L13-ms-d1-p1	2	first W taking X	207.05	marks=['，w12.0 gap-2.28', '；w12.0 gap-2.28'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.40
+csq-c15-cell-L13-ms-d1-p1	2	last wrapped W	206.8	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.94', '3|級 4.92', '兼|4 4.95'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d1-p1	3	first W taking X	218.05	marks=['，w12.0 gap-1.68', '；w12.0 gap-1.68', '，w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00', '兼|4 3.04', '4|移 3.00'] | ideo-gap mean -0.45
+csq-c15-cell-L13-ms-d1-p1	3	last wrapped W	217.8	marks=['，w12.0 gap0.00', '；w12.0 gap0.11', '，w12.0 gap0.00'] | autospace=['等|3 4.58', '3|級 4.56', '兼|4 4.60'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d3-p0	1	first W taking X	211.02	marks=['，w12.0 gap-2.52'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.00'] | ideo-gap mean -0.25
+csq-c15-cell-L13-ms-d3-p0	1	last wrapped W	210.77	marks=['，w12.0 gap0.11'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.20', '5|訓 4.08', '單|7 4.09', '7|位 4.11'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d3-p0	2	first W taking X	222.02	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00'] | ideo-gap mean -0.30
+csq-c15-cell-L13-ms-d3-p0	2	last wrapped W	221.77	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '單|7 3.96', '7|位 3.99'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d3-p0	3	first W taking X	233.3	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.20', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.03'] | ideo-gap mean -0.32
+csq-c15-cell-L13-ms-d3-p0	3	last wrapped W	233.05	marks=['，w12.0 gap0.00', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.86', '3|級 3.84', '體|5 3.84', '5|訓 3.84', '單|7 3.87', '7|位 3.84'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d3-p1	1	first W taking X	221.55	marks=['，w12.0 gap-3.00'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 2.88', '5|訓 3.00', '單|7 3.00', '7|位 3.00', '兼|4 2.91', '4|移 3.00'] | ideo-gap mean -0.35
+csq-c15-cell-L13-ms-d3-p1	1	last wrapped W	221.3	marks=['，w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '單|7 4.20', '7|位 4.23', '兼|4 4.20'] | ideo-gap mean 0.00
+csq-c15-cell-L13-ms-d3-p1	2	first W taking X	232.55	marks=['，w12.0 gap-1.92', '；w12.0 gap-1.92'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.01', '7|位 3.00', '兼|4 3.03', '4|移 3.00'] | ideo-gap mean -0.41
+csq-c15-cell-L13-ms-d3-p1	2	last wrapped W	232.3	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '單|7 4.08', '7|位 4.11', '兼|4 4.08'] | ideo-gap mean -0.01
+csq-c15-cell-L13-ms-d3-p1	3	first W taking X	243.55	marks=['，w12.0 gap-1.44', '；w12.0 gap-1.32', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '單|7 3.00', '7|位 3.03', '兼|4 3.00', '4|移 3.12'] | ideo-gap mean -0.48
+csq-c15-cell-L13-ms-d3-p1	3	last wrapped W	243.3	marks=['，w12.0 gap0.00', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.84', '5|訓 3.96', '單|7 3.99', '7|位 3.96', '兼|4 3.96'] | ideo-gap mean -0.03
+csq-c15-cell-L26-mc-d0-p0	1	first W taking X	330.0	marks=['，w12.0 gap-3.00'] | autospace=[] | ideo-gap mean -0.12
+csq-c15-cell-L26-mc-d0-p0	1	last wrapped W	329.75	marks=['，w12.0 gap0.24'] | autospace=[] | ideo-gap mean 0.23
+csq-c15-cell-L26-mc-d0-p0	2	first W taking X	339.75	marks=['，w12.0 gap-2.04', '，w12.0 gap-2.04'] | autospace=[] | ideo-gap mean -0.16
+csq-c15-cell-L26-mc-d0-p0	2	last wrapped W	339.5	marks=['，w12.0 gap0.12', '，w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-cell-L26-mc-d0-p0	3	first W taking X	350.75	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.18
+csq-c15-cell-L26-mc-d0-p0	3	last wrapped W	350.5	marks=['，w12.0 gap0.11', '，w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.09
+csq-c15-cell-L26-mc-d0-p1	1	first W taking X	340.07	marks=['，w12.0 gap-3.00'] | autospace=['績|4 2.11', '4|移 2.04'] | ideo-gap mean -0.12
+csq-c15-cell-L26-mc-d0-p1	1	last wrapped W	339.82	marks=['，w12.0 gap0.11'] | autospace=['績|4 6.38'] | ideo-gap mean 0.13
+csq-c15-cell-L26-mc-d0-p1	2	first W taking X	350.32	marks=['，w12.0 gap-2.40', '，w12.0 gap-2.40'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-cell-L26-mc-d0-p1	2	last wrapped W	350.07	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['績|4 6.27'] | ideo-gap mean 0.07
+csq-c15-cell-L26-mc-d0-p1	3	first W taking X	361.32	marks=['，w12.0 gap-1.80', '，w12.0 gap-1.80', '，w12.0 gap-1.80'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.22
+csq-c15-cell-L26-mc-d0-p1	3	last wrapped W	361.07	marks=['，w12.0 gap0.11', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['績|4 6.17'] | ideo-gap mean 0.03
+csq-c15-cell-L26-mc-d1-p0	1	first W taking X	342.77	marks=['，w12.0 gap-2.64'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.11
+csq-c15-cell-L26-mc-d1-p0	1	last wrapped W	342.52	marks=['，w12.0 gap0.00'] | autospace=['等|3 6.02', '3|級 6.00'] | ideo-gap mean 0.01
+csq-c15-cell-L26-mc-d1-p0	2	first W taking X	353.27	marks=['，w12.0 gap-1.68', '，w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.13
+csq-c15-cell-L26-mc-d1-p0	2	last wrapped W	353.02	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.54', '3|級 5.52'] | ideo-gap mean 0.00
+csq-c15-cell-L26-mc-d1-p0	3	first W taking X	364.27	marks=['，w12.0 gap-1.32', '，w12.0 gap-1.32', '，w12.0 gap-1.32'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.15
+csq-c15-cell-L26-mc-d1-p0	3	last wrapped W	364.02	marks=['，w12.0 gap0.00', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.06', '3|級 5.04'] | ideo-gap mean -0.00
+csq-c15-cell-L26-mc-d1-p1	1	first W taking X	353.07	marks=['，w12.0 gap-3.00'] | autospace=['等|3 2.78', '3|級 2.76', '績|4 2.81', '4|移 2.76'] | ideo-gap mean -0.12
+csq-c15-cell-L26-mc-d1-p1	1	last wrapped W	352.82	marks=['，w12.0 gap0.00'] | autospace=['等|3 5.66', '3|級 5.64', '績|4 5.69'] | ideo-gap mean -0.00
+csq-c15-cell-L26-mc-d1-p1	2	first W taking X	363.57	marks=['，w12.0 gap-2.04', '，w12.0 gap-2.04'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-cell-L26-mc-d1-p1	2	last wrapped W	363.32	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16', '績|4 5.21'] | ideo-gap mean -0.00
+csq-c15-cell-L26-mc-d1-p1	3	first W taking X	374.57	marks=['，w12.0 gap-1.56', '，w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-cell-L26-mc-d1-p1	3	last wrapped W	374.32	marks=['，w12.0 gap0.00', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.82', '3|級 4.80', '績|4 4.85'] | ideo-gap mean 0.00
+csq-c15-cell-L26-mc-d3-p0	1	first W taking X	367.3	marks=['，w12.0 gap-2.40'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.00', '7|招 3.03'] | ideo-gap mean -0.10
+csq-c15-cell-L26-mc-d3-p0	1	last wrapped W	367.05	marks=['，w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '之|7 4.23', '7|招 4.20'] | ideo-gap mean -0.01
+csq-c15-cell-L26-mc-d3-p0	2	first W taking X	378.3	marks=['，w12.0 gap-1.44', '，w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.13
+csq-c15-cell-L26-mc-d3-p0	2	last wrapped W	378.05	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 4.08', '5|訓 3.96', '之|7 4.00', '7|招 3.96'] | ideo-gap mean 0.01
+csq-c15-cell-L26-mc-d3-p0	3	first W taking X	389.55	marks=['，w12.0 gap-1.08', '，w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.14
+csq-c15-cell-L26-mc-d3-p0	3	last wrapped W	389.3	marks=['，w12.0 gap0.11', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.86', '3|級 3.84', '體|5 3.96', '5|訓 3.84', '之|7 3.88', '7|招 3.84'] | ideo-gap mean 0.00
+csq-c15-cell-L26-mc-d3-p1	1	first W taking X	377.82	marks=['，w12.0 gap-3.00'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.00', '7|招 3.03', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.14
+csq-c15-cell-L26-mc-d3-p1	1	last wrapped W	377.57	marks=['，w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '之|7 4.24', '7|招 4.20', '績|4 4.22'] | ideo-gap mean 0.00
+csq-c15-cell-L26-mc-d3-p1	2	first W taking X	388.82	marks=['，w12.0 gap-1.80', '，w12.0 gap-1.80'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.16
+csq-c15-cell-L26-mc-d3-p1	2	last wrapped W	388.57	marks=['，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '之|7 4.11', '7|招 4.08', '績|4 4.10'] | ideo-gap mean 0.00
+csq-c15-cell-L26-mc-d3-p1	3	first W taking X	400.07	marks=['，w12.0 gap-1.32', '，w12.0 gap-1.32', '，w12.0 gap-1.32'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-cell-L26-mc-d3-p1	3	last wrapped W	399.82	marks=['，w12.0 gap0.00', '，w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '之|7 3.99', '7|招 3.96', '績|4 3.98'] | ideo-gap mean 0.00
+csq-c15-cell-L26-md-d0-p0	1	first W taking X	330.0	marks=['、w12.0 gap-3.00'] | autospace=[] | ideo-gap mean -0.12
+csq-c15-cell-L26-md-d0-p0	1	last wrapped W	329.75	marks=['、w12.0 gap0.24'] | autospace=[] | ideo-gap mean 0.23
+csq-c15-cell-L26-md-d0-p0	2	first W taking X	339.75	marks=['、w12.0 gap-2.04', '、w12.0 gap-2.04'] | autospace=[] | ideo-gap mean -0.16
+csq-c15-cell-L26-md-d0-p0	2	last wrapped W	339.5	marks=['、w12.0 gap0.12', '、w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-cell-L26-md-d0-p0	3	first W taking X	350.75	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.18
+csq-c15-cell-L26-md-d0-p0	3	last wrapped W	350.5	marks=['、w12.0 gap0.11', '、w12.0 gap0.11', '、w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.09
+csq-c15-cell-L26-md-d0-p1	1	first W taking X	340.07	marks=['、w12.0 gap-3.00'] | autospace=['績|4 2.11', '4|移 2.04'] | ideo-gap mean -0.12
+csq-c15-cell-L26-md-d0-p1	1	last wrapped W	339.82	marks=['、w12.0 gap0.11'] | autospace=['績|4 6.38'] | ideo-gap mean 0.13
+csq-c15-cell-L26-md-d0-p1	2	first W taking X	350.32	marks=['、w12.0 gap-2.40', '、w12.0 gap-2.40'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-cell-L26-md-d0-p1	2	last wrapped W	350.07	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['績|4 6.27'] | ideo-gap mean 0.07
+csq-c15-cell-L26-md-d0-p1	3	first W taking X	361.32	marks=['、w12.0 gap-1.80', '、w12.0 gap-1.80', '、w12.0 gap-1.80'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.22
+csq-c15-cell-L26-md-d0-p1	3	last wrapped W	361.07	marks=['、w12.0 gap0.11', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['績|4 6.17'] | ideo-gap mean 0.03
+csq-c15-cell-L26-md-d1-p0	1	first W taking X	342.77	marks=['、w12.0 gap-2.64'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.11
+csq-c15-cell-L26-md-d1-p0	1	last wrapped W	342.52	marks=['、w12.0 gap0.00'] | autospace=['等|3 6.02', '3|級 6.00'] | ideo-gap mean 0.01
+csq-c15-cell-L26-md-d1-p0	2	first W taking X	353.27	marks=['、w12.0 gap-1.68', '、w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.13
+csq-c15-cell-L26-md-d1-p0	2	last wrapped W	353.02	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.54', '3|級 5.52'] | ideo-gap mean 0.00
+csq-c15-cell-L26-md-d1-p0	3	first W taking X	364.27	marks=['、w12.0 gap-1.32', '、w12.0 gap-1.32', '、w12.0 gap-1.32'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.15
+csq-c15-cell-L26-md-d1-p0	3	last wrapped W	364.02	marks=['、w12.0 gap0.00', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.06', '3|級 5.04'] | ideo-gap mean -0.00
+csq-c15-cell-L26-md-d1-p1	1	first W taking X	353.07	marks=['、w12.0 gap-3.00'] | autospace=['等|3 2.78', '3|級 2.76', '績|4 2.81', '4|移 2.76'] | ideo-gap mean -0.12
+csq-c15-cell-L26-md-d1-p1	1	last wrapped W	352.82	marks=['、w12.0 gap0.00'] | autospace=['等|3 5.66', '3|級 5.64', '績|4 5.69'] | ideo-gap mean -0.00
+csq-c15-cell-L26-md-d1-p1	2	first W taking X	363.57	marks=['、w12.0 gap-2.04', '、w12.0 gap-2.04'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-cell-L26-md-d1-p1	2	last wrapped W	363.32	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16', '績|4 5.21'] | ideo-gap mean -0.00
+csq-c15-cell-L26-md-d1-p1	3	first W taking X	374.57	marks=['、w12.0 gap-1.56', '、w12.0 gap-1.56', '、w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-cell-L26-md-d1-p1	3	last wrapped W	374.32	marks=['、w12.0 gap0.00', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.82', '3|級 4.80', '績|4 4.85'] | ideo-gap mean 0.00
+csq-c15-cell-L26-md-d3-p0	1	first W taking X	367.3	marks=['、w12.0 gap-2.40'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.00', '7|招 3.03'] | ideo-gap mean -0.10
+csq-c15-cell-L26-md-d3-p0	1	last wrapped W	367.05	marks=['、w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '之|7 4.23', '7|招 4.20'] | ideo-gap mean -0.01
+csq-c15-cell-L26-md-d3-p0	2	first W taking X	378.3	marks=['、w12.0 gap-1.44', '、w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.13
+csq-c15-cell-L26-md-d3-p0	2	last wrapped W	378.05	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 4.08', '5|訓 3.96', '之|7 4.00', '7|招 3.96'] | ideo-gap mean 0.01
+csq-c15-cell-L26-md-d3-p0	3	first W taking X	389.55	marks=['、w12.0 gap-1.08', '、w12.0 gap-1.08', '、w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.14
+csq-c15-cell-L26-md-d3-p0	3	last wrapped W	389.3	marks=['、w12.0 gap0.11', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.86', '3|級 3.84', '體|5 3.96', '5|訓 3.84', '之|7 3.88', '7|招 3.84'] | ideo-gap mean 0.00
+csq-c15-cell-L26-md-d3-p1	1	first W taking X	377.82	marks=['、w12.0 gap-3.00'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.00', '7|招 3.03', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.14
+csq-c15-cell-L26-md-d3-p1	1	last wrapped W	377.57	marks=['、w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '之|7 4.24', '7|招 4.20', '績|4 4.22'] | ideo-gap mean 0.00
+csq-c15-cell-L26-md-d3-p1	2	first W taking X	388.82	marks=['、w12.0 gap-1.80', '、w12.0 gap-1.80'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.16
+csq-c15-cell-L26-md-d3-p1	2	last wrapped W	388.57	marks=['、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '之|7 4.11', '7|招 4.08', '績|4 4.10'] | ideo-gap mean 0.00
+csq-c15-cell-L26-md-d3-p1	3	first W taking X	400.07	marks=['、w12.0 gap-1.32', '、w12.0 gap-1.32', '、w12.0 gap-1.32'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-cell-L26-md-d3-p1	3	last wrapped W	399.82	marks=['、w12.0 gap0.00', '、w12.0 gap0.00', '、w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '之|7 3.99', '7|招 3.96', '績|4 3.98'] | ideo-gap mean 0.00
+csq-c15-cell-L26-ms-d0-p0	1	first W taking X	330.0	marks=['，w12.0 gap-3.00'] | autospace=[] | ideo-gap mean -0.12
+csq-c15-cell-L26-ms-d0-p0	1	last wrapped W	329.75	marks=['，w12.0 gap0.24'] | autospace=[] | ideo-gap mean 0.23
+csq-c15-cell-L26-ms-d0-p0	2	first W taking X	339.75	marks=['，w12.0 gap-2.04', '；w12.0 gap-2.04'] | autospace=[] | ideo-gap mean -0.16
+csq-c15-cell-L26-ms-d0-p0	2	last wrapped W	339.5	marks=['，w12.0 gap0.12', '；w12.0 gap0.12'] | autospace=[] | ideo-gap mean 0.13
+csq-c15-cell-L26-ms-d0-p0	3	first W taking X	350.75	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=[] | ideo-gap mean -0.18
+csq-c15-cell-L26-ms-d0-p0	3	last wrapped W	350.5	marks=['，w12.0 gap0.11', '；w12.0 gap0.11', '，w12.0 gap0.11'] | autospace=[] | ideo-gap mean 0.09
+csq-c15-cell-L26-ms-d0-p1	1	first W taking X	340.07	marks=['，w12.0 gap-3.00'] | autospace=['績|4 2.11', '4|移 2.04'] | ideo-gap mean -0.12
+csq-c15-cell-L26-ms-d0-p1	1	last wrapped W	339.82	marks=['，w12.0 gap0.11'] | autospace=['績|4 6.38'] | ideo-gap mean 0.13
+csq-c15-cell-L26-ms-d0-p1	2	first W taking X	350.32	marks=['，w12.0 gap-2.40', '；w12.0 gap-2.40'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-cell-L26-ms-d0-p1	2	last wrapped W	350.07	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['績|4 6.27'] | ideo-gap mean 0.07
+csq-c15-cell-L26-ms-d0-p1	3	first W taking X	361.32	marks=['，w12.0 gap-1.80', '；w12.0 gap-1.80', '，w12.0 gap-1.80'] | autospace=['績|4 3.07', '4|移 3.00'] | ideo-gap mean -0.22
+csq-c15-cell-L26-ms-d0-p1	3	last wrapped W	361.07	marks=['，w12.0 gap0.11', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['績|4 6.17'] | ideo-gap mean 0.03
+csq-c15-cell-L26-ms-d1-p0	1	first W taking X	342.77	marks=['，w12.0 gap-2.64'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.11
+csq-c15-cell-L26-ms-d1-p0	1	last wrapped W	342.52	marks=['，w12.0 gap0.00'] | autospace=['等|3 6.02', '3|級 6.00'] | ideo-gap mean 0.01
+csq-c15-cell-L26-ms-d1-p0	2	first W taking X	353.27	marks=['，w12.0 gap-1.68', '；w12.0 gap-1.68'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.13
+csq-c15-cell-L26-ms-d1-p0	2	last wrapped W	353.02	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.54', '3|級 5.52'] | ideo-gap mean 0.00
+csq-c15-cell-L26-ms-d1-p0	3	first W taking X	364.27	marks=['，w12.0 gap-1.32', '；w12.0 gap-1.32', '，w12.0 gap-1.32'] | autospace=['等|3 3.02', '3|級 3.00'] | ideo-gap mean -0.15
+csq-c15-cell-L26-ms-d1-p0	3	last wrapped W	364.02	marks=['，w12.0 gap0.00', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 5.06', '3|級 5.04'] | ideo-gap mean -0.00
+csq-c15-cell-L26-ms-d1-p1	1	first W taking X	353.07	marks=['，w12.0 gap-3.00'] | autospace=['等|3 2.78', '3|級 2.76', '績|4 2.81', '4|移 2.76'] | ideo-gap mean -0.12
+csq-c15-cell-L26-ms-d1-p1	1	last wrapped W	352.82	marks=['，w12.0 gap0.00'] | autospace=['等|3 5.66', '3|級 5.64', '績|4 5.69'] | ideo-gap mean -0.00
+csq-c15-cell-L26-ms-d1-p1	2	first W taking X	363.57	marks=['，w12.0 gap-2.04', '；w12.0 gap-2.04'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-cell-L26-ms-d1-p1	2	last wrapped W	363.32	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 5.18', '3|級 5.16', '績|4 5.21'] | ideo-gap mean -0.00
+csq-c15-cell-L26-ms-d1-p1	3	first W taking X	374.57	marks=['，w12.0 gap-1.56', '；w12.0 gap-1.56', '，w12.0 gap-1.56'] | autospace=['等|3 3.02', '3|級 3.00', '績|4 3.05', '4|移 3.00'] | ideo-gap mean -0.19
+csq-c15-cell-L26-ms-d1-p1	3	last wrapped W	374.32	marks=['，w12.0 gap0.00', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 4.82', '3|級 4.80', '績|4 4.85'] | ideo-gap mean 0.00
+csq-c15-cell-L26-ms-d3-p0	1	first W taking X	367.3	marks=['，w12.0 gap-2.40'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.00', '7|招 3.03'] | ideo-gap mean -0.10
+csq-c15-cell-L26-ms-d3-p0	1	last wrapped W	367.05	marks=['，w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '之|7 4.23', '7|招 4.20'] | ideo-gap mean -0.01
+csq-c15-cell-L26-ms-d3-p0	2	first W taking X	378.3	marks=['，w12.0 gap-1.44', '；w12.0 gap-1.44'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.13
+csq-c15-cell-L26-ms-d3-p0	2	last wrapped W	378.05	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 4.08', '5|訓 3.96', '之|7 4.00', '7|招 3.96'] | ideo-gap mean 0.01
+csq-c15-cell-L26-ms-d3-p0	3	first W taking X	389.55	marks=['，w12.0 gap-1.08', '；w12.0 gap-1.08', '，w12.0 gap-1.08'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00'] | ideo-gap mean -0.14
+csq-c15-cell-L26-ms-d3-p0	3	last wrapped W	389.3	marks=['，w12.0 gap0.11', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.86', '3|級 3.84', '體|5 3.96', '5|訓 3.84', '之|7 3.88', '7|招 3.84'] | ideo-gap mean 0.00
+csq-c15-cell-L26-ms-d3-p1	1	first W taking X	377.82	marks=['，w12.0 gap-3.00'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.00', '7|招 3.03', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.14
+csq-c15-cell-L26-ms-d3-p1	1	last wrapped W	377.57	marks=['，w12.0 gap0.00'] | autospace=['等|3 4.22', '3|級 4.20', '體|5 4.20', '5|訓 4.20', '之|7 4.24', '7|招 4.20', '績|4 4.22'] | ideo-gap mean 0.00
+csq-c15-cell-L26-ms-d3-p1	2	first W taking X	388.82	marks=['，w12.0 gap-1.80', '；w12.0 gap-1.80'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.16
+csq-c15-cell-L26-ms-d3-p1	2	last wrapped W	388.57	marks=['，w12.0 gap0.00', '；w12.0 gap0.00'] | autospace=['等|3 4.10', '3|級 4.08', '體|5 4.08', '5|訓 4.08', '之|7 4.11', '7|招 4.08', '績|4 4.10'] | ideo-gap mean 0.00
+csq-c15-cell-L26-ms-d3-p1	3	first W taking X	400.07	marks=['，w12.0 gap-1.32', '；w12.0 gap-1.32', '，w12.0 gap-1.32'] | autospace=['等|3 3.02', '3|級 3.00', '體|5 3.00', '5|訓 3.00', '之|7 3.03', '7|招 3.00', '績|4 3.02', '4|移 3.00'] | ideo-gap mean -0.18
+csq-c15-cell-L26-ms-d3-p1	3	last wrapped W	399.82	marks=['，w12.0 gap0.00', '；w12.0 gap0.00', '，w12.0 gap0.00'] | autospace=['等|3 3.98', '3|級 3.96', '體|5 3.96', '5|訓 3.96', '之|7 3.99', '7|招 3.96', '績|4 3.98'] | ideo-gap mean 0.00
