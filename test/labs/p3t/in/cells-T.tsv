@@ -1,0 +1,60 @@
+1	flat HO box 4572000x1828800
+2	flat WordArt deck box 4320000x2160000
+3	cam ortho rot=0,330,0 ext=27
+4	cam ortho rot=0,30,0 ext=27
+5	cam ortho rot=20,0,0 ext=27
+6	cam ortho rot=340,0,0 ext=27
+7	cam ortho rot=20,330,0 ext=27
+8	cam ortho rot=340,30,0 ext=27
+9	cam ortho rot=20,30,0 ext=27
+10	cam ortho rot=30,330,0 ext=27
+11	cam ortho rot=0,330,20 ext=27
+12	cam ortho rot=0,330,0 ext=0
+13	cam ortho rot=20,330,0 ext=0
+14	cam ortho rot=0,300,0 ext=0
+15	cam=orthographicFront ext=27
+16	cam=perspectiveFront ext=27
+17	cam=perspectiveLeft ext=27
+18	cam=perspectiveRight ext=27
+19	cam=perspectiveAbove ext=27
+20	cam=perspectiveRelaxed ext=27
+21	cam=perspectiveContrastingRightFacing ext=27
+22	cam=isometricLeftDown ext=27
+23	cam=obliqueTopRight ext=27
+24	depth ext=0 rot=20,330
+25	depth ext=114300 rot=20,330
+26	depth ext=342900 rot=20,330
+27	depth ext=685800 rot=20,330
+28	depth ext=1371600 rot=20,330
+29	offcentre left rot=20,330 ext=27
+30	offcentre right rot=20,330 ext=27
+31	bevelT=circle 9x3 rot=20,330
+32	bevelT=relaxedInset 9x3 rot=20,330
+33	bevelT=cross 9x3 rot=20,330
+34	bevelT=coolSlant 9x3 rot=20,330
+35	bevelT=angle 9x3 rot=20,330
+36	bevelT=softRound 9x3 rot=20,330
+37	bevelT=convex 9x3 rot=20,330
+38	bevelT=slope 9x3 rot=20,330
+39	bevelT=divot 9x3 rot=20,330
+40	bevelT=riblet 9x3 rot=20,330
+41	bevelT=hardEdge 9x3 rot=20,330
+42	bevelT=artDeco 9x3 rot=20,330
+43	bevelT=circle w=114300 h=114300 rot=20,330
+44	bevelT=circle w=228600 h=114300 rot=20,330
+45	bevelT=circle w=38100 h=38100 rot=20,330
+46	bevelB=circle 12x12 rot=20,330
+47	bevelB=h12 only (as the deck) rot=20,330
+48	bevelT=softRound 9x3 ext=0 rot=20,330
+49	bevelT=softRound 9x3 ext=0 face-on rot=0,0
+50	contour 1pt rot=20,330
+51	rig=morning dir=t rot=20,330
+52	rig=morning dir=r rot=20,330
+53	rig=morning dir=b rot=20,330
+54	rig=morning dir=l rot=20,330
+55	rig=morning rev=120 rot=20,330
+56	rig=morning rev=120 lat=30 rot=20,330
+57	rig=threePt dir=t rot=20,330
+58	rig=morning mat=matte rot=20,330
+59	deck scene, textPlain
+60	deck scene, textCurveDown 56338
