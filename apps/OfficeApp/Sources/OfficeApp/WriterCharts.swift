@@ -42,6 +42,8 @@ enum WriterCharts {
         let left: Double, top: Double, right: Double, bottom: Double
         let lines: [(text: String, size: Double, bold: Bool, align: TextAlign)]
         let middle: Bool
+        /// The text's insets from the box, points (`a:bodyPr` lIns, tIns, rIns, bIns): 7.2, 3.6, 7.2, 3.6 unless it says.
+        var inset: (left: Double, top: Double, right: Double, bottom: Double) = (7.2, 3.6, 7.2, 3.6)
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
@@ -137,8 +139,16 @@ enum WriterCharts {
                 lines.append((text, size, rPr?["b"] == "1", algn == "ctr" ? .center : algn == "r" ? .right : .left))
             }
             guard !lines.isEmpty else { continue }
-            entry.notes.append(Note(left: a.0, top: a.1, right: b.0, bottom: b.1, lines: lines,
-                                    middle: body.first("a:bodyPr")?["anchor"] == "ctr"))
+            var note = Note(left: a.0, top: a.1, right: b.0, bottom: b.1, lines: lines,
+                            middle: body.first("a:bodyPr")?["anchor"] == "ctr")
+            // (Its text stands in from the box by its insets, 3.6pt each way in Word's print of
+            // zh-547fc43c's chart "%": drawn from the box's own corner it stood 3.6pt high and left.)
+            if RichTextTheme.wordWindowsPages, let pr = body.first("a:bodyPr") {
+                func pt(_ k: String, _ d: Double) -> Double { pr[k].flatMap(Double.init).map { $0 / 12700 } ?? d }
+                note.inset = (pt("lIns", 7.2), pt("tIns", 3.6), pt("rIns", 7.2), pt("bIns", 3.6))
+                RuleTrace.hit("word-chart-text-box-text-stands-in-by-its-insets")
+            }
+            entry.notes.append(note)
         }
         lock.lock()
         entries[id] = entry
@@ -181,8 +191,12 @@ enum WriterCharts {
         }
         ChartPainter.paint(entry.chart, canvas, rect, pxPerPt: pxPerPt, theme: entry.theme)
         for note in entry.notes {
-            let box = Rect.fromLTRB(rect.left + note.left * rect.width, rect.top + note.top * rect.height,
-                                    rect.left + note.right * rect.width, rect.top + note.bottom * rect.height)
+            let whole = Rect.fromLTRB(rect.left + note.left * rect.width, rect.top + note.top * rect.height,
+                                      rect.left + note.right * rect.width, rect.top + note.bottom * rect.height)
+            let inset: (left: Double, top: Double, right: Double, bottom: Double) = RichTextTheme.wordWindowsPages ? note.inset : (0, 0, 0, 0)
+            let box = Rect.fromLTRB(whole.left + inset.left * pxPerPt, whole.top + inset.top * pxPerPt,
+                                    max(whole.left + inset.left * pxPerPt + 1, whole.right - inset.right * pxPerPt),
+                                    max(whole.top + inset.top * pxPerPt + 1, whole.bottom - inset.bottom * pxPerPt))
             var painters: [TextPainter] = []
             for line in note.lines {
                 let tp = TextPainter(text: TextSpan(text: line.text, style: Flutter.TextStyle(
