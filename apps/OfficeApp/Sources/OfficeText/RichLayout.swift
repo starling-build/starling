@@ -2427,6 +2427,19 @@ public final class RichLayout {
                 if theme.wordRules, !_nestedInFixedTable, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                    !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
                     widths[c.table] = _autofit(c.table, base, document)
+                    // (A table of a stated share whose cells state a share of
+                    // it in every column, and not the grid's: the columns are
+                    // those shares of its width — LibreOffice's
+                    // floattable-nested-rowspan, a 4997-pct form on a grid of
+                    // 1444 + 5159 twips whose cells say 727 and 4273 of 5000:
+                    // its first column is 48.0pt in Word's print, not 72.2.
+                    // Shares that are the grid's own change nothing, and the
+                    // rule is left off them: eleven documents moved.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1,
+                       case let total = base.reduce(0, +), total > 0,
+                       ts.columnPercents.contains(where: { abs($0.value - 100 * base[$0.key] / total) > 3 }) {
+                        widths[c.table] = _pctColumns(c.table, widths[c.table] ?? base, ts, document)
+                    }
                 } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                           !ts.fixedLayout, (ts.cellSpacing ?? 0) > 0, !ts.columnPercents.isEmpty, let base = widths[c.table] {
                     widths[c.table] = _pctColumns(c.table, base, ts, document)
@@ -2651,6 +2664,7 @@ public final class RichLayout {
         }
         let rest = (0 ..< base.count).filter { style.columnPercents[$0] == nil }
         let restBase = rest.reduce(0) { $0 + base[$1] }
+        if rest.isEmpty, (style.cellSpacing ?? 0) == 0 { return out }
         guard !rest.isEmpty, restBase > 0, total - taken > 0 else { return base }
         for k in rest { out[k] = ((total - taken) * base[k] / restBase + 0.001).rounded(.down) }
         if Self.debugAutofit {

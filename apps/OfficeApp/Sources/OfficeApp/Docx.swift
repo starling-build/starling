@@ -2396,7 +2396,7 @@ enum DocxFormat {
                 // (A spaced table of a stated share whose cells state shares
                 // of it, column by column: zh-045c5a75's article table,
                 // 85% with cells of 12% and 2% and one auto.)
-                if style.widthPercent != nil, (style.cellSpacing ?? 0) > 0, !style.fixedLayout {
+                if style.widthPercent != nil, !style.fixedLayout {
                     var shares: [Int: Double] = [:], noWrap = Set<Int>(), mixed = false
                     for tr in unwrapped(node, "w:tr") {
                         var col = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
@@ -2408,6 +2408,8 @@ enum DocxFormat {
                                 if let had = shares[col], abs(had - share) > 0.01 { mixed = true }
                                 shares[col] = share
                                 if tc.first("w:tcPr")?.first("w:noWrap") != nil { noWrap.insert(col) }
+                            } else if span > 1, w?["w:type"] == "pct", (style.cellSpacing ?? 0) == 0 {
+                                // (A cell across columns says nothing of any one.)
                             } else if w != nil, w?["w:type"] != "auto" { mixed = true }
                             col += span
                         }
