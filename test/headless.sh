@@ -91,9 +91,10 @@ assert abs(ww - 640) < 2, w["rect"]
 ' || fail "window did not move/resize to the requested rect"
 echo "  ok    winmove and resize take effect"
 d "minimize terminal" >/dev/null || fail "minimize failed"
-d windows | grep -A12 '"app": "terminal"' | grep -q '"minimized": true' || fail "window not minimised"
+winflag() { d windows | python3 -c 'import json,sys; print(str([w for w in json.load(sys.stdin) if w["app"]=="terminal"][0][sys.argv[1]]).lower())' "$1"; }
+[ "$(winflag minimized)" = true ] || fail "window not minimised"
 d "focus terminal" >/dev/null || fail "focus failed"
-d windows | grep -A12 '"app": "terminal"' | grep -q '"minimized": false' || fail "focus did not restore"
+[ "$(winflag minimized)" = false ] || fail "focus did not restore"
 echo "  ok    minimize and focus"
 d "close terminal" "waitwin terminal gone 5" >/dev/null || fail "close / wait-for-gone failed"
 d windows | grep -q '"app": "terminal"' && fail "terminal still listed after close"
