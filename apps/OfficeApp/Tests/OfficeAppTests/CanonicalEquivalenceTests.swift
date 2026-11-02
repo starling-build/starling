@@ -15,13 +15,25 @@ final class CanonicalEquivalenceTests: XCTestCase {
             (0x0340, 0x0300), (0x0341, 0x0301),
             (0x037E, 0x003B), (0x0387, 0x00B7),   // Greek question mark, ano teleia
             (0x2329, 0x3008), (0x232A, 0x3009),   // angle brackets
-            (0xF909, 0x8AAA),                     // a compatibility ideograph
         ]
         for (a, b) in pairs {
             let x = Character(Unicode.Scalar(a)!), y = Character(Unicode.Scalar(b)!)
             XCTAssertEqual(x, y, "U+\(String(a, radix: 16)) == U+\(String(b, radix: 16)) in Swift")
             XCTAssertNotEqual(x.unicodeScalars.first, y.unicodeScalars.first)
         }
+    }
+
+    /// A compatibility ideograph and its unified one: equal where Swift's
+    /// comparison folds them (macOS), distinct on Linux — the platforms differ, so the layout
+    /// must not lean on either (it compares scalars where it matters).
+    func testCompatibilityIdeographIsPlatformDependent() {
+        let compat = Character("\u{F909}"), unified = Character("\u{8AAA}")
+        #if os(Linux)
+        XCTAssertNotEqual(compat, unified)
+        #else
+        XCTAssertEqual(compat, unified)
+        #endif
+        XCTAssertNotEqual(compat.unicodeScalars.first, unified.unicodeScalars.first)
     }
 
     func testSpacesThatSetNoLineAreTheEnEmAndFourPerEmOnly() {
