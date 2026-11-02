@@ -239,6 +239,9 @@ struct Chart: Equatable {
     /// Mac, zh-27a874b7's chart 2): a slice turned by it to three or nine
     /// o'clock prints there, its label with it; ours started at twelve.
     var pieTurn = 0.0
+    /// A 3-D pie's perspective (`c:view3D/c:perspective`): 0 is none — the
+    /// pie seen from infinitely far, its near and far halves the same size.
+    var piePerspective: Double? = nil
     /// How far a 3-D pie's slices are pulled out (`c:explosion`, the
     /// largest of the series' and its points'), as a fraction of the
     /// radius: the pie is that much smaller, to leave them room.
@@ -1626,6 +1629,7 @@ enum ChartXML {
             // and with 15, and fits them otherwise at 30 and 60.)
             c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15
             c.pieTurn = chart.first("c:view3D")?.first("c:rotY")?["val"].flatMap(Double.init) ?? 0
+            c.piePerspective = chart.first("c:view3D")?.first("c:perspective")?["val"].flatMap(Double.init)
             let pulls = el.all("c:ser").flatMap { ser in
                 ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
             }
@@ -4930,15 +4934,19 @@ extension ChartPainter {
         guard sum > 0 else { return }
         let al = max(5, min(90, tilt)) * .pi / 180
         let eye = 4.8, deep = 0.275
+        let flat = c.piePerspective == 0
         // (Taller than the eye's 30° makes it: PowerPoint's top is 0.468
         // as tall as wide, the view's 0.509.)
-        let squash = 0.92
+        let squash = flat ? 0.975 : 0.92   // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
         // A point of the disc at angle `a` (0 to the right, a quarter
         // turn toward the viewer), `f` of the radius out and `h` radii
         // down, on a disc of radius 1 centred on 0.
         func unit(_ a: Double, _ f: Double, _ h: Double) -> (x: Double, y: Double) {
             let x = f * cos(a), z = -f * sin(a)
-            let d = eye + z * cos(al) + h * sin(al)
+            // (Seen from infinitely far where the file says perspective 0: lab pie7
+            // (Word for Windows) draws its pies 0 and 30 apart, the near rim no
+            // wider than the far at 0; ours drew both at 30.)
+            let d = flat ? eye : eye + z * cos(al) + h * sin(al)
             return (x / d, -(z * sin(al) - h * cos(al)) / d * squash)
         }
         var lo = (x: Double.infinity, y: Double.infinity), hi = (x: -Double.infinity, y: -Double.infinity)
@@ -4997,7 +5005,7 @@ extension ChartPainter {
         // The rim: the part of it that faces the eye — less than the front
         // half, the eye being near — in steps a few degrees wide, each
         // shaded for the way it faces.
-        let side = asin(min(1, 1 / (eye * cos(al))))
+        let side = flat ? 0 : asin(min(1, 1 / (eye * cos(al))))
         for s in slices {
             var a = s.from
             while a < s.to {
@@ -5113,6 +5121,8 @@ extension ChartPainter {
         }
         return out
     }
+
+    static let _pieLog = ProcessInfo.processInfo.environment["STARLING_PIE_LOG"] != nil
 
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
@@ -5351,8 +5361,18 @@ extension ChartPainter {
             // (Kept inside the frame: Word's labels over a 3-D pie's top
             // stand under the frame's edge in lab p3d, where ours were cut.)
             if l.fitted || (!c.onSlide && !c.onSheet && !c.chartex && h > frame.height * 0.4) {
-                at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
-                            min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                // (A 3-D pie's label the file leaves in place keeps its text 3.9pt inside the frame in a
+                // Word document: lab pie7 (Word for Windows, 32 pies, 352 labels) has 96 of them on the
+                // frame's top, their text 3.8 under it, and the furthest left and right 3.9 and 4.4 in;
+                // ours let the text reach 1.5 from the top and 3 from the sides.)
+                if point != nil, moved == nil, !c.onSlide, !c.onSheet {
+                    let inset = 3.9 * k, tw = tp.width / 2, th = tp.height / 2
+                    at = Offset(min(max(at.dx, frame.left + inset + tw), frame.right - inset - tw),
+                                min(max(at.dy, frame.top + inset + th), frame.bottom - inset - th))
+                } else {
+                    at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
+                                min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                }
             }
             // (A 3-D pie's outside label the file leaves in place stands clear
             // of the labels before it: on across, away from the pie, its text
@@ -5360,6 +5380,16 @@ extension ChartPainter {
             // chart 2: 德國's text (3.8% at eight o'clock) 2.6 left of
             // 新加坡's, which it overlapped by 16 x 13 in ours where it stood
             // 15.5 right of Word's.)
+            if Self._pieLog, point != nil {
+                // (STARLING_PIE_LOG: each 3-D pie label's slice, rim point, place before it is
+                // moved clear of the others, and text size, in points from the frame's top left.)
+                let rim = on(s.mid, 1), r0 = on(s.mid, 0)
+                let line = String(format: "PIEL\t%d\t%.4f\t%.4f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%.2f\t%.2f\t%.2f\t%.2f\n",
+                                  s.index, s.mid, share, (rim.dx - frame.left) / k, (rim.dy - frame.top) / k, (at.dx - frame.left) / k, (at.dy - frame.top) / k,
+                                  tp.width / k, tp.height / k, (r0.dx - frame.left) / k, (r0.dy - frame.top) / k, fitsInside ? 1 : 0,
+                                  frame.width / k, frame.height / k, rx / k, ry / k)
+                FileHandle.standardError.write(line.data(using: .utf8)!)
+            }
             if point != nil, l.outside, !fitsInside, moved == nil, !c.onSlide, !c.onSheet {
                 let gap = 2.6 * k, tw = tp.width, th = tp.height, slack = 4 * k
                 for _ in 0 ..< 4 {
