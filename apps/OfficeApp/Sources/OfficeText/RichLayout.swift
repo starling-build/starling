@@ -1163,6 +1163,10 @@ public final class RichLayout {
     /// Floats set before the content above their anchor on their page
     /// (see `_paginate`): the page, their band there (page y, x from the
     /// column's edge, wrap distances in) and where their anchor stood.
+    /// Paragraphs that open a column of their own (a forced break before each): the last paragraph of a
+    /// column whose next column then sent its anchor paragraph on, after Word's prints of
+    /// LibreOffice's fdo43573-2-min (see `_paginate`, "an anchor paragraph whose own small band").
+    private var _columnPushed: Set<Int> = []
     private var _pinnedFloats: [String: (page: Int, top: Double, bottom: Double, left: Double, right: Double, anchorY: Double)] = [:]
 
     /// Table cells: per paragraph, the row's top and height (for borders and
@@ -3703,8 +3707,10 @@ public final class RichLayout {
         // the pages are set once more with it in place from its page's
         // top (`_pinnedFloats`).)
         var pinnedAnew = false
+        var pushedAnew = false
+        if !pinPass { _columnPushed = _columnPushed.filter { $0 < start } }
         defer {
-            if theme.wordRules, !pinPass, pinnedAnew { _paginate(document, from: start, settled: settled, pinPass: true) }
+            if theme.wordRules, !pinPass, pinnedAnew || pushedAnew { _paginate(document, from: start, settled: settled, pinPass: true) }
         }
         var contentH = 1.0
         var page = 0
@@ -6663,6 +6669,7 @@ public final class RichLayout {
             // reaches into it goes under it, as under a table placed on the
             // page. (After the paragraph's own break: zh-fe536967's
             // photo is anchored at a section's start.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, resumeCursor == nil, _columns > 1, y > 0.01, _cells[i] == nil, _columnPushed.contains(i) { newPage() }
             // (A column's anchor paragraph whose own band, at the column's
             // top, would push the column's text down until the paragraph no
             // longer fits goes to the next column with its band: Word never
@@ -6688,7 +6695,18 @@ public final class RichLayout {
                     let bottoms = Self._lineBottoms(geometry(i).painter)
                     let need = bottoms.count <= 3 ? (bottoms.last ?? 0) : (bottoms.count >= 2 ? bottoms[1] : (bottoms.first ?? 0))
                     let colEnd = _pages[page].last.map { $0.pageY + $0.flowBottom - $0.flowTop } ?? y
-                    if colEnd + (bandBottom - first.pageY) + need > contentH + 0.01 { newPage() }
+                    if colEnd + (bandBottom - first.pageY) + need > contentH + 0.01 {
+                        // (Word's prints, six variants of the document: the column before then
+                        // loses its last paragraph to this one's top — "L (links) = geel" —
+                        // when the paragraph and its picture were sent on; not when the picture
+                        // is absent, or the paragraph still fits its first line.)
+                        if !pinPass, page % _columns > 0, let prev = _pages[page - 1].last, !prev.repeated, _cells[prev.paragraph] == nil,
+                           !_columnPushed.contains(prev.paragraph), _allPieces.filter({ $0.paragraph == prev.paragraph }).count == 1 {
+                            _columnPushed.insert(prev.paragraph)
+                            pushedAnew = true
+                        }
+                        newPage()
+                    }
                 }
             }
             if theme.wordRules, resumeCursor == nil, _cells[i] == nil, deferredUnder.isEmpty {
