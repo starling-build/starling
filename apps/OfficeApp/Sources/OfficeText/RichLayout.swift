@@ -1154,6 +1154,7 @@ public final class RichLayout {
     /// Called when a picture finished decoding and the view should repaint.
     public var onNeedsRepaint: (() -> Void)?
     private var _decoded: [String: Image] = [:]
+    private var _tileSource: (ImageAttachment, Double, Double)? = nil
     private var _decoding: Set<String> = []
     private var _imageSize: [Size?] = []
     /// How far a picture paragraph's picture stands in from its text's
@@ -19136,6 +19137,55 @@ public final class RichLayout {
     nonisolated(unsafe) public static var jpegSizes: Set<UInt64> = []
     nonisolated(unsafe) public static var otherPictureSizes: Set<UInt64> = []
 
+    /// The document's tiled page background (`w:background` with a VML
+    /// `v:fill type="tile"`): the picture and the size one tile is drawn at
+    /// (its pixels at the file's own dpi, as Word prints it: bib-chernigovka's
+    /// 128 pixel parchment is 122.88pt at 75 dpi), or nil.
+    private func _pageTileSource(_ document: RichDocument) -> (ImageAttachment, Double, Double)? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let xml = document.backgroundXML,
+              xml.contains("type=\"tile\""), let at = xml.range(of: "r:id=\"") else { return nil }
+        let rest = xml[at.upperBound...]
+        guard let q = rest.firstIndex(of: "\"") else { return nil }
+        let id = String(rest[..<q])
+        guard let rel = document.backgroundRels.first(where: { $0.id == id && !$0.external }),
+              let data = document.keptParts["word/" + rel.target] ?? document.keptParts[rel.target], data.count > 24 else { return nil }
+        let b = [UInt8](data.prefix(32))
+        var dpiX = 96.0, dpiY = 96.0
+        // (A JFIF header's density, when it says dots per inch or per centimetre.)
+        if b.count >= 18, b[0] == 0xFF, b[1] == 0xD8, b[2] == 0xFF, b[3] == 0xE0, b[6] == 0x4A, b[7] == 0x46 {
+            let dx = Double(Int(b[14]) << 8 | Int(b[15])), dy = Double(Int(b[16]) << 8 | Int(b[17]))
+            if b[13] == 1, dx > 0, dy > 0 { dpiX = dx; dpiY = dy }
+            else if b[13] == 2, dx > 0, dy > 0 { dpiX = dx * 2.54; dpiY = dy * 2.54 }
+        }
+        // (One attachment for the layout's life: its id is what the decoded picture is kept under.)
+        if let kept = _tileSource, kept.0.data == data { return kept }
+        let made = (ImageAttachment(data: data, width: 1, height: 1, name: "tile"), dpiX, dpiY)
+        _tileSource = made
+        return made
+    }
+
+    private func _paintPageTile(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        guard let (att, dpiX, dpiY) = _pageTileSource(document) else { return }
+        _ensureDecoded(att)
+        guard let decoded = _decoded[att.id] else { return }
+        let tw = _px(Double(decoded.width) * 72 / dpiX), th = _px(Double(decoded.height) * 72 / dpiY)
+        guard tw > 1, th > 1 else { return }
+        let page = pageRect(p)
+        let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+        canvas.save()
+        canvas.clipRect(page, clipOp: .intersect, doAntiAlias: false)
+        var y = page.top
+        while y < page.bottom {
+            var x = page.left
+            while x < page.right {
+                canvas.drawImageRect(decoded, src, Rect.fromLTWH(x, y, tw, th), Paint())
+                x += tw
+            }
+            y += th
+        }
+        canvas.restore()
+    }
+
     private func _ensureDecoded(_ image: ImageAttachment) {
         // (An attachment with no picture in it — a drawn shape kept for
         // the file — is nothing to decode.)
@@ -22589,6 +22639,7 @@ public final class RichLayout {
             let lastPage = page(atCanvasY: visible.bottom)
             for p in firstPage ... lastPage {
                 pageBackground?(p, pageRect(p))
+                _paintPageTile(p, canvas, document)
                 _paintHeaderFooter(p, canvas, document)
                 _paintFootnotes(p, canvas, document)
             }
