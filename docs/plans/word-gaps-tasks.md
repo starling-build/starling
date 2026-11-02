@@ -13585,3 +13585,4 @@ TIP WATCH amd-8, round 53 (tip 6a4cc92c8): Word 756 and LO: 0 down; LO 4 up. Uni
 
 - lo5 LANDED 4ade44842 (lab cbcol): a form check box asks its width (1.042 em) of the cell that holds it. Before, the probe measured it as 0, so an overfull table's check-box column shrank like an empty cell (29.1 vs Word 30.1). Lab edges now within 0.3pt of Word for all 12 variants. Pair clean, no document moved (lo-b7c1b8df stays 8 missed: the rest is Word merging adjacent cells into one text line, plus p15 cell width).
 TIP WATCH amd-8, round 54 (tip 78d0e3584): Word 756 and LO: 0 down; LO 3 up. Unit tests pass (612).
+- 2026-11-02 amd-perf lo-db00fd9f (66.7) tried: first-page-header wrapSquare shape (bottom 156pt) as a floor for body text moved para 2 to 162 (Word 208.8); Word then also puts it under the XX box and has an empty line at 181.3 that we do not understand. Not landed; reverted. Lab idea: header shape + body box wrapSquare line placement.
