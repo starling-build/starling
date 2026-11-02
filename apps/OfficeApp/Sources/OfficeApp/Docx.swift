@@ -510,6 +510,22 @@ enum DocxFormat {
         }
         func signature(_ f: XNode) -> String { PptxXML.serialize(f) }
         guard let body = root.first("w:body") else { return }
+        // (A one-cell table whose paragraph carries the frame its neighbours carry is part
+        // of that frame: lo fdo60957-2's "G", between the frame's "F" and "H", is set in the
+        // frame at x 317 in Word's print; ours left the table in the body at x 65. Set as
+        // the frame's paragraph, which loses the table's rules and shading.)
+        if RichTextTheme.wordWindowsPages {
+            func sig(_ n: XNode?) -> String? { n?.name == "w:p" ? n?.first("w:pPr")?.first("w:framePr").map { signature($0) } : nil }
+            for (k, n) in body.children.enumerated() where n.name == "w:tbl" && k > 0 && k + 1 < body.children.count {
+                let rows = n.children.filter { $0.name == "w:tr" }
+                guard rows.count == 1, case let cells = rows[0].children.filter({ $0.name == "w:tc" }), cells.count == 1,
+                      case let ps = cells[0].children.filter({ $0.name == "w:p" }), ps.count == 1,
+                      cells[0].children.filter({ $0.name == "w:tbl" }).isEmpty,
+                      let mine = sig(ps[0]), sig(body.children[k - 1]) == mine, sig(body.children[k + 1]) == mine else { continue }
+                RuleTrace.hit("docx-one-cell-table-in-a-frame-is-the-frame's-paragraph")
+                body.children[k] = ps[0]
+            }
+        }
         // (A framed page number in a content control, LibreOffice's sdt+framePr: the
         // control brackets the paragraph and is no part of its frame.)
         body.children = body.children.flatMap { n -> [XNode] in
