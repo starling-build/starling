@@ -11267,6 +11267,7 @@ public final class RichLayout {
         // (Only where its section holds nothing else, lab t197: with a
         // line of text in 266's section Word gives 266 no room at all.)
         if theme.wordRules, (p.text.isEmpty && p.image == nil) || onlyFloats, style.sectionXML != nil, p.cell == nil,
+           !(RichTextTheme.wordWindowsPages && style.ignoredSectionPageBreak),
            !(RichTextTheme.wordWindowsPages && style.sectionBreaksPage == false && !onlyFloats
              && (i == 0 || document.paragraphs[i - 1].style.sectionXML != nil)) { _heights[i] = 0 }
         // (So does a floating table nested in a cell: Word gives it no
@@ -20440,6 +20441,9 @@ public final class RichLayout {
             RuleTrace.hit("title-page-of-a-section-begun-earlier")
             return false
         }
+        // (A page given the next section's headers has that section's
+        // title-page setting: lo 090716's page 3, whose section has none.)
+        if theme.wordRules, _pageHeaderSection[p] != nil, section.index < _sectionSetups.count, !section.last { return _sectionSetups[section.index].titlePage }
         return section.last ? document.titlePage : pageSetup(forPage: p).titlePage
     }
 

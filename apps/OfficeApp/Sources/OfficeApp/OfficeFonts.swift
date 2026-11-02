@@ -2480,7 +2480,11 @@ enum OfficeFonts {
         guard !wordMacFamilies.contains(family.trimmingWhitespace().lowercased()),
               let e = fontEntry(family), e.alt?.isEmpty ?? true, let usb0 = e.usb0 else { return nil }
         switch (usb0, e.usb1 ?? 0) {
-        case (0x0000_0003, 0): return "times new roman"
+        // (Only a face of family roman: lo 090716_Studentische_Arbeit_VWS'
+        // "Univers 45 Light" (auto) and "DIN-Bold" (swiss), the same
+        // signature, are Calibri in Word's print — its headings 2.3pt
+        // taller a line than Times'.)
+        case (0x0000_0003, 0): return e.family == "roman" ? "times new roman" : nil
         case (0x0000_0287, 0x0000_0800): return "calibri"
         case (0x0000_7A87, 0x8000_0000): return "ebrima"
         // (LibreOffice's "Liberation Serif" entry with no alternate: a name

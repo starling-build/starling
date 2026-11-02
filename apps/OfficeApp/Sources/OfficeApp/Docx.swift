@@ -1545,7 +1545,7 @@ enum DocxFormat {
                     // on Word's page 2; ours ran them on under it.)
                     let sectionsOwn = Self.wordOnWindows && currentCell == nil && !p.breakColumn && p.paragraph.style.sectionXML != nil
                         && p.paragraph.style.sectionBreaksPage == false && !p.sectionMarginsChange
-                    if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
+                    if p.pageBreakAfter, !sectionsOwn { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else if p.pageBreakAfter, p.breakCharacter { var q = p.paragraph; q.style.ignoredSectionPageBreak = true; emit(q) } else { emit(p.paragraph) }
                 }
                 if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
                 // (A line break that clears opens a paragraph after a table floating over the text: the
