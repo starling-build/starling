@@ -355,6 +355,10 @@ struct SlideFill: Equatable {
     /// instead of running along `angle`.
     var path: GradientPath? = nil
     var fillTo = Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
+    /// `a:tileRect` of a path gradient: the rectangle the gradient is laid out in, in fractions of the
+    /// area (a negative inset reaches beyond it); the area clips it. Lab gradpath (PowerPoint for Windows):
+    /// a circle gradient radiates from the middle of that rectangle, whatever its fill-to corner says.
+    var tile: Rect? = nil
     /// `a:stretch/a:fillRect`: where a stretched picture sits within the
     /// area, as fractions inset from each edge (negative: beyond it, and
     /// clipped).

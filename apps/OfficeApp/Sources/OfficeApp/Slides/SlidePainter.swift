@@ -1108,6 +1108,14 @@ final class SlidePainter: CustomPainter {
             // squeezed to the area's proportions as before.
             _ = path
             let f = fill.fillTo
+            // (A circle from the middle of its tile rectangle: lab gradpath.)
+            if path == .circle, fill.tile != nil || Self.cornerFocus(f) {
+                let t = fill.tile ?? Rect.fromLTRB(0, 0, 1, 1)
+                let area = Rect.fromLTRB(r.left + t.left * r.width, r.top + t.top * r.height,
+                                         r.left + t.right * r.width, r.top + t.bottom * r.height)
+                return Gradient(radial: area.center, radius: max(1, hypot(area.width, area.height) / 2), colors: colors,
+                                colorStops: positions, matrix4: pre, focal: area.center, focalRadius: 0)
+            }
             let focus = Self.pathFocus(f), fx = focus.dx, fy = focus.dy
             if (0 ... 1).contains(fx), (0 ... 1).contains(fy) {
                 return Gradient(radial: r.center, radius: max(1, hypot(r.width, r.height) / 2), colors: colors,
@@ -1143,6 +1151,13 @@ final class SlidePainter: CustomPainter {
                                 colors: colors, colorStops: positions)
             }
         }
+    }
+
+    /// A fill-to point at a corner of the area: a circle gradient is drawn from the middle all the same
+    /// (lab gradpath: all four corners print as the centred circle).
+    static func cornerFocus(_ f: Rect) -> Bool {
+        let p = pathFocus(f)
+        return (p.dx < 0.01 || p.dx > 0.99) && (p.dy < 0.01 || p.dy > 0.99)
     }
 
     /// Where a path gradient starts, in fractions of its area: the
