@@ -19900,8 +19900,42 @@ public final class RichLayout {
                 }
                 return false
             }
+            // A double or thin-and-thick rule a cell states on its top (or
+            // its row's does): between two rows it is one band, laid wholly
+            // below the row's top — the heavy line first, the thin one under
+            // it — as the table's own top edge is. zh-8f70b676's group
+            // separators: 138.9-141.0 and 141.7-142.5 under a row ending at
+            // 138.8, in Word's print; one 0.75pt line here.
+            func bandTop(_ ref: CellRef?) -> (style: String, width: Double)? {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, let ref,
+                      let said = Self._cellSide(ref.bordersXML, "top") ?? Self._cellSide(ref.rowBordersXML, "top"),
+                      Self._ruleLines(said.style, said.width).count > 1 else { return nil }
+                return said
+            }
             func paintEdges(_ d: _CellGeo, ref: CellRef?, bottomHere: Bool, ownTop: Bool) {
                 let cellRight = (d.colLeft + d.colWidth).rounded()
+                var bandBelow = false
+                if bottomHere, !lastRow {
+                    var q = probe
+                    while q < _cells.count, let e = _cells[q], e.table == c.table, e.row == c.row + 1 {
+                        if e.column == d.column, bandTop(document.paragraphs[q].cell) != nil { bandBelow = true }
+                        q += 1
+                    }
+                }
+                if c.row > 0, d.row == c.row, let band = bandTop(ref) {
+                    RuleTrace.hit("word-table-compound-rule-between-rows-is-one-band-below-the-edge")
+                    let cp = Paint()
+                    cp.style = .stroke
+                    cp.color = stroke.color
+                    canvas.save()
+                    canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom))
+                    for part in Self._ruleLines(band.style, band.width) {
+                        cp.strokeWidth = _px(part.width)
+                        let y = rowTop + _px(part.at) + cp.strokeWidth / 2
+                        canvas.drawLine(Offset(d.colLeft, y), Offset(cellRight, y), cp)
+                    }
+                    canvas.restore()
+                }
                 line(d.borders.left, on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV),
                      Offset(d.colLeft, rowTop), Offset(d.colLeft, rowBottom), inward: Offset(1, 0), side: d.column == 0 ? "left" : "insideV", cell: ref, cellSide: "left")
                 // The row above drew this cell's top, unless the cell has
@@ -19910,7 +19944,7 @@ public final class RichLayout {
                     line(d.borders.top, c.row == 0 && d.row == 0 && on(d.edges?.top, te?.top),
                          Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1), side: c.row == 0 && d.row == 0 ? "top" : "insideH", cell: ref, cellSide: "top")
                 }
-                if bottomHere {
+                if bottomHere, !bandBelow {
                     line(d.borders.bottom, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH),
                          Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1), side: lastRow ? "bottom" : "insideH", cell: ref, cellSide: "bottom")
                 }
