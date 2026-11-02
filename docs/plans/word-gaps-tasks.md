@@ -12,23 +12,11 @@ what next and how to check it.
 
 Take nothing listed here unless you are its owner; ask starling-bd for new work. Keep this block current when LANDED or CLAIM lines change it.
 
-- amd-1: LANDED chart visual docs: lo-7b8ccfbe 8.02->2.16 (default frame, bigger pie, style-18 colours and slice gradient), lo-1e8fa600 5.69->1.06, lo-452c2f0f 5.2->1.11 (legend box leaves its column); lo-5afb2204 already 1.04; zh-b8de3ae2 p15 chart matches, page sits 3px low = text layout (unowned)
-- amd-1: visual ranks 161-200 of the combined list (all about 2.0-2.3%): chart one first, lo-8743d336; the rest are text pages, handed on if the cause is borders (amd-2), page counts (amd-5), shapes (amd-perf)
-- OPEN, needs amd-opus: pie bestFit labels in/out and the pie radius. Best partial fit from lab pieeq (wip/lab-pieeq, PIEEQ-WORD.tsv): Word keeps a label inside its slice when it fits (47.4x9 one line, or wrapped 33.9x20 in a narrow slice); legend at the bottom shrinks the pie (R 54 at 8/10/12 slices, 63 at 6), no legend or right legend R 70-74. Ours is constant (68.9 / 53.6) and only 22 of 108 labels land within 3pt. No clean rule yet.
-- amd-2: Word VISUAL gate (per-page pixel diff vs Word's print, ranked; *.visual scores), then a top-40 visual worklist. amd-8 adds the gate to the rounds once it exists.
-- amd-3: a second amd-opus line-end class; visual ranks 121-160
-- amd-4: visual ranks 41-80; Word surface chart
-- amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
-- amd-6: Latin-in-grid lab (zh-08e95de4 p7), visual ranks 201-240, zh-20c1d74a p39
-- amd-7: next amd-opus line-end class; preset text-rect for VML spt shapes (zh-60c80728, irregularSeal)
-- amd-perf: lo-8ab9b90f (7-node lab), lo-af36644e re-check, zh-ae2dd08d, zh-264d7516, zh-e49d7943, zh-15f60bac (triage)
-- amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c; handed over from lenovo-2: zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-df9310bd, zh-31d580df; handed over from lenovo-3: zh-7488a70f, zh-6c447317, zh-424775e4; handed over (2nd round): zh-e51c31a7, zh-27fc8f9d, zh-cf8b03a5, lenovo-2's seven (the open items on lenovo-2's list; coordinator did not name them), zh-5313b71d; zh-e68a2f57 (from amd-6); later: pie bestFit in/out + radius, with the crowding
-- lenovo-2: handed to amd-opus (see amd-opus line); zh-60173bb6 done
-- lenovo-3: visual top-40 entries outside the borders / fills / page-count classes; merged cells waiting on cm2+K9; lo-7ec36a70 headings, zh-15428325, zh-291fcea7, zh-785e46f8, zh-64044a1d, zh-701eda18 (triage, not released)
+- WORD (the hard work stays here): amd-opus (line-end classes, plot room, pies incl. bestFit in/out and radius, Latin-in-grid lab); amd-3 (camera lab, merged cells, table beside a float, zh-701eda18, lo-7ec36a70 headings, lo-eb12e7d4 p15, bib tiled background, zh-20c1d74a p39, opus classes; has an Opus advisor); amd-perf (RichLayout split, land.sh speed-up, border band and grouping, zh-2e7ef069 footer, lo-28f9b886, lo-8ab44df5, lo-8928a1e9, zh-cf8b03a5 cell lab, n830205 balloons, visual 81-120; has an Opus advisor)
+- SLIDES: amd-1 charts (cooper, 5864, chart decks); amd-2 scene3d lighting and materials (gets an advisor); amd-4 WordArt fills and colours; lenovo-3 WordArt 3-D text and effects; amd-5 headers, footers, comments, autofit; amd-6 ActiveX and transparent bitmap; amd-7 SmartArt; lenovo-2 alterman, GeomLec1, pptx2svg, 60810, ShapePlusImage, bug62513; lenovo-5 tdf143222, tdf149206, tdf114848, tdf169524, master-slides
+- amd-8: tip watch (Word and Slides gates, unit tests, visual ranking)
 - DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2); lo-717ff943 (amd-perf); lo-b8885ba2, lo-152d87fe, lo-06933f8e, lo-88b29958, lo-47598455, lo-9fa3dedd, lo-a48482e7 (lenovo-2); lo-60fd9368, lo-4aa628bd (amd-2); lo-512aa398 (lenovo-2); lo-52da6bc6 (amd-4); lo-5c5eb1f7 form widths (amd-6); zh-6e6b9821: sub-point, nothing to land; lo-677416bef (lenovo-3); zh-74b34f3b: sub-point noise, nothing to fix; zh-419ea527, zh-340d52e9 (amd-2); zh-22ecbdc8 (amd-opus); zh-60173bb6, zh-ea43dd6d, zh-d8247da5, zh-ee2d19e6; lo-536b79ce (amd-3); lo-ff3b52d1 (amd-2, 100); zh-547fc43c % (amd-2); SEQ caption numbers: lo-c4c60fcb, lo-dcf44597 (amd-1); zh-20c1d74a, zh-b4d36718, zh-0a56c942, zh-9ef811c8 (amd-6); zh-bdae17c0 bullet face, lo-af81b53e small caps (amd-4); lo-e6dce9d6 closed (text layer, lenovo-5); amd-opus class 'closing mark opening a line' (amd-3, zh-72da925e +2); visual: lo-1e8fa600, lo-452c2f0f (amd-1); zh-38d26944, zh-e1b09977, zh-08e95de4 p2 (amd-6); dot-leader tabs past the margin, digit autospace in cells (amd-7); 3-D column shapes (amd-1, 24779ef27)
 - UNFIXABLE: lo-a43021ca (print-date field); lo-72e72396 (print date)
-- lenovo-5: visual ranks 81-120; labs: compat-14 zero-margin cell geometry (zh-cf8b03a5), n830205 two-run paragraph
-- amd-8: tip watch + unit tests
 
 **STRATEGY (the user, 2026-10-29): Windows mode is the focus.** Word for Windows is the reference, and its
 prints (test/corpus/docx/word-win) are the only target. From now on:
