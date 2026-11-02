@@ -4237,7 +4237,7 @@ enum ChartPainter {
         // and whose plot the file leaves to Word is 15.3pt smaller a side at
         // 9pt labels (1.7 of their size) — lo tdf137154's eight labels
         // round a pie of 198pt in Word's print, ours 229.
-        if values.filter({ $0 > 0 }).count > 1, !c.onSheet, !c.onSlide, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil {
+        if values.contains(where: { $0 > 0 }), !c.onSheet, !c.onSlide, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil {
             RuleTrace.hit("word-pie-with-outside-labels-leaves-room-for-them")
             radius = max(radius / 2, radius - 1.7 * (c.series[0].labelSize ?? c.baseTextSize) * k)
         }
@@ -4255,6 +4255,8 @@ enum ChartPainter {
         // (No rims in a 2007-style chart on a slide: pie-chart's slices
         // meet edge to edge in PowerPoint's print, fills alone.)
         if (c.onSlide && !c.styled2013 && c.officeStyled) || libre { edge.color = Color(0x00000000) }
+        // (One slice is a disc: no rim runs from its middle to the top — lo tdf134866.)
+        if values.filter({ $0 > 0 }).count == 1, c.type == .pie, !c.onSlide, !c.onSheet { edge.color = Color(0x00000000) }
         // The series' own outline round each slice where it gives one
         // (chart-tdf161607's ring ruled 2.25 pt green).
         if let line = c.series[0].outline {
@@ -5396,7 +5398,11 @@ extension ChartPainter {
                 let ownBox = !c.onSlide && !c.onSheet && !c.chartex && l.own[s.index] != nil
                 let (bw, bh) = ownBox ? (tp.width, tp.height) : (w, h)
                 if ownBox, share > 0.5, let big = Self._bigSliceLabel(share: share, dx: dx, dy: dy, rx: rx, ry: ry, centre: centre, bw: bw, bh: bh) { return big }
-                return stride(from: 0.6, through: 0.3, by: -0.05).first(where: { f in
+                // (A lone slice, the whole disc, holds it as far out as the rim lets it:
+                // lo tdf134866's "Cusom label" 0.82 out at six o'clock, where the
+                // measured 0.6 left it 22pt high.)
+                let top = share > 0.99 && !c.onSlide && !c.onSheet ? 0.95 : 0.6
+                return stride(from: top, through: 0.3, by: top > 0.6 ? -0.01 : -0.05).first(where: { f in
                     let c0 = on(s.mid, f)
                     return [(-bw / 2, -bh / 2), (bw / 2, -bh / 2), (-bw / 2, bh / 2), (bw / 2, bh / 2)].allSatisfy { cx, cy in
                         let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
