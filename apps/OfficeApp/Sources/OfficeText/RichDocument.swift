@@ -135,6 +135,10 @@ public struct CharStyle: Hashable, Sendable {
     /// Word's hidden text (w:vanish): kept in the document, not shown or
     /// printed.
     public var hidden = false
+    /// Set in a place Word's print clips away (a first line indented past its
+    /// cell): the characters stay in the text layer, at full size and as good
+    /// as clear, so the print holds them and nothing shows.
+    public var unseen = false
     /// The run is a legacy form field's check box (FORMCHECKBOX), which
     /// Word prints as a drawn square; a "☐" typed, or a content control's,
     /// is a character there (LibreOffice's sdt-run-checkbox).

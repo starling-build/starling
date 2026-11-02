@@ -662,6 +662,7 @@ public final class RichTextTheme {
         // and 4.6: see `baselineShift`.)
         let scriptRatio = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
             && (eastAsian || face?.isEastAsian == true) ? 0.5 : 0.65
+        if style.unseen { color = color.withOpacity(1.0 / 255) }
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
             // a hair of a size keeps the span (and the caret) in the line.
@@ -1331,6 +1332,7 @@ public final class RichLayout {
     /// The tabs of each paragraph that are filled with a leader (a
     /// contents page's dots): the tab's offset, and the character.
     private var _leaders: [[(offset: Int, fill: String)]] = []
+    private var _unseenShift: [Int: Double] = [:]
     /// Where each paragraph's painter has a character the paragraph has
     /// not: the paragraph offsets a zero-width space stands before (see
     /// `_OffsetMap`).
@@ -8864,7 +8866,7 @@ public final class RichLayout {
             // Word for Windows only: Word for Mac's print of zh-9bcea239
             // keeps lines that this leaves out, 95.9 -> 94.7 with it.)
             if RichTextTheme.wordWindowsPages, p.cell != nil, let c = _cells[i], lead >= textWidth + ownLeft + right + c.pad.left + c.pad.right - 0.01 {
-                p = Self._hidingFirstWord(p)
+                p = Self._hidingFirstWord(p, keeping: true)
             }
             // (In a text box the same, from the box's width less its left
             // inset: lab `tbi` (`windows`, zh-b24b396a's package, each a fresh
@@ -8884,7 +8886,10 @@ public final class RichLayout {
             // a 16pt "山" after a drawing's anchor, over 14pt text, and an
             // em of the text's left it no room — the line held nothing.)
             let em = _px(_firstTextRun(p)?.style.fontSize ?? p.runs.last?.style.fontSize ?? p.style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+            let past = lead
             lead = max(0, textWidth - em)
+            // (The clear copy of a score kept for the print stands where Word's does, past the cell.)
+            if p.runs.contains(where: { $0.style.unseen }) { _unseenShift[i] = past - lead }
         }
         // PowerPoint's bullet with no hanging indent (indent ≥ 0): the
         // bullet stands at the first line's start and the text follows it
@@ -13188,7 +13193,7 @@ public final class RichLayout {
     /// `p` with its first word hidden — up to and with its first space, or
     /// its first character where that is East Asian: what a first line
     /// indented past its cell shows of it (see `_layoutParagraph`).
-    static func _hidingFirstWord(_ p: RichParagraph) -> RichParagraph {
+    static func _hidingFirstWord(_ p: RichParagraph, keeping: Bool = false) -> RichParagraph {
         let units = Array(p.text.utf16)
         guard let first = units.first else { return p }
         var n = 1
@@ -13206,7 +13211,10 @@ public final class RichLayout {
                 var hidden = r.style; hidden.hidden = true
                 runs.append(Run(length: n - at, style: hidden)); runs.append(Run(length: end - n, style: r.style))
             } else if end <= n {
-                var hidden = r.style; hidden.hidden = true
+                var hidden = r.style
+                // (A paragraph of that word alone: Word's print holds it, clipped by
+                // its cell, zh-9bcea239's scores; ours keeps it too, as good as clear.)
+                if n >= units.count, keeping, RichTextTheme.wordWindowsPages { hidden.unseen = true } else { hidden.hidden = true }
                 runs.append(Run(length: r.length, style: hidden))
             } else {
                 runs.append(r)
@@ -18151,7 +18159,7 @@ public final class RichLayout {
                     g.painter.paint(canvas, textAt); canvas.restore()
                 }
                 leadersPainted = true
-            } else if shifts.isEmpty { g.painter.paint(canvas, textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
+            } else if shifts.isEmpty { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: false)
