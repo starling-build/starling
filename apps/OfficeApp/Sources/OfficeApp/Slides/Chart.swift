@@ -5153,6 +5153,15 @@ extension ChartPainter {
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return }
+        if Self._pieLog, let point {
+            // (STARLING_PIE_LOG: the top face's rim, a point a degree, from the frame's top left.)
+            var line = "PIER"
+            for d in 0 ..< 360 {
+                let q = point(Double(d) * .pi / 180, 0.9999)
+                line += String(format: "\t%.2f,%.2f", (q.dx - frame.left) / k, (q.dy - frame.top) / k)
+            }
+            FileHandle.standardError.write((line + "\n").data(using: .utf8)!)
+        }
         let whole = Self.wholePercents(slices.map { (key: $0.index, value: $0.value) })
         // The labels' text so far, for an outside label to stand clear of.
         var taken: [Rect] = []
