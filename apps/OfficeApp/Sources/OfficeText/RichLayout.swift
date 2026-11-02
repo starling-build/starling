@@ -20272,7 +20272,13 @@ public final class RichLayout {
                     // On the first line's baseline, as PowerPoint sets it: from
                     // the line's top, a bullet at 80% stood four points high
                     // (45541's), and a stand-in face's glyph more.
-                    marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), top()))
+                    // (A hanging bullet of a centred or right paragraph goes with its line, the text's start less
+                    // the hang: lo-tdf128550's four items, `marL` 40.5pt over `indent` -40.5pt, centred in a
+                    // 824pt box, have PowerPoint's bullet at 440.4, 40.5 before the text at 480.9; ours stood
+                    // at the box's edge, 104.)
+                    var along = 0.0
+                    if p.style.alignment == .center || p.style.alignment == .right, let first = g.painter.computeLineMetrics().first { along = first.left }
+                    marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4) + along, top()))
                 }
             } else if theme.wordRules, !document.readFromFile {
                 // No level of its own yet: where the file it is saved to

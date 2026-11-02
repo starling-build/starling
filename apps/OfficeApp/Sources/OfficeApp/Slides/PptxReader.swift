@@ -1181,7 +1181,11 @@ private struct SlideContext {
                 guard let p = _ph(sp) else { return false }
                 let t = p["type"] ?? "obj"
                 if want == "body" && masterRules { return t == "body" }
-                return t == want || (want == "obj" && t == "body")
+                // (A slide's `ctrTitle` inherits from its layout's `title` and the other way round: lo-tdf128550's
+                // second slide, `ctrTitle` over a layout whose title sits at y 129pt, anchored to its foot, took
+                // the master's at the top of the page; PowerPoint's print has it by the layout's.)
+                let titled = { (v: String) in v == "title" || v == "ctrTitle" }
+                return t == want || (want == "obj" && t == "body") || (!masterRules && titled(t) && titled(want))
             }
         }
         return (find(layout, masterRules: false), find(master, masterRules: true))
