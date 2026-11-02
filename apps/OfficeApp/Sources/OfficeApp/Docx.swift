@@ -365,7 +365,12 @@ enum DocxFormat {
                     let size = ownSize ?? hostSize + (lines - 1) * pitch / capHeight
                     let capWidth = em(capText) * size
                     let halfPoints = Int((size * 2).rounded())
-                    let baseline = height - 0.25 * pitch        // the last line's baseline, from the box's top
+                    // (Word for Windows sets a cap that names its own size a point lower: lab dropcap, hyphen,
+                    // en dash, figure dash and "L" at 130 and 137.5pt, and a hyphen at 50 and 80, a 39.9pt exact
+                    // line raised -5.5pt — every baseline 37.58 from the paragraph's top where this had 36.6.)
+                    let lowered = DocxFormat.wordOnWindows && ownSize != nil
+                    if lowered { RuleTrace.hit("dropcap-with-its-own-size-sits-a-point-lower") }
+                    let baseline = height - 0.25 * pitch + (lowered ? 1.0 : 0)        // the last line's baseline, from the box's top
                     let exact = Int((baseline / 0.8 * 20).rounded())
                     let rPrInner = (run.first("w:rPr")?.children ?? []).filter { $0.name != "w:sz" && $0.name != "w:szCs" && !(ownSize != nil && $0.name == "w:position") }
                         .map { PptxXML.serialize($0) }.joined()
