@@ -12506,6 +12506,14 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." {
+                    // (A line may part at a space before a stop: the engine keeps
+                    // " ." together — a stop may not start a line, even after a
+                    // space — and Word does not. lo-0349db3a's "Word / .doc" in a
+                    // 116pt frame ends a line "…in Word /" in Word's print.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules || theme.officeLatinBreaks, let b = before,
                           Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
                     flush(i)
