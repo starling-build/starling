@@ -1,0 +1,95 @@
+== N1: pages [1, 2]
+  p1  A: N1-A1@142.61, N1-A2@157.27, N1-A3@171.91
+      right head N1-r1-1@76.46   foot N1-r2-10@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-94.5; x35.8 y95.0-241.5; x135.8 y65.2-94.5; x135.8 y95.0-241.5; x385.9 y65.2-94.5; x385.9 y95.0-241.5
+  p2  A: -
+      right head N1-r2-11@61.82   foot N1-r2-20@193.63   (10 right lines)
+      vertical rules: x35.8 y50.5-197.1; x135.8 y50.5-197.1; x385.9 y50.5-197.1
+== N2: pages [3, 4, 5]
+  p3  A: N2-A1@142.61, N2-A2@157.27, N2-A3@171.91
+      right head N2-r1-1@76.46   foot N2-r2-8@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-123.8; x35.8 y124.2-241.5; x135.8 y65.2-123.8; x135.8 y124.2-241.5; x385.9 y65.2-123.8; x385.9 y124.2-241.5
+  p4  A: -
+      right head N2-r2-9@61.82   foot N2-r2-21@237.70   (13 right lines)
+      vertical rules: x35.8 y50.5-241.1; x135.8 y50.5-241.1; x385.9 y50.5-241.1
+  p5  A: -
+      right head N2-r2-22@61.82   foot N2-r2-30@178.99   (9 right lines)
+      vertical rules: x35.8 y50.5-182.5; x135.8 y50.5-182.5; x385.9 y50.5-182.5
+== N3: pages [6, 7]
+  p6  A: N3-A1@142.61, N3-A2@157.27, N3-A3@171.91
+      right head N3-r1-1@76.46   foot N3-r2-6@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-153.1; x35.8 y153.6-241.5; x135.8 y65.2-153.1; x135.8 y153.6-241.5; x385.9 y65.2-153.1; x385.9 y153.6-241.5
+  p7  A: -
+      right head N3-r2-7@61.82   foot N3-r2-14@164.35   (8 right lines)
+      vertical rules: x35.8 y50.5-167.8; x135.8 y50.5-167.8; x385.9 y50.5-167.8
+== N4: pages [8, 9, 10]
+  p8  A: N4-A1@142.61, N4-A2@157.27, N4-A3@171.91
+      right head N4-r1-1@76.46   foot N4-r2-4@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-182.4; x35.8 y182.8-241.5; x135.8 y65.2-182.4; x135.8 y182.8-241.5; x385.9 y65.2-182.4; x385.9 y182.8-241.5
+  p9  A: -
+      right head N4-r2-5@61.82   foot N4-r2-17@237.70   (13 right lines)
+      vertical rules: x35.8 y50.5-241.1; x135.8 y50.5-241.1; x385.9 y50.5-241.1
+  p10  A: -
+      right head N4-r2-18@61.82   foot N4-r2-24@149.69   (7 right lines)
+      vertical rules: x35.8 y50.5-153.1; x135.8 y50.5-153.1; x385.9 y50.5-153.1
+== N5: pages [11, 12]
+  p11  A: N5-A1@106.01, N5-A2@120.65, N5-A3@135.29, N5-A4@149.95, N5-A5@164.59, N5-A6@179.23, N5-A7@193.99, N5-A8@208.63
+      right head N5-r1-1@76.46   foot N5-r2-10@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-94.5; x35.8 y95.0-241.5; x135.8 y65.2-94.5; x135.8 y95.0-241.5; x385.9 y65.2-94.5; x385.9 y95.0-241.5
+  p12  A: -
+      right head N5-r2-11@61.82   foot N5-r2-20@193.63   (10 right lines)
+      vertical rules: x35.8 y50.5-197.1; x135.8 y50.5-197.1; x385.9 y50.5-197.1
+== N6: pages [13, 14, 15]
+  p13  A: N6-A1@142.61, N6-A2@157.27, N6-A3@171.91
+      right head N6-r1-1@76.46   foot N6-r2-2@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-211.8; x35.8 y212.3-241.5; x135.8 y65.2-211.8; x135.8 y212.3-241.5; x385.9 y65.2-211.8; x385.9 y212.3-241.5
+  p14  A: -
+      right head N6-r2-3@61.82   foot N6-r2-15@237.70   (13 right lines)
+      vertical rules: x35.8 y50.5-241.1; x135.8 y50.5-241.1; x385.9 y50.5-241.1
+  p15  A: -
+      right head N6-r2-16@61.82   foot N6-r2-20@120.41   (5 right lines)
+      vertical rules: x35.8 y50.5-123.8; x135.8 y50.5-123.8; x385.9 y50.5-123.8
+== N7: pages [16, 17, 18]
+  p16  A: N7-A1@142.61, N7-A2@157.27, N7-A3@171.91
+      right head N7-r1-1@76.46   foot N7-r2-11@238.18   (12 right lines)
+      vertical rules: x35.8 y65.2-79.8; x35.8 y80.3-241.5; x135.8 y65.2-79.8; x135.8 y80.3-241.5; x385.9 y65.2-79.8; x385.9 y80.3-241.5
+  p17  A: -
+      right head N7-r2-12@61.82   foot N7-r2-24@237.70   (13 right lines)
+      vertical rules: x35.8 y50.5-241.1; x135.8 y50.5-241.1; x385.9 y50.5-241.1
+  p18  A: -
+      right head N7-r2-25@61.82   foot N7-r2-25@61.82   (1 right lines)
+      vertical rules: x35.8 y50.5-65.2; x135.8 y50.5-65.2; x385.9 y50.5-65.2
+== P1: pages [19, 20, 21]
+  p19  A: P1-A1@172.51, P1-A2@187.15, P1-A3@201.79
+      right head P1-r0-1@76.46   foot P1-r2-5@238.66   (12 right lines)
+      vertical rules: x35.8 y65.2-123.8; x35.8 y124.2-168.3; x35.8 y168.8-242.0; x135.8 y65.2-123.8; x135.8 y124.2-168.3; x135.8 y168.8-242.0; x385.9 y65.2-123.8; x385.9 y124.2-168.3; x385.9 y168.8-242.0
+  p20  A: -
+      right head P1-r2-6@61.82   foot P1-r2-18@237.70   (13 right lines)
+      vertical rules: x35.8 y50.5-241.1; x135.8 y50.5-241.1; x385.9 y50.5-241.1
+  p21  A: -
+      right head P1-r2-19@61.82   foot P1-r2-20@76.46   (2 right lines)
+      vertical rules: x35.8 y50.5-79.8; x135.8 y50.5-79.8; x385.9 y50.5-79.8
+== P2: pages [22, 23, 24]
+  p22  A: P2-A1@187.15, P2-A2@201.79, P2-A3@216.46
+      right head P2-r0-1@76.46   foot P2-r2-4@238.66   (12 right lines)
+      vertical rules: x35.8 y65.2-153.1; x35.8 y153.6-182.9; x35.8 y183.4-242.0; x135.8 y65.2-153.1; x135.8 y153.6-182.9; x135.8 y183.4-242.0; x385.9 y65.2-153.1; x385.9 y153.6-182.9; x385.9 y183.4-242.0
+  p23  A: -
+      right head P2-r2-5@61.82   foot P2-r2-17@237.70   (13 right lines)
+      vertical rules: x35.8 y50.5-241.1; x135.8 y50.5-241.1; x385.9 y50.5-241.1
+  p24  A: -
+      right head P2-r2-18@61.82   foot P2-r2-20@91.13   (3 right lines)
+      vertical rules: x35.8 y50.5-94.5; x135.8 y50.5-94.5; x385.9 y50.5-94.5
+== P3: pages [25, 26]
+  p25  A: P3-A1@172.51, P3-A2@187.15, P3-A3@201.79
+      right head P3-r0-1@76.46   foot P3-r2-3@238.66   (12 right lines)
+      vertical rules: x35.8 y65.2-123.8; x35.8 y124.2-197.6; x35.8 y198.1-242.0; x135.8 y65.2-123.8; x135.8 y124.2-197.6; x135.8 y198.1-242.0; x385.9 y65.2-123.8; x385.9 y124.2-197.6; x385.9 y198.1-242.0
+  p26  A: -
+      right head P3-r2-4@61.82   foot P3-r2-12@178.99   (9 right lines)
+      vertical rules: x35.8 y50.5-182.5; x135.8 y50.5-182.5; x385.9 y50.5-182.5
+== P4: pages [27, 28]
+  p27  A: P4-A1@194.47, P4-A2@209.11, P4-A3@223.78
+      right head P4-r0-1@76.46   foot P4-r2-4@238.66   (12 right lines)
+      vertical rules: x35.8 y65.2-167.7; x35.8 y168.2-182.9; x35.8 y183.4-242.0; x135.8 y65.2-167.7; x135.8 y168.2-182.9; x135.8 y183.4-242.0; x385.9 y65.2-167.7; x385.9 y168.2-182.9; x385.9 y183.4-242.0
+  p28  A: -
+      right head P4-r2-5@61.82   foot P4-r2-15@208.39   (11 right lines)
+      vertical rules: x35.8 y50.5-211.8; x135.8 y50.5-211.8; x385.9 y50.5-211.8
