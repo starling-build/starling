@@ -13716,3 +13716,4 @@ TIP WATCH amd-8, round 63 (tip d93782253, Slides round): Word 756 and LO: 0 down
 TIP WATCH amd-8, round 64 (tip 162b26bea): Word 756 and LO: 0 down; Word 1-3 up, LO 4 up. Unit tests pass (612).
 
 - CLAIM (amd-5, 2026-11-02): zh-31d580df (9 missed). zh-7773163d heading offset dropped: the whole p48 stack stands 3pt off from above, the heading only 1pt more; a bold-baseline try moved nothing on p48 and cost 8 lines elsewhere.
+- amd-opus CLAIM zh-7a16a243 then zh-c2c92639 (line-end fit, left to amd-opus at 13487), while lab proj prints; decision table read out: the leftover groups are small and mostly joiner artefacts (in-cell line breaks, Word's PDF splitting "（鲁" into its own block).
