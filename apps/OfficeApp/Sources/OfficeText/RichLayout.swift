@@ -5464,7 +5464,7 @@ public final class RichLayout {
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document), !ts.pageAnchored, ts.keptPosition != nil,
-               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document),
+               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
                case let firstPage = _beside_firstPage(of: prev, upTo: page, text: i < _besideLead.count && _besideLead[i] > 0 && !blank(document.paragraphs[i])),
                // (… but only where the text does not fit whole beside those rows and goes on
                // over the page: a line or a few that fit stand on the table's last page, as in
@@ -11227,7 +11227,9 @@ public final class RichLayout {
             let size = style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let strip = textWidth - _px(twips("w:tblpX") / 20) - widths.reduce(0, +) - _px(twips("w:rightFromText") / 20)
             // (Not before a narrow table that stands in the strip too: the mark keeps its line there, lo-5e49366b.)
-            if strip >= _px(size), !_stripBesideLeftTable(before.table, i, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
+            // (Nor where the table hangs a tblpY under its anchor: the marks keep their lines there and stand beside it, see
+            // `_markBesideOffsetFloat`.)
+            if strip >= _px(size), !_stripBesideLeftTable(before.table, i, document), ts.floatOffsetY == nil { _heights[i] = 0; _spaceBefore[i] = 0 }
         }
         // A floating frame takes no room either: the text that follows
         // starts where it does.
@@ -13862,6 +13864,24 @@ public final class RichLayout {
               let kept = ts.keptPosition, !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
         let column = _flowWidth(i), left = _tableLeft(table, document)
         return left < column / 2 && column - (left + widths.reduce(0, +)) >= _px(theme.fontSize) * 3 + _px(20)
+    }
+
+    /// A table floating by the text with a tblpY under its anchor, and a strip of at least a character at its right: the
+    /// empty marks after it keep their lines and the first of them stands at the line the table hangs from, beside it,
+    /// the flow going on from there (not from the table's foot). lo-796c371e: Word's twelve empty marks are 25.4pt
+    /// apart from the first, two of them at x 537 beside the table; ours took the table's offset on top.
+    private func _markBesideOffsetFloat(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, document.paragraphs[i].text.isEmpty,
+              let ts = document.tableStyles[table], ts.floatOffsetY != nil, ts.floatsOverText, !ts.pageAnchored, let kept = ts.keptPosition,
+              kept.containsSubstring("w:vertAnchor=\"text\""), !kept.containsSubstring("w:horzAnchor=\"page\""),
+              !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
+        func twips(_ name: String) -> Double {
+            guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
+            return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
+        }
+        let size = document.paragraphs[i].style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+        let strip = _flowWidth(i) - _px(twips("w:tblpX") / 20) - widths.reduce(0, +) - _px(twips("w:rightFromText") / 20)
+        return strip >= _px(size)
     }
 
     /// An ordinary table (not floating, not placed against the page) a fifth of the column wide or less, that Word
