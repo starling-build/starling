@@ -13671,7 +13671,12 @@ public final class RichLayout {
                         // (… and of the grid's: 4.25pt either side of a
                         // digit at 16pt on that grid of 1.008.)
                         var gap = document.balancesSpaceWidth
-                            ? (em + _px(grid ?? 0) + 2 * spacing) / 4
+                            // (A shrunk grid does not shrink it in a cell: lab `dig` (Word for Windows, zh-9c162f26's 9pt
+                            // mode-14 cell, grid -0.21) cuts "应" between 4.21 and 4.31 over on a line with three digit
+                            // boundaries and between 4.31 and 4.41 with none, the 0.15pt a quarter of the full em (2.25) over
+                            // a quarter of the shrunk one (2.20) makes three times. In the body it does shrink it: zh-d68ac84a
+                            // (grid -1.35), zh-eb54d3b0 and zh-8d6f702e lose lines with the full em.)
+                            ? (em + _px(p.cell != nil ? max(0, grid ?? 0) : (grid ?? 0)) + 2 * spacing) / 4
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         // (Twice inside text ruled round where the widths are
                         // balanced: labs `ap1`–`ap4`, zh-06c46ba9's boxed
