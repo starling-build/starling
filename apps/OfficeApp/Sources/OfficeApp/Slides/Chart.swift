@@ -5306,26 +5306,17 @@ extension ChartPainter {
             // chart, stops after seven, "even…".)
             if !c.onSlide, !c.onSheet, !c.chartex {
                 let n = tp.computeLineMetrics().count
-                // (Word's limit is a little under half: lab pielabel's 4-line 16 pt label, 0.48 of a 148 pt chart,
-                // is cut to three lines; lo-f391267c's seven of 0.45 stay.)
-                let allowed = max(1, Int(frame.height * 0.465 / (tp.height / Double(max(1, n)))))
+                let allowed = max(1, Int(frame.height * 0.5 / (tp.height / Double(max(1, n)))))
                 if n > allowed {
                     RuleTrace.hit("word-data-label-taller-than-half-the-chart-ends-in-an-ellipsis")
                     // (The engine's ellipsis only cuts a line that overflows its width, so
                     // the text is cut at the last line's end and the dots added here.)
                     let lineH = tp.height / Double(n)
                     let end = tp.getLineBoundary(tp.getPositionForOffset(Offset(1, (Double(allowed) - 0.5) * lineH))).end
-                    var kept = String(text.prefix(max(0, end))).trimmingWhitespace()
+                    let kept = String(text.prefix(max(0, end))).trimmingWhitespace()
                     tp.dispose()
                     tp = makeLabel(nil, kept + "\u{2026}")
                     tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
-                    // (The dots take room of their own: a last word that no longer fits with them goes.)
-                    while tp.computeLineMetrics().count > allowed, kept.count > 1 {
-                        kept = String(kept.dropLast()).trimmingWhitespace()
-                        tp.dispose()
-                        tp = makeLabel(nil, kept + "\u{2026}")
-                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
-                    }
                 }
             }
             let pad = 3 * k
