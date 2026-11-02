@@ -942,6 +942,11 @@ public struct ShapeOutline: Hashable, Sendable {
 
 public struct ImageAttachment: Hashable, Sendable {
     public let id: String
+    /// The order the attachments were made in — the order a file's reader meets them, which is document
+    /// order. `id` is random (a UUID) and a dictionary keyed by it has no order at all; anything that
+    /// walks a paragraph's images and lets the walk's order show in the layout goes by this
+    /// (`inlineImages.inOrder`).
+    public let seq: Int
     public var data: Data
     public var width: Double
     public var height: Double
@@ -1003,12 +1008,21 @@ public struct ImageAttachment: Hashable, Sendable {
     public init(data: Data, width: Double, height: Double, name: String = "image.png",
                 naturalWidth: Double? = nil, naturalHeight: Double? = nil) {
         self.id = UUID().uuidString
+        self.seq = ImageAttachment._nextSeq()
         self.data = data
         self.width = width
         self.height = height
         self.name = name
         self.naturalWidth = naturalWidth
         self.naturalHeight = naturalHeight
+    }
+
+    private static let _seqLock = NSLock()
+    nonisolated(unsafe) private static var _seqCounter = 0
+    private static func _nextSeq() -> Int {
+        _seqLock.lock(); defer { _seqLock.unlock() }
+        _seqCounter += 1
+        return _seqCounter
     }
 
     public static func == (a: ImageAttachment, b: ImageAttachment) -> Bool {
@@ -2592,4 +2606,11 @@ public struct DivMargins: Hashable, Sendable {
     public var top: Double
     public var bottom: Double
     public init(top: Double, bottom: Double) { self.top = top; self.bottom = bottom }
+}
+
+
+extension Dictionary where Key == String, Value == ImageAttachment {
+    /// The images in the order they were made (document order), not the dictionary's: a walk that
+    /// shows in the layout must not depend on UUID keys and the process's hash seed.
+    public var inOrder: [ImageAttachment] { values.sorted { $0.seq < $1.seq } }
 }

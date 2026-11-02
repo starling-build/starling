@@ -3259,7 +3259,7 @@ public final class RichLayout {
                         // tables on the next page in Word's print, where ours
                         // set it over the chart.)
                         if theme.wordRules {
-                            for image in Array(document.paragraphs[k].inlineImages.values) + [document.paragraphs[k].image].compactMap({ $0 }) {
+                            for image in document.paragraphs[k].inlineImages.inOrder + [document.paragraphs[k].image].compactMap({ $0 }) {
                                 guard let f = image.float, f.wraps, f.verticalAlign == nil else { continue }
                                 var h = _px(image.height + image.effectBottom + f.distanceBottom)
                                 // (A table nested in the cell and floating is as tall as it
@@ -3609,7 +3609,7 @@ public final class RichLayout {
                     for k in row.first ..< row.end {
                         let column = _cells[k]!.column, top = at[column].map { $0 - shared(k) } ?? 0
                         let p = document.paragraphs[k]
-                        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+                        for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
                             guard let f = image.float, !f.takesRoom, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil else { continue }
                             let foot = top + _spaceBefore[k] + _px(f.y + image.height + f.effectBottom)
                             content[column] = max(content[column] ?? 0, foot)
@@ -4953,7 +4953,7 @@ public final class RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages, c.ownRowHeight <= contentH + 0.01 {
                 for k in i ..< j {
                     let q = document.paragraphs[k]
-                    for image in Array(q.inlineImages.values) + [q.image].compactMap({ $0 }) {
+                    for image in q.inlineImages.inOrder + [q.image].compactMap({ $0 }) {
                         if image.textBox?.growsToFit == true, image.float != nil { RuleTrace.hit("row-with-a-floating-table-in-a-cell-goes-whole"); return false }
                     }
                 }
@@ -11028,7 +11028,7 @@ public final class RichLayout {
         // (One column only: in several the paragraph's lines are cut into columns, and the
         // existing placement of a band keeps them off — lo shape-anchored-in-follow.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, _columns <= 1 {
-            for image in p.inlineImages.values {
+            for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil, float.verticalFrom == "paragraph", float.y > 0 else { continue }
                 keepClear = (_px(float.y - float.distanceTop), _px(float.y + image.height + float.effectBottom + float.distanceBottom))
                 break
@@ -11110,7 +11110,7 @@ public final class RichLayout {
             // where either alone leaves room — zh-37b6536f's first row.)
             var spans: [(Double, Double, Double)] = []
             let em0 = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-            for image in p.inlineImages.values {
+            for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
                       float.horizontalFrom != "page", float.horizontalAlign == nil else { continue }
                 let w = _px(image.width)
@@ -11123,7 +11123,7 @@ public final class RichLayout {
                 widest = max(widest, column - max(0, lead) - right - edge)
                 if widest < em0 { push = max(push, pushUnder(sorted.map(\.2).max() ?? 0)) }
             }
-            for image in p.inlineImages.values {
+            for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
                       float.horizontalFrom != "page" else { continue }
                 let w = min(_px(image.width), column)
@@ -11168,7 +11168,7 @@ public final class RichLayout {
         else if theme.wordRules, let cell = p.cell, cell.textDirection == .horizontal {
             let bare = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
             let gap = _px(9), em = bare ? 0.0 : _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-            for image in p.inlineImages.values {
+            for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil,
                       float.verticalFrom == "paragraph", float.horizontalFrom != "page" else { continue }
                 let w = min(_px(image.width), textWidth)
@@ -11205,7 +11205,7 @@ public final class RichLayout {
         // line's top, has "xxxx" under it in Word's print.)
         if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages || p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             let bareText = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
-            for image in (p.image.map { [$0] } ?? []) + Array(p.inlineImages.values) {
+            for image in (p.image.map { [$0] } ?? []) + p.inlineImages.inOrder {
                 guard bareText || image.sourceXML?.contains("drawingml/2006/chart") == true else { continue }
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y > 0,
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
@@ -14628,7 +14628,7 @@ public final class RichLayout {
             // (One anchored in a paragraph above is wrapped round too, for a paragraph that is no
             // list item: a list item's label asks its own room beside a tight picture, see
             // zh-f2ca3070.)
-            var candidates: [(image: ImageAttachment, size: Size?)] = k == i || p.style.list == nil ? q.inlineImages.values.map { ($0, nil) } : []
+            var candidates: [(image: ImageAttachment, size: Size?)] = k == i || p.style.list == nil ? q.inlineImages.inOrder.map { ($0, nil) } : []
             // (A table floating in the cell, in a paragraph of its own above: the
             // text that follows stands beside it. A picture anchored in an earlier
             // paragraph is left to the paragraph-by-paragraph push, as before:
@@ -19659,7 +19659,7 @@ public final class RichLayout {
     /// text's way, aligned on the page or its margins both ways (`_floatRect`'s place).
     /// A wrapping shape set by its offsets from the paragraph and its column.
     static func _otherColumnsBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
-        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+        for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   float.verticalFrom == "paragraph", float.verticalAlign == nil,
                   float.horizontalFrom == "column", float.horizontalAlign == nil, float.wrapSide == nil,
@@ -19671,7 +19671,7 @@ public final class RichLayout {
 
     static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
         guard p.cell == nil else { return nil }
-        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+        for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   let a = float.verticalAlign, a == "top" || a == "center" || a == "bottom",
                   float.verticalFrom == "page" || float.verticalFrom == "margin",
@@ -19696,7 +19696,7 @@ public final class RichLayout {
             if let id = r.style.inlineImage, place[id] == nil { place[id] = at }
             at += r.length
         }
-        let images = p.inlineImages.values.sorted { (place[$0.id] ?? Int.max, $0.id) < (place[$1.id] ?? Int.max, $1.id) }
+        let images = p.inlineImages.values.sorted { (place[$0.id] ?? Int.max, $0.seq) < (place[$1.id] ?? Int.max, $1.seq) }
             + (p.image.map { [$0] } ?? [])
         return images.compactMap { image in
             guard let float = image.float, float.verticalAlign == nil,
@@ -19769,7 +19769,7 @@ public final class RichLayout {
             if let id = r.style.inlineImage, place[id] == nil { place[id] = at }
             at += r.length
         }
-        for image in p.inlineImages.values.sorted(by: { (place[$0.id] ?? Int.max, $0.id) < (place[$1.id] ?? Int.max, $1.id) }) + (p.image.map { [$0] } ?? []) {
+        for image in p.inlineImages.values.sorted(by: { (place[$0.id] ?? Int.max, $0.seq) < (place[$1.id] ?? Int.max, $1.seq) }) + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
@@ -20209,7 +20209,7 @@ public final class RichLayout {
             var map: [String: Int] = [:]
             for (i, p) in document.paragraphs.enumerated() {
                 if let image = p.image, map[image.id] == nil { map[image.id] = i }
-                for image in p.inlineImages.values where map[image.id] == nil { map[image.id] = i }
+                for image in p.inlineImages.inOrder where map[image.id] == nil { map[image.id] = i }
             }
             _imageParagraphs = map
         }
@@ -21318,7 +21318,7 @@ public final class RichLayout {
     private func _footerPictureEnd(_ footer: _HeaderFooter, _ setup: PageSetup) -> Double? {
         var end: Double? = nil
         for (j, hp) in footer.document.paragraphs.enumerated() where hp.cell == nil && j < footer.layout._tops.count {
-            for image in Array(hp.inlineImages.values) + (hp.image.map { [$0] } ?? []) {
+            for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
                 guard let f = image.float, f.bandsPage, f.wrapSide == nil, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       image.height > 0 else { continue }
                 // (Not one raised clear of its paragraph by more than its height: the body knows nothing of that —
