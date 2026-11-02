@@ -8482,10 +8482,10 @@ public final class RichLayout {
             defer { word = [] }
             guard word.count >= 5 else { return }
             if noCaps, !word.contains(where: { $0.isLowercase }) { return }
-            // (A Latin word in a run Word has no hyphenation for — an East Asian
-            // run's language — goes by English's: zh-147bdae0's URLs, in
+            // (A Latin word in an East Asian run (zh, ja, ko) goes by English's — not a
+            // Dutch or German one, whose dictionaries the print's box lacks: zh-147bdae0's URLs, in
             // zh-TW runs, part as "Con-tent" and "in-dex" in Word's print.)
-            guard let h = Hyphenator.forLanguage(lang(at: start)) ?? (word.allSatisfy { $0.isASCII } ? Hyphenator.forLanguage("en-US") : nil) else { return }
+            guard let h = Hyphenator.forLanguage(lang(at: start)) ?? (word.allSatisfy { $0.isASCII } && ["zh", "ja", "ko"].contains(where: { lang(at: start).lowercased().hasPrefix($0) }) ? Hyphenator.forLanguage("en-US") : nil) else { return }
             var lens: [Int] = [0]
             for ch in word { lens.append(lens.last! + ch.utf16.count) }
             for c in h.breaks(word) { out.insert(start + lens[c]) }
