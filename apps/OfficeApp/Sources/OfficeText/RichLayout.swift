@@ -19326,14 +19326,48 @@ public final class RichLayout {
 
     /// A table row's shading — the header's, or a band's — under every cell
     /// of the row; drawn by its first cell's paragraph, before the selection.
+    /// The pictures of paragraph `i` that float behind the text (`behindDoc`),
+    /// drawn first, under the shading of every paragraph: lo-4dc8da49's red
+    /// 260pt strip, anchored in its first paragraph, lies under the blue
+    /// shading of all the paragraphs and under their text in Word's print;
+    /// ours drew it after the shading, over them.
+    private var _behindDrawn: Set<String> = []
+    private var _shadingFloats = false
+    private func _behindPictures(_ i: Int) -> [ImageAttachment] {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, i < _inline.count, _cells[i] == nil else { return [] }
+        return _inline[i].filter { image in
+            guard let float = image.float, !float.takesRoom, !float.wraps, !float.bandsPage, _decoded[image.id] != nil else { return false }
+            return image.sourceXML?.containsSubstring("behindDoc=\"1\"") == true
+        }
+    }
+
     private func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all) {
+        if _shadingFloats, part != .rules {
+            let g = geometry(i)
+            for image in _behindPictures(i) {
+                guard let float = image.float, let decoded = _decoded[image.id] else { continue }
+                _drawPicture(decoded, image, _floatRect(float, image, g, i), canvas)
+                _behindDrawn.insert("\(image.id)")
+            }
+        }
         if part != .rules, let fill = document.paragraphs[i].style.fill, i < count {
             // The paragraph's own shading, text area wide.
             let g = geometry(i)
             let paint = Paint()
             paint.style = .fill
             paint.color = fill
-            canvas.drawRect(Rect.fromLTWH(g.textLeft.rounded(), g.textTop.rounded(), g.textWidth.rounded(), g.painter.height.rounded()), paint)
+            var height = g.painter.height
+            // (Run on over the space to the next paragraph where it has the
+            // same shading and edges: Word shades a block of such paragraphs
+            // whole, and lo-4dc8da49's blue stands unbroken down the page
+            // where ours left a white strip between the lines.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] == nil, i + 1 < count, i + 1 < document.paragraphs.count,
+               _cells[i + 1] == nil, document.paragraphs[i + 1].style.fill == fill, document.paragraphs[i + 1].image == nil {
+                let n = geometry(i + 1)
+                let gap = n.textTop - (g.textTop + g.painter.height)
+                if gap > 0.01, gap < _px(36), abs(n.textLeft - g.textLeft) < 0.5, abs(n.textWidth - g.textWidth) < 0.5 { height += gap }
+            }
+            canvas.drawRect(Rect.fromLTWH(g.textLeft.rounded(), g.textTop.rounded(), g.textWidth.rounded(), height.rounded()), paint)
         }
         if part != .text, let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
             // The row's shading, under every cell of the row: the header's,
@@ -20079,6 +20113,7 @@ public final class RichLayout {
                 let image = _inline[i][k]
                 var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
                 if let real = _pageFill[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right, rect.top + real) }
+                if _behindDrawn.contains("\(image.id)") { continue }
                 if theme.wordRules, let float = image.float, !float.takesRoom {
                     // A floating object, from its paragraph by its place:
                     // a picture, or a text box's text; one that cannot
@@ -22342,6 +22377,7 @@ public final class RichLayout {
                       selection: RichSelection?, caret: Rect?,
                       pageBackground: ((Int, Rect) -> Void)? = nil) {
         _paintCaret = selection.flatMap { $0.isCollapsed ? $0.focus : nil }
+        _behindDrawn = []
         if isPaged {
             let firstPage = page(atCanvasY: visible.top)
             let lastPage = page(atCanvasY: visible.bottom)
@@ -22610,7 +22646,7 @@ public final class RichLayout {
                         // its `.text`: zh-e49d7943's "附件3" box, 36pt over
                         // the title in the calendar's first row, was cut off
                         // at the row's top and drawn nowhere.)
-                        let floats = theme.wordRules && !shading && whole && (piece.part == .all || (piece.part == .text && _cells[i] != nil))
+                        let floats = theme.wordRules && (!shading || (piece.part != .rules && !_behindPictures(i).isEmpty)) && whole && (piece.part == .all || (piece.part == .text && _cells[i] != nil))
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
                         // (The first piece of a paragraph that parts, its
@@ -22695,7 +22731,7 @@ public final class RichLayout {
                             canvas.clipRect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy))
                         }
                         canvas.translate(left, top - piece.flowTop)
-                        if shading { _paintShading(piece.paragraph, canvas, document, part: piece.part) } else {
+                        if shading { _shadingFloats = floats; _paintShading(piece.paragraph, canvas, document, part: piece.part); _shadingFloats = false } else {
                             _floatColumnShift = (manyColumns && RichTextTheme.wordWindowsPages && _cells[piece.paragraph] == nil) ? left - _pxMarginLeft(p) : 0
                             _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
                             _floatColumnShift = 0
