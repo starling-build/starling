@@ -9695,7 +9695,7 @@ public final class RichLayout {
                         pad = modern
                             ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
                                          right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
-                            : EdgeInsets(left: max(pad.left, RichTextTheme.wordWindowsPages ? l / 2 : l), top: pad.top, right: pad.right, bottom: pad.bottom)
+                            : EdgeInsets(left: max(pad.left, RichTextTheme.wordWindowsPages ? l / 2 : l), top: pad.top, right: RichTextTheme.wordWindowsPages ? max(pad.right, r / 2) : pad.right, bottom: pad.bottom)
                         }
                     }
                 }
