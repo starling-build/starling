@@ -103,6 +103,8 @@ enum WordArt {
         var advance: Double? = nil
         /// The font size the glyph was set at, in the canvas's units.
         var size = 0.0
+        /// The run's fill is fully transparent: a shadow follows it away.
+        var clear = false
         var width: Double { advance ?? painter.width }
     }
 
@@ -193,6 +195,20 @@ enum WordArt {
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
         guard !lines.isEmpty else { return true }
         guard let scene = shape.textScene, !scene.isFlatTurn else {
+            // A shadow on the runs (`a:effectLst outerShdw`): the letters again behind them, moved and blurred.
+            if lines.contains(where: { $0.glyphs.contains(where: { !$0.clear && $0.text != " " }) }), let sh = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.shadow }).first(where: { $0.ground == nil && !$0.glow }) {
+                RuleTrace.hit("slide-wordart-text-shadow-is-the-letters-blurred")
+                // (In a layer of its own — a picture, as PowerPoint's is — so
+                // the PDF holds the letters once.)
+                var shadow = Shadow(color: Color(0xFF000000))
+                shadow.offset = Offset(sh.dx, sh.dy)
+                let layer = Paint()
+                layer.colorFilter = ColorFilter(mode: sh.color, .srcIn)
+                if sh.blur > 0 { layer.imageFilter = ImageFilterFactory.blur(sigmaX: sh.blur * px / 2, sigmaY: sh.blur * px / 2) }
+                canvas.saveLayer(area.inflate(sh.blur * px * 2 + (abs(sh.dx) + abs(sh.dy)) * px + 4), layer)
+                _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: shadow, frontless: true)
+                canvas.restore()
+            }
             _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil)
             return true
         }
@@ -239,6 +255,8 @@ enum WordArt {
         var offset = Offset(0, 0)
         var matrix = (sxx: 1.0, sxy: 0.0, syx: 0.0, syy: 1.0)
         var origin = Offset(0, 0)
+        /// DrawingML's `blurRad`, in points: the copy softened.
+        var blur = 0.0
     }
 
     /// WordArt from runs read elsewhere than a slide — a Word document's
@@ -279,6 +297,7 @@ enum WordArt {
         tp.layout(minWidth: 0, maxWidth: Double.infinity)
         var g = Glyph(painter: tp, text: ch, style: style, look: look)
         g.size = base.fontSize ?? 14
+        g.clear = (base.color?.alpha ?? 255) == 0 && !(look?.fill != nil)
         if RichTextTheme.wordWindowsPages, family?.lowercased() == "georgia", base.fontWeight == nil || base.fontWeight == .normal,
            base.fontStyle != .italic, let u = ch.unicodeScalars.first, ch.unicodeScalars.count == 1,
            u.value >= 32, Int(u.value) - 32 < OfficeFonts.georgiaAdvances.count {
@@ -302,6 +321,8 @@ enum WordArt {
             let m = [x.dx, x.dy, 0, 0, y.dx, y.dy, 0, 0, 0, 0, 1, 0, origin.dx, origin.dy, 0, 1]
             let det = x.dx * y.dy - x.dy * y.dx
             guard abs(det) > 1e-9 else { return }
+            // (A shadow follows its letter's fill: none under a clear one.)
+            if shadowPaint != nil, g.clear { return }
             /// The glyph again with another paint, through the same map.
             func drawn(_ paint: Paint) {
                 let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(paint)), textDirection: .ltr)
@@ -605,6 +626,7 @@ enum WordArt {
             let p = Paint()
             p.style = .fill
             p.color = shadow.color
+            if shadow.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, shadow.blur * px / 2) }
             shadowPaint = p
             let o = Offset(area.center.dx + shadow.origin.dx * area.width, area.center.dy + shadow.origin.dy * area.height)
             let k = shadow.matrix

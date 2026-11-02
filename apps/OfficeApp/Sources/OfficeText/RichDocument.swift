@@ -102,6 +102,11 @@ public struct CharShadow: Hashable, Sendable {
     public var anchor = Offset(0.5, 0.5)
     /// A glow (`a:glow` on a run), not a shadow: `blur` is its radius, the colour spread all round the letters.
     public var glow = false
+    /// A shadow cast on the ground (`sx` ≠ `sy`, or `kx`/`ky`): the letters
+    /// scaled and skewed about `anchor` of the text's box — `sx`, `sy`, and
+    /// the skews as tangents (`kx`, `ky`). Not a copy beside the letters:
+    /// the layout leaves it to the slide painter.
+    public var ground: [Double]? = nil
     public init(color: Color, dx: Double, dy: Double, blur: Double) {
         self.color = color; self.dx = dx; self.dy = dy; self.blur = blur
     }

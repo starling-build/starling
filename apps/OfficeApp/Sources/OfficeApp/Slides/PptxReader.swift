@@ -554,7 +554,7 @@ private struct LevelStyle {
             // (One cast on the ground — scaled or skewed, tdf114848's —
             // is not drawn: as a copy of the letters it would stand up.)
             s.shadowSet = true
-            s.shadow = outerShadow(effects, colors)
+            s.shadow = outerShadow(effects, colors, text: true)
             // (A glow on the run, with no shadow of its own: the letters haloed.)
             if s.shadow == nil, let g = effects.first("a:glow"), let c = colors.color(in: g) {
                 var glow = CharShadow(color: c, dx: 0, dy: 0, blur: (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu)
@@ -569,13 +569,13 @@ private struct LevelStyle {
     /// degree, clockwise from the right), blurred by `blurRad`. One cast
     /// on the ground — scaled or skewed — is nil: drawn as a copy of the
     /// outline it would stand up.
-    static func outerShadow(_ effects: XNode?, _ colors: ColorContext) -> CharShadow? {
+    static func outerShadow(_ effects: XNode?, _ colors: ColorContext, text: Bool = false) -> CharShadow? {
         // (Scaled alike both ways it is the outline larger or smaller —
         // tdf104015's title's 101%, tdf130058's 1% — and drawn so.)
-        guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh),
-              ["kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { $0 == 0 } ?? true }),
-              (sh["sx"].flatMap(Double.init) ?? 100000) == (sh["sy"].flatMap(Double.init) ?? 100000)
-        else { return nil }
+        guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh) else { return nil }
+        let flat = ["kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { $0 == 0 } ?? true })
+            && (sh["sx"].flatMap(Double.init) ?? 100000) == (sh["sy"].flatMap(Double.init) ?? 100000)
+        guard flat || text else { return nil }
         let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
         let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
         var shadow = CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
@@ -584,6 +584,11 @@ private struct LevelStyle {
         let algn = sh["algn"] ?? "b"
         shadow.anchor = Offset(algn.hasSuffix("l") ? 0 : algn.hasSuffix("r") ? 1 : 0.5,
                                algn.hasPrefix("t") ? 0 : algn.hasPrefix("b") ? 1 : 0.5)
+        if !flat {
+            func angle(_ k: String) -> Double { tan((sh[k].flatMap(Double.init) ?? 0) / 60000 * .pi / 180) }
+            shadow.ground = [(sh["sx"].flatMap(Double.init) ?? 100000) / 100000, (sh["sy"].flatMap(Double.init) ?? 100000) / 100000,
+                             angle("kx"), angle("ky")]
+        }
         return shadow
     }
 }

@@ -1029,6 +1029,37 @@ final class SlidePainter: CustomPainter {
                 canvas.translate(-c.dx, -c.dy)
             }
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
+            if shape.textSpin == 0, let ground = doc.paragraphs.lazy.flatMap({ $0.runs }).filter({ ($0.style.color?.alpha ?? 255) > 0 }).compactMap({ $0.style.shadow }).first(where: { $0.ground != nil }),
+               let mm = ground.ground {
+                // A shadow cast on the ground: the letters scaled and
+                // skewed about a corner of the text's box, blurred, in the
+                // shadow's colour, under them (tdf114848's title).
+                RuleTrace.hit("slide-text-ground-shadow-is-the-letters-skewed")
+                let layer = Paint()
+                layer.colorFilter = ColorFilter(mode: ground.color, .srcIn)
+                if ground.blur > 0 { layer.imageFilter = ImageFilterFactory.blur(sigmaX: ground.blur * px / 2, sigmaY: ground.blur * px / 2) }
+                canvas.saveLayer(Rect.fromLTWH(-ox - 2000, -oy - 2000, tr.width + 4000, tr.height + 4000), layer)
+                // (Each line cast about its own box — PowerPoint's print puts
+                // a two-line title's shadows at each line's foot — the offset
+                // taken before the flattening, so it is flattened too.)
+                for pi in 0 ..< layout.count {
+                    let g = layout.geometry(pi)
+                    for m in g.painter.computeLineMetrics() where m.width > 0 {
+                        let top = g.top + m.baseline - m.ascent, bottom = g.top + m.baseline + m.descent
+                        let left = g.textLeft + m.left, right = left + m.width
+                        let at = Offset(left + (right - left) * ground.anchor.dx, top + (bottom - top) * ground.anchor.dy)
+                        canvas.save()
+                        canvas.clipRect(Rect.fromLTRB(-10_000, top - 1, 10_000, bottom + 1).inflate(0))
+                        canvas.translate(ground.dx * px, ground.dy * px)
+                        canvas.translate(at.dx, at.dy)
+                        canvas.transform([mm[0], mm[3], 0, 0, mm[2], mm[1], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+                        canvas.translate(-at.dx, -at.dy)
+                        layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
+                        canvas.restore()
+                    }
+                }
+                canvas.restore()
+            }
             if let paragraphs, !paragraphs.isEmpty {
                 // Built by paragraph: each paragraph's band drawn on its own,
                 // as far into its entrance as it has got.
