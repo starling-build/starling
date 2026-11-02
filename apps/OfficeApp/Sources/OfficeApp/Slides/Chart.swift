@@ -3719,7 +3719,9 @@ enum ChartPainter {
             // it: their baselines 7.98 pt over the frame's foot in Excel's
             // prints of histograms, Pareto charts and waterfalls, ours 5.45.
             // Not a box plot's, already higher than Excel's.)
-            let bottom = (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            // (Each outer level of a multi-level axis takes a row of its own under the names.)
+            let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
+            let bottom = levelRows + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -4207,6 +4209,25 @@ enum ChartPainter {
                     tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k))
                 }
             }
+            // The outer levels of a multi-level axis: each group's name under the names it
+            // covers, with a divider between groups from the axis down through the rows.
+            if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted, !aslant, c.type != .area {
+                let row = (catLabels.first?.height ?? 12 * k) + 8.2 * k
+                let names = catLabels.isEmpty ? 0 : (catLabels.map(\.height).max() ?? 0)
+                let top = foot + 7.6 * k + belowOut
+                for (li, level) in c.categoryLevels.enumerated() {
+                    for (gi, group) in level.enumerated() {
+                        let end = gi + 1 < level.count ? level[gi + 1].from : n
+                        let tp = text(group.text, catSize, .infinity)
+                        let mid = plot.left + (Double(group.from) + Double(end)) / 2 * slot
+                        tp.paint(canvas, Offset(mid - tp.width / 2, top + Double(li + 1) * row))
+                        tp.dispose()
+                        let x = plot.left + Double(group.from) * slot
+                        canvas.drawLine(Offset(x, foot), Offset(x, top + Double(li + 1) * row + names + 2 * k), gridPaint)
+                    }
+                    canvas.drawLine(Offset(plot.right, foot), Offset(plot.right, top + Double(li + 1) * row + names + 2 * k), gridPaint)
+                }
+            }
         }
         for t in valueLabels + catLabels { t.dispose() }
         if let table, let dt = c.dataTable {
@@ -4474,7 +4495,36 @@ enum ChartPainter {
                         }
                         }
                     } else {
+                    // (Style 18 on a sheet, a bar with no colour of its own: Excel shades it from a light top to
+                    // the accent at a saturation 1.3 times its own at the foot, lightness the same, read off
+                    // 47813's two series: red 255,154,153 to 209,65,60, green 220,255,160 to 160,202,75, the top
+                    // at lightness 0.27 above the foot's and full saturation, through a straight blend.)
+                    let shaded18 = c.onSheet && c.style18 && c.barView == nil && c.pointColors.isEmpty && !c.variedPoints
+                        && c.monochromeAccent == nil && c.series[j].color == nil && c.series[j].scheme == nil
+                    if shaded18 {
+                        let v = fill.color.value
+                        let r = Double((v >> 16) & 0xFF) / 255, g = Double((v >> 8) & 0xFF) / 255, bl = Double(v & 0xFF) / 255
+                        let mx = max(r, g, bl), mn = min(r, g, bl), l = (mx + mn) / 2, d = mx - mn
+                        var h = 0.0, sat = 0.0
+                        if d > 0 {
+                            sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+                            if mx == r { h = (g - bl) / d + (g < bl ? 6 : 0) } else if mx == g { h = (bl - r) / d + 2 } else { h = (r - g) / d + 4 }
+                            h /= 6
+                        }
+                        func rgb(_ h: Double, _ s: Double, _ l: Double) -> Color {
+                            let q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q
+                            func f(_ t0: Double) -> Int64 {
+                                var t = t0; if t < 0 { t += 1 }; if t > 1 { t -= 1 }
+                                let x = t < 1.0 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2.0 / 3 ? p + (q - p) * (2.0 / 3 - t) * 6 : p
+                                return Int64((max(0, min(1, x)) * 255).rounded())
+                            }
+                            return Color(Int64(0xFF00_0000) | f(h + 1.0 / 3) << 16 | f(h) << 8 | f(h - 1.0 / 3))
+                        }
+                        let foot = rgb(h, min(1, sat * 1.3), l), head = rgb(h, 1, min(1, l + 0.273))
+                        fill.shader = Gradient(linear: Offset(0, rect.top), to: Offset(0, rect.bottom), colors: [head, foot], colorStops: [0, 1])
+                    }
                     canvas.drawRect(rect, fill)
+                    fill.shader = nil
                     if c.barView != nil {
                         // The box's top and right side, darker, as
                         // PowerPoint's print of LIBRE_OFFICE-100610-0 has
