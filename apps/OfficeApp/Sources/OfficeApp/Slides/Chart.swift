@@ -1227,7 +1227,8 @@ enum ChartXML {
             // circles on each point.)
             if type == .line {
                 s.lineHidden = pr?.first("a:ln")?.has("a:noFill") == true
-                s.lineW = pr?.first("a:ln")?["w"].flatMap(Double.init).map { $0 / 12700 }
+                // (2.25 pt is what is drawn where none is given, and what this app writes: read as none, so a round trip gives back what it was sent.)
+                s.lineW = pr?.first("a:ln")?["w"].flatMap(Double.init).map { $0 / 12700 }.flatMap { $0 == 2.25 ? nil : $0 }
                 // (A shown line's "none" is no marker at all, as it was
                 // before its marks were read: what this app writes for one,
                 // and what a round trip must give back.)
