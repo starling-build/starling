@@ -1,0 +1,8 @@
+apps/OfficeApp 353f2ae9e9b569886b0d66d3d5db4d0e27ce073d
+sdk 6c82554442c0537f1c2647846932ad7f10ddd84a
+test/pptx-app-render.sh 7b31109955e54ea314d524b4d1fd045aea5c1300
+engine d57f36ef51ce76406aeb33e1b43df5e40229f277
+enginesyms 20cfa0ba3b35ab77
+enginepatches acf7d29486a0f6d3
+fonts bundled/windows
+hostfonts dd5c5ba9d823d4a2
