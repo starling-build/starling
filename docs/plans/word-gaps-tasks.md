@@ -13729,3 +13729,4 @@ TIP WATCH amd-8, round 64 (tip 162b26bea): Word 756 and LO: 0 down; Word 1-3 up,
 Word parts a line at a space before a full stop ("Word / .doc" in a 116 pt frame ends the line "…in Word /"); the engine keeps " ." together. Applied under Word-for-Windows rules, any layout. lo-0349db3a 35→38 of 38.
 CLAIM (amd-3, 2026-11-02): lo-a43021ca, lo-1709e655, lo-536b79ce, zh-5450d509 (gothline + face lab). lo-e6dce9d6 is lenovo-5's.
 TIP WATCH amd-8, round 65 (tip f53ec6c66): Word 756 v2 and LO: 0 down; v1 one 0.1 dip, zh-b8de3ae2 93.4 -> 93.3 (same lines), logged. Unit tests pass (612).
+- amd-2: LANDED lo-62f37fcc 83.3 -> 100 (one-cell table in the neighbours' frame is the frame's paragraph; table rules/shading dropped in that case).
