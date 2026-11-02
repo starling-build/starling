@@ -3032,7 +3032,10 @@ private struct SlideContext {
         // — the plain face left "TRADE SHOW" on one line where PowerPoint
         // breaks it in two. (Segoe UI, Tahoma, Franklin Gothic and the
         // rest have their own widths there too.)
-        if cs.fontFamily?.lowercased() == "arial black" {
+        // (Archivo Black is heavy as it stands: asked for bold it was
+        // thickened again by a stroke, which a translucent fill shows as a
+        // darker ring: ThemeColorTransparency.)
+        if cs.fontFamily?.lowercased() == "arial black", !SlideFonts.hasHeavyStandIn {
             cs.bold = true
         }
         // Aptos, set in Liberation Sans: that much tighter, as

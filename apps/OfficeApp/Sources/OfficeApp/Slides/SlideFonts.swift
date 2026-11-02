@@ -42,6 +42,9 @@ enum SlideFonts {
         "lucida sans unicode": "Starling Lucida Sans",
     ]
 
+    /// Arial Black is drawn in Archivo Black, which is heavy without a bold.
+    static let hasHeavyStandIn = true
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
