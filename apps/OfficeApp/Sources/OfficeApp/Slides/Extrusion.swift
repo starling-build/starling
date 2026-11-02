@@ -236,6 +236,12 @@ enum Extrusion {
     /// draw this way, and the shape is then drawn flat.
     static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
         guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
+        return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront)
+    }
+
+    /// `paint` for anything with an outline: the scene, the face's colour,
+    /// and the line (colour, width in points) round it.
+    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
@@ -273,7 +279,7 @@ enum Extrusion {
         // The sides are the colour the file names, else the outline's where
         // the shape has one (PowerPoint's "automatic" depth colour), else
         // the fill's.
-        let side = scene.extrusionColor ?? shape.outline ?? fill
+        let side = scene.extrusionColor ?? line ?? fill
         // PowerPoint's rigs light the shape in its own frame (x right, y
         // down, z out of the slide), so a face is as bright whatever the
         // camera: an ambient share and lights given as direction times
@@ -337,7 +343,7 @@ enum Extrusion {
             canvas.drawPath(path, p)
             if let edge {
                 p.style = .stroke
-                p.strokeWidth = max(0.5, shape.outlineWidth * px)
+                p.strokeWidth = max(0.5, lineWidth * px)
                 p.color = edge
                 canvas.drawPath(path, p)
             }
@@ -426,7 +432,7 @@ enum Extrusion {
             func lift(_ v: Int) -> Int { min(255, v + Int((255.0 * sheen).rounded())) }
             shownFace = Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
         }
-        face(frontShows ? front : back, shownFace, edge: frontShows ? shape.outline : nil)
+        face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil)
         if let onFront, frontShows {
             // The picture, carried onto the turned front: the frame's corners
             // say where its axes went.

@@ -108,6 +108,9 @@ enum WordArt {
         var width: Double { advance ?? painter.width }
     }
 
+    /// The warped letters' outlines, gathered to be swept into a solid.
+    final class PathBag { let path = Path(); var count = 0 }
+
     private struct Line {
         var glyphs: [Glyph] = []
         var alignment: ParagraphAlignment = .left
@@ -212,6 +215,19 @@ enum WordArt {
             _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil)
             return true
         }
+        // The letters as a solid: the flat word's outlines swept back into
+        // a body, turned by the camera and drawn face by face. (A gradient or
+        // picture fill, or letters with none, or a host without glyph
+        // outlines, keeps the older stack of copies below.)
+        if !lines.contains(where: { $0.glyphs.contains(where: { $0.look?.fill != nil || ($0.look?.noFill ?? false) }) }) {
+            let bag = PathBag()
+            _paint(lines, warp, area, canvas, pxPerPt: px, cache: cache, shadow: nil, collect: bag)
+            if bag.count > 0 {
+                let face = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.color }).first ?? Color(0xFF808080)
+                RuleTrace.hit("slide-wordart-3d-is-the-letters-swept")
+                if Extrusion.solid(scene: scene, fill: face, line: nil, lineWidth: 0, outline: bag.path, area, canvas, pxPerPt: px) { return true }
+            }
+        }
         // The letters as a solid: the camera turns the flat word (looked at
         // from the front, orthographically), and the depth trails behind it
         // as a stack of copies in the extrusion colour.
@@ -309,7 +325,7 @@ enum WordArt {
     /// The lines fitted into `area` and drawn: the shadow first, if any,
     /// then the letters.
     private static func _paint(_ lines: [Line], _ warp: TextWarp, _ area: Rect, _ canvas: any Canvas,
-                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false, fitsInk: Bool = false, frontless: Bool = false) {
+                               pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false, fitsInk: Bool = false, frontless: Bool = false, collect: PathBag? = nil) {
         /// Set while the shadow is drawn: every letter in it, filled.
         var shadowPaint: Paint? = nil
         /// One glyph through the map of its cell: `origin` its top left,
@@ -323,6 +339,11 @@ enum WordArt {
             guard abs(det) > 1e-9 else { return }
             // (A shadow follows its letter's fill: none under a clear one.)
             if shadowPaint != nil, g.clear { return }
+            // Collecting the letters' outlines, as the page sees them, to be drawn as a solid.
+            if let collect {
+                if let outline = g.painter.glyphPath() { collect.path.addPath(outline.transform(m), .zero); collect.count += 1 }
+                return
+            }
             /// The glyph again with another paint, through the same map.
             func drawn(_ paint: Paint) {
                 let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(paint)), textDirection: .ltr)
