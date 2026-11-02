@@ -16600,7 +16600,17 @@ public final class RichLayout {
                         let ownRoom = all.filter { $0 >= a }.reduce(0.0) { $0 + half($1) }
                         return need > min(mid, 0.823 * em) + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
                     }()
-                    let taken = takenFirst && !gridCapped && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    // (An opening bracket that opens what is being taken, right after a closing mark it closes up
+                    // with, gives 0.22 of an em less than its half, in Word for Windows: at 16pt zh-6c447317 takes
+                    // "（日" 8.7 over and zh-ec1b6f63 "《就" 12.15 with two marks, where zh-cada2385 leaves "（仙" 13.3
+                    // and zh-053f8706 "（永" 13.75; with three, "（GB55" 17.35 and "《义" 16.7 are taken and "（五）"
+                    // 20.75 and "（鲁" 21.75 are not. With no other mark, both ways: zh-053f8706 takes "《浙" 5.75 over at p46's
+                    // foot and leaves it at another line's end.)
+                    let pairedOpener = RichTextTheme.wordWindowsPages && !inCell && !onCharacterGrid && last > a + 1 && a > 0
+                        && units[a] >= 0x2E80 && Self._openingUnits.contains(units[a]) && closesUp(a - 1) && legacy
+                        && !Self._pauseMarks.contains(units[a - 1])
+                        && all.contains(a) && all.count >= 2 && need > room - em * 0.22 + hair
+                    let taken = takenFirst && !gridCapped && !pairedOpener && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
                         let gapSum = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
