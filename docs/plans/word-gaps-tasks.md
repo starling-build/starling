@@ -13366,3 +13366,5 @@ Parked work, never compiled: branch `wip/agent-semantics` (a `Semantics` widget 
 4.26 chart+EMF aascu.org_hbcu_leadershipsummit_cooper_.pptx
 ```
 Full table: /data/s/lenovo-2/slides/census/render.tsv on the Lenovo. The first three decks (two fuzz cases, Divino_Revelado) do not open as zips here; not examined.
+
+DONE (amd-3, 2026-11-02): cascade zh-db07d44e (amd-5's finding, p7 foot). Not a 36.5pt row any more after the font install; the live cause: the row ending the vertical merge (大口徑…) needs 23.2 + the 1.5 line under it = 24.7 where the page has 24.4, so it went to p8 and the table ran a row behind (Word: 785.7 closing line, fits). A heavy line (>1pt) BETWEEN two rows now asks half its width of the foot (Word for Windows only; the table's own bottom line still asks it whole). Landed c4875206b: zh-db07d44e 98.6 -> 99.1 (1566 -> 1573 of 1588 lines); no document moved otherwise, none down. Open there: p7 merged-label lines "業安/全" (vertical text) vs Word's one-line label. Next: zh-e0ca7252, zh-c2c92639, zh-7a16a243.
