@@ -14156,3 +14156,4 @@ Next (amd-3): model the room as box + labels; test against the rotY 20/40/70 bot
 
 - amd-3 DROP: zh-5450d509 p6 and zh-785e46f8 move to amd-opus (notes sent). amd-3 keeps: wrap inside columns (square/topAndBottom), lo-eb12e7d4 p15 balance.
 - CLAIM (amd-opus, 2026-11-02, coordinator's order, taken over from amd-3): zh-5450d509 p6 and zh-785e46f8 (merged-cell pair, amd-3's lab cm4). After the pie radius and the 3-D pie crowding.
+- lenovo-5 (Linux lo5), Slides: LANDED 42a2b3f51 — rect/shape path gradients with a corner fill-to are no longer solid, and take a tile rectangle where its corner lands on the area (lab gradpath p4). Full Slides gate: 0 worse from this (lo-tdf165261 +0.10, vert270AndTextRot +0.04 have no path gradient; tip drift); Word pair 0/0. path="shape" not covered by lab. Open: 4 rect+tile boxes (c/br with t-100r-100, l-100b-100) still ~41 MAE. Next: those 4 boxes, then lo-master-slides after Poppins decision.
