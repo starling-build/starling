@@ -13532,3 +13532,5 @@ TIP WATCH amd-8, round 47 (tip 52e85df76, Slides round): Word 756 v2 1 up, 0 dow
 TIP WATCH amd-8, round 48 (tip 50bd245d9): Word 756 and LO: 0 down, 1 up on LO. Unit tests (my tree, with the five fixes): 612 run, 0 failures; landing the test fixes now.
 
 - lo5 LANDED 693f7d267: a footnote marked inside a small table nested in a cell is now set at its page foot (lo-f47abfe0: next row goes to page 2 as in Word; 0 missed of 92 by my check). Footnote text itself still not drawn in our PDF - open. Next: n830205 balloons using BAL-WORD.tsv.
+
+- lo5 LANDED d1e44bc45: deleted section break in a markup balloon sits on the "Deleted:" line in smaller type (lab bal 02/04), and as an indented line after deleted text (bal 03). lo-9f27ef40 v2 80.8 -> 82.2 (13 missed, balloon count now equals Word). v1 shows 68.9 -> 66.2 on the same doc (v2 decides). Left: order of Deleted/Formatted balloons at one anchor.
