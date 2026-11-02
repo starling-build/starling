@@ -5690,9 +5690,9 @@ public final class RichLayout {
                 }
             }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
-               blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
-               let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document), !ts.pageAnchored, ts.keptPosition != nil,
-               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
+               blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document),
+               let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document), !ts.pageAnchored, ts.keptPosition != nil,
+               (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
                case let firstPage = _beside_firstPage(of: prev, upTo: page, text: i < _besideLead.count && _besideLead[i] > 0 && !blank(document.paragraphs[i])),
                // (… but only where the text does not fit whole beside those rows and goes on
                // over the page: a line or a few that fit stand on the table's last page, as in
@@ -14302,6 +14302,21 @@ public final class RichLayout {
             if entry.char.kerningFrom == nil { entry.char.kerningFrom = n.kerningFrom }
         }
         return entry
+    }
+
+    /// A table floating at an offset from the margin (no vertical anchor stated) and centred on it, that runs over a page
+    /// or more, with room at its left: the paragraph after it stands at the top of the table's last page, beside the
+    /// rows there, as Word for Windows prints LibreOffice's floattable-deleted-anchor ("Demo 4" at the margin, y 72, the
+    /// table's text from x 236).
+    private func _splitMarginFloatBeside(_ table: String, _ i: Int, _ page: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, page > 0, i > 0, _cells[i] == nil, !document.paragraphs[i].text.isEmpty,
+              let ts = document.tableStyles[table], ts.marginOffsetY != nil, ts.floatsOverText, !ts.pageAnchored,
+              ts.floatX == nil, let kept = ts.keptPosition, kept.containsSubstring("w:tblpXSpec=\"center\""),
+              _pages[page].contains(where: { _cells[$0.paragraph]?.table == table }),
+              _pages[page - 1].contains(where: { _cells[$0.paragraph]?.table == table }),
+              let widths = _columnWidths[table] else { return false }
+        let column = _flowWidth(i), width = widths.reduce(0, +)
+        return (column - width) / 2 >= _px(theme.fontSize) * 3 + _px(20)
     }
 
     /// A floating table at the left of the column that leaves a strip at its right for three ems of text, with a narrow
