@@ -13847,3 +13847,4 @@ Reading: (1) 29 of the 48 wrong TAKES are one shape: a plain CJK char whose need
   (c) check boxes: zh-e61c3dff, in a cell, Word prints "□国家级" where ours has "☐2.技术问题" with the box glyph on the same line, one line fewer in Word vs ours differently split (one line); not read further.
   The rest of the tail is line-end fit and is in the table.
 - amd-5 landed a608165e3: a picture taller than its exact-height line now takes its run's w:position (lowering) there too. zh-06c46ba9 p66's outline box was drawn 52.5pt high and clipped; now at Word's place. Nothing down. Score stays 8 missed: Word's PDF has no text layer for that box's words (only the bullets), so those lines can't match either way. Released; zh-06c46ba9 done.
+- TIP WATCH amd-8, round 74 (tip 11ec09a6b): Word 0 down (v2 8 up, v1 5 up), no pagecount moves, no nondeterminism. Unit tests pass (612, 0 failures). Slides next round.
