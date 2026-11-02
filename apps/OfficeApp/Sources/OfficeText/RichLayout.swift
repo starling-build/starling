@@ -12700,7 +12700,13 @@ public final class RichLayout {
                     // (Not where the Latin character's run names a Latin face for East Asian text, in Word for
                     // Windows: zh-cd48112c's digit runs say eastAsia "Times New Roman", and its print has no space
                     // either side of 138 digits; zh-a0e932c2's say 宋体, and it has its 5.3 at 39.)
+                    // (Nor anywhere in a document whose defaults name a Latin face for East Asian text: lab `asd`
+                    // (Word for Windows, mode 15, 15pt): docDefaults eastAsia Times New Roman sets "…30…" between
+                    // 宋体 ideographs with no space at all, whatever the digit run says — none, Times, Times with
+                    // hint eastAsia, all Times, 宋体 with the hint; with 宋体 there, a quarter em in all five.
+                    // zh-a0e932c2's gaps of 5.3 are its typed spaces.)
                     if theme.wordRules, document.usesEastAsianLayout, !besideRaised, Self._autoSpaced(ch, following, p.style),
+                       !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin),
                        !(RichTextTheme.wordWindowsPages && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                         // (Of the grid's character, where there is a grid
