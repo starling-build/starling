@@ -12926,8 +12926,12 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
-                } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber } == true)
+                } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber || Self._closingMarks.contains($0) } == true)
                             || (ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true) {
+                    // (… nor after one that follows a closing bracket, before digits: zh-22ecbdc8's
+                    // "…达1000（含）" / "—5000人/年" in Word's print, and lab legsq's "（含）—5000" taken or
+                    // left whole; ours parted "—" from "5000". Word's prints end a line on "—" with digits
+                    // after it 3 times in the corpus, none after a bracket.)
                     // (Nor on either side of an em dash between digits — a span
                     // of years: zh-b378d8c4's "（2021—2030年）" goes down whole
                     // in Word's print, its "（" unable to end a line; the
@@ -15852,6 +15856,8 @@ public final class RichLayout {
             if kinsokuOff, RichTextTheme.wordWindowsPages, !runRulesOff(o - 1), a.value == 0x201C || a.value == 0x2018, eastAsianRunAt(o - 1) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
+            // (Not between an em dash and the digits after it where a closing mark stands before the dash: see `_span`.)
+            if wordRules, a.value == 0x2014, b.value >= 0x30, b.value <= 0x39, o > 1, Self._closingUnits.contains(units[o - 2]) { return false }
             return Self._breaksBetween(Character(a), Character(b), percentStarts: percentStarts,
                                        timesEastAsian: !Self._eastAsianSigns.contains(units[o - 1]) || _setEastAsian(p, document, at: o - 1),
                                        shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages,
@@ -16014,6 +16020,7 @@ public final class RichLayout {
                 && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
                last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a)
+                || (wordRules && g.b >= 2 && units[g.b - 1] == 0x2014 && units[a] >= 0x30 && units[a] <= 0x39 && Self._closingUnits.contains(units[g.b - 2]))
                 || hanJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
                 if (opens || closesAfterSpaces) && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
@@ -17085,6 +17092,17 @@ public final class RichLayout {
                             || ((a ..< last).contains { units[$0] >= 0x2E80 }
                                 && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
                             || x - spacesBefore + min(lead, w) - width <= before / 2 + (legacy ? gridGive ?? edge : edge)
+                            // (Before 2013's layout a piece of digits is taken by the share test, not by half a
+                            // character: lab legsq (Word for Windows, zh-eb54d3b0's mode-12 line, right indent
+                            // stepped by 2pt) takes "—5000" with need 30.1 and five marks' 43.4 to give where the line
+                            // left would stretch 17.3, not 32.1 with 15.3 — and "至5000" 22.1 / 13.5, not 24.1 /
+                            // 11.5: the line's automatic spaces weigh 2.3 of themselves; "—五" keeps the half.)
+                            // (Only on a line with automatic spaces, as the lab's: with none, zh-749cb15a's "…2014年11月" leaves
+                            // "27" 10.4 over in Word's print, and zh-8186c98d's "（国统字〔2019〕" "122" 16.7.)
+                            || (RichTextTheme.wordWindowsPages && legacy && !inCell && !onCharacterGrid && room > 0 && lineWide > 1 && !given.isEmpty
+                                && (a ..< last).contains { units[$0] >= 0x30 && units[$0] <= 0x39 }
+                                && !(a ..< last).contains { units[$0] >= 0x2E80 && units[$0] != 0x2014 }
+                                && need * (gapStretch() + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 2.3) <= room * (stretchRoom + hair))
                             // (Under `w:kinsoku` off, where it does not hang, the
                             // paragraph's last mark gives its blank half besides:
                             // lab `lab7b` k0 (macOS-doc, Word for Mac,
