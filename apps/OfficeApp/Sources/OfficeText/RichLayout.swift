@@ -13016,6 +13016,19 @@ public final class RichLayout {
                 // them 6.7 and every such first line took a character more.)
                 // (Arial has the en space itself, 0.557 em: ten of them are 66.84pt at
                 // 12pt in Word's print — lab `spaces` — where the half em makes them 60.)
+                // (A no-break space is not ASCII to Word: in a run whose ASCII
+                // face is East Asian over a Calibri hAnsi it is Calibri's
+                // space, 0.2261 em, not the East Asian face's half em —
+                // zh-ea43dd6d's signature line, eight U+00A0 then 25 spaces
+                // before "嘉兴市财政局" in 仿宋_GB2312 at 16pt: the eight
+                // are 3.6pt each in Word's print, and ours set them 8 and
+                // wrapped the name.)
+                let nbspHAnsi = theme.wordRules && RichTextTheme.wordWindowsPages && !ea && ch == "\u{00A0}" && latinFace?.isEastAsian == true
+                    && hAnsiFace.map({ !$0.isEastAsian && ["calibri", "carlito"].contains($0.family.lowercased()) }) == true
+                if nbspHAnsi {
+                    RuleTrace.hit("no-break-space-is-the-hansi-faces-not-the-east-asian-ones")
+                    extra += 0.2261 * em - _glyphWidth(style(kind), ch)
+                }
                 if theme.wordRules, ch == "\u{2003}" || ch == "\u{2002}" {
                     let arial = ch == "\u{2002}" && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").lowercased() == "arial"
                     extra += (ch == "\u{2003}" ? 1 : arial ? 0.557 : 0.5) * em - _glyphWidth(style(kind), ch)
@@ -13168,7 +13181,7 @@ public final class RichLayout {
                     let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
                     let g = grid * theme.pixelsPerPoint * scale
                     if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
-                } else if !ea, let u = ch.unicodeScalars.first?.value,
+                } else if !ea, !nbspHAnsi, let u = ch.unicodeScalars.first?.value,
                           let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
                           // (A letter with its marks, where the table has each:
                           // Thai's "ต่", "คำ" — `OfficeFonts.browalliaAdvances`.)
