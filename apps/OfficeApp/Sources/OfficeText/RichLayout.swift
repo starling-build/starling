@@ -7832,6 +7832,20 @@ public final class RichLayout {
                         // chart then started at page 1's foot.)
                         if cursor <= top + 0.01, keep < 2, last < all.count - 1 || document.paragraphs[i].image != nil { keep = 0 }
                     }
+                    // (Nor does a page end with a line its automatic hyphenation parted a word at, in Word for
+                    // Windows: lab `pf` (lo-000463df's styles, an 8-line paragraph whose lines 2 and 5 end "…ti-")
+                    // never leaves 2 or 5 of its lines at the foot, at any spacing or space before — one fewer, and
+                    // under widow control none for 2; with line breaks there instead, 5 stay. lo-000463df's
+                    // paragraph 37 so: none of it on page 2 in Word's print, one with widow control off.)
+                    if RichTextTheme.wordWindowsPages, keep > 0, first + keep < all.count, let shown = _hyphenShown[i], !shown.isEmpty,
+                       let g = Optional(geometry(i)), i < _inserts.count {
+                        let starts = _lineStarts(g.painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: document.paragraphs[i].text.utf16.count)
+                        let next = first + keep
+                        if next < starts.count, shown.contains(starts[next]), _hyphenPoints[i]?.contains(starts[next]) == true {
+                            keep -= 1
+                            if st.widowControl, !document.widowControlSuspended, !atTop, keep < 2 { keep = 0 }
+                        }
+                    }
                     if keep <= 0 {
                         // (Only where a new page gives it more room.)
                         if y > 0.01 { cut = nil }
