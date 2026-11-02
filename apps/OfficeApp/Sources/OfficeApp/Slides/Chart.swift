@@ -3656,13 +3656,22 @@ enum ChartPainter {
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
             var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
+            // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
+            // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
+            // the plot's foot 1 higher than ours at 14 pt labels, 5 higher at 20 (at 10 pt it stood 1.4 lower, but cooper's
+            // 10 pt charts match as they are, so nothing is taken off small labels); with labels at the
+            // zero line it stands 4.1 further up, at any size.)
+            let slideBare = c.onSlide && !c.styled2013
+            if slideBare, !c.valueTicksOut { left += max(0, 0.91 * labelSize - 12.2) * k }
+            let slideFoot = slideBare && !c.categoryTicksOut ? max(0, 0.64 * (catSize - 12.25)) * k : 0
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Labels by an axis above the foot take no room below it.)
             // (A `cx:` chart's on a sheet 2.53 pt higher, its labels with
             // it: their baselines 7.98 pt over the frame's foot in Excel's
             // prints of histograms, Pareto charts and waterfalls, ours 5.45.
             // Not a box plot's, already higher than Excel's.)
-            let bottom = (atZero ? 4 * k : tallest + 7.6 * k + belowOut) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
