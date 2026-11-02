@@ -2526,6 +2526,13 @@ enum ChartPainter {
                     area = Rect.fromLTRB(area.left, area.top, area.right,
                                          area.bottom - 1.2 * k - lineH - 8.4 * k)
                 }
+                // (A box under a legend said to stand at the right, the plot left to Word: the plot
+                // still gives up a legend column's room — lo-1e8fa600's full-width box, its plot
+                // ending 58pt short of where ours did in Word's print.)
+                if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "r" {
+                    RuleTrace.hit("legend-box-keeps-its-column-beside-the-plot")
+                    area = Rect.fromLTRB(area.left, area.top, area.right - columnW - 9 * k, area.bottom)
+                }
             } else if let at = c.legendAt, !c.onSlide, !c.onSheet, !pie {
                 // (Where the file puts its corner, over the plot, taking none of its room: zh-547fc43c's
                 // 图5 legend at 9.3% and 14.5% stands with its first key 15.8 pt right of that corner
