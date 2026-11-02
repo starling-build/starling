@@ -2288,7 +2288,9 @@ enum DocxFormat {
                     if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
                         style.floatX = v / 20
                         style.floatXAnchor = pos["w:horzAnchor"] ?? "text"
-                    } else if let spec = pos["w:tblpXSpec"], (pos["w:horzAnchor"] ?? "text") != "page" {
+                    } else if let spec = pos["w:tblpXSpec"], (pos["w:horzAnchor"] ?? "text") != "page" || (spec == "center" && DocxFormat.wordOnWindows) {
+                        // (Centred on the PAGE, as zh-a4e8599d p3's: its first rule at 67.8 in Word's print, the middle of 595pt
+                        // for 460pt of table, where ours stood at the margin, 84.6. On a page of equal margins the two middles are one.)
                         // Or aligned in its margin or column, a table wider
                         // than it standing out on both sides: zh-0243e7fc
                         // p11's 539pt form, centred on its 415pt margin, has
