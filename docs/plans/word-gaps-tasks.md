@@ -13388,3 +13388,10 @@ Dashed/dotted/round-end text outlines landed (33a92b900; ImportWordArtGradient 1
   4. TEXT: sweep glyph outlines for `bodyPr/scene3d + sp3d` WordArt (tdf140865): glyph paths -> the same swept solid + bevel. Only after 1-3 land; fall back to flat if the font path is unavailable.
   NOT in scope: true ray-traced reflections, environment maps, shadows of 3-D onto other shapes.
   Honest expectation: each is a handful of single-slide decks, so the 555 mean moves by hundredths; the gate is "nothing worse" and the named decks' error falling. LABS for `windows` (PowerPoint, sent separately): A rigs, B materials, C bevels.
+
+- **lenovo-3 — Slides census "unknown" rows, all four read (2026-11-02), nothing to land: every one is font-bound.** Scores reproduced against the Windows PowerPoint PDFs with the current office build (lo-font-scale 5.67, lo-master-slides 5.33, Performance_Up 5.41 over 46 pages, Maloney 7.51 over 28).
+  1. lo-font-scale: PowerPoint's Calibri against our Carlito. Every glyph x position is within 0.3 pt of PowerPoint's across the line (e.g. 38 glyphs, last at 675.06 vs 674.74); the diff is the two faces' outlines. Confirmed "positions match, only rasterisation".
+  2. lo-master-slides: the deck names Poppins; the Windows machine had none and set Nirmala UI (the PDF's font is NirmalaUI at 60/18 pt). We draw Poppins (a faithful reading of the file). Same as the macOS-doc release on the board; no change.
+  3. 2411-Performance_Up (worst p2 5.41, then p16 4.02, p32 3.59): the body is Trebuchet MS in PowerPoint's PDF, Liberation Sans for us; our baselines sit 1.4 pt lower (234.9 vs 233.5) because Trebuchet's ascent is smaller. No free face has Trebuchet's metrics; font-bound.
+  4. Maloney (worst p8 7.51, p24 7.45, p16 7.33): Verdana against DejaVu Sans; the wrap and every line break match, the diff is the glyph edges. The only non-text mark in the diff is a faint 1 px line under the title curve; not worth a rule.
+  Nothing claimed; all four rows can read "font-bound" in the census.
