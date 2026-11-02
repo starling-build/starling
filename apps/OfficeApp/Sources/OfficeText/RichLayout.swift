@@ -5402,6 +5402,11 @@ public final class RichLayout {
             if let beside = besideTable {
                 let p = document.paragraphs[i]
                 if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
+                else if let c = _cells[i], i > 0, _cells[i - 1] == nil, blank(document.paragraphs[i - 1]), let ts = document.tableStyles[c.table], ts.floatsOverText, ts.floatRaiseY != nil || ts.floatOffsetY != nil, ts.keptPosition != nil, theme.wordRules, RichTextTheme.wordWindowsPages, ts.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") != true {
+                    // (A floating table whose anchor stood beside the one above is set from there: lo-e998b55c.)
+                    RuleTrace.hit("floating-table-set-from-an-anchor-beside-the-float-above")
+                    besideTable = nil
+                }
                 else if (_cells[i] != nil && !(_cells[i].map { _narrowBesideFloat($0.table, document) } ?? false)) || (_cells[i] == nil && !(blank(p) || (i < _besideLead.count && _besideLead[i] > 0))) { y = beside.bottom; besideTable = nil }
             }
             // (A table floating in the left margin, wholly outside the text's width, takes no room of
@@ -5424,8 +5429,8 @@ public final class RichLayout {
             }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0),
-               let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0), !ts.pageAnchored, ts.keptPosition != nil,
-               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document),
+               let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document), !ts.pageAnchored, ts.keptPosition != nil,
+               (i < _besideLead.count && _besideLead[i] > 0) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document),
                case let firstPage = _beside_firstPage(of: prev, upTo: page, text: i < _besideLead.count && _besideLead[i] > 0 && !blank(document.paragraphs[i])),
                // (… but only where the text does not fit whole beside those rows and goes on
                // over the page: a line or a few that fit stand on the table's last page, as in
@@ -5449,6 +5454,12 @@ public final class RichLayout {
                 while first > 0, _cells[first - 1]?.table == prev { first -= 1 }
                 if _pages[page].contains(where: { $0.paragraph == first }), let down = ts.floatOffsetY {
                     y = max(_pages[page].map(\.pageY).min() ?? 0, top - _px(down))
+                }
+                // (An anchor beside a float that is raised stands one line under the
+                // line that float hangs from: its own table is 12.9pt under the
+                // first's top in Word's print of lo-e998b55c, not level with it.)
+                if ts.floatOffsetY == nil, first > 0, first - 1 < _heights.count, _anchorBesideLeftTable(prev, i, document) {
+                    y = top + _px(ts.floatRaiseY ?? 0) + _heights[first - 1]
                 }
             }
             // Converged: this paragraph starts on the same page at the same
@@ -13533,6 +13544,19 @@ public final class RichLayout {
     private func _stripBesideLeftTable(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, i + 1 < document.paragraphs.count, let next = document.paragraphs[i + 1].cell,
               _narrowBesideFloat(next.table, document), let ts = document.tableStyles[table], ts.floatsOverText,
+              let kept = ts.keptPosition, !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
+        let column = _flowWidth(i), left = _tableLeft(table, document)
+        return left < column / 2 && column - (left + widths.reduce(0, +)) >= _px(theme.fontSize) * 3 + _px(20)
+    }
+
+    /// A floating table at the left of the column with room at its right, and an empty paragraph after it that anchors
+    /// another floating table: the anchor stands beside the first, and its table is set from there (it may overlap the
+    /// first: no tblOverlap says never). lo-e998b55c: Word's second table is 12.9pt under the first's top, ours 70pt.
+    private func _anchorBesideLeftTable(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, i + 1 < document.paragraphs.count, let next = document.paragraphs[i + 1].cell,
+              next.table != table, let ns = document.tableStyles[next.table], ns.floatsOverText, ns.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") != true,
+              ns.floatRaiseY != nil || ns.floatOffsetY != nil,
+              let ts = document.tableStyles[table], ts.floatsOverText, ts.floatRaiseY != nil || ts.floatOffsetY != nil,
               let kept = ts.keptPosition, !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
         let column = _flowWidth(i), left = _tableLeft(table, document)
         return left < column / 2 && column - (left + widths.reduce(0, +)) >= _px(theme.fontSize) * 3 + _px(20)
