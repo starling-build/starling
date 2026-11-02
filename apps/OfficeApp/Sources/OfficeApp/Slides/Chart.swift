@@ -538,6 +538,8 @@ struct Chart: Equatable {
         var line: Color? = nil
         var lineWidth = 0.75
         var leaders = false
+        /// A pie-of-pie bar's labels stand with their right edge here (Word: 42 pt past the bar).
+        var anchorRight: Double? = nil
         var leaderColor: Color? = nil
         var leaderWidth = 0.75
     }
@@ -4543,6 +4545,8 @@ extension ChartPainter {
                 l.leaders = false
                 // (In order: a dictionary's is not the same from one run to the next.)
                 for (i, r) in segments.sorted(by: { $0.key < $1.key }) {
+                    var l = l
+                    if !c.onSlide, !c.onSheet { l.anchorRight = r.right + 42 * k }
                     _pieLabels(c, l, canvas, frame: frame, slices: [(i, 0, values[i], c.pointColor(i, accents: theme.accents))],
                                centre: r.center, rx: 1, ry: 1, inner: 0, k: k, theme: theme, ink: ink, point: { _, _ in r.center })
                 }
@@ -5322,6 +5326,9 @@ extension ChartPainter {
                 if point != nil, l.position == "ctr", !c.onSlide, !c.onSheet { RuleTrace.hit("word-pie3d-centre-label-at-half-radius") }
                 at = on(s.mid, f)
             }
+            // (A pie of pie's bar's labels in Word stand with their right edge 42 pt past the bar,
+            // before the file's move: zh-b8de3ae2 p9's four, their edges at 571 for a bar ending 529.)
+            if let right = l.anchorRight { at = Offset(right - ((tp.computeLineMetrics().map(\.width).max() ?? tp.width) + pad * 2) / 2, at.dy) }
             let moved = l.moves[s.index]
             if let m = moved {
                 // Word moves a flat pie's label from its default position
