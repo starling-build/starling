@@ -1,0 +1,805 @@
+# doc	page	line_top	baseline	x0	kind	text
+c1	1	99.97	108.98	90.02	LINE	1. Item 1: Click Next.
+c1	1	115.93	124.94	90.02	LINE	2. Item 2: Select the server in the console, revie
+c1	1	128.89	137.90	108.02	LINE	to continue with the setup of the component that w
+c1	1	144.97	153.98	90.02	LINE	3. Item 3: Click Next.
+c1	1	160.93	169.94	90.02	LINE	4. Item 4: Select the server in the console, revie
+c1	1	173.89	182.90	108.02	LINE	to continue with the setup of the component that w
+c1	1	197.53	206.54	126.02	LABEL	Note
+c1	1	211.81	220.82	126.02	NOTETEXT	NOTE-TEXT 4: Installation requires that the restri
+c1	1	225.85	234.86	126.02	LINE	select the web server in the manager and then doub
+c1	1	242.08	251.09	90.02	LINE	5. Item 5: Select the server in the console, revie
+c1	1	255.04	264.05	108.02	LINE	to continue with the setup of the component that w
+c1	1	271.00	280.01	90.02	LINE	6. Item 6: Select the server in the console, revie
+c1	1	284.08	293.09	108.02	LINE	to continue with the setup of the component that w
+c1	1	300.04	309.05	90.02	LINE	7. Item 7: Click Next.
+c1	1	316.00	325.01	90.02	LINE	8. Item 8: Select the server in the console, revie
+c1	1	329.08	338.09	108.02	LINE	to continue with the setup of the component that w
+c1	1	345.04	354.05	90.02	LINE	9. Item 9: Click Next.
+c1	1	361.00	370.01	90.02	LINE	10. Item 10: Select the server in the console, rev
+c1	1	374.08	383.09	108.02	LINE	to continue with the setup of the component that w
+c1	1	390.04	399.05	90.02	LINE	11. Item 11: Click Next.
+c1	1	406.02	415.03	90.02	LINE	12. Item 12: Select the server in the console, rev
+c1	1	419.10	428.11	108.02	LINE	to continue with the setup of the component that w
+c1	1	435.06	444.07	90.02	LINE	13. Item 13: Click Next.
+c1	1	451.02	460.03	90.02	LINE	14. Item 14: Select the server in the console, rev
+c1	1	464.10	473.11	108.02	LINE	to continue with the setup of the component that w
+c1	1	487.62	496.63	126.02	LABEL	Note
+c1	1	501.90	510.91	126.02	NOTETEXT	NOTE-TEXT 14: Installation requires that the restr
+c1	1	515.94	524.95	126.02	LINE	select the web server in the manager and then doub
+c1	1	532.14	541.15	90.02	LINE	15. Item 15: Select the server in the console, rev
+c1	1	545.10	554.11	108.02	LINE	to continue with the setup of the component that w
+c1	1	561.06	570.07	90.02	LINE	16. Item 16: Select the server in the console, rev
+c1	1	574.17	583.18	108.02	LINE	to continue with the setup of the component that w
+c1	1	590.13	599.14	90.02	LINE	17. Item 17: Click Next.
+c1	1	606.09	615.10	90.02	LINE	18. Item 18: Select the server in the console, rev
+c1	1	619.17	628.18	108.02	LINE	to continue with the setup of the component that w
+c1	1	635.13	644.14	90.02	LINE	19. Item 19: Click Next.
+c1	1	651.09	660.10	90.02	LINE	20. Item 20: Select the server in the console, rev
+c1	1	664.17	673.18	108.02	LINE	to continue with the setup of the component that w
+c1	1	680.13	689.14	90.02	LINE	21. Item 21: Click Next.
+c1	1	714.90	722.98	517.06	LINE	1
+c1	2	96.97	105.98	90.02	LINE	22. Item 22: Select the server in the console, rev
+c1	2	109.93	118.94	108.02	LINE	to continue with the setup of the component that w
+c1	2	125.89	134.90	90.02	LINE	23. Item 23: Click Next.
+c1	2	141.97	150.98	90.02	LINE	24. Item 24: Select the server in the console, rev
+c1	2	154.93	163.94	108.02	LINE	to continue with the setup of the component that w
+c1	2	170.89	179.90	90.02	LINE	25. Item 25: Select the server in the console, rev
+c1	2	183.97	192.98	108.02	LINE	to continue with the setup of the component that w
+c1	2	199.93	208.94	90.02	LINE	26. Item 26: Select the server in the console, rev
+c1	2	212.89	221.90	108.02	LINE	to continue with the setup of the component that w
+c1	2	236.53	245.54	126.02	LABEL	Note
+c1	2	250.84	259.85	126.02	NOTETEXT	NOTE-TEXT 26: Installation requires that the restr
+c1	2	264.88	273.89	126.02	LINE	select the web server in the manager and then doub
+c1	2	281.08	290.09	90.02	LINE	27. Item 27: Click Next.
+c1	2	297.04	306.05	90.02	LINE	28. Item 28: Select the server in the console, rev
+c1	2	310.00	319.01	108.02	LINE	to continue with the setup of the component that w
+c1	2	326.08	335.09	90.02	LINE	29. Item 29: Click Next.
+c1	2	342.04	351.05	90.02	LINE	30. Item 30: Select the server in the console, rev
+c1	2	355.00	364.01	108.02	LINE	to continue with the setup of the component that w
+c1	2	371.08	380.09	90.02	LINE	31. Item 31: Click Next.
+c1	2	387.04	396.05	90.02	LINE	32. Item 32: Select the server in the console, rev
+c1	2	400.00	409.01	108.02	LINE	to continue with the setup of the component that w
+c1	2	416.10	425.11	90.02	LINE	33. Item 33: Click Next.
+c1	2	432.06	441.07	90.02	LINE	34. Item 34: Select the server in the console, rev
+c1	2	445.02	454.03	108.02	LINE	to continue with the setup of the component that w
+c1	2	461.10	470.11	90.02	LINE	35. Item 35: Select the server in the console, rev
+c1	2	474.06	483.07	108.02	LINE	to continue with the setup of the component that w
+c1	2	490.02	499.03	90.02	LINE	36. Item 36: Select the server in the console, rev
+c1	2	503.10	512.11	108.02	LINE	to continue with the setup of the component that w
+c1	2	526.62	535.63	126.02	LABEL	Note
+c1	2	540.90	549.91	126.02	NOTETEXT	NOTE-TEXT 36: Installation requires that the restr
+c1	2	554.94	563.95	126.02	LINE	select the web server in the manager and then doub
+c1	2	571.14	580.15	90.02	LINE	37. Item 37: Click Next.
+c1	2	587.13	596.14	90.02	LINE	38. Item 38: Select the server in the console, rev
+c1	2	600.09	609.10	108.02	LINE	to continue with the setup of the component that w
+c1	2	616.17	625.18	90.02	LINE	39. Item 39: Click Next.
+c1	2	632.13	641.14	90.02	LINE	40. Item 40: Select the server in the console, rev
+c1	2	645.09	654.10	108.02	LINE	to continue with the setup of the component that w
+c1	2	661.17	670.18	90.02	LINE	41. Item 41: Click Next.
+c1	2	677.13	686.14	90.02	LINE	42. Item 42: Select the server in the console, rev
+c1	2	690.08	699.10	108.02	LINE	to continue with the setup of the component that w
+c1	2	714.90	722.98	517.06	LINE	2
+c1	3	96.97	105.98	90.02	LINE	43. Item 43: Click Next.
+c1	3	112.93	121.94	90.02	LINE	44. Item 44: Select the server in the console, rev
+c1	3	125.89	134.90	108.02	LINE	to continue with the setup of the component that w
+c1	3	141.97	150.98	90.02	LINE	45. Item 45: Select the server in the console, rev
+c1	3	154.93	163.94	108.02	LINE	to continue with the setup of the component that w
+c1	3	170.89	179.90	90.02	LINE	46. Item 46: Select the server in the console, rev
+c1	3	183.97	192.98	108.02	LINE	to continue with the setup of the component that w
+c1	3	199.93	208.94	90.02	LINE	47. Item 47: Click Next.
+c1	3	215.89	224.90	90.02	LINE	48. Item 48: Select the server in the console, rev
+c1	3	228.97	237.98	108.02	LINE	to continue with the setup of the component that w
+c1	3	244.96	253.97	90.02	LINE	49. Item 49: Click Next.
+c1	3	260.92	269.93	90.02	LINE	50. Item 50: Select the server in the console, rev
+c1	3	274.00	283.01	108.02	LINE	to continue with the setup of the component that w
+c1	3	297.64	306.65	126.02	LABEL	Note
+c1	3	311.80	320.81	126.02	NOTETEXT	NOTE-TEXT 50: Installation requires that the restr
+c1	3	325.84	334.85	126.02	LINE	select the web server in the manager and then doub
+c1	3	342.04	351.05	90.02	LINE	51. Item 51: Click Next.
+c1	3	358.00	367.01	90.02	LINE	52. Item 52: Select the server in the console, rev
+c1	3	371.08	380.09	108.02	LINE	to continue with the setup of the component that w
+c1	3	387.04	396.05	90.02	LINE	53. Item 53: Click Next.
+c1	3	403.00	412.01	90.02	LINE	54. Item 54: Select the server in the console, rev
+c1	3	416.10	425.11	108.02	LINE	to continue with the setup of the component that w
+c1	3	432.06	441.07	90.02	LINE	55. Item 55: Select the server in the console, rev
+c1	3	445.02	454.03	108.02	LINE	to continue with the setup of the component that w
+c1	3	461.10	470.11	90.02	LINE	56. Item 56: Select the server in the console, rev
+c1	3	474.06	483.07	108.02	LINE	to continue with the setup of the component that w
+c1	3	490.02	499.03	90.02	LINE	57. Item 57: Click Next.
+c1	3	506.10	515.11	90.02	LINE	58. Item 58: Select the server in the console, rev
+c1	3	519.06	528.07	108.02	LINE	to continue with the setup of the component that w
+c1	3	535.02	544.03	90.02	LINE	59. Item 59: Click Next.
+c1	3	551.10	560.11	90.02	LINE	60. Item 60: Select the server in the console, rev
+c1	3	564.06	573.07	108.02	LINE	to continue with the setup of the component that w
+c1	3	587.73	596.74	126.02	LABEL	Note
+c1	3	601.89	610.90	126.02	NOTETEXT	NOTE-TEXT 60: Installation requires that the restr
+c1	3	615.93	624.94	126.02	LINE	select the web server in the manager and then doub
+c1	3	632.13	641.14	90.02	LINE	61. Item 61: Click Next.
+c1	3	648.09	657.10	90.02	LINE	62. Item 62: Select the server in the console, rev
+c1	3	661.17	670.18	108.02	LINE	to continue with the setup of the component that w
+c1	3	677.13	686.14	90.02	LINE	63. Item 63: Click Next.
+c1	3	714.90	722.98	517.06	LINE	3
+c1	4	96.97	105.98	90.02	LINE	64. Item 64: Select the server in the console, rev
+c1	4	109.93	118.94	108.02	LINE	to continue with the setup of the component that w
+c1	4	125.89	134.90	90.02	LINE	65. Item 65: Select the server in the console, rev
+c1	4	138.97	147.98	108.02	LINE	to continue with the setup of the component that w
+c1	4	154.93	163.94	90.02	LINE	66. Item 66: Select the server in the console, rev
+c1	4	167.89	176.90	108.02	LINE	to continue with the setup of the component that w
+c1	4	183.97	192.98	90.02	LINE	67. Item 67: Click Next.
+c1	4	199.93	208.94	90.02	LINE	68. Item 68: Select the server in the console, rev
+c1	4	212.89	221.90	108.02	LINE	to continue with the setup of the component that w
+c1	4	228.97	237.98	90.02	LINE	69. Item 69: Click Next.
+c1	4	244.96	253.97	90.02	LINE	70. Item 70: Select the server in the console, rev
+c1	4	257.92	266.93	108.02	LINE	to continue with the setup of the component that w
+c1	4	714.90	722.98	517.06	LINE	4
+c2	1	99.97	108.98	90.02	LINE	1. Item 1: Click Next.
+c2	1	115.93	124.94	90.02	LINE	2. Item 2: Select the server in the console, revie
+c2	1	128.89	137.90	108.02	LINE	to continue with the setup of the component that w
+c2	1	144.97	153.98	90.02	LINE	3. Item 3: Click Next.
+c2	1	160.93	169.94	90.02	LINE	4. Item 4: Select the server in the console, revie
+c2	1	173.89	182.90	108.02	LINE	to continue with the setup of the component that w
+c2	1	189.97	198.98	90.02	LINE	5. Item 5: Select the server in the console, revie
+c2	1	202.93	211.94	108.02	LINE	to continue with the setup of the component that w
+c2	1	218.89	227.90	90.02	LINE	6. Item 6: Select the server in the console, revie
+c2	1	231.97	240.98	108.02	LINE	to continue with the setup of the component that w
+c2	1	247.96	256.97	90.02	LINE	7. Item 7: Click Next.
+c2	1	271.60	280.61	126.02	LABEL	Note
+c2	1	285.88	294.89	126.02	NOTETEXT	NOTE-TEXT 7: Installation requires that the restri
+c2	1	299.92	308.93	126.02	LINE	select the web server in the manager and then doub
+c2	1	316.00	325.01	90.02	LINE	8. Item 8: Select the server in the console, revie
+c2	1	329.08	338.09	108.02	LINE	to continue with the setup of the component that w
+c2	1	345.04	354.05	90.02	LINE	9. Item 9: Click Next.
+c2	1	361.00	370.01	90.02	LINE	10. Item 10: Select the server in the console, rev
+c2	1	374.08	383.09	108.02	LINE	to continue with the setup of the component that w
+c2	1	390.04	399.05	90.02	LINE	11. Item 11: Click Next.
+c2	1	406.02	415.03	90.02	LINE	12. Item 12: Select the server in the console, rev
+c2	1	419.10	428.11	108.02	LINE	to continue with the setup of the component that w
+c2	1	435.06	444.07	90.02	LINE	13. Item 13: Click Next.
+c2	1	451.02	460.03	90.02	LINE	14. Item 14: Select the server in the console, rev
+c2	1	464.10	473.11	108.02	LINE	to continue with the setup of the component that w
+c2	1	480.06	489.07	90.02	LINE	15. Item 15: Select the server in the console, rev
+c2	1	493.02	502.03	108.02	LINE	to continue with the setup of the component that w
+c2	1	509.10	518.11	90.02	LINE	16. Item 16: Select the server in the console, rev
+c2	1	522.06	531.07	108.02	LINE	to continue with the setup of the component that w
+c2	1	538.02	547.03	90.02	LINE	17. Item 17: Click Next.
+c2	1	561.66	570.67	126.02	LABEL	Note
+c2	1	575.97	584.98	126.02	NOTETEXT	NOTE-TEXT 17: Installation requires that the restr
+c2	1	590.01	599.02	126.02	LINE	select the web server in the manager and then doub
+c2	1	606.09	615.10	90.02	LINE	18. Item 18: Select the server in the console, rev
+c2	1	619.17	628.18	108.02	LINE	to continue with the setup of the component that w
+c2	1	635.13	644.14	90.02	LINE	19. Item 19: Click Next.
+c2	1	651.09	660.10	90.02	LINE	20. Item 20: Select the server in the console, rev
+c2	1	664.17	673.18	108.02	LINE	to continue with the setup of the component that w
+c2	1	680.13	689.14	90.02	LINE	21. Item 21: Click Next.
+c2	1	714.90	722.98	517.06	LINE	1
+c2	2	96.97	105.98	90.02	LINE	22. Item 22: Select the server in the console, rev
+c2	2	109.93	118.94	108.02	LINE	to continue with the setup of the component that w
+c2	2	125.89	134.90	90.02	LINE	23. Item 23: Click Next.
+c2	2	141.97	150.98	90.02	LINE	24. Item 24: Select the server in the console, rev
+c2	2	154.93	163.94	108.02	LINE	to continue with the setup of the component that w
+c2	2	170.89	179.90	90.02	LINE	25. Item 25: Select the server in the console, rev
+c2	2	183.97	192.98	108.02	LINE	to continue with the setup of the component that w
+c2	2	199.93	208.94	90.02	LINE	26. Item 26: Select the server in the console, rev
+c2	2	212.89	221.90	108.02	LINE	to continue with the setup of the component that w
+c2	2	228.97	237.98	90.02	LINE	27. Item 27: Click Next.
+c2	2	244.96	253.97	90.02	LINE	28. Item 28: Select the server in the console, rev
+c2	2	257.92	266.93	108.02	LINE	to continue with the setup of the component that w
+c2	2	274.00	283.01	90.02	LINE	29. Item 29: Click Next.
+c2	2	297.64	306.65	126.02	LABEL	Note
+c2	2	311.80	320.81	126.02	NOTETEXT	NOTE-TEXT 29: Installation requires that the restr
+c2	2	325.84	334.85	126.02	LINE	select the web server in the manager and then doub
+c2	2	342.04	351.05	90.02	LINE	30. Item 30: Select the server in the console, rev
+c2	2	355.00	364.01	108.02	LINE	to continue with the setup of the component that w
+c2	2	371.08	380.09	90.02	LINE	31. Item 31: Click Next.
+c2	2	387.04	396.05	90.02	LINE	32. Item 32: Select the server in the console, rev
+c2	2	400.00	409.01	108.02	LINE	to continue with the setup of the component that w
+c2	2	416.10	425.11	90.02	LINE	33. Item 33: Click Next.
+c2	2	432.06	441.07	90.02	LINE	34. Item 34: Select the server in the console, rev
+c2	2	445.02	454.03	108.02	LINE	to continue with the setup of the component that w
+c2	2	461.10	470.11	90.02	LINE	35. Item 35: Select the server in the console, rev
+c2	2	474.06	483.07	108.02	LINE	to continue with the setup of the component that w
+c2	2	490.02	499.03	90.02	LINE	36. Item 36: Select the server in the console, rev
+c2	2	503.10	512.11	108.02	LINE	to continue with the setup of the component that w
+c2	2	519.06	528.07	90.02	LINE	37. Item 37: Click Next.
+c2	2	535.02	544.03	90.02	LINE	38. Item 38: Select the server in the console, rev
+c2	2	548.10	557.11	108.02	LINE	to continue with the setup of the component that w
+c2	2	571.62	580.63	126.02	LABEL	Note
+c2	2	585.93	594.94	126.02	NOTETEXT	NOTE-TEXT 38: Installation requires that the restr
+c2	2	599.97	608.98	126.02	LINE	select the web server in the manager and then doub
+c2	2	616.17	625.18	90.02	LINE	39. Item 39: Click Next.
+c2	2	632.13	641.14	90.02	LINE	40. Item 40: Select the server in the console, rev
+c2	2	645.09	654.10	108.02	LINE	to continue with the setup of the component that w
+c2	2	661.17	670.18	90.02	LINE	41. Item 41: Click Next.
+c2	2	677.13	686.14	90.02	LINE	42. Item 42: Select the server in the console, rev
+c2	2	690.08	699.10	108.02	LINE	to continue with the setup of the component that w
+c2	2	714.90	722.98	517.06	LINE	2
+c2	3	96.97	105.98	90.02	LINE	43. Item 43: Click Next.
+c2	3	112.93	121.94	90.02	LINE	44. Item 44: Select the server in the console, rev
+c2	3	125.89	134.90	108.02	LINE	to continue with the setup of the component that w
+c2	3	141.97	150.98	90.02	LINE	45. Item 45: Select the server in the console, rev
+c2	3	154.93	163.94	108.02	LINE	to continue with the setup of the component that w
+c2	3	170.89	179.90	90.02	LINE	46. Item 46: Select the server in the console, rev
+c2	3	183.97	192.98	108.02	LINE	to continue with the setup of the component that w
+c2	3	199.93	208.94	90.02	LINE	47. Item 47: Click Next.
+c2	3	215.89	224.90	90.02	LINE	48. Item 48: Select the server in the console, rev
+c2	3	228.97	237.98	108.02	LINE	to continue with the setup of the component that w
+c2	3	244.96	253.97	90.02	LINE	49. Item 49: Click Next.
+c2	3	260.92	269.93	90.02	LINE	50. Item 50: Select the server in the console, rev
+c2	3	274.00	283.01	108.02	LINE	to continue with the setup of the component that w
+c2	3	289.96	298.97	90.02	LINE	51. Item 51: Click Next.
+c2	3	305.92	314.93	90.02	LINE	52. Item 52: Select the server in the console, rev
+c2	3	319.00	328.01	108.02	LINE	to continue with the setup of the component that w
+c2	3	334.96	343.97	90.02	LINE	53. Item 53: Click Next.
+c2	3	358.60	367.61	126.02	LABEL	Note
+c2	3	372.88	381.89	126.02	NOTETEXT	NOTE-TEXT 53: Installation requires that the restr
+c2	3	386.92	395.93	126.02	LINE	select the web server in the manager and then doub
+c2	3	403.00	412.01	90.02	LINE	54. Item 54: Select the server in the console, rev
+c2	3	416.10	425.11	108.02	LINE	to continue with the setup of the component that w
+c2	3	432.06	441.07	90.02	LINE	55. Item 55: Select the server in the console, rev
+c2	3	445.02	454.03	108.02	LINE	to continue with the setup of the component that w
+c2	3	461.10	470.11	90.02	LINE	56. Item 56: Select the server in the console, rev
+c2	3	474.06	483.07	108.02	LINE	to continue with the setup of the component that w
+c2	3	490.02	499.03	90.02	LINE	57. Item 57: Click Next.
+c2	3	506.10	515.11	90.02	LINE	58. Item 58: Select the server in the console, rev
+c2	3	519.06	528.07	108.02	LINE	to continue with the setup of the component that w
+c2	3	535.02	544.03	90.02	LINE	59. Item 59: Click Next.
+c2	3	551.10	560.11	90.02	LINE	60. Item 60: Select the server in the console, rev
+c2	3	564.06	573.07	108.02	LINE	to continue with the setup of the component that w
+c2	3	580.05	589.06	90.02	LINE	61. Item 61: Click Next.
+c2	3	596.13	605.14	90.02	LINE	62. Item 62: Select the server in the console, rev
+c2	3	609.09	618.10	108.02	LINE	to continue with the setup of the component that w
+c2	3	625.05	634.06	90.02	LINE	63. Item 63: Click Next.
+c2	3	648.69	657.70	126.02	LABEL	Note
+c2	3	662.97	671.98	126.02	NOTETEXT	NOTE-TEXT 63: Installation requires that the restr
+c2	3	677.01	686.02	126.02	LINE	select the web server in the manager and then doub
+c2	3	714.90	722.98	517.06	LINE	3
+c2	4	96.97	105.98	90.02	LINE	64. Item 64: Select the server in the console, rev
+c2	4	109.93	118.94	108.02	LINE	to continue with the setup of the component that w
+c2	4	125.89	134.90	90.02	LINE	65. Item 65: Select the server in the console, rev
+c2	4	138.97	147.98	108.02	LINE	to continue with the setup of the component that w
+c2	4	154.93	163.94	90.02	LINE	66. Item 66: Select the server in the console, rev
+c2	4	167.89	176.90	108.02	LINE	to continue with the setup of the component that w
+c2	4	183.97	192.98	90.02	LINE	67. Item 67: Click Next.
+c2	4	199.93	208.94	90.02	LINE	68. Item 68: Select the server in the console, rev
+c2	4	212.89	221.90	108.02	LINE	to continue with the setup of the component that w
+c2	4	228.97	237.98	90.02	LINE	69. Item 69: Click Next.
+c2	4	244.96	253.97	90.02	LINE	70. Item 70: Select the server in the console, rev
+c2	4	257.92	266.93	108.02	LINE	to continue with the setup of the component that w
+c2	4	714.90	722.98	517.06	LINE	4
+c3	1	99.97	108.98	90.02	LINE	1. Item 1: Click Next.
+c3	1	115.93	124.94	90.02	LINE	2. Item 2: Select the server in the console, revie
+c3	1	128.89	137.90	108.02	LINE	to continue with the setup of the component that w
+c3	1	144.97	153.98	90.02	LINE	3. Item 3: Click Next.
+c3	1	160.93	169.94	90.02	LINE	4. Item 4: Select the server in the console, revie
+c3	1	173.89	182.90	108.02	LINE	to continue with the setup of the component that w
+c3	1	189.97	198.98	90.02	LINE	5. Item 5: Select the server in the console, revie
+c3	1	202.93	211.94	108.02	LINE	to continue with the setup of the component that w
+c3	1	218.89	227.90	90.02	LINE	6. Item 6: Select the server in the console, revie
+c3	1	231.97	240.98	108.02	LINE	to continue with the setup of the component that w
+c3	1	247.96	256.97	90.02	LINE	7. Item 7: Click Next.
+c3	1	263.92	272.93	90.02	LINE	8. Item 8: Select the server in the console, revie
+c3	1	277.00	286.01	108.02	LINE	to continue with the setup of the component that w
+c3	1	292.96	301.97	90.02	LINE	9. Item 9: Click Next.
+c3	1	308.92	317.93	90.02	LINE	10. Item 10: Select the server in the console, rev
+c3	1	322.00	331.01	108.02	LINE	to continue with the setup of the component that w
+c3	1	345.64	354.65	126.02	LABEL	Note
+c3	1	359.80	368.81	126.02	NOTETEXT	NOTE-TEXT 10: Installation requires that the restr
+c3	1	373.84	382.85	126.02	LINE	select the web server in the manager and then doub
+c3	1	390.04	399.05	90.02	LINE	11. Item 11: Click Next.
+c3	1	406.02	415.03	90.02	LINE	12. Item 12: Select the server in the console, rev
+c3	1	419.10	428.11	108.02	LINE	to continue with the setup of the component that w
+c3	1	435.06	444.07	90.02	LINE	13. Item 13: Click Next.
+c3	1	451.02	460.03	90.02	LINE	14. Item 14: Select the server in the console, rev
+c3	1	464.10	473.11	108.02	LINE	to continue with the setup of the component that w
+c3	1	480.06	489.07	90.02	LINE	15. Item 15: Select the server in the console, rev
+c3	1	493.02	502.03	108.02	LINE	to continue with the setup of the component that w
+c3	1	509.10	518.11	90.02	LINE	16. Item 16: Select the server in the console, rev
+c3	1	522.06	531.07	108.02	LINE	to continue with the setup of the component that w
+c3	1	538.02	547.03	90.02	LINE	17. Item 17: Click Next.
+c3	1	554.10	563.11	90.02	LINE	18. Item 18: Select the server in the console, rev
+c3	1	567.06	576.07	108.02	LINE	to continue with the setup of the component that w
+c3	1	583.05	592.06	90.02	LINE	19. Item 19: Click Next.
+c3	1	599.13	608.14	90.02	LINE	20. Item 20: Select the server in the console, rev
+c3	1	612.09	621.10	108.02	LINE	to continue with the setup of the component that w
+c3	1	628.05	637.06	90.02	LINE	21. Item 21: Click Next.
+c3	1	651.69	660.70	126.02	LABEL	Note
+c3	1	665.97	674.98	126.02	NOTETEXT	NOTE-TEXT 21: Installation requires that the restr
+c3	1	680.01	689.02	126.02	LINE	select the web server in the manager and then doub
+c3	1	714.90	722.98	517.06	LINE	1
+c3	2	96.97	105.98	90.02	LINE	22. Item 22: Select the server in the console, rev
+c3	2	109.93	118.94	108.02	LINE	to continue with the setup of the component that w
+c3	2	125.89	134.90	90.02	LINE	23. Item 23: Click Next.
+c3	2	141.97	150.98	90.02	LINE	24. Item 24: Select the server in the console, rev
+c3	2	154.93	163.94	108.02	LINE	to continue with the setup of the component that w
+c3	2	170.89	179.90	90.02	LINE	25. Item 25: Select the server in the console, rev
+c3	2	183.97	192.98	108.02	LINE	to continue with the setup of the component that w
+c3	2	199.93	208.94	90.02	LINE	26. Item 26: Select the server in the console, rev
+c3	2	212.89	221.90	108.02	LINE	to continue with the setup of the component that w
+c3	2	228.97	237.98	90.02	LINE	27. Item 27: Click Next.
+c3	2	244.96	253.97	90.02	LINE	28. Item 28: Select the server in the console, rev
+c3	2	257.92	266.93	108.02	LINE	to continue with the setup of the component that w
+c3	2	274.00	283.01	90.02	LINE	29. Item 29: Click Next.
+c3	2	289.96	298.97	90.02	LINE	30. Item 30: Select the server in the console, rev
+c3	2	302.92	311.93	108.02	LINE	to continue with the setup of the component that w
+c3	2	319.00	328.01	90.02	LINE	31. Item 31: Click Next.
+c3	2	342.64	351.65	126.02	LABEL	Note
+c3	2	356.80	365.81	126.02	NOTETEXT	NOTE-TEXT 31: Installation requires that the restr
+c3	2	370.84	379.85	126.02	LINE	select the web server in the manager and then doub
+c3	2	387.04	396.05	90.02	LINE	32. Item 32: Select the server in the console, rev
+c3	2	400.00	409.01	108.02	LINE	to continue with the setup of the component that w
+c3	2	416.10	425.11	90.02	LINE	33. Item 33: Click Next.
+c3	2	432.06	441.07	90.02	LINE	34. Item 34: Select the server in the console, rev
+c3	2	445.02	454.03	108.02	LINE	to continue with the setup of the component that w
+c3	2	461.10	470.11	90.02	LINE	35. Item 35: Select the server in the console, rev
+c3	2	474.06	483.07	108.02	LINE	to continue with the setup of the component that w
+c3	2	490.02	499.03	90.02	LINE	36. Item 36: Select the server in the console, rev
+c3	2	503.10	512.11	108.02	LINE	to continue with the setup of the component that w
+c3	2	519.06	528.07	90.02	LINE	37. Item 37: Click Next.
+c3	2	535.02	544.03	90.02	LINE	38. Item 38: Select the server in the console, rev
+c3	2	548.10	557.11	108.02	LINE	to continue with the setup of the component that w
+c3	2	564.06	573.07	90.02	LINE	39. Item 39: Click Next.
+c3	2	580.05	589.06	90.02	LINE	40. Item 40: Select the server in the console, rev
+c3	2	593.13	602.14	108.02	LINE	to continue with the setup of the component that w
+c3	2	609.09	618.10	90.02	LINE	41. Item 41: Click Next.
+c3	2	625.05	634.06	90.02	LINE	42. Item 42: Select the server in the console, rev
+c3	2	638.13	647.14	108.02	LINE	to continue with the setup of the component that w
+c3	2	654.09	663.10	90.02	LINE	43. Item 43: Click Next.
+c3	2	677.73	686.74	126.02	LABEL	Note
+c3	2	714.90	722.98	517.06	LINE	2
+c3	3	97.69	106.70	126.02	NOTETEXT	NOTE-TEXT 43: Installation requires that the restr
+c3	3	111.73	120.74	126.02	LINE	select the web server in the manager and then doub
+c3	3	127.93	136.94	90.02	LINE	44. Item 44: Select the server in the console, rev
+c3	3	140.89	149.90	108.02	LINE	to continue with the setup of the component that w
+c3	3	156.97	165.98	90.02	LINE	45. Item 45: Select the server in the console, rev
+c3	3	169.93	178.94	108.02	LINE	to continue with the setup of the component that w
+c3	3	185.89	194.90	90.02	LINE	46. Item 46: Select the server in the console, rev
+c3	3	198.97	207.98	108.02	LINE	to continue with the setup of the component that w
+c3	3	214.93	223.94	90.02	LINE	47. Item 47: Click Next.
+c3	3	230.89	239.90	90.02	LINE	48. Item 48: Select the server in the console, rev
+c3	3	244.00	253.01	108.02	LINE	to continue with the setup of the component that w
+c3	3	259.96	268.97	90.02	LINE	49. Item 49: Click Next.
+c3	3	275.92	284.93	90.02	LINE	50. Item 50: Select the server in the console, rev
+c3	3	289.00	298.01	108.02	LINE	to continue with the setup of the component that w
+c3	3	304.96	313.97	90.02	LINE	51. Item 51: Click Next.
+c3	3	320.92	329.93	90.02	LINE	52. Item 52: Select the server in the console, rev
+c3	3	334.00	343.01	108.02	LINE	to continue with the setup of the component that w
+c3	3	349.96	358.97	90.02	LINE	53. Item 53: Click Next.
+c3	3	365.92	374.93	90.02	LINE	54. Item 54: Select the server in the console, rev
+c3	3	379.00	388.01	108.02	LINE	to continue with the setup of the component that w
+c3	3	394.96	403.97	90.02	LINE	55. Item 55: Select the server in the console, rev
+c3	3	407.94	416.95	108.02	LINE	to continue with the setup of the component that w
+c3	3	424.02	433.03	90.02	LINE	56. Item 56: Select the server in the console, rev
+c3	3	436.98	445.99	108.02	LINE	to continue with the setup of the component that w
+c3	3	452.94	461.95	90.02	LINE	57. Item 57: Click Next.
+c3	3	476.58	485.59	126.02	LABEL	Note
+c3	3	490.86	499.87	126.02	NOTETEXT	NOTE-TEXT 57: Installation requires that the restr
+c3	3	504.90	513.91	126.02	LINE	select the web server in the manager and then doub
+c3	3	521.10	530.11	90.02	LINE	58. Item 58: Select the server in the console, rev
+c3	3	534.06	543.07	108.02	LINE	to continue with the setup of the component that w
+c3	3	550.02	559.03	90.02	LINE	59. Item 59: Click Next.
+c3	3	566.10	575.11	90.02	LINE	60. Item 60: Select the server in the console, rev
+c3	3	579.09	588.10	108.02	LINE	to continue with the setup of the component that w
+c3	3	595.05	604.06	90.02	LINE	61. Item 61: Click Next.
+c3	3	611.13	620.14	90.02	LINE	62. Item 62: Select the server in the console, rev
+c3	3	624.09	633.10	108.02	LINE	to continue with the setup of the component that w
+c3	3	640.05	649.06	90.02	LINE	63. Item 63: Click Next.
+c3	3	656.13	665.14	90.02	LINE	64. Item 64: Select the server in the console, rev
+c3	3	669.09	678.10	108.02	LINE	to continue with the setup of the component that w
+c3	3	714.90	722.98	517.06	LINE	3
+c3	4	96.97	105.98	90.02	LINE	65. Item 65: Select the server in the console, rev
+c3	4	109.93	118.94	108.02	LINE	to continue with the setup of the component that w
+c3	4	125.89	134.90	90.02	LINE	66. Item 66: Select the server in the console, rev
+c3	4	138.97	147.98	108.02	LINE	to continue with the setup of the component that w
+c3	4	154.93	163.94	90.02	LINE	67. Item 67: Click Next.
+c3	4	178.57	187.58	126.02	LABEL	Note
+c3	4	192.85	201.86	126.02	NOTETEXT	NOTE-TEXT 67: Installation requires that the restr
+c3	4	206.89	215.90	126.02	LINE	select the web server in the manager and then doub
+c3	4	222.97	231.98	90.02	LINE	68. Item 68: Select the server in the console, rev
+c3	4	236.05	245.06	108.02	LINE	to continue with the setup of the component that w
+c3	4	252.04	261.05	90.02	LINE	69. Item 69: Click Next.
+c3	4	268.00	277.01	90.02	LINE	70. Item 70: Select the server in the console, rev
+c3	4	281.08	290.09	108.02	LINE	to continue with the setup of the component that w
+c3	4	714.90	722.98	517.06	LINE	4
+t1	1	100.45	109.46	90.02	LINE	1. Item 1: Click Next.
+t1	1	116.41	125.42	90.02	LINE	2. Item 2: Select the server in the console, revie
+t1	1	129.49	138.50	108.02	LINE	Next to continue with the setup of the component t
+t1	1	145.45	154.46	90.02	LINE	3. Item 3: Click Next.
+t1	1	161.41	170.42	90.02	LINE	4. Item 4: Select the server in the console, revie
+t1	1	174.49	183.50	108.02	LINE	Next to continue with the setup of the component t
+t1	1	198.01	207.02	126.02	LABEL	Note
+t1	1	212.29	221.30	126.02	NOTETEXT	NOTE-TEXT 4: Installation requires that the restri
+t1	1	226.33	235.34	126.02	LINE	this, select the web server in the manager and the
+t1	1	242.44	251.45	90.02	LINE	5. Item 5: Select the server in the console, revie
+t1	1	255.52	264.53	108.02	LINE	Next to continue with the setup of the component t
+t1	1	271.48	280.49	90.02	LINE	6. Item 6: Select the server in the console, revie
+t1	1	284.44	293.45	108.02	LINE	Next to continue with the setup of the component t
+t1	1	300.52	309.53	90.02	LINE	7. Item 7: Click Next.
+t1	1	316.48	325.49	90.02	LINE	8. Item 8: Select the server in the console, revie
+t1	1	329.44	338.45	108.02	LINE	Next to continue with the setup of the component t
+t1	1	345.52	354.53	90.02	LINE	9. Item 9: Click Next.
+t1	1	361.48	370.49	90.02	LINE	10. Item 10: Select the server in the console, rev
+t1	1	374.44	383.45	108.02	LINE	Next to continue with the setup of the component t
+t1	1	390.52	399.53	90.02	LINE	11. Item 11: Click Next.
+t1	1	406.50	415.51	90.02	LINE	12. Item 12: Select the server in the console, rev
+t1	1	419.46	428.47	108.02	LINE	Next to continue with the setup of the component t
+t1	1	435.54	444.55	90.02	LINE	13. Item 13: Click Next.
+t1	1	451.50	460.51	90.02	LINE	14. Item 14: Select the server in the console, rev
+t1	1	464.46	473.47	108.02	LINE	Next to continue with the setup of the component t
+t1	1	488.10	497.11	126.02	LABEL	Note
+t1	1	502.26	511.27	126.02	NOTETEXT	NOTE-TEXT 14: Installation requires that the restr
+t1	1	516.30	525.31	126.02	LINE	this, select the web server in the manager and the
+t1	1	532.50	541.51	90.02	LINE	15. Item 15: Select the server in the console, rev
+t1	1	545.46	554.47	108.02	LINE	Next to continue with the setup of the component t
+t1	1	561.54	570.55	90.02	LINE	16. Item 16: Select the server in the console, rev
+t1	1	574.53	583.54	108.02	LINE	Next to continue with the setup of the component t
+t1	1	590.49	599.50	90.02	LINE	17. Item 17: Click Next.
+t1	1	606.57	615.58	90.02	LINE	18. Item 18: Select the server in the console, rev
+t1	1	619.53	628.54	108.02	LINE	Next to continue with the setup of the component t
+t1	1	635.49	644.50	90.02	LINE	19. Item 19: Click Next.
+t1	1	651.57	660.58	90.02	LINE	20. Item 20: Select the server in the console, rev
+t1	1	664.53	673.54	108.02	LINE	Next to continue with the setup of the component t
+t1	1	680.49	689.50	90.02	LINE	21. Item 21: Click Next.
+t1	1	696.56	705.58	90.02	LINE	22. Item 22: Select the server in the console, rev
+t1	1	714.90	722.98	517.06	LINE	1
+t1	2	97.45	106.46	108.02	LINE	Next to continue with the setup of the component t
+t1	2	113.41	122.42	90.02	LINE	23. Item 23: Click Next.
+t1	2	129.49	138.50	90.02	LINE	24. Item 24: Select the server in the console, rev
+t1	2	142.45	151.46	108.02	LINE	Next to continue with the setup of the component t
+t1	2	158.41	167.42	90.02	LINE	25. Item 25: Select the server in the console, rev
+t1	2	171.49	180.50	108.02	LINE	Next to continue with the setup of the component t
+t1	2	187.45	196.46	90.02	LINE	26. Item 26: Select the server in the console, rev
+t1	2	200.41	209.42	108.02	LINE	Next to continue with the setup of the component t
+t1	2	224.05	233.06	126.02	LABEL	Note
+t1	2	238.24	247.25	126.02	NOTETEXT	NOTE-TEXT 26: Installation requires that the restr
+t1	2	252.28	261.29	126.02	LINE	this, select the web server in the manager and the
+t1	2	268.48	277.49	90.02	LINE	27. Item 27: Click Next.
+t1	2	284.44	293.45	90.02	LINE	28. Item 28: Select the server in the console, rev
+t1	2	297.52	306.53	108.02	LINE	Next to continue with the setup of the component t
+t1	2	313.48	322.49	90.02	LINE	29. Item 29: Click Next.
+t1	2	329.44	338.45	90.02	LINE	30. Item 30: Select the server in the console, rev
+t1	2	342.52	351.53	108.02	LINE	Next to continue with the setup of the component t
+t1	2	358.48	367.49	90.02	LINE	31. Item 31: Click Next.
+t1	2	374.44	383.45	90.02	LINE	32. Item 32: Select the server in the console, rev
+t1	2	387.52	396.53	108.02	LINE	Next to continue with the setup of the component t
+t1	2	403.48	412.49	90.02	LINE	33. Item 33: Click Next.
+t1	2	419.46	428.47	90.02	LINE	34. Item 34: Select the server in the console, rev
+t1	2	432.54	441.55	108.02	LINE	Next to continue with the setup of the component t
+t1	2	448.50	457.51	90.02	LINE	35. Item 35: Select the server in the console, rev
+t1	2	461.46	470.47	108.02	LINE	Next to continue with the setup of the component t
+t1	2	477.54	486.55	90.02	LINE	36. Item 36: Select the server in the console, rev
+t1	2	490.50	499.51	108.02	LINE	Next to continue with the setup of the component t
+t1	2	514.02	523.03	126.02	LABEL	Note
+t1	2	528.30	537.31	126.02	NOTETEXT	NOTE-TEXT 36: Installation requires that the restr
+t1	2	542.34	551.35	126.02	LINE	this, select the web server in the manager and the
+t1	2	558.54	567.55	90.02	LINE	37. Item 37: Click Next.
+t1	2	574.53	583.54	90.02	LINE	38. Item 38: Select the server in the console, rev
+t1	2	587.49	596.50	108.02	LINE	Next to continue with the setup of the component t
+t1	2	603.57	612.58	90.02	LINE	39. Item 39: Click Next.
+t1	2	619.53	628.54	90.02	LINE	40. Item 40: Select the server in the console, rev
+t1	2	632.49	641.50	108.02	LINE	Next to continue with the setup of the component t
+t1	2	648.57	657.58	90.02	LINE	41. Item 41: Click Next.
+t1	2	664.53	673.54	90.02	LINE	42. Item 42: Select the server in the console, rev
+t1	2	677.49	686.50	108.02	LINE	Next to continue with the setup of the component t
+t1	2	693.56	702.58	90.02	LINE	43. Item 43: Click Next.
+t1	2	714.90	722.98	517.06	LINE	2
+t1	3	97.45	106.46	90.02	LINE	44. Item 44: Select the server in the console, rev
+t1	3	110.41	119.42	108.02	LINE	Next to continue with the setup of the component t
+t1	3	126.49	135.50	90.02	LINE	45. Item 45: Select the server in the console, rev
+t1	3	139.45	148.46	108.02	LINE	Next to continue with the setup of the component t
+t1	3	155.41	164.42	90.02	LINE	46. Item 46: Select the server in the console, rev
+t1	3	168.49	177.50	108.02	LINE	Next to continue with the setup of the component t
+t1	3	184.45	193.46	90.02	LINE	47. Item 47: Click Next.
+t1	3	200.41	209.42	90.02	LINE	48. Item 48: Select the server in the console, rev
+t1	3	213.49	222.50	108.02	LINE	Next to continue with the setup of the component t
+t1	3	229.45	238.46	90.02	LINE	49. Item 49: Click Next.
+t1	3	245.44	254.45	90.02	LINE	50. Item 50: Select the server in the console, rev
+t1	3	258.52	267.53	108.02	LINE	Next to continue with the setup of the component t
+t1	3	282.04	291.05	126.02	LABEL	Note
+t1	3	296.32	305.33	126.02	NOTETEXT	NOTE-TEXT 50: Installation requires that the restr
+t1	3	310.36	319.37	126.02	LINE	this, select the web server in the manager and the
+t1	3	326.44	335.45	90.02	LINE	51. Item 51: Click Next.
+t1	3	342.52	351.53	90.02	LINE	52. Item 52: Select the server in the console, rev
+t1	3	355.48	364.49	108.02	LINE	Next to continue with the setup of the component t
+t1	3	371.44	380.45	90.02	LINE	53. Item 53: Click Next.
+t1	3	387.52	396.53	90.02	LINE	54. Item 54: Select the server in the console, rev
+t1	3	400.48	409.49	108.02	LINE	Next to continue with the setup of the component t
+t1	3	416.46	425.47	90.02	LINE	55. Item 55: Select the server in the console, rev
+t1	3	429.54	438.55	108.02	LINE	Next to continue with the setup of the component t
+t1	3	445.50	454.51	90.02	LINE	56. Item 56: Select the server in the console, rev
+t1	3	458.46	467.47	108.02	LINE	Next to continue with the setup of the component t
+t1	3	474.54	483.55	90.02	LINE	57. Item 57: Click Next.
+t1	3	490.50	499.51	90.02	LINE	58. Item 58: Select the server in the console, rev
+t1	3	503.46	512.47	108.02	LINE	Next to continue with the setup of the component t
+t1	3	519.54	528.55	90.02	LINE	59. Item 59: Click Next.
+t1	3	535.50	544.51	90.02	LINE	60. Item 60: Select the server in the console, rev
+t1	3	548.46	557.47	108.02	LINE	Next to continue with the setup of the component t
+t1	3	572.13	581.14	126.02	LABEL	Note
+t1	3	586.29	595.30	126.02	NOTETEXT	NOTE-TEXT 60: Installation requires that the restr
+t1	3	600.33	609.34	126.02	LINE	this, select the web server in the manager and the
+t1	3	616.53	625.54	90.02	LINE	61. Item 61: Click Next.
+t1	3	632.49	641.50	90.02	LINE	62. Item 62: Select the server in the console, rev
+t1	3	645.57	654.58	108.02	LINE	Next to continue with the setup of the component t
+t1	3	661.53	670.54	90.02	LINE	63. Item 63: Click Next.
+t1	3	677.49	686.50	90.02	LINE	64. Item 64: Select the server in the console, rev
+t1	3	690.56	699.58	108.02	LINE	Next to continue with the setup of the component t
+t1	3	714.90	722.98	517.06	LINE	3
+t1	4	97.45	106.46	90.02	LINE	65. Item 65: Select the server in the console, rev
+t1	4	110.41	119.42	108.02	LINE	Next to continue with the setup of the component t
+t1	4	126.49	135.50	90.02	LINE	66. Item 66: Select the server in the console, rev
+t1	4	139.45	148.46	108.02	LINE	Next to continue with the setup of the component t
+t1	4	155.41	164.42	90.02	LINE	67. Item 67: Click Next.
+t1	4	171.49	180.50	90.02	LINE	68. Item 68: Select the server in the console, rev
+t1	4	184.45	193.46	108.02	LINE	Next to continue with the setup of the component t
+t1	4	200.41	209.42	90.02	LINE	69. Item 69: Click Next.
+t1	4	216.49	225.50	90.02	LINE	70. Item 70: Select the server in the console, rev
+t1	4	229.45	238.46	108.02	LINE	Next to continue with the setup of the component t
+t1	4	714.90	722.98	517.06	LINE	4
+t2	1	100.45	109.46	90.02	LINE	1. Item 1: Click Next.
+t2	1	116.41	125.42	90.02	LINE	2. Item 2: Select the server in the console, revie
+t2	1	129.49	138.50	108.02	LINE	Next to continue with the setup of the component t
+t2	1	145.45	154.46	90.02	LINE	3. Item 3: Click Next.
+t2	1	161.41	170.42	90.02	LINE	4. Item 4: Select the server in the console, revie
+t2	1	174.49	183.50	108.02	LINE	Next to continue with the setup of the component t
+t2	1	190.45	199.46	90.02	LINE	5. Item 5: Select the server in the console, revie
+t2	1	203.41	212.42	108.02	LINE	Next to continue with the setup of the component t
+t2	1	219.49	228.50	90.02	LINE	6. Item 6: Select the server in the console, revie
+t2	1	232.45	241.46	108.02	LINE	Next to continue with the setup of the component t
+t2	1	248.44	257.45	90.02	LINE	7. Item 7: Click Next.
+t2	1	272.08	281.09	126.02	LABEL	Note
+t2	1	286.24	295.25	126.02	NOTETEXT	NOTE-TEXT 7: Installation requires that the restri
+t2	1	300.28	309.29	126.02	LINE	this, select the web server in the manager and the
+t2	1	316.48	325.49	90.02	LINE	8. Item 8: Select the server in the console, revie
+t2	1	329.44	338.45	108.02	LINE	Next to continue with the setup of the component t
+t2	1	345.52	354.53	90.02	LINE	9. Item 9: Click Next.
+t2	1	361.48	370.49	90.02	LINE	10. Item 10: Select the server in the console, rev
+t2	1	374.44	383.45	108.02	LINE	Next to continue with the setup of the component t
+t2	1	390.52	399.53	90.02	LINE	11. Item 11: Click Next.
+t2	1	406.50	415.51	90.02	LINE	12. Item 12: Select the server in the console, rev
+t2	1	419.46	428.47	108.02	LINE	Next to continue with the setup of the component t
+t2	1	435.54	444.55	90.02	LINE	13. Item 13: Click Next.
+t2	1	451.50	460.51	90.02	LINE	14. Item 14: Select the server in the console, rev
+t2	1	464.46	473.47	108.02	LINE	Next to continue with the setup of the component t
+t2	1	480.54	489.55	90.02	LINE	15. Item 15: Select the server in the console, rev
+t2	1	493.50	502.51	108.02	LINE	Next to continue with the setup of the component t
+t2	1	509.46	518.47	90.02	LINE	16. Item 16: Select the server in the console, rev
+t2	1	522.54	531.55	108.02	LINE	Next to continue with the setup of the component t
+t2	1	538.50	547.51	90.02	LINE	17. Item 17: Click Next.
+t2	1	562.02	571.03	126.02	LABEL	Note
+t2	1	576.33	585.34	126.02	NOTETEXT	NOTE-TEXT 17: Installation requires that the restr
+t2	1	590.37	599.38	126.02	LINE	this, select the web server in the manager and the
+t2	1	606.57	615.58	90.02	LINE	18. Item 18: Select the server in the console, rev
+t2	1	619.53	628.54	108.02	LINE	Next to continue with the setup of the component t
+t2	1	635.49	644.50	90.02	LINE	19. Item 19: Click Next.
+t2	1	651.57	660.58	90.02	LINE	20. Item 20: Select the server in the console, rev
+t2	1	664.53	673.54	108.02	LINE	Next to continue with the setup of the component t
+t2	1	680.49	689.50	90.02	LINE	21. Item 21: Click Next.
+t2	1	696.56	705.58	90.02	LINE	22. Item 22: Select the server in the console, rev
+t2	1	714.90	722.98	517.06	LINE	1
+t2	2	97.45	106.46	108.02	LINE	Next to continue with the setup of the component t
+t2	2	113.41	122.42	90.02	LINE	23. Item 23: Click Next.
+t2	2	129.49	138.50	90.02	LINE	24. Item 24: Select the server in the console, rev
+t2	2	142.45	151.46	108.02	LINE	Next to continue with the setup of the component t
+t2	2	158.41	167.42	90.02	LINE	25. Item 25: Select the server in the console, rev
+t2	2	171.49	180.50	108.02	LINE	Next to continue with the setup of the component t
+t2	2	187.45	196.46	90.02	LINE	26. Item 26: Select the server in the console, rev
+t2	2	200.41	209.42	108.02	LINE	Next to continue with the setup of the component t
+t2	2	216.49	225.50	90.02	LINE	27. Item 27: Click Next.
+t2	2	232.45	241.46	90.02	LINE	28. Item 28: Select the server in the console, rev
+t2	2	245.44	254.45	108.02	LINE	Next to continue with the setup of the component t
+t2	2	261.52	270.53	90.02	LINE	29. Item 29: Click Next.
+t2	2	285.04	294.05	126.02	LABEL	Note
+t2	2	299.32	308.33	126.02	NOTETEXT	NOTE-TEXT 29: Installation requires that the restr
+t2	2	313.36	322.37	126.02	LINE	this, select the web server in the manager and the
+t2	2	329.44	338.45	90.02	LINE	30. Item 30: Select the server in the console, rev
+t2	2	342.52	351.53	108.02	LINE	Next to continue with the setup of the component t
+t2	2	358.48	367.49	90.02	LINE	31. Item 31: Click Next.
+t2	2	374.44	383.45	90.02	LINE	32. Item 32: Select the server in the console, rev
+t2	2	387.52	396.53	108.02	LINE	Next to continue with the setup of the component t
+t2	2	403.48	412.49	90.02	LINE	33. Item 33: Click Next.
+t2	2	419.46	428.47	90.02	LINE	34. Item 34: Select the server in the console, rev
+t2	2	432.54	441.55	108.02	LINE	Next to continue with the setup of the component t
+t2	2	448.50	457.51	90.02	LINE	35. Item 35: Select the server in the console, rev
+t2	2	461.46	470.47	108.02	LINE	Next to continue with the setup of the component t
+t2	2	477.54	486.55	90.02	LINE	36. Item 36: Select the server in the console, rev
+t2	2	490.50	499.51	108.02	LINE	Next to continue with the setup of the component t
+t2	2	506.46	515.47	90.02	LINE	37. Item 37: Click Next.
+t2	2	522.54	531.55	90.02	LINE	38. Item 38: Select the server in the console, rev
+t2	2	535.50	544.51	108.02	LINE	Next to continue with the setup of the component t
+t2	2	559.02	568.03	126.02	LABEL	Note
+t2	2	573.33	582.34	126.02	NOTETEXT	NOTE-TEXT 38: Installation requires that the restr
+t2	2	587.37	596.38	126.02	LINE	this, select the web server in the manager and the
+t2	2	603.57	612.58	90.02	LINE	39. Item 39: Click Next.
+t2	2	619.53	628.54	90.02	LINE	40. Item 40: Select the server in the console, rev
+t2	2	632.49	641.50	108.02	LINE	Next to continue with the setup of the component t
+t2	2	648.57	657.58	90.02	LINE	41. Item 41: Click Next.
+t2	2	664.53	673.54	90.02	LINE	42. Item 42: Select the server in the console, rev
+t2	2	677.49	686.50	108.02	LINE	Next to continue with the setup of the component t
+t2	2	693.56	702.58	90.02	LINE	43. Item 43: Click Next.
+t2	2	714.90	722.98	517.06	LINE	2
+t2	3	97.45	106.46	90.02	LINE	44. Item 44: Select the server in the console, rev
+t2	3	110.41	119.42	108.02	LINE	Next to continue with the setup of the component t
+t2	3	126.49	135.50	90.02	LINE	45. Item 45: Select the server in the console, rev
+t2	3	139.45	148.46	108.02	LINE	Next to continue with the setup of the component t
+t2	3	155.41	164.42	90.02	LINE	46. Item 46: Select the server in the console, rev
+t2	3	168.49	177.50	108.02	LINE	Next to continue with the setup of the component t
+t2	3	184.45	193.46	90.02	LINE	47. Item 47: Click Next.
+t2	3	200.41	209.42	90.02	LINE	48. Item 48: Select the server in the console, rev
+t2	3	213.49	222.50	108.02	LINE	Next to continue with the setup of the component t
+t2	3	229.45	238.46	90.02	LINE	49. Item 49: Click Next.
+t2	3	245.44	254.45	90.02	LINE	50. Item 50: Select the server in the console, rev
+t2	3	258.52	267.53	108.02	LINE	Next to continue with the setup of the component t
+t2	3	274.48	283.49	90.02	LINE	51. Item 51: Click Next.
+t2	3	290.44	299.45	90.02	LINE	52. Item 52: Select the server in the console, rev
+t2	3	303.52	312.53	108.02	LINE	Next to continue with the setup of the component t
+t2	3	319.48	328.49	90.02	LINE	53. Item 53: Click Next.
+t2	3	343.00	352.01	126.02	LABEL	Note
+t2	3	357.28	366.29	126.02	NOTETEXT	NOTE-TEXT 53: Installation requires that the restr
+t2	3	371.32	380.33	126.02	LINE	this, select the web server in the manager and the
+t2	3	387.52	396.53	90.02	LINE	54. Item 54: Select the server in the console, rev
+t2	3	400.48	409.49	108.02	LINE	Next to continue with the setup of the component t
+t2	3	416.46	425.47	90.02	LINE	55. Item 55: Select the server in the console, rev
+t2	3	429.54	438.55	108.02	LINE	Next to continue with the setup of the component t
+t2	3	445.50	454.51	90.02	LINE	56. Item 56: Select the server in the console, rev
+t2	3	458.46	467.47	108.02	LINE	Next to continue with the setup of the component t
+t2	3	474.54	483.55	90.02	LINE	57. Item 57: Click Next.
+t2	3	490.50	499.51	90.02	LINE	58. Item 58: Select the server in the console, rev
+t2	3	503.46	512.47	108.02	LINE	Next to continue with the setup of the component t
+t2	3	519.54	528.55	90.02	LINE	59. Item 59: Click Next.
+t2	3	535.50	544.51	90.02	LINE	60. Item 60: Select the server in the console, rev
+t2	3	548.46	557.47	108.02	LINE	Next to continue with the setup of the component t
+t2	3	564.54	573.55	90.02	LINE	61. Item 61: Click Next.
+t2	3	580.53	589.54	90.02	LINE	62. Item 62: Select the server in the console, rev
+t2	3	593.49	602.50	108.02	LINE	Next to continue with the setup of the component t
+t2	3	609.57	618.58	90.02	LINE	63. Item 63: Click Next.
+t2	3	633.09	642.10	126.02	LABEL	Note
+t2	3	647.37	656.38	126.02	NOTETEXT	NOTE-TEXT 63: Installation requires that the restr
+t2	3	661.41	670.42	126.02	LINE	this, select the web server in the manager and the
+t2	3	677.49	686.50	90.02	LINE	64. Item 64: Select the server in the console, rev
+t2	3	690.56	699.58	108.02	LINE	Next to continue with the setup of the component t
+t2	3	714.90	722.98	517.06	LINE	3
+t2	4	97.45	106.46	90.02	LINE	65. Item 65: Select the server in the console, rev
+t2	4	110.41	119.42	108.02	LINE	Next to continue with the setup of the component t
+t2	4	126.49	135.50	90.02	LINE	66. Item 66: Select the server in the console, rev
+t2	4	139.45	148.46	108.02	LINE	Next to continue with the setup of the component t
+t2	4	155.41	164.42	90.02	LINE	67. Item 67: Click Next.
+t2	4	171.49	180.50	90.02	LINE	68. Item 68: Select the server in the console, rev
+t2	4	184.45	193.46	108.02	LINE	Next to continue with the setup of the component t
+t2	4	200.41	209.42	90.02	LINE	69. Item 69: Click Next.
+t2	4	216.49	225.50	90.02	LINE	70. Item 70: Select the server in the console, rev
+t2	4	229.45	238.46	108.02	LINE	Next to continue with the setup of the component t
+t2	4	714.90	722.98	517.06	LINE	4
+t3	1	100.45	109.46	90.02	LINE	1. Item 1: Click Next.
+t3	1	116.41	125.42	90.02	LINE	2. Item 2: Select the server in the console, revie
+t3	1	129.49	138.50	108.02	LINE	Next to continue with the setup of the component t
+t3	1	145.45	154.46	90.02	LINE	3. Item 3: Click Next.
+t3	1	161.41	170.42	90.02	LINE	4. Item 4: Select the server in the console, revie
+t3	1	174.49	183.50	108.02	LINE	Next to continue with the setup of the component t
+t3	1	190.45	199.46	90.02	LINE	5. Item 5: Select the server in the console, revie
+t3	1	203.41	212.42	108.02	LINE	Next to continue with the setup of the component t
+t3	1	219.49	228.50	90.02	LINE	6. Item 6: Select the server in the console, revie
+t3	1	232.45	241.46	108.02	LINE	Next to continue with the setup of the component t
+t3	1	248.44	257.45	90.02	LINE	7. Item 7: Click Next.
+t3	1	264.52	273.53	90.02	LINE	8. Item 8: Select the server in the console, revie
+t3	1	277.48	286.49	108.02	LINE	Next to continue with the setup of the component t
+t3	1	293.44	302.45	90.02	LINE	9. Item 9: Click Next.
+t3	1	309.52	318.53	90.02	LINE	10. Item 10: Select the server in the console, rev
+t3	1	322.48	331.49	108.02	LINE	Next to continue with the setup of the component t
+t3	1	346.00	355.01	126.02	LABEL	Note
+t3	1	360.28	369.29	126.02	NOTETEXT	NOTE-TEXT 10: Installation requires that the restr
+t3	1	374.32	383.33	126.02	LINE	this, select the web server in the manager and the
+t3	1	390.52	399.53	90.02	LINE	11. Item 11: Click Next.
+t3	1	406.50	415.51	90.02	LINE	12. Item 12: Select the server in the console, rev
+t3	1	419.46	428.47	108.02	LINE	Next to continue with the setup of the component t
+t3	1	435.54	444.55	90.02	LINE	13. Item 13: Click Next.
+t3	1	451.50	460.51	90.02	LINE	14. Item 14: Select the server in the console, rev
+t3	1	464.46	473.47	108.02	LINE	Next to continue with the setup of the component t
+t3	1	480.54	489.55	90.02	LINE	15. Item 15: Select the server in the console, rev
+t3	1	493.50	502.51	108.02	LINE	Next to continue with the setup of the component t
+t3	1	509.46	518.47	90.02	LINE	16. Item 16: Select the server in the console, rev
+t3	1	522.54	531.55	108.02	LINE	Next to continue with the setup of the component t
+t3	1	538.50	547.51	90.02	LINE	17. Item 17: Click Next.
+t3	1	554.46	563.47	90.02	LINE	18. Item 18: Select the server in the console, rev
+t3	1	567.54	576.55	108.02	LINE	Next to continue with the setup of the component t
+t3	1	583.53	592.54	90.02	LINE	19. Item 19: Click Next.
+t3	1	599.49	608.50	90.02	LINE	20. Item 20: Select the server in the console, rev
+t3	1	612.57	621.58	108.02	LINE	Next to continue with the setup of the component t
+t3	1	628.53	637.54	90.02	LINE	21. Item 21: Click Next.
+t3	1	652.05	661.06	126.02	LABEL	Note
+t3	1	666.33	675.34	126.02	NOTETEXT	NOTE-TEXT 21: Installation requires that the restr
+t3	1	680.37	689.38	126.02	LINE	this, select the web server in the manager and the
+t3	1	696.56	705.58	90.02	LINE	22. Item 22: Select the server in the console, rev
+t3	1	714.90	722.98	517.06	LINE	1
+t3	2	97.45	106.46	108.02	LINE	Next to continue with the setup of the component t
+t3	2	113.41	122.42	90.02	LINE	23. Item 23: Click Next.
+t3	2	129.49	138.50	90.02	LINE	24. Item 24: Select the server in the console, rev
+t3	2	142.45	151.46	108.02	LINE	Next to continue with the setup of the component t
+t3	2	158.41	167.42	90.02	LINE	25. Item 25: Select the server in the console, rev
+t3	2	171.49	180.50	108.02	LINE	Next to continue with the setup of the component t
+t3	2	187.45	196.46	90.02	LINE	26. Item 26: Select the server in the console, rev
+t3	2	200.41	209.42	108.02	LINE	Next to continue with the setup of the component t
+t3	2	216.49	225.50	90.02	LINE	27. Item 27: Click Next.
+t3	2	232.45	241.46	90.02	LINE	28. Item 28: Select the server in the console, rev
+t3	2	245.44	254.45	108.02	LINE	Next to continue with the setup of the component t
+t3	2	261.52	270.53	90.02	LINE	29. Item 29: Click Next.
+t3	2	277.48	286.49	90.02	LINE	30. Item 30: Select the server in the console, rev
+t3	2	290.44	299.45	108.02	LINE	Next to continue with the setup of the component t
+t3	2	306.52	315.53	90.02	LINE	31. Item 31: Click Next.
+t3	2	330.04	339.05	126.02	LABEL	Note
+t3	2	344.32	353.33	126.02	NOTETEXT	NOTE-TEXT 31: Installation requires that the restr
+t3	2	358.36	367.37	126.02	LINE	this, select the web server in the manager and the
+t3	2	374.44	383.45	90.02	LINE	32. Item 32: Select the server in the console, rev
+t3	2	387.52	396.53	108.02	LINE	Next to continue with the setup of the component t
+t3	2	403.48	412.49	90.02	LINE	33. Item 33: Click Next.
+t3	2	419.46	428.47	90.02	LINE	34. Item 34: Select the server in the console, rev
+t3	2	432.54	441.55	108.02	LINE	Next to continue with the setup of the component t
+t3	2	448.50	457.51	90.02	LINE	35. Item 35: Select the server in the console, rev
+t3	2	461.46	470.47	108.02	LINE	Next to continue with the setup of the component t
+t3	2	477.54	486.55	90.02	LINE	36. Item 36: Select the server in the console, rev
+t3	2	490.50	499.51	108.02	LINE	Next to continue with the setup of the component t
+t3	2	506.46	515.47	90.02	LINE	37. Item 37: Click Next.
+t3	2	522.54	531.55	90.02	LINE	38. Item 38: Select the server in the console, rev
+t3	2	535.50	544.51	108.02	LINE	Next to continue with the setup of the component t
+t3	2	551.46	560.47	90.02	LINE	39. Item 39: Click Next.
+t3	2	567.54	576.55	90.02	LINE	40. Item 40: Select the server in the console, rev
+t3	2	580.53	589.54	108.02	LINE	Next to continue with the setup of the component t
+t3	2	596.49	605.50	90.02	LINE	41. Item 41: Click Next.
+t3	2	612.57	621.58	90.02	LINE	42. Item 42: Select the server in the console, rev
+t3	2	625.53	634.54	108.02	LINE	Next to continue with the setup of the component t
+t3	2	641.49	650.50	90.02	LINE	43. Item 43: Click Next.
+t3	2	665.13	674.14	126.02	LABEL	Note
+t3	2	679.29	688.30	126.02	NOTETEXT	NOTE-TEXT 43: Installation requires that the restr
+t3	2	693.32	702.34	126.02	LINE	this, select the web server in the manager and the
+t3	2	714.90	722.98	517.06	LINE	2
+t3	3	97.45	106.46	90.02	LINE	44. Item 44: Select the server in the console, rev
+t3	3	110.41	119.42	108.02	LINE	Next to continue with the setup of the component t
+t3	3	126.49	135.50	90.02	LINE	45. Item 45: Select the server in the console, rev
+t3	3	139.45	148.46	108.02	LINE	Next to continue with the setup of the component t
+t3	3	155.41	164.42	90.02	LINE	46. Item 46: Select the server in the console, rev
+t3	3	168.49	177.50	108.02	LINE	Next to continue with the setup of the component t
+t3	3	184.45	193.46	90.02	LINE	47. Item 47: Click Next.
+t3	3	200.41	209.42	90.02	LINE	48. Item 48: Select the server in the console, rev
+t3	3	213.49	222.50	108.02	LINE	Next to continue with the setup of the component t
+t3	3	229.45	238.46	90.02	LINE	49. Item 49: Click Next.
+t3	3	245.44	254.45	90.02	LINE	50. Item 50: Select the server in the console, rev
+t3	3	258.52	267.53	108.02	LINE	Next to continue with the setup of the component t
+t3	3	274.48	283.49	90.02	LINE	51. Item 51: Click Next.
+t3	3	290.44	299.45	90.02	LINE	52. Item 52: Select the server in the console, rev
+t3	3	303.52	312.53	108.02	LINE	Next to continue with the setup of the component t
+t3	3	319.48	328.49	90.02	LINE	53. Item 53: Click Next.
+t3	3	335.44	344.45	90.02	LINE	54. Item 54: Select the server in the console, rev
+t3	3	348.52	357.53	108.02	LINE	Next to continue with the setup of the component t
+t3	3	364.48	373.49	90.02	LINE	55. Item 55: Select the server in the console, rev
+t3	3	377.44	386.45	108.02	LINE	Next to continue with the setup of the component t
+t3	3	393.52	402.53	90.02	LINE	56. Item 56: Select the server in the console, rev
+t3	3	406.50	415.51	108.02	LINE	Next to continue with the setup of the component t
+t3	3	422.46	431.47	90.02	LINE	57. Item 57: Click Next.
+t3	3	446.10	455.11	126.02	LABEL	Note
+t3	3	460.26	469.27	126.02	NOTETEXT	NOTE-TEXT 57: Installation requires that the restr
+t3	3	474.30	483.31	126.02	LINE	this, select the web server in the manager and the
+t3	3	490.50	499.51	90.02	LINE	58. Item 58: Select the server in the console, rev
+t3	3	503.46	512.47	108.02	LINE	Next to continue with the setup of the component t
+t3	3	519.54	528.55	90.02	LINE	59. Item 59: Click Next.
+t3	3	535.50	544.51	90.02	LINE	60. Item 60: Select the server in the console, rev
+t3	3	548.46	557.47	108.02	LINE	Next to continue with the setup of the component t
+t3	3	564.54	573.55	90.02	LINE	61. Item 61: Click Next.
+t3	3	580.53	589.54	90.02	LINE	62. Item 62: Select the server in the console, rev
+t3	3	593.49	602.50	108.02	LINE	Next to continue with the setup of the component t
+t3	3	609.57	618.58	90.02	LINE	63. Item 63: Click Next.
+t3	3	625.53	634.54	90.02	LINE	64. Item 64: Select the server in the console, rev
+t3	3	638.49	647.50	108.02	LINE	Next to continue with the setup of the component t
+t3	3	654.57	663.58	90.02	LINE	65. Item 65: Select the server in the console, rev
+t3	3	667.53	676.54	108.02	LINE	Next to continue with the setup of the component t
+t3	3	683.48	692.50	90.02	LINE	66. Item 66: Select the server in the console, rev
+t3	3	714.90	722.98	517.06	LINE	3
+t3	4	97.45	106.46	108.02	LINE	Next to continue with the setup of the component t
+t3	4	113.41	122.42	90.02	LINE	67. Item 67: Click Next.
+t3	4	137.05	146.06	126.02	LABEL	Note
+t3	4	151.21	160.22	126.02	NOTETEXT	NOTE-TEXT 67: Installation requires that the restr
+t3	4	165.25	174.26	126.02	LINE	this, select the web server in the manager and the
+t3	4	181.45	190.46	90.02	LINE	68. Item 68: Select the server in the console, rev
+t3	4	194.41	203.42	108.02	LINE	Next to continue with the setup of the component t
+t3	4	210.49	219.50	90.02	LINE	69. Item 69: Click Next.
+t3	4	226.45	235.46	90.02	LINE	70. Item 70: Select the server in the console, rev
+t3	4	239.44	248.45	108.02	LINE	Next to continue with the setup of the component t
+t3	4	714.90	722.98	517.06	LINE	4

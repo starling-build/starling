@@ -1,4 +1,0 @@
-label fs4k2ours
-terminal_pid 3705756
-terminal_comm TerminalApp
-grid 126x478

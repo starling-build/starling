@@ -1,0 +1,55 @@
+## b3a-orig.pdf page width 612.0
+T	54.6	150.4	160.5	9.1	LINE 1 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	165.4	175.5	9.1	LINE 2 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	180.4	190.5	9.1	Start. FMT-ONE stretchPlain1 Unchanged words between the stretches so that it wraps over a few
+B	436.9	180.8	189.6	6.8	Deleted: DELETED-TEXT one two three
+T	54.6	190.9	200.9	9.1	lines of the page. FMT-TWO stretchPlain2 Unchanged words between the stretches so that it wraps
+B	437.0	193.8	202.6	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	201.3	211.4	9.1	over a few lines of the page. FMT-THREE stretch end of paragraph.
+B	437.0	207.0	215.8	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	216.4	226.4	9.1	LINE 3 plain text before or after the test paragraph, ordinary Times New Roman.
+B	437.0	220.2	229.0	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	231.4	241.5	9.1	LINE 4 plain text before or after the test paragraph, ordinary Times New Roman.
+## b3b-orig.pdf page width 612.0
+T	54.6	150.4	160.5	9.1	LINE 1 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	165.4	175.5	9.1	LINE 2 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	180.4	190.5	9.1	Start. FMT-ONE FMT-TWO FMT-THREE end of paragraph.  Unchanged words between the stretches
+B	436.9	180.8	189.6	6.8	Deleted: DELETED-TEXT one two three
+T	54.6	190.9	200.9	9.1	so that it wraps over a few lines of the page.  Unchanged words between the stretches so that it
+B	437.0	193.8	202.6	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	201.3	211.4	9.1	wraps over a few lines of the page.
+T	54.6	216.4	226.4	9.1	LINE 3 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	231.4	241.5	9.1	LINE 4 plain text before or after the test paragraph, ordinary Times New Roman.
+## b3c-orig.pdf page width 612.0
+T	54.6	150.4	160.5	9.1	LINE 1 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	165.4	175.5	9.1	LINE 2 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	180.4	190.5	9.1	DELMARK-Start. FMT-ONE stretchPlain1 Unchanged words between the stretches so that it wraps
+B	436.9	180.8	189.6	6.8	Deleted: ¶
+T	54.6	190.9	200.9	9.1	over a few lines of the page. FMT-TWO stretchPlain2 Unchanged words between the stretches so
+B	436.9	192.8	201.6	6.8	Deleted: DELETED-TEXT one two three
+T	54.6	201.3	211.4	9.1	that it wraps over a few lines of the page. FMT-THREE stretch end of paragraph.
+B	437.0	205.8	214.6	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	216.4	226.4	9.1	DELMARK-LINE 3 plain text before or after the test paragraph, ordinary Times New Roman.
+B	437.0	219.0	227.8	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	231.4	241.5	9.1	LINE 4 plain text before or after the test paragraph, ordinary Times New Roman.
+B	437.0	232.2	241.0	6.8	Formatted: Font: (Default) Arial, 9 pt
+B	436.9	244.3	253.2	6.8	Deleted: ¶
+## b3d-orig.pdf page width 612.0
+T	54.6	150.4	160.5	9.1	LINE 1 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	165.4	175.5	9.1	LINE 2 plain text before or after the test paragraph, ordinary Times New Roman.
+T	54.6	180.4	190.5	9.1	P1 Start. FMT-ONE stretchPlain1 Unchanged words between the stretches so that it wraps over a
+B	436.9	180.8	189.6	6.8	Deleted: DELETED-TEXT one two three
+T	54.6	190.9	200.9	9.1	few lines of the page. FMT-TWO stretchPlain2 Unchanged words between the stretches so that it
+B	437.0	193.8	202.6	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	201.3	211.4	9.1	wraps over a few lines of the page. FMT-THREE stretch end of paragraph.
+B	437.0	207.0	215.8	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	216.4	226.4	9.1	P2 Start. FMT-ONE stretchPlain1 Unchanged words between the stretches so that it wraps over a
+B	437.0	220.2	229.0	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	226.8	236.9	9.1	few lines of the page. FMT-TWO stretchPlain2 Unchanged words between the stretches so that it
+B	436.9	232.3	241.1	6.8	Deleted: DELETED-TEXT one two three
+T	54.6	237.3	247.4	9.1	wraps over a few lines of the page. FMT-THREE stretch end of paragraph.
+B	437.0	245.4	254.2	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	252.3	262.4	9.1	LINE 3 plain text before or after the test paragraph, ordinary Times New Roman.
+B	437.0	258.5	267.3	6.8	Formatted: Font: (Default) Arial, 9 pt
+T	54.6	267.3	277.4	9.1	LINE 4 plain text before or after the test paragraph, ordinary Times New Roman.
+B	437.0	271.7	280.5	6.8	Formatted: Font: (Default) Arial, 9 pt

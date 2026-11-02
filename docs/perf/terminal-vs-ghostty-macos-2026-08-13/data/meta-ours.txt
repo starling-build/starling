@@ -1,4 +1,0 @@
-label ours
-terminal_pid 90310
-terminal_comm TerminalApp
-grid 47x201
