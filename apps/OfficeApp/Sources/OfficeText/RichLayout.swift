@@ -5687,6 +5687,22 @@ public final class RichLayout {
                 if _pages[page].contains(where: { $0.paragraph == first }), let down = ts.floatOffsetY {
                     y = max(_pages[page].map(\.pageY).min() ?? 0, top - _px(down))
                 }
+                // (A line the table hangs from, after a paragraph framed against the page whose top stands
+                // inside the first line's place and whose foot is over the table's top, stands 4.9pt under
+                // the frame's top, not at the margin: Word for Windows' labs b88 (lo-88b29958), the text
+                // paragraph's baseline 176.7 / 187.0 / 196.7 for frames at 75 / 85.25 / 95pt, and none for
+                // a frame above the margin (50), or one reaching the table (107.5).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, first > 0, _cells[first - 1] == nil, first - 1 < _heights.count,
+                   case let fp = document.paragraphs[first - 1], fp.cell == nil, let frame = fp.style.frame,
+                   frame.verticalAnchor == "page", frame.horizontalAnchor == "page", frame.verticalAlign == nil,
+                   _pages[page].contains(where: { $0.paragraph == first }) {
+                    let marginTop = _pxMarginTop(page)
+                    let frameTop = _px(frame.y) - marginTop
+                    if frameTop >= -0.01, frameTop < _heights[first] - 0.01 || frameTop < _px(47), frameTop + _heights[first - 1] <= top + 0.01 {
+                        RuleTrace.hit("word-line-after-a-page-framed-paragraph-stands-under-the-frames-top")
+                        y = max(y, frameTop + _px(4.9 + 5.35))
+                    }
+                }
                 // (An anchor beside a float that is raised stands one line under the
                 // line that float hangs from: its own table is 12.9pt under the
                 // first's top in Word's print of lo-e998b55c, not level with it.)
