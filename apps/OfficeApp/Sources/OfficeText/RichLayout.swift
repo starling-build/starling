@@ -304,11 +304,16 @@ public final class RichTextTheme {
         if naturalLinesPerFace, let family, let h = faceLineHeight?(family) { return h }
         let key = "\(family ?? "")|\(bold)|\(italic)"
         if let h = _naturalHeights[key] { return h }
-        let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 100, fontWeight: bold ? .bold : .normal,
+        // (Measured at a size where the engine's whole-pixel line height is
+        // exact to a few parts in a hundred thousand: at 100 it rounded
+        // Calibri's 1.2207 to 1.22, every line of every Calibri paragraph
+        // 0.06% short — 13.419 for 11pt where Word's is 13.428, and
+        // lo-db739416's 11th line fitted by 0.05pt where Word's does not.)
+        let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 10000, fontWeight: bold ? .bold : .normal,
                                                                             fontStyle: italic ? .italic : .normal, fontFamily: family)),
                                 textDirection: .ltr)
-        probe.layout(minWidth: 0, maxWidth: 1000)
-        let h = probe.height > 0 ? probe.height / 100 : 1.2
+        probe.layout(minWidth: 0, maxWidth: 100_000)
+        let h = probe.height > 0 ? probe.height / 10000 : 1.2
         probe.dispose()
         _naturalHeights[key] = h
         return h
