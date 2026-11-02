@@ -3203,7 +3203,17 @@ public final class RichLayout {
                     // over 18 rows; 100 above alone 0.01, 100 below alone
                     // 5.00. Its 15-twip margins had each row 0.75 short in
                     // ours, a line a page by page 9.)
+                    let before = rowHeight
                     rowHeight = exact ? _px(least) + hung + (theme.wordRules ? paddedBelow : 0) : max(rowHeight, _px(least) + around)
+                    // (A floating table's row that says it is taller than a page, with its
+                    // content in less, is cut at the page in Word's print: lo-a48482e7's
+                    // two 283pt rows are each one 166pt page, no second part follows.)
+                    let pageRoom = _px(pageSetup(forPage: 0).height - pageSetup(forPage: 0).marginTop - pageSetup(forPage: 0).marginBottom)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !exact, document.tableStyles[table]?.keptPosition != nil,
+                       rowHeight > pageRoom + 0.01, before <= pageRoom + 0.01 {
+                        RuleTrace.hit("word-floating-row-taller-than-a-page-is-cut-at-the-page")
+                        rowHeight = pageRoom - max(below, _px(0.5))
+                    }
                 }
                 rowHeight += ruleAbove + ruleBelow
                 rules.append((ruleAbove, ruleBelow))
