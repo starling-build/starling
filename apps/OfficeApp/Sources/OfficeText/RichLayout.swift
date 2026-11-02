@@ -5816,7 +5816,7 @@ public final class RichLayout {
                         // tdf87460 and floattable-negative-height, tblpY 1 and 9
                         // twips, stand under the line.)
                         y = max(y, before.pageY + _px(down))
-                    } else if !Self._followsFloatingTable(i, c.table, document: document, cells: _cells) {
+                    } else {
                         y += _px(down)
                     }
                 }
