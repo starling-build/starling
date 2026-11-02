@@ -10192,7 +10192,7 @@ public final class RichLayout {
             RuleTrace.hit("suppress-top-spacing-raises-the-page-first-exact-line")
             topRaise = _px(0.8 * (h - 12))
         }
-        let before = (theme.wordRules ? (cellBreakLead ? 0 : spacing.before) + bTop : (spacing.before + bTop).rounded()) + _px(frameGap) - topRaise
+        let before = (theme.wordRules ? (cellBreakLead ? 0 : spacing.before) + bTop : (spacing.before + bTop).rounded()) + _px(frameGap) - topRaise + _sectionEndnotesHeight(before: i, document)
         let after = spacing.after + bBottom
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
@@ -19217,6 +19217,38 @@ public final class RichLayout {
         return made
     }
 
+    /// The paragraphs of the section that ends just before paragraph `i` (its last paragraph and those above it in
+    /// the section), or nil where `i` does not begin a section.
+    private func _sectionEndingBefore(_ i: Int) -> Range<Int>? {
+        guard i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1] else { return nil }
+        var first = i - 1
+        while first > 0, first - 1 < _sectionOf.count, _sectionOf[first - 1] == _sectionOf[i - 1] { first -= 1 }
+        return first ..< i
+    }
+
+    /// The endnote ids whose marks are in `paragraphs`, in order.
+    private func _endnoteIDs(in paragraphs: Range<Int>, _ document: RichDocument) -> [Int] {
+        var out: [Int] = []
+        for k in paragraphs where k < document.paragraphs.count {
+            for run in document.paragraphs[k].runs {
+                if let n = run.style.note, n.kind == .endnote, document.endnotes[n.id] != nil, !out.contains(n.id) { out.append(n.id) }
+            }
+        }
+        return out
+    }
+
+    /// Endnotes at a section's end take their room in the flow, under its last paragraph: the separator and the
+    /// notes (Word for Windows, lo-99590fe5: the section's endnote stands between "Second section" and "Third
+    /// section", which moves down by it).
+    private func _sectionEndnotesHeight(before i: Int, _ document: RichDocument) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.endnotesAtSectionEnd, let range = _sectionEndingBefore(i) else { return 0 }
+        let ids = _endnoteIDs(in: range, document)
+        guard !ids.isEmpty else { return 0 }
+        let width = _px(_setup(ofParagraph: i - 1).contentWidth)
+        let notes = ids.compactMap { _endnote($0, width: width, document) }
+        return notes.reduce(0.0) { $0 + $1.height } + (_endnote(-1, width: width, document)?.height ?? 0)
+    }
+
     /// The endnotes in the order their marks come in the body.
     private func _endnoteOrder(_ document: RichDocument) -> [Int] {
         guard !document.endnotes.isEmpty else { return [] }
@@ -20570,6 +20602,44 @@ public final class RichLayout {
     /// where they fit on that page: notes that run on to pages of their
     /// own are not set.)
     private func _paintEndnotes(_ canvas: any Canvas, _ document: RichDocument, pages: ClosedRange<Int>) {
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.endnotesAtSectionEnd, isPaged, pageSetup != nil, !document.endnotes.isEmpty, !_sectionOf.isEmpty {
+            // (At each section's end, under its last paragraph's last piece.)
+            var ends: [Int] = []
+            for k in 1 ..< max(1, min(count, _sectionOf.count)) where _sectionOf[k] != _sectionOf[k - 1] { ends.append(k) }
+            ends.append(min(count, _sectionOf.count))
+            for e in ends {
+                let range: Range<Int> = {
+                    var first = e - 1
+                    while first > 0, _sectionOf[first - 1] == _sectionOf[e - 1] { first -= 1 }
+                    return first ..< e
+                }()
+                let ids = _endnoteIDs(in: range, document)
+                guard !ids.isEmpty, let slot = _pages.indices.last(where: { k in _pages[k].contains { $0.paragraph == e - 1 } }),
+                      let piece = _pages[slot].last(where: { $0.paragraph == e - 1 }) else { continue }
+                let p = slot / max(1, _columns)
+                guard pages.contains(p) else { continue }
+                let setup = pageSetup(forPage: p)
+                let width = _px(setup.contentWidth)
+                let notes = ids.compactMap { _endnote($0, width: width, document) }
+                guard !notes.isEmpty else { continue }
+                var top = pageRect(p).top + _pxMarginTop(p) + piece.pageY + piece.height
+                let left = pageRect(p).left + _pxMarginLeft(p)
+                if let separator = _endnote(-1, width: width, document) {
+                    let line = Paint()
+                    line.color = theme.textColor
+                    canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+                    top += separator.height
+                }
+                for note in notes {
+                    canvas.save()
+                    canvas.translate(left, top)
+                    note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document, selection: nil, caret: nil)
+                    canvas.restore()
+                    top += note.height
+                }
+            }
+            return
+        }
         guard theme.wordRules, isPaged, pageSetup != nil, let last = document.paragraphs.indices.last, last < count else { return }
         let ids = _endnoteOrder(document)
         guard !ids.isEmpty else { return }

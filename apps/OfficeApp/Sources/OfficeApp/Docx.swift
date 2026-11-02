@@ -2986,6 +2986,7 @@ enum DocxFormat {
         document.footnoteSeparator = footnoteSeparator
         document.endnotes = endnoteParagraphs
         document.endnoteSeparator = endnoteSeparator
+        document.endnotesAtSectionEnd = part("word/settings.xml").flatMap(XNode.parse)?.first("w:endnotePr")?.first("w:pos")?["w:val"] == "sectEnd"
         document.tableColumns = tableColumns
         document.tableStyles = tableStyles
         document.styles = sheet
