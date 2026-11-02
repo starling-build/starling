@@ -41,6 +41,10 @@ export function createFontLoader(entries, { register, registerFile, changed, sta
       scripts.get(script).push(entry);
     }
   }
+  // Entries asked for, synchronously, by name or by script: a script's fallback
+  // is only fetched when nothing of that script is wanted already (a document
+  // that names 宋体 has the Serif collection, which has the characters).
+  const wanted = new Set();
   const files = new Map(), pending = new Map(), loaded = new Set(), failed = new Map(), retries = new Map();
   const report = () => status({ pending: [...pending.keys()], failed: [...failed.keys()] });
 
@@ -59,6 +63,7 @@ export function createFontLoader(entries, { register, registerFile, changed, sta
 
   function run(key, group) {
     if (!group?.length || loaded.has(key)) return Promise.resolve();
+    for (const entry of group) wanted.add(entry);
     if (pending.has(key)) return pending.get(key);
     retries.set(key, () => run(key, group));
     // Defer work to a microtask: the request can originate inside Swift layout.
@@ -79,8 +84,14 @@ export function createFontLoader(entries, { register, registerFile, changed, sta
 
   const load = family => { const key = family.toLowerCase(); return run(key, families.get(key)); };
   // Every file that is the fallback for `script` (Regular; Bold when asked).
-  const loadScript = (script, { bold = false } = {}) =>
-    run(`script:${script}${bold ? ':bold' : ''}`, (scripts.get(script) ?? []).filter(entry => bold ? entry.weight === 700 : entry.weight !== 700));
+  const loadScript = (script, { bold = false } = {}) => {
+    const all = scripts.get(script) ?? [];
+    const here = all.filter(entry => entry.weight === (bold ? 700 : 400));
+    // Regular: the fallback face (every face of a script outside the chain, such
+    // as Thai), unless a face of this script is wanted already.
+    const group = bold ? here : here.some(entry => wanted.has(entry)) ? [] : (here.some(entry => entry.fallback && entry.order > 0) ? here.filter(entry => entry.fallback && entry.order > 0) : here);
+    return run(`script:${script}${bold ? ':bold' : ''}`, group);
+  };
   // The glyph-fallback chain, as family names in table order — declared to the
   // app at start-up whether or not the files are loaded, so which face wins for
   // a character never depends on which download finished first.

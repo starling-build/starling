@@ -111,3 +111,18 @@ test('the fallback chain is table order, not arrival order, and leaves out order
   assert.deepEqual(loader.fallbackChain(), ['Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Sans Arabic']);
   assert.ok(loader.hasScript('arabic') && !loader.hasScript('thai'));
 });
+
+test('a script asks for its fallback face only when no face of it is wanted already', async () => {
+  const both = [
+    { url: 'sans.ttc', lazy: true, weight: 400, scripts: ['cjk-sc'], fallback: true, order: 1, faces: [{ index: 2, family: 'Sans SC' }] },
+    { url: 'serif.ttc', lazy: true, weight: 400, scripts: ['cjk-sc'], fallback: false, order: 0, faces: [{ index: 2, family: 'Serif SC' }] },
+  ];
+  for (const [first, expected] of [['family', ['serif.ttc']], ['script', ['sans.ttc']]]) {
+    const fetched = [];
+    const loader = createFontLoader(both, { fetchBytes: async url => { fetched.push(url); return new Uint8Array([1]); }, register() {}, changed() {} });
+    if (first === 'family') loader.request('Serif SC');
+    loader.requestScript('cjk-sc');
+    await new Promise(resolve => setTimeout(resolve, 5));
+    assert.deepEqual(fetched, expected, first);
+  }
+});
