@@ -3269,7 +3269,41 @@ enum DocxFormat {
         }
         var core: XNode??
         var glossary: XNode??
+        // A TITLE field shows the document's title property, empty where the file has none, whatever it cached: Word
+        // updates the fields of a header and footer as it prints. lo-06933f8e's footer cached "Getting Started with
+        // LibreOffice 5.0" over a core.xml with no title, and Word's print has "2 | " alone.
+        func titleFields(_ p: XNode) {
+            var state = 0   // 0 outside, 1 in the instruction, 2 in the result
+            var instr = ""
+            var results: [XNode] = []
+            for r in p.children where r.name == "w:r" {
+                for c in r.children {
+                    if c.name == "w:fldChar" {
+                        switch c["w:fldCharType"] {
+                        case "begin": state = 1; instr = ""; results = []
+                        case "separate": state = 2
+                        case "end":
+                            if state == 2, instr.trimmingWhitespace(newlines: true).uppercased() == "TITLE" {
+                                if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
+                                if let props = core ?? nil {
+                                    let title = (props.children.first { $0.name.hasSuffix(":title") }?.text ?? "").trimmingWhitespace(newlines: true)
+                                    if let first = results.first, first.text != title {
+                                        RuleTrace.hit("title-field-shows-the-title-property")
+                                        first.text = title
+                                        for t in results.dropFirst() { t.text = "" }
+                                    }
+                                }
+                            }
+                            state = 0
+                        default: break
+                        }
+                    } else if c.name == "w:instrText", state == 1 { instr += c.text }
+                    else if c.name == "w:t", state == 2 { results.append(c) }
+                }
+            }
+        }
         func walk(_ node: XNode) {
+            if node.name == "w:p" { titleFields(node) }
             if node.name == "w:sdt", let pr = node.first("w:sdtPr"), let bind = pr.first("w:dataBinding"),
                bind["w:storeItemID"]?.uppercased() == "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}",
                let xpath = bind["w:xpath"], let last = xpath.split(separator: "/").last,
