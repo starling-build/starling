@@ -9586,7 +9586,7 @@ public final class RichLayout {
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
         let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, tieShort: tieShort,
-                                     lineIndents: besideLeftRoom != nil ? besideLineIndents : [])
+                                     lineIndents: besideLeftRoom != nil || _setup(ofParagraph: i).headerWrapLeft > 0 ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
