@@ -21251,6 +21251,16 @@ public final class RichLayout {
             x = d.colLeft + _px(float.x)
             y = d.rowTop + _px(float.y)
         }
+        // (An anchor in a cell set from the page down and from its column across
+        // is set down from the cell's top too: zh-3da9d7f2's red title, 8.45pt
+        // "down the page", stands there in Word's print under the table that
+        // floats 29pt down the text, where ours drew it on the page's top.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.verticalFrom == "page", float.horizontalFrom == "column",
+           float.verticalAlign == nil, !float.wraps, i < _cells.count, let d = _cells[i], !d.vertical,
+           image.name != "table", !float.leavesCell {
+            RuleTrace.hit("page-offset-down-of-an-anchor-in-a-cell-is-from-the-cell")
+            y = d.rowTop + _px(float.y)
+        }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
