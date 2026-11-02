@@ -21,7 +21,10 @@ chmod 700 "$RT"
 LOG="$RT/shell.log"
 DRIVE="$REPO/build/headless-drive.py"
 pid=""
-cleanup() { [ -n "$pid" ] && kill "$pid" 2>/dev/null; sleep 0.3; rm -rf "$RT"; }
+# The multi-desktop tool must only ever see the test's own desktops.
+export STARLING_STAGE="$ST" STARLING_HEADLESS_BASE="$RT/hd"
+export REPO_BUILD="$REPO/build"
+cleanup() { [ -n "$pid" ] && { python3 "$DRIVE" -s "$RT/starling-operator.sock" quit >/dev/null 2>&1; sleep 0.5; kill "$pid" 2>/dev/null; }; python3 "$REPO/build/headless-desktops.py" stop-all >/dev/null 2>&1; sleep 0.3; rm -rf "$RT"; }
 trap cleanup EXIT
 fail() { echo "FAIL: $*"; echo "--- shell log tail:"; tail -15 "$LOG"; exit 1; }
 
@@ -115,7 +118,28 @@ grep -q subscribed "$RT/events.out" || fail "event subscription never acknowledg
 d "launch settings" >/dev/null || fail "launch settings failed"
 d "waitwin settings open 15" "close settings" "waitwin settings gone 5" >/dev/null || fail "settings open/close failed"
 sleep 1.5; kill "$evpid" 2>/dev/null; wait "$evpid" 2>/dev/null
-grep -q '"event": "window_opened".*"app": "settings"\|"app": "settings".*"event": "window_opened"' "$RT/events.out" || { cat "$RT/events.out"; fail "no window_opened event for settings"; }
+grep -q '"event": "window_opened".*"app": "settings"\|"app": "settings".*"event": "window_opened"' "$RT/events.out" || { cat "$RT/events.out"; grep "watch:" "$LOG"; fail "no window_opened event for settings"; }
 grep -q '"event": "window_closed".*"app": "settings"\|"app": "settings".*"event": "window_closed"' "$RT/events.out" || fail "no window_closed event for settings"
 echo "  ok    events: window_opened and window_closed are pushed"
+# 8. density: four desktops side by side, each driven, then stopped with nothing left over
+HD="$REPO/build/headless-desktops.py"
+python3 "$HD" start-n 4 --size 1280x720 >/dev/null || fail "could not start 4 desktops"
+for n in 1 2 3 4; do
+    s="$(python3 "$HD" socket d$n)"
+    [ "$(stat -c %a "$s")" = 600 ] || fail "d$n socket is not 0600"
+    [ "$(stat -c %a "$(dirname "$s")")" = 700 ] || fail "d$n runtime dir is not 0700"
+    python3 "$DRIVE" -s "$s" "launch terminal" "waitwin terminal open 30" "sleep 2" "shot $RT/d$n.png" >/dev/null \
+        || fail "could not drive d$n"
+done
+cmp -s "$RT/d1.png" "$RT/d2.png" && echo "  note  d1 and d2 look identical (same scene, expected)"
+out="$(python3 "$HD" stop-all)"
+echo "$out" | grep -q straggler && fail "stop left stragglers: $out"
+python3 - "$RT/hd" <<'EOF2' || fail "processes survived stop-all"
+import importlib, os, sys
+sys.path.insert(0, os.path.join(os.environ["REPO_BUILD"]))
+hd = importlib.import_module("headless-desktops")
+left = [p for n in os.listdir(sys.argv[1]) for p in hd.members(os.path.join(sys.argv[1], n))]
+assert not left, left
+EOF2
+echo "  ok    four desktops: each driven, stopped cleanly, nothing left behind"
 echo "all headless checks passed"

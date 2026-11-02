@@ -651,8 +651,9 @@ final class OperatorControl: @unchecked Sendable {
             done(s)
 
         case "quit":
+            _shellState?.networkService.stop()   // its nmcli helper would outlive us
             done(["ok": true])
-            onMain(after: 0.1) { exit(0) }
+            onMain(after: 0.3) { exit(0) }
 
         default:
             fail("unknown op \(op)")

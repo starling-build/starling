@@ -109,6 +109,20 @@ None for the prototype. Wanted later:
   the biggest win: it makes every frame cheaper.
 - A frame-pacing hook, so idle animation can be throttled.
 
+## Several desktops
+
+`build/headless-desktops.py` starts each desktop as its own process in its own
+session, with its own runtime directory (0700) holding its own operator socket
+(0600, same-uid check as always). `stop` is a clean shutdown: ask the shell to
+quit over its socket, then SIGTERM, then SIGKILL the desktop's process group,
+then check that no process of ours still carries that runtime directory.
+
+That check found a real leak: the shell's `nmcli monitor` helper (network
+status) outlived every shell exit, one orphan per run, because it lives in its
+own process group and inherits an ignored SIGTERM. The monitor is now stopped
+synchronously with SIGKILL on quit. Shells that are killed by signal still
+leave one; stop them with `quit` (or `headless-desktops.py stop`).
+
 ## Plan
 
 1. Done: operator socket, driver, smoke test, measurements.
@@ -184,5 +198,6 @@ For agent control at density, **use Starling's headless mode**:
 | Drag-and-drop, file dialogs, IME | not started |
 | Event subscription (`subscribe`: window_opened / closed / focused / minimized / restored / title) | done (smoke-tested) |
 | Wait-for-condition: wait_window done; element-appears / text-matches waits | not started (needs the semantics tree) |
-| N-desktop orchestration, Python client, CLI | not started |
+| N-desktop orchestration (`build/headless-desktops.py`: start, start-n, list, socket, stop, stop-all; importable as a library) | done (4-desktop check in smoke test) |
+| Python client library for the socket | `headless-desktops.Desktop.call/drive`; a standalone package is still to do |
 | End-to-end suite under test/ | smoke test only |
