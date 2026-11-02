@@ -17047,9 +17047,12 @@ public final class RichLayout {
                     // zh-d746674a's "…編碼意義等。" is 1.6 over and takes it.)
                     var all = (marks + own).filter { (!kept || $0 != tail) && !(hang > 0 && over - hang > 60 && paragraphEnd && theme.wordRules && !legacy && document.marksCentred && (document.compatibilityMode ?? 12) >= 15 && $0 != tail && units[$0] == 0xFF1A) && !runLanguageNone($0) && !windowsMuted($0) && !afterTabSpace($0) && (!topOnly || leadOpeners[$0] != nil) }
                     // (A closing mark that opens the line is not squeezed when it is the only mark that could give:
-                    // zh-72da925e p8 sends "大" down in Word's print where ours took it 0.0014 short from the opening "，".
-                    // With another mark to give beside it, it gives too: zh-c15af02e's "，已違反…，應依" has both at 10.2.)
-                    if RichTextTheme.wordWindowsPages, over > 100, all.count == 1, closingOpeners.contains(all[0]) { all = [] }
+                    // zh-72da925e p8 sends "大" down in Word's print where ours took it 0.0014 short from the opening "，"
+                    // (8.5pt over; Word's "，" stands whole, 17.38). With another mark to give beside it, it gives too:
+                    // zh-c15af02e's "，已違反…，應依" has its opening "，" at 10.2 in Word's print. Under 2pt over, the line
+                    // fits as it stands in Word (zh-72da925e's "，主要係依據…24417號", 0.33pt over, "，" whole at 16.9): our
+                    // widths run a little long there, so the mark gives for the same break.)
+                    if RichTextTheme.wordWindowsPages, over > _px(2), all.count == 1, closingOpeners.contains(all[0]) { all = [] }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
