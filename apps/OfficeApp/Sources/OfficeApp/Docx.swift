@@ -4219,7 +4219,20 @@ enum DocxFormat {
                 let together = (n["w:firstLine"] != nil && n["w:firstLineChars"] != nil) || (n["w:hanging"] != nil && n["w:hangingChars"] != nil)
                 style.eastAsian["w:indentStored"] = together && direct ? "1" : nil
             }
-            for a in attrs { if let v = n[a], Int(v) != nil { style.eastAsian[a] = v } }
+            for a in attrs {
+                guard let v = n[a], Int(v) != nil else { continue }
+                // (A count of none, alone, over a first-line indent in twips that a style
+                // states without a count, takes nothing off it in Word for Windows:
+                // zh-60173bb6's numbered items, "w:firstLineChars=0" under Normal Indent's
+                // 556, start 27.8pt in.)
+                if DocxFormat.wordOnWindows, element == "w:ind", a == "w:firstLineChars", v == "0", n["w:firstLine"] == nil, n["w:hanging"] == nil,
+                   n["w:hangingChars"] == nil, style.eastAsian["w:firstLineChars"] == nil, style.eastAsian["w:hangingChars"] == nil,
+                   style.firstLineIndent > 0 {
+                    RuleTrace.hit("word-first-line-count-of-none-keeps-the-styles-twips")
+                    continue
+                }
+                style.eastAsian[a] = v
+            }
         }
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
         if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
@@ -4950,6 +4963,15 @@ enum DocxFormat {
                     if let ind = pPr.first("w:ind") {
                         if let v = Double(ind["w:hanging"] ?? "") { style.listFirstLine = -v / 20 }
                         else if let v = Double(ind["w:firstLine"] ?? "") { style.listFirstLine = v / 20 }
+                    }
+                    // (A level and a paragraph that state no first line, the
+                    // paragraph saying a count of none, leave the style's twips
+                    // in force: zh-60173bb6's "(2)" items start 27.8pt in.)
+                    if DocxFormat.wordOnWindows, style.listFirstLine == nil, style.firstLineIndent > 0,
+                       pPr.first("w:ind")?["w:firstLineChars"] == "0", pPr.first("w:ind")?["w:firstLine"] == nil,
+                       notes.listFormats[numId]?[ilvl]?.hanging == nil {
+                        RuleTrace.hit("word-list-item-keeps-the-styles-first-line")
+                        style.listFirstLine = style.firstLineIndent
                     }
                     // (Neither the paragraph nor its level giving a left,
                     // the item keeps its style's — Word takes each of the
