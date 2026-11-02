@@ -2934,7 +2934,9 @@ enum ChartPainter {
         // (A 3-D bar chart's axis has no headroom: zh-b8de3ae2's four, Word's
         // print, run 107,660 to 120,000, 410,306 to 450,000, 130.3M to 140M
         // and 383.3M to 400M — the last 450M with the 5% a flat chart takes.)
-        let acrossSteps: Int? = horizontal ? max(2, min(10, Int(area0.width / (3 * labelSize * k)))) : nil
+        // (In a Word document, four label heights a step, not three: lab `charts` — a bar chart's
+        // axis of L pt takes at most L/36 steps at 9pt — ten at 405pt, seven at 255, four at 158.)
+        let acrossSteps: Int? = horizontal ? max(2, min(10, Int(area0.width / ((c.onSlide || c.onSheet ? 3 : 4) * labelSize * k)))) : nil
         // (A short chart in a Word document keeps its ticks 15pt apart at least, as many steps as
         // its plot has room for: chart-in-footer's 41pt plot goes 0, 5, 10 and tdf82824's 64pt one
         // 0 to 40 by tens in Word's print, where ours ran 0 to 6 by ones and 0 to 35 by fives;
