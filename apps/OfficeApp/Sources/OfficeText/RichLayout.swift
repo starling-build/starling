@@ -12993,6 +12993,25 @@ public final class RichLayout {
                     probe.dispose()
                 }
             }
+            // (A number in a face of its own, at the text's size and taller above its baseline
+            // than the text: the first line stands as high as the number does, and no deeper
+            // than the text. lo-be1a88f4, Arial Black 11pt numbers over Consolas 11pt: Word's
+            // lines are 15.9pt apart, ours 13.9 — the number's ascent 12.1 over the text's 10.1.)
+            if rise == nil, !symbolLevel, pitch == nil, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list != nil,
+               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+               let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:hAnsi=\"") {
+                let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
+                if !family.isEmpty {
+                    // (Its face's own ascent, not a line's: the line's carries the spacing multiple.)
+                    let textFace = firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
+                    let size = _px(firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
+                    if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
+                       (numberBase - textBase) * size > 0.5 {
+                        RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
+                        rise = numberBase * size
+                    }
+                }
+            }
             let style = theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
             children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
             inline.append((nil, PlaceholderDimensions(size: Size(lead, 0.01), alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
