@@ -10328,7 +10328,7 @@ public final class RichLayout {
                 w = _px(fit.width); h = _px(fit.height)
             }
             // (A table nested in a cell: as tall as it lays out.)
-            if image.textBox?.growsToFit == true, let inside = _textBox(image, document) { h = inside.height }
+            if image.textBox?.growsToFit == true, let inside = _textBox(image, document) { h = inside.height + (theme.wordRules ? _px(image.textBox?.insetBottom ?? 0) : 0) }
             _imageSize[i] = Size(w.rounded(), h.rounded())
             // (Where its paragraph sets it: zh-9c5d0c3f's road signs stand
             // in the middle of their cells in Word's print, at the cells'

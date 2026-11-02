@@ -1654,6 +1654,14 @@ enum DocxFormat {
                 let ids = Set(inner.compactMap { $0.cell?.table })
                 var box = RichTextBox(paragraphs: inner)
                 box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+                // (Word for Windows' labs T0-T2: the cell that holds a table is taller by that table's own
+                // cell margins, top and bottom, once more — lo-eb12e7d4's groups stand 2.8pt, the 28 twips
+                // of a pair, short of its print.)
+                if saved.1 != nil, node.first("w:tblPr")?.first("w:tblpPr") == nil, node.descendants("w:drawing").isEmpty, let tcMar = node.descendants("w:tcMar").first {
+                    let pr = XNode(name: "w:tcPr", attrs: [:]); pr.children = [tcMar]
+                    let m = _cellMargins(pr, "w:tcMar")
+                    box.insetBottom = (m.top ?? 0) + (m.bottom ?? 0)
+                }
                 box.tableStyles = tableStyles.filter { ids.contains($0.key) }
                 box.tableColumns = tableColumns.filter { ids.contains($0.key) }
                 box.growsToFit = true
@@ -1704,6 +1712,9 @@ enum DocxFormat {
                 }
                 var para = RichParagraph(image: image, style: cellBase)
                 para.style.indentLeft += nominalLeft
+                // (Word for Windows' labs T0-T2: the cell that holds a table is taller by that table's own
+                // cell margins, top and bottom, once more — lo-eb12e7d4's groups stand 2.8pt, the 28 twips
+                // of a pair, short of its print.)
                 if let frag = _keptFragment(node, notes) {
                     keptTableCount += 1
                     let kid = "kt\(keptTableCount)"
