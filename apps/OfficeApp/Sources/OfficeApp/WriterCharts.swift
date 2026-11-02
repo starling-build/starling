@@ -115,6 +115,10 @@ enum WriterCharts {
         // in D9D9D9: chartex's box-and-whisker chart.)
         let line = ln?.first("a:solidFill").flatMap { colors.color(in: $0) }
             ?? (chartex && area == nil ? Color(0xFFD9D9D9) : nil)
+            // (A chart part with no shape properties at all is framed in Word's own 0.75pt grey over
+            // white: every such chart in the corpus prints that way — lo-7b8ccfbe, lo-3a0ca937,
+            // lo-8743d336, lo-40949e85, lo-79680f48, zh-d62da4dd and others.)
+            ?? (!chartex && area == nil ? Color(0xFF868686) : nil)
         var entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
         if fill == nil, let g = area?.first("a:gradFill"), g.first("a:path") != nil, let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
