@@ -7181,7 +7181,19 @@ public final class RichLayout {
                             guardSteps += 1
                         }
                     } else {
+                        let stoodAt = y
                         while let below = noRoom(at: y, height: reach, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                        // (What meets the box is the paragraph, its space before
+                        // and all, and what stands clear of it is the LINE: Word's
+                        // print of lo-61f8f967 (para-upper-margin-fly-intersect,
+                        // 28.35pt before) sets the second paragraph's line at the
+                        // wrapSquare box's foot, 172 (170.25 and the line's ascent),
+                        // its space before overlapping the box; ours set it that
+                        // far again lower, at 199.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, y > stoodAt + 0.01, lead > 0.01 {
+                            RuleTrace.hit("word-box-pushed-paragraph-stands-its-line-at-the-foot")
+                            y = max(stoodAt, y - lead)
+                        }
                     }
                 }
                 // (A table placed down the page keeps the whole of a line
