@@ -21323,6 +21323,20 @@ public final class RichLayout {
             RuleTrace.hit("page-offset-down-of-an-anchor-in-a-cell-is-from-the-cell")
             y = d.rowTop + _px(float.y)
         }
+        // (A picture as big as the page, set from the text far off it, is
+        // kept on the page, at its corner: lo-4dec07ec's 595 by 842pt
+        // background, 430pt left and 1006pt up from its paragraph, covers
+        // the page in Word's print, black with the white shape, and hides
+        // the title; ours dropped it off the page.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !floatsFrames, float.horizontalAlign == nil, float.verticalAlign == nil,
+           i >= _cells.count || _cells[i] == nil, page.height > 0 {
+            let setup = _setup(ofParagraph: i)
+            if abs(w - _px(setup.width)) < _px(3), abs(h - page.height) < _px(3), x < -_px(1) || y < -_px(1) || x + w > _px(setup.width) + _px(1) || y + h > page.height + _px(1) {
+                RuleTrace.hit("page-sized-picture-set-off-the-page-is-kept-on-it")
+                x = g.textLeft - _textLeftInColumn(i) - _px(setup.marginLeft + setup.gutter)
+                y = -page.top
+            }
+        }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
