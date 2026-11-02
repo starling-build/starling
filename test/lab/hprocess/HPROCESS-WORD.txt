@@ -1,0 +1,146 @@
+== hp0
+  arrow/other x0 73.32 x1 547.68 y0 72.00 y1 314.88 items 1
+  arrow/other x0 76.50 x1 544.50 y0 144.85 y1 241.98 items 8
+  circle0 cx 103.31 d 24.28 x0 91.17 x1 115.45 cy 193.42
+  circle1 cx 166.94 d 24.29 x0 154.80 x1 179.09 cy 193.42
+  circle2 cx 226.85 d 24.29 x0 214.70 x1 238.99 cy 193.42
+  circle3 cx 279.22 d 24.29 x0 267.08 x1 291.37 cy 193.42
+  circle4 cx 338.88 d 24.29 x0 326.74 x1 351.03 cy 193.42
+  circle5 cx 402.49 d 24.29 x0 390.34 x1 414.63 cy 193.42
+  circle6 cx 466.72 d 24.28 x0 454.58 x1 478.86 cy 193.42
+  gaps (edge to edge): 39.4 35.6 28.1 35.4 39.3 39.9
+  pitch (centre to centre): 63.6 59.9 52.4 59.7 63.6 64.2
+  text '1' size 11.0 x 285.0..294.0 y 727.3
+  text 'Word' size 9.0 x 92.8..113.8 y 154.9
+  text 'Word' size 9.0 x 156.5..177.5 y 223.5
+  text 'Word' size 9.0 x 216.4..237.4 y 154.9
+  text 'Word' size 9.0 x 268.8..289.8 y 223.5
+  text 'Word' size 9.0 x 328.5..349.5 y 154.9
+  text 'Word' size 9.0 x 392.0..413.1 y 223.5
+  text 'Word' size 9.0 x 456.3..477.4 y 154.9
+== hp1_n0
+  arrow/other x0 73.32 x1 547.68 y0 72.00 y1 314.88 items 1
+  arrow/other x0 76.50 x1 544.50 y0 144.85 y1 241.98 items 8
+  circle0 cx 103.31 d 24.28 x0 91.17 x1 115.45 cy 193.42
+  circle1 cx 166.94 d 24.29 x0 154.80 x1 179.09 cy 193.42
+  circle2 cx 226.85 d 24.29 x0 214.70 x1 238.99 cy 193.42
+  circle3 cx 279.22 d 24.29 x0 267.08 x1 291.37 cy 193.42
+  circle4 cx 338.88 d 24.29 x0 326.74 x1 351.03 cy 193.42
+  circle5 cx 402.49 d 24.29 x0 390.34 x1 414.63 cy 193.42
+  circle6 cx 466.72 d 24.28 x0 454.58 x1 478.86 cy 193.42
+  gaps (edge to edge): 39.4 35.6 28.1 35.4 39.3 39.9
+  pitch (centre to centre): 63.6 59.9 52.4 59.7 63.6 64.2
+  text '1' size 11.0 x 285.0..294.0 y 727.3
+  text 'Word word' size 9.0 x 82.0..126.6 y 135.1
+  text 'word word' size 9.0 x 82.7..125.9 y 145.1
+  text 'word' size 9.0 x 93.5..113.1 y 155.0
+  text 'Word' size 9.0 x 156.5..177.5 y 223.5
+  text 'Word' size 9.0 x 216.4..237.4 y 154.9
+  text 'Word' size 9.0 x 268.8..289.8 y 223.5
+  text 'Word' size 9.0 x 328.5..349.5 y 154.9
+  text 'Word' size 9.0 x 392.0..413.1 y 223.5
+  text 'Word' size 9.0 x 456.3..477.4 y 154.9
+== hp1_n2
+  arrow/other x0 73.32 x1 547.68 y0 72.00 y1 314.88 items 1
+  arrow/other x0 76.50 x1 544.50 y0 144.85 y1 241.98 items 8
+  circle0 cx 103.31 d 24.28 x0 91.17 x1 115.45 cy 193.42
+  circle1 cx 166.94 d 24.29 x0 154.80 x1 179.09 cy 193.42
+  circle2 cx 226.85 d 24.29 x0 214.70 x1 238.99 cy 193.42
+  circle3 cx 279.22 d 24.29 x0 267.08 x1 291.37 cy 193.42
+  circle4 cx 338.88 d 24.29 x0 326.74 x1 351.03 cy 193.42
+  circle5 cx 402.49 d 24.29 x0 390.34 x1 414.63 cy 193.42
+  circle6 cx 466.72 d 24.28 x0 454.58 x1 478.86 cy 193.42
+  gaps (edge to edge): 39.4 35.6 28.1 35.4 39.3 39.9
+  pitch (centre to centre): 63.6 59.9 52.4 59.7 63.6 64.2
+  text '1' size 11.0 x 285.0..294.0 y 727.3
+  text 'Word' size 9.0 x 92.8..113.8 y 154.9
+  text 'Word' size 9.0 x 156.5..177.5 y 223.5
+  text 'Word' size 9.0 x 216.4..239.4 y 115.4
+  text 'word' size 9.0 x 217.1..238.7 y 125.3
+  text 'word' size 9.0 x 217.1..238.7 y 135.2
+  text 'word' size 9.0 x 217.1..238.7 y 145.0
+  text 'word' size 9.0 x 217.1..236.7 y 155.0
+  text 'Word' size 9.0 x 268.8..289.8 y 223.5
+  text 'Word' size 9.0 x 328.5..349.5 y 154.9
+  text 'Word' size 9.0 x 392.0..413.1 y 223.5
+  text 'Word' size 9.0 x 456.3..477.4 y 154.9
+== hp1_n3
+  arrow/other x0 73.32 x1 547.68 y0 72.00 y1 314.88 items 1
+  arrow/other x0 76.50 x1 544.50 y0 144.85 y1 241.98 items 8
+  circle0 cx 103.31 d 24.28 x0 91.17 x1 115.45 cy 193.42
+  circle1 cx 166.94 d 24.29 x0 154.80 x1 179.09 cy 193.42
+  circle2 cx 226.85 d 24.29 x0 214.70 x1 238.99 cy 193.42
+  circle3 cx 279.22 d 24.29 x0 267.08 x1 291.37 cy 193.42
+  circle4 cx 338.88 d 24.29 x0 326.74 x1 351.03 cy 193.42
+  circle5 cx 402.49 d 24.29 x0 390.34 x1 414.63 cy 193.42
+  circle6 cx 466.72 d 24.28 x0 454.58 x1 478.86 cy 193.42
+  gaps (edge to edge): 39.4 35.6 28.1 35.4 39.3 39.9
+  pitch (centre to centre): 63.6 59.9 52.4 59.7 63.6 64.2
+  text '1' size 11.0 x 285.0..294.0 y 727.3
+  text 'Word' size 9.0 x 92.8..113.8 y 154.9
+  text 'Word' size 9.0 x 156.5..177.5 y 223.5
+  text 'Word' size 9.0 x 216.4..237.4 y 154.9
+  text 'Word word' size 9.0 x 258.0..302.6 y 223.5
+  text 'word word' size 9.0 x 258.7..301.9 y 233.4
+  text 'word' size 9.0 x 269.5..289.1 y 243.3
+  text 'Word' size 9.0 x 328.5..349.5 y 154.9
+  text 'Word' size 9.0 x 392.0..413.1 y 223.5
+  text 'Word' size 9.0 x 456.3..477.4 y 154.9
+== hp1_n6
+  arrow/other x0 73.32 x1 547.68 y0 72.00 y1 314.88 items 1
+  arrow/other x0 76.50 x1 544.50 y0 144.85 y1 241.98 items 8
+  circle0 cx 103.31 d 24.28 x0 91.17 x1 115.45 cy 193.42
+  circle1 cx 166.94 d 24.29 x0 154.80 x1 179.09 cy 193.42
+  circle2 cx 226.85 d 24.29 x0 214.70 x1 238.99 cy 193.42
+  circle3 cx 279.22 d 24.29 x0 267.08 x1 291.37 cy 193.42
+  circle4 cx 338.88 d 24.29 x0 326.74 x1 351.03 cy 193.42
+  circle5 cx 402.49 d 24.29 x0 390.34 x1 414.63 cy 193.42
+  circle6 cx 466.72 d 24.28 x0 454.58 x1 478.86 cy 193.42
+  gaps (edge to edge): 39.4 35.6 28.1 35.4 39.3 39.9
+  pitch (centre to centre): 63.6 59.9 52.4 59.7 63.6 64.2
+  text '1' size 11.0 x 285.0..294.0 y 727.3
+  text 'Word' size 9.0 x 92.8..113.8 y 154.9
+  text 'Word' size 9.0 x 156.5..177.5 y 223.5
+  text 'Word' size 9.0 x 216.4..237.4 y 154.9
+  text 'Word' size 9.0 x 268.8..289.8 y 223.5
+  text 'Word' size 9.0 x 328.5..349.5 y 154.9
+  text 'Word word' size 9.0 x 381.2..425.9 y 223.5
+  text 'word word' size 9.0 x 382.0..425.2 y 233.4
+  text 'word' size 9.0 x 392.8..412.3 y 243.3
+  text 'Word' size 9.0 x 456.3..477.4 y 154.9
+== hp2_orig
+  arrow/other x0 73.32 x1 547.68 y0 72.00 y1 314.88 items 1
+  arrow/other x0 76.50 x1 544.50 y0 144.85 y1 241.98 items 8
+  circle0 cx 103.31 d 24.28 x0 91.17 x1 115.45 cy 193.42
+  circle1 cx 166.94 d 24.29 x0 154.80 x1 179.09 cy 193.42
+  circle2 cx 226.85 d 24.29 x0 214.70 x1 238.99 cy 193.42
+  circle3 cx 279.22 d 24.29 x0 267.08 x1 291.37 cy 193.42
+  circle4 cx 338.88 d 24.29 x0 326.74 x1 351.03 cy 193.42
+  circle5 cx 402.49 d 24.29 x0 390.34 x1 414.63 cy 193.42
+  circle6 cx 466.72 d 24.28 x0 454.58 x1 478.86 cy 193.42
+  gaps (edge to edge): 39.4 35.6 28.1 35.4 39.3 39.9
+  pitch (centre to centre): 63.6 59.9 52.4 59.7 63.6 64.2
+  text '1' size 11.0 x 285.0..294.0 y 727.3
+  text 'Getting' size 9.0 x 89.4..119.4 y 145.0
+  text 'Organized' size 9.0 x 84.3..122.4 y 155.0
+  text 'Raising' size 9.0 x 153.7..182.3 y 223.5
+  text 'Community' size 9.0 x 145.2..190.6 y 233.4
+  text 'Awareness' size 9.0 x 146.5..187.4 y 243.3
+  text 'Assessing' size 9.0 x 209.0..246.8 y 125.3
+  text 'non-' size 9.0 x 218.3..235.5 y 135.2
+  text 'climate' size 9.0 x 213.1..242.7 y 145.1
+  text 'threats' size 9.0 x 213.4..240.3 y 154.9
+  text 'Developing' size 9.0 x 258.3..302.3 y 223.5
+  text 'a local' size 9.0 x 267.4..293.2 y 233.4
+  text 'climate' size 9.0 x 265.5..295.0 y 243.3
+  text 'story' size 9.0 x 269.7..288.7 y 253.1
+  text 'Assessing' size 9.0 x 321.1..358.8 y 125.3
+  text 'vulnerability' size 9.0 x 315.5..364.4 y 135.2
+  text 'of target' size 9.0 x 322.7..357.2 y 145.1
+  text 'resources' size 9.0 x 320.9..357.0 y 154.9
+  text 'Identifying' size 9.0 x 382.3..424.6 y 223.5
+  text 'early actions' size 9.0 x 378.8..428.1 y 233.4
+  text 'to address' size 9.0 x 383.0..424.0 y 243.3
+  text 'vulnerability' size 9.0 x 379.1..425.9 y 253.1
+  text 'Finalizing' size 9.0 x 449.5..486.1 y 145.0
+  text 'your LEAP' size 9.0 x 447.9..485.5 y 155.0
