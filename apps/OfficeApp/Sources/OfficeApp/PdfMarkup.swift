@@ -133,7 +133,13 @@ struct PdfMarkup {
                             places.append(Note(anchor: anchor, label: "Moved (insertion)", paragraphs: [""], author: run.style.revision?.author ?? ""))
                         }
                         let label = run.style.revision?.moved == true ? "Moved:" : "Deleted:"
-                        if open == nil || open!.anchor != anchor || open!.label != label {
+                        // (A deletion that begins a paragraph, right after deleted marks and
+                        // breaks with nothing kept between, runs on in the same balloon: Word for
+                        // Windows, n830205's "Section Break (Next Page)" then "XXX¶".)
+                        let runsOn = DocxFormat.wordOnWindows && open != nil && open!.label == label && anchor.offset == 0 && text.isEmpty
+                            && open!.paragraphs.last?.isEmpty == true && open!.paragraphs.count > 1
+                        if runsOn { RuleTrace.hit("deletion-after-deleted-marks-runs-on-in-its-balloon") }
+                        if !runsOn, open == nil || open!.anchor != anchor || open!.label != label {
                             close()
                             open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
                                         family: (run.style.fontFamily ?? source.styles.resolve(p.style)?.char.fontFamily
@@ -175,7 +181,17 @@ struct PdfMarkup {
                         open!.paragraphs.append("")
                     }
                 }
-                else if open != nil { open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("") }
+                else if open != nil {
+                    open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("")
+                    // (Word for Windows draws a second, empty "¶" line after a deleted
+                    // paragraph whose properties change took its list numbering away:
+                    // n830205's 39th to 59th, text then "¶" "¶" where the file has the
+                    // text paragraph and one empty. From the print alone, no lab yet.)
+                    if DocxFormat.wordOnWindows, p.style.propertyChange?.oldRPrXML.contains("w:numPr") == true {
+                        RuleTrace.hit("deleted-numbered-paragraph-leaves-an-empty-mark-line")
+                        open!.paragraphs[open!.paragraphs.count - 1] = "¶"; open!.paragraphs.append("")
+                    }
+                }
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
                                 author: p.style.markRevision?.author ?? "")
