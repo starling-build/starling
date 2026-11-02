@@ -233,6 +233,24 @@ Note it needs port 2222 free: the harness forwards a fixed port, and the
 minimal dependency-testing VM uses the same one. The script refuses rather
 than testing the wrong machine.
 
+## The Word VISUAL gate — `test/docx-visual-sweep.sh`
+
+The line matcher reads text only. This one compares PAGES against Word's print, so x
+positions, graphics, colours, charts, shapes and borders show: every page of both corpora is
+rendered at 96 dpi grey by MuPDF and a pixel differs when it is not within two pixels of an
+equal-ish pixel on the other page (Slides' "share of pixels over a threshold" with
+anti-aliasing and one-to-two-pixel shifts forgiven). A document is ranked by its worst page; a
+page one side lacks counts 100%. A full sweep of both corpora takes about 12 minutes at
+`PARALLEL=64`:
+
+    OFFICE_APP=<bin> PYTHON=<python with pymupdf+numpy> PARALLEL=64 test/docx-visual-sweep.sh WORK
+    SKIP_CONVERT=1 ...                # score the PDFs a line sweep already left in WORK/{756,lo}/pdf
+    test/corpus/docx/scores/linux/{756,lo}.visual     # the committed ranking, worst first
+
+WORK/*/pairs holds ours | Word | differences PNGs of each document's worst page over 0.5%.
+It is a ranking for finding work, not a drop gate (yet): the text noise floor is about
+0.5-1% on a full page of text.
+
 ## The Word pair — `test/tools/docx-pair.sh`
 
 Every Word fix lands on a pair: the 756 corpus and the LibreOffice set, Windows mode,
