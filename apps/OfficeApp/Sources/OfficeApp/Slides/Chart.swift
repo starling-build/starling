@@ -284,6 +284,10 @@ struct Chart: Equatable {
         /// LIBRE_OFFICE-100610's survey bars stand in no box at all in
         /// PowerPoint's print.
         var walled = true
+        /// `c:rAngAx`: the axes stand at right angles (an oblique box); not set, Word turns
+        /// the chart's box in perspective (`c:perspective`, in half degrees).
+        var rightAngles = true
+        var perspective = 30.0
     }
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
@@ -1678,6 +1682,8 @@ enum ChartXML {
                                       gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
             func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
             c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
+            if let ra = v?.first("c:rAngAx") { c.barView?.rightAngles = (ra["val"] ?? "1") != "0" && (ra["val"] ?? "1") != "false" }
+            c.barView?.perspective = v?.first("c:perspective")?["val"].flatMap(Double.init) ?? 30
             c.barShape = el.first("c:shape")?["val"] ?? el.first("c:ser")?.first("c:shape")?["val"] ?? "box"
         }
         if el.name == "c:pie3DChart" {
@@ -2959,6 +2965,204 @@ enum ChartPainter {
         return shown.isEmpty ? label(v, percent: false) : shown
     }
 
+    /// A Word 3-D column chart whose axes are not at right angles (`c:rAngAx` 0), drawn through
+    /// the camera Word's own prints measure: the box turned by -rotY about the vertical and tipped
+    /// by rotX, then in perspective s = K / (K - z) with K = c / tan(perspective / 4 degrees).
+    /// (amd-opus's fit: /data/amd-opus/proj/fit.py, `project_k`.) What is FITTED, to the lab's
+    /// view-B prints (colshape-*-B, rotX 30, rotY 40, perspective 30; 4 categories, 3 series),
+    /// and not derived: the scale (221.45 pt per box width at 251 pt of frame height), the box
+    /// height (0.595 of its width) and the room's place (189.4, 111.9 pt of a 432.5 x 251 pt frame).
+    /// The box depth is a bar's depth over its share of the gap (the oblique chart's rule), which
+    /// the same prints give to 0.33 pt. How Word sizes the room for other views is not known.
+    /// The height 0.595 is a fitted constant for this shape and clustered grouping, NOT a rule
+    /// (amd-opus measured 0.552 for a standard-grouped 4 x 3 box and 0.735 for another clustered one;
+    /// the autoscale behind it is unsolved), and so are the room's centre and the scale 221.45:
+    /// all fitted to view B.
+    private static func _columns3DCamera(_ c: Chart, _ canvas: any Canvas, _ area: Rect, frame: Rect, k: Double,
+                                         scale sc: (lo: Double, hi: Double, step: Double), theme: DeckTheme,
+                                         valueText: (String, Double, Double) -> TextPainter,
+                                         categoryText: (String, Double, Double) -> TextPainter) {
+        guard let v = c.barView else { return }
+        let n = c.categories.count, s = c.series.count
+        let u = frame.height / 251                      // canvas units to the fit's points (the frame in the lab's prints: 432.5 x 251 pt)
+        let scaleA = 221.448 * u
+        let persp = v.perspective
+        let kc = persp > 0 ? 765.743 * tan(7.5 * .pi / 180) / tan(persp / 4 * .pi / 180) * u : Double.infinity
+        let th = -v.y * .pi / 180, ph = v.x * .pi / 180
+        let slot = 1 / Double(n)
+        let lanes = Double(s), pitch = 1 - c.overlapFraction
+        let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
+        let depth = min(2, bar * (1 + v.gapDepth) * v.depth)
+        let height = 0.595
+        // Camera space (right, up, toward the viewer) of a box point, and its place on the page.
+        func cam(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
+            let x1 = x * cos(th) + z * sin(th), z1 = -x * sin(th) + z * cos(th)
+            return (x1, y * cos(ph) - z1 * sin(ph), y * sin(ph) + z1 * cos(ph))
+        }
+        var boxCorners: [(Double, Double, Double)] = []
+        for x in [-0.5, 0.5] { for y in [-height / 2, height / 2] { for z in [-depth / 2, depth / 2] { boxCorners.append((x, y, z)) } } }
+        func flatK(_ p: (Double, Double, Double)) -> Offset {
+            // (K is in the fit's points at the fit's scale: the same units as scaleA / u.)
+            let f = persp > 0 ? kc / (kc - (scaleA / u) * p.2 * u) : 1
+            return Offset(p.0 * f * scaleA, -p.1 * f * scaleA)
+        }
+        let raw = boxCorners.map { flatK(cam($0.0, $0.1, $0.2)) }
+        let room = Offset(frame.left + 189.416 / 432.5 * frame.width, frame.top + 111.853 / 251 * frame.height)
+        let rawX: [Double] = raw.map { $0.dx }, rawY: [Double] = raw.map { $0.dy }
+        let midX: Double = (rawX.min()! + rawX.max()!) / 2, midY: Double = (rawY.min()! + rawY.max()!) / 2
+        let shift = Offset(room.dx - midX, room.dy - midY)
+        func at(_ x: Double, _ y: Double, _ z: Double) -> Offset { let o = flatK(cam(x, y, z)); return Offset(o.dx + shift.dx, o.dy + shift.dy) }
+        func yAt(_ value: Double) -> Double { -height / 2 + height * (value - sc.lo) / max(1e-9, sc.hi - sc.lo) }
+        let front = depth / 2, back = -depth / 2
+        let line = Paint()
+        line.style = .stroke
+        line.strokeWidth = max(0.5, 0.75 * k)
+        line.color = c.gridColor ?? Color(0xFF868686)
+        func poly(_ pts: [Offset], _ paint: Paint) {
+            let p = Path()
+            p.moveTo(pts[0].dx, pts[0].dy)
+            for o in pts.dropFirst() { p.lineTo(o.dx, o.dy) }
+            canvas.drawPath(p, paint)
+        }
+        // The walls' gridlines and the floor: up the left wall, along the back wall.
+        var ticks: [Double] = []
+        var t = sc.lo
+        while t <= sc.hi + sc.step / 2 && ticks.count < 60 { ticks.append(t); t += sc.step }
+        for tv in ticks where c.valueGrid || tv == sc.lo {
+            let y = yAt(tv)
+            poly([at(-0.5, y, front), at(-0.5, y, back), at(0.5, y, back)], line)
+        }
+        poly([at(-0.5, yAt(sc.lo), front), at(0.5, yAt(sc.lo), front), at(0.5, yAt(sc.lo), back)], line)
+        // The axis up the left wall's front edge, its ticks and labels.
+        poly([at(-0.5, yAt(sc.lo), front), at(-0.5, yAt(sc.hi), front)], line)
+        let labelSize = c.valueLabelSize ?? c.baseTextSize
+        for tv in ticks {
+            let p = at(-0.5, yAt(tv), front)
+            poly([p, Offset(p.dx - 3 * k, p.dy)], line)
+            if !c.valueAxisDeleted {
+                let tp = valueText(tickLabel(tv), labelSize, .infinity)
+                tp.paint(canvas, Offset(p.dx - 3 * k - 6.75 * k - tp.width, p.dy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+        // The floor's category ticks, and the names a little under and before each slot's middle.
+        for i in 0 ... n {
+            let p = at(-0.5 + Double(i) * slot, yAt(sc.lo), front)
+            poly([p, Offset(p.dx, p.dy + 3 * k)], line)
+        }
+        if !c.categoryAxisDeleted {
+            let catSize = c.categoryLabelSize ?? c.baseTextSize
+            // (Every name wraps at the narrowest slot's width: "Category 4" breaks like the others.)
+            var slotWidth = Double.infinity
+            for i in 0 ..< n {
+                let a = at(-0.5 + Double(i) * slot, yAt(sc.lo), front), b = at(-0.5 + Double(i + 1) * slot, yAt(sc.lo), front)
+                slotWidth = min(slotWidth, hypot(b.dx - a.dx, b.dy - a.dy))
+            }
+            for i in 0 ..< n {
+                let a = at(-0.5 + Double(i) * slot, yAt(sc.lo), front), b = at(-0.5 + Double(i + 1) * slot, yAt(sc.lo), front)
+                let tp = categoryText(c.categories[i], catSize, slotWidth * 0.95)
+                let mid = Offset((a.dx + b.dx) / 2 - 4.5 * k, (a.dy + b.dy) / 2 + 26 * k)
+                tp.paint(canvas, Offset(mid.dx - tp.width / 2, mid.dy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+        // The columns, the far ones first.
+        struct Col { var i: Int; var j: Int; var cx: Double; var value: Double; var z: Double }
+        var cols: [Col] = []
+        let group = bar + (lanes - 1) * bar * pitch
+        for i in 0 ..< n {
+            for j in 0 ..< s {
+                guard let val = c.series[j].values[safe: i] ?? nil else { continue }
+                let cx = -0.5 + (Double(i) + 0.5) * slot - group / 2 + Double(j) * bar * pitch + bar / 2
+                cols.append(Col(i: i, j: j, cx: cx, value: val, z: cam(cx, 0, 0).2))
+            }
+        }
+        cols.sort { $0.z < $1.z }
+        let fill = Paint()
+        fill.style = .fill
+        let shape = c.barShape
+        let cone = shape.hasPrefix("cone"), pyramid = shape.hasPrefix("pyramid"), toMax = shape.hasSuffix("ToMax"), round = shape.hasPrefix("cylinder") || cone
+        let camPos = (0.0, 0.0, persp > 0 ? kc / scaleA * u : 1e6)
+        let stops: [(Double, Double)] = [(0, 0.74), (0.2, 0.95), (0.45, 1.09), (0.64, 1.04), (0.82, 0.91), (1, 0.75)]
+        func shade(_ t: Double) -> Double {
+            let x = max(0, min(1, t))
+            for q in 1 ..< stops.count where x <= stops[q].0 {
+                let a = stops[q - 1], b = stops[q]
+                return a.1 + (b.1 - a.1) * (x - a.0) / (b.0 - a.0)
+            }
+            return stops.last!.1
+        }
+        for col in cols {
+            let base = c.variedPoints ? c.pointColor(col.i, accents: theme.accents)
+                : (col.j == 0 ? c.pointColors[col.i] : nil) ?? c.color(series: col.j, accents: theme.accents)
+            let y0 = yAt(max(sc.lo, min(sc.hi, 0))), y1 = yAt(max(sc.lo, min(sc.hi, col.value)))
+            let ratio = max(0, min(1, (col.value - sc.lo) / max(1e-9, sc.hi - sc.lo)))
+            let topScale = (cone || pyramid) ? (toMax ? 1 - ratio : 0) : 1
+            let rx = bar / 2, rz = bar * v.depth / 2
+            let sides = round ? 48 : 4
+            func ringPoint(_ a: Double, _ top: Bool) -> (Double, Double, Double) {
+                let f = top ? topScale : 1
+                var cs = cos(a), sn = sin(a)
+                if !round { let m = max(abs(cs), abs(sn)); cs /= m; sn /= m }
+                return (col.cx + f * rx * cs, top ? y1 : y0, f * rz * sn)
+            }
+            // A square's corners stand at 45 degrees; a ring's points are spread round.
+            let start = round ? 0.0 : Double.pi / 4
+            var quads: [(Path, Double, Offset)] = []
+            var xs: [Double] = []
+            for m in 0 ... sides {
+                let a: Double = start + 2 * Double.pi * Double(m) / Double(sides)
+                let pb = ringPoint(a, false), pt = ringPoint(a, true)
+                xs.append(at(pb.0, pb.1, pb.2).dx)
+                xs.append(at(pt.0, pt.1, pt.2).dx)
+            }
+            let lo = xs.min() ?? 0, hi = xs.max() ?? 1
+            for m in 0 ..< sides {
+                let a0 = start + 2 * .pi * Double(m) / Double(sides), a1 = start + 2 * .pi * Double(m + 1) / Double(sides)
+                let p = [ringPoint(a0, false), ringPoint(a1, false), ringPoint(a1, true), ringPoint(a0, true)]
+                let cp = p.map { cam($0.0, $0.1, $0.2) }
+                let e1 = (cp[1].0 - cp[0].0, cp[1].1 - cp[0].1, cp[1].2 - cp[0].2), e2 = (cp[3].0 - cp[0].0, cp[3].1 - cp[0].1, cp[3].2 - cp[0].2)
+                var nrm = (e1.1 * e2.2 - e1.2 * e2.1, e1.2 * e2.0 - e1.0 * e2.2, e1.0 * e2.1 - e1.1 * e2.0)
+                let am = (a0 + a1) / 2
+                let out = cam(cos(am) * rz, 0, sin(am) * rx)
+                if nrm.0 * out.0 + nrm.1 * out.1 + nrm.2 * out.2 < 0 { nrm = (-nrm.0, -nrm.1, -nrm.2) }
+                let mid = (cp.map(\.0).reduce(0, +) / 4, cp.map(\.1).reduce(0, +) / 4, cp.map(\.2).reduce(0, +) / 4)
+                if nrm.0 * (camPos.0 - mid.0) + nrm.1 * (camPos.1 - mid.1) + nrm.2 * (camPos.2 - mid.2) <= 0 { continue }
+                let pts = p.map { at($0.0, $0.1, $0.2) }
+                let q = Path()
+                q.moveTo(pts[0].dx, pts[0].dy)
+                for o in pts.dropFirst() { q.lineTo(o.dx, o.dy) }
+                q.close()
+                let midX = pts.map(\.dx).reduce(0, +) / 4
+                let factor: Double
+                if round { factor = shade((midX - lo) / max(1e-9, hi - lo)) }
+                else { factor = 0.64 + 0.36 * abs(sin(am)) }
+                quads.append((q, factor, Offset(midX, 0)))
+            }
+            for (q, f, _) in quads {
+                fill.color = Self._scaled(base, f)
+                canvas.drawPath(q, fill)
+                if round {
+                    let seam = Paint()
+                    seam.style = .stroke
+                    seam.strokeWidth = 0.4 * k
+                    seam.color = fill.color
+                    canvas.drawPath(q, seam)
+                }
+            }
+            if topScale > 0, ph > 0 {
+                let cap = Path()
+                for m in 0 ..< sides {
+                    let o = at(ringPoint(start + 2 * .pi * Double(m) / Double(sides), true).0, y1, ringPoint(start + 2 * .pi * Double(m) / Double(sides), true).2)
+                    if m == 0 { cap.moveTo(o.dx, o.dy) } else { cap.lineTo(o.dx, o.dy) }
+                }
+                cap.close()
+                fill.color = Self._scaled(base, round ? 0.77 : 0.757)
+                canvas.drawPath(cap, fill)
+            }
+        }
+    }
+
     /// An axis tick in the General format: as many decimals as the value needs
     /// (the ticks are multiples of a nice step, so ten are all there are).
     /// Word's print of tdf130969 (axis 0.35781 to 0.3579 by 0.00001) reads
@@ -3130,6 +3334,17 @@ enum ChartPainter {
             }
         }
         let sc = valueScale
+        if let v = c.barView, !v.rightAngles, c.type == .column, !c.stacked, !c.percent, !c.onSlide, !c.onSheet, !c.chartex,
+           c.type != .scatter, c.dataTable == nil, !c.series.isEmpty,
+           // (Only the frames and legends the lab's prints cover: a legend at the right or none, 150 pt of frame and more.)
+           !c.legend || c.legendPosition == "r", frame.height / k >= 150 {
+            RuleTrace.hit("word-3d-columns-with-no-right-angles-stand-in-perspective")
+            // (The box's face is about 198 pt high at the lab's 251 pt frame, and takes a tick a 36 pt.)
+            var camScale = c.percent ? sc : scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, min(10, Int(198 * frame.height / (251 * k) / 36))), headroom: 0)
+            if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil { camScale = fixedScale(auto: camScale, min: c.valueMin, max: c.valueMax, step: c.valueStep) }
+            _columns3DCamera(c, canvas, area0, frame: frame, k: k, scale: camScale, theme: theme, valueText: valueText, categoryText: categoryText)
+            return
+        }
         // Category labels by an axis that crosses above the plot's foot.
         // (Nor on an Office 2016 chart, whose labels stand at the foot:
         // chartex.docx's box-and-whisker categories in Word's print, which
