@@ -303,6 +303,11 @@ public struct ImageFloat: Hashable, Sendable {
     /// text (`w:vertAnchor="text"`), not the page: only that one is as
     /// tall in its row as it lays out (see the row's height).
     public var againstText = false
+    /// A table nested in a cell and floating that is placed against the
+    /// page or its margin (`w:vertAnchor`): Word stands it its `tblpY`
+    /// down from the cell's top, not from the paragraph that holds its anchor
+    /// (lo-5c5eb1f7's calculator, 151pt under its row's top).
+    public var fromCellTop = false
     /// Placed against the page or its margin with the text above and
     /// below it (`takesRoom` as the file has it): a band of its page the
     /// text keeps off, wherever on the page its anchor is — laid out and

@@ -1231,6 +1231,8 @@ public final class RichLayout {
     /// Row top for every paragraph (its own top when not in a table): the
     /// monotonic sequence the binary search runs on.
     private var _rowTops: [Double] = []
+    /// How far a table floating in the cell reaches from its top (px): the content a centred cell has.
+    private var _floatReach: [Double] = []
     private var _flowHeight = 0.0
     private var _columnWidths: [String: [Double]] = [:]   // px, per table
     private var _nestedInFixedTable = false
@@ -1442,6 +1444,7 @@ public final class RichLayout {
         _floatImages = Array(repeating: nil, count: n)
         _cells = Array(repeating: nil, count: n)
         _rowTops = Array(repeating: 0, count: n)
+        _floatReach = Array(repeating: 0, count: n)
         _textLeft = Array(repeating: 0, count: n)
         _textWidth = Array(repeating: 0, count: n)
         _spaceBefore = Array(repeating: 0, count: n)
@@ -1519,6 +1522,7 @@ public final class RichLayout {
                 _floatImages.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _cells.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _rowTops.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _floatReach.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _textLeft.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -1560,6 +1564,7 @@ public final class RichLayout {
                 _floatImages.removeSubrange(at ..< end)
                 _cells.removeSubrange(at ..< end)
                 _rowTops.removeSubrange(at ..< end)
+                _floatReach.removeSubrange(at ..< end)
                 _textLeft.removeSubrange(at ..< end)
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
@@ -2912,7 +2917,7 @@ public final class RichLayout {
                                 }
                                 let top: Double
                                 switch f.verticalFrom {
-                                case "paragraph", "line": top = max(0, offset + cell.pad.top + _px(f.y))
+                                case "paragraph", "line": top = max(0, (f.fromCellTop && RichTextTheme.wordWindowsPages ? 0 : offset) + cell.pad.top + _px(f.y))
                                 // (From under the row's top line, as its text:
                                 // Word's p17 row is the chart's 632.4pt and 0.7,
                                 // 121.9 to 755.0 between its lines; from the
@@ -2928,6 +2933,7 @@ public final class RichLayout {
                                 default: continue
                                 }
                                 rowHeight = max(rowHeight, top + h)
+                                if f.fromCellTop, RichTextTheme.wordWindowsPages, image.textBox?.growsToFit == true { _floatReach[k] = max(_floatReach[k], top + h - cell.pad.top) }
                             }
                         }
                     }
@@ -3255,7 +3261,7 @@ public final class RichLayout {
                     let endPad = theme.wordRules && cell.direction == .down ? 0 : cell.pad.left
                     let room = cell.vertical ? cell.colWidth - endPad - cell.pad.right
                         : spanned - cell.pad.top - cell.pad.bottom - rules[r].above - rules[last].below
-                    let free = max(0, room - (content[cell.column] ?? 0))
+                    let free = max(0, room - max(content[cell.column] ?? 0, _floatReach[k]))
                     let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0
                     if cell.vertical {
                         _tops[k] = row.top
@@ -18542,6 +18548,11 @@ public final class RichLayout {
         // place, and the line goes under it — lo's c4c60fcb, a chart group
         // 9.5pt under an empty line, drew 294pt too low.)
         if theme.wordRules, !float.wraps, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0 { y += pushed }
+        // (A table floating in a cell from the page or margin stands its offset
+        // under the cell's top, not under the paragraph its anchor is in.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.fromCellTop, float.horizontalFrom == "cell", i < _cells.count, let d = _cells[i] {
+            y = _rowTops[i] + d.pad.top + _px(float.y)
+        }
         // (From the page or its margin, a stated offset is on the page
         // the paragraph starts: zh-799c91cd's envelope addresses a box
         // 308.8pt under the margin, which ours stood at its paragraph,
