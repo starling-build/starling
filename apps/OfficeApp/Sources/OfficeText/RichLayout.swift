@@ -20493,7 +20493,7 @@ public final class RichLayout {
         // shape, stand 8 and 7.7pt lower than the top their text rectangle
         // gives; ours set them at the top.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, let anchor = box.anchor, box.textDirection == .horizontal, box.parts.isEmpty,
-           box.hasFixedFrame, !box.fitsText, !box.fitsHeight, !box.growsToFit, !sub.paragraphs.isEmpty {
+           box.hasFixedFrame, !box.fitsHeight, !box.growsToFit, !sub.paragraphs.isEmpty {
             let room = _px(image.height - box.insetTop - box.insetBottom)
             let slack = room - layout.totalHeight
             if slack > 0.01 {
