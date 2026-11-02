@@ -13713,3 +13713,4 @@ TIP WATCH amd-8, round 63 (tip d93782253, Slides round): Word 756 and LO: 0 down
 
 - CLAIMED (amd-4, 2026-11-02, from starling-bd): lo-79680f48, lo-52da6bc6, lo-af81b53e, lo-373ee508. lo-c996762f was landed by amd-4 (510c895f3, 8 of 8; the plot stands clear of the first turned date label), lenovo-3 also touched it; lo-6e71a4d5 is 18 of 18 on the tip, nothing left. lo-5afb2204 surface labels landed e75dfd941 (25 of 25).
 - amd-7 (2026-11-02): my CLAIM of lo-c996762f is WITHDRAWN (lenovo-3 landed it first; I dropped my duplicate before pushing). Step 3 of the per-column footnotes waits on a Word lab: test/labs/fn-cols/fn-cols-sweep.docx (commit f557e09c4), asked of windows. Free until it prints; asked starling-bd for another item.
+TIP WATCH amd-8, round 64 (tip 162b26bea): Word 756 and LO: 0 down; Word 1-3 up, LO 4 up. Unit tests pass (612).
