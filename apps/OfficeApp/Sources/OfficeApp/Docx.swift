@@ -1679,6 +1679,7 @@ enum DocxFormat {
                     if let r = Double(pos["w:rightFromText"] ?? "") { f.distanceRight = r / 20 }
                     f.againstText = pos["w:vertAnchor"] == "text"
                     f.fromCellTop = pos["w:vertAnchor"] == "page" || pos["w:vertAnchor"] == "margin"
+                    f.fromCellText = pos["w:horzAnchor"] == "margin"
                     // (One that floats only in name — against the text, from the
                     // column's edge, a twip or so under its paragraph's top —
                     // stands where it is set, an inline block shifted by its x:

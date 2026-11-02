@@ -308,6 +308,10 @@ public struct ImageFloat: Hashable, Sendable {
     /// down from the cell's top, not from the paragraph that holds its anchor
     /// (lo-5c5eb1f7's calculator, 151pt under its row's top).
     public var fromCellTop = false
+    /// A nested table floating against the "margin" (`w:horzAnchor`) stands
+    /// from its cell's text edge, not the cell's own (lab `tf`'s page anchor
+    /// is the cell edge; lo-1960d9df's margin anchor is 6.8pt inside it).
+    public var fromCellText = false
     /// Placed against the page or its margin with the text above and
     /// below it (`takesRoom` as the file has it): a band of its page the
     /// text keeps off, wherever on the page its anchor is — laid out and

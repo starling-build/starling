@@ -8566,9 +8566,25 @@ public final class RichLayout {
                                      bottom: pad.bottom + sp + (c.row + c.rowSpan - 1 >= rows ? sp : 0))
                 }
             }
+            // (A cell with a table floating in it, against the text, stands
+            // at the cell's top whatever its vertical alignment — Word for
+            // Windows on LibreOffice's floattable-leak: the nested tables
+            // at the top of a centred cell, the anchor paragraph unmeasured.)
+            var cellAlign = c.verticalAlign
+            if cellAlign == "center" || cellAlign == "bottom", theme.wordRules, RichTextTheme.wordWindowsPages, c.rowSpan == 1 {
+                var k = i
+                while k < count, let d = document.paragraphs[k].cell, d.table == c.table, d.row == c.row, d.column == c.column {
+                    if let image = document.paragraphs[k].image, image.name == "table", let f = image.float, f.againstText {
+                        RuleTrace.hit("cell-with-nested-floating-table-is-top-aligned")
+                        cellAlign = nil
+                        break
+                    }
+                    k += 1
+                }
+            }
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
-                                 verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
+                                 verticalAlign: cellAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
             _cells[i]!.ruleNext = ruleNext
             _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
             _cells[i]!.ownTopRule = ownTopRule
@@ -18581,6 +18597,11 @@ public final class RichLayout {
         if float.horizontalFrom == "cell", let d = _cells[i] {
             bandLeft = d.colLeft
             bandWidth = d.colWidth
+            if float.fromCellText, theme.wordRules, RichTextTheme.wordWindowsPages {
+                RuleTrace.hit("nested-table-margin-anchor-keeps-its-side-gap")
+                bandLeft += _px(float.distanceLeft ?? 0)
+                bandWidth -= _px(float.distanceLeft ?? 0) + _px(float.distanceRight ?? 0)
+            }
         }
         var x: Double
         // ("Outside" is the page's outer edge — the right on an odd page,
@@ -18690,6 +18711,23 @@ public final class RichLayout {
         // page's top margin. Not one out in the page's margin beside the
         // table: zh-d8247da5's two 14pt marks, wrapped through 29 and 49pt
         // down the page at its left edge, held to their rows cost 3 lines.)
+        // (A table floating in a cell, set where an earlier one in the same
+        // cell was set — same offsets, against the text — stands under it,
+        // not over it: Word for Windows on LibreOffice's floattable-leak,
+        // the second at the first's foot, 17.6pt under.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.againstText, image.name == "table",
+           i < _cells.count, let d = _cells[i], !d.vertical {
+            var k = i - 1
+            while k >= 0, k < _cells.count, let e = _cells[k], e.table == d.table, e.row == d.row, e.column == d.column {
+                if k < _floatImages.count, let q = _floatImages[k], q.name == "table", let qf = q.float, qf.againstText,
+                   qf.x == float.x, qf.y == float.y, qf.horizontalAlign == float.horizontalAlign,
+                   k < _imageSize.count, let size = _imageSize[k] {
+                    RuleTrace.hit("nested-floating-table-stands-under-the-one-before")
+                    y += size.height + _px(qf.distanceBottom) + _px(float.distanceTop)
+                }
+                k -= 1
+            }
+        }
         if theme.wordRules, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
            i < _cells.count, let d = _cells[i], !d.vertical, y < d.rowTop { y = d.rowTop }
         if theme.wordRules, float.wraps, float.verticalAlign == nil, ["page", "margin"].contains(float.verticalFrom),
