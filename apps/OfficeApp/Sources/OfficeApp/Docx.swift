@@ -1573,6 +1573,11 @@ enum DocxFormat {
                   paragraphs.count > first, let last = paragraphs.indices.last,
                   paragraphs[last].text.isEmpty, paragraphs[last].image == nil else { return }
             paragraphs[last].style.markUnderNestedTable = true
+            // (Word for Windows' lab nb, zh-cb57eaad's last outer table: the empty mark under a nested table
+            // adds nothing to the cell, whatever its size, grid or row — the outer cell closes 0.72pt, a rule,
+            // under the nested table's foot. Left out, where the cell has the table's own paragraphs before it;
+            // set at zero height it still made the row 14pt taller, and the final line went to a page of its own.)
+            if Self.wordOnWindows, paragraphs.count - 1 > first, paragraphs[last].cell != nil, paragraphs[last - 1].cell == paragraphs[last].cell { paragraphs.removeLast() }
         }
         func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
