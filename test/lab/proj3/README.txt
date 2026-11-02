@@ -1,0 +1,5 @@
+proj3 (Windows 01QbbApP, for amd-opus). Word for Windows print of proj3.docx (48 pages = surface/bar/line x 16 views, order as gen3.py).
+FIX NEEDED to make Word open it: gen3.py's package has every chart part pointing at ONE embedded workbook -> "Word experienced an error trying to open the file" (two charts sharing a workbook is rejected; one chart alone opens). gen3w.py = gen3.py + one private copy of the workbook per chart (word/embeddings/p<k>.xlsx). Everything else identical.
+meas2.py: now takes env FW/FH (clip size, frame origin still page 72,72). This chart is anchored at page x 337-514, y 279-388, so it was run with FW=480 FH=360 (the default 400x300 clips it). Page 31 needed threshold 100 (rows tagged thr100 appended).
+PROJ3-WORD.tsv = Hough outlines (+ '#img' rows), PROJ3-TEXT.tsv = every word's box in page points (meas3.py).
+Odd: the series ("Row 1/2/3") axis labels are absent at rotY 45/135/225/315 (surface: 0 of 3 'Row' words except legend-less) and at (20,20)/(20,170) only 2 of 3 are printed; bar/line value-axis ticks thin to 0 and 2 at rotY 20/45/135/225/315 and at rotX >= 30; surface (60,20) prints only ticks 2 and 6.

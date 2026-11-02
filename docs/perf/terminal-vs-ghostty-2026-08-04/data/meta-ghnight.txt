@@ -1,4 +1,0 @@
-label ghnight
-terminal_pid 1222143
-terminal_comm ghostty
-grid 47x201
