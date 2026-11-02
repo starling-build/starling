@@ -10021,7 +10021,7 @@ public final class RichLayout {
                         // (Nor a run of white space alone: see `_strut`.)
                         let from = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(start, p.text.utf16.count))
                         let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
-                        if p.text[from ..< to].allSatisfy({ Self._setsNoLine($0) || $0 == "\t" }) { continue }
+                        if p.text[from ..< to].allSatisfy(Self._setsNoLineBesideText) { continue }
                         if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                             if style.lineHeightPoints != nil,
                                let own = theme.baseline(for: run.style, in: naturalStyle, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
@@ -10097,7 +10097,7 @@ public final class RichLayout {
                         }
                         // (A tab sets no line beside text — lab `ttab`: a 48pt tab run at the end of
                         // lo-11ad5a95's "U+0009" rows stood the 12pt label 11pt low, out of its line.)
-                        if text.contains(where: { !Self._setsNoLine($0) && !(theme.wordRules && $0 == "\t") && !Self.isEastAsian($0, hinted: hinted) }) { latin.append(run.style) }
+                        if text.contains(where: { !Self._setsNoLineBesideText($0) && !Self.isEastAsian($0, hinted: hinted) }) { latin.append(run.style) }
                     }
                     // (… and a Latin run's, where its line is the taller:
                     // zh-77bd4900's "①+②-③=④", PMingLiU circled digits
@@ -11470,7 +11470,7 @@ public final class RichLayout {
                 let widerSpaces = theme.wordRules && RichTextTheme.wordWindowsPages
                 let spaceLike: (Character) -> Bool = {
                     $0 == " " || $0 == "\t" || $0 == "\u{3000}"
-                        || (widerSpaces && ($0 == "\u{2002}" || $0 == "\u{2003}" || $0 == "\u{2005}"))
+                        || (widerSpaces && $0.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains($0.unicodeScalars.first!.value))
                 }
                 if let lineSize, !text.isEmpty, text.allSatisfy(spaceLike), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
@@ -13119,6 +13119,15 @@ public final class RichLayout {
     /// the line holds anything else: the space and U+3000 (lab `el`). Not
     /// a no-break space, which stands in for a glyph no face has — the
     /// Symbol box of form_footnotes' "D - ", whose line is Symbol's.
+    /// What sets no line of its own beside other text, for the first baseline: a space, and in
+    /// Word a tab and (for Windows) the en, em and four-per-em spaces (lab `sp`, `ttab`) —
+    /// lo-11ad5a95's rows of a label, a tab and one 48pt space stood the label 11pt low, out of
+    /// its box, and the PDF lost it. (Scalars, not Characters: "\u{2000}" == "\u{2002}" in Swift,
+    /// the two being canonically equivalent.)
+    static func _setsNoLineBesideText(_ ch: Character) -> Bool {
+        _setsNoLine(ch) || ch == "\t" || (RichTextTheme.wordWindowsPages && (ch.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains(ch.unicodeScalars.first!.value)))
+    }
+
     static func _setsNoLine(_ ch: Character) -> Bool {
         // (The bidirectional controls a right-to-left run is wrapped in set none either: lo tdf163575's
         // headings end in a 20pt right-to-left space, and Word sets their lines by the 15pt text.)
