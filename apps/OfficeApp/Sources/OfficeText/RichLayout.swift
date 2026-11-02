@@ -5972,7 +5972,7 @@ public final class RichLayout {
                         // twips, stand under the line.)
                         y = max(y, before.pageY + _px(down))
                     } else if RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, i > 0, _cells[i - 1] == nil,
-                              let last = lastEmptyAt, last.i == i - 1, last.page == page, last.y < y - 0.01, last.y + _px(down) + c.ownRowHeight <= contentH + 0.01, Self._tableBeforeEmptiesIsOn(page: page, i: i, cells: _cells, pieces: _pages[page]),
+                              let last = lastEmptyAt, last.i == i - 1, last.page == page, last.y < y - 0.01, y + _px(down) + c.ownRowHeight > contentH + 0.01, last.y + _px(down) + c.ownRowHeight <= contentH + 0.01, Self._tableBeforeEmptiesIsOn(page: page, i: i, cells: _cells, pieces: _pages[page]),
                               Self._followsFloatingTable(i, c.table, document: document, cells: _cells) {
                         // (Compat 15, a table floating after another with empty lines between: it hangs
                         // from the empty line just before it, 45pt under that line's baseline, not
