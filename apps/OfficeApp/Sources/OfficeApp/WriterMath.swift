@@ -407,8 +407,11 @@ enum WriterMath {
             let up = max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
             let down = max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
             var parts: [Box] = []
-            if let sup { parts.append(raised(sup, up)) }
+            // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
+            // subscript with its own scripts, then the superscript — lo-4aa628bd's
+            // "σEx2" is one line of Word's print with the outer 2 apart.)
             if let sub { parts.append(raised(sub, -down)) }
+            if let sup { parts.append(raised(sup, up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
             return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in

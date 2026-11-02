@@ -1325,6 +1325,14 @@ public final class RichLayout {
     /// The strips beside a frame the page fixes (`_stripFrame`): for each paragraph a line of
     /// it stands level with, the room it is held in and the band, from the paragraph's top.
     private var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
+    /// A shape that wraps the text, set by its offset from a paragraph in a column of a
+    /// section of columns, reaches the other columns too (lo-ff3b52d1's oval, anchored in the
+    /// first and standing over the second and third): every piece of the paragraph on the
+    /// page gets the rooms beside it as per-line indents, from the band (from the
+    /// paragraph's top) it covers there. Set by the pass after pagination.
+    private var _colWrap: [Int: [ColWrapBox]] = [:]
+    private var _colWrapPassing = false
+    struct ColWrapBox: Equatable { var top: Double; var bottom: Double; var left: Double; var right: Double }
     private var _stripPassing = false
     /// A table floating by the text whose room above it (`w:topFromText`) reaches the text
     /// before it: the place in the flow it is held at, by table, once that text wraps beside it.
@@ -1972,6 +1980,61 @@ public final class RichLayout {
                     changes.append(.changed(k))
                 }
                 if changes.isEmpty { break }
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns > 1, !_colWrapPassing, !_stripPassing {
+            _colWrapPassing = true
+            defer { _colWrapPassing = false }
+            for _ in 0 ..< 4 {
+                var changes: [RichChange] = []
+                for (k, q) in document.paragraphs.enumerated() where q.cell == nil && !q.text.isEmpty && k < _pieceStart.count && _pieceStart[k] < _allPieces.count && k < _tops.count {
+                    var want: [ColWrapBox] = []
+                    if let box = Self._otherColumnsBox(q) {
+                        let float = box.float, image = box.image
+                        let end = k + 1 < _pieceStart.count ? _pieceStart[k + 1] : _allPieces.count
+                        let mine = _allPieces[_pieceStart[k] ..< min(end, _allPieces.count)].filter { !$0.repeated }
+                        if let first = mine.first {
+                            let physical = first.page / _columns
+                            let colW = _flowWidth(k)
+                            let anchorLeft = _pxColumnLeft(first.page, column: first.page % _columns, paragraph: k)
+                            if image.textBox?.fitsText == true { _ = _textBox(image, document) }
+                            let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity), h = _px(image.height)
+                            let floatL = anchorLeft + _px(float.x) - _px(float.distanceLeft ?? 9)
+                            let floatR = anchorLeft + _px(float.x) + w + _px(float.distanceRight ?? 9)
+                            // (Whether it reaches out of its own column at all: the ones that stay in it
+                            // are the paragraph's own `_besideOwn`.)
+                            if floatR > anchorLeft + colW + 0.5 || floatL < anchorLeft - 0.5 {
+                                let top0 = first.pageY - (first.flowTop - _tops[k]) + _px(float.y) - _px(float.distanceTop)
+                                let bottom0 = first.pageY - (first.flowTop - _tops[k]) + _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom)
+                                let size = _px(q.runs.first?.style.fontSize ?? theme.fontSize)
+                                let own = _px(q.style.indentLeft), rightGap = _px(q.style.indentRight)
+                                for piece in mine where piece.page / _columns == physical {
+                                    let left = _pxColumnLeft(piece.page, column: piece.page % _columns, paragraph: k)
+                                    guard floatR > left + 0.5, floatL < left + colW - 0.5 else { continue }
+                                    let fromTop = piece.flowTop - _tops[k]
+                                    let top = top0 - piece.pageY + fromTop, bottom = bottom0 - piece.pageY + fromTop
+                                    guard bottom > 0.01 else { continue }
+                                    let leftRoom = floatL - (left + own)
+                                    let rightRoom = (left + colW - rightGap) - floatR
+                                    guard max(leftRoom, rightRoom) >= size * 2 else { continue }
+                                    if rightRoom >= leftRoom {
+                                        want.append(ColWrapBox(top: top, bottom: bottom, left: floatR - left - own, right: 0))
+                                    } else {
+                                        want.append(ColWrapBox(top: top, bottom: bottom, left: 0, right: colW - rightGap - (floatL - left)))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if want.isEmpty, _colWrap[k] == nil { continue }
+                    if let old = _colWrap[k], old.count == want.count, zip(old, want).allSatisfy({ abs($0.top - $1.top) < 0.5 && abs($0.bottom - $1.bottom) < 0.5 && abs($0.left - $1.left) < 0.5 && abs($0.right - $1.right) < 0.5 }) { continue }
+                    _colWrap[k] = want.isEmpty ? nil : want
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                RuleTrace.hit("word-wraps-the-other-columns-round-a-shape")
                 apply(changes, paragraphCount: document.paragraphs.count)
                 ensureLaidOut(document)
             }
@@ -9942,6 +10005,9 @@ public final class RichLayout {
         var besideRight = besideIndent > 0 && _besideRightSide[i]
         var besideLeftRoom: Double?
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
+        let colWrapBoxes = _colWrap[i]
+        if let boxes = colWrapBoxes, besideIndent == 0, !boxes.isEmpty { besideIndent = 1; besideBand = (-1, -1) }
+        else
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
         else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom }
         else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
@@ -9974,7 +10040,12 @@ public final class RichLayout {
                 let bottoms = Self._lineBottoms(trial)
                 trial.dispose()
                 var next: [LineIndent] = []
-                if besideLeftRoom != nil, let boxes = _besideBoxes[i], boxes.count >= 2 {
+                if let boxes = colWrapBoxes, !boxes.isEmpty, besideLeftRoom == nil, _besideLead[i] == 0 {
+                    for k in 0 ..< bottoms.count {
+                        let top = k == 0 ? 0 : bottoms[k - 1]
+                        if let b = boxes.first(where: { bottoms[k] > $0.top + 0.01 && top < $0.bottom - 0.01 }) { next.append(LineIndent(left: b.left, right: b.right)) } else { next.append(LineIndent()) }
+                    }
+                } else if besideLeftRoom != nil, let boxes = _besideBoxes[i], boxes.count >= 2 {
                     // (Round two boxes or more: a row of the page is the room
                     // left of the first, between them, and right of the last,
                     // each a line of the painter, the later ones lifted level
@@ -19322,6 +19393,18 @@ public final class RichLayout {
 
     /// The box in a paragraph that the text goes round and the page fixes: wrapped, in the
     /// text's way, aligned on the page or its margins both ways (`_floatRect`'s place).
+    /// A wrapping shape set by its offsets from the paragraph and its column.
+    static func _otherColumnsBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
+        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+            guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
+                  float.verticalFrom == "paragraph", float.verticalAlign == nil,
+                  float.horizontalFrom == "column", float.horizontalAlign == nil, float.wrapSide == nil,
+                  image.width > 0, image.height > 0 else { continue }
+            return (image, float)
+        }
+        return nil
+    }
+
     static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
         guard p.cell == nil else { return nil }
         for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {

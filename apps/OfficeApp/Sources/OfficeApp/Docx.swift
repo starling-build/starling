@@ -5499,10 +5499,13 @@ enum DocxFormat {
                         // number is a 144pt rect, centred, wrap none and fitted to its
                         // text, which Word for Windows centres as the "1" alone; ours
                         // centred the 144pt and set the "1" at its left, 72pt off.)
-                        let shapeStyle = (node.name == "v:shape" || node.name == "v:rect" ? node
-                            : node.descendant("v:shape") ?? node.descendant("v:rect"))?["style"] ?? ""
+                        let shapeStyle = (node.name == "v:shape" || node.name == "v:rect" || (node.name == "v:oval" && RichTextTheme.wordWindowsPages) ? node
+                            : node.descendant("v:shape") ?? node.descendant("v:rect") ?? (RichTextTheme.wordWindowsPages ? node.descendant("v:oval") : nil))?["style"] ?? ""
+                        // (… and without it, in Word for Windows' print: lo-ff3b52d1's rect and oval,
+                        // `mso-wrap-style:none` and nothing else, are drawn 77.3pt wide for a text
+                        // 76.6 wide, and 102.3 for the oval's 140 declared; lab oval.)
                         box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")
-                            && (textbox["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
+                            && ((textbox["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t") || RichTextTheme.wordWindowsPages)
                         box.fitsOnce = box.fitsText   // (lab `vf`: sized once, as DrawingML's)
                         let parts = inset.split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0).trimmingWhitespace()) }
                         if parts.count > 0, let v = parts[0] { box.insetLeft = v }
