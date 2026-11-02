@@ -2290,7 +2290,7 @@ enum OfficeFonts {
         // Arial in Word for Windows' print, not Times: lo tdf163575's
         // "B Mitra". A name the table does not know stays Times', as
         // rtl.docx's "Noto Sans Arabic UI".)
-        if missing, wordOnWindows, fontEntry(name)?.charset == "B2", installedFamilies["arial"] != nil {
+        if missing, wordOnWindows, fontEntry(name)?.charset == "B2" {
             name = "Arial"
             missing = false
         }

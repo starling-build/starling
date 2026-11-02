@@ -12806,7 +12806,11 @@ public final class RichLayout {
     /// the line holds anything else: the space and U+3000 (lab `el`). Not
     /// a no-break space, which stands in for a glyph no face has — the
     /// Symbol box of form_footnotes' "D - ", whose line is Symbol's.
-    static func _setsNoLine(_ ch: Character) -> Bool { ch == " " || ch == "\u{3000}" }
+    static func _setsNoLine(_ ch: Character) -> Bool {
+        // (The bidirectional controls a right-to-left run is wrapped in set none either: lo tdf163575's
+        // headings end in a 20pt right-to-left space, and Word sets their lines by the 15pt text.)
+        ch == " " || ch == "\u{3000}" || ch.unicodeScalars.allSatisfy { $0.value == 0x200E || $0.value == 0x200F || ($0.value >= 0x202A && $0.value <= 0x202E) || ($0.value >= 0x2066 && $0.value <= 0x2069) }
+    }
 
     /// Whether two stretches set the same line: the same size, and heights
     /// within 1.5% (a face's bold beside its regular — see `_strut`).
