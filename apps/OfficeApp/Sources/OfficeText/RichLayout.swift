@@ -17782,7 +17782,16 @@ public final class RichLayout {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("LETTERWORD\t\(String(decoding: units[a ..< last], as: UTF16.self))\tx \(x / pt)\tw \(w / pt)\twidth \(width / pt)\tneed \(need / pt)\troom \(room / pt)\tbefore \(before / pt)\tmarks \(all.count)\tprev \(String(decoding: units[max(0, a - 3) ..< a], as: UTF16.self))\tnext \(String(decoding: units[last ..< min(units.count, last + 2)], as: UTF16.self))\n".utf8))
                     }
-                    let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !letterWord && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                    // (Nor a digit squeezed in where an em dash follows it: lab `e68` (windows, zh-e68a2f57's "…间距按表4—1控制。",
+                    // mode 14, the right indent stepped by 0.2pt) takes the "4" while it fits and sends it down from 0.2pt over,
+                    // though the same line with an ideograph after the "4" takes it through 5pt over, one mark giving; with a second
+                    // mark earlier on the line (a "，") the same. The break between the digit and the dash is allowed
+                    // where the digit fits (zh-e68a2f57 p14's "按表5|—1规", zh-8d6f702e's "达100|—150"). Only a lone digit: Word squeezes
+                    // in a number of several digits and a Latin run before the dash — zh-8d6f702e's and zh-c2f6d17a's "…雨量达150|—200 毫米"
+                    // (mode 12, a character grid, need 15.8) and zh-4a2ab598's "T/CAS677|—2022" (mode 14, no grid, need 0.9) are taken.)
+                    let dashGlued = wordRules && RichTextTheme.wordWindowsPages && last < units.count && units[last] == 0x2014
+                        && units[last - 1] >= 0x30 && units[last - 1] <= 0x39 && need > hair && last - a == 1
+                    let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !dashGlued && !letterWord && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
                         let gapSum = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
