@@ -112,6 +112,21 @@ final class SlideTextCache {
         }
     }
 
+    private var _scaled: [String: Image] = [:]
+    /// `image` redrawn at w by h pixels.
+    func scaled(_ image: Image, _ w: Int, _ h: Int) -> Image? {
+        let key = "\(ObjectIdentifier(image).hashValue)/\(w)x\(h)"
+        if let known = _scaled[key] { return known }
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+        let paint = Paint()
+        paint.filterQuality = .medium
+        canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), Rect.fromLTWH(0, 0, Double(w), Double(h)), paint)
+        guard let out = recorder.endRecording().toImageSync(width: w, height: h) else { return nil }
+        _scaled[key] = out
+        return out
+    }
+
     private var _withAlpha: [String: Image] = [:]
     /// `image` redrawn at its own size with `alpha` applied to its pixels.
     func withAlpha(_ image: Image, _ alpha: Double) -> Image? {
@@ -1448,11 +1463,17 @@ final class SlidePainter: CustomPainter {
             // the transparency in its pixels, as PowerPoint writes it (a new
             // picture in the PDF, with an alpha channel, not the JPEG).
             let baked = fill.imageAlpha < 1 && fill.duotone == nil && fill.imageLevels == nil ? cache.withAlpha(drawn, fill.imageAlpha) : nil
-            let decoded = baked ?? drawn
-            let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+            var decoded = baked ?? drawn
             let paint = baked != nil ? imagePaint(alpha: 1, duotone: nil) : imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
+            // PowerPoint's PDF holds a tiled picture shrunk to 200 pixels an
+            // inch (a 484 x 290 picture on a 69.7 x 48.7 pt tile is 193 x 135).
+            if fill.tiled, fill.duotone == nil, fill.imageLevels == nil {
+                let nw = Int(tw / pxPerPt * 200 / 72), nh = Int(th / pxPerPt * 200 / 72)
+                if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { decoded = small }
+            }
+            let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
             // A tile larger than the area is cropped, not fitted: Windows
             // PowerPoint lays ececapstonespring2012's 1600x1200 px background
             // at 96/in, 1200 pt wide on a 794 pt slide.
