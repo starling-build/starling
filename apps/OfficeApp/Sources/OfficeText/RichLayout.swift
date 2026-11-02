@@ -1252,6 +1252,8 @@ public final class RichLayout {
         var acrossStart: Double { direction == .up ? pad.left : pad.right }
     }
     private var _cells: [_CellGeo?] = []
+    /// Tables holding a drawing anchored with `layoutInCell="0"`.
+    private var _shapesLeaveCell: Set<String> = []
     /// Row top for every paragraph (its own top when not in a table): the
     /// monotonic sequence the binary search runs on.
     private var _rowTops: [Double] = []
@@ -1689,6 +1691,7 @@ public final class RichLayout {
     private static let _perf = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil
 
     public func ensureLaidOut(_ document: RichDocument) {
+        _shapesLeaveCell = Set(document.tableStyles.filter { $0.value.shapesLeaveCell }.map { $0.key })
         let t0 = Self._perf ? DispatchTime.now().uptimeNanoseconds : 0
         var marks: [(String, UInt64)] = []
         func mark(_ name: String) { if Self._perf { marks.append((name, DispatchTime.now().uptimeNanoseconds)) } }
@@ -20895,7 +20898,7 @@ public final class RichLayout {
         // the page's corner.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "page", float.verticalFrom == "page",
            float.horizontalAlign == nil, float.verticalAlign == nil, i < _cells.count, let d = _cells[i], !d.vertical,
-           !(image.name == "table") {
+           image.name != "table", !_shapesLeaveCell.contains(d.table) {
             RuleTrace.hit("page-offsets-of-an-anchor-in-a-cell-are-from-the-cell")
             x = d.colLeft + _px(float.x)
             y = d.rowTop + _px(float.y)
