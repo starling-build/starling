@@ -3481,9 +3481,14 @@ enum OfficeFonts {
             if fontSource == .bundled, !wordOnMac { bundledAliases = aliases }
         }
         // (OFFICE_BUNDLED_FONTS_ONLY=1: the engine's font lookup sees only the faces registered
-        // above — no fontconfig, CoreText or DirectWrite fallback behind them. Off by default;
-        // the hermetic-fonts proof turns it on. An engine without the call says so and goes on.)
-        if ProcessInfo.processInfo.environment["OFFICE_BUNDLED_FONTS_ONLY"] == "1" {
+        // above — no fontconfig, CoreText or DirectWrite fallback behind them. On whenever the
+        // harness pins OFFICE_FONT_SOURCE=bundled, so no baseline moves with the machine's fonts
+        // (proved: all 756 + 593 documents print byte-identically with /usr/share/fonts hidden);
+        // =0 turns it off, =1 turns it on without the pin. A user running the app with no pin
+        // keeps the system fonts for the GUI. An engine without the call says so and goes on.)
+        let only = ProcessInfo.processInfo.environment["OFFICE_BUNDLED_FONTS_ONLY"]
+        let pinnedBundled = ProcessInfo.processInfo.environment["OFFICE_FONT_SOURCE"]?.lowercased() == "bundled"
+        if only == "1" || (pinnedBundled && only != "0") {
             let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextBundledFontsOnlySupported") != nil } ?? false
             if known { flutter.swift_bridge.DisableSystemFontFallback() }
             else { FileHandle.standardError.write("[Office] this engine cannot turn the system fonts off; they stay\n".data(using: .utf8)!) }
