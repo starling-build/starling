@@ -11150,6 +11150,32 @@ public final class RichLayout {
             while k >= 0, k > i - style.blockParagraphs { held += _heights[k]; k -= 1 }
             if _px(least) > held { total += _px(least) - held }
         }
+        // (In a table's cell, the empty line that carries a picture or chart wrapped square
+        // across the whole of the cell's width — no room for three ems beside it — is set
+        // under it, and the row holds that: lo-9fa3dedd's 280pt chart in a 267pt cell stands
+        // 155 to 303 in Word's print and the line at 302, the row's foot 326; ours ended the
+        // row at the line beside the chart's top.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, let cell = _cells[i],
+           p.text.unicodeScalars.allSatisfy({ $0 == "\u{FFFC}" || $0 == "\n" }) {
+            var images: [ImageAttachment] = []
+            if i < _floatImages.count, let image = _floatImages[i] { images.append(image) }
+            if i < _inline.count { images += _inline[i] }
+            let inner = cell.colWidth - cell.pad.left - cell.pad.right
+            let size = _px(_named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+            var down = 0.0
+            for image in images {
+                guard let float = image.float, float.wraps, !float.takesRoom, float.wrapSide == nil || float.wrapSide == "both",
+                      float.verticalAlign == nil, float.verticalFrom == "paragraph", float.horizontalAlign == nil,
+                      float.horizontalFrom == "column" || float.horizontalFrom == "cell" else { continue }
+                let x = _px(float.x), w = _px(image.width)
+                guard w > 0, x - _px(float.distanceLeft ?? 9) < size * 3, inner - (x + w + _px(float.distanceRight ?? 9)) < size * 3 else { continue }
+                down = max(down, _px(float.y) + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
+            }
+            if down > 0.01, before + down + bodyHeight + after > total + 0.01 {
+                RuleTrace.hit("word-cell-line-carrying-a-full-width-square-float-is-set-under-it")
+                total = before + down + bodyHeight + after
+            }
+        }
         _heights[i] = painter.fractionalLineHeights ? total : total.rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
