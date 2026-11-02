@@ -7917,6 +7917,35 @@ public final class RichLayout {
             while k < _allPieces.count, _allPieces[k].paragraph < para { k += 1 }
             _pieceStart[para] = k
         }
+        // Footnotes of a page of columns (Word's print, lo-9749f2b5): they
+        // stand at the page's foot in the page's columns, set after the
+        // text. Only placed here, not yet reserved off the text's room.
+        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, !document.footnotes.isEmpty {
+            _pageNotes = [:]
+            // (A paragraph cut over pages keeps the notes whose marks stand
+            // in its lines on the page; the flow positions of its pieces run
+            // from the paragraph's own first.)
+            var origin: [Int: Double] = [:], cuts: [Int: Int] = [:]
+            for slot in _pages.indices { for piece in _pages[slot] where !piece.repeated {
+                origin[piece.paragraph] = min(origin[piece.paragraph] ?? .infinity, piece.flowTop)
+                cuts[piece.paragraph, default: 0] += 1
+            } }
+            for slot in _pages.indices {
+                let phys = slot / _columns
+                for piece in _pages[slot] where !piece.repeated {
+                    for id in _footnotes(in: piece.paragraph, document) {
+                        if cuts[piece.paragraph, default: 1] > 1, _cells[piece.paragraph] == nil,
+                           let top = _footnoteMarkTop(piece.paragraph, id, document) {
+                            let o = origin[piece.paragraph] ?? 0
+                            if top < piece.flowTop - o - 0.01 || top >= piece.flowBottom - o - 0.01 { continue }
+                        }
+                        if _pageNotes[phys]?.contains(id) != true { _pageNotes[phys, default: []].append(id) }
+                    }
+                }
+            }
+            // (Notes stand in the order of their marks in the file.)
+            for k in Array(_pageNotes.keys) { _pageNotes[k]?.sort() }
+        }
         _pagesValid = true
     }
 
@@ -20184,6 +20213,7 @@ public final class RichLayout {
     private func _paintFootnotes(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
         guard theme.wordRules, let ids = _pageNotes[p], !ids.isEmpty, pageSetup != nil else { return }
         let setup = pageSetup(forPage: p)
+        if _columns > 1, RichTextTheme.wordWindowsPages { _paintColumnFootnotes(p, ids, canvas, document); return }
         let width = _px(setup.contentWidth)
         // (Each from `from` to `to` of its height: a note parted over the
         // page before or the next — `_noteCarryIn`, `_noteCutOut`.)
@@ -20229,6 +20259,54 @@ public final class RichLayout {
                               selection: nil, caret: nil)
             canvas.restore()
             top += to - from
+        }
+    }
+
+    /// The footnotes of a page of columns: the separator across the foot,
+    /// then the notes in the page's columns — each column as tall as the
+    /// notes need when they are shared out evenly, the notes whole
+    /// (lo-9749f2b5: ten one-line notes stand 4, 4 and 2 in Word's print).
+    private func _paintColumnFootnotes(_ p: Int, _ ids: [Int], _ canvas: any Canvas, _ document: RichDocument) {
+        let setup = pageSetup(forPage: p)
+        let n = max(1, setup.columns)
+        let colW = _px(setup.columnWidth), stride = colW + _px(setup.columnGap)
+        let notes = ids.compactMap { _note($0, width: colW, document) }
+        guard !notes.isEmpty else { return }
+        // The least height at which the notes fill the n columns in order.
+        func fits(_ h: Double) -> Bool {
+            var col = 0, used = 0.0
+            for note in notes {
+                if note.height > h + 0.01 { return false }
+                if used + note.height > h + 0.01 { col += 1; used = 0 }
+                if col >= n { return false }
+                used += note.height
+            }
+            return true
+        }
+        var lo = notes.map { $0.height }.max() ?? 0, hi = notes.reduce(0.0) { $0 + $1.height }
+        if !fits(hi) { hi += 1 }
+        for _ in 0 ..< 40 { let mid = (lo + hi) / 2; if fits(mid) { hi = mid } else { lo = mid } }
+        let height = hi
+        let rect = pageRect(p)
+        let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
+        let separator = _note(-1, width: _px(setup.contentWidth), document)
+        let left = rect.left + _pxMarginLeft(p)
+        var top = bottom - height - (separator?.height ?? 0)
+        if let separator {
+            let line = Paint()
+            line.color = theme.textColor
+            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            top += separator.height
+        }
+        var col = 0, used = 0.0
+        for note in notes {
+            if used + note.height > height + 0.01 { col += 1; used = 0 }
+            canvas.save()
+            canvas.translate(left + Double(col) * stride, top + used)
+            note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
+                              selection: nil, caret: nil)
+            canvas.restore()
+            used += note.height
         }
     }
 
