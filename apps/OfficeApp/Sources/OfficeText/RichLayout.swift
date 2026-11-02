@@ -6022,7 +6022,7 @@ public final class RichLayout {
                         var moved: [PagePiece] = []
                         var edge = y
                         while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
-                              last.pageY >= target - _px(1) || edge - _px(document.paragraphs[last.paragraph].style.spaceAfter) > target + 0.01 {
+                              last.pageY >= target - _px(1) || edge - _px(document.paragraphs[last.paragraph].style.spaceAfter) - Self._multipleSlack(document.paragraphs[last.paragraph].style, last.paragraph < _heights.count ? _heights[last.paragraph] : 0) > target + 0.01 {
                             edge = last.pageY
                             moved.insert(_pages[page].removeLast(), at: 0)
                             if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
@@ -6031,6 +6031,11 @@ public final class RichLayout {
                             deferredUnder = moved
                             deferredTable = c.table
                             reordered = true
+                            y = target
+                        } else if RichTextTheme.wordWindowsPages, y - target < _px(8) {
+                            // (Nothing reaches into it: the 1.5-spaced line above
+                            // clears the raise with its glyphs, and the table still
+                            // stands its raise up. lo-235e3561: rows at 591, ours 595.)
                             y = target
                         }
                     }
@@ -19224,6 +19229,15 @@ public final class RichLayout {
     static func _framePlaced(_ f: ParagraphFrame) -> Bool {
         guard let a = f.verticalAlign else { return true }
         return f.verticalAnchor == "margin" && f.height != nil && (a == "top" || a == "center" || a == "bottom")
+    }
+
+    /// The room under a line's text in a paragraph set at a multiple of its
+    /// single height: Word adds the extra below the text, so a table raised a
+    /// few points over its anchor does not reach the line above it (lo-235e3561's
+    /// 1.5-spaced heading, tblpY -73 twips: Word keeps it on page 1 over the table).
+    static func _multipleSlack(_ st: RichParagraphStyle, _ height: Double) -> Double {
+        guard RichTextTheme.wordWindowsPages, st.lineHeightPoints == nil, st.lineSpacing > 1.0 else { return 0 }
+        return height * (1 - 1 / st.lineSpacing)
     }
 
     /// The room a table floating by the text keeps clear above it (`w:topFromText`, points),
