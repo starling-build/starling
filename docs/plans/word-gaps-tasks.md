@@ -14064,3 +14064,4 @@ CLAIM (amd-3, 2026-11-02, the handovers from lenovo-2, lenovo-3, amd-6; order: w
   (2) n830205 two-run balloon: LANDED (ghost line repeat, dtwo lab). Only the "Formatted: Font: 9 pt" text vs ours "Centered, Left: 0"" on lab d1 is open.
   (3) Visual ranks 81-120: zh-a4e8599d fixed and landed. Open small offsets: zh-c10f67de (dy +0.82 p3), zh-1078e06f/zh-ebea6d03 (dy +1.10 p4), zh-15f67ef1 (dy +0.93 p4), zh-d3d3f266 (dy +2.5 p5), zh-4c3793e8 (dy -1.08 p1), zh-1d2a7c35 (dx +0.81, extra box round the notice paragraph). The other ~30 are stand-in CJK glyph shapes, not layout.
   lo5 claims for Slides: lo-tdf143222 lo-tdf149206 lo-tdf114848 lo-tdf169524 lo-master-slides.
+- lo5 (lenovo-5) SLIDES CLAIM: lo-tdf143222 lo-tdf149206 lo-tdf114848 lo-tdf169524 lo-master-slides (read each worst page, fix causes).
