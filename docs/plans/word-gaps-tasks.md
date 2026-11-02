@@ -13679,3 +13679,5 @@ TIP WATCH amd-8, round 61 (tip ab258f705): Word 756 and LO: 0 down; LO 5 up. Uni
 - CLAIM (amd-7, 2026-11-02): lo-c996762f20bf4f32 (87.5, lines 8/48, one page) — nobody holds it; then lo-6e71a4d5 (88.9).
 - CLAIM (lenovo-2, 2026-11-02, from macos): lo-b8885ba2, lo-152d87fe, lo-72e72396, lo-06933f8e, lo-512aa398 (lo-e3095781 left to lo5's claim above unless it is released).
 TIP WATCH amd-8, round 62 (tip 246855ceb): Word 756 and LO: 0 down; LO 2-3 up. Unit tests pass (612).
+
+- amd-5: LANDED 439482aa8 — SimSun-class faces' Latin/digits drawn at 85% with exact half-em widths (the matcher no longer takes a row number "11" for a mark of the next cell's line). 756 missed 606 -> 582 (zh-8415d258 11 -> 1, zh-4f70ee2d 4 -> 0, zh-4e5fe46f 15 -> 12, zh-7773163d 13 -> 11); LO unchanged; no document down. 仿宋 and 標楷體 are exempt (explained: their digits are ~1% wider than 0.5em in Word; widening 仿宋's breaks ~100 documents on a word-splitting knife-edge; without the exemption zh-5450d509 -0.7 and zh-6d402586 -0.2). Next: zh-7773163d p48/p52 heading offset.
