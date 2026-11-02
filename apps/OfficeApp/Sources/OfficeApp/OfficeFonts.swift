@@ -2136,8 +2136,14 @@ enum OfficeFonts {
                                  baseline: wordOnWindows ? (1.3301 * 1.3 - 1.3301) / 2 + 1.0757 : nil)
         }
         if has("dengxian", "等线") {
-            return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91],
-                                 latinAdvances: dengXianAdvances, latinBoldAdvances: dengXianBoldAdvances, fakeBold: false, baseline: 1.01)
+            var face = EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91],
+                                     latinAdvances: dengXianAdvances, latinBoldAdvances: dengXianBoldAdvances, fakeBold: false, baseline: 1.01)
+            // (Its curly quotes are its own, 0.35 em, not an em: zh-55270438's table note
+            // "“项目运营”与“项目维护”" in 等线 at 10.5pt sets each quote 3.6-3.7pt in Word
+            // for Windows' print, and its line holds "…与“项目维" where ours, with em
+            // quotes, ended two characters sooner.)
+            if wordOnWindows { face.otherAdvances = [0x201C: 0.352, 0x201D: 0.352] }
+            return face
         }
         // (Not 1.3 em but 1332/1024 — 1.3 of its 1024-unit em, rounded
         // up to a whole unit: Word fits 48 lines of 12pt to a page only
