@@ -3888,7 +3888,7 @@ public final class RichLayout {
             }
             while _pageInsetTop.count <= physical { _pageInsetTop.append(0) }
             _pageInsetTop[physical] = insets.top
-            contentH = max(1, _px(pageSetup(forPage: physical).height) - insets.top - insets.bottom)
+            contentH = max(1, _px(pageSetup(forPage: physical).height) - insets.top - insets.bottom - (_columns > 1 ? _columnNoteReserve[physical] ?? 0 : 0))
         }
         // Where the flow stood before a frame placed on the page (see
         // below), and the page it is on.
@@ -4143,7 +4143,7 @@ public final class RichLayout {
         if restarted {
             // (The page restarted on keeps its section.)
             let insets = _bodyInsets(page: page / _columns, document)
-            contentH = max(1, _px(pageSetup(forPage: page / _columns).height) - insets.top - insets.bottom)
+            contentH = max(1, _px(pageSetup(forPage: page / _columns).height) - insets.top - insets.bottom - (_columns > 1 ? _columnNoteReserve[page / _columns] ?? 0 : 0))
         } else {
             _pageSection.removeAll(keepingCapacity: true)
             _pageHeaderSection = [:]
@@ -8013,6 +8013,29 @@ public final class RichLayout {
             }
             // (Notes stand in the order of their marks in the file.)
             for k in Array(_pageNotes.keys) { _pageNotes[k]?.sort() }
+            // Each page's columns, and the room its notes take off them.
+            var needed: [Int: Double] = [:]
+            _columnNoteGeometry = [:]
+            for (phys, ids) in _pageNotes {
+                let paras = (phys * _columns ..< min((phys + 1) * _columns, _pages.count)).flatMap { _pages[$0].filter { !$0.repeated }.map { $0.paragraph } }
+                guard let first = paras.first(where: { _cells[$0] == nil }) ?? paras.first else { continue }
+                let s = _setup(ofParagraph: first)
+                let same = Set(paras.map { _columnsOf(paragraph: $0) }).count == 1
+                let geo = (columns: max(1, s.columns), width: _px(s.columnWidth), stride: _px(s.columnWidth + s.columnGap),
+                           left: _pxColumnLeft(phys, column: 0, paragraph: first), perColumn: same)
+                _columnNoteGeometry[phys] = geo
+                if same, let lay = _columnNoteLayout(phys, ids, document) { needed[phys] = lay.height + lay.separator }
+            }
+            if needed != _columnNoteReserve, _columnNoteRounds < 4 {
+                _columnNoteReserve = needed
+                _columnNoteRounds += 1
+                RuleTrace.hit("footnotes-under-the-columns-take-their-room")
+                _paginate(document)
+                return
+            }
+            _columnNoteRounds = 0
+        } else if !_columnNoteReserve.isEmpty {
+            _columnNoteReserve = [:]
         }
         _pagesValid = true
     }
@@ -19051,6 +19074,13 @@ public final class RichLayout {
     /// at the foot of each page, by physical page.
     private var _noteCache: [String: _HeaderFooter] = [:]
     private var _pageNotes: [Int: [Int]] = [:]
+    /// A page of columns (all its sections the same number of them) sets
+    /// its footnotes under the columns, in each one's own width: the room
+    /// they take off the foot of every column of the page, per page. Found
+    /// by laying out again until it settles (Word's lab fn-cols-long).
+    private var _columnNoteReserve: [Int: Double] = [:]
+    private var _columnNoteRounds = 0
+    private var _columnNoteGeometry: [Int: (columns: Int, width: Double, stride: Double, left: Double, perColumn: Bool)] = [:]
     /// A note parted over two pages: the last at a page's foot shown to
     /// `keep` of its height (pixels), and its rest the first at the next
     /// page's — see where a body paragraph's notes are placed.
@@ -20435,16 +20465,17 @@ public final class RichLayout {
         }
     }
 
-    /// The footnotes of a page of columns: the separator across the foot,
-    /// then the notes in the page's columns — each column as tall as the
-    /// notes need when they are shared out evenly, the notes whole
-    /// (lo-9749f2b5: ten one-line notes stand 4, 4 and 2 in Word's print).
-    private func _paintColumnFootnotes(_ p: Int, _ ids: [Int], _ canvas: any Canvas, _ document: RichDocument) {
-        let setup = pageSetup(forPage: p)
-        let n = max(1, setup.columns)
-        let colW = _px(setup.columnWidth), stride = colW + _px(setup.columnGap)
-        let notes = ids.compactMap { _note($0, width: colW, document) }
-        guard !notes.isEmpty else { return }
+    /// The footnotes of a page of columns, laid in its columns: shared out
+    /// in order, each column as tall as the notes need when they are
+    /// shared out evenly, the notes whole (lo-9749f2b5: ten one-line notes
+    /// stand 4, 4 and 2 in Word's print). `height` is the tallest column's
+    /// notes, `separator` the room of the rule above them.
+    private func _columnNoteLayout(_ p: Int, _ ids: [Int], _ document: RichDocument)
+        -> (notes: [_HeaderFooter], column: [Int], offset: [Double], height: Double, separator: Double, rule: _HeaderFooter?)? {
+        guard let geo = _columnNoteGeometry[p] else { return nil }
+        let n = geo.columns
+        let notes = ids.compactMap { _note($0, width: geo.width, document) }
+        guard !notes.isEmpty else { return nil }
         // The least height at which the notes fill the n columns in order.
         func fits(_ h: Double) -> Bool {
             var col = 0, used = 0.0
@@ -20459,27 +20490,41 @@ public final class RichLayout {
         var lo = notes.map { $0.height }.max() ?? 0, hi = notes.reduce(0.0) { $0 + $1.height }
         if !fits(hi) { hi += 1 }
         for _ in 0 ..< 40 { let mid = (lo + hi) / 2; if fits(mid) { hi = mid } else { lo = mid } }
-        let height = hi
-        let rect = pageRect(p)
-        let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
-        let separator = _note(-1, width: _px(setup.contentWidth), document)
-        let left = rect.left + _pxMarginLeft(p)
-        var top = bottom - height - (separator?.height ?? 0)
-        if let separator {
-            let line = Paint()
-            line.color = theme.textColor
-            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
-            top += separator.height
-        }
+        var column: [Int] = [], offset: [Double] = []
         var col = 0, used = 0.0
         for note in notes {
-            if used + note.height > height + 0.01 { col += 1; used = 0 }
+            if used + note.height > hi + 0.01 { col += 1; used = 0 }
+            column.append(col); offset.append(used)
+            used += note.height
+        }
+        let rule = _note(-1, width: geo.width, document)
+        return (notes, column, offset, hi, rule?.height ?? 0, rule)
+    }
+
+    private func _paintColumnFootnotes(_ p: Int, _ ids: [Int], _ canvas: any Canvas, _ document: RichDocument) {
+        guard let geo = _columnNoteGeometry[p], let lay = _columnNoteLayout(p, ids, document) else { return }
+        let rect = pageRect(p)
+        let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
+        let left = rect.left + geo.left
+        var top = bottom - lay.height - lay.separator
+        if let rule = lay.rule {
+            let line = Paint()
+            line.color = theme.textColor
+            // (Under each column that holds notes: its own rule, 144pt from
+            // the column's edge — Word's lab fn-cols-long. A page of sections
+            // that differ in columns has one, at the first.)
+            let used = geo.perColumn ? Set(lay.column).sorted() : [0]
+            for c in used {
+                canvas.drawRect(Rect.fromLTWH(left + Double(c) * geo.stride, top + rule.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            }
+            top += rule.height
+        }
+        for (k, note) in lay.notes.enumerated() {
             canvas.save()
-            canvas.translate(left + Double(col) * stride, top + used)
+            canvas.translate(left + Double(lay.column[k]) * geo.stride, top + lay.offset[k])
             note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
                               selection: nil, caret: nil)
             canvas.restore()
-            used += note.height
         }
     }
 
