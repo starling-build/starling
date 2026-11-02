@@ -251,6 +251,8 @@ struct Chart: Equatable {
     /// `surfaceView` (rotX, rotY, degrees), each face in its value band's
     /// colour (`_surface`). Read as an area chart otherwise.
     var surface = false
+    /// Its value axis on the right (`c:axPos` "r"): the steps' labels stand beside the right edge.
+    var surfaceValuesRight = false
     var surfaceView = Offset(15, 20)
     struct BarView: Equatable {
         var x: Double; var y: Double; var depth: Double = 1; var gapDepth: Double = 1.5
@@ -1729,6 +1731,7 @@ enum ChartXML {
             c.valueLine = valueAxis.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         }
         c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
+        c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         c.categoryLabelsLow = categoryAxis?.first("c:tickLblPos")?["val"] == "low"
         c.columnsOnRight = columnsOnRight
@@ -4455,8 +4458,11 @@ extension ChartPainter {
             let a = at(0, y, 1).0, m = at(1, y, 1).0
             canvas.drawLine(a, m, rule)
             let tp = text(label(b, percent: false), size, .infinity)
-            let p = at(0, y, 0).0
-            tp.paint(canvas, Offset(p.dx - tp.width - 4 * k, p.dy - tp.height / 2))
+            // (On the right where the file puts the value axis there, as the
+            // lo-5afb2204 chart does: Word's print has its 0 to 6 beside the right edge.)
+            let right = c.surfaceValuesRight && !c.onSlide && !c.onSheet
+            let p = at(right ? 1 : 0, y, 0).0
+            tp.paint(canvas, Offset(right ? p.dx + 4 * k : p.dx - tp.width - 4 * k, p.dy - tp.height / 2))
             tp.dispose()
         }
         typealias Vertex = (p: Offset, v: Double)
@@ -4510,7 +4516,8 @@ extension ChartPainter {
             }
         }
         // The rows along the front edge, the series along the right one.
-        for i in 0 ..< rows {
+        // (None where the file deletes the category axis: lo-5afb2204's surface has no "Category 1…4" in Word's print.)
+        for i in 0 ..< rows where !(c.categoryAxisDeleted && !c.onSlide && !c.onSheet) {
             let tp = text(c.categories[i], size, .infinity)
             let p = at(Double(i) / Double(rows - 1), 0, 0).0
             tp.paint(canvas, Offset(p.dx - tp.width / 2, p.dy + 3 * k))

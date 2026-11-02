@@ -28,6 +28,9 @@ enum WriterCharts {
         /// The chart area's own fill and border (`c:chartSpace/c:spPr`):
         /// Word's default is white with a light grey line.
         let fill: Color?
+        /// … as a gradient (`a:gradFill`, a circle or rectangle path or an angle), over `fill`:
+        /// lo-5afb2204's dark, centre-lit bar chart.
+        var gradient: SlideFill? = nil
         let line: Color?
         let lineWidth: Double
         /// The chart's own drawing's text boxes (`c:userShapes`), by
@@ -101,6 +104,9 @@ enum WriterCharts {
             ?? (chartex && area == nil ? Color(0xFFD9D9D9) : nil)
         var entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
+        if fill == nil, let g = area?.first("a:gradFill"), g.first("a:path") != nil, let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
+            entry.gradient = f
+        }
         // (Text boxes only, placed by `cdr:relSizeAnchor`; other shapes are not drawn.)
         for anchor in userShapes?.children ?? [] where anchor.name == "cdr:relSizeAnchor" {
             func at(_ n: XNode?) -> (Double, Double)? {
@@ -154,6 +160,12 @@ enum WriterCharts {
             let p = Paint()
             p.style = .fill
             p.color = fill
+            canvas.drawRect(rect, p)
+        } else if let gradient = entry.gradient, let shader = SlidePainter.gradientShader(gradient, rect) {
+            let p = Paint()
+            p.style = .fill
+            p.color = gradient.color ?? Color(0xFF000000)
+            p.shader = shader
             canvas.drawRect(rect, p)
         }
         ChartPainter.paint(entry.chart, canvas, rect, pxPerPt: pxPerPt, theme: entry.theme)
