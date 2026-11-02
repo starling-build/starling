@@ -8833,6 +8833,10 @@ public final class RichLayout {
         // off. bug59058's "Abstract", ruled under, had its 9 and the
         // body's 9 both, and page 24 lost its last line.)
         guard !style.pageBreakBefore else { return 0 }
+        // (An empty paragraph that only ends a section takes no room, its space before with it, so
+        // it lays none over the one above's after: lo-373ee508's heading, 6pt after, then the
+        // section's mark of 6 before — 6 between the lines it numbers in Word's print, ours 0.)
+        if theme.wordRules, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, style.sectionXML != nil { return 0 }
         let shared = min(_spacing(above, document).after, _spacing(i, document).before)
         return theme.wordRules ? shared : shared.rounded(.down)
     }
