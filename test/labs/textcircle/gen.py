@@ -22,12 +22,12 @@ slide = files['ppt/slides/slide1.xml'].decode()
 def make(w, h, sz, paras, algn=None, adj=16200000):
     s = re.sub(r'<a:ext cx="2160000" cy="2160000"/>', '<a:ext cx="%d" cy="%d"/>' % (w*EMU, h*EMU), slide)
     s = re.sub(r'<a:off x="\d+" y="\d+"/>', '<a:off x="%d" y="%d"/>' % ((8640763-w*EMU)//2, (5759450-h*EMU)//2), s, count=1)
-    m = re.search(r'<a:p>.*</a:p>', s, re.S)
     rpr = re.search(r'<a:rPr.*?</a:rPr>', s, re.S).group(0).replace('sz="4000"', 'sz="%d"' % (sz*100))
     body = ''.join('<a:p><a:r>%s<a:t>%s</a:t></a:r></a:p>' % (rpr, t) for t in paras)
     if adj is None: s = s.replace('<a:gd name="adj" fmla="val 16200000"/>', '')
     elif adj != 16200000: s = s.replace('val 16200000', 'val %d' % adj)
     if algn: body = body.replace('<a:p>', '<a:p><a:pPr algn="%s"/>' % algn)
+    m = re.search(r'<a:p>.*</a:p>', s, re.S)
     return s[:m.start()] + body + s[m.end():]
 ct = files['[Content_Types].xml'].decode()
 rels = files['ppt/_rels/presentation.xml.rels'].decode()
