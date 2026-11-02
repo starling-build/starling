@@ -1425,6 +1425,8 @@ public struct ListLevelFormat: Hashable, Sendable {
     /// U+F094 boxes, and came back as round bullets a little shorter.
     public var rawText: String? = nil
     public var rawTextGlyph: String? = nil
+    /// The level's bullet is a picture (`w:lvlPicBulletId`), not a glyph.
+    public var pictureBullet = false
     /// Word's own name for the number format when `format` only stands
     /// in for it ("chineseCounting", "taiwaneseCountingThousand",
     /// "decimalEnclosedCircle", …: shown as 1, 2, 3 here, written back by

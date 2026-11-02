@@ -1244,8 +1244,12 @@ enum DocxFormat {
                         case 0xE000 ... 0xF8FF: glyph = ListLevelFormat.defaultBullet(ilvl)
                         default: glyph = raw
                         }
-                        formats[ilvl] = ListLevelFormat(text: glyph, format: .bullet)
-                        if glyph != raw { formats[ilvl]!.rawText = raw; formats[ilvl]!.rawTextGlyph = glyph }
+                        // A picture bullet (`w:lvlPicBulletId`) is an image in Word's print,
+                        // never a glyph: lo-ca9b51bc's "下文…" line reads "下文…" there, not "⚫下文…".
+                        let picture = lvl.first("w:lvlPicBulletId") != nil
+                        formats[ilvl] = ListLevelFormat(text: picture ? "\u{200B}" : glyph, format: .bullet)
+                        if picture { formats[ilvl]!.pictureBullet = true }
+                        else if glyph != raw { formats[ilvl]!.rawText = raw; formats[ilvl]!.rawTextGlyph = glyph }
                     }
                 } else {
                     let number: ListNumberFormat
@@ -1274,7 +1278,7 @@ enum DocxFormat {
                     if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty {
                         let kept = XNode(name: rPr.name, attrs: rPr.attrs)
                         kept.children = rPr.children.filter { c in ["w:", "w14:", "w15:"].contains { c.name.hasPrefix($0) } }
-                        if !kept.children.isEmpty { formats[ilvl]!.numberRPrXML = PptxXML.serialize(kept) }
+                        if !kept.children.isEmpty, !formats[ilvl]!.pictureBullet { formats[ilvl]!.numberRPrXML = PptxXML.serialize(kept) }
                     }
                     if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
                 }
