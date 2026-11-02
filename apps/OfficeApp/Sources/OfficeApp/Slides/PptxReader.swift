@@ -279,7 +279,7 @@ struct ColorContext {
                 // picture's duotone (Treck's background).
                 let sRGBTint = tint && !duotone && _hsl(r, g, b).1 > 0.1
                     && kids.indices.contains(k + 1) && kids[k + 1].name == "a:satMod"
-                    && (kids[k + 1]["val"].flatMap(Double.init) ?? 0) >= 155000
+                    && (kids[k + 1]["val"].flatMap(Double.init) ?? 0) >= 250000
                 func apply(_ c: Double) -> Double {
                     if gammaShifted || sRGBTint { return tint ? 1 - (1 - c) * v : c * v }
                     return srgb(tint ? 1 - (1 - lin(c)) * v : lin(c) * v)
