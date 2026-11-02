@@ -14058,3 +14058,4 @@ amd-6 (macos list, 2026-11-02): landed zh-20c1d74a (a hideMark cell's empty last
 - lo-28f9b886: final empty paragraph jumps to a new page when the table reaches its 3rd page (lab a1/ar*, wip/lab-amd5 6b213666 AMD5-WORD.tsv); not yet a rule, test on the corpus.
 - lo-8928a1e9: closed, needs an IF-field evaluator that hides sections; not worth it.
 - amd-5 CLAIM (Slides): 45541_Footer.pptx, 45541_Header.pptx, 45545_Comment.pptx, lo-font-scale.pptx (headers, footers, comments, autofit).
+- amd-7 (session 9e [c3001a]): moved to SLIDES by the coordinator. Claim: SmartArt class — lo-smartart-missing-bullet, lo-smartart-multidirectional, lo-smartart-autoTxRot. Word line-end work handed back to amd-opus: ldc (opening closing mark gives a quarter em, body + cells) landing now; open: zh-8628cfbe rows 張數之平均|數）, 加3分。年|度, 不足1人以|1 (not explained by the comma rule); mode-15 cell class otherwise closed.
