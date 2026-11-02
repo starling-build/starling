@@ -331,6 +331,7 @@ struct PdfMarkup {
         // balloon before the next item's.)
         var codeChanged: (field: Int, author: String)? = nil
         var cellsSeen: Set<String> = []
+        var insertedCells: Set<String> = []
         var paragraphLast: String? = nil
         // (A run of paragraph marks reformatted alike is one balloon, at the last of
         // them: lo n830205 in Word for Windows' print — four headings each reformatted
@@ -341,6 +342,13 @@ struct PdfMarkup {
             // Cells" for the cell, at its first paragraph — tdf123001's.)
             if let c = p.cell, let rev = c.revision, rev.kind == .deleted, cellsSeen.insert("\(c.table)/\(c.row)/\(c.column)").inserted {
                 out.append(Note(anchor: RichPosition(paragraph: i, offset: 0), label: "Deleted Cells", paragraphs: [""], author: rev.author))
+            }
+            // (Cells inserted with their rows' tracked change: one "Inserted
+            // Cells" for a column's run of them, at the first — lo-512aa398,
+            // 28 rows' first cells, has Word's single balloon at the top
+            // of the first's text, where it runs up a turned cell.)
+            if let c = p.cell, let rev = c.revision, rev.kind == .inserted, insertedCells.insert("\(c.table)/\(c.column)").inserted {
+                out.append(Note(anchor: RichPosition(paragraph: i, offset: c.textDirection == .horizontal ? 0 : p.text.utf16.count), label: "Inserted Cells", paragraphs: [""], author: rev.author))
             }
             // (A paragraph whose indents or alignment were changed: a
             // balloon for the stretch of paragraphs changed alike, "Formatted:
