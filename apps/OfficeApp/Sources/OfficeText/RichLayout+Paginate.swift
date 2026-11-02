@@ -3280,20 +3280,26 @@ extension RichLayout {
                     head = seq.filter { _sectionOf[$0.paragraph] != _sectionOf[i - 1] }
                 }
                 let base = head.map { $0.pageY + $0.height }.max() ?? 0
+                // (A table of one column in the block is its rows, set one under
+                // another like paragraphs: they part between the columns as
+                // paragraphs do. lo-eb12e7d4 p15's 6.1.1-6.1.3 rows, over the
+                // columns' even length in Word's print.)
+                let wide = Set(seq.compactMap { _cells[$0.paragraph] }.filter { $0.column > 0 || $0.span > 1 }.map(\.table))
+                let oneColumnTables = Set(seq.compactMap { _cells[$0.paragraph]?.table }).subtracting(wide)
                 let tail = Array(_allPieces.suffix(seq.count))
                 if seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
-                   seq.allSatisfy({ (_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true } ?? true) && !$0.repeated && $0.part == .all }) {
+                   seq.allSatisfy({ (_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true || oneColumnTables.contains($0.table) } ?? true) && !$0.repeated && $0.part == .all }) {
                     // (A floating table in the block stands where it is, a band the
                     // columns run around: lo-a998edda's A1–A4 in two columns are 2
                     // and 2 in Word's print, the table across both, the fourth
                     // line under it.)
-                    let bands = seq.filter { _cells[$0.paragraph] != nil }
+                    let bands = seq.filter { _cells[$0.paragraph] != nil && !oneColumnTables.contains(_cells[$0.paragraph]!.table) }
                     let total = (first ... lastPage).reduce(0.0) { acc, s in acc + ((_pages[s].filter { p in !head.contains(where: { $0 == p }) }).map { $0.pageY + $0.height }.max().map { $0 - base } ?? 0) }
                     let target = total / Double(nb)
                     var out: [[PagePiece]] = Array(repeating: [], count: nb)
                     var c = 0, cy = 0.0
                     var lastBottom: [Int: Double] = [:]
-                    for piece in seq where !head.contains(where: { $0 == piece }) && _cells[piece.paragraph] == nil {
+                    for piece in seq where !head.contains(where: { $0 == piece }) && (_cells[piece.paragraph] == nil || oneColumnTables.contains(_cells[piece.paragraph]!.table)) {
                         let gap = max(0, piece.pageY - (lastBottom[piece.page] ?? base))
                         lastBottom[piece.page] = piece.pageY + piece.height
                         var top = cy > 0.01 ? cy + gap : 0
