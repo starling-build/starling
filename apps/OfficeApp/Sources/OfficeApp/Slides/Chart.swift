@@ -5370,12 +5370,12 @@ extension ChartPainter {
             if tp.computeLineMetrics().count == 1, tp.width > max(20 * k, frame.width * 0.1857) {
                 tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.1857))
             }
-            // (In a Word document a label taller than half the chart ends in an
+            // (In a Word document a label, its 3pt of room counted, taller than half the chart ends in an
             // ellipsis where it is full: lo-f391267c's, nine lines of a 160pt
             // chart, stops after seven, "even…".)
             if !c.onSlide, !c.onSheet, !c.chartex {
                 let n = tp.computeLineMetrics().count
-                let allowed = max(1, Int(frame.height * 0.5 / (tp.height / Double(max(1, n)))))
+                let allowed = max(1, Int((frame.height * 0.5 - 3 * k) / (tp.height / Double(max(1, n))) + 0.001))
                 if n > allowed {
                     RuleTrace.hit("word-data-label-taller-than-half-the-chart-ends-in-an-ellipsis")
                     // (The engine's ellipsis only cuts a line that overflows its width, so
@@ -5384,8 +5384,16 @@ extension ChartPainter {
                     let end = tp.getLineBoundary(tp.getPositionForOffset(Offset(1, (Double(allowed) - 0.5) * lineH))).end
                     let kept = String(text.prefix(max(0, end))).trimmingWhitespace()
                     tp.dispose()
-                    tp = makeLabel(nil, kept + "\u{2026}")
-                    tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+                    // (The dots stay on the last line that is kept: a character off at a time until they do —
+                    // lab pielabel2's "Cha…".)
+                    var cut = kept
+                    while true {
+                        tp = makeLabel(nil, cut + "\u{2026}")
+                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+                        guard tp.computeLineMetrics().count > allowed, cut.count > 1 else { break }
+                        tp.dispose()
+                        cut = String(cut.dropLast()).trimmingWhitespace()
+                    }
                 }
             }
             let pad = 3 * k
@@ -5538,7 +5546,11 @@ extension ChartPainter {
                         let lo = max(0, hi - 1)
                         let t: Double = hi == lo ? 0 : (m - table[lo].0) / (table[hi].0 - table[lo].0)
                         let d: Double = (table[lo].1 + (table[hi].1 - table[lo].1) * t) * rx / 53.4
-                        inEndAt = Offset(centre.dx + dx * d, centre.dy + dy * d)
+                        // (A wider label stands that much nearer in, half the difference of the widths, from a
+                        // middle 20° below the horizontal or less to none from 45°: lab pielabel2's 43.8pt "Alpha",
+                        // 26.3 out at 0° and 23.2 at 20° where the 32pt one stood at 32.5 and 29.4.)
+                        let wider: Double = (tp.width - 32 * rx / 53.4) / 2 * min(1, max(0, (45 - m) / 25))
+                        inEndAt = Offset(centre.dx + dx * d - (dx < 0 ? -wider : wider), centre.dy + dy * d)
                     }
                 }
                 let f = inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? (l.position == "ctr" && !c.onSlide && !c.onSheet ? 0.5 : 0.9) : (wordFlat && (l.position == "ctr" || (l.position == "inEnd" && tp.computeLineMetrics().count > 1)) ? 0.5 : 0.7)
