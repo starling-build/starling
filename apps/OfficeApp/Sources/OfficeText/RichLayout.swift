@@ -15760,6 +15760,14 @@ public final class RichLayout {
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
         var markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
+        // (A square or circle label in an East Asian face is that face's glyph, an em
+        // wide: zh-bdae17c0's "□" in 標楷體 is DFKai-SB's, 14pt in Word's print, where
+        // the Latin stand-in's fallback drew Liberation Mono's at 11.7.)
+        if theme.wordRules, ea, label.count == 1, let u = label.unicodeScalars.first?.value, (0x25A0 ... 0x25EF).contains(u),
+           let cjk = Self._cjkFaceFamily {
+            RuleTrace.hit("word-east-asian-geometric-label-is-the-cjk-faces-glyph")
+            markerStyle = markerStyle.copyWith(fontFamily: cjk)
+        }
         // (Its full-width characters spaced twice where single and double
         // byte widths are balanced, as the text's are: zh-90e0cea8's
         // "附 录 A", spaced 5pt, steps 20.5 at 10.5pt and its "A" 5.)
@@ -15793,7 +15801,10 @@ public final class RichLayout {
         // family they were 0.333 em, the number fit, and the text
         // started 9pt early. An ascii face that is itself East Asian
         // (zh-90e0cea8's 黑体) resolves to that face's own Latin.
-        func latinChar(_ c: Character) -> Bool { !Self.isEastAsian(c, hinted: false) }
+        func latinChar(_ c: Character) -> Bool {
+            if theme.wordRules, ea, Self._cjkFaceFamily != nil, let u = c.unicodeScalars.first?.value, (0x25A0 ... 0x25EF).contains(u) { return false }
+            return !Self.isEastAsian(c, hinted: false)
+        }
         // (… and a number of Latin characters alone too: zh-12c4f07a's
         // "3.3.1.1." in its level's 14pt 標楷體 is YaHei's 0.586 em a digit
         // and 0.241 a stop in Word's print, ending under the 96pt default
