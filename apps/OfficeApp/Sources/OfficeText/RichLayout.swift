@@ -1262,6 +1262,17 @@ public final class RichLayout {
     private var _nestedInFixedTable = false
     /// A table nested in a cell, set as a block: Word's nested table is not set out by its cell margin, as a body's is.
     private var _nestedBlock = false
+    /// Bands, from this nested block's top, that floating tables of its cell stand in: a row of the
+    /// block that its natural height would put in one steps down to the band's foot (Word, lab
+    /// `frcell` on lo-5c5eb1f7 row 25: a table row is not wrapped round a floating table, it
+    /// steps below it, once for each).
+    private var _avoidBands: [(top: Double, bottom: Double)] = []
+    /// How far the bands pushed the block's rows down in all: a float anchored to what follows the block keeps the place it had.
+    private var _avoidPush = 0.0
+    /// Floating tables anchored to what follows the block, against the text: their places are from the block's natural foot.
+    private var _followBands: [(dy: Double, height: Double)] = []
+    /// Per paragraph holding such a block: how far it stepped down (`_avoidPush`), for the floats anchored after it.
+    private var _blockPush: [Int: Double] = [:]
     /// The room a nested table has where its autofitting parent already
     /// spans its page's text: past it the child keeps its saved grid and
     /// its content overflows (pixels; nil elsewhere).
@@ -2965,6 +2976,22 @@ public final class RichLayout {
                 }
                 var j = k0
                 while j < n, let d2 = _cells[j], d2.table == table, d2.row == d.row { j += 1 }
+                // (A row the block's natural height puts in a band of a floating table of its cell steps
+                // down to the band's foot, once for each: see `_avoidBands`.)
+                if !_avoidBands.isEmpty || !_followBands.isEmpty, d.row > 0 {
+                    var natural = 0.0
+                    var column: [Int: Double] = [:]
+                    for k in k0 ..< j { if let e = _cells[k], e.rowSpan == 1 { column[e.column, default: e.pad.top + e.pad.bottom] += _heights[k] } }
+                    natural = column.values.max() ?? 0
+                    for band in _avoidBands where band.top > 0.5 && y < band.bottom - 0.01 && y + natural > band.top + 0.01 { _avoidPush += band.bottom - y; y = band.bottom }
+                    // (The floats anchored after the block stand from its natural foot, pushed by what it was not.)
+                    if !(j < n && _cells[j]?.table == table) {
+                        for follower in _followBands {
+                            let top = y + natural - _avoidPush + follower.dy, bottom = top + follower.height
+                            if y < bottom - 0.01 && y + natural > top + 0.01 { _avoidPush += bottom - y; y = bottom }
+                        }
+                    }
+                }
                 var stack: [Int: Double] = [:]
                 var rowHeight = 0.0
                 var ruled = 0.0
@@ -2983,6 +3010,9 @@ public final class RichLayout {
                     }
                     let offset = stack[cell.column].map { $0 - shared(k) } ?? 0
                     _tops[k] = y + ruleAbove + cell.pad.top + offset
+                    if RichTextTheme.wordWindowsPages, let image = document.paragraphs[k].image, image.float == nil, image.textBox?.growsToFit == true {
+                        _blockPush[k] = _textBox(image, document).map { $0.layout._avoidPush }.flatMap { $0 > 0.01 ? $0 : nil }
+                    }
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
                     // A spanning cell's content counts against the rows it
@@ -19442,6 +19472,36 @@ public final class RichLayout {
         layout.scale = scale
         layout._nestedInFixedTable = fixedParent
         layout._nestedBlock = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell } != nil
+        if theme.wordRules, RichTextTheme.wordWindowsPages, box.growsToFit, image.float == nil, let k = holding, let cell = document.paragraphs[k].cell {
+            var above = 0.0
+            var m = k - 1
+            while m >= 0, let c = document.paragraphs[m].cell, c.table == cell.table, c.row == cell.row, c.column == cell.column {
+                // (Not laid out yet, an empty paragraph is its mark's line.)
+                if document.paragraphs[m].image?.float == nil {
+                    above += m < _heights.count && _heights[m] > 0 ? _heights[m]
+                        : document.paragraphs[m].text.isEmpty && document.paragraphs[m].image == nil ? _markLineHeight(m, document) : 0
+                }
+                m -= 1
+            }
+            var q = k + 1
+            while q < document.paragraphs.count, let c = document.paragraphs[q].cell, c.table == cell.table, c.row == cell.row, c.column == cell.column {
+                if let fi = document.paragraphs[q].image, let f = fi.float, f.fromCellTop, f.wraps, fi.textBox?.growsToFit == true,
+                   let inside = _textBox(fi, document) {
+                    let top = _px(f.y) - above
+                    layout._avoidBands.append((top, top + inside.height + _px(fi.effectBottom + f.distanceBottom)))
+                } else if let fi = document.paragraphs[q].image, let f = fi.float, f.againstText, f.wraps, fi.name == "table", fi.textBox?.growsToFit == true,
+                          let inside = _textBox(fi, document) {
+                    // (The lines between the block and its anchor, which are not laid out yet, count as one each.)
+                    var between = 0.0
+                    for mm in k + 1 ..< q where document.paragraphs[mm].image?.float == nil {
+                        between += mm < _heights.count && _heights[mm] > 0 ? _heights[mm] : _markLineHeight(mm, document)
+                    }
+                    layout._followBands.append((_px(f.y) + between, inside.height + _px(fi.effectBottom + f.distanceBottom)))
+                }
+                q += 1
+            }
+            layout._avoidBands.sort { $0.top < $1.top }
+        }
         layout._nestedNarrowed = fitted.map { $0 < image.width - 0.5 } ?? false
         layout._nestedCap = cap
         // (Turned, its lines run along the box's height.)
@@ -19793,6 +19853,15 @@ public final class RichLayout {
         // cell was set — same offsets, against the text — stands under it,
         // not over it: Word for Windows on LibreOffice's floattable-leak,
         // the second at the first's foot, 17.6pt under.)
+        // (A table floating against the text, anchored to a paragraph after a block that stepped down below
+        // floating tables, keeps the place it had before the block did: `_avoidPush`.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.againstText, image.name == "table", i < _cells.count, let d = _cells[i] {
+            var k = i - 1
+            while k >= 0, k < _cells.count, let e = _cells[k], e.table == d.table, e.row == d.row, e.column == d.column {
+                if let pushed = _blockPush[k] { y -= pushed }
+                k -= 1
+            }
+        }
         if theme.wordRules, RichTextTheme.wordWindowsPages, float.againstText, image.name == "table",
            i < _cells.count, let d = _cells[i], !d.vertical {
             var k = i - 1
