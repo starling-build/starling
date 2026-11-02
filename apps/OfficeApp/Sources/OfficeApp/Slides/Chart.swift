@@ -3776,7 +3776,19 @@ enum ChartPainter {
                     canvas.save()
                     canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k)
                     canvas.rotate(clockwise ? slant : -slant)
-                    tp.paint(canvas, Offset(clockwise ? 0 : -tp.width, -tp.height / 2))
+                    // (Word's print has an aslant label as outlines, not text:
+                    // lo tdf82824's date axis leaves no characters in its PDF,
+                    // where ours put each one on a line of its own.)
+                    if inWord, let path = tp.glyphPath(), let color = (tp.text as? TextSpan)?.style?.color {
+                        let ink = Paint()
+                        ink.style = .fill
+                        ink.isAntiAlias = true
+                        ink.color = color
+                        canvas.translate(clockwise ? 0 : -tp.width, -tp.height / 2)
+                        canvas.drawPath(path, ink)
+                    } else {
+                        tp.paint(canvas, Offset(clockwise ? 0 : -tp.width, -tp.height / 2))
+                    }
                     canvas.restore()
                 } else {
                     tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k))
