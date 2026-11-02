@@ -1345,18 +1345,36 @@ final class SlidePainter: CustomPainter {
                 return Color(al << 24 | m(16) << 16 | m(8) << 8 | m(0))
             }
             let f = fill.fillTo
-            let inner = Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
-                                      r.right - f.right * r.width, r.bottom - f.bottom * r.height)
+            // (`fillTo` holds the fill-to rectangle's edges as fractions across and down: its right and
+            // bottom are `1 - r` and `1 - b`. A corner point, l 100% b 100%, once read as r.left to r.right
+            // — an inverted box — and drew solid; lab gradpath.)
+            // (Laid out in the tile rectangle where there is one, and clipped to the area: lab gradpath.)
+            // (Only where the fill-to point is a corner of the tile that lands on the area: the other tile
+            // rectangles of the lab print in ways not worked out, and keep the area itself.)
+            var t0 = Rect.fromLTRB(0, 0, 1, 1)
+            if let t = fill.tile, Self.cornerFocus(f) {
+                let fx = t.left + f.left * (t.right - t.left), fy = t.top + f.top * (t.bottom - t.top)
+                if fx >= -0.01, fx <= 1.01, fy >= -0.01, fy <= 1.01 { t0 = t }
+            }
+            let outer = Rect.fromLTRB(r.left + t0.left * r.width, r.top + t0.top * r.height,
+                                      r.left + t0.right * r.width, r.top + t0.bottom * r.height)
+            let inner = Rect.fromLTRB(outer.left + f.left * outer.width, outer.top + f.top * outer.height,
+                                      outer.left + f.right * outer.width, outer.top + f.bottom * outer.height)
             let steps = 96
             let p = Paint()
             p.style = .fill
+            canvas.save()
+            canvas.clipRect(r)
+            p.color = at(1)
+            canvas.drawRect(r, p)
             for k in 0 ... steps {
                 let t = 1 - Double(k) / Double(steps)
-                let box = Rect.fromLTRB(inner.left + (r.left - inner.left) * t, inner.top + (r.top - inner.top) * t,
-                                        inner.right + (r.right - inner.right) * t, inner.bottom + (r.bottom - inner.bottom) * t)
+                let box = Rect.fromLTRB(inner.left + (outer.left - inner.left) * t, inner.top + (outer.top - inner.top) * t,
+                                        inner.right + (outer.right - inner.right) * t, inner.bottom + (outer.bottom - inner.bottom) * t)
                 p.color = at(t)
-                canvas.drawRect(k == 0 ? r : box, p)
+                canvas.drawRect(box, p)
             }
+            canvas.restore()
             return
         }
         let p = Paint()
