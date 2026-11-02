@@ -13653,3 +13653,4 @@ DONE / READ-OUT (amd-3, 2026-11-02): lab pie7 (windows, wip/lab-pie7 fde5d68d3, 
 TIP WATCH amd-8, round 58 (tip 7b5e62d60): Word 756 and LO: 0 down; LO 1-2 up. Unit tests pass (612).
 
 - lo5 LANDED c58461863: in Word for Windows a run of tabs does not hang past the margin; each tab that would stand past it goes to the next line and the stops start again there (tdf92157 / lo-6a5857f2: a signature block of 9 and 23 tabs, "Zaken," five stops in on the third line). Ours let them all hang and set the text at the margin. lo-6a5857f2 98.5 -> 100, 756 and LO sets otherwise identical. Same fix is held-tab (the justified-paragraph mechanism) for any tab beside another tab.
+- CLAIM (amd-2, 2026-11-02): lo-4aa628bd (77.8, 9 lines vs 11). lo-ff3b52d1 is waiting on a Word lab (the oval's real wrap edges; asked windows), my multi-column wrap code is built but not landed.
