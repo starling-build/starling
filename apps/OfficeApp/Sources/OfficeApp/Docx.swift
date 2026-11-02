@@ -2580,6 +2580,29 @@ enum DocxFormat {
                                                                  date: rev["w:date"] ?? "", moved: false)
                         }
                         currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
+                        // A side the cell rules at a width of its own is drawn
+                        // at that width, in its colour (auto is black):
+                        // zh-cec9d337's outer frame is 2.25pt over the
+                        // table's 0.5pt, stated by its rows' `w:tblPrEx`.
+                        if RichTextTheme.wordWindowsPages, let tb = sidesPr?.first("w:tcBorders") {
+                            func own(_ names: [String]) -> CellRef.CellLine? {
+                                for n in names {
+                                    guard let e = tb.first(n), !["nil", "none"].contains(e["w:val"] ?? "nil"), let sz = Double(e["w:sz"] ?? "") else { continue }
+                                    let width = max(0.25, sz / 8)
+                                    guard width != (style.borderWidth ?? 0.5), (e["w:val"] ?? "single") == "single" else { return nil }
+                                    var color = Color(0xFF000000)
+                                    if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
+                                        color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                                    }
+                                    return CellRef.CellLine(width: width, color: color)
+                                }
+                                return nil
+                            }
+                            currentCell?.borders.top = own(["w:top"])
+                            currentCell?.borders.left = own(["w:left", "w:start"])
+                            currentCell?.borders.bottom = own(["w:bottom"])
+                            currentCell?.borders.right = own(["w:right", "w:end"])
+                        }
                         currentCell?.rowBordersXML = rowSides.map { PptxXML.serialize($0) }
                         currentCell?.marginsXML = tcPr?.first("w:tcMar").map { PptxXML.serialize($0) }
                         // (Its own margins, over the table's: zh-6cd1befe's
