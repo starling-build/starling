@@ -53,6 +53,13 @@ final class NetworkService {
         refreshNow()
     }
 
+    /// Ends the `nmcli monitor` helper. It runs in its own process group, so
+    /// it outlives a shell that simply exits.
+    func stop() {
+        monitor?.stop()
+        monitor = nil
+    }
+
     /// Re-read state from cached scan results. Cheap (~a few nmcli calls on
     /// the background queue); callable on every popup tick.
     func refreshNow() {

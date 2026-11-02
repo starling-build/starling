@@ -31,11 +31,19 @@ public final class NetworkMonitor: @unchecked Sendable {
         }
     }
 
+    /// Synchronous: a caller that is about to exit() must not race the
+    /// child's termination, or `nmcli monitor` is orphaned (it lives in its
+    /// own process group, so nothing else ever reaps it).
     public func stop() {
-        queue.async { [self] in
+        queue.sync { [self] in
             stopped = true
             debounce?.cancel()
-            process?.terminate()
+            if let p = process, p.isRunning {
+                // SIGKILL, not terminate(): a child inherits the shell's ignored
+                // signals, and an ignored SIGTERM left `nmcli monitor` running
+                // after every shell exit. It holds nothing worth a clean stop.
+                kill(p.processIdentifier, SIGKILL)
+            }
             process = nil
         }
     }
