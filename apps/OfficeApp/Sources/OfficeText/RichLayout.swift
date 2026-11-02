@@ -20898,7 +20898,7 @@ public final class RichLayout {
         // the page's corner.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "page", float.verticalFrom == "page",
            float.horizontalAlign == nil, float.verticalAlign == nil, i < _cells.count, let d = _cells[i], !d.vertical,
-           image.name != "table", !_shapesLeaveCell.contains(d.table) {
+           image.name != "table", !float.leavesCell {
             RuleTrace.hit("page-offsets-of-an-anchor-in-a-cell-are-from-the-cell")
             x = d.colLeft + _px(float.x)
             y = d.rowTop + _px(float.y)

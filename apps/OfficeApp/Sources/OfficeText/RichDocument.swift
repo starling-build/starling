@@ -298,6 +298,8 @@ public struct KeptHeaderFooter: Hashable, Sendable {
 /// an offset ("left", "center", "right"; "top", "bottom"), and whether
 /// the text keeps clear above and below it (`wp:wrapTopAndBottom`).
 public struct ImageFloat: Hashable, Sendable {
+    /// The anchor says `layoutInCell="0"`: it is not laid out in its table cell.
+    public var leavesCell = false
     public var x: Double = 0
     public var y: Double = 0
     public var horizontalFrom = "column"

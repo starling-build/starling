@@ -3789,6 +3789,7 @@ enum DocxFormat {
     static func _float(_ node: XNode) -> ImageFloat? {
         if let anchor = node.name == "wp:anchor" ? node : node.descendant("wp:anchor") {
             var f = ImageFloat()
+            f.leavesCell = anchor["layoutInCell"] == "0"
             // Word can wrap either position in AlternateContent, with a
             // wp14 percentage in Choice and a point offset in Fallback.
             // We do not interpret percentage positions yet. Read their
