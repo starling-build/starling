@@ -13925,3 +13925,45 @@ lenovo-2 (2026-11-02): cm1 merged-cell rule LANDED (76e5d5ed2): a centred cell m
 - TIP WATCH amd-8, round 79 (tip 8784d9415): Word 0 down (6 up), no pagecount moves, no nondeterminism. Unit tests: the same chart failure; this tip was built before amd-1's fix (446fe4136), which round 80 will check.
 
 - amd-3 CORRECTION to my zh-2e7ef069 footer note: the VML Fallback copy of the footer2 text box DOES carry the 14pt runs (I read it through a regex that dropped the run properties). Both copies say 14pt, the footer style says 9pt, Word printed 9pt (" - 10 - ", p10 only; p1-9 use footer1 and print 14pt). Ours prints 11.9pt = 14pt x 0.85 and wraps the last dash, which is its own bug (a wrap-none box must not wrap or shrink). Lab ftr (wip/lab-ftr 618bba1cf, test/labs/ftr, prebuilt/ftr-v0..v6.docx) sent to windows: field switch, run sizes, number format, box width, wrap, cached result, one at a time. Also: cm2 (lenovo-2, wip/lenovo2-cmerge-lab) written for zh-5450d509 p6; waits on windows.
+- amd-2 VISUAL WORKLIST (test/docx-visual-sweep.sh; worst page of each document vs Word's print at 96dpi grey, 2px shift forgiven; ~12 min for both sets at PARALLEL=64; ranking in test/corpus/docx/scores/linux/{756,lo}.visual; PDFs/pairs of this sweep: /data/amd-2/vis/sw/{756,lo}/{pdf,pairs}). Top 40 with page-count matches, worst first; one-line reads are from looking at ours | Word | diff images. Pattern: ~14 are table/frame/page BORDERS thin-grey in ours vs thick-black in Word (look at one first: probably one border-weight rule); ~8 are shape/textbox/chart fills, gradients and sizes; zh-3ab8a2fb draws none of its text.
+  - 99.9% lo-47598455d65caba8 p3/3 — table borders light thin grey in ours, dark in Word; top edge missing in ours
+  - 42.0% lo-4dec07ec0a2d8236 p1/2 — Word shows a black background with a white cut-corner page shape and no title; ours plain white with "SNZ Membership F" text
+  - 28.3% lo-4dc8da496a8b5ec3 p1/1 — "Body text" box with ruled lines and the footnote area in the left column missing in ours; header/footer clipped differently
+  - 15.6% zh-6aa8bd7cac4b6ba977992deb2dc36f36a764cf0ad32205c3d042b0483c6461b7 p13/23 — picture cropped differently: ours shows the whole browser screenshot, Word only the satellite image
+  - 12.2% lo-eb12e7d4ce90ffa6 p15/15 — text wraps round the black pictures differently, pictures at different positions
+  - 10.9% lo-ffef711a9531d47d p1/1 — grey fills of the short and tall text boxes missing in ours (only the text shows)
+  - 10.7% lo-152d87fe1861bed4 p1/1 — header circle, "YN" and grey banner about 35px too high in ours and cut off at the top
+  - 9.6% lo-5b86b731b5cf66b3 p1/1 — table borders thin grey in ours, thick black in Word; row lines a few px higher in ours
+  - 9.1% bib-chernigovka.netdo.ru_download_docs_17459 p1/15 — page border of ornaments and paper-texture background missing in ours; title plain black instead of grey embossed
+  - 8.0% lo-7b8ccfbe20038fd5 p1/1 — 3D pie chart smaller and no chart frame in ours; Word has a bigger gradient pie in a frame, small box at top right instead of lower
+  - 7.2% lo-cbb7657ef8f20755 p5/6 — text boxes small, flat and borderless in ours; Word's larger with thick black outlines, other positions
+  - 6.9% lo-b60b72993a0bbbf0 p1/1 — page frame thin grey in ours, thick black in Word; tilted logo mid-right in Word, top right and upright in ours
+  - 6.4% lo-dc0529c3e356455f p1/1 — stars flat dark and flipped/offset in ours; Word's upright with a metallic gradient
+  - 6.4% zh-77bd49003e8f93a9fa51068fae7c428ef05ba6351238c85de31f69abab47b0f9 p3/42 — table borders thinner and lighter in ours; text a few px off
+  - 6.3% zh-55270438544144927cc394cff7df00810b4fa9f3423bbb65b6095618795ad92b p13/24 — flowchart drawn much smaller in ours (about 60% of Word's size)
+  - 6.2% lo-c657ba7db71abe74 p3/3 — thick grey table borders and shading in ours; Word has thin black lines with a heavy rule above the header; title position differs
+  - 5.8% lo-7de905dc9ba165c1 p1/1 — rectangle flat dark grey in ours; Word has a light gradient fill, border and shadow
+  - 5.8% zh-e9616b2b9113b1c0a5cae1d01dbe8069a98d25ec97c3406cf251a193dfc24c2a p5/5 — layout matches, Chinese glyphs and table lines shifted slightly; mostly text noise
+  - 5.7% zh-ec6158d03b283ba2306041883466cadc5f8c9373c1f0b7ef0d84ddef34a74eee p6/7 — table rows a bit taller and columns shifted in Word; glyph shapes differ
+  - 5.7% lo-1e8fa600080a965c p1/1 — chart legend spaced wider in Word, bars shifted a few px
+  - 5.7% zh-701eda18b4d39e5de982c40a83788c67f878aabc20b6830b6bb3dacb815841c7 p6/7 — a large grey logo watermark overlays the middle of ours but not Word's
+  - 5.3% zh-e5eb092a1d6380534a65b1c657bf837355015a1d89400150de1e49d9b35f1eb6 p10/10 — table text and rows drift slightly lower in Word; row heights differ a few px
+  - 5.3% zh-cec9d3375d5b413cd6fe95c7158e3ae987eb97af06627e2a42bb7db0514431ab p6/21 — table has thick black outer borders in Word, thin grey in ours; text slightly wider in Word
+  - 5.2% lo-452c2f0f81d5c4ac p1/1 — chart legend overlaps the plot at the right in ours; in Word it sits outside a narrower plot area
+  - 5.0% lo-a32dec1f63915103 p1/2 — diagonal hatch pattern and darker bar at the top missing in ours (flat grey)
+  - 4.9% lo-e069648915babb76 p1/1 — shaded framed paragraph narrower and broken into strips in ours; Word's grey block wider and continuous
+  - 4.5% lo-a197b7a87126ba68 p19/21 — ours text 3-4px lower with small line-spacing drift; text noise
+  - 4.5% lo-896eea1d8f4d6bd1 p1/1 — table shorter in ours (rows less tall), Word has thicker black inner lines; header grey band separate in Word
+  - 4.4% zh-3ab8a2fbdd8cd772c4aad33cee5e0330e0c9a06c1f72e0623bab4a28c1cc29f5 p1/28 — ours draws NONE of the text (letterhead, title, body, page number) although it is in the PDF; Word shows it; seal and date show (checked: text exists, is not visible)
+  - 4.3% zh-15f60bacd0de53fbbe68c3d26047765d1f3f77ffbcfb9a1236d28beefb1813c8 p17/28 — table borders black and thicker in Word; text a few px lower, wraps slightly differently
+  - 4.3% zh-8f70b676d4f8911cda2602025bdaad5c2c1bd264d12e353db45b4562199f22d9 p1/1 — table thick black outer border and section dividers in Word, thin grey in ours; digits use a different font
+  - 4.3% zh-fec5fa30a77f06777b5d0ebd43078d93db95d712ea7e67586e17fd1f363e9e32 p54/55 — thick black borders on the month header rows and outer edge in Word, shaded holiday labels; ours thin grey borders
+  - 4.3% zh-3c055c9b31bd984ed66571cfcb848e80ac81db1c425207dcc691ce1377a61974 p11/18 — text wraps differently ("〇" circles, narrower digits in ours), lines break elsewhere
+  - 4.2% zh-ae2dd08d90a2cf2428293a6fdf1503fa6c22f23da3e4142ff842a67a116ed672 p3/81 — contents list grey with a different font and grey dot leaders in ours; black in Word
+  - 4.2% zh-e49d79431dc285c5a18bdb50a03ce26468f01307e0745912d2c256a2d49d417c p19/22 — header cell diagonal line missing in ours; circles and ticks smaller; Word has a thick black outer border
+  - 4.0% zh-b8de3ae296a7d835b87cda2593295473438b8bd9462cf5f816a891231bebfa1c p15/29 — chart further left and a bit wider/taller in ours; table text and lines a few px lower in Word
+  - 4.0% lo-587930f8e751cf55 p1/1 — bus picture about 4 times larger in ours than in Word
+  - 4.0% zh-64044a1d40fde06d827ef3d1d06d337dcd17d4a9e4f8d72378d556ca77385d78 p53/68 — flowchart shifted about 10px right and down in Word, box sizes and caption font differ
+  - 3.8% zh-e1b099778062648b8dc781a61ab1b2832899bc99968dc128f373c9a12c3ea607 p10/20 — calendar table thick black outer border and bold header in Word, thin grey in ours; circle marks bigger in Word
+  - 3.8% zh-8628cfbee0aae59853c288d5174842f553b3e8fbf9cf0484d6aa9963a6493450 p8/43 — table thick black outer border in Word, grey in ours; text wraps at different points in the right column
+  - Page-count mismatches, shown at 100% (line gate's domain): lo-ce0d5e6d (2 vs 1), lo-a48482e7 (4 vs 3), lo-9444eb35 (2 vs 1), lo-8ab44df5 (3 vs 2), lo-8928a1e9 (3 vs 1), lo-28f9b886 (4 vs 5), lo-0ceaa045 (1 vs 2), zh-cb57eaad (6 vs 5), zh-b3e8dec4 (10 vs 8), zh-8f9b19f4 (14 vs 13).
