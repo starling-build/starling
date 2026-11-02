@@ -20466,6 +20466,16 @@ public final class RichLayout {
         }
     }
 
+    /// The page number paragraph `k` starts on, as the document writes it —
+    /// what a page reference (`PAGEREF`) to a bookmark in it comes to; nil
+    /// where the paragraph has no place on a page (laid out nowhere).
+    public func pageLabel(ofParagraph k: Int, _ document: RichDocument) -> String? {
+        guard k >= 0, k < _pieceStart.count, _pieceStart[k] < _allPieces.count else { return nil }
+        let page = _allPieces[_pieceStart[k]].page / _columns
+        guard page >= 0, page < _pages.count else { return nil }
+        return _pageNumber(_pageNumberOf(page, document), document, format: _pageNumberFormat(page, document))
+    }
+
     /// Page `p`'s number: on from the page before, unless its section
     /// starts on it and says where to number from (Word's
     /// `w:pgNumType w:start` per section — zh-9e08ed28's body is page 1

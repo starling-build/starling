@@ -18,17 +18,29 @@ enum PdfExport {
         // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
         // text gone into them.
         let markup = hasMarkup(document) ? PdfMarkup(document) : nil
-        let document = markup?.document ?? document
-        let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+        var document = markup?.document ?? document
         // Laid out fifteen times finer than the screen's pixel — twenty
         // steps to the point, Word's own twip: the engine rounds every
         // line's height to a whole pixel, which at 96 to the inch is
         // three quarters of a point a line and a line or two a page.
         let zoom = Double(ProcessInfo.processInfo.environment["OFFICE_PDF_SCALE"] ?? "") ?? 15.0
-        layout.scale = zoom
-        layout.pageSetup = pageSetup
-        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
-        layout.ensureLaidOut(document)
+        func laidOut(_ document: RichDocument) -> RichLayout {
+            let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+            layout.scale = zoom
+            layout.pageSetup = pageSetup
+            layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
+            layout.ensureLaidOut(document)
+            return layout
+        }
+        var layout = laidOut(document)
+        // (Word works its page references out again as it prints: a contents
+        // page lists the pages its own layout gives, not the numbers the
+        // file was saved with — lo tdf164905's "3" for every chapter where
+        // the file says 3, 4, 4, 4. Laid out once more with them in.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let updated = pageReferencesUpdated(document, layout) {
+            document = updated
+            layout = laidOut(document)
+        }
         // The pictures are decoded off to the side and painted as grey
         // boxes until they are: wait for them (the decoding runs on the
         // main queue, which nothing is turning here), but not for ever.
@@ -90,6 +102,53 @@ enum PdfExport {
 }
 
 extension PdfExport {
+    /// The document with each page reference (`PAGEREF name`) to a bookmark it has set to the page
+    /// that bookmark's paragraph starts on in `layout`; nil where none changes.
+    static func pageReferencesUpdated(_ document: RichDocument, _ layout: RichLayout) -> RichDocument? {
+        var home: [String: Int] = [:]
+        for (k, p) in document.paragraphs.enumerated() {
+            for name in p.bookmarks where home[name.lowercased()] == nil { home[name.lowercased()] = k }
+        }
+        guard !home.isEmpty else { return nil }
+        var result = document
+        var changed = false
+        for k in document.paragraphs.indices {
+            let p = document.paragraphs[k]
+            guard p.runs.contains(where: { $0.style.field?.uppercased().hasPrefix("PAGEREF ") == true }) else { continue }
+            var text = ""
+            var runs: [Run] = []
+            var at = p.text.utf16.startIndex
+            var lastField: String? = nil
+            var touched = false
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                var piece = String(p.text[at ..< end])
+                at = end
+                if let field = run.style.field, field.uppercased().hasPrefix("PAGEREF "), !field.contains("\\p"),
+                   let target = field.split(separator: " ", omittingEmptySubsequences: true).dropFirst().first
+                       .map({ String($0.filter { $0 != "\"" }).lowercased() }),
+                   let paragraph = home[target], let label = layout.pageLabel(ofParagraph: paragraph, document) {
+                    // (One number per field, however many runs its old result was in.)
+                    let shown = lastField == field ? "" : label
+                    if shown != piece { touched = true }
+                    piece = shown
+                }
+                lastField = run.style.field
+                guard !piece.isEmpty else { continue }
+                text += piece
+                runs.append(Run(length: piece.utf16.count, style: run.style))
+            }
+            guard touched else { continue }
+            var q = p
+            q.text = text
+            q.runs = runs.isEmpty ? [Run(length: 0, style: p.runs.first?.style ?? CharStyle())] : runs
+            result.paragraphs[k] = q
+            changed = true
+        }
+        if changed { RuleTrace.hit("page-references-brought-up-to-date") }
+        return changed ? result : nil
+    }
+
     /// Whether Word prints the document with its markup: it carries a
     /// comment or a tracked change (inserted, deleted or reformatted text).
     /// (A comment Word prints no balloon for is no markup: comment.docx's,
