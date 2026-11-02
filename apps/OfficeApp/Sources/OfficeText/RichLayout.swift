@@ -19933,7 +19933,10 @@ public final class RichLayout {
             // set under it, as Word prints it.)
             let texted = separator.document.paragraphs.count > 1 && separator.document.paragraphs.dropFirst().contains { !$0.text.isEmpty }
             let first = texted && separator.layout._tops.count > 1 ? separator.layout._tops[1] : separator.height
-            canvas.drawRect(Rect.fromLTWH(left, top + first / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            // (A right-to-left section's rule starts at the right margin and
+            // runs left: lo-ccca8bf3 (tdf129659) in Word's print.)
+            let mirrored = theme.wordRules && notes.first?.note.document.paragraphs.first?.style.rightToLeft == true
+            canvas.drawRect(Rect.fromLTWH(mirrored ? left + width - _px(144) : left, top + first / 2 - _px(0.36), _px(144), _px(0.72)), line)
             if texted {
                 canvas.save()
                 canvas.translate(left, top)
@@ -19981,7 +19984,8 @@ public final class RichLayout {
         if let separator {
             let line = Paint()
             line.color = theme.textColor
-            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            let mirrored = notes.first?.document.paragraphs.first?.style.rightToLeft == true
+            canvas.drawRect(Rect.fromLTWH(mirrored ? left + width - _px(144) : left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
             top += separator.height
         }
         for note in notes {
