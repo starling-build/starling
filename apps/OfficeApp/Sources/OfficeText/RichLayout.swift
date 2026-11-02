@@ -1320,6 +1320,10 @@ public final class RichLayout {
     /// not: the paragraph offsets a zero-width space stands before (see
     /// `_OffsetMap`).
     private var _inserts: [[Int]] = []
+    /// Soft hyphens (U+00AD) a paragraph's lines end at, drawn as a visible
+    /// hyphen (U+2010) so the line breaking measures it: Word shows the
+    /// hyphen only where the line breaks there.
+    private var _hyphenShown: [Int: Set<Int>] = [:]
     private var _heights: [Double] = []
     private var _tops: [Double] = []
     private var _listLabels: [String?] = []
@@ -8088,6 +8092,24 @@ public final class RichLayout {
     }
 
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        _layoutParagraphOnce(i, p, document)
+        // Soft hyphens: the lines that end at one show a hyphen, which takes
+        // room, so the paragraph is set again with those drawn until the set
+        // of lines ending at one no longer changes (a few rounds at most).
+        guard theme.wordRules, p.text.utf16.contains(0x00AD) else { _hyphenShown[i] = nil; return }
+        let units = Array(p.text.utf16)
+        for _ in 0 ..< 5 {
+            guard let painter = _painters[i], i < _inserts.count else { return }
+            let starts = Set(_lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count))
+            var want = Set<Int>()
+            for k in 0 ..< units.count where units[k] == 0x00AD && starts.contains(k + 1) { want.insert(k) }
+            if want == (_hyphenShown[i] ?? []) { return }
+            _hyphenShown[i] = want
+            _layoutParagraphOnce(i, p, document)
+        }
+    }
+
+    private func _layoutParagraphOnce(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         var p = p
         // A paragraph of hidden text alone, its mark not hidden, is one empty
         // line in its mark's look: lab hiddenline (Word for Windows) gives it
@@ -10894,6 +10916,17 @@ public final class RichLayout {
             return raise != nil
         }()
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+            // (A soft hyphen the line ends at is a hyphen to the line breaking
+            // too — see `_layoutParagraph`.)
+            if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.contains("\u{00AD}") {
+                var out = ""
+                var at = base
+                for ch in text {
+                    out.append(ch == "\u{00AD}" && shownSet.contains(at) ? "-" : ch)
+                    at += ch.utf16.count
+                }
+                if out != String(text) { return styled(Substring(out), run, at: base, next: next, symbolsShown: symbolsShown) }
+            }
             // (A symbol face's characters drawn as the glyphs they stand
             // for: zh-d0a207ac's Wingdings 2 checkboxes, "£" in the file,
             // drew as "£" in the text's face where Word's print has a box.)
