@@ -159,6 +159,7 @@ struct Chart: Equatable {
     /// The axis titles' size where their text says nothing at all of its
     /// look (`bareTitles`); nil is the usual.
     var axisTitleSize: Double? = nil
+    var axisTitleColor: Color? = nil   // (Word's own: the title's run, else its default run properties)
     /// An axis title the file places itself (`c:title/c:layout`, edge-mode
     /// x and y of the chart's frame), set across and in its own size: the
     /// unit over zh-547fc43c's charts, "亿元" at their top left in Word's
@@ -1646,6 +1647,12 @@ enum ChartXML {
         c.categoryAxisTitle = axisTitle(titledCategory)
         c.valueAxisTitle = axisTitle(titledValue)
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 18 }
+        if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title") {
+            let layers = [t.descendant("a:rPr"), t.first("c:tx")?.descendant("a:defRPr"), t.first("c:txPr")?.descendant("a:defRPr")].compactMap { $0 }
+            for layer in layers where c.axisTitleColor == nil {
+                if let fill = layer.first("a:solidFill") { c.axisTitleColor = color(fill) }
+            }
+        }
         c.categoryAxisTitleAt = c.categoryAxisTitle == nil ? nil : placed(titledCategory)
         c.valueAxisTitleAt = c.valueAxisTitle == nil ? nil : placed(titledValue)
         c.valueAxisTitleAcross = c.valueAxisTitle != nil && c.valueAxisTitleAt == nil && titledValue?.first("c:title")?.descendant("a:bodyPr")?["rot"] == "0"
@@ -2563,6 +2570,7 @@ enum ChartPainter {
             _pie(c, canvas, area, k: k, theme: theme, text: text, frame: r, ink: ink)
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
+                   titleText: { styled($0, $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor) },
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
@@ -2888,6 +2896,7 @@ enum ChartPainter {
 
     private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme, titleLines: Int = 1,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
+                              titleText: (String, Double, Double) -> TextPainter,
                               categoryText: (String, Double, Double) -> TextPainter,
                               valueText: (String, Double, Double) -> TextPainter) {
         let n = c.categories.count
@@ -3026,10 +3035,13 @@ enum ChartPainter {
         // 3 pt in, its glyphs' tops 2.9 down (zh-547fc43c's "亿元" and
         // "万吨", 10 and 10.5 pt, over three charts of its print).
         let titleSize = c.axisTitleSize ?? 13.3
+        func axisText(_ s: String, _ size: Double, _ maxWidth: Double = .infinity) -> TextPainter {
+            titleText(s, size, maxWidth)
+        }
         var deferredValueTitle: TextPainter? = nil
         for (t, placed) in [(c.valueAxisTitle, c.valueAxisTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
             guard let t, let placed else { continue }
-            let tp = text(t, placed.size ?? titleSize, .infinity)
+            let tp = axisText(t, placed.size ?? titleSize, .infinity)
             let top = tp.computeLineMetrics().first.map { $0.baseline - $0.ascent } ?? 0
             if placed.turned {
                 // (Turned up, its box's top left 3 pt and 3.1 in: zh-b8de3ae2's "千元"
@@ -3049,7 +3061,7 @@ enum ChartPainter {
             // axis title, "In Word the default length of the axis title box is about to
             // 80% of the length of the chart area.", breaks in two in its print.)
             let writerChart = !c.onSlide && !c.onSheet
-            let tp = text(t, titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
+            let tp = axisText(t, titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
@@ -3058,7 +3070,7 @@ enum ChartPainter {
                 // from the area's left, its middle over the plot's; they break at 18% of the chart — lo-6b6ece9c's
                 // "Horizontal, long axis title which breaks" in three lines, 66.7pt the widest, the plot starting
                 // 93.8 from the area's left in Word's print.)
-                let across = text(t, titleSize, 0.18 * frame.width)
+                let across = axisText(t, titleSize, 0.18 * frame.width)
                 let widest = across.computeLineMetrics().map(\.width).max() ?? across.width
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
@@ -3082,7 +3094,7 @@ enum ChartPainter {
             if deferredValueTitle !== tp { tp.dispose() }
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
-            let tp = text(t, titleSize, min(horizontal ? area.height : area.width, !c.onSlide && !c.onSheet ? 0.8 * (horizontal ? frame.height : frame.width) : .infinity))
+            let tp = axisText(t, titleSize, min(horizontal ? area.height : area.width, !c.onSlide && !c.onSheet ? 0.8 * (horizontal ? frame.height : frame.width) : .infinity))
             if horizontal {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
