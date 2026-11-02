@@ -12128,12 +12128,23 @@ public final class RichLayout {
                 let complex: String? = run.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily
                 return theme.complexFaceResolver?(complex ?? latin)
             }()
-            func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) } ?? false }
+            // (A zero-width non-joiner stays inside the word: Word sets the
+            // two parts as two joined words and the mark at no width, where
+            // the stand-in gave it 3pt and the parts no scale — lo
+            // tdf163575's "می‌توان" 37pt to Word's 27.)
+            func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
             func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
-                guard let joinedFace, let first = word.first, isArabic(first), word.allSatisfy(isArabic),
-                      let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5,
-                      let ems = ArabicForms.width(word.unicodeScalars.map { $0.value }, table) else { return s }
-                let shaped = _wordWidth(s, String(word))
+                guard let joinedFace, let first = word.first, isArabic(first), first != "\u{200C}", word.allSatisfy(isArabic),
+                      let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5
+                else { return s }
+                var ems = 0.0, shaped = 0.0
+                // (The mark is a grapheme extender: it is one Character with the
+                // letter before it, so the word is cut by its scalars.)
+                for part in word.unicodeScalars.split(separator: "\u{200C}", omittingEmptySubsequences: true) {
+                    guard let e = ArabicForms.width(part.map { $0.value }, table) else { return s }
+                    ems += e
+                    shaped += _wordWidth(s, String(String.UnicodeScalarView(part)))
+                }
                 return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
             }
             var notoStyle: TextStyle? = nil
@@ -12143,6 +12154,32 @@ public final class RichLayout {
             var current: Int? = nil
             func flush(_ end: Substring.Index) {
                 guard let kind = current, start < end else { return }
+                if joinedFace != nil, text[start ..< end].unicodeScalars.contains(where: { $0.value == 0x200C }) {
+                    // (The mark at no width, between two words each at its
+                    // own: Word's print has it so, the stand-in 3pt.)
+                    let word = text[start ..< end]
+                    let base = style(kind)
+                    var part = String.UnicodeScalarView()
+                    func put() {
+                        guard !part.isEmpty else { return }
+                        let piece = String(part)
+                        spans.append(contentsOf: capped(Substring(piece), run, joinedScaled(Substring(piece), base)))
+                        part = String.UnicodeScalarView()
+                    }
+                    for u in word.unicodeScalars {
+                        if u.value == 0x200C {
+                            put()
+                            let alone = TextPainter(text: TextSpan(text: "\u{200C}", style: base), textDirection: .ltr)
+                            alone.layout(minWidth: 0, maxWidth: 100_000)
+                            let own = alone.width
+                            alone.dispose()
+                            spans.append(TextSpan(text: "\u{200C}", style: base.copyWith(letterSpacing: (base.letterSpacing ?? 0) - own)))
+                        } else { part.append(u) }
+                    }
+                    put()
+                    start = end
+                    return
+                }
                 spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], style(kind))))
                 start = end
             }
