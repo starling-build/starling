@@ -15636,7 +15636,7 @@ public final class RichLayout {
                     // at its half, 7, and all four spaces 2.8 of 3.5 — 2.68 of
                     // their 7, a share the 9pt stretch over 15.75 allows.)
                     let cellRest: Bool = {
-                        guard inCell, !legacy, !topOnly, spaces.contains(a - 1), need > markRoom else { return false }
+                        guard inCell, !legacy, !topOnly, !RichTextTheme.wordWindowsPages, spaces.contains(a - 1), need > markRoom else { return false }
                         let spaced = (spaces + ownSpaces).reduce(0.0) { $0 + (gaps[$1] ?? 0) }
                         return (need - markRoom) * (gapStretch() + spaced)
                             <= spaced / 2 * (width - x + hair)
