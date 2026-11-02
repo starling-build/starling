@@ -13878,3 +13878,5 @@ TRIAGE (lenovo-2, 2026-11-02, the ten-document zh list; Windows mode, bundled fo
   - zh-64044a1d p10: the merged cell 幕僚作業組 is centred 28pt higher in ours than Word's, whose centre sits near the middle of the merged rows' lower part.
   - zh-15428325 p7: the "⚫" is the bullet of a third, empty list paragraph that overflows the 26pt flowchart box; Word draws it below the box, ours does not.
   - zh-291fcea7, zh-785e46f8: as in the lines above; not looked at past the first different line.
+
+- CLAIM lenovo-3 (Linux 01F2SWc8) again, from starling-bd: zh-15428325, zh-291fcea7, zh-785e46f8, zh-64044a1d (asked lenovo-2 first whether its merged-cell rule from lab cm1 covers it), zh-701eda18 (position and the badge cut, in one change); and lo-7ec36a70's headings. This replaces the "released for anyone" line above.
