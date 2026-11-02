@@ -259,7 +259,8 @@ lo-tdf111789.pptx	summary pages=1 worst=0.22% mean=0.22%
 lo-tdf111863.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf111884.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf112086.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf112088.pptx	summary pages=1 worst=2.16% mean=2.16%
+lo-tdf112088.pptx	summary pages=1 worst=0.00% mean=0.00%
+
 lo-tdf112089.pptx	summary pages=1 worst=0.24% mean=0.24%
 lo-tdf112209.pptx	summary pages=1 worst=0.01% mean=0.01%
 lo-tdf112280.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -467,7 +468,8 @@ lo-testShapeAutofit.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-trailing-paragraphs.pptx	summary pages=1 worst=0.05% mean=0.05%
 lo-trigger.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-vertical-bracket-list.pptx	summary pages=1 worst=1.56% mean=1.56%
-minimal-gradient-fill-issue.pptx	summary pages=1 worst=1.71% mean=1.71%
+minimal-gradient-fill-issue.pptx	summary pages=1 worst=1.33% mean=1.33%
+
 missing-blip-fill.pptx	summary pages=1 worst=0.40% mean=0.40%
 oox-Scene3d_cropped_image.pptx	summary pages=1 worst=1.42% mean=1.42%
 oox-Scene3d_isometricRightUp.pptx	summary pages=1 worst=1.27% mean=1.27%
@@ -515,7 +517,8 @@ oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=1.07% mean=1.07%
 oox-tdf144742_funnel.pptx	summary pages=1 worst=0.50% mean=0.50%
 oox-tdf144742_mathEqual_mathNotEqual.pptx	summary pages=1 worst=0.71% mean=0.71%
 oox-tdf147978_enhancedPath_subpath.pptx	summary pages=1 worst=0.11% mean=0.11%
-oox-tdf149538_upright.pptx	summary pages=1 worst=1.07% mean=1.07%
+oox-tdf149538_upright.pptx	summary pages=1 worst=0.47% mean=0.47%
+
 oox-tdf149551_TextRot.pptx	summary pages=1 worst=0.99% mean=0.99%
 oox-tdf149551_vert270AndTextRot.pptx	summary pages=1 worst=0.99% mean=0.99%
 oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=0.89% mean=0.89%

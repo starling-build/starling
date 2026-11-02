@@ -921,14 +921,47 @@ struct PptxReader {
         return nil
     }
 
+    /// Stops that share a position, as PowerPoint for Windows draws them
+    /// (lab grad, 20 gradients): at 0 the later stop wins, at 100 the first
+    /// does; anywhere else the later stop moves on to the next position a
+    /// stop holds (100 if none) and gives way to the stop already there.
+    /// So red 30 / blue 30 is red to 30 and a blend to blue at 100, and
+    /// red 0 / blue 50 / green 50 is red to blue to green.
+    static func settled(_ stops: [SlideFill.GradientStop]) -> [SlideFill.GradientStop] {
+        var out: [(stop: SlideFill.GradientStop, moved: Bool)] = []
+        for (i, stop) in stops.enumerated() {
+            var stop = stop
+            var moved = false
+            if let last = out.last, last.stop.position == stop.position {
+                if last.moved { out.removeLast() }
+                else if stop.position <= 0 { out.removeLast() }
+                else if stop.position >= 1 { continue }
+                else {
+                    stop.position = stops[(i + 1)...].first { $0.position > stop.position }?.position ?? 1
+                    moved = true
+                }
+            }
+            out.append((stop, moved))
+        }
+        return out.map(\.stop)
+    }
+
+    /// The stops seen from the far end: a path gradient (`a:path`) is
+    /// settled that way round, as PowerPoint draws it.
+    static func mirrored(_ stops: [SlideFill.GradientStop]) -> [SlideFill.GradientStop] {
+        stops.reversed().map { SlideFill.GradientStop(position: ((1 - $0.position) * 1e6).rounded() / 1e6, color: $0.color) }
+    }
+
     /// An `a:gradFill` as a fill: its stops in order and its direction, or
     /// its path (`a:path`, radiating from `a:fillToRect`). A single stop is
     /// a colour; none at all is nothing (the shape's style fill then).
     static func gradient(_ g: XNode, colors: ColorContext) -> SlideFill? {
-        let stops: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
+        let read: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
             guard let c = colors.color(in: gs) else { return nil }
             return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: c)
-        }.sorted { $0.position < $1.position }
+        }
+        let ordered = read.enumerated().sorted { ($0.element.position, $0.offset) < ($1.element.position, $1.offset) }.map(\.element)
+        let stops = g.first("a:path") != nil ? Self.mirrored(Self.settled(Self.mirrored(ordered))) : Self.settled(ordered)
         if stops.isEmpty { return nil }
         if stops.count == 1 { return SlideFill(color: stops[0].color) }
         var f = SlideFill(color: stops[0].color, stops: stops,
@@ -1212,6 +1245,34 @@ private struct SlideContext {
                 s.fill = groupFill
                 s.keptLook?.readFill = groupFill
                 if s.readShape != nil { s.readShape = ReadShape(s) }
+            }
+            // Text held level in a shape that turns (`bodyPr upright`): the
+            // shape, and its text as a box of its own.
+            if let box = s.uprightBox, s.text != nil {
+                var shape = s
+                shape.text = nil
+                shape.uprightBox = nil
+                var text = s
+                text.id = id()
+                text.kind = .textBox
+                text.frame = box
+                text.rotation = 0
+                text.flipH = false
+                text.flipV = false
+                text.fill = nil
+                text.fillStyle = nil
+                text.outline = nil
+                text.customPath = nil
+                text.shadow = nil
+                text.glowRadius = nil
+                text.softEdge = nil
+                text.scene3d = nil
+                text.shapeInsets = .zero
+                text.insets = s.uprightInsets
+                text.uprightBox = nil
+                out.append(shape)
+                out.append(text)
+                return
             }
             out.append(s)
         }
@@ -1758,6 +1819,27 @@ private struct SlideContext {
                     break
                 }
             }
+        }
+        // `bodyPr upright="1"`: the text stays level whatever the shape's
+        // turn. Its frame is the text rectangle's own, set level about the
+        // rectangle's turned middle — its width and height swapped when the
+        // shape lies on its side (45° to 135° either way); PowerPoint wraps
+        // oox-tdf149538_upright's 8 pt Courier in 168 pt, not the arrow
+        // callout's 80 pt turned with it.
+        let uprightTurn = rotation.truncatingRemainder(dividingBy: 360)
+        if st.uprightBox == nil, st.text != nil, abs(uprightTurn) > 0.01, abs(abs(uprightTurn) - 360) > 0.01,
+           ["1", "true"].contains(sp.first("p:txBody")?.first("a:bodyPr")?["upright"] ?? "") {
+            let t = st.shapeInsets
+            let w = frame.width - t.left - t.right, h = frame.height - t.top - t.bottom
+            let mid = Offset(frame.left + t.left + w / 2, frame.top + t.top + h / 2)
+            let c = frame.center, th = uprightTurn * .pi / 180
+            let at = Offset(c.dx + cos(th) * (mid.dx - c.dx) - sin(th) * (mid.dy - c.dy),
+                            c.dy + sin(th) * (mid.dx - c.dx) + cos(th) * (mid.dy - c.dy))
+            let side = (abs(uprightTurn).truncatingRemainder(dividingBy: 180)) >= 45
+                && (abs(uprightTurn).truncatingRemainder(dividingBy: 180)) < 135
+            st.uprightBox = Rect.fromCenter(center: at, width: side ? h : w, height: side ? w : h)
+            st.uprightInsets = EdgeInsets(left: st.insets.left - t.left, top: st.insets.top - t.top,
+                                          right: st.insets.right - t.right, bottom: st.insets.bottom - t.bottom)
         }
         // The look as the file spells it — fills this app flattens (gradients,
         // patterns, pictures), effects it does not draw, the style it refers
