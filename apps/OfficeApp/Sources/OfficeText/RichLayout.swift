@@ -1957,9 +1957,21 @@ public final class RichLayout {
     /// The widest line a table's first-column cells state on their own
     /// left (points), by table: see `_edgeShift`.
     private var _tableOwnLeft: [String: (style: String, width: Double)] = [:]
+    private func _acrossColumns(_ table: String, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, let style = document.tableStyles[table],
+              style.floatsOverText, style.floatX == nil, style.floatXAnchor == "margin",
+              style.alignment == .right || style.alignment == .center,
+              let first = _tableFirstParagraph[table] else { return false }
+        return _perSection ? _columnsOf(paragraph: first) > 1 : true
+    }
+
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
         let sum = (_columnWidths[table] ?? []).reduce(0, +)
-        let width = _tableFlowWidth[table] ?? self.width
+        // (A table aligned in the MARGINS of a section of columns is set across all
+        // of them, not in the column it hangs from: lo-20f5d558's, right-aligned,
+        // stands at the margin's right in Word's print. Painted from the first
+        // column's edge: see `_acrossColumns`.)
+        let width = _acrossColumns(table, document) ? _px(_setup(ofParagraph: _tableFirstParagraph[table] ?? 0).contentWidth) : (_tableFlowWidth[table] ?? self.width)
         // Set out by its cell margin, as Word sets it before its 2013
         // layout: a left-aligned table's edge stands its left cell margin
         // left of its indent, so that the first column's text lines up
@@ -5691,6 +5703,22 @@ public final class RichLayout {
                     }
                     if y > 0.01, y + _px(down) > contentH - 0.01 {
                         if anchorFits { keptPastFoot = c.table } else { newPage() }
+                    } else if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, y > 0.01, i < _sectionOf.count,
+                              _columnsOf(paragraph: i) > 1 {
+                        // (In a section of columns Word keeps a floating table whole: where
+                        // the table, at its offset under the anchor, would run past the
+                        // column's foot by more than a few points, the anchor and the table
+                        // go to the next column together. Lab fm2 of lo-20f5d558: a 95pt
+                        // table at tblpY 472 twips moves from column 2 of page 1 to the top
+                        // of page 2's column 1; one that overruns by 3.6pt stays.)
+                        var tops = Double.infinity, bottoms = 0.0, k = i
+                        while k < count, let d = _cells[k], d.table == c.table {
+                            tops = min(tops, d.rowTop); bottoms = max(bottoms, d.rowTop + d.ownRowHeight); k += 1
+                        }
+                        if bottoms > tops, y + _px(down) + (bottoms - tops) > contentH + _px(4) {
+                            RuleTrace.hit("floating-table-in-columns-goes-whole-to-the-next-column")
+                            newPage()
+                        }
                     }
                     // (A run of floating tables hangs from one anchor, the
                     // paragraph after the run: each stands its own offset
@@ -20303,6 +20331,8 @@ public final class RichLayout {
                             let s = _setup(ofParagraph: piece.paragraph)
                             if s.marginLeft != pageSetup(forPage: p).marginLeft { left = _px(s.marginLeft + s.gutter) }
                         }
+                        let acrossTable = _cells[piece.paragraph].map { _acrossColumns($0.table, document) } ?? false
+                        if acrossTable { left = _perSection ? _pxColumnLeft(p, column: 0, paragraph: piece.paragraph) : _pxMarginLeft(p) }
                         let columnW = _perSection ? _px(_setup(ofParagraph: piece.paragraph).columnWidth) : _pxColumnW(p)
                         let manyColumns = _perSection ? _columnsOf(paragraph: piece.paragraph) > 1 : _columns > 1
                         // One column clips to its own width; a lone column keeps
@@ -20313,7 +20343,7 @@ public final class RichLayout {
                         // `_fullWidthCover`.)
                         // (A margin-aligned float of a multi-column section
                         // stands outside its anchor's column: lo-7afc5602.)
-                        let across = _fullWidthCover.contains(piece.paragraph)
+                        let across = acrossTable || _fullWidthCover.contains(piece.paragraph)
                             || (_perSection && manyColumns && _marginFloat(piece.paragraph))
                         let clipL = across ? 0 : columnClipL
                         let clipR = across ? _pxPageW(p) : columnClipR

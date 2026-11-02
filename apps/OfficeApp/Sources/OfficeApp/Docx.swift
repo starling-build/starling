@@ -2190,6 +2190,7 @@ enum DocxFormat {
                         // where ours, at the margin, stood at 115.
                         if spec == "center" { style.alignment = .center }
                         if spec == "right" { style.alignment = .right }
+                        style.floatXAnchor = pos["w:horzAnchor"] ?? "text"   // (read only for the table's x in columns)
                     }
                 } else if case let frames = unwrapped(node, "w:tr").flatMap({ unwrapped($0, "w:tc") }).flatMap({ unwrapped($0, "w:p") })
                             .map({ $0.first("w:pPr")?.first("w:framePr") }),
@@ -3509,6 +3510,11 @@ enum DocxFormat {
     /// 0.2929 of their corner (`adj`, 2700 of 21600 for the alternate
     /// process, 5400 for the round rectangle).
     static func _vmlTextRect(_ node: XNode, types: [XNode]) -> Rect? {
+        // (A VML ellipse sets its text in the inscribed rectangle, as the
+        // type 3 shape does: lo-ff3b52d1's oval, Word's text 15.4pt in.)
+        if node.name == "v:oval" || (node.descendant("v:shape") == nil && node.descendant("v:oval") != nil) {
+            return Rect.fromLTRB(3163 / 21600, 3163 / 21600, 18437 / 21600, 18437 / 21600)
+        }
         guard let shape = node.name == "v:shape" ? node : node.descendant("v:shape") else { return nil }
         let typeId = shape["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
         if let id = typeId, let type = types.first(where: { $0["id"] == id }),
@@ -5393,6 +5399,14 @@ enum DocxFormat {
                     // (o:spt 176, inset 0, no shapetype in the file), and
                     // Word's print sets "由港区专" a line in the 54.25pt one at
                     // 10.5pt, where the whole width took "由港区专项".)
+                    // (… and a lone VML shape that says `v-text-anchor:middle` or
+                    // `bottom` sets its text there: lo-ff3b52d1's oval.)
+                    if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group", box.anchor == nil,
+                       RichTextTheme.wordWindowsPages, node.name == "v:oval" || node.descendant("v:oval") != nil,
+                       let shapeStyle = (node.name == "v:oval" ? node : node.descendant("v:oval"))?["style"] {
+                        if shapeStyle.containsSubstring("v-text-anchor:middle") { box.anchor = "ctr"; box.hasFixedFrame = true }
+                        else if shapeStyle.containsSubstring("v-text-anchor:bottom") { box.anchor = "b"; box.hasFixedFrame = true }
+                    }
                     if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
                        att.width > 0, att.height > 0, let r = Self._vmlTextRect(node, types: notes.shapeTypes) {
                         box.insetLeft += r.left * att.width
