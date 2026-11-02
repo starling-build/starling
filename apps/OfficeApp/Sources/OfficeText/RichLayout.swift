@@ -9364,7 +9364,9 @@ public final class RichLayout {
            (style.frameXML ?? "").containsSubstring("w:x=\"") {
             let setup = _setup(ofParagraph: i)
             left += _px(frame.x - setup.marginLeft - setup.gutter - 0.55)
-            width -= _px(7.15)
+            // (A hair narrower than Word's ink, 433.1pt, because our small capitals set 0.6% short of Word's
+            // on this document's lines: with the box at Word's 433.4 ours takes "NULLA" onto the fourth line.)
+            width -= _px(10.0)
         }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
         // (Centred or set right, a numbered line is set across its
@@ -12293,12 +12295,27 @@ public final class RichLayout {
             var spans: [TextSpan] = []
             var piece = ""
             var pieceSmall = false
-            let smallStyle = small ? style.copyWith(fontSize: (style.fontSize ?? 12) * 0.8) : style
+            // (Word draws the small letters at a size of its own, on a 0.12pt grid, not 0.8 of the
+            // size: windows' lab smallcaps, 9pt -> 6.96, 10 -> 8.04, 11 and 11.5 -> 9.00, 12 -> 9.48,
+            // 13 -> 10.56, 14 -> 11.04; elsewhere 0.8. The spaces between them are the small size too
+            // (lab SMALLCAPS-CHARS: a TNR 11pt line's six spaces are 9.00, its commas the capitals' 11.04),
+            // and each glyph's advance is the face's at that size.)
+            let smallSize: Double = {
+                let full = style.fontSize ?? 12
+                guard theme.wordRules, RichTextTheme.wordWindowsPages else { return full * 0.8 }
+                let pt = full / _px(1)
+                let known: [Double: Double] = [9: 6.96, 9.5: 7.56, 10: 8.04, 10.5: 8.52, 11: 9.00, 11.5: 9.00, 12: 9.48, 12.5: 9.96, 13: 10.56, 14: 11.04]
+                if let v = known[(pt * 100).rounded() / 100] { return v * _px(1) }
+                return (pt * 0.8 / 0.12).rounded() * 0.12 * _px(1)
+            }()
+            // (The line stays as tall as the full size makes it: a line of small letters alone is not shorter in
+            // Word's print, lo-af81b53e's pitch is 12.6 on every line.)
+            let smallStyle = small ? style.copyWith(fontSize: smallSize, height: style.height.map { $0 * (style.fontSize ?? smallSize) / smallSize }) : style
             for ch in text {
                 let s = String(ch)
                 let up = s.uppercased()
                 let lower = up != s && up.utf16.count == s.utf16.count
-                let isSmall = small && lower
+                let isSmall = small && (lower || (theme.wordRules && RichTextTheme.wordWindowsPages && ch == " "))
                 if isSmall != pieceSmall, !piece.isEmpty {
                     spans.append(TextSpan(text: piece, style: pieceSmall ? smallStyle : style))
                     piece = ""
