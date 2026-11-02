@@ -1,0 +1,18 @@
+# doc	page	n	x0	y0	y1	h	pitch	text
+a	1	1	433.5	150.02	162.31	12.29		Formatted: Font: 9 pt
+# a p1: 1 balloons, page h 792
+b	1	1	433.5	150.02	161.21	11.19		Deleted: DEL-text
+b	1	2	433.5	162.02	174.41	12.39	12.00	Formatted: Font: 9 pt
+# b p1: 2 balloons, page h 792
+c	1	1	433.5	150.02	162.31	12.29		Formatted: Font: 9 pt
+c	1	2	433.5	163.22	175.51	12.29	13.20	Formatted: Font: 9 pt
+# c p1: 2 balloons, page h 792
+d	1	1	433.5	150.02	161.21	11.19		Deleted: DEL-plain
+d	1	2	433.5	162.02	174.41	12.39	12.00	Formatted: Font: 9 pt
+d	1	3	433.5	175.22	187.51	12.29	13.20	Formatted: Font: 9 pt
+# d p1: 3 balloons, page h 792
+e	1	1	433.5	150.02	162.31	12.29		Formatted: Font: 9 pt
+e	1	2	433.5	163.22	175.51	12.29	13.20	Formatted: Font: 9 pt
+# e p1: 2 balloons, page h 792
+f	1	1	433.5	150.02	162.31	12.29		Formatted: Font: 9 pt
+# f p1: 1 balloons, page h 792
