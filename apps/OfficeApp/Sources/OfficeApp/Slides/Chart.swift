@@ -1414,6 +1414,7 @@ enum ChartXML {
         if let axis = secondAxis {
             var second = SecondValueAxis()
             second.deleted = ["1", "true"].contains(axis.first("c:delete")?["val"] ?? "")
+            if let t = axis.first("c:title") { let text = _texts(t, "a:t").joined(); if !text.isEmpty { second.title = text } }
             if let fmt = axis.first("c:numFmt") {
                 let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
                 let source = overlay?.descendant("c:val")?.descendant("c:formatCode")?.text
@@ -1630,9 +1631,9 @@ enum ChartXML {
             guard let t = ax?.first("c:title"), let m = t.first("c:layout")?.first("c:manualLayout"),
                   (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                   let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
-                  t.descendant("a:bodyPr")?["rot"] == "0" else { return nil }
+                  let rot = t.descendant("a:bodyPr")?["rot"], rot == "0" || (rot == "-5400000" && ax?.name == "c:valAx") else { return nil }
             let size = (t.descendant("a:rPr") ?? t.descendant("a:defRPr"))?["sz"].flatMap(Double.init).map { $0 / 100 }
-            return PlacedAxisTitle(at: Offset(x, y), size: size)
+            return PlacedAxisTitle(at: Offset(x, y), size: size, turned: rot != "0")
         }
         let axes = plot.children.filter { ["c:catAx", "c:valAx", "c:dateAx"].contains($0.name) }
         let titledCategory = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name != "c:valAx" }
@@ -3014,11 +3015,22 @@ enum ChartPainter {
         // 3 pt in, its glyphs' tops 2.9 down (zh-547fc43c's "亿元" and
         // "万吨", 10 and 10.5 pt, over three charts of its print).
         let titleSize = c.axisTitleSize ?? 13.3
+        var deferredValueTitle: TextPainter? = nil
         for (t, placed) in [(c.valueAxisTitle, c.valueAxisTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
             guard let t, let placed else { continue }
             let tp = text(t, placed.size ?? titleSize, .infinity)
             let top = tp.computeLineMetrics().first.map { $0.baseline - $0.ascent } ?? 0
-            tp.paint(canvas, Offset(frame.left + placed.at.dx * frame.width + 3 * k, frame.top + placed.at.dy * frame.height + 2.9 * k - top))
+            if placed.turned {
+                // (Turned up, its box's top left 3 pt and 3.1 in: zh-b8de3ae2's "千元"
+                // at 1.4%/41.6% of a 563.5 × 361.5 pt chart, glyphs from 21.2 and 232.3.)
+                canvas.save()
+                canvas.translate(frame.left + placed.at.dx * frame.width + 0.2 * k, frame.top + placed.at.dy * frame.height + 3.1 * k + tp.width)
+                canvas.rotate(-.pi / 2)
+                tp.paint(canvas, .zero)
+                canvas.restore()
+            } else {
+                tp.paint(canvas, Offset(frame.left + placed.at.dx * frame.width + 3 * k, frame.top + placed.at.dy * frame.height + 2.9 * k - top))
+            }
             tp.dispose()
         }
         if let t = c.valueAxisTitle, c.valueAxisTitleAt == nil {
@@ -3044,6 +3056,10 @@ enum ChartPainter {
                 across.paint(canvas, Offset(area.left + block / 2 - across.width / 2, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
                 area = Rect.fromLTRB(area.left + block + 3 * k, area.top, area.right, area.bottom)
                 across.dispose()
+            } else if writerChart, c.plotLayoutInner, c.plotLayout != nil, c.dataTable == nil {
+                // (Where the file places the plot itself, Word's turned title stands by the
+                // value labels and over the plot's middle: set below, once they are known.)
+                deferredValueTitle = tp
             } else {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
@@ -3052,7 +3068,7 @@ enum ChartPainter {
                 canvas.restore()
                 area = Rect.fromLTRB(area.left + tp.height + 4 * k, area.top, area.right, area.bottom)
             }
-            tp.dispose()
+            if deferredValueTitle !== tp { tp.dispose() }
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
             let tp = text(t, titleSize, min(horizontal ? area.height : area.width, !c.onSlide && !c.onSheet ? 0.8 * (horizontal ? frame.height : frame.width) : .infinity))
@@ -3093,6 +3109,17 @@ enum ChartPainter {
             return shown.isEmpty ? tickLabel(v) : shown
         }
         let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
+        if let tp = deferredValueTitle {
+            if let plotRect = placed {
+                let right = plotRect.left - ((valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k) - 2.6 * k
+                canvas.save()
+                canvas.translate(right - tp.height, plotRect.center.dy + tp.width / 2)
+                canvas.rotate(-.pi / 2)
+                tp.paint(canvas, .zero)
+                canvas.restore()
+            }
+            tp.dispose()
+        }
         // The second axis' labels, in its own format ("60.00%").
         let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
         let secondLabels: [TextPainter] = secondTicks.map { v in
@@ -3558,6 +3585,18 @@ enum ChartPainter {
             // (Word for Windows stands them 10.1pt off the plot's edge: zh-61aaad09's
             // and zh-2a241df1's "60.00%" labels print 4pt right of where 6 put them.)
             tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? 10.1 : 6) * k, vpos2(v) - tp.height / 2 - lift2))
+        }
+        // (Its title, turned, 4.6 pt past the widest label and over the plot's middle: zh-b8de3ae2's
+        // "%" at 534.6 where the labels end 530, in a Word document whose file places the plot.)
+        if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayoutInner, c.plotLayout != nil, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true {
+            let tp = text(t, c.axisTitleSize ?? 10, .infinity)
+            let edge = plot.right + 10.1 * k + (secondLabels.map(\.width).max() ?? 0) + 3.6 * k
+            canvas.save()
+            canvas.translate(edge, plot.center.dy + tp.width / 2)
+            canvas.rotate(-.pi / 2)
+            tp.paint(canvas, .zero)
+            canvas.restore()
+            tp.dispose()
         }
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
@@ -5291,6 +5330,8 @@ struct DataTable: Equatable {
 struct PlacedAxisTitle: Equatable {
     var at: Offset
     var size: Double? = nil
+    /// Turned a quarter up (a value axis' own title), its box's top left at `at`.
+    var turned = false
 }
 
 /// A stock chart's high-low lines (`Chart.highLowLines`).
@@ -5302,6 +5343,7 @@ struct HighLowLines: Equatable {
 struct SecondValueAxis: Equatable {
     var format: String? = nil
     var deleted = false
+    var title: String? = nil
     var min: Double? = nil
     var max: Double? = nil
     var step: Double? = nil
