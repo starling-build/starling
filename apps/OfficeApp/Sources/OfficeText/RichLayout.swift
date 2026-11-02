@@ -17157,7 +17157,6 @@ public final class RichLayout {
                     // zh-c15af02e's "，已違反…，應依" has its opening "，" at 10.2 in Word's print. Under 5pt over (zh-9e08ed28 has one at 2-5pt that gives), the line
                     // fits as it stands in Word (zh-72da925e's "，主要係依據…24417號", 0.33pt over, "，" whole at 16.9): our
                     // widths run a little long there, so the mark gives for the same break.)
-                    if RichTextTheme.wordWindowsPages, over > _px(5), all.count == 1, closingOpeners.contains(all[0]) { all = [] }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
@@ -17247,13 +17246,15 @@ public final class RichLayout {
                     // spaced, half its spaced width: lab `p01` (macOS-doc,
                     // Word for Mac, zh-01bbcd4d's package, 16pt spaced to
                     // 17) sets the "“" of "…注记“该权利人…" 8.51 narrower.)
-                    // (A closing mark that opens the line gives only the half of its half in a cell from 2013's layout: lab `ldc`
+                    // (A closing mark that opens the line gives only the half of its half, from 2013's layout: lab `ldc`
                     // (zh-8628cfbe's cell line "，獲選…1名加2分；合計", Word for Windows) takes "計" 9.0pt over and not 9.2, the "；"
                     // giving 6 and the opening "，" 3; with the comma alone on the line, 3.0 over is taken and 3.2 is not; the
-                    // comma as an ideograph, 6.0 and not 6.2.)
+                    // comma as an ideograph, 6.0 and not 6.2. The body agrees: zh-c15af02e's opening "，" is set at 10.2 of
+                    // 12.95 in Word's print, and zh-72da925e p8 sends "大" down 8.5pt over where the opening "，" is the only
+                    // mark, its quarter em not enough. That replaces the older rule that such a mark gave nothing alone.)
                     func half(_ k: Int) -> Double {
                         let h = wideQuote(k) ? (ems[k] + quoteSpacing(k)) / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2
-                        return RichTextTheme.wordWindowsPages && inCell && !legacy && closingOpeners.contains(k) ? h / 2 : h
+                        return RichTextTheme.wordWindowsPages && !legacy && closingOpeners.contains(k) ? h / 2 : h
                     }
                     let markRoom = all.reduce(0.0) { $0 + half($1) }
                     var room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
