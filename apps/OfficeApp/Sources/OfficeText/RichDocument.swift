@@ -100,6 +100,8 @@ public struct CharShadow: Hashable, Sendable {
     /// its top left; PowerPoint's `algn`). 1 for none; text ignores it.
     public var scale: Double = 1
     public var anchor = Offset(0.5, 0.5)
+    /// A glow (`a:glow` on a run), not a shadow: `blur` is its radius, the colour spread all round the letters.
+    public var glow = false
     public init(color: Color, dx: Double, dy: Double, blur: Double) {
         self.color = color; self.dx = dx; self.dy = dy; self.blur = blur
     }

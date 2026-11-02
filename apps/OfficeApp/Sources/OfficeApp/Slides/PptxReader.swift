@@ -555,6 +555,12 @@ private struct LevelStyle {
             // is not drawn: as a copy of the letters it would stand up.)
             s.shadowSet = true
             s.shadow = outerShadow(effects, colors)
+            // (A glow on the run, with no shadow of its own: the letters haloed.)
+            if s.shadow == nil, let g = effects.first("a:glow"), let c = colors.color(in: g) {
+                var glow = CharShadow(color: c, dx: 0, dy: 0, blur: (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu)
+                glow.glow = true
+                s.shadow = glow
+            }
         }
         return s
     }
