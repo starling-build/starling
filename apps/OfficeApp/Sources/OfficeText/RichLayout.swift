@@ -7315,6 +7315,18 @@ public final class RichLayout {
                     let ownsBand = tableBands.contains { $0.owner == i }
                     let line = (lineBottoms.first.map { $0 + (ownsBand ? 0 : geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
                     while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
+                        // (In a column that is not the last, what meets a picture wrapped top and
+                        // bottom that an earlier paragraph of text anchors in the column goes on in the
+                        // next column, not under the picture: lab f43/g43 (Word for Windows,
+                        // lo-eb12e7d4's p13) — 4.3 stands at column 2's top with the picture
+                        // up to 72pt higher and 95pt of column 1 free under it, and a line of
+                        // 4.2 the picture would be over goes with it.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, page % _columns < _columns - 1,
+                           band.owner >= 0, band.owner < i, !_anchorsOnly(band.owner, document), resumeCursor == nil, y > 0.01 {
+                            RuleTrace.hit("word-column-text-meeting-a-band-goes-to-the-next-column")
+                            newPage()
+                            break
+                        }
                         y = band.bottom; guardSteps += 1
                     }
                 }
