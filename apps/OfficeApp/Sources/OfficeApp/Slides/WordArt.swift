@@ -573,6 +573,40 @@ enum WordArt {
             for band in bands {
                 let n = Double(band.lines.count)
                 let widest = ring ? max(1e-6, band.lines.map(\.width).max() ?? 1) : widestOfAll
+                // PowerPoint fits the VISIBLE letters to the box (lab prints,
+                // wordart-fit: first letter's ink on the left edge, last one's
+                // on the right, capitals on the top, foot on the bottom,
+                // whatever the side bearings). Horizontal ink extent over the
+                // band's lines, in units of `widest`; vertical, in line boxes.
+                var inkU: (Double, Double)? = nil, inkV: (Double, Double)? = nil
+                if cache != nil, !ring {
+                    func extent(_ ls: [Line], _ total: Double) -> (l: Double, r: Double, t: Double, b: Double) {
+                        var l = Double.infinity, r = -Double.infinity, t = Double.infinity, b = -Double.infinity
+                        for (li, line) in ls.enumerated() {
+                            let spare = total - line.width
+                            var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
+                            for g in line.glyphs {
+                                if let k = g.ink, !k.isEmpty, g.painter.height > 0 {
+                                    l = min(l, x + k.left); r = max(r, x + k.right)
+                                    t = min(t, Double(li) * Self.linePitch + k.top / g.painter.height)
+                                    b = max(b, Double(li) * Self.linePitch + k.bottom / g.painter.height)
+                                }
+                                else if g.width > 0 { l = min(l, x); r = max(r, x + g.width) }  // a space counts by its advance
+                                x += g.width
+                            }
+                        }
+                        return (l, r, t, b)
+                    }
+                    // Horizontal: every band's lines together (a short first
+                    // line stays short); vertical: this band's own lines.
+                    let all = extent(bands.flatMap(\.lines), widest), mine = extent(band.lines, widest)
+                    if all.r > all.l, mine.b > mine.t {
+                        inkU = (all.l / widest, all.r / widest)
+                        // Deflate-inflate's two bands keep the line-box rule (lab: the ink-fit
+                        // top overshot the box there).
+                        if bands.count == 1 { inkV = (mine.t, mine.b) }
+                    }
+                }
                 func point(_ u: Double, _ v: Double) -> Offset {
                     if let pour { return pour(u, v) }
                     let u = band.mirrored ? 1 - u : u
@@ -603,10 +637,13 @@ enum WordArt {
                     // 70.1 in sum, ImportWordArtGradient's two lines 0.9 worse.)
                     let above = 0.04, below = descends ? -0.02 : 0.15
                     let pitch = Self.linePitch
-                    let span = (n - 1) * pitch + 1 - above - below
-                    let v0 = (Double(li) * pitch - above) / span, v1 = (Double(li) * pitch + 1 - above) / span
+                    var span = (n - 1) * pitch + 1 - above - below
+                    var top = above
+                    if let (t, b) = inkV { span = b - t; top = t }
+                    let v0 = (Double(li) * pitch - top) / span, v1 = (Double(li) * pitch + 1 - top) / span
                     for g in line.glyphs {
-                        let u0 = x / total, u1 = (x + g.width) / total
+                        var u0 = x / total, u1 = (x + g.width) / total
+                        if let (l, r) = inkU { u0 = (u0 - l) / (r - l); u1 = (u1 - l) / (r - l) }
                         x += g.width
                         guard g.width > 0, g.painter.height > 0 else { continue }
                         let p00 = point(u0, v0), p10 = point(u1, v0), p01 = point(u0, v1), p11 = point(u1, v1)
