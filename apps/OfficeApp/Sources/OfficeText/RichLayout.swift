@@ -8049,10 +8049,12 @@ public final class RichLayout {
             for (phys, ids) in _pageNotes {
                 let paras = (phys * _columns ..< min((phys + 1) * _columns, _pages.count)).flatMap { _pages[$0].filter { !$0.repeated }.map { $0.paragraph } }
                 guard let first = paras.first(where: { _cells[$0] == nil }) ?? paras.first else { continue }
-                let s = _setup(ofParagraph: first)
                 let same = Set(paras.map { _columnsOf(paragraph: $0) }).count == 1
+                // (A page of sections that differ keeps the page's own setup: the
+                // columns and margin its first notes stand in, lo-9749f2b5.)
+                let s = same ? _setup(ofParagraph: first) : pageSetup(forPage: phys)
                 let geo = (columns: max(1, s.columns), width: _px(s.columnWidth), stride: _px(s.columnWidth + s.columnGap),
-                           left: _pxColumnLeft(phys, column: 0, paragraph: first), perColumn: same)
+                           left: same ? _pxColumnLeft(phys, column: 0, paragraph: first) : _pxMarginLeft(phys), perColumn: same)
                 _columnNoteGeometry[phys] = geo
                 if same, let lay = _columnNoteLayout(phys, ids, document) { needed[phys] = lay.height + lay.separator }
             }
