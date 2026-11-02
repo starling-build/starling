@@ -4988,27 +4988,40 @@ extension ChartPainter {
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
         let al = max(5, min(90, tilt)) * .pi / 180
-        let eye = 4.8, deep = 0.275
+        let eye30 = 4.8, deep = 0.275
         let flat = c.piePerspective == 0
+        // (The eye stands as far as the file's perspective says, a field of view in half
+        // degrees: K = c / tan(perspective / 4°), lab proj (Word for Windows, 61 views of a
+        // 3-D box, perspective 0 to 200: within 0.3pt to 60); at 30 the 4.8 radii fitted
+        // before. The pie's size is fitted as at 30 — Word's scale does not follow the
+        // perspective — and then drawn from the file's eye, centred where it was. LibreOffice's
+        // lo-4d273731, perspective 90: its "56%" and "44%" stood 11 and 40pt off Word's.)
+        let persp = c.piePerspective ?? 30
+        let eye = !flat && !c.onSlide && !c.onSheet && persp > 0 && abs(persp - 30) > 0.01
+            ? eye30 * tan(7.5 * .pi / 180) / tan(min(persp, 200) / 4 * .pi / 180) : eye30
         // (Taller than the eye's 30° makes it: PowerPoint's top is 0.468
         // as tall as wide, the view's 0.509.)
         let squash = flat ? 0.975 : 0.92   // (pie7 at perspective 0: 301.6 x 175.3, ours 312 x 171 at 0.92)
         // A point of the disc at angle `a` (0 to the right, a quarter
         // turn toward the viewer), `f` of the radius out and `h` radii
         // down, on a disc of radius 1 centred on 0.
-        func unit(_ a: Double, _ f: Double, _ h: Double) -> (x: Double, y: Double) {
+        func unit(_ a: Double, _ f: Double, _ h: Double, from e: Double? = nil) -> (x: Double, y: Double) {
+            let eye = e ?? eye
             let x = f * cos(a), z = -f * sin(a)
             // (Seen from infinitely far where the file says perspective 0: lab pie7
             // (Word for Windows) draws its pies 0 and 30 apart, the near rim no
             // wider than the far at 0; ours drew both at 30.)
-            let d = flat ? eye : eye + z * cos(al) + h * sin(al)
-            return (x / d, -(z * sin(al) - h * cos(al)) / d * squash)
+            let d = (flat ? eye : eye + z * cos(al) + h * sin(al)) / eye30 * (eye30 / eye)
+            return (x / d / eye30, -(z * sin(al) - h * cos(al)) / d / eye30 * squash)
         }
         var lo = (x: Double.infinity, y: Double.infinity), hi = (x: -Double.infinity, y: -Double.infinity)
+        var lo30 = lo, hi30 = hi
         for j in 0 ..< 360 {
             for h in [0, deep] {
                 let q = unit(Double(j) * .pi / 180, 1, h)
                 lo = (min(lo.x, q.x), min(lo.y, q.y)); hi = (max(hi.x, q.x), max(hi.y, q.y))
+                let q30 = unit(Double(j) * .pi / 180, 1, h, from: eye30)
+                lo30 = (min(lo30.x, q30.x), min(lo30.y, q30.y)); hi30 = (max(hi30.x, q30.x), max(hi30.y, q30.y))
             }
         }
         // (Where no label stands outside it, bigger by 1.16: Word keeps a
@@ -5020,7 +5033,7 @@ extension ChartPainter {
         // and under a title. Ours, its labels' size whatever they were,
         // is Word's with them outside.)
         let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && !c.legend && !c.pieLabelsAround
-        let scale = min(plot.width * 0.941 / (hi.x - lo.x), plot.height * 0.972 / (hi.y - lo.y)) / (1 + c.pieExplosion) * (unbanded ? 1.16 : 1)
+        let scale = min(plot.width * 0.941 / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + c.pieExplosion) * (unbanded ? 1.16 : 1)
         let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2, plot.center.dy - scale * (lo.y + hi.y) / 2)
         // (Drawn, where Word lays it out itself — no title, no legend, no
         // layout of the file's — on the frame's middle and 1.5pt over it,
