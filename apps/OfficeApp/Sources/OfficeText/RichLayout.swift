@@ -2803,6 +2803,25 @@ public final class RichLayout {
             }
             opening = first
         }
+        // (A form's check box is a drawn square, no glyph for the probe to
+        // measure: it asks its width and the gap before it, 1.042 em. Lab
+        // cbcol, Word for Windows: a box in an overfull table's first column
+        // keeps it 30.1pt where an empty cell's goes to 29.2.)
+        if theme.wordRules, p.runs.contains(where: { $0.style.formBox }), p.text.contains(where: { $0 == "\u{2610}" || $0 == "\u{2612}" }) {
+            var at = 0, boxMin = 0.0
+            for run in p.runs {
+                let piece = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: at) ..< p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(at + run.length, p.text.utf16.count))
+                at += run.length
+                if run.style.formBox, p.text[piece].contains(where: { $0 == "\u{2610}" || $0 == "\u{2612}" }) {
+                    let size = run.style.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    boxMin = max(boxMin, size * 1.042)
+                }
+            }
+            if boxMin > 0 {
+                RuleTrace.hit("check-box-asks-its-width-of-a-cell")
+                first = max(first, _px(boxMin)); m = max(m, _px(boxMin)); opening = max(opening, _px(boxMin))
+            }
+        }
         let sides = _sideIndents(p, document)
         // (Indents out into the cell's margins count against it:
         // bug65649's equipment table indents every paragraph -113 twips
