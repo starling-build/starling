@@ -6923,6 +6923,8 @@ enum DocxFormat {
                 // the slide runs' glow is.)
                 if let c = child.children.first(where: { $0.name == "w14:srgbClr" }), let v = Int(c["w14:val"] ?? "", radix: 16) {
                     let alpha = c.first("w14:alpha").flatMap { Double($0["w14:val"] ?? "") }.map { $0 / 100000 } ?? 1
+                    // (Word draws none at all for a glow of alpha 100%: its lab print of wordglow.docx.)
+                    if alpha >= 1 { break }
                     var glow = CharShadow(color: Color(argb: Int((alpha * 255).rounded()), (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF),
                                           dx: 0, dy: 0, blur: (Double(child["w14:rad"] ?? "") ?? 0) / 12700)
                     glow.glow = true

@@ -756,9 +756,9 @@ public final class RichTextTheme {
                     if device == nil {
                         // (Where nothing blurs, as on screen and in Word's PDF: two rings of sharp copies a
                         // half and the whole band out, eight ways round.)
-                        let band = sh.blur * 0.25 * k, a = Double(sh.color.alpha) / 255 * 0.5
-                        return [0.5, 1.0].flatMap { f in (0 ..< 8).map { i -> Shadow in
-                            let t = Double(i) * Double.pi / 4
+                        let band = sh.blur * 0.3 * k, a = Double(sh.color.alpha) / 255 * 0.36
+                        return [0.35, 0.7, 1.0].flatMap { f in (0 ..< 12).map { i -> Shadow in
+                            let t = Double(i) * Double.pi / 6
                             return Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
                                           offset: Offset(cos(t) * band * f, sin(t) * band * f), blurRadius: 0)
                         } }
@@ -781,9 +781,9 @@ public final class RichTextTheme {
                     if device == nil {
                         // (Where nothing blurs, as on screen and in Word's PDF: two rings of sharp copies a
                         // half and the whole band out, eight ways round.)
-                        let band = sh.blur * 0.25 * k, a = Double(sh.color.alpha) / 255 * 0.5
-                        return [0.5, 1.0].flatMap { f in (0 ..< 8).map { i -> Shadow in
-                            let t = Double(i) * Double.pi / 4
+                        let band = sh.blur * 0.3 * k, a = Double(sh.color.alpha) / 255 * 0.36
+                        return [0.35, 0.7, 1.0].flatMap { f in (0 ..< 12).map { i -> Shadow in
+                            let t = Double(i) * Double.pi / 6
                             return Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
                                           offset: Offset(cos(t) * band * f, sin(t) * band * f), blurRadius: 0)
                         } }
