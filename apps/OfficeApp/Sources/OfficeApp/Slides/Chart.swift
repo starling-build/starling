@@ -2113,7 +2113,18 @@ enum ChartPainter {
     /// its first baseline 12.48 over the second (ours 12.9), the label
     /// 1.1pt shorter than ours and so inside its 11% slice, where ours
     /// stood outside.
-    static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle) -> TextSpan {
+    static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle, traditional: Bool = false) -> TextSpan {
+        // (Word for Windows' bold Chinese labels where the theme's East Asian
+        // face is no Mincho: a label of its own rich text in Traditional
+        // Chinese is PMingLiU's, a line 1.31 em, the others YuGothic Bold's,
+        // 1.45 — zh-b8de3ae2 p9's 3-line pitches 13.1 and 14.5 at 10 pt.)
+        if RichTextTheme.wordWindowsPages, !c.onSlide, !c.onSheet, c.eastAsianText,
+           c.macSimplifiedFace == nil, c.macTraditionalFace == nil, style.fontWeight == .bold,
+           text.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) }) {
+            // (Every line of the label stands on it, its Latin ones too.)
+            let h = traditional ? 1.31 : 1.45
+            return TextSpan(text: text, style: style.copyWith(height: h))
+        }
         guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers,
               text.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) }) else { return TextSpan(text: text, style: style) }
         var runs: [(String, Double?)] = []
@@ -5130,7 +5141,7 @@ extension ChartPainter {
                 TextPainter(text: Self.labelSpan(c, shown ?? text, Flutter.TextStyle(
                     color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont),
-                    fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))), textAlign: .center, textDirection: .ltr,
+                    fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index))), traditional: l.traditional.contains(s.index)), textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
             }
             var tp = makeLabel(nil)
