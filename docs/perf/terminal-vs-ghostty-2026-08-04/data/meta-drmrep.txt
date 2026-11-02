@@ -1,4 +1,0 @@
-label drmrep
-terminal_pid 1277009
-terminal_comm TerminalApp
-grid 60x244

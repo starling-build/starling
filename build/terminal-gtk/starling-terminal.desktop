@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Starling Terminal
-Comment=The Starling desktop's terminal, as an ordinary window
-Exec=starling-terminal
-Icon=starling-terminal
-Terminal=false
-Categories=System;TerminalEmulator;
-StartupWMClass=starling-terminal
