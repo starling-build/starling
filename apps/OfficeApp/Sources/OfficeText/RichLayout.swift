@@ -7707,6 +7707,16 @@ public final class RichLayout {
                 let lineOverhangs = !placedFrame && theme.wordRules && pageNotes.isEmpty && i < _lineOverhang.count ? _lineOverhang[i] : []
                 // (The reach of line `k` past the foot: its own faces'.)
                 func reach(_ k: Int) -> Double { k >= 0 && k < lineOverhangs.count ? max(overhang, lineOverhangs[k]) : overhang }
+                // (A last line that is empty — only the paragraph mark, after a trailing line break —
+                // is set though it hangs past the foot; any line with text must fit. Word for
+                // Windows, lab lh3: lo-f5c618c5's 37-line paragraph, 36 line breaks, exact 13pt, keeps
+                // its empty 37th line 0.75pt past the foot — and 1.85pt in a page 1pt shorter — on
+                // page 1; with a letter on that line, or one more line after it, it goes on.)
+                let emptyTail: Double = {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[i].cell == nil, let last = document.paragraphs[i].text.last,
+                          last == "\n" || last == "\u{2028}" || last == "\u{000B}" else { return 0 }
+                    return _px(3)
+                }()
                 // (Word sets a line where it ends on the foot or above —
                 // in binary floating point: lab `ef`, Word 16, 2026-10-18,
                 // exact lines of 20 and 27pt fill a page whose text is
@@ -7740,7 +7750,7 @@ public final class RichLayout {
                 // print; ours took it, and a line a page after it, over.)
                 let slack = theme.wordRules && overhang > 0 && overhang.isFinite ? _px(0.05)
                     : theme.wordRules && !tieFits ? -_px(0.025) : 0.01
-                if rest <= available + slack + reach(lineOverhangs.count - 1) {
+                if rest <= available + slack + reach(lineOverhangs.count - 1) + emptyTail {
                     // (The line, not its space after: that may stand past the foot.)
                     // (Nor, off the grid, a multiple's extra under its
                     // text, which Word stands past the foot as it does
@@ -7778,7 +7788,7 @@ public final class RichLayout {
                 }
                 // The lowest cut that still fits.
                 var cut: Double? = nil
-                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) { cut = c }
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail : 0) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
@@ -13737,8 +13747,11 @@ public final class RichLayout {
         // (Before 2013's layout the text keeps off the table's right cell margin too: lab
         // `beside-float`, Word's print of a 50% to 90% table with 141-twip distances, sets
         // the text 5.3pt past where the distance alone puts it, at every width.)
+        // (… with a distance under 10pt only: lo-f48e444e's 14.2pt distance puts the text
+        // exactly that far from the table in Word's print, 390.3, where the outdent
+        // as well put ours at 395.4.)
         let edge = right + _px(twips("w:rightFromText") / 20)
-            + ((document.compatibilityMode ?? 0) < 15 ? _px(document.tableStyles[before.table]?.textOutdentRight ?? 5.4) : 0)
+            + ((document.compatibilityMode ?? 0) < 15 && twips("w:rightFromText") < 200 ? _px(document.tableStyles[before.table]?.textOutdentRight ?? 5.4) : 0)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         // (A table in the left half, or one that fills most of the column, whose
         // text beside it in the strip left at its right is a few words wide:
