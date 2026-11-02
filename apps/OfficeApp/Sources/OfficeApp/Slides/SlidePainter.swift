@@ -1398,17 +1398,13 @@ final class SlidePainter: CustomPainter {
             // bottom are `1 - r` and `1 - b`. A corner point, l 100% b 100%, once read as r.left to r.right
             // — an inverted box — and drew solid; lab gradpath.)
             // (Laid out in the tile rectangle where there is one, and clipped to the area: lab gradpath.)
-            // (Only where the fill-to point is a corner of the tile that lands on the area: the other tile
-            // rectangles of the lab print in ways not worked out, and keep the area itself.)
+            // (The tile rectangle is where the boxes end; the fill-to point stays measured on the area itself.)
             var t0 = Rect.fromLTRB(0, 0, 1, 1)
-            if let t = fill.tile, Self.cornerFocus(f) {
-                let fx = t.left + f.left * (t.right - t.left), fy = t.top + f.top * (t.bottom - t.top)
-                if fx >= -0.01, fx <= 1.01, fy >= -0.01, fy <= 1.01 { t0 = t }
-            }
+            if let t = fill.tile { t0 = t }
             let outer = Rect.fromLTRB(r.left + t0.left * r.width, r.top + t0.top * r.height,
                                       r.left + t0.right * r.width, r.top + t0.bottom * r.height)
-            let inner = Rect.fromLTRB(outer.left + f.left * outer.width, outer.top + f.top * outer.height,
-                                      outer.left + f.right * outer.width, outer.top + f.bottom * outer.height)
+            let inner = Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
+                                      r.left + f.right * r.width, r.top + f.bottom * r.height)
             let steps = 96
             let p = Paint()
             p.style = .fill
