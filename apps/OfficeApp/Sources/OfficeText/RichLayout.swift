@@ -17139,6 +17139,12 @@ public final class RichLayout {
         if theme.wordRules, i < _floats.count, let float = _floats[i], !float.takesRoom, i < _floatImages.count, let image = _floatImages[i] {
             return _floatRect(float, image, g, i)
         }
+        // (One that takes the room under it, set from the "column" of a table's cell and centred, is
+        // centred in the cell: lo-eb12e7d4 p13's second figure, over its cell in Word's print.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, i < _floats.count, let float = _floats[i], float.takesRoom,
+           float.horizontalFrom == "column", float.horizontalAlign == "center", i < _cells.count, let d = _cells[i] {
+            return Rect.fromLTWH(d.colLeft + (d.colWidth - size.width) / 2, g.inkTop + (i < _imageDrop.count ? _imageDrop[i] : 0), size.width, size.height)
+        }
         // (Lower by its line's grid extra, `_layoutParagraph`.)
         // (And in from its left as its paragraph aligns it.)
         return Rect.fromLTWH(g.textLeft + (i < _imageShift.count ? _imageShift[i] : 0), g.inkTop + (i < _imageDrop.count ? _imageDrop[i] : 0),
@@ -18989,6 +18995,14 @@ public final class RichLayout {
                 bandLeft += _px(float.distanceLeft ?? 0)
                 bandWidth -= _px(float.distanceLeft ?? 0) + _px(float.distanceRight ?? 0)
             }
+        }
+        // (An object set from the "column" in a table's cell is set from the cell: Word for Windows'
+        // print of lo-eb12e7d4 p13 centres its two figures each over its own cell, side by side;
+        // ours centred both on the column, one over the other.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "column", float.horizontalAlign == "center",
+           i < _cells.count, let d = _cells[i], d.colWidth > 0 {
+            bandLeft = d.colLeft
+            bandWidth = d.colWidth
         }
         var x: Double
         // ("Outside" is the page's outer edge — the right on an odd page,
