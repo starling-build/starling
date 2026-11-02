@@ -3744,6 +3744,16 @@ public final class RichLayout {
         if _oneColumn { final.columns = 1 }
         if _perSection, let tail = document.paragraphs.last, tail.cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { final.columns = 1 }
         if let body = _bodyColumns { final.columns = body; final.columnGap = bodyGap ?? final.columnGap }
+        // (One column of its own width, `w:equalWidth` 0 and a single `w:col`:
+        // the text wraps at that, not at the page's. lo-eae9bbb1's last
+        // section, a 100pt column under a first section of the page's width.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, setups.count > 0, final.columns == 1, let xml = document.columnsXML,
+           xml.containsSubstring("w:equalWidth=\"0\""), let r = xml.range(of: "<w:col w:w=\""),
+           let end = xml[r.upperBound...].firstIndex(of: "\""), let twips = Double(xml[r.upperBound ..< end]),
+           twips / 20 > 20, twips / 20 < final.contentWidth - 1, xml.components(separatedBy: "<w:col ").count == 2 {
+            RuleTrace.hit("single-unequal-column-sets-the-measure")
+            final.marginRight += final.contentWidth - twips / 20
+        }
         setups.append(final)
         let changed = setups != _sectionSetups || (setups.count > 1 && of != _sectionOf)
         _sectionSetups = setups
@@ -20263,7 +20273,13 @@ public final class RichLayout {
                     let pageLeft = _pxMarginLeft(p) + Double(column) * _pxColumnStride(p)
                     for (pieceIndex, piece) in _pages[slot].enumerated() {
                         // (Each section's columns are its own: `_perSection`.)
-                        let left = _perSection ? _pxColumnLeft(p, column: column, paragraph: piece.paragraph) : pageLeft
+                        var left = _perSection ? _pxColumnLeft(p, column: column, paragraph: piece.paragraph) : pageLeft
+                        // (A continuous section with a side margin of its own
+                        // sets its text from that: lo-eae9bbb1.)
+                        if !_perSection, theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, _columns == 1, _sectionSetups.count > 1 {
+                            let s = _setup(ofParagraph: piece.paragraph)
+                            if s.marginLeft != pageSetup(forPage: p).marginLeft { left = _px(s.marginLeft + s.gutter) }
+                        }
                         let columnW = _perSection ? _px(_setup(ofParagraph: piece.paragraph).columnWidth) : _pxColumnW(p)
                         let manyColumns = _perSection ? _columnsOf(paragraph: piece.paragraph) > 1 : _columns > 1
                         // One column clips to its own width; a lone column keeps
