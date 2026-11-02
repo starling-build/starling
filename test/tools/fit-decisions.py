@@ -13,18 +13,34 @@ def wordlines(f):
     out = []
     d = pymupdf.open(f)
     for p in d:
+        # pymupdf may list one printed line as several "lines": a squeezed mark whose box overlaps
+        # its neighbour ("第32条，|《民", zh-f47b8a74) comes out as its own tiny line.  Merge
+        # consecutive pieces on the same baseline (|dy| < 0.3 size) whose x continues (starts
+        # before the previous piece's end plus 0.8 size), then split on real gaps as before.
+        pieces = []
         for b in p.get_text("rawdict")["blocks"]:
             for l in b.get("lines", []):
                 cs = [c for sp in l["spans"] for c in sp["chars"]]
-                seg = []; prev = None
-                for c in cs:
-                    sz = max(c["bbox"][3] - c["bbox"][1], 8)
-                    if prev is not None and c["bbox"][0] - prev["bbox"][2] > 0.8 * sz: seg.append([])
-                    if not seg: seg.append([])
-                    seg[-1].append(c); prev = c
-                for sg in seg:
-                    t = norm("".join(c["c"] for c in sg))
-                    if t: out.append(t)
+                if not cs: continue
+                sz = max(cs[0]["bbox"][3] - cs[0]["bbox"][1], 8)
+                y = (cs[0]["bbox"][1] + cs[0]["bbox"][3]) / 2
+                x0 = min(c["bbox"][0] for c in cs); x1 = max(c["bbox"][2] for c in cs)
+                if pieces:
+                    q = pieces[-1]
+                    if abs(y - q["y"]) < 0.3 * sz and x0 >= q["x0"] - 0.5 and x0 < q["x1"] + 0.8 * sz:
+                        q["cs"] += cs; q["x1"] = max(q["x1"], x1); continue
+                pieces.append({"cs": list(cs), "y": y, "x0": x0, "x1": x1})
+        for q in pieces:
+            cs = sorted(q["cs"], key=lambda c: c["bbox"][0]) if len({round(c["bbox"][1]) for c in q["cs"]}) == 1 else q["cs"]
+            seg = []; prev = None
+            for c in cs:
+                sz = max(c["bbox"][3] - c["bbox"][1], 8)
+                if prev is not None and c["bbox"][0] - prev["bbox"][2] > 0.8 * sz: seg.append([])
+                if not seg: seg.append([])
+                seg[-1].append(c); prev = c
+            for sg in seg:
+                t = norm("".join(c["c"] for c in sg))
+                if t: out.append(t)
     return out
 QF = "over hung hang need room markRoom nall ngiven gapSum nws wsSum stretch lead set before em finalGive takenFirst taken modern legacy wide lineOther wordSpaced squeezedFirst paragraphEnd latinWord oneLatin gridCapped kept commaRefused".split()
 OF = "line a last x w width after nmarks nown lineWide lineEms lineOtherO".split()
