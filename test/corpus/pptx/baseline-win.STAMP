@@ -1,6 +1,6 @@
-apps/OfficeApp 237376fcc46ca57a3055867bcdece076303b0f57
+apps/OfficeApp cf2c51303863c2d6843c135bdcab812ce551bbc4
 sdk 6c82554442c0537f1c2647846932ad7f10ddd84a
-test/pptx-app-render.sh 7b31109955e54ea314d524b4d1fd045aea5c1300
+test/pptx-app-render.sh 8a69a33456304713760b6ec58f444a66e4d63998
 engine d57f36ef51ce76406aeb33e1b43df5e40229f277
 enginesyms 20cfa0ba3b35ab77
 enginepatches acf7d29486a0f6d3
