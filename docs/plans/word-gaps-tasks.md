@@ -13600,3 +13600,4 @@ DONE (amd-3, 2026-11-02): zh-4e5fe46f p6 table 3.4pt high. A text box anchored i
 
 - lo5 LANDED 4c7705046 (lab bal 05): a deleted paragraph mark after kept inserted text has its own "Deleted: ¶" (the one that shifted every balloon below it 11pt), and balloons stack by the page line they stand at, deletions before reformatting within a line. lo-9f27ef40 v2 82.2 -> 83.6, v1 78.4 -> 82.4, nothing down. Left in n830205: the long final deleted-paragraphs balloon - Word shows an extra "¶" line per text+empty pair (3 lines per 2 paragraphs); not derivable from the file yet.
 - amd-2 LANDED bddc2f0f0: lo-085e8dbb 54.5 -> 90.9 (a continuous section's mark that held an ignored page break keeps its line; page given the next section's headers takes that section's titlePg; missing Latin face with sig 3 and family auto/swiss is Calibri not Times). Remaining there: p2 'zz' 62pt too high (Word 259 vs ours ~205).
+- amd-2 CLAIM lo-f1cc2329 (0, frame wrap none).
