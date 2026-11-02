@@ -6648,6 +6648,34 @@ public final class RichLayout {
             // reaches into it goes under it, as under a table placed on the
             // page. (After the paragraph's own break: zh-fe536967's
             // photo is anchored at a section's start.)
+            // (A column's anchor paragraph whose own band, at the column's
+            // top, would push the column's text down until the paragraph no
+            // longer fits goes to the next column with its band: Word never
+            // shows the picture where its paragraph is not. LibreOffice's
+            // fdo43573-2-min, page 8: a 3-line paragraph at the foot of
+            // column 2 anchors an 87x35pt picture 2.1pt under the top
+            // margin; Word sets the paragraph and the picture on page 9,
+            // ours set the picture over page 8's column and the paragraph
+            // under it.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, resumeCursor == nil, _columns > 1, _cells[i] == nil, deferredUnder.isEmpty, y > 0.01,
+               !document.paragraphs[i].text.isEmpty {
+                let own = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
+                let physical = page / _columns
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                var bandBottom = 0.0
+                for image in own {
+                    guard let f = image.float, f.bandsPage, f.verticalFrom != "paragraph", f.verticalAlign == nil, image.height > 0 else { continue }
+                    let onPage = _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
+                    let top = onPage - _px(f.distanceTop)
+                    if top <= _px(8) { bandBottom = max(bandBottom, onPage + _px(image.height + f.distanceBottom)) }
+                }
+                if bandBottom > 0, bandBottom <= contentH / 2, let first = _pages[page].first(where: { _cells[$0.paragraph] == nil && !$0.repeated }), first.pageY < bandBottom {
+                    let bottoms = Self._lineBottoms(geometry(i).painter)
+                    let need = bottoms.count <= 3 ? (bottoms.last ?? 0) : (bottoms.count >= 2 ? bottoms[1] : (bottoms.first ?? 0))
+                    let colEnd = _pages[page].last.map { $0.pageY + $0.flowBottom - $0.flowTop } ?? y
+                    if colEnd + (bandBottom - first.pageY) + need > contentH + 0.01 { newPage() }
+                }
+            }
             if theme.wordRules, resumeCursor == nil, _cells[i] == nil, deferredUnder.isEmpty {
                 let images = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
                 for image in images {
