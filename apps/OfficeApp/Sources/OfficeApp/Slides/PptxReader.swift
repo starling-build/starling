@@ -3514,7 +3514,10 @@ private struct SlideContext {
         }
         // `bodyPr rot`: the text turned about the middle of its lines, any
         // angle (tdf149551's "a b c…" in a right triangle at 12°).
-        if let turn = attr("rot").flatMap(Double.init), turn != 0 { body0.textSpin += turn / 60000 }
+        // (Not with `vert`: PowerPoint's pivot for the pair is none of the text's
+        // middle, the frame's or the text area's — vert270AndTextRot's lines
+        // land 11 pt off with each — so that deck keeps the unturned text.)
+        if body0.textTurn == 0, let turn = attr("rot").flatMap(Double.init), turn != 0 { body0.textSpin += turn / 60000 }
         if body0.warp != nil, let bp = body?.first("a:bodyPr"), bp.first("a:scene3d") != nil {
             body0.textScene = Extrusion.read(bp, colors: colors)
         }
