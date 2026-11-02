@@ -18838,6 +18838,16 @@ public final class RichLayout {
     private func _subLayout(_ paragraphs: [RichParagraph], _ document: RichDocument, width: Double, onGrid: Bool = false) -> _HeaderFooter {
         var sub = RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph()] : paragraphs)
         sub.styles = document.styles
+        // (A page break inside a note starts nothing new — the note is one
+        // paragraph to Word, its line following at a line's pitch, none of
+        // the paragraph's space between: lo-ccca8bf3's second endnote sets
+        // its Latin line 16pt under the Hebrew one, ours 25.)
+        if theme.wordRules {
+            for k in sub.paragraphs.indices.dropFirst() where sub.paragraphs[k].style.pageBreakBefore && !sub.paragraphs[k].style.columnBreak {
+                sub.paragraphs[k - 1].style.spaceAfter = 0
+                sub.paragraphs[k].style.spaceBefore = 0
+            }
+        }
         // (Notes keep to the document's line grid, as a header does not;
         // their separator does not. Lab `fn` (Word for Windows, from
         // zh-344a8d08's package, linesAndChars at 22.85pt): its 10pt
