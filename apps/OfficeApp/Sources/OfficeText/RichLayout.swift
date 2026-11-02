@@ -11166,7 +11166,8 @@ public final class RichLayout {
             for image in images {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.wrapSide == nil || float.wrapSide == "both",
                       float.verticalAlign == nil, float.verticalFrom == "paragraph", float.horizontalAlign == nil,
-                      float.horizontalFrom == "column" || float.horizontalFrom == "cell" else { continue }
+                      float.horizontalFrom == "column" || float.horizontalFrom == "cell",
+                      image.sourceXML?.containsSubstring("drawingml/2006/chart") == true else { continue }
                 let x = _px(float.x), w = _px(image.width)
                 guard w > 0, x - _px(float.distanceLeft ?? 9) < size * 3, inner - (x + w + _px(float.distanceRight ?? 9)) < size * 3 else { continue }
                 down = max(down, _px(float.y) + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
