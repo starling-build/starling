@@ -1137,6 +1137,8 @@ public final class RichLayout {
     /// Per paragraph, its inline pictures in placeholder order.
     private var _inline: [[ImageAttachment]] = []
     private var _inlineBoxes: [[Int]] = []
+    /// An inline object's own height where its box is a page tall (`_span`), by id.
+    private var _pageFill: [String: Double] = [:]
     /// A picture paragraph's float, when its picture is anchored.
     private var _floats: [ImageFloat?] = []
     private var _floatImages: [ImageAttachment?] = []
@@ -12405,7 +12407,24 @@ public final class RichLayout {
                     w += room.left + room.right
                     h += room.top + room.bottom
                 }
-                let size = Size(w.rounded(), h.rounded())
+                var size = Size(w.rounded(), h.rounded())
+                // (An object in the line too wide for the room beside a header
+                // picture that stands the page's height: Word sets it at the top of
+                // the next page and fills that page, so the paragraph after it
+                // starts a page further — tdf38575, lab T255. Its box is as tall as
+                // the page, hung from the baseline, and the object is drawn in its
+                // top: `_pageFill`.)
+                var hung: Double? = nil
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let at = index, at >= 0, p.cell == nil, image.float == nil {
+                    let setup = _setup(ofParagraph: at)
+                    let inset = _px(setup.headerWrapLeft) - _px(p.style.indentLeft)
+                    if setup.headerWrapLeft > 0, inset > 0, w > _flowWidth(at) - inset + _px(0.5) {
+                        RuleTrace.hit("header-wrap-object-next-page")
+                        hung = size.height
+                        _pageFill[image.id] = size.height
+                        size = Size(size.width, max(size.height, _px(setup.contentHeight) - _px(2)))
+                    }
+                }
                 // (Word's `w:textAlignment` "center" sets what is on a
                 // line by its middle: a letterhead's words half way up
                 // the emblem beside them, not on its foot.)
@@ -12476,7 +12495,7 @@ public final class RichLayout {
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
-                                                             baselineOffset: (middle.map { size.height / 2 + _px($0) }
+                                                             baselineOffset: (hung ?? middle.map { size.height / 2 + _px($0) }
                                                                 ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)
                                                                 // (Raised or lowered as its run's `w:position` says: Word
                                                                 // sets a MathType object that far under the baseline
@@ -17848,6 +17867,7 @@ public final class RichLayout {
                 let box = all[slot]
                 let image = _inline[i][k]
                 var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
+                if let real = _pageFill[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right, rect.top + real) }
                 if theme.wordRules, let float = image.float, !float.takesRoom {
                     // A floating object, from its paragraph by its place:
                     // a picture, or a text box's text; one that cannot
