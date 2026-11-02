@@ -13817,3 +13817,4 @@ lo-536b79ce lab (nestmargin, wip/lab-nestmargin 3b2efb607): Word's text starts a
 - lenovo-3: lo-677416bef (tdf147485) landed: Georgia WordArt on an arch/circle is placed by Georgia's widths at Word's 0.84 size; the score line stays 96.9 (line metric doesn't see WordArt) but the print now matches Word's extent. lo-7ec36a70 is now 83.9 (Arabic-script justified-space squeeze landed), superseding the "stops at 64.5" line.
 
 - CLAIM lenovo-3 (Linux 01F2SWc8), from starling-bd: (1) lo-7ec36a70, now 83.9, on toward 100 (pictures beside the headings, what is left after the space squeeze); (2) triage of zh-291fcea7, zh-15428325, zh-785e46f8, zh-64044a1d, zh-e51c31a7, zh-701eda18 (line-end fits go to amd-opus with the exact line).
+- TIP WATCH amd-8, round 73 (tip 29ff49501): Word 0 down, no pagecount moves, no nondeterminism. Unit tests pass (612, 0 failures). Slides not due (next: round 75).
