@@ -21219,6 +21219,25 @@ public final class RichLayout {
                             _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
                             _floatColumnShift = 0
                             _paintPartedRules(piece, canvas, document)
+                            // (Word's print keeps the text an exact-height row
+                            // cuts off, clipped and unseen, and a reader of the
+                            // page finds it there: lo-c6cd222f's "BAR BBB" and
+                            // "BAZ CCC", 20pt of space above lines in rows 17pt
+                            // tall. The engine drops text wholly outside the
+                            // clip, so the whole paragraph is drawn again at
+                            // an alpha no eye sees.)
+                            if theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, let c = _cells[piece.paragraph],
+                               document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
+                               piece.flowBottom < _tops[piece.paragraph] + _heights[piece.paragraph] - 0.5 {
+                                canvas.restore()
+                                canvas.save()
+                                canvas.translate(left, top - piece.flowTop)
+                                let ghost = Paint()
+                                ghost.color = Color(0x01000000)
+                                canvas.saveLayer(nil, ghost)
+                                _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: nil)
+                                canvas.restore()
+                            }
                         }
                         lines?.painter.dispose()
                         canvas.restore()
