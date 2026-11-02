@@ -6123,7 +6123,14 @@ public final class RichLayout {
                     // 150pt down) keeps rows 0 to 5 on the page and takes the
                     // tall row 6 alone to the next, though the whole would
                     // end past the foot; ours set the first row alone.)
-                    if y + (second - c.rowTop) > edge + 0.01 { return (true, 0) }
+                    // (Not a row taller than any page, which no page holds whole: it parts
+                    // here, from under the first row — LibreOffice's tdf172156, a 896pt
+                    // row of empty lines in a floating table 182pt down the page, starts
+                    // on page 1 in Word's print and goes on over page 2.)
+                    if y + (second - c.rowTop) > edge + 0.01 {
+                        if RichTextTheme.wordWindowsPages, c.row == 1, second - c.rowTop > contentH + 0.01 { RuleTrace.hit("row-taller-than-a-page-parts-where-it-stands"); return nil }
+                        return (true, 0)
+                    }
                     if under > 0, y + rest + under + next > contentH + 0.01 { return (false, rest) }
                     return nil
                 }
