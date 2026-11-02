@@ -3801,7 +3801,7 @@ public final class RichLayout {
         // below), and the page it is on.
         var frameReturn: (y: Double, page: Int)? = nil
         // (Where a frame text does not go beside ends on its page: the flow goes on from there.)
-        var frameFoot: (y: Double, page: Int)? = nil
+        var frameFoot: (y: Double, page: Int, top: Double)? = nil
         var resumeCursor: Double? = nil
         // The previous result, to splice back in once the flow past the
         // change lands where it did before.
@@ -7284,9 +7284,39 @@ public final class RichLayout {
             // (The first paragraph of the flow after such a frame — not another
             // frame, not a table's — stands under it, or on the next page.)
             if let foot = frameFoot, ownFrame == nil, _cells[i] == nil {
-                if foot.page == page { y = max(y, foot.y) }
-                frameFoot = nil
+                // (A frame set from the text below, of an exact height, leaves the
+                // paragraphs that end over it where they are: the flow goes under
+                // it from the first that would meet it.)
+                if foot.top > 0, foot.page == page, i < _heights.count, y + _heights[i] <= foot.top - 0.5 {
+                    // stays pending
+                } else {
+                    if foot.page == page { y = max(y, foot.y) }
+                    frameFoot = nil
+                }
             }
+            // (Frames of an exact height, wrapped "notBeside" and set from the text, are
+            // anchored to the paragraph after them, not to each other: lo's
+            // tdf105035_framePrC sets a title frame and an authors frame, both 28.4pt
+            // down, over each other, the "Abstract" line above them and the body under
+            // both. Each is set where the flow stands plus its offset, and takes no
+            // room; the flow goes under the lower foot from the first line that
+            // would meet it.)
+            if frameStarts, theme.wordRules, RichTextTheme.wordWindowsPages, let f = document.paragraphs[i].style.frame,
+               f.verticalAnchor == "text", f.verticalAlign == nil, let xml = document.paragraphs[i].style.frameXML,
+               xml.containsSubstring("w:wrap=\"notBeside\""), xml.containsSubstring("w:hRule=\"exact\""),
+               let hAt = xml.firstRange(of: "w:h=\""), let hh = Double(xml[hAt.upperBound...].prefix { $0 != "\"" }), hh > 0,
+               document.paragraphs[i].image == nil {
+                var v = 0.0
+                if let at = xml.firstRange(of: "w:vSpace=\""), let n = Double(xml[at.upperBound...].prefix { $0 != "\"" }) { v = n / 20 }
+                let target = y + _px(f.y)
+                if target < contentH - 0.01 {
+                    RuleTrace.hit("exact-text-frame-hangs-from-the-flow-below-it")
+                    if frameReturn == nil || frameReturn!.page != page { frameReturn = (y, page) }
+                    y = target
+                    let foot = target + _px(hh / 20 + v)
+                    frameFoot = (max(foot, frameFoot?.page == page ? frameFoot!.y : 0), page, min(target, frameFoot?.page == page ? frameFoot!.top : target))
+                }
+            } else
             if frameStarts, let f = document.paragraphs[i].style.frame, Self._framePlaced(f), Self._onThePage(document.paragraphs[i].style) {
                 let physical = page / _columns
                 let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
@@ -7325,7 +7355,7 @@ public final class RichLayout {
                         return Double(xml[r.upperBound...].prefix { $0 != "\"" })
                     }
                     if xml.containsSubstring("w:wrap=\"notBeside\""), xml.containsSubstring("w:hRule=\"exact\""), let h = number("w:h"), h > 0 {
-                        frameFoot = (target + _px(h / 20 + 2 * (number("w:vSpace") ?? 0) / 20), page)
+                        frameFoot = (target + _px(h / 20 + 2 * (number("w:vSpace") ?? 0) / 20), page, 0)
                     }
                 }
             }
