@@ -352,6 +352,8 @@ enum WriterGroups {
         var drawingWordArt: DrawingWordArt? = nil
         /// A gradient fill (the shape's own, or its theme's fill style), drawn in place of `fill`.
         var gradient: SlideFill? = nil
+        /// A pattern fill (`a:pattFill`), tiled over the shape.
+        var pattern: SlideFill? = nil
         /// A shadow its theme's effect style casts: offset and blur in points, and its colour.
         var shadow: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
     }
@@ -541,14 +543,18 @@ enum WriterGroups {
                     if !isLine {
                         if sp.first("a:noFill") != nil { fill = nil }
                         else if let f = sp.first("a:solidFill") { fill = colors.color(in: f) ?? f.first("a:sysClr")?["lastClr"].flatMap { Int64($0, radix: 16) }.map { Color(0xFF00_0000 | $0) } }
-                        else if sp.first("a:gradFill") == nil { fill = styled("a:fillRef").0 }
+                        else if sp.first("a:gradFill") == nil, sp.first("a:pattFill") == nil { fill = styled("a:fillRef").0 }
                     }
                     // (A gradient: the shape's own, or the theme's fill style its style refers to, in the
                     // shape's colour: lo-7de905dc's rectangle is `fillRef idx=2`, a pale vertical gradient
                     // in Word's print, where ours was the flat accent.)
                     var gradient: SlideFill? = nil
+                    var pattern: SlideFill? = nil
                     if !isLine {
-                        if let g = sp.first("a:gradFill") {
+                        if let pf = sp.first("a:pattFill") {
+                            pattern = PptxReader.pattern(pf, colors: colors)
+                            fill = pattern?.color
+                        } else if let g = sp.first("a:gradFill") {
                             gradient = PptxReader.gradient(g, colors: colors)
                         } else if sp.first("a:noFill") == nil, sp.first("a:solidFill") == nil,
                                   let ref = style?.first("a:fillRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
@@ -606,7 +612,7 @@ enum WriterGroups {
                                         geometry: geometry, rotation: (Double(xfrm["rot"] ?? "") ?? 0) / 60000,
                                         flipH: flipH, flipV: flipV,
                                         headEnd: fromStart ? head : tail, tailEnd: fromStart ? tail : head,
-                                        dash: PptxReader.dash(ln), drawingWordArt: art, gradient: gradient, shadow: shadow))
+                                        dash: PptxReader.dash(ln), drawingWordArt: art, gradient: gradient, pattern: pattern, shadow: shadow))
                 default: continue
                 }
             }
@@ -1151,8 +1157,30 @@ enum WriterGroups {
                     p.style = .fill
                     p.isAntiAlias = true
                     p.color = fill
-                    if let gradient = s.gradient, let shader = SlidePainter.gradientShader(gradient, r) { p.shader = shader }
-                    canvas.drawPath(SlidePainter.combinedPath(g, r), p)
+                    if let gradient = s.gradient, let shader = SlidePainter.gradientShader(gradient, r) { p.shader = shader; p.color = Color(0xFFFFFFFF) }
+                    if let pattern = s.pattern {
+                        canvas.save()
+                        canvas.clipPath(SlidePainter.combinedPath(g, r))
+                        if let tile = pattern.image {
+                            // (The tile picture, 32pt a side, laid edge to edge from the shape's corner.)
+                            if let img = image(tile.id, tile.data) {
+                                let side = 32 * pxPerPt
+                                let source = Rect.fromLTWH(0, 0, Double(img.width), Double(img.height))
+                                var y = r.top
+                                while y < r.bottom {
+                                    var x = r.left
+                                    while x < r.right { canvas.drawImageRect(img, source, Rect.fromLTWH(x, y, side, side), Paint()); x += side }
+                                    y += side
+                                }
+                            } else {
+                                let flat = Paint(); flat.style = .fill; flat.color = pattern.color ?? fill
+                                canvas.drawRect(r, flat)
+                            }
+                        }
+                        canvas.restore()
+                    } else {
+                        canvas.drawPath(SlidePainter.combinedPath(g, r), p)
+                    }
                 }
                 if s.line != nil {
                     for sub in g.subpaths where sub.stroke {
