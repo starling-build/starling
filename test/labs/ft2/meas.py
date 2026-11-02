@@ -1,5 +1,5 @@
 import pymupdf,glob
-for f in sorted(glob.glob('run/*-orig.pdf')):
+for f in sorted(glob.glob('run3/*-orig.pdf')):
     p=pymupdf.open(f)[0]
     bs=sorted({round(d['rect'].y1,1) for d in p.get_drawings() if d['rect'].height<1.5 and d['rect'].width>100} | {round(d['rect'].y0,1) for d in p.get_drawings() if d['rect'].height<1.5 and d['rect'].width>100})
     # glyph tops
