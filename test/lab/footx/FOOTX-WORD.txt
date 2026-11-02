@@ -1,0 +1,39 @@
+== orig
+p2	y 754.6..768.7	x 360.2..528.9	'元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p2	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p2	y 720.6..734.7	x 81.9..88.9	'2'	size 14.0	colour 000000	SimSun
+p3	y 754.6..768.7	x 360.2..528.9	'元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p3	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p3	y 720.6..734.7	x 81.9..88.9	'3'	size 14.0	colour 000000	SimSun
+== noX
+p2	y 754.6..768.7	x 374.2..528.9	'阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p2	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p2	y 722.1..736.1	x 81.9..88.9	'2'	size 14.0	colour 000000	SimSun
+p3	y 754.6..768.7	x 374.2..528.9	'阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p3	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p3	y 722.1..736.1	x 81.9..88.9	'3'	size 14.0	colour 000000	SimSun
+== Y
+p2	y 754.6..768.7	x 360.2..528.9	'元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p2	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p2	y 720.6..734.7	x 81.9..88.9	'2'	size 14.0	colour 000000	SimSun
+p3	y 754.6..768.7	x 360.2..528.9	'元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p3	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p3	y 720.6..734.7	x 81.9..88.9	'3'	size 14.0	colour 000000	SimSun
+== YZ
+p2	y 754.5..770.4	x 348.7..356.1	'Z'	size 16.0	colour 000000	Calibri
+p2	y 754.4..768.4	x 356.1..528.9	' 元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p2	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p2	y 719.3..733.4	x 81.9..88.9	'2'	size 14.0	colour 000000	SimSun
+p3	y 754.5..770.4	x 348.7..356.1	'Z'	size 16.0	colour 000000	Calibri
+p3	y 754.4..768.4	x 356.1..528.9	' 元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p3	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p3	y 719.3..733.4	x 81.9..88.9	'3'	size 14.0	colour 000000	SimSun
+== Y3
+p2	y 754.5..770.4	x 340.6..356.2	'YY'	size 16.0	colour 000000	Calibri
+p2	y 754.4..768.4	x 356.2..528.9	' 元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p2	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p2	y 719.3..733.4	x 81.9..88.9	'2'	size 14.0	colour 000000	SimSun
+p3	y 754.5..770.4	x 340.6..356.2	'YY'	size 16.0	colour 000000	Calibri
+p3	y 754.4..768.4	x 356.2..528.9	' 元阳县人民政府发布      '	size 14.0	colour 005192	SimSun
+p3	y 770.9..771.9	x 79.3..79.6	' '	size 1.0	colour 000000	ArialMT
+p3	y 719.3..733.4	x 81.9..88.9	'3'	size 14.0	colour 000000	SimSun
