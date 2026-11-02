@@ -1345,6 +1345,10 @@ public final class RichLayout {
     /// from the paragraph's own top, as the page it fell on made it
     /// (`_besideBand` takes it over the whole float's).
     private var _besideBandUse: [Int: (top: Double, bottom: Double)] = [:]
+    /// A paragraph's beside-float band ends where its first page's piece does: the lines
+    /// that go on to the next page are set across it (`_capPassing`).
+    private var _bandCap: [Int: Double] = [:]
+    private var _capPassing = false
     /// Paragraphs whose band is the union of two floats' (the page-fit pass leaves them alone).
     private var _besideUnion: Set<Int> = []
     /// … and the stretches the paragraph shares with the rest of that float on the pages
@@ -1984,6 +1988,35 @@ public final class RichLayout {
                     changes.append(.changed(k))
                 }
                 if changes.isEmpty { break }
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
+        // (A paragraph that parts at a page's foot is held in by the box beside it on its first page
+        // only: the lines that go on are set across the page, in Word's print — lo
+        // tdf154703_framePrWrapSpacing's page 2 opens "happening of course. On each round-trip, you
+        // can clearly", where ours set "happening of" short of a frame that stands on page 1.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_capPassing, !_stripPassing, !_colWrapPassing {
+            _capPassing = true
+            defer { _capPassing = false }
+            for _ in 0 ..< 3 {
+                var changes: [RichChange] = []
+                for (k, q) in document.paragraphs.enumerated() where q.cell == nil && !q.text.isEmpty && k < _pieceStart.count && _pieceStart[k] < _allPieces.count && k < _tops.count {
+                    let end = k + 1 < _pieceStart.count ? _pieceStart[k + 1] : _allPieces.count
+                    let mine = _allPieces[_pieceStart[k] ..< min(end, _allPieces.count)].filter { !$0.repeated }
+                    var want: Double? = nil
+                    if let first = mine.first, let last = mine.last, first.page != last.page, _bandCap[k] != nil || _besideLead[k] == 0,
+                       let own = _besideOwn(k, q, document), own.leftRoom == nil {
+                        let cap = first.flowBottom - _tops[k]
+                        if own.band.bottom > cap + 0.5, own.band.top < cap { want = cap }
+                    }
+                    if let a = want, let b = _bandCap[k], abs(a - b) < 0.5 { continue }
+                    if want == nil, _bandCap[k] == nil { continue }
+                    _bandCap[k] = want
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                RuleTrace.hit("word-box-holds-in-only-its-pages-lines")
                 apply(changes, paragraphCount: document.paragraphs.count)
                 ensureLaidOut(document)
             }
@@ -10158,6 +10191,7 @@ public final class RichLayout {
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
         else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom }
         else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
+        if let cap = _bandCap[i], besideIndent > 0, besideLeftRoom == nil, let b = besideBand, b.bottom > cap { besideBand = (b.top, cap) }
         if besideIndent > 0, let band = besideBand {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
