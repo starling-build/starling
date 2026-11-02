@@ -222,7 +222,9 @@ struct PdfMarkup {
             else { rowStart.append(i) }
         }
         func line(_ n: Note) -> Int { n.anchor.paragraph < rowStart.count ? rowStart[n.anchor.paragraph] : n.anchor.paragraph }
-        func rank(_ n: Note) -> Int { n.label == "Formatted:" || n.label == "Field Code Changed" ? 1 : 0 }
+        // (A comment's balloon before a deletion's, whichever comes first in
+        // the text: lab bal 08 and 09, Word for Windows.)
+        func rank(_ n: Note) -> Int { n.label == "Formatted:" || n.label == "Field Code Changed" ? 2 : n.isComment ? 0 : 1 }
         notes = made.enumerated()
             .sorted { a, b in
                 let ka = (line(a.element), rank(a.element), a.element.anchor, a.offset), kb = (line(b.element), rank(b.element), b.element.anchor, b.offset)
