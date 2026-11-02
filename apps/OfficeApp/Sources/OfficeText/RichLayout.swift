@@ -2293,6 +2293,23 @@ public final class RichLayout {
                             scale = max(0.01, share - inset) / _px(sum)
                         }
                         if theme.wordRules, !_nestedInFixedTable, !_nestedNarrowed, scale < 1, !sharesShare { scale = 1 }
+                        // (Before mode 15, Word for Windows sets a fixed table of 100% whose grid is its
+                        // share, to the share and the left cell margin more — lab b60 (lo-b60b7299): a
+                        // 225pt share and 5.4 margin, the grid's 224.95, ruled 230.5 wide; the second
+                        // column's "paragraph" then fits one line, as it does in Word's print.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, ts.fixedLayout, (document.compatibilityMode ?? 12) < 15,
+                           !_nestedBlock, pct == 100, abs(_px(sum) - width) <= _px(1) {
+                            RuleTrace.hit("word-fixed-100-percent-table-is-the-share-and-a-cell-margin")
+                            // (… and half the last column's right rule more: 3, 6 and 12pt rules put the
+                            // table's right edge 1.5, 3 and 6pt out, the columns in share.)
+                            var rule = 0.0
+                            for q in document.paragraphs {
+                                guard let qc = q.cell, qc.table == c.table, qc.column + qc.span >= cols,
+                                      let side = Self._cellSide(qc.bordersXML, "right") ?? Self._cellSide(qc.rowBordersXML, "right") else { continue }
+                                rule = max(rule, side.width)
+                            }
+                            scale = (width + _px((ts.cellMarginLeft ?? 5.4) + rule / 2)) / _px(sum)
+                        }
                     }
                     else if let w = ts.width {
                         scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
