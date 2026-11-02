@@ -413,6 +413,8 @@ struct Scene3D: Equatable {
     /// line of sight, in degrees clockwise ("t" 0, "r" 90).
     var rig = "threePt"
     var rigTurn = 0.0
+    /// `a:lightRig/a:rot` as written (latitude, longitude, revolution, degrees); nil when absent.
+    var rigRot: [Double]? = nil
     /// A `legacy…` camera, which PowerPoint lights its old way.
     var legacy = false
 

@@ -101,6 +101,45 @@ enum Extrusion {
         }
     }
 
+    /// The rigs as lights, for a rig that carries an `a:rot`: an ambient share
+    /// and lights (direction in the rig's own frame, strength), fitted to Lab
+    /// D (test/labs/p3d, 23 cells a rig, front and two walls). A face's share
+    /// of its colour is `ambient + sum strength * max(0, n . R L)`, R the
+    /// rig's rotation Ry(lon) Rx(lat) Rz(rev) (the angles as written), n the
+    /// face's normal in the shape's frame. The fit is within 0.5% for harsh and
+    /// soft, 1% flood, 2% threePt; a highlight's white is not in it. Without
+    /// an `a:rot` the measured table above stands. `dir` does not matter once
+    /// there is an `a:rot` (Lab D: dir r prints as dir t).
+    static let rotatedRigs: [String: (ambient: Double, lights: [(P3, Double)])] = [
+        "harsh": (0.28, [(P3(x: -35.4, y: -27.98, z: 15.63), 0.88), (P3(x: -19.02, y: 19.38, z: 8.78), 0.87)]),
+        "soft": (0.69, [(P3(x: 0.77, y: -2.11, z: 2.1), 0.41), (P3(x: -0.35, y: 1.05, z: -1.06), -0.39)]),
+        "flood": (0.14, [(P3(x: -2.17, y: 0.8, z: 0.42), 1.81), (P3(x: -0.46, y: -1.34, z: 0.83), 0.75), (P3(x: 3.28, y: -6.34, z: 0.51), 0.13)]),
+        "threePt": (0.02, [(P3(x: -1.78, y: 5.23, z: -5.5), 1.07), (P3(x: 1.35, y: 3.02, z: 6.21), 0.51), (P3(x: -4.47, y: -9.76, z: 7.65), 0.96)]),
+    ]
+
+    /// `v` turned about the line of sight, then the horizontal axis, then the vertical.
+    static func turned(_ v: P3, lat: Double, lon: Double, rev: Double) -> P3 {
+        let (la, lo, re) = (lat * .pi / 180, lon * .pi / 180, rev * .pi / 180)
+        var q = P3(x: v.x * cos(re) - v.y * sin(re), y: v.x * sin(re) + v.y * cos(re), z: v.z)
+        q = P3(x: q.x, y: q.y * cos(la) - q.z * sin(la), z: q.y * sin(la) + q.z * cos(la))
+        return P3(x: q.x * cos(lo) + q.z * sin(lo), y: q.y, z: -q.x * sin(lo) + q.z * cos(lo))
+    }
+
+    /// The share of its colour a face with normal `n` takes from a rotated rig.
+    static func rotatedShare(_ n: P3, rig: String, rot: [Double]) -> Double? {
+        guard let m = rotatedRigs[rig] else { return nil }
+        let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
+        var k = m.ambient
+        for (v, strength) in m.lights {
+            let vl = max(1e-9, (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot())
+            let l = turned(P3(x: v.x / vl, y: v.y / vl, z: v.z / vl), lat: rot[0], lon: rot[1], rev: rot[2])
+            let d = (n.x * l.x + n.y * l.y + n.z * l.z) / len
+            // soft's pair is a straight line across the face (its two lights cancel to one without the clamp).
+            k += strength * (rig == "soft" ? d : max(0, d))
+        }
+        return max(0, k)
+    }
+
     static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil) -> Color {
         let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
         let lean = min(1, abs(n.z) / len)
@@ -165,6 +204,10 @@ enum Extrusion {
             // (Lab A: rev 90 prints as dir="r", pixel for pixel). Its latitude and
             // longitude tip the lights out of the plane; not drawn yet.
             if let rev = rig.first("a:rot")?["rev"].flatMap(Double.init) { s.rigTurn += rev / 60000 }
+            if let rot = rig.first("a:rot") {
+                func deg(_ a: String) -> Double { (rot[a].flatMap(Double.init) ?? 0) / 60000 }
+                s.rigRot = [deg("lat"), deg("lon"), deg("rev")]
+            }
         }
         // Looked at square on, a solid is its own front.
         if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
@@ -242,6 +285,10 @@ enum Extrusion {
             P3(x: l.x * cos(turnRig) - l.y * sin(turnRig), y: l.x * sin(turnRig) + l.y * cos(turnRig), z: l.z)
         }
         func litLocal(_ base: Color, _ n: P3) -> Color {
+            if let rot = scene.rigRot, let k = Extrusion.rotatedShare(n, rig: scene.rig, rot: rot) {
+                func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k).rounded()))) }
+                return Color(argb: base.alpha, ch(base.red), ch(base.green), ch(base.blue))
+            }
             if let table = Extrusion.rigs[scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: scene.rig == "twoPt" && scene.rigTurn != 0 ? Extrusion.material(scene.material) : nil) }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
