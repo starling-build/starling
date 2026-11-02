@@ -12017,7 +12017,13 @@ public final class RichLayout {
                     inserts.append(offset)
                 } else if loose.contains(offset) {
                     flush(i)
-                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    // (A word wider than the line parted at a hyphenation
+                    // point ends its line there with the hyphen drawn.)
+                    if !ea, let idx = index, _hyphenPoints[idx]?.contains(offset) == true {
+                        spans.append(TextSpan(text: "-", style: style(kind)))
+                    } else {
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    }
                     inserts.append(offset)
                 } else if let idx = index, let points = _hyphenPoints[idx], points.contains(offset), !ea {
                     // (Automatic hyphenation: a place the word may be parted
@@ -14159,9 +14165,13 @@ public final class RichLayout {
         var at = 0
         while at < total {
             let r = painter.getLineBoundary(TextPosition(offset: at))
-            out.append(min(count, map.paragraph(max(r.start, at))))
-            guard r.end > at else { break }
-            at = r.end
+            let start = min(count, map.paragraph(max(r.start, at)))
+            if out.last != start { out.append(start) }
+            // (A line the engine reports as ending where it stands — one
+            // that closes on a zero-width space — is stepped past, not
+            // taken for the last.)
+            guard r.end > at || r.end > r.start else { break }
+            at = max(r.end, at + 1)
         }
         return out
     }
