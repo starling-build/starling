@@ -2999,7 +2999,7 @@ enum ChartPainter {
         guard let v = c.barView else { return }
         let n = c.categories.count, s = c.series.count
         let u = frame.height / 251                      // canvas units to the fit's points (the frame in the lab's prints: 432.5 x 251 pt)
-        let scaleA = 221.448 * u
+        var scaleA = 221.448 * u
         let persp = v.perspective
         let kc = persp > 0 ? 765.743 * tan(7.5 * .pi / 180) / tan(persp / 4 * .pi / 180) * u : Double.infinity
         let th = -v.y * .pi / 180, ph = v.x * .pi / 180
@@ -3015,16 +3015,58 @@ enum ChartPainter {
         }
         var boxCorners: [(Double, Double, Double)] = []
         for x in [-0.5, 0.5] { for y in [-height / 2, height / 2] { for z in [-depth / 2, depth / 2] { boxCorners.append((x, y, z)) } } }
-        func flatK(_ p: (Double, Double, Double)) -> Offset {
-            // (K is in the fit's points at the fit's scale: the same units as scaleA / u.)
-            let f = persp > 0 ? kc / (kc - (scaleA / u) * p.2 * u) : 1
-            return Offset(p.0 * f * scaleA, -p.1 * f * scaleA)
+        func flatA(_ p: (Double, Double, Double), _ a: Double) -> Offset {
+            // (K is in the fit's points at the fit's scale: the same units as the scale / u.)
+            let f = persp > 0 ? kc / (kc - a * p.2) : 1
+            return Offset(p.0 * f * a, -p.1 * f * a)
+        }
+        func flatK(_ p: (Double, Double, Double)) -> Offset { flatA(p, scaleA) }
+        // The scale: Word fits the box AND the category names under it into a room as tall as the frame less
+        // 13.5pt above and below (Word for Windows' lab persp2: with every axis deleted the box's top and
+        // bottom stand at 13.2 and 238.2 of a 252pt frame in all 19 prints, whatever the turn, tilt,
+        // perspective, grouping or height; the frames of 216 and 324pt keep the same 13.5pt; with the names
+        // on, the first lab's lines end 11.2 / 23.2 / 0.2pt short of that foot at turns of 20 / 40 / 70,
+        // which is where the names hang to). The box stands with its top at that margin.
+        let roomTop = frame.top + 13.5 * k, roomHeight = frame.height - 27 * k
+        // (A chart with a title keeps the fitted constants of the lab's view B: the room there is what the
+        // title leaves, which lab persp2 did not measure. The names' drop of 26pt is B's; at a turn of 20
+        // Word's looks nearer 20pt, which 21pt did not improve on the whole: open.)
+        let titled = c.title != nil
+        func reach(_ a: Double) -> Double {
+            // (Past K the perspective turns over: that scale is too big, not small.)
+            if persp > 0, boxCorners.contains(where: { kc - a * cam($0.0, $0.1, $0.2).2 <= 0.05 * kc }) { return .infinity }
+            let ys = boxCorners.map { flatA(cam($0.0, $0.1, $0.2), a).dy }
+            let dy = roomTop - ys.min()!
+            var bottom = ys.max()! + dy
+            if !c.categoryAxisDeleted {
+                let size = c.categoryLabelSize ?? c.baseTextSize
+                let floorY = -height / 2, fd = depth / 2
+                if persp > 0, (0 ... n).contains(where: { kc - a * cam(-0.5 + Double($0) * slot, floorY, fd).2 <= 0.05 * kc }) { return .infinity }
+                let pts = (0 ... n).map { flatA(cam(-0.5 + Double($0) * slot, floorY, fd), a) }
+                var slotWidth = Double.infinity
+                for i in 0 ..< n { slotWidth = min(slotWidth, hypot(pts[i + 1].dx - pts[i].dx, pts[i + 1].dy - pts[i].dy)) }
+                for i in 0 ..< n {
+                    let tp = categoryText(c.categories[i], size, slotWidth * 0.95)
+                    bottom = max(bottom, (pts[i].dy + pts[i + 1].dy) / 2 + dy + 26 * k + tp.height / 2)
+                    tp.dispose()
+                }
+            }
+            return bottom - roomTop
+        }
+        if !titled {
+            var lo = 20 * u, hi = 1200 * u
+            for _ in 0 ..< 18 {
+                let mid = (lo + hi) / 2
+                if reach(mid) < roomHeight { lo = mid } else { hi = mid }
+            }
+            scaleA = (lo + hi) / 2
         }
         let raw = boxCorners.map { flatK(cam($0.0, $0.1, $0.2)) }
         let room = Offset(frame.left + 189.416 / 432.5 * frame.width, frame.top + 111.853 / 251 * frame.height)
         let rawX: [Double] = raw.map { $0.dx }, rawY: [Double] = raw.map { $0.dy }
-        let midX: Double = (rawX.min()! + rawX.max()!) / 2, midY: Double = (rawY.min()! + rawY.max()!) / 2
-        let shift = Offset(room.dx - midX, room.dy - midY)
+        let midX: Double = (rawX.min()! + rawX.max()!) / 2
+        let midY: Double = (rawY.min()! + rawY.max()!) / 2
+        let shift = Offset(room.dx - midX, titled ? room.dy - midY : roomTop - rawY.min()!)
         func at(_ x: Double, _ y: Double, _ z: Double) -> Offset { let o = flatK(cam(x, y, z)); return Offset(o.dx + shift.dx, o.dy + shift.dy) }
         func yAt(_ value: Double) -> Double { -height / 2 + height * (value - sc.lo) / max(1e-9, sc.hi - sc.lo) }
         let front = depth / 2, back = -depth / 2
