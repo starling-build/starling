@@ -13808,7 +13808,9 @@ public final class RichLayout {
                         // print — half of 15.2 — where ours, half the em off
                         // and all of the spacing kept, set 7.3, and its p1
                         // line took a "家" Word leaves.)
-                        let quoteAdd = theme.wordRules && (ch == "\u{201D}" || ch == "\u{2019}") ? max(0, spacing) * (doubles ? 2 : 1) : 0
+                        // (Any closing mark the same: zh-01bbcd4d's "…不提交竣工材料）；" sets the "）" 8.52 before the "；"
+                        // in Word's print, half of its 17; ours, 9.0, left "料）；" 0.2pt short of the line Word takes.)
+                        let quoteAdd = theme.wordRules ? max(0, spacing) * (doubles ? 2 : 1) : 0
                         let condensed = theme.wordRules && spacing < 0 ? spacing * (doubles ? 2 : 1) : 0
                         extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0) + quoteAdd + condensed) / 2
                     }
