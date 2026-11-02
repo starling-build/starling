@@ -8807,6 +8807,14 @@ public final class RichLayout {
                 if p.cell != nil, above.cell == p.cell, style.spaceBeforeAuto || above.style.spaceAfterAuto {
                     spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
                 }
+                // (A paragraph of automatic space before that states no space before of its own, straight under a table, has none (the zh files that state one keep the gap):
+                // lo-b8885ba2's closing paragraph, a line break then its text, stands at the
+                // table's foot in Word's print (276.3 under a table ending 275.8), where ours
+                // set it 14pt down and the text a line low.)
+                if RichTextTheme.wordWindowsPages, p.cell == nil, above.cell != nil, style.spaceBeforeAuto, style.spaceBefore == 0, spaceBefore > 0 {
+                    RuleTrace.hit("word-auto-space-before-under-a-table-is-none")
+                    spaceBefore = 0
+                }
             }
         }
         // The space two paragraphs share is the upper one's to give up:
