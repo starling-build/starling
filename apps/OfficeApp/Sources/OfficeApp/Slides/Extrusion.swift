@@ -394,7 +394,11 @@ enum Extrusion {
         func dark(_ c: Color) -> Color {
             Color(argb: c.alpha, Int(Double(c.red) * 0.3), Int(Double(c.green) * 0.3), Int(Double(c.blue) * 0.3))
         }
-        let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
+        // A legacy camera that turns the face well away darkens it with the
+        // tilt: twoPt at 60 degrees prints 0.39 of the fill (legacyCamera).
+        let tilted = scene.legacy && n0.z > 0 && n0.z < 0.9
+        let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
+        let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
         face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
         return true
     }
