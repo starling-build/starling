@@ -11203,7 +11203,18 @@ public final class RichLayout {
             let inner = cell.colWidth - cell.pad.left - cell.pad.right
             let size = _px(_named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
             var down = 0.0
+            var under = 0.0   // a picture with the text kept above and below it: the line stands under it
             for image in images {
+                // (A picture wrapped top and bottom, alone in its paragraph in a cell: the empty line is set
+                // under it, as the square one's above. lo-eb12e7d4's picture cells, 72pt pictures at 6.3pt and
+                // at the top of the paragraph, have the row 245 - 147 = 98pt tall in Word's print and the line
+                // at 226, 7pt under the lower picture; ours ended the row at the picture's foot.)
+                if let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalFrom == "paragraph",
+                   float.wrapSide == nil, !image.data.isEmpty || Self.drawsObject?(image) == true {
+                    let y = float.verticalAlign == nil ? _px(float.y) : 0
+                    under = max(under, y + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
+                    continue
+                }
                 guard let float = image.float, float.wraps, !float.takesRoom, float.wrapSide == nil || float.wrapSide == "both",
                       float.verticalAlign == nil, float.verticalFrom == "paragraph", float.horizontalAlign == nil,
                       float.horizontalFrom == "column" || float.horizontalFrom == "cell",
@@ -11211,6 +11222,13 @@ public final class RichLayout {
                 let x = _px(float.x), w = _px(image.width)
                 guard w > 0, x - _px(float.distanceLeft ?? 9) < size * 3, inner - (x + w + _px(float.distanceRight ?? 9)) < size * 3 else { continue }
                 down = max(down, _px(float.y) + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
+            }
+            if under > 0.01, theme.wordRules {
+                let line = _markLineHeight(i, document)
+                if before + under + line + after > total + 0.01 {
+                    RuleTrace.hit("word-cell-line-under-a-top-and-bottom-picture")
+                    total = before + under + line + after
+                }
             }
             if down > 0.01, before + down + bodyHeight + after > total + 0.01 {
                 RuleTrace.hit("word-cell-line-carrying-a-full-width-square-float-is-set-under-it")
