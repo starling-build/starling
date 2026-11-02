@@ -265,6 +265,8 @@ struct Chart: Equatable {
     /// standing in the middle of that depth with `gapDepth` of their own
     /// depth about them. nil is flat.
     var barView: BarView? = nil
+    /// A 3-D column's shape (`c:shape`): box, cylinder, cone, coneToMax, pyramid, pyramidToMax.
+    var barShape = "box"
     /// A surface chart (`c:surface3DChart`, `c:surfaceChart`): its series'
     /// values a grid over its categories, drawn as a surface seen at
     /// `surfaceView` (rotX, rotY, degrees), each face in its value band's
@@ -1676,6 +1678,7 @@ enum ChartXML {
                                       gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
             func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
             c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
+            c.barShape = el.first("c:shape")?["val"] ?? el.first("c:ser")?.first("c:shape")?["val"] ?? "box"
         }
         if el.name == "c:pie3DChart" {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
@@ -4108,6 +4111,62 @@ enum ChartPainter {
                         rect = rect.shift(Offset(back.dx, -back.dy))
                         if let last = labels.popLast() { labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy), last.2)) }
                     }
+                    if c.barView != nil, !horizontal, d != .zero, c.barShape != "box", rect.height > 0.2 {
+                        // (A column that is not a box: its footprint — the ellipse, or the square, the box's
+                        // top would be — swept up its height. Read off lo-8743d336's cylinders in Word's
+                        // print: dark edges (0.74 of the colour), light 0.45 across (1.09), 0.75 at the far edge,
+                        // the cap 0.77.)
+                        let base = fill.color
+                        let cone = c.barShape.hasPrefix("cone"), pyramid = c.barShape.hasPrefix("pyramid")
+                        let toMax = c.barShape.hasSuffix("ToMax")
+                        // (To the axis' top: the narrower the higher the column stands, nothing at the top.)
+                        let shrink = toMax ? max(0, 1 - rect.height / max(1, plot.height)) : 0
+                        let w2 = rect.width / 2
+                        let foot = Offset(rect.left + w2 + d.dx / 2, rect.bottom - d.dy / 2)
+                        let apexLift = rect.height
+                        func ring(_ theta: Double, top: Bool) -> Offset {
+                            let sx = (cone || pyramid) && top ? shrink : 1
+                            let cs: Double, sn: Double
+                            if pyramid {
+                                // the square's outline, by a rounded-square parameter
+                                let cc = cos(theta), ss = sin(theta), m = max(abs(cc), abs(ss))
+                                cs = cc / m; sn = ss / m
+                            } else { cs = cos(theta); sn = sin(theta) }
+                            let ex = foot.dx + sx * (w2 * cs + d.dx / 2 * sn)
+                            let ey = foot.dy - sx * (d.dy / 2) * sn - (top ? apexLift : 0)
+                            return Offset(ex, ey)
+                        }
+                        let steps = 72
+                        let frontLo = Double.pi, frontHi = 2 * Double.pi
+                        // the front half, left to right across the near side (sin below zero)
+                        let body = Path()
+                        let lo = ring(frontLo, top: false)
+                        body.moveTo(lo.dx, lo.dy)
+                        for j in 1 ... steps { let q = ring(frontLo + (frontHi - frontLo) * Double(j) / Double(steps), top: false); body.lineTo(q.dx, q.dy) }
+                        if (cone || pyramid) && shrink == 0 {
+                            let a = ring(0, top: true); body.lineTo(a.dx, a.dy)
+                        } else {
+                            for j in stride(from: steps, through: 0, by: -1) { let q = ring(frontLo + (frontHi - frontLo) * Double(j) / Double(steps), top: true); body.lineTo(q.dx, q.dy) }
+                        }
+                        body.close()
+                        let left = foot.dx - w2, right = foot.dx + w2
+                        let stops: [(Double, Double)] = [(0, 0.74), (0.2, 0.95), (0.45, 1.09), (0.64, 1.04), (0.82, 0.91), (1, 0.75)]
+                        fill.shader = Gradient(linear: Offset(left, 0), to: Offset(right, 0),
+                                               colors: stops.map { Self._scaled(base, $0.1) }, colorStops: stops.map(\.0))
+                        canvas.drawPath(body, fill)
+                        fill.shader = nil
+                        // The back half of the cap, the cap itself over the column's top.
+                        if !(cone || pyramid) || shrink > 0 {
+                            let cap = Path()
+                            let c0 = ring(0, top: true)
+                            cap.moveTo(c0.dx, c0.dy)
+                            for j in 1 ... 2 * steps { let q = ring(2 * Double.pi * Double(j) / Double(2 * steps), top: true); cap.lineTo(q.dx, q.dy) }
+                            cap.close()
+                            fill.color = Self._scaled(base, 0.77)
+                            canvas.drawPath(cap, fill)
+                            fill.color = base
+                        }
+                    } else {
                     canvas.drawRect(rect, fill)
                     if c.barView != nil {
                         // The box's top and right side, darker, as
@@ -4126,6 +4185,7 @@ enum ChartPainter {
                         fill.color = Self._scaled(base, 0.64)
                         canvas.drawPath(side, fill)
                         fill.color = base
+                    }
                     }
                     if let o = c.series[j].outline {
                         let line = Paint()
