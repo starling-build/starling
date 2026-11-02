@@ -1346,6 +1346,7 @@ enum DocxFormat {
         var tableStyles: [String: TableStyle] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
+        var rowExcepted = false   // the row of `currentCell` states its own cell margins (w:tblPrEx)
         var cellChar = CharStyle()   // the table style's look for the first row's runs
         var keptTables: [String: KeptTable] = [:]
         var keptTableCount = 0
@@ -1645,6 +1646,7 @@ enum DocxFormat {
                 // does not part across pages, and 60329's protocol text,
                 // 2,235 characters in a three-row table in a cell, ran to
                 // six pages for it.) Its markup is kept for the save.
+                let outerExcepted = rowExcepted
                 let saved = (paragraphs, currentCell, cellChar, cellBase, cellRootBase)
                 paragraphs = []
                 currentCell = nil
@@ -1657,7 +1659,7 @@ enum DocxFormat {
                 // (Word for Windows' labs T0-T2: the cell that holds a table is taller by that table's own
                 // cell margins, top and bottom, once more — lo-eb12e7d4's groups stand 2.8pt, the 28 twips
                 // of a pair, short of its print.)
-                if let outer = saved.1, (outer.padding?.top ?? 0) == 0, (outer.padding?.bottom ?? 0) == 0, node.first("w:tblPr")?.first("w:tblpPr") == nil, node.descendants("w:drawing").isEmpty, let tcMar = node.descendants("w:tcMar").first {
+                if let outer = saved.1, outerExcepted, (outer.padding?.top ?? 0) == 0, (outer.padding?.bottom ?? 0) == 0, node.first("w:tblPr")?.first("w:tblpPr") == nil, node.descendants("w:drawing").isEmpty, let tcMar = node.descendants("w:tcMar").first {
                     let pr = XNode(name: "w:tcPr", attrs: [:]); pr.children = [tcMar]
                     let m = _cellMargins(pr, "w:tcMar")
                     box.insetBottom = (m.top ?? 0) + (m.bottom ?? 0)
@@ -2428,6 +2430,7 @@ enum DocxFormat {
                         }
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
+                        rowExcepted = tr.first("w:tblPrEx")?.first("w:tblCellMar") != nil
                         if let rev = tcPr?.first("w:cellDel") ?? tcPr?.first("w:cellIns") {
                             currentCell?.revision = RevisionMark(kind: rev.name == "w:cellIns" ? .inserted : .deleted, author: rev["w:author"] ?? "",
                                                                  date: rev["w:date"] ?? "", moved: false)
