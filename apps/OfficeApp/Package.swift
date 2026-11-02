@@ -305,7 +305,7 @@ let package = Package(
             name: "OfficeAppTests",
             dependencies: ["OfficeApp", "OfficeText"],
             resources: [.copy("Fixtures")],
-            swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
+            swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5), .unsafeFlags(glibcMathCompat)]
         ),
     ],
     cxxLanguageStandard: .cxx20

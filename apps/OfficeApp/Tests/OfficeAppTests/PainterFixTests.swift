@@ -21,8 +21,10 @@ final class PainterFixTests: XCTestCase {
         let g = try XCTUnwrap(PptxReader.gradient(XNode.parse(Data(xml.utf8))!, colors: colors))
         XCTAssertEqual(g.path, .circle)
         XCTAssertEqual(g.fillTo.left, 0.5, accuracy: 1e-9)
-        XCTAssertEqual(g.fillTo.top, -0.8, accuracy: 1e-9)
-        XCTAssertEqual(g.fillTo.bottom, -0.8, accuracy: 1e-9, "b=180%: the rect's bottom is 80% above the top")
+        // t -80%, b 180%: a focus outside the shape is drawn from the centre,
+        // as Windows PowerPoint does (e69fefc7a, lo-tdf94238).
+        XCTAssertEqual(g.fillTo.top, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(g.fillTo.bottom, 0.5, accuracy: 1e-9)
         XCTAssertEqual(g.stops.count, 2)
         // A linear one has no path; one with no stops is nothing at all.
         let lin = "<a:gradFill \(ns)><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"FFFFFF\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"000000\"/></a:gs></a:gsLst><a:lin ang=\"2700000\"/></a:gradFill>"
@@ -35,8 +37,11 @@ final class PainterFixTests: XCTestCase {
     /// and one of theme colours under modifiers blends evenly.
     func testAPathGradientStartsWhereItsInsetsBalance() throws {
         let focus = SlidePainter.pathFocus(Rect.fromLTRB(0.65, 0, 1, 0.02))
-        XCTAssertEqual(focus.dx, 1, accuracy: 1e-9)
-        XCTAssertEqual(focus.dy, 0, accuracy: 1e-9)
+        // GeomLec1's rectangle is not a point: Windows PowerPoint prints a
+        // circle round the middle (684080609), where the Mac started at the
+        // top right corner.
+        XCTAssertEqual(focus.dx, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(focus.dy, 0.5, accuracy: 1e-9)
         let point = SlidePainter.pathFocus(Rect.fromLTRB(0.3, 0.7, 0.3, 0.7))
         XCTAssertEqual(point.dx, 0.3, accuracy: 1e-9, "a point is itself")
         XCTAssertEqual(point.dy, 0.7, accuracy: 1e-9)
@@ -376,15 +381,17 @@ final class PresetGeometryTests: XCTestCase {
         var f = SlideFill()
         PptxReader.tile(tile, image: nil, into: &f)
         XCTAssertTrue(f.tiled)
-        XCTAssertEqual(f.tileScale, 0.6 * 96 / 144, accuracy: 1e-9)
-        XCTAssertEqual(f.tileScaleY, 0.7 * 96 / 144, accuracy: 1e-9)
+        // A picture that declares no dpi is laid at 96 dpi, as Windows
+        // PowerPoint does (aa870cdb3): the scale is sx / sy as written.
+        XCTAssertEqual(f.tileScale, 0.6, accuracy: 1e-9)
+        XCTAssertEqual(f.tileScaleY, 0.7, accuracy: 1e-9)
         XCTAssertEqual(f.tileOffset, Offset(35, 40.5))
         XCTAssertEqual(f.tileAlign, Offset(0, 0))
         PptxReader.tile(XNode.parse(Data("<a:tile \(ns) algn=\"t\"/>".utf8)), image: nil, into: &f)
         XCTAssertEqual(f.tileAlign, Offset(0.5, 0))
         XCTAssertEqual(f.tileOffset, Offset(0, 0))
         PptxReader.tile(nil, image: nil, into: &f)
-        XCTAssertEqual(f.tileScaleY, 96 / 144, accuracy: 1e-9, "a bare blip tiles at its own size")
+        XCTAssertEqual(f.tileScaleY, 1, accuracy: 1e-9, "a bare blip tiles at its own size")
     }
 }
 
@@ -802,7 +809,7 @@ final class MetafileTests: XCTestCase {
         file += record(14, [0, 0, 20])
         XCTAssertTrue(Metafile.isMetafile(Data(file)))
         let m = try XCTUnwrap(Metafile(Data(file), id: "e"))
-        XCTAssertEqual(m.bounds.width, 101, accuracy: 0.5, "the frame in device units, to and including its last")
+        XCTAssertEqual(m.bounds.width, 100, accuracy: 0.5, "the frame in device units, exactly — not a unit wider (b1d56e15f)")
         XCTAssertEqual(m.steps.count, 1, "filled, not stroked: \(m.steps)")
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
         XCTAssertEqual(color, Color(0xFF0000FF))

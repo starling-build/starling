@@ -45,8 +45,13 @@ final class EngineRound2Tests: XCTestCase {
 
     /// Right edge of the last glyph of each line but the last (a trailing space is not a glyph's ink).
     private func lineRights(_ tp: TextPainter) -> [Double] {
-        lines(tp).dropLast().compactMap { r in
-            tp.getBoxesForSelection(TextSelection(baseOffset: r.start, extentOffset: r.end))
+        let units = Array(tp.plainText.utf16)
+        return lines(tp).dropLast().compactMap { r in
+            // Stop before the line's trailing spaces: the engine on Linux boxes them
+            // past the justified edge (a 14pt space, 3.89, beyond the width).
+            var end = r.end
+            while end > r.start, units[end - 1] == 0x20 { end -= 1 }
+            return tp.getBoxesForSelection(TextSelection(baseOffset: r.start, extentOffset: end))
                 .map { $0.right }.max()
         }
     }
