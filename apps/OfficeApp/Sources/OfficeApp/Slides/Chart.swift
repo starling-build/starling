@@ -231,6 +231,11 @@ struct Chart: Equatable {
     /// mode), as fractions of the chart's frame: entries in a row in it,
     /// the plot keeping its room. nil: beside the plot by `legendPosition`.
     var legendBox: Rect? = nil
+    /// A legend the file places by its corner only (`c:manualLayout` with x and y and no
+    /// size), as fractions of the chart: it keeps its own size.
+    var legendAt: Offset? = nil
+    /// The legend stands by a corner or a box of the file's own, and the plot keeps its room.
+    var legendPlaced: Bool { legendBox != nil || (legendAt != nil && !onSlide && !onSheet) }
     /// The title's own place (`c:title/c:layout/c:manualLayout`, edge
     /// mode): its box's top left, as fractions of the chart's frame, the
     /// plot keeping its room. nil: centred at the top.
@@ -1559,6 +1564,11 @@ enum ChartXML {
                let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
                let w = m.first("c:w")?["val"].flatMap(Double.init), let h = m.first("c:h")?["val"].flatMap(Double.init), w > 0, h > 0 {
                 c.legendBox = Rect.fromLTWH(x, y, w, h)
+            } else if let m = l.first("c:layout")?.first("c:manualLayout"),
+                      (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
+                      m.first("c:w") == nil, m.first("c:h") == nil,
+                      let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
+                c.legendAt = Offset(x, y)
             }
         }
         c.stacked = grouping == "stacked" || grouping == "percentStacked"
@@ -2371,7 +2381,7 @@ enum ChartPainter {
             let beforeTitle = area.top
             area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
             if c.type == .pie, c.ofPie == nil, c.pieTilt == nil, !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.titleAt == nil,
-               c.plotLayout == nil, c.legendBox == nil, c.legend, ["r", "l"].contains(c.legendPosition),
+               c.plotLayout == nil, !c.legendPlaced, c.legend, ["r", "l"].contains(c.legendPosition),
                !(c.pieLabels.map { $0.series || $0.category || $0.value || $0.percent } ?? false) {
                 RuleTrace.hit("word-pie-with-a-side-legend-is-centred-on-the-frame")
                 titleDrop = area.top - beforeTitle
@@ -2516,6 +2526,12 @@ enum ChartPainter {
                     area = Rect.fromLTRB(area.left, area.top, area.right,
                                          area.bottom - 1.2 * k - lineH - 8.4 * k)
                 }
+            } else if let at = c.legendAt, !c.onSlide, !c.onSheet, !pie {
+                // (Where the file puts its corner, over the plot, taking none of its room: zh-547fc43c's
+                // 图5 legend at 9.3% and 14.5% stands with its first key 15.8 pt right of that corner
+                // and its text's top 2 pt under it in Word's print, the plot running down to the labels.)
+                RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
+                y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
                 y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - lineH * Double(lines.count) / 2
                 if c.legendPosition == "l" {
@@ -2570,7 +2586,7 @@ enum ChartPainter {
                 // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
                 // theirs a 2007-style chart's, whose area is not centred.)
                 let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
-                var x = beside ? columnX : (box?.center.dx ?? middle) - w / 2
+                var x = beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
                 for e in line {
                     let p = Paint()
                     p.style = .fill
@@ -3417,7 +3433,7 @@ enum ChartPainter {
             // 11.1 pt inside its frame in PowerPoint's print, its four
             // categories 151.3 apart, ours 150.9. Not against a legend
             // beside it: tdf149985's, +0.11 so.)
-            let legendBeside = c.legend && c.legendBox == nil && ["r", "l", "tr"].contains(c.legendPosition)
+            let legendBeside = c.legend && !c.legendPlaced && ["r", "l", "tr"].contains(c.legendPosition)
             var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             // (An area chart's first date, turned, reaches its horizontal extent left of the plot's
@@ -3501,7 +3517,7 @@ enum ChartPainter {
             // zh-61aaad09's chart (Windows 01QbbApP): its x, y and h moved
             // nothing; with no layout the sides are as below.)
             let manual = c.plotLayout
-            let foot = c.legend && c.legendBox == nil && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? 0 : 4.9 * k)
+            let foot = c.legend && !c.legendPlaced && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? 0 : 4.9 * k)
             // (On a sheet, in points: Excel's print of chart-DataTable-
             // Multiple…'s table 4.2 pt further in than 17 px.)
             let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? k / 0.75 : k) + column)
