@@ -3329,6 +3329,12 @@ public final class RichLayout {
     private func _pxColumnLeft(_ page: Int, column: Int, paragraph i: Int) -> Double {
         guard _perSection else { return _pxMarginLeft(page) + Double(column) * _pxColumnStride(page) }
         let s = _setup(ofParagraph: i)
+        // (A continuous section sets its columns from its own side margin:
+        // lo-ff3b52d1's second section, 87.9pt after a first of 90.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, s.marginLeft != pageSetup(forPage: page).marginLeft {
+            RuleTrace.hit("continuous-section-columns-from-its-own-margin")
+            return _px(s.marginLeft + s.gutter) + Double(column) * _px(s.columnWidth + s.columnGap)
+        }
         return _pxMarginLeft(page) + Double(column) * _px(s.columnWidth + s.columnGap)
     }
     /// The columns of a body of sections that all have them, closed by a
