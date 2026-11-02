@@ -3714,6 +3714,10 @@ enum DocxFormat {
         case 3, 120: box = (3163, 3163, 18437, 18437)
         case 110: box = (5400, 5400, 16200, 16200)
         case 116: box = (1018, 3163, 20582, 18437)
+        // (The explosions: DrawingML's `irregularSeal1` and `2` text rectangles. zh-60c80728's "突发事件" in its
+        // `o:spt` 71 burst stands 15pt lower in Word's print than in the whole box.)
+        case 71: box = (4627, 6320, 16702, 13937)
+        case 72: box = (5372, 6382, 14640, 15935)
         default: return nil
         }
         return Rect.fromLTRB(box.0 / 21600, box.1 / 21600, box.2 / 21600, box.3 / 21600)
