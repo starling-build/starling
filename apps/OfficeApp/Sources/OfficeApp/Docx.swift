@@ -1531,6 +1531,7 @@ enum DocxFormat {
         // A row or cell may sit inside a content control (`w:sdt` >
         // `w:sdtContent` > `w:tr`/`w:tc`, as Word writes repeating-section
         // and cell controls): the wrapper is transparent here.
+        var inWrapperBody = false
         func unwrapped(_ parent: XNode, _ name: String) -> [XNode] {
             var out: [XNode] = []
             for c in parent.children {
@@ -1927,7 +1928,9 @@ enum DocxFormat {
                         var children = tc.children
                         if let last = children.last, last.name == "w:p", children.dropLast().last?.name == "w:tbl",
                            !last.children.contains(where: { $0.name != "w:pPr" }) { children.removeLast() }
+                        inWrapperBody = true
                         for child in children { walkBlock(child, indent: indent, depth: depth) }
+                        inWrapperBody = false
                         guard paragraphs.count > first else { continue }
                         // (A row of one paragraph keeps the height the row
                         // was given as that line's least: 60329's 9pt
@@ -2215,6 +2218,9 @@ enum DocxFormat {
                    let l = _cellMargins(first.first("w:tcPr"), "w:tcMar").left {
                     style.textOutdent = l
                 }
+                // (A table read out of a frame's wrapper is a nested table
+                // all the same: Word sets it out by nothing — lab nestmargin.)
+                if inWrapperBody, Self.wordOnWindows { style.textOutdent = 0; style.textOutdentRight = 0 }
                 // The table's own margins, for the save: the cells keep
                 // their w:tcMar, and the cells that state none take these
                 // (drawing.docx zeroes its banner row's and leaves 5.25pt

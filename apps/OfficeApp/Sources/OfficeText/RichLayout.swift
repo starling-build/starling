@@ -13013,7 +13013,8 @@ public final class RichLayout {
                     inserts.append(offset)
                     afterHeld = false
                 } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber || Self._closingMarks.contains($0) } == true)
-                            || (ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true) {
+                            || (ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true)
+                            || (RichTextTheme.wordWindowsPages && ch == "\u{2014}" && !ea && before.map { $0.isASCII && $0.isLetter } == true) {
                     // (… nor after one that follows a closing bracket, before digits: zh-22ecbdc8's
                     // "…达1000（含）" / "—5000人/年" in Word's print, and lab legsq's "（含）—5000" taken or
                     // left whole; ours parted "—" from "5000". Word's prints end a line on "—" with digits
