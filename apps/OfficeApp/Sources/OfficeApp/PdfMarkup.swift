@@ -120,6 +120,7 @@ struct PdfMarkup {
             if p.runs.contains(where: { $0.style.revision?.kind == .deleted }) {
                 var text = ""
                 var runs: [Run] = []
+                var ranOnHere = false
                 var at = p.text.utf16.startIndex
                 for run in p.runs {
                     let start = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at)
@@ -145,8 +146,11 @@ struct PdfMarkup {
                         // (A deletion that begins a paragraph, right after deleted marks and
                         // breaks with nothing kept between, runs on in the same balloon: Word for
                         // Windows, n830205's "Section Break (Next Page)" then "XXX¶".)
+                        // (… and so does that paragraph's next deleted run: the balloon is
+                        // not closed between two runs of one paragraph.)
                         let runsOn = DocxFormat.wordOnWindows && open != nil && open!.label == label && anchor.offset == 0 && text.isEmpty
-                            && open!.paragraphs.last?.isEmpty == true && open!.paragraphs.count > 1
+                            && ((open!.paragraphs.last?.isEmpty == true && open!.paragraphs.count > 1) || ranOnHere)
+                        if runsOn { ranOnHere = true }
                         if runsOn { RuleTrace.hit("deletion-after-deleted-marks-runs-on-in-its-balloon") }
                         if !runsOn, open == nil || open!.anchor != anchor || open!.label != label {
                             close()
