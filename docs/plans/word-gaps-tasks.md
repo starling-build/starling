@@ -13,7 +13,7 @@ what next and how to check it.
 Take nothing listed here unless you are its owner; ask starling-bd for new work. Keep this block current when LANDED or CLAIM lines change it.
 
 - amd-1: lo-4d273731, lo-c4c60fcb, lo-f9b9a8fc, lo-5afb2204 looks (pie3D size, pattern bg), long-text pie label lab
-- amd-2: lo-ff3b52d1 last 5 lines; zh-419ea527, zh-22ecbdc8, zh-ea70c30e, zh-92373179, zh-340d52e9, zh-547fc43c, zh-a78d52e7, zh-25381d22 (triage)
+- amd-2: lo-ff3b52d1 float-part pass (last 3 lines); zh-547fc43c (chart %)
 - amd-3: lo-1709e655, lo-536b79ce, zh-5450d509 (gothline + face lab)
 - amd-4: lo-af81b53e (small-caps lab), zh-51af781b, zh-f59a76e9, zh-c2cd4b3f, zh-9e020c95, zh-bdae17c0 (ours sets extra lines); Word surface chart
 - amd-5: zh-7773163d, zh-147bdae0 p19/p64, zh-b24b396a leftovers, the SimSun-digit change
@@ -23,7 +23,7 @@ Take nothing listed here unless you are its owner; ask starling-bd for new work.
 - amd-opus: line-end decision table; 3-D chart projection; pie bestFit crowding (stalled); zh-447f1d5c; handed over from lenovo-2: zh-ac627439, zh-bfe04e2f, zh-eb54d3b0, zh-df9310bd, zh-31d580df; handed over from lenovo-3: zh-7488a70f, zh-6c447317, zh-424775e4
 - lenovo-2: zh-9ba2ead7 + zh-1eeb9f9a (merged-cell lab cm1), zh-30d86fcf, zh-60173bb6, zh-c9d38b65, zh-01bbcd4d, zh-621d8756, zh-72da925e, zh-df505e38, zh-5313b71d, zh-ae655121, zh-6b242483 (triage)
 - lenovo-3: lo-7ec36a70 (83.9), zh-291fcea7, zh-15428325, zh-785e46f8, zh-64044a1d, zh-e51c31a7, zh-701eda18 (triage)
-- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2); lo-717ff943 (amd-perf); lo-b8885ba2, lo-152d87fe, lo-06933f8e, lo-88b29958, lo-47598455, lo-9fa3dedd, lo-a48482e7 (lenovo-2); lo-60fd9368, lo-4aa628bd (amd-2); lo-512aa398 (lenovo-2); lo-52da6bc6 (amd-4); lo-5c5eb1f7 form widths (amd-6); zh-6e6b9821: sub-point, nothing to land; lo-677416bef (lenovo-3); zh-74b34f3b: sub-point noise, nothing to fix
+- DONE: lo-c996762f (lenovo-3); lo-62f37fcc (amd-2); lo-0349db3a (amd-3); lo-e6dce9d6 and lo-9c6cc479 (lenovo-5; their last misses are Word's text layer); lo-db00fd9f (amd-opus, 100); lo-89daf93d (lenovo-5); lo-79680f48, lo-373ee508, lo-6e71a4d5 (amd-4); lo-73f1dccc (lenovo-3); lo-b60b7299 (amd-2); lo-717ff943 (amd-perf); lo-b8885ba2, lo-152d87fe, lo-06933f8e, lo-88b29958, lo-47598455, lo-9fa3dedd, lo-a48482e7 (lenovo-2); lo-60fd9368, lo-4aa628bd (amd-2); lo-512aa398 (lenovo-2); lo-52da6bc6 (amd-4); lo-5c5eb1f7 form widths (amd-6); zh-6e6b9821: sub-point, nothing to land; lo-677416bef (lenovo-3); zh-74b34f3b: sub-point noise, nothing to fix; zh-419ea527, zh-340d52e9 (amd-2); zh-22ecbdc8 (amd-opus)
 - UNFIXABLE: lo-a43021ca (print-date field); lo-72e72396 (print date)
 - lenovo-5: n830205 + lo-a197b7a8 (both waiting on labs), zh-27fc8f9d, zh-d8247da5, zh-cf8b03a5, zh-ea43dd6d (triage)
 - amd-8: tip watch + unit tests
