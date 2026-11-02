@@ -4512,13 +4512,12 @@ public final class RichLayout {
             // LibreOffice's tdf170381, a title and a 694pt nested table in one
             // row, parts over two pages in Word's print; kept whole it ran
             // off the first page's foot.)
-            // (Not where that paragraph also keeps its lines together: lo-b8885ba2's
-            // "Xx Xxxx:" row, a first cell of keepNext, keepLines and no widow
-            // control, the fourth of five under a floating table, parts at page 5's
-            // foot in Word's print, as it would without the keepNext. Which of the
-            // three does it is not separated yet; the row of lab `kr` had keepNext
-            // alone and went whole, and so do zh-604e21e5's, zh-457a8d62's.)
-            if theme.wordRules, document.paragraphs[i].style.keepNext, !document.paragraphs[i].style.keepLines, c.ownRowHeight <= contentH + 0.01 { return false }
+            // (Not in a table floating by the text: lo-b8885ba2's "Xx Xxxx:" row, a first
+            // cell of keepNext, the fourth of five under a floating table, parts at
+            // page 5's foot in Word's print. Lab `rowsplit`: in a table in the flow,
+            // keepNext alone sends the row whole, with or without keepLines or
+            // widow control; zh-604e21e5's and zh-457a8d62's rows are such.)
+            if theme.wordRules, document.paragraphs[i].style.keepNext, ts.keptPosition == nil, c.ownRowHeight <= contentH + 0.01 { return false }
             // (Nor where the page's footer holds a sized, raised frame and
             // reaches above its bottom margin:
             // there Word parts no row at the page's foot, but sends it to the
