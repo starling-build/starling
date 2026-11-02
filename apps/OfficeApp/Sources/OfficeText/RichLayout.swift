@@ -2151,7 +2151,11 @@ public final class RichLayout {
                 // columns still scale evenly. lo fdo63164-1's 2nd column is 3pt
                 // wider so.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, scale < 1, !_nestedInFixedTable, _columnPreview[c.table] == nil,
-                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil, (ts.cellSpacing ?? 0) == 0 {
+                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil, (ts.cellSpacing ?? 0) == 0,
+                   // (Not one set out by an indent: lab ovfit's A3 has Word narrow it by the indent too, but
+                   // lo fdo63164-1, indented 6.2pt with a checkbox column, comes out 2pt off on its first
+                   // column — what Word counts as a checkbox's narrowest is not known. Left as it was.)
+                   abs(ts.indent) < 0.5 {
                     let ins = _cellInsets(c.table, document)
                     var need = Array(repeating: 0.0, count: pts.count)
                     for (k, q) in document.paragraphs.enumerated() {
@@ -2160,7 +2164,7 @@ public final class RichLayout {
                         need[cc.column] = max(need[cc.column], sides + _minContent(k, q, document))
                     }
                     let grid = pts.map { _px($0) }
-                    let room = width - _px(max(0, ts.indent))
+                    let room = width
                     let over = grid.reduce(0, +) - room
                     let spare = zip(grid, need).map { max(0, $0 - $1) }
                     let spareSum = spare.reduce(0, +)
