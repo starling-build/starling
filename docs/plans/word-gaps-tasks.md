@@ -14326,3 +14326,5 @@ TIP WATCH amd-8, round 118 (tip 20406c25a, Slides round): Word no drops; unit te
 - amd-opus: Word line-end work STOPPED per the coordinator. Final 756 on office: 346 missed lines (from 386 at the start of this round; my landings d44cf0676, 8f086de6f).
 
 TIP WATCH amd-8, round 119 (tip 3a5e52588): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+
+TIP WATCH amd-8, round 120 (tip f3129973f): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
