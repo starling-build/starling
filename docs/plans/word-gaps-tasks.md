@@ -14339,3 +14339,5 @@ TIP WATCH amd-8, round 120 (tip f3129973f): Word no drops; unit tests 613 run, 0
 TIP WATCH amd-8, round 121 (tip 22b7bd014, Slides round): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points. SLIDES 555 decks mean 0.8041 = baseline, 0 worse, matched-win 98/98 exact. SHEETS 757 workbooks mean 0.667 -> 0.665, 0 worse, 1 better. WEB build OK and layout exit 0. All gates green.
 - CLAIM (amd-opus, 2026-11-03, coordinator's order): Word line ends, tables group + one text-box cell: zh-147bdae0 (cell lines), zh-7a16a243 (p9 "…刪除允"), zh-db07d44e (cell lines with "，"/"。" squeezed), zh-4e5fe46f p9 (amd-5's squeeze note).
 - CLAIM amd-5 (2026-11-03, macos' order): lo-a197b7a8 (fileHang leftover, 7 lines, p17-21 Notes in a nested-list cell) and lo-d1e88d77 (2 lines). Reading wip/lab-bal2 / lab-fhcb for a returned table first.
+
+TIP WATCH amd-8, round 122 (tip bc686c002): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
