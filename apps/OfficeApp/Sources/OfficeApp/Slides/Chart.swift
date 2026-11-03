@@ -2937,7 +2937,7 @@ enum ChartPainter {
         // in Word are 5.49, 3.5 and 11.4.)
         // (A line's key is as long in points on a sheet: chart-
         // ChartDataTable's names 24.5 pt in, in Excel's print.)
-        let e = dt.squareKeys ? size / 10 * k : k, u = c.onSheet ? k / 0.75 : k
+        let e = dt.squareKeys ? size / 10 * k : k, u = c.onSheet ? 1 : k
         for (j, (s, line)) in rows.enumerated() {
             let y = rowTop(j + 1), row = rowHeight(j + 1)
             let colour = s.color ?? c.color(series: j, accents: theme.accents)
@@ -3960,7 +3960,7 @@ enum ChartPainter {
             let size = dt.size ?? c.baseTextSize
             let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
             let square = dt.squareKeys && c.type != .line && c.lineSeries.isEmpty
-            let e = size / 10 * k, u = c.onSheet ? k / 0.75 : k
+            let e = size / 10 * k, u = c.onSheet ? 1 : k
             let column = (dt.keys ? (square ? 11.4 * e : 24.4 * u) : 3.2 * u) + (names.map(\.width).max() ?? 0) + (square ? 2.4 * e : 2.5 * u)
             for t in names { t.dispose() }
             // (Over a legend at the foot, the table stops where the
@@ -3975,7 +3975,7 @@ enum ChartPainter {
             let foot = c.legend && !c.legendPlaced && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? 0 : 4.9 * k)
             // (On a sheet, in points: Excel's print of chart-DataTable-
             // Multiple…'s table 4.2 pt further in than 17 px.)
-            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? k / 0.75 : k) + column)
+            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column)
             let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right
             let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), text: text)
             let top = foot - rows.reduce(0, +)
@@ -3984,7 +3984,7 @@ enum ChartPainter {
             // measured only with a table.)
             // (On a sheet too, 11.1 pt: chart-ChartDataTable's in Excel's
             // print, where 11.1 px stood 2.6 pt high.)
-            let head = c.title?.isEmpty == false ? plot.top : frame.top + (manual != nil ? 6.7 : 11.1) * (c.onSheet ? k / 0.75 : k)
+            let head = c.title?.isEmpty == false ? plot.top : frame.top + (manual != nil ? 6.7 : 11.1) * (c.onSheet ? 1 : k)
             plot = Rect.fromLTRB(left, head, right, top)
             table = (top, rows, plot.left - column, size)
         }
@@ -4685,7 +4685,7 @@ enum ChartPainter {
                         fill.shader = Gradient(linear: Offset(0, rect.top), to: Offset(0, rect.bottom), colors: [head, foot], colorStops: [0, 1])
                     }
                     if c.barView == nil, let ink = c.series[j].pattern, c.pointColors[i] == nil,
-                       Self._hatch({ let q = Path(); q.addRect(rect); return q }(), ink, k: k, canvas) {
+                       Self._hatch({ let q = Path(); q.addRect(rect); return q }(), ink, k: c.onSheet ? 1 : k, canvas) {
                         // (A pattern-filled column, hatched: its marks over its background.)
                     } else {
                         canvas.drawRect(rect, fill)
@@ -4769,7 +4769,7 @@ enum ChartPainter {
                     for i in stride(from: n - 1, through: 0, by: -1) { path.lineTo(xAt(i), vpos(lower[i])) }
                     path.close()
                     fill.color = color
-                    if let ink = c.series[j].pattern, Self._hatch(path, ink, k: k, canvas) {
+                    if let ink = c.series[j].pattern, Self._hatch(path, ink, k: c.onSheet ? 1 : k, canvas) {
                         // (Hatched: its background, then the preset's marks over it.)
                     } else {
                         canvas.drawPath(path, fill)
@@ -5028,7 +5028,7 @@ enum ChartPainter {
                     wedge.moveTo(centre.dx, centre.dy)
                     wedge.arcTo(oval, angle, sweep, false)
                     wedge.close()
-                    if !_hatch(wedge, ink, k: k, canvas) { canvas.drawArc(oval, angle, sweep, true, fill) }
+                    if !_hatch(wedge, ink, k: c.onSheet ? 1 : k, canvas) { canvas.drawArc(oval, angle, sweep, true, fill) }
                 } else {
                     canvas.drawArc(oval, angle, sweep, true, fill)
                 }
@@ -5136,7 +5136,7 @@ extension ChartPainter {
     static func _treemap(_ c: Chart, _ nodes: [Chart.SunburstNode], _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
                          text: (String, Double, Double) -> TextPainter) {
         // (A sheet's k is three quarters of a point's.)
-        let pt = c.onSheet ? k / 0.75 : k
+        let pt = c.onSheet ? 1 : k
         // (The boxes 5.8 pt inside the frame at the sides and foot, and
         // 0.67 lower than the room under the title: Excel's print of
         // chart-treemap, where ours stood 6.75 in and 3.45 off its foot.)

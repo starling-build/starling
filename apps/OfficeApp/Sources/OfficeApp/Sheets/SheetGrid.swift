@@ -693,7 +693,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             if !chart.areaNoFill {
                 p.color = chart.areaFill ?? theme.background
                 if let g = chart.areaGradient, let shader = SlidePainter.gradientShader(g, r) { p.shader = shader }
-                if let ink = chart.areaPattern, ChartPainter._hatch({ let q = Path(); q.addRect(r); return q }(), ink, k: scale, canvas) {
+                if let ink = chart.areaPattern, ChartPainter._hatch({ let q = Path(); q.addRect(r); return q }(), ink, k: 1, canvas) {
                     // (A pattern-filled chart area, hatched: chart-chart-hatch-fill's.)
                 } else {
                     canvas.drawRect(r, p)
