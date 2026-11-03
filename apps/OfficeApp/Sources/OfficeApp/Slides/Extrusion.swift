@@ -163,7 +163,7 @@ enum Extrusion {
         return max(0, k)
     }
 
-    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil, threePt: Bool = false) -> Color {
+    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil, threePt: Bool = false, whiteShare: Double = 0.5) -> Color {
         let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
         let lean = min(1, abs(n.z) / len)
         let w = (1 - lean * lean).squareRoot()
@@ -192,7 +192,7 @@ enum Extrusion {
             // a wall it overshoots (a cyan wall washed out in shape_rotation) and
             // left out it undershoots (isometricRightUp); half is what both decks
             // like. PROVISIONAL until the material model replaces it.
-            if m == nil { spec = 0.5 * w * at { $0.3 } }
+            if m == nil { spec = whiteShare * w * at { $0.3 } }
         }
         func ch(_ v: Int, _ f: Double) -> Int { max(0, min(255, Int((Double(v) * f + 255 * spec).rounded()))) }
         return Color(argb: base.alpha, ch(base.red, k[0]), ch(base.green, k[1]), ch(base.blue, k[2]))
@@ -384,7 +384,7 @@ enum Extrusion {
             }
             // twoPt with no turn and no a:rot is the measured plain table (modernCamera); a turned or rot-ed one is Lab F's.
             let plain = scene.rig == "twoPt" && scene.rigTurn == 0 && scene.rigRot == nil
-            if let table = Extrusion.rigs[plain ? "twoPtPlain" : scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: !plain && (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty)) ? Extrusion.material(scene.material) : nil, threePt: scene.rig == "threePt") }
+            if let table = Extrusion.rigs[plain ? "twoPtPlain" : scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: !plain && (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty)) ? Extrusion.material(scene.material) : nil, threePt: scene.rig == "threePt", whiteShare: rim ? 1.0 : 0.5) }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
             for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
