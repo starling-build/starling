@@ -775,8 +775,11 @@ enum WordArt {
             // A slide's line rides inside the box's ellipse by 0.165 of its size, and each
             // line after it (toward the middle) a pitch nearer.
             let size = line.glyphs.map(\.size).max() ?? 0
-            let lift = slide ? -Self.circleInset * size + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0
-            let rx = max(1, rx0 + lift), ry = max(1, ry0 + lift)
+            let lift = slide ? (warp.preset == "textArchDown" ? Self.circleInset : -Self.circleInset) * size + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0
+            // An arch's letters are spaced along the box's own ellipse and each stands `lift` off it
+            // (p3x lab, 20 to 200 pt); a circle's ride the ellipse that far in.
+            let offset = false
+            let rx = max(1, offset ? rx0 : rx0 + lift), ry = max(1, offset ? ry0 : ry0 + lift)
             let steps = 720
             var pts: [Offset] = [], lens: [Double] = [0]
             for i in 0 ... steps {
@@ -795,8 +798,9 @@ enum WordArt {
             // The letters keep their size (`fit`); a slide's text on a circle only sets them
             // a little closer (`k`, lab prints) — it is the advances that shrink, not the glyphs.
             var fit = fits ? arc / line.width : min(top, arc / line.width)
-            if slide, room == 1 { fit = min(fit, Self.circleFit * arc / line.width) }
-            let k = fit * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
+            if slide, room == 1, warp.preset == "textCircle" || warp.preset == "textButton" { fit = min(fit, Self.circleFit * arc / line.width) }
+            let archSpread = slide && (warp.preset == "textArchUp" || warp.preset == "textArchDown") ? 1.05 : 1.0
+            let k = fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
             var s = line.alignment == .center ? free / 2 : line.alignment == .right ? free : 0
@@ -818,7 +822,11 @@ enum WordArt {
                 // Along the tangent, and down its right-hand normal.
                 let ax = Offset(t.dx * fit, t.dy * fit), ay = Offset(-t.dy * fit, t.dx * fit)
                 let gw = g.width * fit
-                let o = Offset(p.dx - t.dx * gw / 2 + t.dy * base, p.dy - t.dy * gw / 2 - t.dx * base)
+                var o = Offset(p.dx - t.dx * gw / 2 + t.dy * base, p.dy - t.dy * gw / 2 - t.dx * base)
+                if offset {
+                    let nx = (p.dx - c.dx) / (rx * rx), ny = (p.dy - c.dy) / (ry * ry), nl = max(1e-9, hypot(nx, ny))
+                    o = Offset(o.dx + lift * nx / nl, o.dy + lift * ny / nl)
+                }
                 draw(g, o, ax, ay)
             }
         }
