@@ -1316,7 +1316,15 @@ extension RichLayout {
                             setWhole[n] = y + d0.pad.top + max(0, room) * (d0.verticalAlign == "center" ? 0.5 : 1) - blockTop
                             next[n] = max(column.cut, rowBottom)
                             moved = true
-                        } else if column.bottom + (partPad(column)?.amount ?? 0) <= (RichTextTheme.wordWindowsPages ? closed : limit) {
+                        } else if column.bottom + (partPad(column)?.amount ?? 0) <= (RichTextTheme.wordWindowsPages ? closed : limit),
+                                  // (Not a cell merged down whose text was parted from its top, below this
+                                  // row's own bottom — its bottom is the row's, and none of it is placed
+                                  // yet: lab `cms` (Word for Windows, zh-785e46f8's table), "用地、/用能、/
+                                  // 环境" centred over seven rows, the first parting at the foot with two
+                                  // lines on the page, stands from the part's top two lines there and one
+                                  // under the repeated header; ours sent all three over.)
+                                  // (`partedBelow`.)
+                                  !(theme.wordRules && RichTextTheme.wordWindowsPages && d0.rowSpan > 1 && column.cut > c.rowTop + 0.01 && column.cut >= column.bottom - 0.01 && first) {
                             // (All that is left of this cell is on this page.)
                             // (Above the line the part is closed with, as a cut
                             // must be: zh-e1b09977's p13 closes under its table's
@@ -1474,7 +1482,10 @@ extension RichLayout {
                     var extent: [Int: (top: Double, bottom: Double)] = [:]
                     for (n, column) in columns.enumerated() where setWhole[n] == nil {
                         let d0 = _cells[column.members[0]]!
-                        let bottom = next[n] >= rowBottom - 0.01 ? column.bottom + (partPad(column)?.amount ?? 0) : next[n] + d0.pad.bottom
+                        // (A cell merged down, parted from its text's top below the row's own
+                        // bottom, ends where it is cut: see `partedBelow`.)
+                        let partedBelow = theme.wordRules && RichTextTheme.wordWindowsPages && d0.rowSpan > 1 && column.cut > c.rowTop + 0.01 && column.cut >= column.bottom - 0.01
+                        let bottom = next[n] >= rowBottom - 0.01 && !partedBelow ? column.bottom + (partPad(column)?.amount ?? 0) : next[n] + d0.pad.bottom
                         let textTop = max(column.cut, _tops[column.members[0]] - d0.pad.top)
                         extent[n] = (textTop, bottom)
                     }
