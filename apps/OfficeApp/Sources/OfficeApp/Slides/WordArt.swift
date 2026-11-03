@@ -49,7 +49,7 @@ enum WordArt {
         case "textSlantDown": let a = max(0.28569, min(1, adj(44445))); return { ((1 - a) * $0, a + (1 - a) * $0) }
         // Curve: the text shrinks (or grows) along a quarter turn over a
         // level foot.
-        case "textCurveDown": let a = adj(45977); return { (a * sin($0 * .pi / 2), 1) }
+        case "textCurveDown": let a = adj(45977); return { (a * sin($0 * .pi / 2), 1 - 0.41 * a * bow($0)) }   // the foot bows too (lab p3w cell 7: ends 0.21 up at adj 56338)
         case "textCurveUp": let a = adj(45977); return { (a * sin((1 - $0) * .pi / 2), 1) }
         // Stop: the corners cut, as a stop sign's.
         case "textStop":
