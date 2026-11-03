@@ -11,7 +11,7 @@ CNS = ('xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a
 
 
 def combos():
-    base = dict(hole=50, series=1, labels=None, legend='r', w=480, h=288)
+    base = dict(hole=50, series=1, labels=None, legend='r', w=480, h=288, lsz=None)
     out = [('base', {})]
     for hole in (10, 25, 75, 90):
         out.append(('hole%d' % hole, dict(hole=hole)))
@@ -24,6 +24,15 @@ def combos():
     for w, h in ((300, 200), (640, 384), (400, 400), (600, 200), (200, 400)):
         out.append(('size%dx%d' % (w, h), dict(w=w, h=h)))
     out.append(('hole75-labels-val-legend-none', dict(hole=75, labels='val', legend=None)))
+    # round 2: the ring shrinks when data labels are on (Excel's print of 'labels-val' has its ring 17.5 pt smaller in
+    # radius than 'base'); what does the shrink follow? the chart's size, the label's size, the legend?
+    for w, h in ((300, 200), (640, 384), (400, 400), (200, 400), (600, 200)):
+        out.append(('L-size%dx%d' % (w, h), dict(w=w, h=h, labels='val')))
+    for sz in (8, 14, 20):
+        out.append(('L-font%d' % sz, dict(labels='val', lsz=sz)))
+    out.append(('L-legend-none', dict(labels='val', legend=None)))
+    out.append(('L-legend-b', dict(labels='val', legend='b')))
+    out.append(('L-catpct-font20', dict(labels='catpct', lsz=20)))
     return [(n, {**base, **d}) for n, d in out]
 
 
@@ -42,6 +51,8 @@ def chart_xml(p, sheet):
             cp = p['labels'] == 'catpct'
             dl = ('<c:dLbls><c:showLegendKey val="0"/><c:showVal val="%d"/><c:showCatName val="%d"/><c:showSerName val="0"/>'
                   '<c:showPercent val="%d"/><c:showBubbleSize val="0"/><c:showLeaderLines val="1"/></c:dLbls>') % (0 if cp else 1, 1 if cp else 0, 1 if cp else 0)
+            if p['lsz']:
+                dl = dl.replace('<c:showLegendKey', '<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="%d"/></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr><c:showLegendKey' % (p['lsz'] * 100), 1)
         sers += ('<c:ser><c:idx val="%d"/><c:order val="%d"/><c:tx><c:strRef><c:f>@@S@@!$%s$1</c:f><c:strCache><c:ptCount val="1"/>'
                  '<c:pt idx="0"><c:v>Series %d</c:v></c:pt></c:strCache></c:strRef></c:tx>%s%s%s</c:ser>') % (s, s, col, s + 1, dl, cat, val)
     legend = '<c:legend><c:legendPos val="%s"/><c:overlay val="0"/></c:legend>' % p['legend'] if p['legend'] else ''
