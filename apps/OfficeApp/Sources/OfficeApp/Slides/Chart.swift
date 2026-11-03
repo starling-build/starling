@@ -49,6 +49,12 @@ enum ChartType: String, CaseIterable {
     }
 }
 
+struct PatternInk: Equatable {
+    var preset: String
+    var foreground: Color
+    var background: Color
+}
+
 struct ChartSeries: Equatable {
     var name: String
     /// One per category; nil is a blank cell (a gap).
@@ -93,6 +99,8 @@ struct ChartSeries: Equatable {
     var markerLine: Color? = nil
     var unmarked: Set<Int> = []
     var lineHidden = false
+    /// A pattern fill (`a:pattFill`): its preset and two colours, hatched over the area it fills.
+    var pattern: PatternInk? = nil
     /// A combination's line with its values by its points (`c:dLbls`
     /// showVal, above them), and where single ones are moved
     /// (`c:dLbl/c:layout`, fractions of the chart's frame): zh-547fc43c's
@@ -1366,6 +1374,7 @@ enum ChartXML {
                 let ink = Double(rows.reduce(0) { $0 + $1.nonzeroBitCount }) / 64
                 let top = Color((Int(max(0, min(255, (ink * 255).rounded()))) << 24) | (fg.value & 0x00FF_FFFF))
                 s.color = DeckController.blend(top, over: bg)
+                s.pattern = PatternInk(preset: preset, foreground: fg, background: bg)
             }
             // (Its labels moved one by one, as a combination's line's are:
             // zh-b8de3ae2's 3-D bars' close values, apart in Word's print,
@@ -3308,6 +3317,41 @@ enum ChartPainter {
         }
     }
 
+    /// A pattern fill drawn as Excel prints it: the background under the path, then the preset's 8 x 8 marks, a
+    /// pattern pixel 0.75 pt, as one clipped path of runs. False where the area is too large to hatch in vectors
+    /// (the caller fills it flat in the colour the hatch comes to).
+    private static func _hatch(_ path: Path, _ ink: PatternInk, k: Double, _ canvas: any Canvas) -> Bool {
+        guard let rows = PatternFill.rows[ink.preset] else { return false }
+        let b = path.getBounds()
+        let px = 0.75 * k
+        guard px > 0, b.width > 0, b.height > 0, b.width * b.height / (px * px) < 400_000 else { return false }
+        let bg = Paint()
+        bg.style = .fill
+        bg.color = ink.background
+        canvas.drawPath(path, bg)
+        let dots = Path()
+        let x0 = Int((b.left / px).rounded(.down)), x1 = Int((b.right / px).rounded(.up))
+        let y0 = Int((b.top / px).rounded(.down)), y1 = Int((b.bottom / px).rounded(.up))
+        for y in y0 ... y1 {
+            let bits = rows[((y % 8) + 8) % 8]
+            var x = x0
+            while x <= x1 {
+                if bits & (1 << UInt8(((x % 8) + 8) % 8)) == 0 { x += 1; continue }
+                let start = x
+                while x <= x1, bits & (1 << UInt8(((x % 8) + 8) % 8)) != 0 { x += 1 }
+                dots.addRect(Rect.fromLTWH(Double(start) * px, Double(y) * px, Double(x - start) * px, px))
+            }
+        }
+        canvas.save()
+        canvas.clipPath(path)
+        let fg = Paint()
+        fg.style = .fill
+        fg.color = ink.foreground
+        canvas.drawPath(dots, fg)
+        canvas.restore()
+        return true
+    }
+
     private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme, titleLines: Int = 1,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
                               titleText: (String, Double, Double) -> TextPainter,
@@ -4631,7 +4675,11 @@ enum ChartPainter {
                     for i in stride(from: n - 1, through: 0, by: -1) { path.lineTo(xAt(i), vpos(lower[i])) }
                     path.close()
                     fill.color = color
-                    canvas.drawPath(path, fill)
+                    if let ink = c.series[j].pattern, Self._hatch(path, ink, k: k, canvas) {
+                        // (Hatched: its background, then the preset's marks over it.)
+                    } else {
+                        canvas.drawPath(path, fill)
+                    }
                 } else if c.series[j].lineHidden {
                     // (Its line none: its marks alone, where it has any.)
                     for i in 0 ..< n {
