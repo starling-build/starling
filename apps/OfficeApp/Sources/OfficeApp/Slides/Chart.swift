@@ -298,6 +298,8 @@ struct Chart: Equatable {
         /// the chart's box in perspective (`c:perspective`, in half degrees).
         var rightAngles = true
         var perspective = 30.0
+        /// `c:hPercent`: the box's height as a percentage of its width; nil is automatic.
+        var heightPercent: Double? = nil
     }
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
@@ -1727,6 +1729,7 @@ enum ChartXML {
             func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
             c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
             if let ra = v?.first("c:rAngAx") { c.barView?.rightAngles = (ra["val"] ?? "1") != "0" && (ra["val"] ?? "1") != "false" }
+            c.barView?.heightPercent = v?.first("c:hPercent")?["val"].flatMap(Double.init)
             c.barView?.perspective = v?.first("c:perspective")?["val"].flatMap(Double.init) ?? 30
             c.barShape = el.first("c:shape")?["val"] ?? el.first("c:ser")?.first("c:shape")?["val"] ?? "box"
         }
@@ -3051,7 +3054,9 @@ enum ChartPainter {
         let lanes = Double(s), pitch = 1 - c.overlapFraction
         let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
         let depth = min(2, bar * (1 + v.gapDepth) * v.depth)
-        let height = 0.595
+        // A stated height percentage (c:hPercent) makes the box that fraction of its width, times 1.05 (Word for Windows'
+        // lab persp2: hPercent 50 and 100 both within 1 pt of the print's width); automatic keeps the fitted 0.595.
+        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? 0.595
         // Camera space (right, up, toward the viewer) of a box point, and its place on the page.
         func cam(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
             let x1 = x * cos(th) + z * sin(th), z1 = -x * sin(th) + z * cos(th)
@@ -3076,6 +3081,16 @@ enum ChartPainter {
         // title leaves, which lab persp2 did not measure. The names' drop of 26pt is B's; at a turn of 20
         // Word's looks nearer 20pt, which 21pt did not improve on the whole: open.)
         let titled = c.title != nil
+        // (Word wraps a category name only at its spaces: a word wider than the slot stays whole on its line.)
+        func wrapAtSpaces(_ name: String, _ size: Double, _ width: Double) -> TextPainter {
+            var w = width
+            for word in name.split(separator: " ") {
+                let t = categoryText(String(word), size, .infinity)
+                w = max(w, t.width + 0.5)
+                t.dispose()
+            }
+            return categoryText(name, size, w)
+        }
         func reach(_ a: Double) -> Double {
             // (Past K the perspective turns over: that scale is too big, not small.)
             if persp > 0, boxCorners.contains(where: { kc - a * cam($0.0, $0.1, $0.2).2 <= 0.05 * kc }) { return .infinity }
@@ -3090,7 +3105,7 @@ enum ChartPainter {
                 var slotWidth = Double.infinity
                 for i in 0 ..< n { slotWidth = min(slotWidth, hypot(pts[i + 1].dx - pts[i].dx, pts[i + 1].dy - pts[i].dy)) }
                 for i in 0 ..< n {
-                    let tp = categoryText(c.categories[i], size, slotWidth * 0.95)
+                    let tp = wrapAtSpaces(c.categories[i], size, slotWidth * 0.95)
                     bottom = max(bottom, (pts[i].dy + pts[i + 1].dy) / 2 + dy + 26 * k + tp.height / 2)
                     tp.dispose()
                 }
@@ -3168,7 +3183,7 @@ enum ChartPainter {
             }
             for i in 0 ..< n {
                 let a = at(-0.5 + Double(i) * slot, yAt(sc.lo), front), b = at(-0.5 + Double(i + 1) * slot, yAt(sc.lo), front)
-                let tp = categoryText(c.categories[i], catSize, slotWidth * 0.95)
+                let tp = wrapAtSpaces(c.categories[i], catSize, slotWidth * 0.95)
                 let mid = Offset((a.dx + b.dx) / 2 - 4.5 * k, (a.dy + b.dy) / 2 + 26 * k)
                 tp.paint(canvas, Offset(mid.dx - tp.width / 2, mid.dy - tp.height / 2))
                 tp.dispose()
