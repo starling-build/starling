@@ -11,3 +11,10 @@ In the two-column print, top-and-bottom (C, J) set the anchor paragraph p3 UNDER
 
 Also print ef3.docx (build3.py): two columns, 6 pages, one per variant (T0..T5: what follows the empty paragraph; the name is on each page's first line).
 The empty paragraph has 6.35pt to spare at the column foot. Report per page: y_top and x0 of the "Tk-NEXT" line (ours: x 211, y 50: the empty paragraph stays in column 1; Word y 67.7 would mean it went to the next column). meas.py -> EF3-WORD.tsv.
+
+ef4 (amd-3): the real lo-eb12e7d4 page 14 neighbourhood, cut out (spacer standing in for the table above).
+  ef4a = as in the document; ef4b = without the two anchored pictures after the numbered paragraph;
+  ef4c = numbered paragraph made plain; ef4d = without the numbered paragraph and the anchors.
+  Question: on page 1, the left column ends with the 92pt picture (y 403..495), then an empty paragraph.
+  Does the empty paragraph stay at the foot of column 1 (the first line of column 2 at y 70.9) or move to column 2 (88.2)?
+  Please print each page 1 and send y_top of the first line in the right column (x ~ 439), per variant. (meas.py is fine.)
