@@ -14396,3 +14396,4 @@ TIP WATCH amd-8, round 128 (tip 88cd4071c): Word no drops; unit tests 613 run, 0
 - amd-opus LANDED 8575267cb zh-db07d44e p10/p11 (labs dbs+dbt): before a digit, in mode 15, the automatic space after a line's last character gives half itself (an eighth of an em at 12/14/16pt); the line's ideographs absorb it. 756: 310 -> 306 missed, none worse. Next: zh-147bdae0 p64 (automatic-space cap; lab to windows).
 
 TIP WATCH amd-8, round 129 (tip 433c0e922): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- amd-opus LANDED 8988a0c92 zh-147bdae0 p64 (lab asp): off a grid, mode 15, automatic spaces beside digits give a quarter each (was capped at a quarter em in all). 756: 306 -> 298, none worse; zh-147bdae0 100. Gap noted: Word kerns Times "11" under w:kern (table style), we don't. Next: zh-7a16a243 grid cap (p23/p29/p31), lab to windows.
