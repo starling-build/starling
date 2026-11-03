@@ -1,0 +1,17 @@
+slide 1 shape 'deck case: wrap, bullets, h=4269029, fs=85/20' autosize=2 wrap=-1 h=336.1 fontsize(range)=27 paras=5 firstRunSize=27
+slide 2 shape 'no bullets' autosize=2 wrap=-1 h=336.1 fontsize(range)=27 paras=5 firstRunSize=27
+slide 3 shape 'wrap none, bullets' autosize=2 wrap=0 h=336.1 fontsize(range)=27 paras=5 firstRunSize=27
+slide 4 shape 'wrap none, no bullets' autosize=2 wrap=0 h=336.1 fontsize(range)=27 paras=5 firstRunSize=27
+slide 5 shape 'normAutofit bare (no fontScale), bullets' autosize=2 wrap=-1 h=336.1 fontsize(range)=32 paras=5 firstRunSize=32
+slide 6 shape 'normAutofit bare, no bullets' autosize=2 wrap=-1 h=336.1 fontsize(range)=32 paras=5 firstRunSize=32
+slide 7 shape 'bare, bullets, h=2000000' autosize=2 wrap=-1 h=157.5 fontsize(range)=32 paras=5 firstRunSize=32
+slide 8 shape 'bare, bullets, h=3000000' autosize=2 wrap=-1 h=236.2 fontsize(range)=32 paras=5 firstRunSize=32
+slide 9 shape 'bare, bullets, h=6000000 (fits)' autosize=2 wrap=-1 h=472.4 fontsize(range)=32 paras=5 firstRunSize=32
+slide 10 shape 'fs=85 stated, h=2000000' autosize=2 wrap=-1 h=157.5 fontsize(range)=27 paras=5 firstRunSize=27
+slide 11 shape 'fs=85 stated, h=6000000' autosize=2 wrap=-1 h=472.4 fontsize(range)=27 paras=5 firstRunSize=27
+slide 12 shape 'fs=92.5/10' autosize=2 wrap=-1 h=336.1 fontsize(range)=30 paras=5 firstRunSize=30
+slide 13 shape 'fs=77.5/20' autosize=2 wrap=-1 h=336.1 fontsize(range)=25 paras=5 firstRunSize=25
+slide 14 shape 'fs=70/20' autosize=2 wrap=-1 h=336.1 fontsize(range)=22 paras=5 firstRunSize=22
+slide 15 shape 'no autofit, sz=27.2' autosize=0 wrap=-1 h=336.1 fontsize(range)=27.2 paras=5 firstRunSize=27.2
+slide 16 shape 'no autofit, sz=27' autosize=0 wrap=-1 h=336.1 fontsize(range)=27 paras=5 firstRunSize=27
+slide 17 shape 'no autofit, sz=32 (no shrink)' autosize=0 wrap=-1 h=336.1 fontsize(range)=32 paras=5 firstRunSize=32
