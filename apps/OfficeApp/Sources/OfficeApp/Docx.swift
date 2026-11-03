@@ -2736,10 +2736,14 @@ enum DocxFormat {
                         column += span
                     }
                 }
+                // (A merged cell's own foot is in its last row, and that
+                // row's margin is its own continuation's: zh-147bdae0's
+                // centred "其他參與人員" stands 2.7pt higher in Word's print,
+                // half the 5.4 its continued part takes off below.)
                 for k in tableStart ..< paragraphs.count {
-                    guard let cell = paragraphs[k].cell, cell.table == id, let m = continuedMargins[cell.row] else { continue }
-                    if m.top > 0 { paragraphs[k].cell?.rowMarginTop = m.top }
-                    if m.bottom > 0 { paragraphs[k].cell?.rowMarginBottom = m.bottom }
+                    guard let cell = paragraphs[k].cell, cell.table == id else { continue }
+                    if let t = continuedMargins[cell.row]?.top, t > 0 { paragraphs[k].cell?.rowMarginTop = t }
+                    if let b = continuedMargins[cell.row + max(1, cell.rowSpan) - 1]?.bottom, b > 0 { paragraphs[k].cell?.rowMarginBottom = b }
                 }
                 currentCell = nil
                 cellChar = CharStyle()
