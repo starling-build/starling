@@ -3909,6 +3909,11 @@ enum ChartPainter {
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            // (A title of the second axis, in a Word document whose file leaves the plot to Word, takes a band beyond its
+            // labels: zh-b8de3ae2's chart 10 has them 19 pt further in than ours, its "%" past them.)
+            if !secondLabels.isEmpty, !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil, c.secondValueAxis?.deleted != true, c.secondValueAxis?.title != nil {
+                right += 1.22 * (c.axisTitleSize ?? 10) * k + 7 * k
+            }
             // (On a sheet the plot stands 1.72 pt further in at the left,
             // its labels with it, and 1.25 at the right: Excel's prints of
             // 40 column, line and scatter charts, alike at 286 to 800 pt
@@ -4234,7 +4239,7 @@ enum ChartPainter {
         }
         // (Its title, turned, 4.6 pt past the widest label and over the plot's middle: zh-b8de3ae2's
         // "%" at 534.6 where the labels end 530, in a Word document whose file places the plot.)
-        if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayoutInner, c.plotLayout != nil, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true {
+        if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil || c.plotLayoutInner, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true {
             let tp = text(t, c.axisTitleSize ?? 10, .infinity)
             let edge = plot.right + 10.1 * k + (secondLabels.map(\.width).max() ?? 0) + 3.6 * k
             canvas.save()
@@ -4411,6 +4416,12 @@ enum ChartPainter {
         func nudge(_ j: Int, _ i: Int) -> Offset {
             c.series[safe: j]?.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
         }
+        // (A label of a falling bar the file moves is moved the other way in Word's print: zh-b8de3ae2's chart 10, two
+        // labels `y` -0.048 of the frame up, stand 20 pt DOWN from where its unmoved neighbour's stands.)
+        func lowered(_ j: Int, _ i: Int) -> Offset {
+            let n = nudge(j, i)
+            return Offset(n.dx, -n.dy)
+        }
         // Labels from cells, each with the bar it stands in the end of.
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
         let fill = Paint()
@@ -4575,7 +4586,7 @@ enum ChartPainter {
                         // (A label written out over the value: lines of its own below or above the value's.)
                         let shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
                         labels.append((shown, Offset(rect.center.dx, c.stacked ? rect.center.dy
-                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + nudge(j, i), j))
+                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + (raw < 0 && !c.onSlide && !c.onSheet && !c.stacked ? lowered(j, i) : nudge(j, i)), j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
                     // depth, its own depth a 1 + gapDepth share of it.
