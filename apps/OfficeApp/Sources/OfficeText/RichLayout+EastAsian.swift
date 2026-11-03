@@ -509,7 +509,17 @@ extension RichLayout {
             let parted = RichTextTheme.wordWindowsPages && kinsokuOff && last > a && piece.b == last && closesUp(last - 1) && last - 1 < ems.count
                 && last < units.count && Self._closingUnits.contains(units[last])
             let pastRoom = pastFrom.flatMap { beyond[$0.tab] } ?? 0
-            var fits = x + w - after + (parted ? ems[last - 1] / 2 : 0) <= width + pastRoom + hair
+            // (A Latin piece in letter-spaced text, a hundredth of a point: Word sets each character's spacing
+            // in its own units, ours adds the exact twentieths, and over a line the sums part by a few
+            // thousandths. zh-cf8b03a5's 0-margin cell (spaced -0.8) keeps "…指標2×50%" with the "%" 0.008pt past
+            // its 118.2pt line by ours (lab lef cf8: Word's cut and ours fall in the same 0.2pt step); ours sent
+            // the "%" down and nine lines after it. Not unspaced text: zh-633792eb's cell leaves a character
+            // 0.004 over, and the edge's 0.045 for every Latin line cost 14 documents.)
+            let spacedPiece = (a ..< last).contains { k in
+                k < runOf.count && (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0) != 0
+            }
+            let latinSlack = (lineLatin || pieceLatin) && spacedPiece && !onCharacterGrid && !(onFirstLine ? tieShort.first : tieShort.rest) ? max(hair, _px(0.01)) : hair
+            var fits = x + w - after + (parted ? ems[last - 1] / 2 : 0) <= width + pastRoom + latinSlack
             // (What follows a tab to a right stop at the margin that
             // starts inside it runs on past the margin — `runsPast`, T127:
             // zh-ab1ea005's "123.…救济途径？<tab>52" is one line in Word's
