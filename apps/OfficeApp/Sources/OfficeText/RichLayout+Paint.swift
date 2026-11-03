@@ -667,8 +667,13 @@ extension RichLayout {
             rest = onlyRest
         }
         canvas.save()
-        canvas.clipRect(Rect.fromLTRB(frame.left, -1_000_000, frame.right, 1_000_000),
-                        clipOp: .intersect, doAntiAlias: false)
+        // (A turned box is not clipped: zh-b24b396a's "30" labels have the
+        // "3" at the indent, past the box's 7.8pt, in the text of Word's
+        // print, as the box's own paint does not clip.)
+        if !_turnedBox {
+            canvas.clipRect(Rect.fromLTRB(frame.left, -1_000_000, frame.right, 1_000_000),
+                            clipOp: .intersect, doAntiAlias: false)
+        }
         canvas.translate(_boxFirstLineShift[i], shifts.first ?? 0)
         first.paint(canvas, at)
         canvas.restore()

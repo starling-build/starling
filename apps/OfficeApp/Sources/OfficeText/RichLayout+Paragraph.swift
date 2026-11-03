@@ -618,6 +618,7 @@ extension RichLayout {
             else if RichTextTheme.wordWindowsPages, p.cell == nil,
                     let frame = _fixedTextFrame.map({ $0.right - ownLeft }) ?? style.boxInsetRight.map({ textWidth + _px($0) }),
                     lead >= frame - 0.01 {
+                RuleTrace.hit("word-box-first-line-indented-past-the-box-hides-first-word")
                 p = Self._hidingFirstWord(p)
             }
             // (In the body, a right-aligned paragraph whose first line is indented to the
