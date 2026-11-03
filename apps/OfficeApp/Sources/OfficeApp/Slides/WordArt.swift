@@ -192,6 +192,11 @@ enum WordArt {
                     line.glyphs.append(_glyph(String(ch), base, look(at: offset), family: run.style.fontFamily))
                 }
             }
+            // A wrapping box trims the spaces that end a line (lab wordart-fit2: "Happy "
+            // fills the box to the letters' edge); one that does not wrap keeps them.
+            if !shape.noWrap {
+                while let last = line.glyphs.last, last.text == " ", line.glyphs.count > 1 { last.painter.dispose(); line.glyphs.removeLast() }
+            }
             line.glyphs = visualOrder(line.glyphs)
             if !line.glyphs.isEmpty { lines.append(line) }
         }
