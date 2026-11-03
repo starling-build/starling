@@ -2645,12 +2645,17 @@ extension RichLayout {
         // opens again on the new page, with its top line and room — lab pb
         // (Word for Windows) over LibreOffice's tdf153964_firstIndentAfterBreak14,
         // text 4.0pt lower under a border of sz 24 and space 1, 8 under space 8.)
-        if y.style.pageBreakInline, y.cell == nil { return false }
+        // (In modes 14 and 15 alike (bdr3) the pieces of a paragraph a break parts, and a
+        // paragraph after one that ended in the break, are one box with its
+        // top on the first and its bottom on the last: lab bdr2 (Word for
+        // Windows), b1/b3/b4, text at the page's top under no top line.)
+        let oneBox = RichTextTheme.wordWindowsPages && !x.text.isEmpty
+        if y.style.pageBreakInline, y.cell == nil, !oneBox { return false }
         // (Nor after a page break that ended the paragraph before: the
         // paragraph after it is first on the new page, its box open there
         // with its top line — lab bdr, C: "afterbreak" at the margin under a
         // 3pt top line; lo-cbb7657e drew none of its boxes' lines.)
-        if y.style.pageBreakBefore, !y.style.columnBreak, RichTextTheme.wordWindowsPages, y.cell == nil { return false }
+        if y.style.pageBreakBefore, !y.style.columnBreak, RichTextTheme.wordWindowsPages, y.cell == nil, !oneBox { return false }
         return true
     }
 

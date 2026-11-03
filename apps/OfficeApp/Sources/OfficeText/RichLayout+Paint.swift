@@ -475,6 +475,24 @@ extension RichLayout {
         }
     }
 
+    /// Word's box for a bordered paragraph (lab bdr2, bdr3 over Word for
+    /// Windows): the shading fills it inside the lines, the lines stand 1.4pt further out than
+    /// the text and its space, and a box of joined paragraphs is one, the sides unbroken down it.
+    func _boxSpan(_ i: Int, _ g: ParagraphGeometry, _ document: RichDocument) -> (top: Double, bottom: Double, extra: Double)? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages,
+              let b = document.paragraphs[i].style.borders, document.paragraphs[i].cell == nil else { return nil }
+        let joinPrev = _bordersJoin(i - 1, i, document), joinNext = _bordersJoin(i, i + 1, document)
+        let textBottom = g.textTop + g.painter.height
+        var top = g.textTop - (joinPrev ? 0 : b.top.map { _px($0.space) } ?? 0)
+        var bottom = textBottom + (joinNext ? 0 : b.bottom.map { _px($0.space) } ?? 0)
+        if joinNext, i + 1 < count {
+            let n = document.paragraphs[i + 1].style
+            if !n.pageBreakInline, !n.pageBreakBefore { bottom = max(bottom, geometry(i + 1).textTop) }
+        }
+        top = min(top, g.textTop)
+        return (top, bottom, _px(1.4))
+    }
+
     func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all) {
         if _shadingFloats, part != .rules {
             let g = geometry(i)
@@ -501,7 +519,13 @@ extension RichLayout {
                 let gap = n.textTop - (g.textTop + g.painter.height)
                 if gap > 0.01, gap < _px(36), abs(n.textLeft - g.textLeft) < 0.5, abs(n.textWidth - g.textWidth) < 0.5 { height += gap }
             }
+            if let box = _boxSpan(i, g, document), let b = document.paragraphs[i].style.borders {
+                let l = g.textLeft - (b.left.map { _px($0.space) } ?? 0) - box.extra
+                let r = g.textLeft + g.textWidth + (b.right.map { _px($0.space) } ?? 0) + box.extra
+                canvas.drawRect(Rect.fromLTRB(l.rounded(), box.top.rounded(), r.rounded(), box.bottom.rounded()), paint)
+            } else {
             canvas.drawRect(Rect.fromLTWH(g.textLeft.rounded(), g.textTop.rounded(), g.textWidth.rounded(), height.rounded()), paint)
+            }
         }
         if part != .text, let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
             // The row's shading, under every cell of the row: the header's,
@@ -1124,7 +1148,9 @@ extension RichLayout {
             let textBottom = g.textTop + g.painter.height
             let leftExt = b.left.map { _px($0.space + $0.width) } ?? 0
             let rightExt = b.right.map { _px($0.space + $0.width) } ?? 0
-            let x0 = (g.textLeft - leftExt).rounded(), x1 = (g.textLeft + g.textWidth + rightExt).rounded()
+            let box = _boxSpan(i, g, document)
+            let out = box?.extra ?? 0
+            let x0 = (g.textLeft - leftExt - out).rounded(), x1 = (g.textLeft + g.textWidth + rightExt + out).rounded()
             func stroke(_ l: BorderLine) -> Paint {
                 let p = Paint()
                 p.style = .stroke
@@ -1157,14 +1183,20 @@ extension RichLayout {
                     canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
                 }
             }
-            let y0 = b.top.map { g.textTop - _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? g.textTop
-            let y1 = b.bottom.map { textBottom + _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? textBottom
+            var y0 = b.top.map { g.textTop - _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? g.textTop
+            var y1 = b.bottom.map { textBottom + _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? textBottom
+            if let box {
+                // (One box: no top line or room under a joined edge, the sides on to the next
+                // paragraph's text where it follows on the page.)
+                if _bordersJoin(i - 1, i, document) { y0 = g.textTop }
+                if _bordersJoin(i, i + 1, document) { y1 = box.bottom }
+            }
             if let l = b.left, l.style != "none" {
-                let x = (g.textLeft - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
+                let x = (g.textLeft - _px(l.space) - _px(l.width) / 2 - out).rounded() + 0.5
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
             }
             if let l = b.right, l.style != "none" {
-                let x = (g.textLeft + g.textWidth + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
+                let x = (g.textLeft + g.textWidth + _px(l.space) + _px(l.width) / 2 + out).rounded() - 0.5
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
             }
         }
