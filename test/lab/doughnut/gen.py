@@ -27,28 +27,30 @@ def combos():
     return [(n, {**base, **d}) for n, d in out]
 
 
-def chart_xml(p):
+def chart_xml(p, sheet):
     cats = ['Category 1', 'Category 2', 'Category 3', 'Category 4']
     vals = [[20, 1, 1, 12], [5, 8, 3, 9], [7, 2, 6, 4]]
     sers = ''
     for s in range(p['series']):
         col = 'BCD'[s]
-        cat = '<c:cat><c:strRef><c:f>Sheet1!$A$2:$A$5</c:f><c:strCache><c:ptCount val="4"/>%s</c:strCache></c:strRef></c:cat>' % ''.join(
+        cat = '<c:cat><c:strRef><c:f>@@S@@!$A$2:$A$5</c:f><c:strCache><c:ptCount val="4"/>%s</c:strCache></c:strRef></c:cat>' % ''.join(
             '<c:pt idx="%d"><c:v>%s</c:v></c:pt>' % (i, v) for i, v in enumerate(cats))
-        val = '<c:val><c:numRef><c:f>Sheet1!$%s$2:$%s$5</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="4"/>%s</c:numCache></c:numRef></c:val>' % (
+        val = '<c:val><c:numRef><c:f>@@S@@!$%s$2:$%s$5</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="4"/>%s</c:numCache></c:numRef></c:val>' % (
             col, col, ''.join('<c:pt idx="%d"><c:v>%s</c:v></c:pt>' % (i, v) for i, v in enumerate(vals[s])))
         dl = ''
         if p['labels']:
             cp = p['labels'] == 'catpct'
             dl = ('<c:dLbls><c:showLegendKey val="0"/><c:showVal val="%d"/><c:showCatName val="%d"/><c:showSerName val="0"/>'
                   '<c:showPercent val="%d"/><c:showBubbleSize val="0"/><c:showLeaderLines val="1"/></c:dLbls>') % (0 if cp else 1, 1 if cp else 0, 1 if cp else 0)
-        sers += ('<c:ser><c:idx val="%d"/><c:order val="%d"/><c:tx><c:strRef><c:f>Sheet1!$%s$1</c:f><c:strCache><c:ptCount val="1"/>'
+        sers += ('<c:ser><c:idx val="%d"/><c:order val="%d"/><c:tx><c:strRef><c:f>@@S@@!$%s$1</c:f><c:strCache><c:ptCount val="1"/>'
                  '<c:pt idx="0"><c:v>Series %d</c:v></c:pt></c:strCache></c:strRef></c:tx>%s%s%s</c:ser>') % (s, s, col, s + 1, dl, cat, val)
     legend = '<c:legend><c:legendPos val="%s"/><c:overlay val="0"/></c:legend>' % p['legend'] if p['legend'] else ''
-    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace %s><c:roundedCorners val="0"/><c:chart>'
+    xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace %s><c:roundedCorners val="0"/><c:chart>'
             '<c:autoTitleDeleted val="1"/><c:plotArea><c:layout/><c:doughnutChart><c:varyColors val="1"/>%s'
             '<c:firstSliceAng val="0"/><c:holeSize val="%d"/></c:doughnutChart></c:plotArea>%s<c:plotVisOnly val="1"/>'
             '<c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>') % (CNS, sers, p['hole'], legend)
+    return xml.replace('@@S@@', "'%s'" % sheet)
+
 
 
 def main(out):
@@ -90,7 +92,7 @@ def main(out):
         z.writestr('xl/drawings/_rels/drawing%d.xml.rels' % i,
                    '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart%d.xml"/></Relationships>' % i)
-        z.writestr('xl/charts/chart%d.xml' % i, chart_xml(p))
+        z.writestr('xl/charts/chart%d.xml' % i, chart_xml(p, name[:31]))
     z.writestr('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">%s</Types>' % ''.join(ct))
     z.writestr('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
