@@ -290,6 +290,8 @@ struct Chart: Equatable {
     var surfaceValuesRight = false
     /// Whether the 3-D chart's series axis (`c:serAx`) is deleted: its names are not drawn.
     var seriesAxisDeleted = false
+    /// A 3-D chart's series axis (`c:serAx`) is in the file and not deleted: its series names stand along the floor's right edge.
+    var seriesAxisShown = false
     var surfaceView = Offset(15, 20)
     struct BarView: Equatable {
         var x: Double; var y: Double; var depth: Double = 1; var gapDepth: Double = 1.5
@@ -1953,6 +1955,7 @@ enum ChartXML {
         }
         c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
         c.seriesAxisDeleted = ["1", "true"].contains(plot.children.first { $0.name == "c:serAx" }?.first("c:delete")?["val"] ?? "")
+        c.seriesAxisShown = plot.children.contains { $0.name == "c:serAx" } && !c.seriesAxisDeleted
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         c.categoryLabelsLow = categoryAxis?.first("c:tickLblPos")?["val"] == "low"
         c.columnsOnRight = columnsOnRight
@@ -3747,8 +3750,19 @@ enum ChartPainter {
                 // value labels and over the plot's middle: set below, once they are known.)
                 deferredValueTitle = tp
             } else {
+                // (On a sheet the turned title is centred on the plot, not the chart: the plot's top is half a label under the
+                // area's, its foot the category names, their gap and the category title over it. tdf119138's "Test number"
+                // stands 17 px over where ours was, its middle at the plot's.)
+                var lift = 0.0
+                if c.onSheet, c.bareAxisTitle, c.type != .scatter {
+                    let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
+                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, titleSize, .infinity) : nil
+                    let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
+                    below?.dispose()
+                    lift = (names + titleRoom - 0.61 * labelSize * k) / 2
+                }
                 canvas.save()
-                canvas.translate(area.left, area.center.dy + tp.width / 2)
+                canvas.translate(area.left, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
                 tp.paint(canvas, .zero)
                 canvas.restore()
@@ -4114,6 +4128,14 @@ enum ChartPainter {
                                      plot.right - 7.4 * k, plot.bottom - (inWord ? 0.7 : 1.7) * k)
             }
             var whole = plot
+            // (Excel's 3-D columns at right angles on a sheet leave the right of the chart to the series names beside the floor's
+            // edge: 10.8 pt and 18.6 a series, or 19.7 with none (Windows lab view3d: 409.5, 437.8 and 372.3 pt of room in 480.)
+            let labelledRows = c.onSheet && v.rightAngles && v.rows && !c.stacked && c.plotLayout == nil && !horizontal
+            if labelledRows {
+                let r = c.seriesAxisShown && c.series.count > 1 ? 10.8 + 18.6 * Double(c.series.count) : 19.7
+                whole = Rect.fromLTRB(whole.left, whole.top, min(whole.right, frame.right - r), whole.bottom)
+                plot = Rect.fromLTRB(plot.left, plot.top, min(plot.right, whole.right), plot.bottom)
+            }
             // (Word's 3-D columns with no walls drawn, whose file places the plot (inner):
             // the box stands 7 pt in at the left, 8.5 at the right and 5.1 up from the
             // foot of that place. zh-b8de3ae2's chart 4, page 15; the labels follow it.)
@@ -4168,7 +4190,7 @@ enum ChartPainter {
                     let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
                     // (Standard grouping: one row of that depth per series, one behind another —
                     // chart-tdf111824's two series, Excel's print, the second 43 pt right and 32 up.)
-                    box = depthAt(bar * (1 + v.gapDepth) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1))
+                    box = depthAt((c.onSheet && rowsDeep ? slot : bar * (1 + v.gapDepth)) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1))
                     if let wall {
                         plot = Rect.fromLTRB(wall.left - box.dx, whole.top + box.dy, wall.right - box.dx, whole.bottom + box.dy)
                     } else {
@@ -4226,16 +4248,36 @@ enum ChartPainter {
                     wall = fit
                 }
             }
-            // (Excel's 3-D columns at right angles with no height of their own (hPercent) stand no taller than
-            // 0.305 of their front's width, centred in the room they had: chart-tdf111824's 876 pt wide chart,
-            // its front 737 across and 225 up where ours ran 312, and its walls' top 45 pt lower. Only the one witness,
-            // one row of depth per series: chart-rAngAx's one row fills its height, 0.56 of its width, in Excel's print.)
-            if c.onSheet, v.rightAngles, v.rows, c.series.count > 1, !c.stacked, v.heightPercent == nil, c.plotLayout == nil, !horizontal {
-                let cap = 0.305 * plot.width
-                if plot.height > cap {
-                    RuleTrace.hit("excel-3d-columns-at-right-angles-stand-no-taller-than-a-third-of-their-width")
-                    let d = (plot.height - cap) / 2
-                    plot = Rect.fromLTRB(plot.left, plot.top + d, plot.right, plot.bottom - d)
+            // (Excel's 3-D columns at right angles, one row of depth per series (Windows lab view3d, 480 x 288 and 320 x 400 pt, one to
+            // four series, depthPercent 50-200, hPercent 50-100): the front is as high as 0.25 (series + 1) of the room's height times the
+            // front's share of the room's width, no more than the room less the depth's rise; a stated hPercent makes it that share
+            // of half the front and the depth, and a box taller than its room is shrunk whole into it. Centred in the room.)
+            if c.onSheet, v.rightAngles, v.rows, !c.stacked, c.plotLayout == nil, !horizontal {
+                // (Our room for the walls is 4.2 pt taller than Excel's with no title and 27 with one: lab view3d's 224.6 of 288, chart-tdf111824's
+                // 351 of 460, the title leaving 22.8 more than ours took.)
+                let roomH = whole.bottom - whole.top - 4.2 - (c.title?.isEmpty == false ? 22.8 : 0), roomW = whole.right - whole.left
+                let rowsN = Double(max(1, c.series.count))
+                var faceW = plot.width, dx = box.dx, dy = box.dy
+                let depthReal = dx / sin(abs(v.y) * .pi / 180)
+                var faceH = v.heightPercent.map { $0 / 100 * 0.5 * (faceW + depthReal) } ?? 0.25 * (rowsN + 1) * roomH * faceW / roomW
+                if v.heightPercent == nil {
+                    faceH = min(faceH, roomH - dy)
+                } else if faceH + dy > roomH {
+                    let f = roomH / (faceH + dy)
+                    faceW *= f; faceH *= f; dx *= f; dy *= f
+                }
+                RuleTrace.hit("excel-3d-columns-at-right-angles-stand-in-their-room-by-the-lab-rule")
+                let left = whole.left + (roomW - faceW - dx) / 2
+                let top = whole.top + 2.1 + (c.title?.isEmpty == false ? 11.4 : 0) + (roomH - faceH - dy) / 2 + dy
+                plot = Rect.fromLTWH(left, top, faceW, faceH)
+                if c.seriesAxisShown, c.series.count > 1 {
+                    let size = c.categoryLabelSize ?? c.baseTextSize
+                    for j in 0 ..< c.series.count {
+                        let t = (Double(j) + 0.5) / Double(c.series.count)
+                        let tp = categoryText(c.series[j].name, size, .infinity)
+                        tp.paint(canvas, Offset(plot.right + dx * t + 12, plot.bottom - dy * t - tp.height / 2))
+                        tp.dispose()
+                    }
                 }
             }
         }
