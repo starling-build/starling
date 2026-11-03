@@ -3699,7 +3699,7 @@ extension RichLayout {
             // off — see where the paragraph is set.)
             // (A box's top line and the room under it stay: lab bdr2, b2, BBB's 40pt before
             // goes at the page's top and its box opens there, text 7pt under it.)
-            let boxRoom = theme.wordRules && RichTextTheme.wordWindowsPages && !_bordersJoin(i - 1, i, document) && !_emptyBreakFragment(i, document)
+            let boxRoom = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 14 && (document.paragraphs[i].style.continuesParagraph || document.paragraphs[i].style.pageBreakInline) && !_bordersJoin(i - 1, i, document) && !_emptyBreakFragment(i, document)
                 ? document.paragraphs[i].style.borders?.top.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0 : 0
             let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i] - boxRoom) : 0
             var leavesLead = false
