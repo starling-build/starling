@@ -1,0 +1,39 @@
+# book	row	font	com_height	print_height (rule to rule)
+calibri11	1	control	14.3	14.52
+calibri11	2	Segoe UI 8	14.7	14.90
+calibri11	3	Segoe UI 9	14.3	14.52
+calibri11	4	Segoe UI 10	15.4	15.60
+calibri11	5	Arial 8	14.3	14.52
+calibri11	6	Arial 9	14.3	14.52
+calibri11	7	Arial 10	14.3	14.52
+calibri11	8	Verdana 8	14.3	14.52
+calibri11	9	Tahoma 8	14.3	14.52
+calibri11	10	Times New Roman 8	14.3	14.52
+calibri11	11	Calibri 8	14.3	14.52
+calibri11	12	Calibri 9	14.3	14.52
+calibri11	13	Segoe UI 14	20.3	20.67
+calibri11	14	Arial 14	17.3	17.52
+calibri11	15	Verdana 14	17.7	17.88
+calibri11	16	Tahoma 14	17.3	17.52
+calibri11	17	Times New Roman 14	17.7	17.88
+calibri11	18	Calibri 14	18	18.24
+# calibri11 rules 19
+verdana10	1	control	12.4	12.96
+verdana10	2	Segoe UI 8	13.9	14.54
+verdana10	3	Segoe UI 9	13.5	14.04
+verdana10	4	Segoe UI 10	15.4	16.08
+verdana10	5	Arial 8	12.4	12.96
+verdana10	6	Arial 9	12.8	13.32
+verdana10	7	Arial 10	12.8	13.32
+verdana10	8	Verdana 8	12.4	12.96
+verdana10	9	Tahoma 8	12.4	12.96
+verdana10	10	Times New Roman 8	12.4	12.96
+verdana10	11	Calibri 8	12.8	13.32
+verdana10	12	Calibri 9	12.8	13.32
+verdana10	13	Segoe UI 14	20.3	21.12
+verdana10	14	Arial 14	17.3	18.03
+verdana10	15	Verdana 14	17.7	18.36
+verdana10	16	Tahoma 14	17.3	18.00
+verdana10	17	Times New Roman 14	17.7	18.36
+verdana10	18	Calibri 14	18	18.84
+# verdana10 rules 19
