@@ -4036,6 +4036,14 @@ enum ChartPainter {
                                      plot.right - 7.4 * k, plot.bottom - (inWord ? 0.7 : 1.7) * k)
             }
             var whole = plot
+            // (Word's 3-D columns with no walls drawn, whose file places the plot (inner):
+            // the box stands 7 pt in at the left, 8.5 at the right and 5.1 up from the
+            // foot of that place. zh-b8de3ae2's chart 4, page 15; the labels follow it.)
+            if inWord, !v.walled, c.plotLayoutInner, c.plotLayout != nil, !horizontal, !c.onSheet, !c.onSlide, !c.chartex {
+                RuleTrace.hit("word-3d-columns-without-walls-stand-inside-their-laid-plot")
+                whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top, whole.right - 8.5 * k, whole.bottom - 5.1 * k)
+                plot = whole
+            }
             // Left to Word's own layout, a 3-D column chart stands a little
             // higher than ours did and its back wall further in at the sides,
             // by an amount that follows the wall's height and the chart's
