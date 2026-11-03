@@ -491,6 +491,8 @@ struct Chart: Equatable {
     /// Chinese, which Word for Windows sets in PMingLiU (zh-b8de3ae2's
     /// eleven titles, `lang="zh-TW"`, in its print).
     var windowsMinchoTitle = false
+    /// Word for Windows sets a Traditional Chinese title's East Asian text in PMingLiU (`windowsMinchoText`'s theme).
+    var windowsHantTitle = false
     /// Its East Asian text is set as Word for Mac sets a theme with no
     /// East Asian face: in the theme's Simplified Chinese face (`a:font
     /// script="Hans"`, 宋体 where it names none), where the platform's
@@ -2460,6 +2462,15 @@ enum ChartPainter {
                     if i == 0 { drop = line.baseline * size - m.ascent }
                 }
             }
+            // (Word for Windows' Traditional Chinese title stands 3.2 to 3.7 pt higher than the Latin face's line puts it:
+            // zh-b8de3ae2's 18 pt "圖1、本區108、109年歲入預算概況" and its ten sisters, baselines 0.98 em under our line's
+            // top, not the Latin ascent's 1.16 (PMingLiU in the print). The plot stays where it was.)
+            if drop == nil, c.windowsHantTitle, c.titleFont == nil,
+               title.unicodeScalars.contains(where: { (0x2E80 ... 0x9FFF).contains($0.value) }),
+               let first = tp.computeLineMetrics().first {
+                let size = c.titleLineSizes.isEmpty ? titleStyle.fontSize ?? 0 : c.titleLineSizes.values.max()! * k
+                drop = 0.98 * size - first.ascent
+            }
             // (Two points higher than the area's edge: where PowerPoint's
             // sits. Or where the file places its box, 3 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
@@ -2468,7 +2479,7 @@ enum ChartPainter {
             // and under it (chart-tdf161607's black box ruled in red round
             // its 40 pt title, in Excel's print).
             if let at = c.titleAt {
-                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k, r.top + at.dy * r.height + 1.5 * k))
+                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k, r.top + at.dy * r.height + 1.5 * k + (c.windowsHantTitle ? drop ?? 0 : 0)))
             } else {
                 // (On a sheet 2.5 pt lower, and the plot under it with it:
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand

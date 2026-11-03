@@ -78,6 +78,7 @@ enum WriterCharts {
            let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
             chart.windowsMinchoText = true
             chart.windowsMinchoTitle = !(space.descendant("c:title").map(ChartXML._traditional) ?? false)
+            chart.windowsHantTitle = !chart.windowsMinchoTitle
         }
         // (Word for Mac sets it in the theme's Hans and Hant faces — the
         // chart's own theme override's where it has one, zh-b8de3ae2's
