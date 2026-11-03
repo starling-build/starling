@@ -1,0 +1,19 @@
+# font	size	nspaces	W_natural_pt	gap_natural_pt(mean)	space_adv_pt
+Calibri	10	1	114.799	2.201	2
+Calibri	10	3	131.691	2.254	4
+Calibri	10	8	219.887	2.266	9
+Calibri	12	1	137.808	2.772	2
+Calibri	12	3	158.112	2.652	4
+Calibri	12	8	263.916	2.687	9
+Calibri	14	1	160.912	3.061	2
+Calibri	14	3	184.556	3.117	4
+Calibri	14	8	307.995	3.133	9
+Times New Roman	10	1	112.996	2.520	2
+Times New Roman	10	3	129.032	2.517	4
+Times New Roman	10	8	214.718	2.488	9
+Times New Roman	12	1	135.636	3.000	2
+Times New Roman	12	3	154.872	2.972	4
+Times New Roman	12	8	257.808	2.998	9
+Times New Roman	14	1	158.217	3.510	2
+Times New Roman	14	3	180.807	3.477	4
+Times New Roman	14	8	300.779	3.489	9

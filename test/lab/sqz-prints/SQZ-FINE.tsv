@@ -1,0 +1,229 @@
+# font	size	nspaces	overrun_pt	outcome	line1_words	mean_gap_pt	natural_gap_pt	shrink_per_space_pt	shrink_pct_of_space	line1_x1	column_edge_x
+Calibri	10	1	0.1	stayed	2	1.992	2.201	0.209	9.5	171.21	171.40
+Calibri	10	1	0.2	stayed	2	1.872	2.201	0.329	14.9	171.09	171.30
+Calibri	10	1	0.3	stayed	2	1.753	2.201	0.448	20.4	170.97	171.20
+Calibri	10	1	0.4	stayed	2	1.633	2.201	0.568	25.8	170.85	171.10
+Calibri	10	1	0.5	wrapped	1	nan	2.201	nan	nan	109.68	171.00
+Calibri	10	1	0.6	wrapped	1	nan	2.201	nan	nan	109.68	170.90
+Calibri	10	1	0.7	wrapped	1	nan	2.201	nan	nan	109.68	170.80
+Calibri	10	1	0.8	wrapped	1	nan	2.201	nan	nan	109.68	170.70
+Calibri	10	1	0.9	wrapped	1	nan	2.201	nan	nan	109.68	170.60
+Calibri	10	1	1.0	wrapped	1	nan	2.201	nan	nan	109.68	170.50
+Calibri	10	3	0.2	stayed	4	2.165	2.254	0.089	4.0	187.98	188.19
+Calibri	10	3	0.4	stayed	4	2.125	2.254	0.129	5.7	187.86	187.99
+Calibri	10	3	0.6	stayed	4	2.045	2.254	0.209	9.3	187.62	187.79
+Calibri	10	3	0.8	stayed	4	1.995	2.254	0.259	11.5	187.38	187.59
+Calibri	10	3	1.0	stayed	4	1.926	2.254	0.328	14.6	187.27	187.39
+Calibri	10	3	1.2	stayed	4	1.806	2.254	0.448	19.9	187.03	187.19
+Calibri	10	3	1.4	stayed	4	1.766	2.254	0.488	21.6	186.79	186.99
+Calibri	10	3	1.6	stayed	4	1.687	2.254	0.567	25.2	186.67	186.79
+Calibri	10	3	1.8	hyphenated	4	5.989	2.254	-3.735	-165.7	186.35	186.59
+Calibri	10	3	2.0	hyphenated	4	5.953	2.254	-3.699	-164.1	186.12	186.39
+Calibri	10	3	2.2	hyphenated	4	5.870	2.254	-3.616	-160.4	185.99	186.19
+Calibri	10	3	2.4	hyphenated	4	5.750	2.254	-3.496	-155.1	185.77	185.99
+Calibri	10	8	0.4	stayed	9	2.174	2.266	0.092	4.1	275.84	276.19
+Calibri	10	8	0.8	stayed	9	2.159	2.266	0.107	4.7	275.61	275.79
+Calibri	10	8	1.2	stayed	9	2.129	2.266	0.137	6.0	275.14	275.39
+Calibri	10	8	1.6	stayed	9	2.054	2.266	0.212	9.3	274.77	274.99
+Calibri	10	8	2.0	stayed	9	2.026	2.266	0.240	10.6	274.44	274.59
+Calibri	10	8	2.4	stayed	9	1.935	2.266	0.331	14.6	273.93	274.19
+Calibri	10	8	2.8	stayed	9	1.935	2.266	0.331	14.6	273.59	273.79
+Calibri	10	8	3.2	stayed	9	1.872	2.266	0.394	17.4	273.23	273.39
+Calibri	10	8	3.6	stayed	9	1.815	2.266	0.451	19.9	272.75	272.99
+Calibri	10	8	4.0	stayed	9	1.770	2.266	0.496	21.9	272.39	272.59
+Calibri	10	8	4.4	stayed	9	1.696	2.266	0.570	25.2	271.91	272.19
+Calibri	10	8	4.8	hyphenated	9	3.298	2.266	-1.032	-45.5	271.55	271.79
+Calibri	10	8	5.2	hyphenated	9	3.241	2.266	-0.975	-43.0	271.18	271.39
+Calibri	10	8	5.6	hyphenated	9	3.197	2.266	-0.931	-41.1	270.71	270.99
+Calibri	10	8	6.0	hyphenated	9	3.121	2.266	-0.855	-37.7	270.33	270.59
+Calibri	10	8	6.4	hyphenated	9	3.091	2.266	-0.825	-36.4	269.98	270.19
+Calibri	12	1	0.1	stayed	2	2.544	2.772	0.228	8.2	194.23	194.41
+Calibri	12	1	0.2	stayed	2	2.424	2.772	0.348	12.6	194.22	194.31
+Calibri	12	1	0.3	stayed	2	2.304	2.772	0.468	16.9	194.10	194.21
+Calibri	12	1	0.4	stayed	2	2.184	2.772	0.588	21.2	193.99	194.11
+Calibri	12	1	0.5	stayed	2	2.064	2.772	0.708	25.5	193.86	194.01
+Calibri	12	1	0.6	wrapped	1	nan	2.772	nan	nan	120.41	193.91
+Calibri	12	1	0.7	wrapped	1	nan	2.772	nan	nan	120.41	193.81
+Calibri	12	1	0.8	wrapped	1	nan	2.772	nan	nan	120.41	193.71
+Calibri	12	1	0.9	wrapped	1	nan	2.772	nan	nan	120.41	193.61
+Calibri	12	1	1.0	wrapped	1	nan	2.772	nan	nan	120.41	193.51
+Calibri	12	3	0.2	stayed	4	2.616	2.652	0.036	1.4	214.52	214.61
+Calibri	12	3	0.4	stayed	4	2.536	2.652	0.116	4.4	214.28	214.41
+Calibri	12	3	0.6	stayed	4	2.496	2.652	0.156	5.9	214.06	214.21
+Calibri	12	3	0.8	stayed	4	2.376	2.652	0.276	10.4	213.91	214.01
+Calibri	12	3	1.0	stayed	4	2.296	2.652	0.356	13.4	213.67	213.81
+Calibri	12	3	1.2	stayed	4	2.256	2.652	0.396	14.9	213.44	213.61
+Calibri	12	3	1.4	stayed	4	2.216	2.652	0.436	16.4	213.32	213.41
+Calibri	12	3	1.6	stayed	4	2.176	2.652	0.476	17.9	213.10	213.21
+Calibri	12	3	1.8	stayed	4	2.096	2.652	0.556	21.0	212.86	213.01
+Calibri	12	3	2.0	hyphenated	4	7.204	2.652	-4.552	-171.6	212.59	212.81
+Calibri	12	3	2.2	hyphenated	4	7.204	2.652	-4.552	-171.6	212.48	212.61
+Calibri	12	3	2.4	hyphenated	4	7.124	2.652	-4.472	-168.6	212.23	212.41
+Calibri	12	8	0.4	stayed	9	2.657	2.687	0.030	1.1	320.14	320.22
+Calibri	12	8	0.8	stayed	9	2.595	2.687	0.092	3.4	319.64	319.82
+Calibri	12	8	1.2	stayed	9	2.543	2.687	0.144	5.4	319.18	319.42
+Calibri	12	8	1.6	stayed	9	2.496	2.687	0.191	7.1	318.94	319.02
+Calibri	12	8	2.0	stayed	9	2.465	2.687	0.222	8.3	318.48	318.62
+Calibri	12	8	2.4	stayed	9	2.403	2.687	0.284	10.6	317.99	318.22
+Calibri	12	8	2.8	stayed	9	2.348	2.687	0.339	12.6	317.72	317.82
+Calibri	12	8	3.2	stayed	9	2.289	2.687	0.398	14.8	317.27	317.42
+Calibri	12	8	3.6	stayed	9	2.250	2.687	0.437	16.3	316.76	317.02
+Calibri	12	8	4.0	stayed	9	2.198	2.687	0.489	18.2	316.44	316.62
+Calibri	12	8	4.4	stayed	9	2.138	2.687	0.549	20.5	315.94	316.22
+Calibri	12	8	4.8	stayed	9	2.117	2.687	0.570	21.2	315.59	315.82
+Calibri	12	8	5.2	stayed	9	2.058	2.687	0.629	23.4	315.24	315.42
+Calibri	12	8	5.6	hyphenated	9	3.971	2.687	-1.284	-47.8	314.82	315.02
+Calibri	12	8	6.0	hyphenated	9	3.899	2.687	-1.212	-45.1	314.35	314.62
+Calibri	12	8	6.4	hyphenated	9	3.877	2.687	-1.190	-44.3	314.08	314.22
+Calibri	14	1	0.1	stayed	2	2.948	3.061	0.113	3.7	217.44	217.51
+Calibri	14	1	0.2	stayed	2	2.822	3.061	0.239	7.8	217.34	217.41
+Calibri	14	1	0.3	stayed	2	2.710	3.061	0.351	11.5	217.24	217.31
+Calibri	14	1	0.4	stayed	2	2.710	3.061	0.351	11.5	217.09	217.21
+Calibri	14	1	0.5	stayed	2	2.583	3.061	0.478	15.6	216.96	217.11
+Calibri	14	1	0.6	stayed	2	2.457	3.061	0.604	19.7	216.95	217.01
+Calibri	14	1	0.7	stayed	2	2.345	3.061	0.716	23.4	216.84	216.91
+Calibri	14	1	0.8	wrapped	1	nan	3.061	nan	nan	131.08	216.81
+Calibri	14	1	0.9	wrapped	1	nan	3.061	nan	nan	131.08	216.71
+Calibri	14	1	1.0	wrapped	1	nan	3.061	nan	nan	131.08	216.61
+Calibri	14	3	0.2	stayed	4	3.075	3.117	0.042	1.4	240.94	241.06
+Calibri	14	3	0.4	stayed	4	2.986	3.117	0.131	4.2	240.82	240.86
+Calibri	14	3	0.6	stayed	4	2.869	3.117	0.248	8.0	240.59	240.66
+Calibri	14	3	0.8	stayed	4	2.869	3.117	0.248	8.0	240.34	240.46
+Calibri	14	3	1.0	stayed	4	2.742	3.117	0.375	12.0	240.21	240.26
+Calibri	14	3	1.2	stayed	4	2.742	3.117	0.375	12.0	239.97	240.06
+Calibri	14	3	1.4	stayed	4	2.630	3.117	0.487	15.6	239.75	239.86
+Calibri	14	3	1.6	stayed	4	2.588	3.117	0.529	17.0	239.64	239.66
+Calibri	14	3	1.8	stayed	4	2.508	3.117	0.609	19.5	239.38	239.46
+Calibri	14	3	2.0	stayed	4	2.466	3.117	0.651	20.9	239.15	239.26
+Calibri	14	3	2.2	stayed	4	2.391	3.117	0.726	23.3	239.03	239.06
+Calibri	14	3	2.4	stayed	4	2.265	3.117	0.852	27.3	238.78	238.86
+Calibri	14	8	0.4	stayed	9	3.091	3.133	0.042	1.4	364.13	364.30
+Calibri	14	8	0.8	stayed	9	3.006	3.133	0.127	4.0	363.75	363.89
+Calibri	14	8	1.2	stayed	9	2.975	3.133	0.158	5.1	363.43	363.50
+Calibri	14	8	1.6	stayed	9	2.903	3.133	0.230	7.3	362.89	363.09
+Calibri	14	8	2.0	stayed	9	2.889	3.133	0.244	7.8	362.57	362.69
+Calibri	14	8	2.4	stayed	9	2.780	3.133	0.353	11.3	362.22	362.30
+Calibri	14	8	2.8	stayed	9	2.771	3.133	0.362	11.6	361.74	361.89
+Calibri	14	8	3.2	stayed	9	2.741	3.133	0.392	12.5	361.38	361.50
+Calibri	14	8	3.6	stayed	9	2.650	3.133	0.483	15.4	361.03	361.09
+Calibri	14	8	4.0	stayed	9	2.650	3.133	0.483	15.4	360.55	360.69
+Calibri	14	8	4.4	stayed	9	2.539	3.133	0.594	18.9	360.14	360.30
+Calibri	14	8	4.8	stayed	9	2.527	3.133	0.606	19.3	359.81	359.89
+Calibri	14	8	5.2	stayed	9	2.501	3.133	0.632	20.2	359.37	359.50
+Calibri	14	8	5.6	stayed	9	2.408	3.133	0.725	23.1	358.99	359.09
+Calibri	14	8	6.0	stayed	9	2.376	3.133	0.757	24.2	358.51	358.69
+Calibri	14	8	6.4	hyphenated	9	4.558	3.133	-1.425	-45.5	358.08	358.30
+Times New Roman	10	1	0.1	stayed	2	2.410	2.520	0.110	4.4	169.53	169.60
+Times New Roman	10	1	0.2	stayed	2	2.291	2.520	0.229	9.1	169.41	169.50
+Times New Roman	10	1	0.3	stayed	2	2.171	2.520	0.349	13.8	169.29	169.40
+Times New Roman	10	1	0.4	stayed	2	2.052	2.520	0.468	18.6	169.17	169.30
+Times New Roman	10	1	0.5	stayed	2	2.052	2.520	0.468	18.6	169.05	169.20
+Times New Roman	10	1	0.6	wrapped	1	nan	2.520	nan	nan	109.39	169.10
+Times New Roman	10	1	0.7	wrapped	1	nan	2.520	nan	nan	109.39	169.00
+Times New Roman	10	1	0.8	wrapped	1	nan	2.520	nan	nan	109.39	168.90
+Times New Roman	10	1	0.9	wrapped	1	nan	2.520	nan	nan	109.39	168.80
+Times New Roman	10	1	1.0	wrapped	1	nan	2.520	nan	nan	109.39	168.70
+Times New Roman	10	3	0.2	stayed	4	2.407	2.517	0.110	4.4	185.33	185.53
+Times New Roman	10	3	0.4	stayed	4	2.367	2.517	0.150	6.0	185.21	185.33
+Times New Roman	10	3	0.6	stayed	4	2.287	2.517	0.230	9.1	184.97	185.13
+Times New Roman	10	3	0.8	stayed	4	2.208	2.517	0.309	12.3	184.74	184.93
+Times New Roman	10	3	1.0	stayed	4	2.168	2.517	0.349	13.9	184.62	184.73
+Times New Roman	10	3	1.2	stayed	4	2.048	2.517	0.469	18.6	184.38	184.53
+Times New Roman	10	3	1.4	stayed	4	2.009	2.517	0.508	20.2	184.15	184.33
+Times New Roman	10	3	1.6	stayed	4	1.929	2.517	0.588	23.4	183.91	184.13
+Times New Roman	10	3	1.8	hyphenated	4	5.996	2.517	-3.479	-138.2	183.76	183.93
+Times New Roman	10	3	2.0	hyphenated	4	5.876	2.517	-3.359	-133.5	183.52	183.73
+Times New Roman	10	3	2.2	hyphenated	4	5.837	2.517	-3.320	-131.9	183.28	183.53
+Times New Roman	10	3	2.4	hyphenated	4	5.757	2.517	-3.240	-128.7	183.16	183.33
+Times New Roman	10	8	0.4	stayed	9	2.419	2.488	0.069	2.8	270.80	271.02
+Times New Roman	10	8	0.8	stayed	9	2.390	2.488	0.098	3.9	270.32	270.62
+Times New Roman	10	8	1.2	stayed	9	2.300	2.488	0.188	7.6	269.95	270.22
+Times New Roman	10	8	1.6	stayed	9	2.285	2.488	0.203	8.2	269.61	269.82
+Times New Roman	10	8	2.0	stayed	9	2.229	2.488	0.259	10.4	269.14	269.42
+Times New Roman	10	8	2.4	stayed	9	2.180	2.488	0.308	12.4	268.78	269.02
+Times New Roman	10	8	2.8	stayed	9	2.121	2.488	0.367	14.7	268.42	268.62
+Times New Roman	10	8	3.2	stayed	9	2.060	2.488	0.428	17.2	268.04	268.22
+Times New Roman	10	8	3.6	stayed	9	2.016	2.488	0.472	19.0	267.57	267.82
+Times New Roman	10	8	4.0	stayed	9	1.973	2.488	0.515	20.7	267.23	267.42
+Times New Roman	10	8	4.4	stayed	9	1.926	2.488	0.562	22.6	266.75	267.02
+Times New Roman	10	8	4.8	hyphenated	9	3.366	2.488	-0.878	-35.3	266.26	266.62
+Times New Roman	10	8	5.2	hyphenated	9	3.352	2.488	-0.864	-34.7	265.80	266.22
+Times New Roman	10	8	5.6	hyphenated	9	3.296	2.488	-0.808	-32.5	265.44	265.82
+Times New Roman	10	8	6.0	hyphenated	9	3.232	2.488	-0.744	-29.9	265.06	265.42
+Times New Roman	10	8	6.4	hyphenated	9	3.190	2.488	-0.702	-28.2	264.73	265.02
+Times New Roman	12	1	0.1	stayed	2	2.856	3.000	0.144	4.8	192.16	192.24
+Times New Roman	12	1	0.2	stayed	2	2.736	3.000	0.264	8.8	192.04	192.14
+Times New Roman	12	1	0.3	stayed	2	2.736	3.000	0.264	8.8	191.94	192.04
+Times New Roman	12	1	0.4	stayed	2	2.616	3.000	0.384	12.8	191.82	191.94
+Times New Roman	12	1	0.5	stayed	2	2.496	3.000	0.504	16.8	191.80	191.84
+Times New Roman	12	1	0.6	stayed	2	2.376	3.000	0.624	20.8	191.68	191.74
+Times New Roman	12	1	0.7	stayed	2	2.256	3.000	0.744	24.8	191.56	191.64
+Times New Roman	12	1	0.8	wrapped	1	nan	3.000	nan	nan	119.88	191.54
+Times New Roman	12	1	0.9	wrapped	1	nan	3.000	nan	nan	119.88	191.44
+Times New Roman	12	1	1.0	wrapped	1	nan	3.000	nan	nan	119.88	191.34
+Times New Roman	12	3	0.2	stayed	4	2.896	2.972	0.076	2.6	211.27	211.37
+Times New Roman	12	3	0.4	stayed	4	2.848	2.972	0.124	4.2	211.04	211.17
+Times New Roman	12	3	0.6	stayed	4	2.728	2.972	0.244	8.2	210.91	210.97
+Times New Roman	12	3	0.8	stayed	4	2.676	2.972	0.296	10.0	210.66	210.77
+Times New Roman	12	3	1.0	stayed	4	2.608	2.972	0.364	12.2	210.43	210.57
+Times New Roman	12	3	1.2	stayed	4	2.560	2.972	0.412	13.9	210.18	210.37
+Times New Roman	12	3	1.4	stayed	4	2.528	2.972	0.444	14.9	210.08	210.17
+Times New Roman	12	3	1.6	stayed	4	2.408	2.972	0.564	19.0	209.83	209.97
+Times New Roman	12	3	1.8	stayed	4	2.368	2.972	0.604	20.3	209.60	209.77
+Times New Roman	12	3	2.0	stayed	4	2.288	2.972	0.684	23.0	209.47	209.57
+Times New Roman	12	3	2.2	hyphenated	4	7.108	2.972	-4.136	-139.2	209.23	209.37
+Times New Roman	12	3	2.4	hyphenated	4	7.036	2.972	-4.064	-136.7	209.02	209.17
+Times New Roman	12	8	0.4	stayed	9	2.915	2.998	0.083	2.8	313.94	314.11
+Times New Roman	12	8	0.8	stayed	9	2.857	2.998	0.141	4.7	313.60	313.71
+Times New Roman	12	8	1.2	stayed	9	2.842	2.998	0.156	5.2	313.16	313.31
+Times New Roman	12	8	1.6	stayed	9	2.766	2.998	0.232	7.7	312.78	312.91
+Times New Roman	12	8	2.0	stayed	9	2.737	2.998	0.261	8.7	312.44	312.51
+Times New Roman	12	8	2.4	stayed	9	2.673	2.998	0.325	10.8	311.92	312.11
+Times New Roman	12	8	2.8	stayed	9	2.632	2.998	0.366	12.2	311.59	311.71
+Times New Roman	12	8	3.2	stayed	9	2.602	2.998	0.396	13.2	311.24	311.31
+Times New Roman	12	8	3.6	stayed	9	2.512	2.998	0.486	16.2	310.86	310.91
+Times New Roman	12	8	4.0	stayed	9	2.497	2.998	0.501	16.7	310.40	310.51
+Times New Roman	12	8	4.4	stayed	9	2.434	2.998	0.564	18.8	310.01	310.11
+Times New Roman	12	8	4.8	stayed	9	2.392	2.998	0.606	20.2	309.68	309.71
+Times New Roman	12	8	5.2	stayed	9	2.310	2.998	0.688	22.9	309.26	309.31
+Times New Roman	12	8	5.6	stayed	9	2.273	2.998	0.725	24.2	308.82	308.91
+Times New Roman	12	8	6.0	hyphenated	9	4.060	2.998	-1.062	-35.4	308.32	308.51
+Times New Roman	12	8	6.4	hyphenated	9	3.961	2.998	-0.963	-32.1	307.78	308.11
+Times New Roman	14	1	0.1	stayed	2	3.243	3.510	0.267	7.6	214.65	214.82
+Times New Roman	14	1	0.2	stayed	2	3.243	3.510	0.267	7.6	214.62	214.72
+Times New Roman	14	1	0.3	stayed	2	3.131	3.510	0.379	10.8	214.51	214.62
+Times New Roman	14	1	0.4	stayed	2	3.005	3.510	0.505	14.4	214.38	214.52
+Times New Roman	14	1	0.5	stayed	2	2.892	3.510	0.618	17.6	214.28	214.42
+Times New Roman	14	1	0.6	stayed	2	2.766	3.510	0.744	21.2	214.17	214.32
+Times New Roman	14	1	0.7	stayed	2	2.640	3.510	0.870	24.8	214.14	214.22
+Times New Roman	14	1	0.8	stayed	2	2.640	3.510	0.870	24.8	214.01	214.12
+Times New Roman	14	1	0.9	wrapped	1	nan	3.510	nan	nan	130.62	214.02
+Times New Roman	14	1	1.0	wrapped	1	nan	3.510	nan	nan	130.62	213.92
+Times New Roman	14	3	0.2	stayed	4	3.379	3.477	0.098	2.8	237.19	237.31
+Times New Roman	14	3	0.4	stayed	4	3.304	3.477	0.173	5.0	236.96	237.11
+Times New Roman	14	3	0.6	stayed	4	3.257	3.477	0.220	6.3	236.83	236.91
+Times New Roman	14	3	0.8	stayed	4	3.182	3.477	0.295	8.5	236.60	236.71
+Times New Roman	14	3	1.0	stayed	4	3.140	3.477	0.337	9.7	236.35	236.51
+Times New Roman	14	3	1.2	stayed	4	3.098	3.477	0.379	10.9	236.24	236.31
+Times New Roman	14	3	1.4	stayed	4	3.023	3.477	0.454	13.0	236.00	236.11
+Times New Roman	14	3	1.6	stayed	4	2.944	3.477	0.533	15.3	235.76	235.91
+Times New Roman	14	3	1.8	stayed	4	2.869	3.477	0.608	17.5	235.64	235.71
+Times New Roman	14	3	2.0	stayed	4	2.780	3.477	0.697	20.0	235.38	235.51
+Times New Roman	14	3	2.2	stayed	4	2.700	3.477	0.777	22.3	235.14	235.31
+Times New Roman	14	3	2.4	stayed	4	2.654	3.477	0.823	23.7	235.00	235.11
+Times New Roman	14	8	0.4	stayed	9	3.384	3.489	0.105	3.0	356.82	357.08
+Times New Roman	14	8	0.8	stayed	9	3.357	3.489	0.132	3.8	356.51	356.68
+Times New Roman	14	8	1.2	stayed	9	3.310	3.489	0.179	5.1	356.03	356.28
+Times New Roman	14	8	1.6	stayed	9	3.250	3.489	0.239	6.8	355.62	355.88
+Times New Roman	14	8	2.0	stayed	9	3.206	3.489	0.283	8.1	355.28	355.48
+Times New Roman	14	8	2.4	stayed	9	3.145	3.489	0.344	9.9	354.89	355.08
+Times New Roman	14	8	2.8	stayed	9	3.120	3.489	0.369	10.6	354.51	354.68
+Times New Roman	14	8	3.2	stayed	9	3.055	3.489	0.434	12.4	354.06	354.28
+Times New Roman	14	8	3.6	stayed	9	3.027	3.489	0.462	13.2	353.75	353.88
+Times New Roman	14	8	4.0	stayed	9	2.982	3.489	0.507	14.5	353.25	353.48
+Times New Roman	14	8	4.4	stayed	9	2.892	3.489	0.597	17.1	352.91	353.08
+Times New Roman	14	8	4.8	stayed	9	2.847	3.489	0.642	18.4	352.55	352.68
+Times New Roman	14	8	5.2	stayed	9	2.787	3.489	0.702	20.1	352.07	352.28
+Times New Roman	14	8	5.6	stayed	9	2.757	3.489	0.732	21.0	351.73	351.88
+Times New Roman	14	8	6.0	stayed	9	2.717	3.489	0.772	22.1	351.41	351.48
+Times New Roman	14	8	6.4	stayed	9	2.647	3.489	0.842	24.1	350.82	351.08

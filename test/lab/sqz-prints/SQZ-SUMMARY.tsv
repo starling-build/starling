@@ -1,0 +1,109 @@
+# compat15. hyph/doc	font	size	nspaces	align	outcome at overrun 0.1|0.3|0.6|1.0 (S stayed, W wrapped whole, H hyphenated)	largest overrun that stayed	shrink per space there (pt)	shrink pct of space
+On/c15	Calibri	10	1	left	H|H|H|H	-	-	-
+On/c15	Calibri	10	1	justified	S|S|W|W	0.3	0.448	20.4
+On/c15	Calibri	10	3	left	H|H|H|H	-	-	-
+On/c15	Calibri	10	3	justified	S|S|S|S	1.0	0.328	14.6
+On/c15	Calibri	10	8	left	H|H|H|H	-	-	-
+On/c15	Calibri	10	8	justified	S|S|S|S	1.0	0.122	5.4
+On/c15	Calibri	12	1	left	H|H|H|H	-	-	-
+On/c15	Calibri	12	1	justified	S|S|W|W	0.3	0.468	16.9
+On/c15	Calibri	12	3	left	H|H|H|H	-	-	-
+On/c15	Calibri	12	3	justified	S|S|S|S	1.0	0.356	13.4
+On/c15	Calibri	12	8	left	H|H|H|H	-	-	-
+On/c15	Calibri	12	8	justified	S|S|S|S	1.0	0.086	3.2
+On/c15	Calibri	14	1	left	H|H|H|H	-	-	-
+On/c15	Calibri	14	1	justified	S|S|S|W	0.6	0.604	19.7
+On/c15	Calibri	14	3	left	H|H|H|H	-	-	-
+On/c15	Calibri	14	3	justified	S|S|S|S	1.0	0.375	12.0
+On/c15	Calibri	14	8	left	H|H|H|H	-	-	-
+On/c15	Calibri	14	8	justified	S|S|S|S	1.0	0.137	4.4
+On/c15	Times New Roman	10	1	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	10	1	justified	S|S|W|W	0.3	0.349	13.8
+On/c15	Times New Roman	10	3	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	10	3	justified	S|S|S|S	1.0	0.349	13.9
+On/c15	Times New Roman	10	8	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	10	8	justified	S|S|S|S	1.0	0.125	5.0
+On/c15	Times New Roman	12	1	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	12	1	justified	S|S|S|W	0.6	0.624	20.8
+On/c15	Times New Roman	12	3	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	12	3	justified	S|S|S|S	1.0	0.364	12.2
+On/c15	Times New Roman	12	8	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	12	8	justified	S|S|S|S	1.0	0.127	4.2
+On/c15	Times New Roman	14	1	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	14	1	justified	S|S|S|W	0.6	0.744	21.2
+On/c15	Times New Roman	14	3	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	14	3	justified	S|S|S|S	1.0	0.337	9.7
+On/c15	Times New Roman	14	8	left	H|H|H|H	-	-	-
+On/c15	Times New Roman	14	8	justified	S|S|S|S	1.0	0.149	4.3
+Off/c15	Calibri	10	1	left	W|W|W|W	-	-	-
+Off/c15	Calibri	10	1	justified	S|S|W|W	0.3	0.448	20.4
+Off/c15	Calibri	10	3	left	W|W|W|W	-	-	-
+Off/c15	Calibri	10	3	justified	S|S|S|S	1.0	0.328	14.6
+Off/c15	Calibri	10	8	left	W|W|W|W	-	-	-
+Off/c15	Calibri	10	8	justified	S|S|S|S	1.0	0.122	5.4
+Off/c15	Calibri	12	1	left	W|W|W|W	-	-	-
+Off/c15	Calibri	12	1	justified	S|S|W|W	0.3	0.468	16.9
+Off/c15	Calibri	12	3	left	W|W|W|W	-	-	-
+Off/c15	Calibri	12	3	justified	S|S|S|S	1.0	0.356	13.4
+Off/c15	Calibri	12	8	left	W|W|W|W	-	-	-
+Off/c15	Calibri	12	8	justified	S|S|S|S	1.0	0.086	3.2
+Off/c15	Calibri	14	1	left	W|W|W|W	-	-	-
+Off/c15	Calibri	14	1	justified	S|S|S|W	0.6	0.604	19.7
+Off/c15	Calibri	14	3	left	W|W|W|W	-	-	-
+Off/c15	Calibri	14	3	justified	S|S|S|S	1.0	0.375	12.0
+Off/c15	Calibri	14	8	left	W|W|W|W	-	-	-
+Off/c15	Calibri	14	8	justified	S|S|S|S	1.0	0.137	4.4
+Off/c15	Times New Roman	10	1	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	10	1	justified	S|S|W|W	0.3	0.349	13.8
+Off/c15	Times New Roman	10	3	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	10	3	justified	S|S|S|S	1.0	0.349	13.9
+Off/c15	Times New Roman	10	8	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	10	8	justified	S|S|S|S	1.0	0.125	5.0
+Off/c15	Times New Roman	12	1	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	12	1	justified	S|S|S|W	0.6	0.624	20.8
+Off/c15	Times New Roman	12	3	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	12	3	justified	S|S|S|S	1.0	0.364	12.2
+Off/c15	Times New Roman	12	8	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	12	8	justified	S|S|S|S	1.0	0.127	4.2
+Off/c15	Times New Roman	14	1	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	14	1	justified	S|S|S|W	0.6	0.744	21.2
+Off/c15	Times New Roman	14	3	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	14	3	justified	S|S|S|S	1.0	0.337	9.7
+Off/c15	Times New Roman	14	8	left	W|W|W|W	-	-	-
+Off/c15	Times New Roman	14	8	justified	S|S|S|S	1.0	0.149	4.3
+On360/c15	Calibri	10	1	left	H|H|H|H	-	-	-
+On360/c15	Calibri	10	1	justified	S|S|W|W	0.3	0.448	20.4
+On360/c15	Calibri	10	3	left	H|H|H|H	-	-	-
+On360/c15	Calibri	10	3	justified	S|S|S|S	1.0	0.328	14.6
+On360/c15	Calibri	10	8	left	H|H|H|H	-	-	-
+On360/c15	Calibri	10	8	justified	S|S|S|S	1.0	0.122	5.4
+On360/c15	Calibri	12	1	left	H|H|H|H	-	-	-
+On360/c15	Calibri	12	1	justified	S|S|W|W	0.3	0.468	16.9
+On360/c15	Calibri	12	3	left	H|H|H|H	-	-	-
+On360/c15	Calibri	12	3	justified	S|S|S|S	1.0	0.356	13.4
+On360/c15	Calibri	12	8	left	H|H|H|H	-	-	-
+On360/c15	Calibri	12	8	justified	S|S|S|S	1.0	0.086	3.2
+On360/c15	Calibri	14	1	left	H|H|H|H	-	-	-
+On360/c15	Calibri	14	1	justified	S|S|S|W	0.6	0.604	19.7
+On360/c15	Calibri	14	3	left	H|H|H|H	-	-	-
+On360/c15	Calibri	14	3	justified	S|S|S|S	1.0	0.375	12.0
+On360/c15	Calibri	14	8	left	H|H|H|H	-	-	-
+On360/c15	Calibri	14	8	justified	S|S|S|S	1.0	0.137	4.4
+On360/c15	Times New Roman	10	1	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	10	1	justified	S|S|W|W	0.3	0.349	13.8
+On360/c15	Times New Roman	10	3	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	10	3	justified	S|S|S|S	1.0	0.349	13.9
+On360/c15	Times New Roman	10	8	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	10	8	justified	S|S|S|S	1.0	0.125	5.0
+On360/c15	Times New Roman	12	1	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	12	1	justified	S|S|S|W	0.6	0.624	20.8
+On360/c15	Times New Roman	12	3	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	12	3	justified	S|S|S|S	1.0	0.364	12.2
+On360/c15	Times New Roman	12	8	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	12	8	justified	S|S|S|S	1.0	0.127	4.2
+On360/c15	Times New Roman	14	1	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	14	1	justified	S|S|S|W	0.6	0.744	21.2
+On360/c15	Times New Roman	14	3	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	14	3	justified	S|S|S|S	1.0	0.337	9.7
+On360/c15	Times New Roman	14	8	left	H|H|H|H	-	-	-
+On360/c15	Times New Roman	14	8	justified	S|S|S|S	1.0	0.149	4.3

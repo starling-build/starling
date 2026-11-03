@@ -1,0 +1,433 @@
+# hyph	font	size	nspaces	align	overrun_pt	outcome	line1_words	mean_gap_pt	natural_gap_pt	gap_shrink_pct	line1_x1	column_pt
+On	Calibri	10	1	left	0.1	hyphenated	2	2.201	2.201	-0.0	158.35	114.70
+On	Calibri	10	1	justified	0.1	wrapped	1	nan	2.201	nan	109.68	114.70
+On	Calibri	10	1	left	0.3	hyphenated	2	2.201	2.201	-0.0	158.35	114.50
+On	Calibri	10	1	justified	0.3	wrapped	1	nan	2.201	nan	109.68	114.50
+On	Calibri	10	1	left	0.6	hyphenated	2	2.201	2.201	-0.0	158.35	114.20
+On	Calibri	10	1	justified	0.6	wrapped	1	nan	2.201	nan	109.68	114.20
+On	Calibri	10	1	left	1.0	hyphenated	2	2.201	2.201	-0.0	158.35	113.80
+On	Calibri	10	1	justified	1.0	wrapped	1	nan	2.201	nan	109.68	113.80
+On	Calibri	10	3	left	0.1	hyphenated	4	2.254	2.254	-0.0	175.24	131.59
+On	Calibri	10	3	justified	0.1	hyphenated	4	6.557	2.254	-190.9	188.06	131.59
+On	Calibri	10	3	left	0.3	hyphenated	4	2.254	2.254	-0.0	175.24	131.39
+On	Calibri	10	3	justified	0.3	hyphenated	4	6.477	2.254	-187.4	187.95	131.39
+On	Calibri	10	3	left	0.6	hyphenated	4	2.254	2.254	-0.0	175.24	131.09
+On	Calibri	10	3	justified	0.6	hyphenated	4	6.358	2.254	-182.1	187.59	131.09
+On	Calibri	10	3	left	1.0	hyphenated	4	2.254	2.254	-0.0	175.24	130.69
+On	Calibri	10	3	justified	1.0	hyphenated	4	6.238	2.254	-176.8	187.24	130.69
+On	Calibri	10	8	left	0.1	hyphenated	9	2.266	2.266	0.0	263.44	219.79
+On	Calibri	10	8	justified	0.1	hyphenated	9	3.862	2.266	-70.4	276.26	219.79
+On	Calibri	10	8	left	0.3	hyphenated	9	2.266	2.266	0.0	263.44	219.59
+On	Calibri	10	8	justified	0.3	hyphenated	9	3.846	2.266	-69.7	276.13	219.59
+On	Calibri	10	8	left	0.6	hyphenated	9	2.266	2.266	0.0	263.44	219.29
+On	Calibri	10	8	justified	0.6	hyphenated	9	3.815	2.266	-68.3	275.76	219.29
+On	Calibri	10	8	left	1.0	hyphenated	9	2.266	2.266	0.0	263.44	218.89
+On	Calibri	10	8	justified	1.0	hyphenated	9	3.734	2.266	-64.8	275.23	218.89
+On	Calibri	12	1	left	0.1	hyphenated	2	2.772	2.772	0.0	178.78	137.71
+On	Calibri	12	1	justified	0.1	wrapped	1	nan	2.772	nan	120.41	137.71
+On	Calibri	12	1	left	0.3	hyphenated	2	2.772	2.772	0.0	178.78	137.51
+On	Calibri	12	1	justified	0.3	wrapped	1	nan	2.772	nan	120.41	137.51
+On	Calibri	12	1	left	0.6	hyphenated	2	2.772	2.772	0.0	178.78	137.21
+On	Calibri	12	1	justified	0.6	wrapped	1	nan	2.772	nan	120.41	137.21
+On	Calibri	12	1	left	1.0	hyphenated	2	2.772	2.772	0.0	178.78	136.81
+On	Calibri	12	1	justified	1.0	wrapped	1	nan	2.772	nan	120.41	136.81
+On	Calibri	12	3	left	0.1	hyphenated	4	2.652	2.652	-0.0	199.03	158.01
+On	Calibri	12	3	justified	0.1	hyphenated	4	7.884	2.652	-197.3	214.52	158.01
+On	Calibri	12	3	left	0.3	hyphenated	4	2.652	2.652	-0.0	199.03	157.81
+On	Calibri	12	3	justified	0.3	hyphenated	4	7.804	2.652	-194.3	214.40	157.81
+On	Calibri	12	3	left	0.6	hyphenated	4	2.652	2.652	-0.0	199.03	157.51
+On	Calibri	12	3	justified	0.6	hyphenated	4	7.724	2.652	-191.3	214.04	157.51
+On	Calibri	12	3	left	1.0	hyphenated	4	2.652	2.652	-0.0	199.03	157.11
+On	Calibri	12	3	justified	1.0	hyphenated	4	7.564	2.652	-185.2	213.68	157.11
+On	Calibri	12	8	left	0.1	hyphenated	9	2.687	2.687	0.0	304.78	263.82
+On	Calibri	12	8	justified	0.1	hyphenated	9	4.620	2.687	-71.9	320.22	263.82
+On	Calibri	12	8	left	0.3	hyphenated	9	2.687	2.687	0.0	304.78	263.62
+On	Calibri	12	8	justified	0.3	hyphenated	9	4.599	2.687	-71.2	319.94	263.62
+On	Calibri	12	8	left	0.6	hyphenated	9	2.687	2.687	0.0	304.78	263.32
+On	Calibri	12	8	justified	0.6	hyphenated	9	4.571	2.687	-70.1	319.73	263.32
+On	Calibri	12	8	left	1.0	hyphenated	9	2.687	2.687	0.0	304.78	262.92
+On	Calibri	12	8	justified	1.0	hyphenated	9	4.541	2.687	-69.0	319.34	262.92
+On	Calibri	14	1	left	0.1	hyphenated	2	3.061	3.061	0.0	199.24	160.81
+On	Calibri	14	1	justified	0.1	wrapped	1	nan	3.061	nan	131.08	160.81
+On	Calibri	14	1	left	0.3	hyphenated	2	3.061	3.061	0.0	199.24	160.61
+On	Calibri	14	1	justified	0.3	wrapped	1	nan	3.061	nan	131.08	160.61
+On	Calibri	14	1	left	0.6	hyphenated	2	3.061	3.061	0.0	199.24	160.31
+On	Calibri	14	1	justified	0.6	wrapped	1	nan	3.061	nan	131.08	160.31
+On	Calibri	14	1	left	1.0	hyphenated	2	3.061	3.061	0.0	199.24	159.91
+On	Calibri	14	1	justified	1.0	wrapped	1	nan	3.061	nan	131.08	159.91
+On	Calibri	14	3	left	0.1	hyphenated	4	3.117	3.117	0.0	222.86	184.46
+On	Calibri	14	3	justified	0.1	hyphenated	4	9.173	3.117	-194.3	241.07	184.46
+On	Calibri	14	3	left	0.3	hyphenated	4	3.117	3.117	0.0	222.86	184.26
+On	Calibri	14	3	justified	0.3	hyphenated	4	9.051	3.117	-190.4	240.82	184.26
+On	Calibri	14	3	left	0.6	hyphenated	4	3.117	3.117	0.0	222.86	183.96
+On	Calibri	14	3	justified	0.6	hyphenated	4	8.976	3.117	-188.0	240.59	183.96
+On	Calibri	14	3	left	1.0	hyphenated	4	3.117	3.117	0.0	222.86	183.56
+On	Calibri	14	3	justified	1.0	hyphenated	4	8.812	3.117	-182.7	240.10	183.56
+On	Calibri	14	8	left	0.1	hyphenated	9	3.133	3.133	0.0	346.33	307.89
+On	Calibri	14	8	justified	0.1	hyphenated	9	5.381	3.133	-71.7	364.42	307.89
+On	Calibri	14	8	left	0.3	hyphenated	9	3.133	3.133	0.0	346.33	307.69
+On	Calibri	14	8	justified	0.3	hyphenated	9	5.379	3.133	-71.7	364.19	307.69
+On	Calibri	14	8	left	0.6	hyphenated	9	3.133	3.133	0.0	346.33	307.39
+On	Calibri	14	8	justified	0.6	hyphenated	9	5.274	3.133	-68.3	363.82	307.39
+On	Calibri	14	8	left	1.0	hyphenated	9	3.133	3.133	0.0	346.33	307.00
+On	Calibri	14	8	justified	1.0	hyphenated	9	5.261	3.133	-67.9	363.47	307.00
+On	Times New Roman	10	1	left	0.1	hyphenated	2	2.520	2.520	0.0	157.41	112.90
+On	Times New Roman	10	1	justified	0.1	wrapped	1	nan	2.520	nan	109.39	112.90
+On	Times New Roman	10	1	left	0.3	hyphenated	2	2.520	2.520	0.0	157.41	112.70
+On	Times New Roman	10	1	justified	0.3	wrapped	1	nan	2.520	nan	109.39	112.70
+On	Times New Roman	10	1	left	0.6	hyphenated	2	2.520	2.520	0.0	157.41	112.40
+On	Times New Roman	10	1	justified	0.6	wrapped	1	nan	2.520	nan	109.39	112.40
+On	Times New Roman	10	1	left	1.0	hyphenated	2	2.520	2.520	0.0	157.41	112.00
+On	Times New Roman	10	1	justified	1.0	wrapped	1	nan	2.520	nan	109.39	112.00
+On	Times New Roman	10	3	left	0.1	hyphenated	4	2.517	2.517	0.0	173.44	128.93
+On	Times New Roman	10	3	justified	0.1	hyphenated	4	6.474	2.517	-157.2	185.42	128.93
+On	Times New Roman	10	3	left	0.3	hyphenated	4	2.517	2.517	0.0	173.44	128.73
+On	Times New Roman	10	3	justified	0.3	hyphenated	4	6.437	2.517	-155.8	185.20	128.73
+On	Times New Roman	10	3	left	0.6	hyphenated	4	2.517	2.517	0.0	173.44	128.43
+On	Times New Roman	10	3	justified	0.6	hyphenated	4	6.354	2.517	-152.5	184.95	128.43
+On	Times New Roman	10	3	left	1.0	hyphenated	4	2.517	2.517	0.0	173.44	128.03
+On	Times New Roman	10	3	justified	1.0	hyphenated	4	6.235	2.517	-147.7	184.48	128.03
+On	Times New Roman	10	8	left	0.1	hyphenated	9	2.488	2.488	0.0	259.13	214.62
+On	Times New Roman	10	8	justified	0.1	hyphenated	9	3.969	2.488	-59.5	270.96	214.62
+On	Times New Roman	10	8	left	0.3	hyphenated	9	2.488	2.488	0.0	259.13	214.42
+On	Times New Roman	10	8	justified	0.3	hyphenated	9	3.969	2.488	-59.5	270.86	214.42
+On	Times New Roman	10	8	left	0.6	hyphenated	9	2.488	2.488	0.0	259.13	214.12
+On	Times New Roman	10	8	justified	0.6	hyphenated	9	3.925	2.488	-57.8	270.48	214.12
+On	Times New Roman	10	8	left	1.0	hyphenated	9	2.488	2.488	0.0	259.13	213.72
+On	Times New Roman	10	8	justified	1.0	hyphenated	9	3.850	2.488	-54.7	270.12	213.72
+On	Times New Roman	12	1	left	0.1	hyphenated	2	3.000	3.000	0.0	177.47	135.54
+On	Times New Roman	12	1	justified	0.1	wrapped	1	nan	3.000	nan	119.88	135.54
+On	Times New Roman	12	1	left	0.3	hyphenated	2	3.000	3.000	0.0	177.47	135.34
+On	Times New Roman	12	1	justified	0.3	wrapped	1	nan	3.000	nan	119.88	135.34
+On	Times New Roman	12	1	left	0.6	hyphenated	2	3.000	3.000	0.0	177.47	135.04
+On	Times New Roman	12	1	justified	0.6	wrapped	1	nan	3.000	nan	119.88	135.04
+On	Times New Roman	12	1	left	1.0	hyphenated	2	3.000	3.000	0.0	177.47	134.64
+On	Times New Roman	12	1	justified	1.0	wrapped	1	nan	3.000	nan	119.88	134.64
+On	Times New Roman	12	3	left	0.1	hyphenated	4	2.972	2.972	-0.0	196.80	154.77
+On	Times New Roman	12	3	justified	0.1	hyphenated	4	7.796	2.972	-162.3	211.28	154.77
+On	Times New Roman	12	3	left	0.3	hyphenated	4	2.972	2.972	-0.0	196.80	154.57
+On	Times New Roman	12	3	justified	0.3	hyphenated	4	7.756	2.972	-161.0	211.18	154.57
+On	Times New Roman	12	3	left	0.6	hyphenated	4	2.972	2.972	-0.0	196.80	154.27
+On	Times New Roman	12	3	justified	0.6	hyphenated	4	7.636	2.972	-156.9	210.82	154.27
+On	Times New Roman	12	3	left	1.0	hyphenated	4	2.972	2.972	-0.0	196.80	153.87
+On	Times New Roman	12	3	justified	1.0	hyphenated	4	7.516	2.972	-152.9	210.46	153.87
+On	Times New Roman	12	8	left	0.1	hyphenated	9	2.998	2.998	-0.0	299.74	257.71
+On	Times New Roman	12	8	justified	0.1	hyphenated	9	4.762	2.998	-58.9	314.16	257.71
+On	Times New Roman	12	8	left	0.3	hyphenated	9	2.998	2.998	-0.0	299.74	257.51
+On	Times New Roman	12	8	justified	0.3	hyphenated	9	4.762	2.998	-58.9	313.94	257.51
+On	Times New Roman	12	8	left	0.6	hyphenated	9	2.998	2.998	-0.0	299.74	257.21
+On	Times New Roman	12	8	justified	0.6	hyphenated	9	4.763	2.998	-58.9	313.61	257.21
+On	Times New Roman	12	8	left	1.0	hyphenated	9	2.998	2.998	-0.0	299.74	256.81
+On	Times New Roman	12	8	justified	1.0	hyphenated	9	4.656	2.998	-55.3	313.20	256.81
+On	Times New Roman	14	1	left	0.1	hyphenated	2	3.510	3.510	0.0	197.77	158.12
+On	Times New Roman	14	1	justified	0.1	wrapped	1	nan	3.510	nan	130.62	158.12
+On	Times New Roman	14	1	left	0.3	hyphenated	2	3.510	3.510	0.0	197.77	157.92
+On	Times New Roman	14	1	justified	0.3	wrapped	1	nan	3.510	nan	130.62	157.92
+On	Times New Roman	14	1	left	0.6	hyphenated	2	3.510	3.510	0.0	197.77	157.62
+On	Times New Roman	14	1	justified	0.6	wrapped	1	nan	3.510	nan	130.62	157.62
+On	Times New Roman	14	1	left	1.0	hyphenated	2	3.510	3.510	0.0	197.77	157.22
+On	Times New Roman	14	1	justified	1.0	wrapped	1	nan	3.510	nan	130.62	157.22
+On	Times New Roman	14	3	left	0.1	hyphenated	4	3.477	3.477	-0.0	220.35	180.71
+On	Times New Roman	14	3	justified	0.1	hyphenated	4	9.126	3.477	-162.5	237.32	180.71
+On	Times New Roman	14	3	left	0.3	hyphenated	4	3.477	3.477	-0.0	220.35	180.51
+On	Times New Roman	14	3	justified	0.3	hyphenated	4	9.009	3.477	-159.1	237.08	180.51
+On	Times New Roman	14	3	left	0.6	hyphenated	4	3.477	3.477	-0.0	220.35	180.21
+On	Times New Roman	14	3	justified	0.6	hyphenated	4	8.925	3.477	-156.7	236.83	180.21
+On	Times New Roman	14	3	left	1.0	hyphenated	4	3.477	3.477	-0.0	220.35	179.81
+On	Times New Roman	14	3	justified	1.0	hyphenated	4	8.808	3.477	-153.3	236.48	179.81
+On	Times New Roman	14	8	left	0.1	hyphenated	9	3.489	3.489	0.0	340.32	300.68
+On	Times New Roman	14	8	justified	0.1	hyphenated	9	5.562	3.489	-59.4	357.15	300.68
+On	Times New Roman	14	8	left	0.3	hyphenated	9	3.489	3.489	0.0	340.32	300.48
+On	Times New Roman	14	8	justified	0.3	hyphenated	9	5.530	3.489	-58.5	356.89	300.48
+On	Times New Roman	14	8	left	0.6	hyphenated	9	3.489	3.489	0.0	340.32	300.18
+On	Times New Roman	14	8	justified	0.6	hyphenated	9	5.502	3.489	-57.7	356.66	300.18
+On	Times New Roman	14	8	left	1.0	hyphenated	9	3.489	3.489	0.0	340.32	299.78
+On	Times New Roman	14	8	justified	1.0	hyphenated	9	5.455	3.489	-56.3	356.30	299.78
+Off	Calibri	10	1	left	0.1	wrapped	1	nan	2.201	nan	109.68	114.70
+Off	Calibri	10	1	justified	0.1	wrapped	1	nan	2.201	nan	109.68	114.70
+Off	Calibri	10	1	left	0.3	wrapped	1	nan	2.201	nan	109.68	114.50
+Off	Calibri	10	1	justified	0.3	wrapped	1	nan	2.201	nan	109.68	114.50
+Off	Calibri	10	1	left	0.6	wrapped	1	nan	2.201	nan	109.68	114.20
+Off	Calibri	10	1	justified	0.6	wrapped	1	nan	2.201	nan	109.68	114.20
+Off	Calibri	10	1	left	1.0	wrapped	1	nan	2.201	nan	109.68	113.80
+Off	Calibri	10	1	justified	1.0	wrapped	1	nan	2.201	nan	109.68	113.80
+Off	Calibri	10	3	left	0.1	wrapped	3	2.276	2.254	-1.0	126.56	131.59
+Off	Calibri	10	3	justified	0.1	wrapped	1	nan	2.254	nan	94.55	131.59
+Off	Calibri	10	3	left	0.3	wrapped	3	2.276	2.254	-1.0	126.56	131.39
+Off	Calibri	10	3	justified	0.3	wrapped	1	nan	2.254	nan	94.55	131.39
+Off	Calibri	10	3	left	0.6	wrapped	3	2.276	2.254	-1.0	126.56	131.09
+Off	Calibri	10	3	justified	0.6	wrapped	1	nan	2.254	nan	94.55	131.09
+Off	Calibri	10	3	left	1.0	wrapped	3	2.276	2.254	-1.0	126.56	130.69
+Off	Calibri	10	3	justified	1.0	wrapped	1	nan	2.254	nan	94.55	130.69
+Off	Calibri	10	8	left	0.1	wrapped	8	2.274	2.266	-0.3	214.76	219.79
+Off	Calibri	10	8	justified	0.1	wrapped	1	nan	2.266	nan	94.55	219.79
+Off	Calibri	10	8	left	0.3	wrapped	8	2.274	2.266	-0.3	214.76	219.59
+Off	Calibri	10	8	justified	0.3	wrapped	1	nan	2.266	nan	94.55	219.59
+Off	Calibri	10	8	left	0.6	wrapped	8	2.274	2.266	-0.3	214.76	219.29
+Off	Calibri	10	8	justified	0.6	wrapped	1	nan	2.266	nan	94.55	219.29
+Off	Calibri	10	8	left	1.0	wrapped	8	2.274	2.266	-0.3	214.76	218.89
+Off	Calibri	10	8	justified	1.0	wrapped	1	nan	2.266	nan	94.55	218.89
+Off	Calibri	12	1	left	0.1	wrapped	1	nan	2.772	nan	120.41	137.71
+Off	Calibri	12	1	justified	0.1	wrapped	1	nan	2.772	nan	120.41	137.71
+Off	Calibri	12	1	left	0.3	wrapped	1	nan	2.772	nan	120.41	137.51
+Off	Calibri	12	1	justified	0.3	wrapped	1	nan	2.772	nan	120.41	137.51
+Off	Calibri	12	1	left	0.6	wrapped	1	nan	2.772	nan	120.41	137.21
+Off	Calibri	12	1	justified	0.6	wrapped	1	nan	2.772	nan	120.41	137.21
+Off	Calibri	12	1	left	1.0	wrapped	1	nan	2.772	nan	120.41	136.81
+Off	Calibri	12	1	justified	1.0	wrapped	1	nan	2.772	nan	120.41	136.81
+Off	Calibri	12	3	left	0.1	wrapped	3	2.652	2.652	-0.0	140.68	158.01
+Off	Calibri	12	3	justified	0.1	wrapped	1	nan	2.652	nan	102.19	158.01
+Off	Calibri	12	3	left	0.3	wrapped	3	2.652	2.652	-0.0	140.68	157.81
+Off	Calibri	12	3	justified	0.3	wrapped	1	nan	2.652	nan	102.19	157.81
+Off	Calibri	12	3	left	0.6	wrapped	3	2.652	2.652	-0.0	140.68	157.51
+Off	Calibri	12	3	justified	0.6	wrapped	1	nan	2.652	nan	102.19	157.51
+Off	Calibri	12	3	left	1.0	wrapped	3	2.652	2.652	-0.0	140.68	157.11
+Off	Calibri	12	3	justified	1.0	wrapped	1	nan	2.652	nan	102.19	157.11
+Off	Calibri	12	8	left	0.1	wrapped	8	2.681	2.687	0.2	246.34	263.82
+Off	Calibri	12	8	justified	0.1	wrapped	1	nan	2.687	nan	102.19	263.82
+Off	Calibri	12	8	left	0.3	wrapped	8	2.681	2.687	0.2	246.34	263.62
+Off	Calibri	12	8	justified	0.3	wrapped	1	nan	2.687	nan	102.19	263.62
+Off	Calibri	12	8	left	0.6	wrapped	8	2.681	2.687	0.2	246.34	263.32
+Off	Calibri	12	8	justified	0.6	wrapped	1	nan	2.687	nan	102.19	263.32
+Off	Calibri	12	8	left	1.0	wrapped	8	2.681	2.687	0.2	246.34	262.92
+Off	Calibri	12	8	justified	1.0	wrapped	1	nan	2.687	nan	102.19	262.92
+Off	Calibri	14	1	left	0.1	wrapped	1	nan	3.061	nan	131.08	160.81
+Off	Calibri	14	1	justified	0.1	wrapped	1	nan	3.061	nan	131.08	160.81
+Off	Calibri	14	1	left	0.3	wrapped	1	nan	3.061	nan	131.08	160.61
+Off	Calibri	14	1	justified	0.3	wrapped	1	nan	3.061	nan	131.08	160.61
+Off	Calibri	14	1	left	0.6	wrapped	1	nan	3.061	nan	131.08	160.31
+Off	Calibri	14	1	justified	0.6	wrapped	1	nan	3.061	nan	131.08	160.31
+Off	Calibri	14	1	left	1.0	wrapped	1	nan	3.061	nan	131.08	159.91
+Off	Calibri	14	1	justified	1.0	wrapped	1	nan	3.061	nan	131.08	159.91
+Off	Calibri	14	3	left	0.1	wrapped	3	3.131	3.117	-0.4	154.68	184.46
+Off	Calibri	14	3	justified	0.1	wrapped	1	nan	3.117	nan	109.82	184.46
+Off	Calibri	14	3	left	0.3	wrapped	3	3.131	3.117	-0.4	154.68	184.26
+Off	Calibri	14	3	justified	0.3	wrapped	1	nan	3.117	nan	109.82	184.26
+Off	Calibri	14	3	left	0.6	wrapped	3	3.131	3.117	-0.4	154.68	183.96
+Off	Calibri	14	3	justified	0.6	wrapped	1	nan	3.117	nan	109.82	183.96
+Off	Calibri	14	3	left	1.0	wrapped	3	3.131	3.117	-0.4	154.68	183.56
+Off	Calibri	14	3	justified	1.0	wrapped	1	nan	3.117	nan	109.82	183.56
+Off	Calibri	14	8	left	0.1	wrapped	8	3.125	3.133	0.3	278.14	307.89
+Off	Calibri	14	8	justified	0.1	wrapped	1	nan	3.133	nan	109.82	307.89
+Off	Calibri	14	8	left	0.3	wrapped	8	3.125	3.133	0.3	278.14	307.69
+Off	Calibri	14	8	justified	0.3	wrapped	1	nan	3.133	nan	109.82	307.69
+Off	Calibri	14	8	left	0.6	wrapped	8	3.125	3.133	0.3	278.14	307.39
+Off	Calibri	14	8	justified	0.6	wrapped	1	nan	3.133	nan	109.82	307.39
+Off	Calibri	14	8	left	1.0	wrapped	8	3.125	3.133	0.3	278.14	307.00
+Off	Calibri	14	8	justified	1.0	wrapped	1	nan	3.133	nan	109.82	307.00
+Off	Times New Roman	10	1	left	0.1	wrapped	1	nan	2.520	nan	109.39	112.90
+Off	Times New Roman	10	1	justified	0.1	wrapped	1	nan	2.520	nan	109.39	112.90
+Off	Times New Roman	10	1	left	0.3	wrapped	1	nan	2.520	nan	109.39	112.70
+Off	Times New Roman	10	1	justified	0.3	wrapped	1	nan	2.520	nan	109.39	112.70
+Off	Times New Roman	10	1	left	0.6	wrapped	1	nan	2.520	nan	109.39	112.40
+Off	Times New Roman	10	1	justified	0.6	wrapped	1	nan	2.520	nan	109.39	112.40
+Off	Times New Roman	10	1	left	1.0	wrapped	1	nan	2.520	nan	109.39	112.00
+Off	Times New Roman	10	1	justified	1.0	wrapped	1	nan	2.520	nan	109.39	112.00
+Off	Times New Roman	10	3	left	0.1	wrapped	3	2.510	2.517	0.3	125.53	128.93
+Off	Times New Roman	10	3	justified	0.1	wrapped	1	nan	2.517	nan	94.97	128.93
+Off	Times New Roman	10	3	left	0.3	wrapped	3	2.510	2.517	0.3	125.53	128.73
+Off	Times New Roman	10	3	justified	0.3	wrapped	1	nan	2.517	nan	94.97	128.73
+Off	Times New Roman	10	3	left	0.6	wrapped	3	2.510	2.517	0.3	125.53	128.43
+Off	Times New Roman	10	3	justified	0.6	wrapped	1	nan	2.517	nan	94.97	128.43
+Off	Times New Roman	10	3	left	1.0	wrapped	3	2.510	2.517	0.3	125.53	128.03
+Off	Times New Roman	10	3	justified	1.0	wrapped	1	nan	2.517	nan	94.97	128.03
+Off	Times New Roman	10	8	left	0.1	wrapped	8	2.480	2.488	0.3	211.20	214.62
+Off	Times New Roman	10	8	justified	0.1	wrapped	1	nan	2.488	nan	94.97	214.62
+Off	Times New Roman	10	8	left	0.3	wrapped	8	2.480	2.488	0.3	211.20	214.42
+Off	Times New Roman	10	8	justified	0.3	wrapped	1	nan	2.488	nan	94.97	214.42
+Off	Times New Roman	10	8	left	0.6	wrapped	8	2.480	2.488	0.3	211.20	214.12
+Off	Times New Roman	10	8	justified	0.6	wrapped	1	nan	2.488	nan	94.97	214.12
+Off	Times New Roman	10	8	left	1.0	wrapped	8	2.480	2.488	0.3	211.20	213.72
+Off	Times New Roman	10	8	justified	1.0	wrapped	1	nan	2.488	nan	94.97	213.72
+Off	Times New Roman	12	1	left	0.1	wrapped	1	nan	3.000	nan	119.88	135.54
+Off	Times New Roman	12	1	justified	0.1	wrapped	1	nan	3.000	nan	119.88	135.54
+Off	Times New Roman	12	1	left	0.3	wrapped	1	nan	3.000	nan	119.88	135.34
+Off	Times New Roman	12	1	justified	0.3	wrapped	1	nan	3.000	nan	119.88	135.34
+Off	Times New Roman	12	1	left	0.6	wrapped	1	nan	3.000	nan	119.88	135.04
+Off	Times New Roman	12	1	justified	0.6	wrapped	1	nan	3.000	nan	119.88	135.04
+Off	Times New Roman	12	1	left	1.0	wrapped	1	nan	3.000	nan	119.88	134.64
+Off	Times New Roman	12	1	justified	1.0	wrapped	1	nan	3.000	nan	119.88	134.64
+Off	Times New Roman	12	3	left	0.1	wrapped	3	2.958	2.972	0.5	139.20	154.77
+Off	Times New Roman	12	3	justified	0.1	wrapped	1	nan	2.972	nan	102.56	154.77
+Off	Times New Roman	12	3	left	0.3	wrapped	3	2.958	2.972	0.5	139.20	154.57
+Off	Times New Roman	12	3	justified	0.3	wrapped	1	nan	2.972	nan	102.56	154.57
+Off	Times New Roman	12	3	left	0.6	wrapped	3	2.958	2.972	0.5	139.20	154.27
+Off	Times New Roman	12	3	justified	0.6	wrapped	1	nan	2.972	nan	102.56	154.27
+Off	Times New Roman	12	3	left	1.0	wrapped	3	2.958	2.972	0.5	139.20	153.87
+Off	Times New Roman	12	3	justified	1.0	wrapped	1	nan	2.972	nan	102.56	153.87
+Off	Times New Roman	12	8	left	0.1	wrapped	8	2.993	2.998	0.2	242.09	257.71
+Off	Times New Roman	12	8	justified	0.1	wrapped	1	nan	2.998	nan	102.56	257.71
+Off	Times New Roman	12	8	left	0.3	wrapped	8	2.993	2.998	0.2	242.09	257.51
+Off	Times New Roman	12	8	justified	0.3	wrapped	1	nan	2.998	nan	102.56	257.51
+Off	Times New Roman	12	8	left	0.6	wrapped	8	2.993	2.998	0.2	242.09	257.21
+Off	Times New Roman	12	8	justified	0.6	wrapped	1	nan	2.998	nan	102.56	257.21
+Off	Times New Roman	12	8	left	1.0	wrapped	8	2.993	2.998	0.2	242.09	256.81
+Off	Times New Roman	12	8	justified	1.0	wrapped	1	nan	2.998	nan	102.56	256.81
+Off	Times New Roman	14	1	left	0.1	wrapped	1	nan	3.510	nan	130.62	158.12
+Off	Times New Roman	14	1	justified	0.1	wrapped	1	nan	3.510	nan	130.62	158.12
+Off	Times New Roman	14	1	left	0.3	wrapped	1	nan	3.510	nan	130.62	157.92
+Off	Times New Roman	14	1	justified	0.3	wrapped	1	nan	3.510	nan	130.62	157.92
+Off	Times New Roman	14	1	left	0.6	wrapped	1	nan	3.510	nan	130.62	157.62
+Off	Times New Roman	14	1	justified	0.6	wrapped	1	nan	3.510	nan	130.62	157.62
+Off	Times New Roman	14	1	left	1.0	wrapped	1	nan	3.510	nan	130.62	157.22
+Off	Times New Roman	14	1	justified	1.0	wrapped	1	nan	3.510	nan	130.62	157.22
+Off	Times New Roman	14	3	left	0.1	wrapped	3	3.461	3.477	0.5	153.07	180.71
+Off	Times New Roman	14	3	justified	0.1	wrapped	1	nan	3.477	nan	110.37	180.71
+Off	Times New Roman	14	3	left	0.3	wrapped	3	3.461	3.477	0.5	153.07	180.51
+Off	Times New Roman	14	3	justified	0.3	wrapped	1	nan	3.477	nan	110.37	180.51
+Off	Times New Roman	14	3	left	0.6	wrapped	3	3.461	3.477	0.5	153.07	180.21
+Off	Times New Roman	14	3	justified	0.6	wrapped	1	nan	3.477	nan	110.37	180.21
+Off	Times New Roman	14	3	left	1.0	wrapped	3	3.461	3.477	0.5	153.07	179.81
+Off	Times New Roman	14	3	justified	1.0	wrapped	1	nan	3.477	nan	110.37	179.81
+Off	Times New Roman	14	8	left	0.1	wrapped	8	3.486	3.489	0.1	273.18	300.68
+Off	Times New Roman	14	8	justified	0.1	wrapped	1	nan	3.489	nan	110.37	300.68
+Off	Times New Roman	14	8	left	0.3	wrapped	8	3.486	3.489	0.1	273.18	300.48
+Off	Times New Roman	14	8	justified	0.3	wrapped	1	nan	3.489	nan	110.37	300.48
+Off	Times New Roman	14	8	left	0.6	wrapped	8	3.486	3.489	0.1	273.18	300.18
+Off	Times New Roman	14	8	justified	0.6	wrapped	1	nan	3.489	nan	110.37	300.18
+Off	Times New Roman	14	8	left	1.0	wrapped	8	3.486	3.489	0.1	273.18	299.78
+Off	Times New Roman	14	8	justified	1.0	wrapped	1	nan	3.489	nan	110.37	299.78
+On360	Calibri	10	1	left	0.1	hyphenated	2	2.201	2.201	-0.0	158.35	114.70
+On360	Calibri	10	1	justified	0.1	wrapped	1	nan	2.201	nan	109.68	114.70
+On360	Calibri	10	1	left	0.3	hyphenated	2	2.201	2.201	-0.0	158.35	114.50
+On360	Calibri	10	1	justified	0.3	wrapped	1	nan	2.201	nan	109.68	114.50
+On360	Calibri	10	1	left	0.6	hyphenated	2	2.201	2.201	-0.0	158.35	114.20
+On360	Calibri	10	1	justified	0.6	wrapped	1	nan	2.201	nan	109.68	114.20
+On360	Calibri	10	1	left	1.0	hyphenated	2	2.201	2.201	-0.0	158.35	113.80
+On360	Calibri	10	1	justified	1.0	wrapped	1	nan	2.201	nan	109.68	113.80
+On360	Calibri	10	3	left	0.1	hyphenated	4	2.254	2.254	-0.0	175.24	131.59
+On360	Calibri	10	3	justified	0.1	hyphenated	4	6.557	2.254	-190.9	188.06	131.59
+On360	Calibri	10	3	left	0.3	hyphenated	4	2.254	2.254	-0.0	175.24	131.39
+On360	Calibri	10	3	justified	0.3	hyphenated	4	6.477	2.254	-187.4	187.95	131.39
+On360	Calibri	10	3	left	0.6	hyphenated	4	2.254	2.254	-0.0	175.24	131.09
+On360	Calibri	10	3	justified	0.6	hyphenated	4	6.358	2.254	-182.1	187.59	131.09
+On360	Calibri	10	3	left	1.0	hyphenated	4	2.254	2.254	-0.0	175.24	130.69
+On360	Calibri	10	3	justified	1.0	hyphenated	4	6.238	2.254	-176.8	187.24	130.69
+On360	Calibri	10	8	left	0.1	hyphenated	9	2.266	2.266	0.0	263.44	219.79
+On360	Calibri	10	8	justified	0.1	hyphenated	9	3.862	2.266	-70.4	276.26	219.79
+On360	Calibri	10	8	left	0.3	hyphenated	9	2.266	2.266	0.0	263.44	219.59
+On360	Calibri	10	8	justified	0.3	hyphenated	9	3.846	2.266	-69.7	276.13	219.59
+On360	Calibri	10	8	left	0.6	hyphenated	9	2.266	2.266	0.0	263.44	219.29
+On360	Calibri	10	8	justified	0.6	hyphenated	9	3.815	2.266	-68.3	275.76	219.29
+On360	Calibri	10	8	left	1.0	hyphenated	9	2.266	2.266	0.0	263.44	218.89
+On360	Calibri	10	8	justified	1.0	hyphenated	9	3.734	2.266	-64.8	275.23	218.89
+On360	Calibri	12	1	left	0.1	hyphenated	2	2.772	2.772	0.0	178.78	137.71
+On360	Calibri	12	1	justified	0.1	wrapped	1	nan	2.772	nan	120.41	137.71
+On360	Calibri	12	1	left	0.3	hyphenated	2	2.772	2.772	0.0	178.78	137.51
+On360	Calibri	12	1	justified	0.3	wrapped	1	nan	2.772	nan	120.41	137.51
+On360	Calibri	12	1	left	0.6	hyphenated	2	2.772	2.772	0.0	178.78	137.21
+On360	Calibri	12	1	justified	0.6	wrapped	1	nan	2.772	nan	120.41	137.21
+On360	Calibri	12	1	left	1.0	hyphenated	2	2.772	2.772	0.0	178.78	136.81
+On360	Calibri	12	1	justified	1.0	wrapped	1	nan	2.772	nan	120.41	136.81
+On360	Calibri	12	3	left	0.1	hyphenated	4	2.652	2.652	-0.0	199.03	158.01
+On360	Calibri	12	3	justified	0.1	hyphenated	4	7.884	2.652	-197.3	214.52	158.01
+On360	Calibri	12	3	left	0.3	hyphenated	4	2.652	2.652	-0.0	199.03	157.81
+On360	Calibri	12	3	justified	0.3	hyphenated	4	7.804	2.652	-194.3	214.40	157.81
+On360	Calibri	12	3	left	0.6	hyphenated	4	2.652	2.652	-0.0	199.03	157.51
+On360	Calibri	12	3	justified	0.6	hyphenated	4	7.724	2.652	-191.3	214.04	157.51
+On360	Calibri	12	3	left	1.0	hyphenated	4	2.652	2.652	-0.0	199.03	157.11
+On360	Calibri	12	3	justified	1.0	hyphenated	4	7.564	2.652	-185.2	213.68	157.11
+On360	Calibri	12	8	left	0.1	hyphenated	9	2.687	2.687	0.0	304.78	263.82
+On360	Calibri	12	8	justified	0.1	hyphenated	9	4.620	2.687	-71.9	320.22	263.82
+On360	Calibri	12	8	left	0.3	hyphenated	9	2.687	2.687	0.0	304.78	263.62
+On360	Calibri	12	8	justified	0.3	hyphenated	9	4.599	2.687	-71.2	319.94	263.62
+On360	Calibri	12	8	left	0.6	hyphenated	9	2.687	2.687	0.0	304.78	263.32
+On360	Calibri	12	8	justified	0.6	hyphenated	9	4.571	2.687	-70.1	319.73	263.32
+On360	Calibri	12	8	left	1.0	hyphenated	9	2.687	2.687	0.0	304.78	262.92
+On360	Calibri	12	8	justified	1.0	hyphenated	9	4.541	2.687	-69.0	319.34	262.92
+On360	Calibri	14	1	left	0.1	hyphenated	2	3.061	3.061	0.0	199.24	160.81
+On360	Calibri	14	1	justified	0.1	wrapped	1	nan	3.061	nan	131.08	160.81
+On360	Calibri	14	1	left	0.3	hyphenated	2	3.061	3.061	0.0	199.24	160.61
+On360	Calibri	14	1	justified	0.3	wrapped	1	nan	3.061	nan	131.08	160.61
+On360	Calibri	14	1	left	0.6	hyphenated	2	3.061	3.061	0.0	199.24	160.31
+On360	Calibri	14	1	justified	0.6	wrapped	1	nan	3.061	nan	131.08	160.31
+On360	Calibri	14	1	left	1.0	hyphenated	2	3.061	3.061	0.0	199.24	159.91
+On360	Calibri	14	1	justified	1.0	wrapped	1	nan	3.061	nan	131.08	159.91
+On360	Calibri	14	3	left	0.1	hyphenated	4	3.117	3.117	0.0	222.86	184.46
+On360	Calibri	14	3	justified	0.1	hyphenated	4	9.173	3.117	-194.3	241.07	184.46
+On360	Calibri	14	3	left	0.3	hyphenated	4	3.117	3.117	0.0	222.86	184.26
+On360	Calibri	14	3	justified	0.3	hyphenated	4	9.051	3.117	-190.4	240.82	184.26
+On360	Calibri	14	3	left	0.6	hyphenated	4	3.117	3.117	0.0	222.86	183.96
+On360	Calibri	14	3	justified	0.6	hyphenated	4	8.976	3.117	-188.0	240.59	183.96
+On360	Calibri	14	3	left	1.0	hyphenated	4	3.117	3.117	0.0	222.86	183.56
+On360	Calibri	14	3	justified	1.0	hyphenated	4	8.812	3.117	-182.7	240.10	183.56
+On360	Calibri	14	8	left	0.1	hyphenated	9	3.133	3.133	0.0	346.33	307.89
+On360	Calibri	14	8	justified	0.1	hyphenated	9	5.381	3.133	-71.7	364.42	307.89
+On360	Calibri	14	8	left	0.3	hyphenated	9	3.133	3.133	0.0	346.33	307.69
+On360	Calibri	14	8	justified	0.3	hyphenated	9	5.379	3.133	-71.7	364.19	307.69
+On360	Calibri	14	8	left	0.6	hyphenated	9	3.133	3.133	0.0	346.33	307.39
+On360	Calibri	14	8	justified	0.6	hyphenated	9	5.274	3.133	-68.3	363.82	307.39
+On360	Calibri	14	8	left	1.0	hyphenated	9	3.133	3.133	0.0	346.33	307.00
+On360	Calibri	14	8	justified	1.0	hyphenated	9	5.261	3.133	-67.9	363.47	307.00
+On360	Times New Roman	10	1	left	0.1	hyphenated	2	2.520	2.520	0.0	157.41	112.90
+On360	Times New Roman	10	1	justified	0.1	wrapped	1	nan	2.520	nan	109.39	112.90
+On360	Times New Roman	10	1	left	0.3	hyphenated	2	2.520	2.520	0.0	157.41	112.70
+On360	Times New Roman	10	1	justified	0.3	wrapped	1	nan	2.520	nan	109.39	112.70
+On360	Times New Roman	10	1	left	0.6	hyphenated	2	2.520	2.520	0.0	157.41	112.40
+On360	Times New Roman	10	1	justified	0.6	wrapped	1	nan	2.520	nan	109.39	112.40
+On360	Times New Roman	10	1	left	1.0	hyphenated	2	2.520	2.520	0.0	157.41	112.00
+On360	Times New Roman	10	1	justified	1.0	wrapped	1	nan	2.520	nan	109.39	112.00
+On360	Times New Roman	10	3	left	0.1	hyphenated	4	2.517	2.517	0.0	173.44	128.93
+On360	Times New Roman	10	3	justified	0.1	hyphenated	4	6.474	2.517	-157.2	185.42	128.93
+On360	Times New Roman	10	3	left	0.3	hyphenated	4	2.517	2.517	0.0	173.44	128.73
+On360	Times New Roman	10	3	justified	0.3	hyphenated	4	6.437	2.517	-155.8	185.20	128.73
+On360	Times New Roman	10	3	left	0.6	hyphenated	4	2.517	2.517	0.0	173.44	128.43
+On360	Times New Roman	10	3	justified	0.6	hyphenated	4	6.354	2.517	-152.5	184.95	128.43
+On360	Times New Roman	10	3	left	1.0	hyphenated	4	2.517	2.517	0.0	173.44	128.03
+On360	Times New Roman	10	3	justified	1.0	hyphenated	4	6.235	2.517	-147.7	184.48	128.03
+On360	Times New Roman	10	8	left	0.1	hyphenated	9	2.488	2.488	0.0	259.13	214.62
+On360	Times New Roman	10	8	justified	0.1	hyphenated	9	3.969	2.488	-59.5	270.96	214.62
+On360	Times New Roman	10	8	left	0.3	hyphenated	9	2.488	2.488	0.0	259.13	214.42
+On360	Times New Roman	10	8	justified	0.3	hyphenated	9	3.969	2.488	-59.5	270.86	214.42
+On360	Times New Roman	10	8	left	0.6	hyphenated	9	2.488	2.488	0.0	259.13	214.12
+On360	Times New Roman	10	8	justified	0.6	hyphenated	9	3.925	2.488	-57.8	270.48	214.12
+On360	Times New Roman	10	8	left	1.0	hyphenated	9	2.488	2.488	0.0	259.13	213.72
+On360	Times New Roman	10	8	justified	1.0	hyphenated	9	3.850	2.488	-54.7	270.12	213.72
+On360	Times New Roman	12	1	left	0.1	hyphenated	2	3.000	3.000	0.0	177.47	135.54
+On360	Times New Roman	12	1	justified	0.1	wrapped	1	nan	3.000	nan	119.88	135.54
+On360	Times New Roman	12	1	left	0.3	hyphenated	2	3.000	3.000	0.0	177.47	135.34
+On360	Times New Roman	12	1	justified	0.3	wrapped	1	nan	3.000	nan	119.88	135.34
+On360	Times New Roman	12	1	left	0.6	hyphenated	2	3.000	3.000	0.0	177.47	135.04
+On360	Times New Roman	12	1	justified	0.6	wrapped	1	nan	3.000	nan	119.88	135.04
+On360	Times New Roman	12	1	left	1.0	hyphenated	2	3.000	3.000	0.0	177.47	134.64
+On360	Times New Roman	12	1	justified	1.0	wrapped	1	nan	3.000	nan	119.88	134.64
+On360	Times New Roman	12	3	left	0.1	hyphenated	4	2.972	2.972	-0.0	196.80	154.77
+On360	Times New Roman	12	3	justified	0.1	hyphenated	4	7.796	2.972	-162.3	211.28	154.77
+On360	Times New Roman	12	3	left	0.3	hyphenated	4	2.972	2.972	-0.0	196.80	154.57
+On360	Times New Roman	12	3	justified	0.3	hyphenated	4	7.756	2.972	-161.0	211.18	154.57
+On360	Times New Roman	12	3	left	0.6	hyphenated	4	2.972	2.972	-0.0	196.80	154.27
+On360	Times New Roman	12	3	justified	0.6	hyphenated	4	7.636	2.972	-156.9	210.82	154.27
+On360	Times New Roman	12	3	left	1.0	hyphenated	4	2.972	2.972	-0.0	196.80	153.87
+On360	Times New Roman	12	3	justified	1.0	hyphenated	4	7.516	2.972	-152.9	210.46	153.87
+On360	Times New Roman	12	8	left	0.1	hyphenated	9	2.998	2.998	-0.0	299.74	257.71
+On360	Times New Roman	12	8	justified	0.1	hyphenated	9	4.762	2.998	-58.9	314.16	257.71
+On360	Times New Roman	12	8	left	0.3	hyphenated	9	2.998	2.998	-0.0	299.74	257.51
+On360	Times New Roman	12	8	justified	0.3	hyphenated	9	4.762	2.998	-58.9	313.94	257.51
+On360	Times New Roman	12	8	left	0.6	hyphenated	9	2.998	2.998	-0.0	299.74	257.21
+On360	Times New Roman	12	8	justified	0.6	hyphenated	9	4.763	2.998	-58.9	313.61	257.21
+On360	Times New Roman	12	8	left	1.0	hyphenated	9	2.998	2.998	-0.0	299.74	256.81
+On360	Times New Roman	12	8	justified	1.0	hyphenated	9	4.656	2.998	-55.3	313.20	256.81
+On360	Times New Roman	14	1	left	0.1	hyphenated	2	3.510	3.510	0.0	197.77	158.12
+On360	Times New Roman	14	1	justified	0.1	wrapped	1	nan	3.510	nan	130.62	158.12
+On360	Times New Roman	14	1	left	0.3	hyphenated	2	3.510	3.510	0.0	197.77	157.92
+On360	Times New Roman	14	1	justified	0.3	wrapped	1	nan	3.510	nan	130.62	157.92
+On360	Times New Roman	14	1	left	0.6	hyphenated	2	3.510	3.510	0.0	197.77	157.62
+On360	Times New Roman	14	1	justified	0.6	wrapped	1	nan	3.510	nan	130.62	157.62
+On360	Times New Roman	14	1	left	1.0	hyphenated	2	3.510	3.510	0.0	197.77	157.22
+On360	Times New Roman	14	1	justified	1.0	wrapped	1	nan	3.510	nan	130.62	157.22
+On360	Times New Roman	14	3	left	0.1	hyphenated	4	3.477	3.477	-0.0	220.35	180.71
+On360	Times New Roman	14	3	justified	0.1	hyphenated	4	9.126	3.477	-162.5	237.32	180.71
+On360	Times New Roman	14	3	left	0.3	hyphenated	4	3.477	3.477	-0.0	220.35	180.51
+On360	Times New Roman	14	3	justified	0.3	hyphenated	4	9.009	3.477	-159.1	237.08	180.51
+On360	Times New Roman	14	3	left	0.6	hyphenated	4	3.477	3.477	-0.0	220.35	180.21
+On360	Times New Roman	14	3	justified	0.6	hyphenated	4	8.925	3.477	-156.7	236.83	180.21
+On360	Times New Roman	14	3	left	1.0	hyphenated	4	3.477	3.477	-0.0	220.35	179.81
+On360	Times New Roman	14	3	justified	1.0	hyphenated	4	8.808	3.477	-153.3	236.48	179.81
+On360	Times New Roman	14	8	left	0.1	hyphenated	9	3.489	3.489	0.0	340.32	300.68
+On360	Times New Roman	14	8	justified	0.1	hyphenated	9	5.562	3.489	-59.4	357.15	300.68
+On360	Times New Roman	14	8	left	0.3	hyphenated	9	3.489	3.489	0.0	340.32	300.48
+On360	Times New Roman	14	8	justified	0.3	hyphenated	9	5.530	3.489	-58.5	356.89	300.48
+On360	Times New Roman	14	8	left	0.6	hyphenated	9	3.489	3.489	0.0	340.32	300.18
+On360	Times New Roman	14	8	justified	0.6	hyphenated	9	5.502	3.489	-57.7	356.66	300.18
+On360	Times New Roman	14	8	left	1.0	hyphenated	9	3.489	3.489	0.0	340.32	299.78
+On360	Times New Roman	14	8	justified	1.0	hyphenated	9	5.455	3.489	-56.3	356.30	299.78
