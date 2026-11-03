@@ -2649,7 +2649,10 @@ extension RichLayout {
         // paragraph after one that ended in the break, are one box with its
         // top on the first and its bottom on the last: lab bdr2 (Word for
         // Windows), b1/b3/b4, text at the page's top under no top line.)
-        let oneBox = RichTextTheme.wordWindowsPages && !x.text.isEmpty
+        // (Not a paragraph that opens with its own break: its box opens on the new page with
+        // its top line, whatever stands before it — lo-cbb7657e's "column break2".)
+        let oneBox = RichTextTheme.wordWindowsPages && !x.text.isEmpty && (y.style.continuesParagraph || y.style.breakEndsPrevious)
+            && (document.compatibilityMode ?? 12) >= 14
         if y.style.pageBreakInline, y.cell == nil, !oneBox { return false }
         // (Nor after a page break that ended the paragraph before: the
         // paragraph after it is first on the new page, its box open there
