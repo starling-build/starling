@@ -837,6 +837,22 @@ struct DiagramLayout {
                 for t in ts { set(t, type, 0, op) }
             }
         }
+        // A text box whose rule lets its height grow (`h` INF) is as tall as
+        // its text needs where the constraint gave less: PowerPoint's print
+        // of vertical-bracket-list holds 65 pt in boxes of 110.8, where the
+        // constraint's 0.55 x 65 mm is 101.3 (a line at 1.1046 of the size
+        // and the margins: the bracket's 19.5 pt margins make the 71.8 pt
+        // line a box of 110.8; lab smartfit, the same at every frame height).
+        if !wordLayout, node.algType == "tx", node.rules.contains(where: { $0["type"] == "h" && $0["val"] == "INF" }),
+           let h = node.vals["h"], let prim = node.value("primFontSz"),
+           let tm = node.value("tMarg"), let bm = node.value("bMarg") {
+            let lines = node.presOf.compactMap { $0.text }.flatMap { $0.all("a:p") }
+                .filter { p in p.all("a:r").contains { !($0.first("a:t")?.text ?? "").isEmpty } }.count
+            if lines > 0 {
+                let need = Double(lines) * 1.1046 * prim + tm + bm
+                if need > h { node.vals["h"] = need }
+            }
+        }
     }
 
     /// A child's natural size along `dim` before it is laid out: its
@@ -917,6 +933,19 @@ struct DiagramLayout {
     // MARK: - Layout
 
     /// Lays `node` out within its rect, placing its children.
+    /// A child held to at least a sibling's height (`h` `gte`, the bracket
+    /// beside its text) takes the height the sibling grew to, about its own
+    /// middle: PowerPoint's braces stand as tall as the text they hold.
+    private func holdMinimumHeights(_ node: DgmPresNode) {
+        for c in node.constraints where c["type"] == "h" && c["op"] == "gte" && c["for"] == "ch" && c["refFor"] == "ch" {
+            guard let name = c["forName"], let refName = c["refForName"], c["refType"] == "h" else { continue }
+            guard let ref = node.children.first(where: { $0.name == refName && !$0.isSpace }) else { continue }
+            for t in node.children where t.name == name && t.rect.height > 0 && t.rect.height < ref.rect.height - 0.01 {
+                t.rect = Rect.fromCenter(center: t.rect.center, width: t.rect.width, height: ref.rect.height)
+            }
+        }
+    }
+
     private func layoutNode(_ node: DgmPresNode) {
         node.laidOut = true
         applyConstraints(node)
@@ -952,7 +981,9 @@ struct DiagramLayout {
             }
         }
         switch node.algType {
-        case "lin": layoutLinear(node)
+        case "lin":
+            layoutLinear(node)
+            if !wordLayout { holdMinimumHeights(node) }
         case "snake": layoutSnake(node)
         case "cycle": layoutCycle(node)
         case "hierRoot": layoutHierRoot(node)
