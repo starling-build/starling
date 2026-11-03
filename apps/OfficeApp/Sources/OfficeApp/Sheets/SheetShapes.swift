@@ -64,6 +64,10 @@ struct SheetShape: Equatable {
     }
 
     var isGroup: Bool { geometry == "group" }
+    /// A SmartArt diagram's group: its members at their own size from the frame's corner (the child space
+    /// being EMU, `chExt` the extent they span), the group's `fill` the frame's background.
+    var native = false
+    var nativeExtent = (width: 0.0, height: 0.0)
 
     static func == (a: SheetShape, b: SheetShape) -> Bool {
         a.geometry == b.geometry && a.fill == b.fill && a.line == b.line && a.lineWidth == b.lineWidth
@@ -82,6 +86,7 @@ struct SheetShape: Equatable {
         let chOff = xfrm?.child("chOff"), chExt = xfrm?.child("chExt")
         let ox = emu(chOff, "x"), oy = emu(chOff, "y")
         let cw = max(1, emu(chExt, "cx")), ch = max(1, emu(chExt, "cy"))
+        g.nativeExtent = (cw / 12700, ch / 12700)
         for el in grp.children {
             let local = el.name.split(separator: ":").last.map(String.init) ?? ""
             let child: SheetShape
@@ -209,9 +214,17 @@ struct SheetShape: Equatable {
             canvas.translate(-c.dx, -c.dy)
         }
         if isGroup {
+            if native, let fill {
+                let p = Paint(); p.style = .fill; p.color = fill
+                canvas.drawRect(r, p)
+            }
+            // (A diagram that outgrows its frame is shrunk to fit, whole; one that fits prints at its size.)
+            let fit = native && nativeExtent.width > 0 && nativeExtent.height > 0
+                ? min(1, r.width / (nativeExtent.width * k), r.height / (nativeExtent.height * k)) : 1
             for child in children {
                 let f = child.frame
-                let cr = Rect.fromLTWH(r.left + f.left * r.width, r.top + f.top * r.height, f.width * r.width, f.height * r.height)
+                let w = native ? nativeExtent.width * k * fit : r.width, h = native ? nativeExtent.height * k * fit : r.height
+                let cr = Rect.fromLTWH(r.left + f.left * w, r.top + f.top * h, f.width * w, f.height * h)
                 guard cr.width > 0.5 || cr.height > 0.5 else { continue }
                 child.shape.paint(canvas, in: cr, pxPerPt: k, font: font)
             }
