@@ -846,6 +846,13 @@ extension RichLayout {
                 // as the mark is, in the run's Latin face: see `lineSize`.)
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
                     && !(latinDash && ch == "\u{2013}")
+                    // (Nor a "×" or "÷", Latin-1's signs, which Word sets in the hAnsi
+                    // face as it does the dash: zh-7a16a243's unhinted "×" in a run of
+                    // 標楷體 over its heading style's Arial hAnsi is Arial's 9.34pt and
+                    // half the grid's 1.0076 in Word for Windows' print, 9.9 — ours set
+                    // 標楷體's half em, 8.5, and the line "…672％)，然上開「允建樓地板面"
+                    // took the "積" Word sends down.)
+                    && !(latinDash && RichTextTheme.wordWindowsPages && (ch == "\u{00D7}" || ch == "\u{00F7}"))
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
                 // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
@@ -1366,6 +1373,15 @@ extension RichLayout {
                 // stand-in set them 8.0 and the line lost a character.)
                 if theme.wordRules, !ea, ch == "\u{201C}" || ch == "\u{201D}" || ch == "\u{2018}" || ch == "\u{2019}",
                    (run.fontHint ?? named?.char.fontHint) == "default", latinFace?.isEastAsian == true, highFace.map({ !$0.isEastAsian }) == true,
+                   let high = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily {
+                    var alt = run
+                    alt.fontFamily = high
+                    let s = theme.textStyle(for: alt, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            eastAsian: false, gridPitch: pitch, characterClass: nil, characterGrid: grid, scriptHidden: true)
+                    extra += _glyphWidth(s, ch) - _glyphWidth(style(kind), ch)
+                }
+                // (And a "×" or "÷" so set, at the hAnsi face's width: see `ea` above.)
+                if !ea, latinDash, RichTextTheme.wordWindowsPages, ch == "\u{00D7}" || ch == "\u{00F7}",
                    let high = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily {
                     var alt = run
                     alt.fontFamily = high
