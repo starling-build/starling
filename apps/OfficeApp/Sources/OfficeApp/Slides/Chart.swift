@@ -545,6 +545,7 @@ struct Chart: Equatable {
     var legendLine: Color? = nil
     var legendLineWidth = 0.75
     var legendLineDash: String? = nil
+    var legendLineRound = false
     var legendFill: Color? = nil
     var plainText = false
     /// The labels' and legend's size where nothing says one: PowerPoint
@@ -1652,6 +1653,7 @@ enum ChartXML {
                     c.legendLine = color(f)
                     c.legendLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
                     c.legendLineDash = PptxReader.dash(ln)
+                    c.legendLineRound = ln["cap"] == "rnd"
                 }
             }
             if let m = l.first("c:layout")?.first("c:manualLayout"),
@@ -2784,9 +2786,10 @@ enum ChartPainter {
                 if let f = c.legendFill { p.style = .fill; p.color = f; canvas.drawRect(b, p) }
                 if let ln = c.legendLine {
                     p.style = .stroke; p.color = ln; p.strokeWidth = max(0.25, c.legendLineWidth * k)
+                    if c.legendLineRound { p.strokeCap = .round; p.strokeJoin = .round }
                     let path = Path()
                     path.addRect(b)
-                    canvas.drawPath(SlidePainter.dashed(path, c.legendLineDash, width: p.strokeWidth, capped: false), p)
+                    canvas.drawPath(SlidePainter.dashed(path, c.legendLineDash, width: p.strokeWidth, capped: c.legendLineRound), p)
                 }
             }
             for (n, line) in lines.enumerated() {
