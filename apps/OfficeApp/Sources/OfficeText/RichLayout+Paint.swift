@@ -1157,7 +1157,7 @@ extension RichLayout {
                 let p = Paint()
                 p.style = .stroke
                 p.strokeWidth = max(1, _px(l.width).rounded())
-                p.color = l.color ?? theme.textColor
+                p.color = l.color ?? (theme.wordRules && RichTextTheme.wordWindowsPages ? Color(0xFF000000) : theme.textColor)
                 return p
             }
             // (A compound line's lines from the text outward.)
