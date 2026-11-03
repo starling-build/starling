@@ -202,6 +202,35 @@ enum WordArt {
                 while let last = line.glyphs.last, last.text == " ", line.glyphs.count > 1 { last.painter.dispose(); line.glyphs.removeLast() }
             }
             line.glyphs = visualOrder(line.glyphs)
+            // PowerPoint wraps warped text to the box (less its insets) BEFORE it bends it
+            // (lab wordart-happy p15/17/19: 72 pt "Birthday" in a 330 pt box drops its "y"
+            // on a line of its own, and neither line is stretched to the box's width).
+            if !shape.noWrap, shape.warp.map({ !Self.followsPath.contains($0.preset) }) ?? false {
+                let room = max(1, area.width - shape.drawInsets.left - shape.drawInsets.right)
+                var rest = line.glyphs
+                while !rest.isEmpty {
+                    var w = 0.0, n = 0, lastSpace = -1
+                    while n < rest.count, w + rest[n].width <= room + 0.01 || n == 0 {
+                        w += rest[n].width
+                        if rest[n].text == " " { lastSpace = n }
+                        n += 1
+                    }
+                    var cut = n
+                    if n < rest.count {
+                        // Cut after the last space that fits; failing one, mid-word.
+                        if lastSpace >= 0 { cut = lastSpace + 1 }
+                    }
+                    var part = Line()
+                    part.alignment = line.alignment
+                    part.glyphs = Array(rest[..<cut])
+                    rest = Array(rest[cut...])
+                    if !rest.isEmpty || true, !shape.noWrap {
+                        while let last = part.glyphs.last, last.text == " ", part.glyphs.count > 1 { last.painter.dispose(); part.glyphs.removeLast() }
+                    }
+                    if !part.glyphs.isEmpty { lines.append(part) }
+                }
+                continue
+            }
             if !line.glyphs.isEmpty { lines.append(line) }
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
