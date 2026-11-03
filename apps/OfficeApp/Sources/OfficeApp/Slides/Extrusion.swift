@@ -73,7 +73,8 @@ enum Extrusion {
         "chilly": Rig(front: (0.99, 0.99, 0.99), walls: [(0.41, 0.41, 0.41, 0.02), (0.98, 0.98, 0.98, 0.02), (1.02, 1.02, 1.02, 0.02), (0.49, 0.49, 0.49, 0.01)]),
         "freezing": Rig(front: (0.60, 0.60, 0.60), walls: [(0.80, 0.80, 0.80, 0.12), (0.70, 0.70, 0.70, 0.06), (0.86, 0.86, 0.86, 0.07), (0.25, 0.25, 0.25, 0.03)]),
         "flat": Rig(front: (1.00, 1.00, 1.00), walls: [(0.94, 0.94, 0.94, 0.15), (0.97, 0.97, 0.97, 0.05), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00)]),
-        "twoPt": Rig(front: (1.00, 1.00, 1.00), walls: [(0.32, 0.32, 0.32, 0.00), (0.69, 0.69, 0.69, 0.00), (0.60, 0.60, 0.60, 0.00), (0.52, 0.52, 0.52, 0.00)]),
+        "twoPtPlain": Rig(front: (1.00, 1.00, 1.00), walls: [(0.32, 0.32, 0.32, 0.00), (0.69, 0.69, 0.69, 0.00), (0.60, 0.60, 0.60, 0.00), (0.52, 0.52, 0.52, 0.00)]),
+        "twoPt": Rig(front: (1.00, 1.00, 1.00), walls: [0.08, 0.81, 0.72, 0.40].map { ($0, $0, $0, 0.00) }),
         "glow": Rig(front: (1.00, 1.00, 1.00), walls: [(1.70, 1.70, 1.70, 0.00), (1.00, 1.00, 1.00, 0.00), (1.98, 1.98, 1.98, 0.00), (1.00, 1.00, 1.00, 0.00)]),
         "brightRoom": Rig(front: (1.00, 1.00, 1.00), walls: [(1.98, 1.98, 1.98, 0.00), (1.50, 1.50, 1.50, 0.00), (2.50, 2.50, 2.50, 0.00), (1.50, 1.50, 1.50, 0.00)]),
     ]
@@ -82,24 +83,45 @@ enum Extrusion {
     /// turned `turn` degrees: a wall (no z) from the curve round the four
     /// measured azimuths, the front from `front`, a slope between by how far
     /// it leans.
-    /// What a material does to a wall under the twoPt rig, read off
-    /// PowerPoint's print of oox-Scene3d_material_highlight (orthographic
-    /// camera, light turned a quarter): the wall takes `diffuse` of its colour
-    /// plus `floor` white everywhere, and on the half that faces up a
-    /// highlight of `lobe` more white, centred `centre` degrees above the
-    /// horizontal and `sigma` wide (a lobe above 1 blows out to white); `back`
-    /// is the share of the fill the unlit back face keeps. PROVISIONAL: one
-    /// deck, one rig, and only where the light is turned (modernCamera, turn 0,
-    /// prints pure dark walls with no white floor: Lab D will say why).
-    struct Material { var diffuse, floor, lobe, centre, sigma, back: Double }
+    /// What a material does to a wall, fitted to Lab F (a donut under each of
+    /// the 14 named materials: twoPt at rev 90 and 0, threePt at rev 90): the
+    /// wall takes `diffuse` of the rig's matte curve plus `floor` white
+    /// everywhere, and a highlight band of `lobe` more white, `sigma` degrees
+    /// wide, centred on the wall azimuth `bandAz` (the band moves two thirds
+    /// as far as the rig's turn: twoPt 145 + 2/3 turn, threePt 165 at turn
+    /// 90). `back` is the share of the fill the unlit back face keeps.
+    /// PROVISIONAL for turns other than the three printed.
+    struct Band { var diffuse, floor, lobe, sigma: Double }
+    struct Material { var two: Band, three: Band, back: Double }
     static func material(_ name: String) -> Material {
-        switch name {
-        case "legacyPlastic", "metal", "plastic": return Material(diffuse: 0.49, floor: 0.13, lobe: 1.1, centre: 20, sigma: 13, back: 0.25)
-        case "matte", "legacyMatte": return Material(diffuse: 0.49, floor: 0.13, lobe: 0.07, centre: 25, sigma: 35, back: 0.25)
-        case "dkEdge": return Material(diffuse: 0.47, floor: 0.11, lobe: 1.1, centre: 20, sigma: 13, back: 0.23)
-        case "legacyMetal": return Material(diffuse: 0.31, floor: 0.12, lobe: 1.1, centre: 20, sigma: 14, back: 0.17)
-        default: return Material(diffuse: 0.49, floor: 0.13, lobe: 0.41, centre: 25, sigma: 35, back: 0.25)
+        func m(_ t: (Double, Double, Double, Double), _ h: (Double, Double, Double, Double), _ back: Double = 0.25) -> Material {
+            Material(two: Band(diffuse: t.0, floor: t.1, lobe: t.2, sigma: t.3), three: Band(diffuse: h.0, floor: h.1, lobe: h.2, sigma: h.3), back: back)
         }
+        switch name {
+        case "legacyPlastic": return m((0.85, 0.07, 0.7, 15), (1.04, 0.03, 0.31, 17))
+        case "legacyMetal": return m((0.71, 0.03, 0.62, 16), (0.8, 0.03, 0.21, 13), 0.17)
+        case "plastic": return m((0.86, 0.06, 0.51, 18), (1.04, 0.03, 0.19, 15))
+        case "metal": return m((0.78, 0.11, 0.62, 18), (1.04, 0.03, 0.21, 18))
+        case "translucentPowder": return m((0.39, 0.61, 0.13, 26), (0.34, 0.69, 0.06, 24))
+        case "powder": return m((0.84, 0.13, 0.28, 19), (0.96, 0.12, 0.13, 24))
+        case "dkEdge": return m((0.81, 0.04, 0.65, 13), (0.95, 0.03, 0.08, 11), 0.23)
+        case "softEdge": return m((0.77, 0.1, 0.6, 14), (1.08, 0.03, 0.05, 15))
+        case "clear": return m((0.33, 0.59, 0.19, 26), (0.72, 0.41, 0.13, 17))
+        case "flat": return m((0.26, 0.6, 0.31, 10), (0.25, 0.57, 0.02, 7))
+        case "softmetal": return m((0.67, 0.13, 0.63, 23), (1.05, 0.03, 0.24, 20))
+        case "matte", "legacyMatte": return m((1, 0, 0, 30), (1, 0.07, 0, 30))
+        default: return m((0.91, 0.06, 0.29, 16), (1.04, 0.03, 0.13, 23))   // warmMatte, PowerPoint's default
+        }
+    }
+
+    /// A wall at azimuth `az` (degrees, shape frame) under material `m`: its multiple of the rig's colour and the share of white added.
+    static func band(_ m: Material, az: Double, turn: Double, threePt: Bool) -> (diffuse: Double, white: Double) {
+        let b = threePt ? m.three : m.two
+        let centre = threePt ? 165 + 2.0 / 3 * (turn - 90) : 145 + 2.0 / 3 * turn
+        var d = (az - centre).truncatingRemainder(dividingBy: 360)
+        if d > 180 { d -= 360 } else if d < -180 { d += 360 }
+        let g = d / b.sigma
+        return (b.diffuse, b.floor + b.lobe * exp(-0.5 * g * g))
     }
 
     /// The rigs as lights, for a rig that carries an `a:rot`: an ambient share
@@ -141,7 +163,7 @@ enum Extrusion {
         return max(0, k)
     }
 
-    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil) -> Color {
+    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil, threePt: Bool = false) -> Color {
         let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
         let lean = min(1, abs(n.z) / len)
         let w = (1 - lean * lean).squareRoot()
@@ -159,15 +181,11 @@ enum Extrusion {
                 return max(0, c0 + c1 * cos(a) + s1 * sin(a) + c2 * cos(2 * a))
             }
             let wall = [at { $0.0 }, at { $0.1 }, at { $0.2 }]
-            if m == nil { for i in 0..<3 { k[i] = w * wall[i] + (1 - w) * k[i] } }
+            for i in 0..<3 { k[i] = w * wall[i] + (1 - w) * k[i] }
             if let m {
-                var d = a * 180 / .pi
-                d = d.truncatingRemainder(dividingBy: 360); if d < 0 { d += 360 }
-                let up = d - 90   // degrees above the horizontal of the turned frame
-                let edge = d < 270 ? max(0, min(1, up / 4)) : 0
-                let g = (up - m.centre) / m.sigma
-                for i in 0..<3 { k[i] = w * m.diffuse + (1 - w) * k[i] }
-                spec = w * (m.floor + m.lobe * edge * exp(-0.5 * g * g))
+                let bd = Extrusion.band(m, az: atan2(n.y, n.x) * 180 / .pi, turn: turn, threePt: threePt)
+                for i in 0..<3 { k[i] *= bd.diffuse }
+                spec = w * bd.white
             }
             // The fourth number is the white a highlight added where Lab A sampled
             // the wall. It moves with the camera and the material, so laid whole over
@@ -355,11 +373,18 @@ enum Extrusion {
             if let rot = scene.rigRot, let k = Extrusion.rotatedShare(n, rig: scene.rig, rot: rot) {
                 // A wall also takes the default material's white floor (swept on
                 // lightRig_rot_rotation: 0.06-0.08 best, 0 and 0.12 worse).
-                let floor = abs(n.z) < 0.5 ? 0.07 * 255 : 0
+                var floor = abs(n.z) < 0.5 ? 0.07 * 255 : 0
+                var k = k
+                if abs(n.z) < 0.5, scene.rig == "threePt", !scene.material.isEmpty {
+                    let bd = Extrusion.band(Extrusion.material(scene.material), az: atan2(n.y, n.x) * 180 / .pi, turn: scene.rigTurn, threePt: true)
+                    k *= bd.diffuse; floor = 255 * bd.white
+                }
                 func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k + floor).rounded()))) }
                 return Color(argb: base.alpha, ch(base.red), ch(base.green), ch(base.blue))
             }
-            if let table = Extrusion.rigs[scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: scene.rig == "twoPt" && scene.rigTurn != 0 ? Extrusion.material(scene.material) : nil) }
+            // twoPt with no turn and no a:rot is the measured plain table (modernCamera); a turned or rot-ed one is Lab F's.
+            let plain = scene.rig == "twoPt" && scene.rigTurn == 0 && scene.rigRot == nil
+            if let table = Extrusion.rigs[plain ? "twoPtPlain" : scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: !plain && (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty)) ? Extrusion.material(scene.material) : nil, threePt: scene.rig == "threePt") }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
             for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
