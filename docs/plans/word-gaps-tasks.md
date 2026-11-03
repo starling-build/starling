@@ -14436,3 +14436,5 @@ TIP WATCH amd-8, round 131 (tip 1b09e0a4f): Word no drops; unit tests 615 run (2
 - amd-5: PARKED lo-a594fa6b (98.3): one line needs "squeeze inner spaces up to ~15% of a space before hyphenating" in the line breaker (engine side); no existing hook.
 - amd-5: NOTE on the 66.5pt page-foot rule: it fits windows' c9b height and margin sweeps at tblpY 3286, not their start-shift sweep (A5 keeps 4 lines wherever it opens; Word's count looks like floor((M-473.7)/13.45), independent of the start). Only one corpus document is on it; revisit if another with a different start shows up.
 - amd-5 CLAIM (macos queue): lo-a594fa6b (space squeeze before hyphenating; lab requested from windows), lo-c678e486 (overlapping notBeside frames at same y), lo-085e8dbb (header text box wrap), lo-9f27ef40 (rest of 97.3).
+
+TIP WATCH amd-8, round 132 (tip f9efe24cc): Word: one drop, zh-81aa310b 100.0 -> 99.7 (v1 and v2, same line counts). Bisected to f8d201ed5 (amd-opus, digit spacing); it is the drop the coordinator already approved (LAND_ACCEPT_DROP=zh-81aa310b), so no revert. Unit tests 615 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0.
