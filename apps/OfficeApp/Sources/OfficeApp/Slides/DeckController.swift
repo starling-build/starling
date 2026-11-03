@@ -1404,6 +1404,7 @@ final class DeckController: ChangeNotifier {
         theme.cellLinesPastCorners = true   // and runs a cell's own lines half their width past its corners
         theme.exactLineDescentShare = 0.22  // and sets a line of so many points' baseline 0.78 down it, whatever the face
         theme.exactLineDescentOfSize = 0.25 // but no less than a quarter of its text's size above its foot
+        theme.exactLinesAsPowerPoint = true
         theme.extraAboveShare = 0.7         // and puts 0.7 of a spacing over single's extra above the line
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent

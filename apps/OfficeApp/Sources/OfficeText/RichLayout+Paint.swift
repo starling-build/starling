@@ -708,6 +708,20 @@ extension RichLayout {
                     ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
                 if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
                 below = max(share, least * size / points)
+                // (PowerPoint for Windows, lab p3ls: up to single's height the
+                // line keeps its natural depth below the baseline, so the
+                // whole of the spacing lies above; over single it takes
+                // 0.255 of the extra and 0.072 of the size besides below, the
+                // first baseline never nearer than 0.755 of the size to the
+                // line's top. Whatever the size and the face.)
+                if let natural = theme.singleLineHeight, theme.exactLinesAsPowerPoint {
+                    let single = natural * size
+                    let depth = drawn * single
+                    var foot = depth
+                    if points > single { foot += 0.072 * size + 0.255 * (points - single) }
+                    foot = min(foot, points + depth - 0.755 * size) - 0.012 * size
+                    return _px(points * drawn - foot)
+                }
             }
             return _px(points * (drawn - below))
         }

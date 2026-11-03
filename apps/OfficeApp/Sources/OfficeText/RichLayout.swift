@@ -255,6 +255,9 @@ public final class RichTextTheme {
     /// of 28 pt text with a 47 pt word in 30 pt keeps 0.22 of the line.
     /// nil leaves `exactLineDescentShare` alone.
     public var exactLineDescentOfSize: Double? = nil
+    /// Slides: a line of so many points keeps its natural depth under single
+    /// and takes 0.255 of the extra over it (see `_baselineShift`).
+    public var exactLinesAsPowerPoint = false
     /// Device units to a layout pixel while a document is drawn into a
     /// PDF (1/20 for Slides' export, drawn twenty pixels a point): with
     /// it, a run's blurred shadow is blurred (see `textStyle`); nil, as on
