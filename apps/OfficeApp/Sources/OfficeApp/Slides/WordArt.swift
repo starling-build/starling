@@ -230,7 +230,7 @@ enum WordArt {
             if bag.count > 0 {
                 let face = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.color }).first ?? Color(0xFF808080)
                 RuleTrace.hit("slide-wordart-3d-is-the-letters-swept")
-                if Extrusion.solid(scene: scene, fill: face, line: nil, lineWidth: 0, outline: bag.path, area, canvas, pxPerPt: px) { return true }
+                if Extrusion.solid(scene: scene, fill: face, line: scene.contourW > 0 ? scene.contourColor : nil, lineWidth: scene.contourW, outline: bag.path, area, canvas, pxPerPt: px, rim: true) { return true }
             }
         }
         // The letters as a solid: the camera turns the flat word (looked at

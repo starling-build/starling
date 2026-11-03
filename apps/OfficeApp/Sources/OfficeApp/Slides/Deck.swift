@@ -422,6 +422,10 @@ struct Scene3D: Equatable {
     var rigRot: [Double]? = nil
     /// A `legacy…` camera, which PowerPoint lights its old way.
     var legacy = false
+    /// `a:bevelT`'s width and height, in points (0 for none); `a:contourClr` and `contourW`.
+    var bevelW = 0.0, bevelH = 0.0
+    var contourColor: Color? = nil
+    var contourW = 0.0
 
     /// A camera that only revolves a shape with no depth: the shape
     /// turned in its own plane, and nothing of a solid to draw.

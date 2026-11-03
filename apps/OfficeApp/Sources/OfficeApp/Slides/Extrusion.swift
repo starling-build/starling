@@ -10,7 +10,8 @@ import Foundation
 /// camera: its outline swept back into a solid, turned, and drawn face by
 /// face, far ones first, each in the shape's colour lit by how it faces.
 ///
-/// What this is not: PowerPoint's renderer. There are no bevels, no
+/// What this is not: PowerPoint's renderer. Bevels only on text under the
+/// morning rig (a lit rim, from lab p3t); no
 /// materials and two measured light rigs, and a perspective camera is drawn as
 /// the parallel one that looks along the same line — the solid's outline
 /// and which sides show are right, its shading is plausible.
@@ -179,10 +180,52 @@ enum Extrusion {
         return Color(argb: base.alpha, ch(base.red, k[0]), ch(base.green, k[1]), ch(base.blue, k[2]))
     }
 
+    /// The `morning` rig on extruded TEXT, as lab p3t printed it (grey walls,
+    /// camera 20/330, orthographic): a wall's multiple of its colour, as red,
+    /// green and blue, by the azimuth of its normal in the shape's frame (y
+    /// down), in 30-degree bins centred 15, 45 ... 345 at `dir="t"`. A `dir`
+    /// turn is that curve turned (t, r, b, l line up to within 0.03); the
+    /// rig's own `rev` of 120 is not a turn of it, so it has a table of its own
+    /// where it was printed (135 to 285, the side of the letters the camera
+    /// shows). PROVISIONAL: one camera, one rev.
+    static let morningWalls: [(Double, Double, Double)] = [
+        (0.85, 0.79, 0.68), (0.745, 0.705, 0.65), (1.025, 0.975, 0.92), (1.15, 1.105, 1.045),
+        (1.50, 1.45, 1.36), (1.24, 1.20, 1.11), (1.10, 1.06, 0.99), (0.28, 0.27, 0.23),
+        (0.32, 0.30, 0.24), (0.41, 0.38, 0.33), (0.86, 0.80, 0.69), (0.89, 0.82, 0.71),
+    ]
+    static let morningWallsRev120: [Int: (Double, Double, Double)] = [
+        4: (0.67, 0.62, 0.54), 5: (0.68, 0.65, 0.59), 6: (0.76, 0.73, 0.67),
+        7: (1.40, 1.34, 1.26), 8: (1.52, 1.44, 1.35), 9: (1.49, 1.43, 1.34),
+    ]
+    static func morningWall(_ azimuth: Double, turn: Double) -> (Double, Double, Double) {
+        func bin(_ deg: Double) -> Double {
+            var u = (deg - 15).truncatingRemainder(dividingBy: 360) / 30
+            if u < 0 { u += 12 }
+            return u
+        }
+        func at(_ u: Double) -> (Double, Double, Double) {
+            let i = Int(u) % 12, f = u - floor(u), j = (i + 1) % 12
+            func pick(_ k: Int) -> (Double, Double, Double) {
+                if abs(turn - 120) < 1, let m = morningWallsRev120[k] { return m }
+                let t = morningWalls[((k - Int((turn / 30).rounded())) % 12 + 12) % 12]
+                return t
+            }
+            let a = pick(i), b = pick(j)
+            return (a.0 * (1 - f) + b.0 * f, a.1 * (1 - f) + b.1 * f, a.2 * (1 - f) + b.2 * f)
+        }
+        return at(bin(azimuth))
+    }
+
     static func read(_ spPr: XNode?, colors: ColorContext) -> Scene3D? {
         let sp3d = spPr?.first("a:sp3d")
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)
         s.extrusionColor = sp3d?.first("a:extrusionClr").flatMap(colors.color(in:))
+        if let b = sp3d?.first("a:bevelT") {
+            s.bevelW = (b["w"].flatMap(Double.init) ?? 76200) / Pptx.emu
+            s.bevelH = (b["h"].flatMap(Double.init) ?? 76200) / Pptx.emu
+        }
+        s.contourColor = sp3d?.first("a:contourClr").flatMap(colors.color(in:))
+        s.contourW = (sp3d?["contourW"].flatMap(Double.init) ?? 0) / Pptx.emu
         s.wireframe = sp3d?["prstMaterial"] == "legacyWireframe"
         s.material = sp3d?["prstMaterial"] ?? ""
         if let camera = spPr?.first("a:scene3d")?.first("a:camera") {
@@ -241,7 +284,7 @@ enum Extrusion {
 
     /// `paint` for anything with an outline: the scene, the face's colour,
     /// and the line (colour, width in points) round it.
-    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
+    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false) -> Bool {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
@@ -298,6 +341,15 @@ enum Extrusion {
             P3(x: l.x * cos(turnRig) - l.y * sin(turnRig), y: l.x * sin(turnRig) + l.y * cos(turnRig), z: l.z)
         }
         func litLocal(_ base: Color, _ n: P3) -> Color {
+            if rim, scene.rig == "morning" {
+                // Text: the rig's warm light as the lab printed it.
+                var k: (Double, Double, Double)
+                if abs(n.z) < 1e-6 { k = Extrusion.morningWall(atan2(n.y, n.x) * 180 / .pi, turn: scene.rigTurn) }
+                else if n.z > 0 { k = (0.875, 0.85, 0.76) }
+                else { k = (0.28, 0.27, 0.23) }
+                func ch(_ v: Int, _ f: Double) -> Int { max(0, min(255, Int((Double(v) * f).rounded()))) }
+                return Color(argb: base.alpha, ch(base.red, k.0), ch(base.green, k.1), ch(base.blue, k.2))
+            }
             if let rot = scene.rigRot, let k = Extrusion.rotatedShare(n, rig: scene.rig, rot: rot) {
                 // A wall also takes the default material's white floor (swept on
                 // lightRig_rot_rotation: 0.06-0.08 best, 0 and 0.12 worse).
@@ -436,6 +488,65 @@ enum Extrusion {
             shownFace = Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
         }
         face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil)
+        if rim, frontShows, scene.rig == "morning", scene.bevelW > 0, scene.bevelH > 0 {
+            // A top bevel is a rim just inside the outline, lit by which way its
+            // edge faces. (Lab p3t, softRound 9 x 3 under morning: the brightness
+            // a quarter of the way in, by the edge's direction, 0 = right, 90 = up.)
+            RuleTrace.hit("slide-3d-text-bevel-is-a-lit-rim")
+            let table: [Double] = [1.62, 1.74, 1.50, 1.18, 0.89, 0.71, 0.65, 0.57, 0.53, 0.67, 1.0, 1.36]
+            func peak(_ deg: Double) -> Double {
+                var u = (deg - 15).truncatingRemainder(dividingBy: 360) / 30
+                if u < 0 { u += 12 }
+                let i = Int(u) % 12, f = u - floor(u)
+                return table[i] * (1 - f) + table[(i + 1) % 12] * f
+            }
+            let w = min(scene.bevelW, 12) * px, hScale = min(1.5, scene.bevelH / 3)
+            let turn = scene.rigTurn
+            func inside(_ p: Offset, _ ring: [Offset]) -> Bool {
+                var odd = false
+                var j = ring.count - 1
+                for i in ring.indices {
+                    if (ring[i].dy > p.dy) != (ring[j].dy > p.dy), p.dx < (ring[j].dx - ring[i].dx) * (p.dy - ring[i].dy) / (ring[j].dy - ring[i].dy) + ring[i].dx { odd.toggle() }
+                    j = i
+                }
+                return odd
+            }
+            for (ri, ring) in rings.enumerated() {
+                let n = ring.count
+                var held = 0
+                for (rj, other) in rings.enumerated() where rj != ri && inside(ring[0], other) { held += 1 }
+                var area2 = 0.0
+                for i in 0 ..< n { let a = ring[i], b = ring[(i + 1) % n]; area2 += a.dx * b.dy - b.dx * a.dy }
+                // The way into the letter from each edge: right of travel for a ring that
+                // runs clockwise on the page, left for one that runs the other way; a hole's
+                // letter is outside it.
+                let sign = (area2 > 0 ? 1.0 : -1.0) * (held % 2 == 1 ? -1.0 : 1.0)
+                var inward: [Offset] = []
+                for i in 0 ..< n {
+                    let a = ring[i], b = ring[(i + 1) % n]
+                    let len = max(1e-9, ((b.dx - a.dx) * (b.dx - a.dx) + (b.dy - a.dy) * (b.dy - a.dy)).squareRoot())
+                    inward.append(Offset(-(b.dy - a.dy) / len * sign, (b.dx - a.dx) / len * sign))
+                }
+                var deep: [Offset] = []
+                for i in 0 ..< n {
+                    let n1 = inward[(i + n - 1) % n], n2 = inward[i]
+                    let denom = max(0.4, 1 + n1.dx * n2.dx + n1.dy * n2.dy)
+                    deep.append(Offset(ring[i].dx + (n1.dx + n2.dx) / denom * w, ring[i].dy + (n1.dy + n2.dy) / denom * w))
+                }
+                func mid(_ a: Offset, _ b: Offset) -> Offset { Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2) }
+                for i in 0 ..< n {
+                    let j = (i + 1) % n
+                    let out = Offset(-inward[i].dx, -inward[i].dy)
+                    let k = peak(atan2(-out.dy, out.dx) * 180 / .pi + turn)
+                    let halfA = mid(ring[i], deep[i]), halfB = mid(ring[j], deep[j])
+                    for (g, quad) in [(0.9, [ring[i], ring[j], halfB, halfA]), (0.42, [halfA, halfB, deep[j], deep[i]])] {
+                        let f = 1 + (k - 1) * g * hScale, white = 0.06 * max(0, f - 1) * 255
+                        func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * f + white).rounded()))) }
+                        polygon(quad.map { flat(place($0, 0)) }, Color(argb: shownFace.alpha, ch(shownFace.red), ch(shownFace.green), ch(shownFace.blue)))
+                    }
+                }
+            }
+        }
         if let onFront, frontShows {
             // The picture, carried onto the turned front: the frame's corners
             // say where its axes went.
