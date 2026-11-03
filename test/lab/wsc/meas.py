@@ -35,5 +35,12 @@ B = lines(d + '/wsc-b.pdf')
 firsts = [r for r in B if ''.join(c for _, c, _ in r[2]).startswith('一般应有')]
 for wd, (pg, y, cs) in zip(range(5870, 6071, 10), firsts[1:]):
     rows.append(('b', wd, ''.join(c for _, c, _ in cs)[-4:], round(cs[-1][2], 2)))
+import os
+if os.path.exists(d + '/wsc-c.pdf'):
+    C = [r for r in lines(d + '/wsc-c.pdf') if ''.join(c for _, c, _ in r[2]) == LINE[:8]]
+    cc = [(sz / 2, w) for sz in (18, 20, 21, 28, 36, 44, 56) for w in (99, 95, 90, 80)]
+    if len(C) != len(cc): print('WARNING: wsc-c %d lines for %d' % (len(C), len(cc)))
+    for k, (pg, y, cs) in zip(cc, C):
+        rows.append(('c',) + k + (round((cs[-1][0] - cs[0][0]) / (len(cs) - 1), 4),))
 open(out, 'w').write('\n'.join('\t'.join(str(x) for x in r) for r in rows) + '\n')
 print(len(rows), 'rows ->', out)

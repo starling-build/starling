@@ -14,6 +14,7 @@ character, by font, size, scale and spacing?
          paragraph as in the document: which character ends the first line at each width
 The control (both documents) is the p9 cell paragraph "一般应有行政强制审批表…" in a one-cell table of the
 document's width 5970, cell margins 0: compare its lines with the corpus print before trusting the lab.
+  wsc-c  (follow-up) 宋体 at 9, 10, 10.5, 14, 18, 22, 28pt x w:w 99, 95, 90, 80, no spacing, 8 ideographs a line (28 lines)
 gen.py CORPUS_DOCX_DIR OUTDIR"""
 import sys, re, zipfile, os, glob
 src_dir, outdir = sys.argv[1], sys.argv[2]
@@ -48,4 +49,12 @@ for font in ('仿宋_GB2312', '宋体'):
                     font, font, font, '<w:spacing w:val="%d"/>' % sp if sp else '', '<w:w w:val="%d"/>' % w if w != 100 else '', sz, sz)
                 paras.append('<w:p><w:pPr><w:jc w:val="left"/><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r>%s<w:t>%s</w:t></w:r></w:p>' % (rpr, line))
 write(ctl + ''.join(paras), 'wsc-a')
+
+# wsc-c: more sizes, SimSun only, no spacing (follow-up: zh-7773163d's 18pt and zh-fe536967's 22pt runs looked unrounded)
+paras = []
+for sz in (18, 20, 21, 28, 36, 44, 56):
+    for w in (99, 95, 90, 80):
+        rpr = '<w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体"/><w:w w:val="%d"/><w:sz w:val="%d"/><w:szCs w:val="%d"/></w:rPr>' % (w, sz, sz)
+        paras.append('<w:p><w:pPr><w:jc w:val="left"/><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r>%s<w:t>%s</w:t></w:r></w:p>' % (rpr, line[:8]))
+write(''.join(paras), 'wsc-c')
 write(ctl + ''.join(table(w, src) for w in range(5870, 6071, 10)), 'wsc-b')
