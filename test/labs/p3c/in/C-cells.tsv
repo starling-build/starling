@@ -1,0 +1,21 @@
+1	deck as is
+2	dash: spcBef 567, spcAft 0
+3	dash: spcBef 641, spcAft 0
+4	dash: spcBef 250, spcAft 0
+5	dash: spcBef 1701, spcAft 0
+6	dash: spcBef 349, spcAft 0
+7	dash: spcBef 99, spcAft 0
+8	dash: spcBef 1250, spcAft 0
+9	dash: spcAft 349
+10	dash: spcAft 1250
+11	dash: spcAft 599
+12	dash: spcAft 650
+13	dash: spcAft 99
+14	dash: lnSpc exact 2750, spcAft 0
+15	dash: lnSpc exact 2733, spcAft 0
+16	dash: lnSpc exact 3000, spcAft 0
+17	dash: lnSpc exact 2999, spcAft 0
+18	dash: lnSpc exact 2401, spcAft 0
+19	dash: lnSpc 100%, spcAft 0
+20	dash: lnSpc 110%, spcAft 0
+21	dash: lnSpc 95%, spcAft 0
