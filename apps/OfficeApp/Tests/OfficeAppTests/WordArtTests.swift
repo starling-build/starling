@@ -107,7 +107,9 @@ final class WordArtTests: XCTestCase {
         let curve = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textCurveDown", adjust: [50000], xml: "")))
         XCTAssertEqual(curve(0).top, 0, accuracy: 1e-9)
         XCTAssertEqual(curve(1).top, 0.5, accuracy: 1e-9)
-        XCTAssertEqual(curve(0.3).bottom, 1, accuracy: 1e-9)
+        // The foot bows with the top (lab p3w cell 7: its ends 0.21 up at adj 56338): 1 - 0.41 * 0.5 * (0.4)^2.
+        XCTAssertEqual(curve(0.3).bottom, 1 - 0.41 * 0.5 * 0.16, accuracy: 1e-9)
+        XCTAssertEqual(curve(0).bottom, 1 - 0.41 * 0.5, accuracy: 1e-9)
         // Every bend PowerPoint offers is drawn, by one of the three ways.
         for name in ["Plain", "Stop", "Triangle", "TriangleInverted", "Chevron", "ChevronInverted", "RingInside", "RingOutside",
                      "ArchUp", "ArchDown", "Circle", "Button", "ArchUpPour", "ArchDownPour", "CirclePour", "ButtonPour",
