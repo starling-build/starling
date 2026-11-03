@@ -602,23 +602,31 @@ enum WordArt {
                     // One line has the upper band alone.
                     bands = [(lines, { u in (0, mid(u)) }, false, nil)]
                 } else {
-                    bands = [([lines[0]], { u in (0, mid(u) - 0.03) }, false, nil),
-                             (Array(lines[1...]), { u in (mid(u) + 0.03, 1) }, false, nil)]
+                    // The lines shared between the two bands, the upper one
+                    // taking the odd one (lab wordart-banded: 3 lines stand
+                    // 2 + 1, 4 stand 2 + 2, 5 stand 3 + 2).
+                    let top = (lines.count + 1) / 2
+                    bands = [(Array(lines[..<top]), { u in (0, mid(u) - 0.03) }, false, nil),
+                             (Array(lines[top...]), { u in (mid(u) + 0.03, 1) }, false, nil)]
                 }
             case "textDeflateInflateDeflate":
                 // Three bands: pinched, swollen, pinched.
                 let a = (warp.adjust.first ?? 25000) / 100_000
                 func upper(_ u: Double) -> Double { 1.0 / 3 - (1.0 / 3 - a) * (1 - bow(u)) }
                 func lower(_ u: Double) -> Double { 1 - upper(u) }
-                let third = max(1, lines.count / 3)
                 if lines.count < 3 {
                     // Fewer lines than bands: the bands from the top down.
                     bands = [([lines[0]], { u in (0, upper(u) - 0.02) }, false, nil)]
                     if lines.count == 2 { bands.append(([lines[1]], { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil)) }
                 } else {
-                    bands = [(Array(lines[..<third]), { u in (0, upper(u) - 0.02) }, false, nil),
-                             (Array(lines[third ..< lines.count - third]), { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil),
-                             (Array(lines[(lines.count - third)...]), { u in (lower(u) + 0.02, 1) }, false, nil)]
+                    // Shared out from the top, the extra lines to the upper
+                    // bands first (lab wordart-banded: 4 lines stand 2 + 1 + 1,
+                    // 5 stand 2 + 2 + 1).
+                    let n = lines.count, each = n / 3, extra = n % 3
+                    let first = each + (extra > 0 ? 1 : 0), second = each + (extra > 1 ? 1 : 0)
+                    bands = [(Array(lines[..<first]), { u in (0, upper(u) - 0.02) }, false, nil),
+                             (Array(lines[first ..< first + second]), { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil),
+                             (Array(lines[(first + second)...]), { u in (lower(u) + 0.02, 1) }, false, nil)]
                 }
             case "textRingInside", "textRingOutside":
                 // The text round a ring seen from the front: its first half
