@@ -1,0 +1,3 @@
+Lab p3x (amd-4 for windows, asked by the WordArt placement session): "WordArt" in Arial Black, yellow, wrap none, zero insets, anchor centre, red 0.5 pt box outline, no 3-D. textArchUp and textArchDown at 20/40/80/200 pt in boxes 340x170 and 400x400 pt, textCircle at the four sizes in 400x400, and one two-line case (Happy / Birthday, ArchUp 40 pt, 330x250). in/X.pptx = 21 slides, slide N = row N of in/cells-X.tsv. gen.py regenerates it.
+Please print X.pptx to PDF (one page per slide) AND export each slide as a PNG at 2400x1350 named X-NNN.png; commit under test/labs/p3x/prints/, branch wip/lab-p3x.
+Question: how big PowerPoint draws arch/circle text, per font size and box.

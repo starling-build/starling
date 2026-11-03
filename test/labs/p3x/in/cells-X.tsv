@@ -1,0 +1,21 @@
+1	textArchUp 20pt box 340x170
+2	textArchUp 40pt box 340x170
+3	textArchUp 80pt box 340x170
+4	textArchUp 200pt box 340x170
+5	textArchUp 20pt box 400x400
+6	textArchUp 40pt box 400x400
+7	textArchUp 80pt box 400x400
+8	textArchUp 200pt box 400x400
+9	textArchDown 20pt box 340x170
+10	textArchDown 40pt box 340x170
+11	textArchDown 80pt box 340x170
+12	textArchDown 200pt box 340x170
+13	textArchDown 20pt box 400x400
+14	textArchDown 40pt box 400x400
+15	textArchDown 80pt box 400x400
+16	textArchDown 200pt box 400x400
+17	textCircle 20pt box 400x400
+18	textCircle 40pt box 400x400
+19	textCircle 80pt box 400x400
+20	textCircle 200pt box 400x400
+21	textArchUp 40pt box 330x250 Happy/Birthday
