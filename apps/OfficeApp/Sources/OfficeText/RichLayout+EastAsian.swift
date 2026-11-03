@@ -1453,6 +1453,15 @@ extension RichLayout {
                             || ((a ..< last).contains { units[$0] >= 0x2E80 }
                                 && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
                             || x - spacesBefore + min(lead, w) - width <= before / 2 + (legacy ? gridGive ?? edge : edge)
+                            // (What the line's opening mark gives at its start (`w:topLinePunct`) moves the line
+                            // left of the margin rather than squeezing it, and comes off before the half a character:
+                            // zh-053f8706 p29 (mode 14) starts "《中华…" 8pt left of the margin and takes "医" 13.75
+                            // over, its "》《" giving the rest.)
+                            || ({ () -> Bool in
+                                let leadGive = all.filter { leadOpeners[$0] != nil }.reduce(0.0) { $0 + half($1) }
+                                return leadGive > 0 && need <= room + hair
+                                    && x - spacesBefore + min(lead, w) - width - leadGive <= before / 2 + (legacy ? gridGive ?? edge : edge)
+                            }())
                             // (Before 2013's layout a piece of digits is taken by the share test, not by half a
                             // character: lab legsq (Word for Windows, zh-eb54d3b0's mode-12 line, right indent
                             // stepped by 2pt) takes "—5000" with need 30.1 and five marks' 43.4 to give where the line
