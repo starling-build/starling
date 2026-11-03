@@ -56,7 +56,15 @@ elif [ "$(uname)" = Linux ] || [ -n "$PPTX_DIFF" ]; then
   # one to every shell inside it, and with it an older engine). PYTHON names
   # an interpreter that has pymupdf, where the system's does not.
   unset LD_LIBRARY_PATH
+  [ -n "$PYTHON" ] || { [ -x "$HOME/venv-word/bin/python" ] && PYTHON="$HOME/venv-word/bin/python"; }  # land.sh's: pymupdf, numpy, pillow
   DIFF=("${PYTHON:-python3}" "$HERE/pdf-diff.py")
+  # The page diff is only comparable between runs on the same MuPDF (its anti-aliasing moves a score by ~0.2 pt):
+  # the baseline's version is committed beside it; a different one stops the sweep (MUPDF_ANY=1 to go on).
+  MUPDF=$("${PYTHON:-python3}" -c 'import pymupdf; print(pymupdf.mupdf_version)' 2>/dev/null)
+  WANT=$(cat "$HERE/corpus/pptx/baseline-win.MUPDF" 2>/dev/null)
+  if [ -n "$WANT" ] && [ "$MUPDF" != "$WANT" ] && [ -z "$MUPDF_ANY" ]; then
+    echo "MuPDF is '$MUPDF' here and the baseline was scored with '$WANT': scores are not comparable. Use PYTHON=$HOME/venv-word/bin/python, or MUPDF_ANY=1." >&2; exit 3
+  fi
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
 else
   DIFF=(python "$HERE/pdf-diff.py")
