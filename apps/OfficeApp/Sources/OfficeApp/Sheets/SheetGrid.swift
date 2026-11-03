@@ -3127,7 +3127,7 @@ struct GridTextStyle: Hashable {
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
                                  fontFeatures: [FontFeature("kern", 0), FontFeature("liga", 0), FontFeature("clig", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
-                                 fontFamily: family)
+                                 fontFamily: family, fontFamilyFallback: RichTextTheme.glyphFallback)
     }
 }
 
