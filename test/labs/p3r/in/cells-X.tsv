@@ -1,0 +1,14 @@
+1	textArchUp 100pt box 200x100 WordArt wrap none
+2	textArchUp 200pt box 200x100 WordArt wrap none
+3	textArchUp 100pt box 340x170 WordArt wrap none
+4	textArchUp 200pt box 340x170 WordArt wrap none
+5	textArchUp 100pt box 500x250 WordArt wrap none
+6	textArchUp 200pt box 500x250 WordArt wrap none
+7	textArchUp 200pt box 200x100 WordArt wrap square
+8	textArchUp 200pt box 500x250 WordArt wrap square
+9	textArchUp 200pt box 340x170 Art wrap none
+10	textArchUp 200pt box 500x250 Art wrap none
+11	textArchUp 200pt box 340x170 WordArt wrap none anchor t
+12	textArchUp 200pt box 340x170 WordArt wrap none anchor b
+13	textArchDown 200pt box 340x170 WordArt wrap none
+14	textArchDown 200pt box 500x250 WordArt wrap none

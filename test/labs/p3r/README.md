@@ -1,0 +1,4 @@
+Lab p3r (for the WordArt placement session): 14 cells, one text box each, thin red 0.5 pt outline. All textArchUp (cells 13-14 textArchDown) at default adj, Arial Black, zero insets, noAutofit.
+1-6: "WordArt" at 100 and 200 pt, wrap none, anchor ctr, in boxes 200x100, 340x170, 500x250. 7-8: 200 pt, wrap square, 200x100 and 500x250. 9-10: "Art" at 200 pt, wrap none, 340x170 and 500x250. 11-12: 200 pt "WordArt" 340x170 wrap none with anchor t and anchor b. 13-14 (textArchDown): 200 pt, 340x170 and 500x250.
+Print each slide to PNG at 2.5 px/pt (2400x1350) as prints/X-NNN.png.
+Question: in p3q PowerPoint drew 100 pt and 200 pt in 340x170 as one identical arch, lower and further right than a plain fit to the box. How does that arch's position and size depend on the box size, the anchor and the word?
