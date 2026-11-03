@@ -1577,9 +1577,15 @@ extension RichLayout {
                         guard theme.wordRules, RichTextTheme.wordWindowsPages, onCharacterGrid, !lineLetters, last > a, units[a] >= 0x2E80, !Self._closingUnits.contains(units[last - 1]) else { return false }
                         let before = all.filter { $0 < a }
                         guard before.count >= 2 else { return false }
-                        let mid = before.reduce(0.0) { $0 + half($1) }
+                        // (A mark right after another gives its whole half beside the cap: zh-3c055c9b p11's
+                        // "…寫的。」、「（舉" is taken 34.8pt over in Word's print, "」" and "、" set at 8.4 of a
+                        // 17pt cell, "，" and "。" giving 11.7 between them. zh-72da925e's "」，：", none by
+                        // another, keep the cap.)
+                        let marks = Set(all)
+                        let joined = before.filter { $0 > 0 && marks.contains($0 - 1) }
+                        let mid = before.filter { !($0 > 0 && marks.contains($0 - 1)) }.reduce(0.0) { $0 + half($1) }
                         let ownRoom = all.filter { $0 >= a }.reduce(0.0) { $0 + half($1) }
-                        return need > min(mid, 0.823 * em) + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
+                        return need > min(mid, 0.823 * em) + joined.reduce(0.0) { $0 + half($1) } + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
                     }()
                     // (An opening bracket that opens what is being taken, right after a closing mark it closes up
                     // with, gives 0.22 of an em less than its half, in Word for Windows: at 16pt zh-6c447317 takes
