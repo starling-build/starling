@@ -7,14 +7,17 @@ gen.py OUT.xlsx -> a workbook of the sheets in combos(); print each sheet to PDF
 import sys, zipfile, importlib.util, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location('doughnut_gen', os.path.join(HERE, '..', 'doughnut', 'gen.py'))
-base = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(base)
+# The doughnut lab's workbook writer, widened from three series to five.
+_src = open(os.path.join(HERE, '..', 'doughnut', 'gen.py')).read()
+_src = _src.replace("'BCD'", "'BCDEF'").replace("vals = [[20, 1, 1, 12], [5, 8, 3, 9], [7, 2, 6, 4]]",
+                                              "vals = [[20, 1, 1, 12], [5, 8, 3, 9], [7, 2, 6, 4], [3, 9, 5, 6], [11, 4, 8, 2]]")
+base = type(sys)('doughnut_gen')
+exec(compile(_src, 'doughnut/gen.py', 'exec'), base.__dict__)
 CNS = base.CNS
 
 
 def combos():
-    b = dict(title='Chart title', tsz=18, lines=1, overlay=0, legend='r', w=480, h=288, series=1)
+    b = dict(title='Chart title', tsz=18, lines=1, overlay=0, legend='r', w=480, h=288, series=1, lsz=None, kind='col')
     out = [('base', {}), ('notitle', dict(title=None))]
     for sz in (10, 14, 24, 32):
         out.append(('tsz%d' % sz, dict(tsz=sz)))
@@ -30,15 +33,24 @@ def combos():
     out.append(('series2', dict(series=2)))
     for w, h in ((320, 200), (640, 384)):
         out.append(('size%dx%d' % (w, h), dict(w=w, h=h)))
+    # round 2 (legend row pitch): the legend's own text size, its entry count, and a line chart's keys against a column's.
+    for sz in (8, 10, 14, 18):
+        out.append(('leg-sz%d-s2' % sz, dict(lsz=sz, series=2)))
+        out.append(('leg-sz%d-s5' % sz, dict(lsz=sz, series=5)))
+    out.append(('leg-s5-default', dict(series=5)))
+    out.append(('leg-line-s2', dict(kind='line', series=2)))
+    out.append(('leg-line-s5', dict(kind='line', series=5)))
+    out.append(('leg-line-sz14-s5', dict(kind='line', series=5, lsz=14)))
+    out.append(('leg-b-sz14-s5', dict(series=5, lsz=14, legend='b')))
     return [(n, {**b, **d}) for n, d in out]
 
 
 def chart_xml(p, sheet):
     cats = ['Category 1', 'Category 2', 'Category 3', 'Category 4']
-    vals = [[20, 1, 1, 12], [5, 8, 3, 9]]
+    vals = [[20, 1, 1, 12], [5, 8, 3, 9], [7, 2, 6, 4], [3, 9, 5, 6], [11, 4, 8, 2]]
     sers = ''
     for s in range(p['series']):
-        col = 'BCD'[s]
+        col = 'BCDEF'[s]
         cat = '<c:cat><c:strRef><c:f>@@S@@!$A$2:$A$5</c:f><c:strCache><c:ptCount val="4"/>%s</c:strCache></c:strRef></c:cat>' % ''.join(
             '<c:pt idx="%d"><c:v>%s</c:v></c:pt>' % (i, v) for i, v in enumerate(cats))
         val = '<c:val><c:numRef><c:f>@@S@@!$%s$2:$%s$5</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="4"/>%s</c:numCache></c:numRef></c:val>' % (
@@ -50,17 +62,20 @@ def chart_xml(p, sheet):
         paras = ''.join('<a:p><a:pPr><a:defRPr sz="%d" b="0"/></a:pPr><a:r><a:rPr lang="en-US" sz="%d" b="0"/><a:t>%s</a:t></a:r></a:p>' % (
             p['tsz'] * 100, p['tsz'] * 100, t) for t in ([p['title']] if p['lines'] == 1 else [p['title'], 'second line']))
         title = '<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/>%s</c:rich></c:tx><c:overlay val="%d"/></c:title>' % (paras, p['overlay'])
-    legend = '<c:legend><c:legendPos val="%s"/><c:overlay val="0"/></c:legend>' % p['legend'] if p['legend'] else ''
+    ltx = ('<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="%d"/></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>' % (p['lsz'] * 100)) if p['lsz'] else ''
+    legend = '<c:legend><c:legendPos val="%s"/><c:overlay val="0"/>%s</c:legend>' % (p['legend'], ltx) if p['legend'] else ''
+    line = p['kind'] == 'line'
+    plot = ('<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>%s<c:marker val="1"/><c:axId val="111"/><c:axId val="222"/></c:lineChart>' % sers) if line else (
+        '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>%s<c:gapWidth val="150"/><c:axId val="111"/><c:axId val="222"/></c:barChart>' % sers)
     xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace %s><c:roundedCorners val="0"/><c:chart>%s'
-           '<c:autoTitleDeleted val="%d"/><c:plotArea><c:layout/><c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>'
-           '<c:varyColors val="0"/>%s<c:gapWidth val="150"/><c:axId val="111"/><c:axId val="222"/></c:barChart>'
+           '<c:autoTitleDeleted val="%d"/><c:plotArea><c:layout/>%s'
            '<c:catAx><c:axId val="111"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>'
            '<c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
            '<c:crossAx val="222"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>'
            '<c:valAx><c:axId val="222"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="l"/>'
            '<c:majorGridlines/><c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
            '<c:crossAx val="111"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx></c:plotArea>%s<c:plotVisOnly val="1"/>'
-           '<c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>') % (CNS, title, 0 if p['title'] else 1, sers, legend)
+           '<c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>') % (CNS, title, 0 if p['title'] else 1, plot, legend)
     return xml.replace('@@S@@', "'%s'" % sheet)
 
 
