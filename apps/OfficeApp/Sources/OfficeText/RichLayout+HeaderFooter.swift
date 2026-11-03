@@ -859,7 +859,7 @@ extension RichLayout {
                     }
                     // (An un-hinted em dash is East Asian here too, and gives nothing beside it: zh-5be7e156's "—  11  —".)
                     for (off, u) in units.enumerated() where u == 0x20 && off < end && !setEastAsian(off - 1) && !setEastAsian(off + 1)
-                        && !(RichTextTheme.wordWindowsPages && dashBeside(off)) {
+                        && !(RichTextTheme.wordWindowsPages && box.fitsAsDrawing && dashBeside(off)) {
                         let a = map.painter(off)
                         for b in g.painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: a + 1)) { spaces += b.right - b.left }
                     }
