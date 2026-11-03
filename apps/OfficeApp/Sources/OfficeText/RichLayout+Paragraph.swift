@@ -1693,8 +1693,9 @@ extension RichLayout {
         // zh-69bbcc3c's letterhead rule, thinThickSmallGap at 2.25pt, is
         // 2.16 + 0.72 + 0.72 in Word's print and the page under it 1.14pt
         // lower than ours was.)
-        let bTop = _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
-        let bBottom = _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
+        let bareBreak = _emptyBreakFragment(i, document)
+        let bTop = bareBreak || _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
+        let bBottom = bareBreak || _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
         let spacing = _spacing(i, document)
         // (Exact under Word's rules, whose lines keep their fractions
         // too: 14pt is 18.67px on a screen, and a whole pixel more under

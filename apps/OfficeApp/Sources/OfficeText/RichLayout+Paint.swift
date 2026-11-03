@@ -519,7 +519,9 @@ extension RichLayout {
                 let gap = n.textTop - (g.textTop + g.painter.height)
                 if gap > 0.01, gap < _px(36), abs(n.textLeft - g.textLeft) < 0.5, abs(n.textWidth - g.textWidth) < 0.5 { height += gap }
             }
-            if let box = _boxSpan(i, g, document), let b = document.paragraphs[i].style.borders {
+            if _emptyBreakFragment(i, document) {
+                canvas.drawRect(Rect.fromLTRB((g.textLeft - _px(1.4)).rounded(), g.textTop.rounded(), (g.textLeft + g.textWidth + _px(1.4)).rounded(), (g.textTop + g.painter.height).rounded()), paint)
+            } else             if let box = _boxSpan(i, g, document), let b = document.paragraphs[i].style.borders {
                 let l = g.textLeft - (b.left.map { _px($0.space) } ?? 0) - box.extra
                 let r = g.textLeft + g.textWidth + (b.right.map { _px($0.space) } ?? 0) + box.extra
                 canvas.drawRect(Rect.fromLTRB(l.rounded(), box.top.rounded(), r.rounded(), box.bottom.rounded()), paint)
@@ -1141,7 +1143,7 @@ extension RichLayout {
             canvas.restore()
             return
         }
-        if let b = document.paragraphs[i].style.borders, !_vanishes(document.paragraphs[i], document) {
+        if let b = document.paragraphs[i].style.borders, !_vanishes(document.paragraphs[i], document), !_emptyBreakFragment(i, document) {
             // Word's paragraph borders: each edge a line its `space` away
             // from the text, the horizontal ones spanning the text width
             // (plus the side edges' own gaps).

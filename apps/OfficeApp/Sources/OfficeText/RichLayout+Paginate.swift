@@ -3697,7 +3697,11 @@ extension RichLayout {
             }
             // (Whether a page's head takes this paragraph's space before
             // off — see where the paragraph is set.)
-            let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i]) : 0
+            // (A box's top line and the room under it stay: lab bdr2, b2, BBB's 40pt before
+            // goes at the page's top and its box opens there, text 7pt under it.)
+            let boxRoom = theme.wordRules && RichTextTheme.wordWindowsPages && !_bordersJoin(i - 1, i, document) && !_emptyBreakFragment(i, document)
+                ? document.paragraphs[i].style.borders?.top.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0 : 0
+            let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i] - boxRoom) : 0
             var leavesLead = false
             if theme.wordRules, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
                 let st = document.paragraphs[i].style

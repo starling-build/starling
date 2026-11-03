@@ -2636,8 +2636,20 @@ extension RichLayout {
     /// Whether paragraphs `a` and `b` (in that order) share one border
     /// box: Word's grouping of consecutive paragraphs whose borders and
     /// indents are the same, in the same cell.
+    /// A paragraph that is only the break which ends its line, the rest of the same paragraph on
+    /// the next page or column: Word shades its line and draws no box round it, and the rest
+    /// opens a box of its own (lab bdr2, b2; lo-cbb7657e's boxes).
+    func _emptyBreakFragment(_ k: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, k >= 0, k + 1 < document.paragraphs.count,
+              document.paragraphs[k].text.isEmpty, document.paragraphs[k].image == nil,
+              document.paragraphs[k].style.borders != nil, document.paragraphs[k].cell == nil else { return false }
+        let n = document.paragraphs[k + 1].style
+        return n.pageBreakBefore && (n.breakEndsPrevious || n.continuesParagraph)
+    }
+
     func _bordersJoin(_ a: Int, _ b: Int, _ document: RichDocument) -> Bool {
         guard theme.wordRules, a >= 0, b < document.paragraphs.count, a < b else { return false }
+        if _emptyBreakFragment(a, document) || _emptyBreakFragment(b, document) { return false }
         let x = document.paragraphs[a], y = document.paragraphs[b]
         guard let bx = x.style.borders, bx == y.style.borders, x.cell == y.cell,
               x.style.indentLeft == y.style.indentLeft, x.style.indentRight == y.style.indentRight else { return false }

@@ -2363,8 +2363,12 @@ extension RichLayout {
                         let manyColumns = _perSection ? _columnsOf(paragraph: piece.paragraph) > 1 : _columns > 1
                         // One column clips to its own width; a lone column keeps
                         // the page, so a table wider than the text can still show.
-                        let columnClipL = manyColumns ? left - 1 : 0
-                        let columnClipR = manyColumns ? left + columnW + 1 : _pxPageW(p)
+                        // (Its side borders stand outside the text, by their space and width and the 1.4pt
+                        // of Word's box: lo-cbb7657e's boxes in two columns lost their lines to this window.)
+                        let sideBorders = manyColumns && theme.wordRules && RichTextTheme.wordWindowsPages
+                            ? document.paragraphs[piece.paragraph].style.borders : nil
+                        let columnClipL = manyColumns ? left - 1 - (sideBorders?.left.map { _px($0.space + $0.width + 1.4) } ?? 0) : 0
+                        let columnClipR = manyColumns ? left + columnW + 1 + (sideBorders?.right.map { _px($0.space + $0.width + 1.4) } ?? 0) : _pxPageW(p)
                         // (A cover's one-column section, set across the page:
                         // `_fullWidthCover`.)
                         // (A margin-aligned float of a multi-column section
