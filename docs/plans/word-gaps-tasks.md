@@ -14364,3 +14364,5 @@ TIP WATCH amd-8, round 123 (tip b371a2f0e): Word no drops; unit tests 613 run, 0
 
 TIP WATCH amd-8, round 124 (tip d42a60050, Slides round): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points. SLIDES 555 decks mean 0.8041 -> 0.8039, 0 worse, 1 better, matched-win 98/98 exact. SHEETS 757 workbooks mean 0.667 -> 0.665, 0 worse, 2 better. WEB build OK and layout exit 0. All gates green. Baselines left as is (gains too small to reseed).
 - amd-opus landed 07a001da9: zh-147bdae0 p27/p33 (closing mark parted from an opening one ends its line whole under doNotCompress; fit trial breaks at automatic hyphenation points), 756 333 -> 326, none worse. Next: its p19/p39 row offset (lab rgap: a vMerge continuation cell's margins set its row's).
+
+TIP WATCH amd-8, round 125 (tip fbc67cf36): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
