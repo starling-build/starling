@@ -277,6 +277,8 @@ struct Chart: Equatable {
     /// standing in the middle of that depth with `gapDepth` of their own
     /// depth about them. nil is flat.
     var barView: BarView? = nil
+    /// A 3-D area chart's view (`c:area3DChart`): its series one behind another in rows of depth.
+    var areaView: BarView? = nil
     /// A 3-D column's shape (`c:shape`): box, cylinder, cone, coneToMax, pyramid, pyramidToMax.
     var barShape = "box"
     /// A surface chart (`c:surface3DChart`, `c:surfaceChart`): its series'
@@ -1756,6 +1758,18 @@ enum ChartXML {
             c.barView?.heightPercent = v?.first("c:hPercent")?["val"].flatMap(Double.init)
             c.barView?.perspective = v?.first("c:perspective")?["val"].flatMap(Double.init) ?? 30
             c.barShape = el.first("c:shape")?["val"] ?? el.first("c:ser")?.first("c:shape")?["val"] ?? "box"
+        }
+        if el.name == "c:area3DChart" {
+            let v = chart.first("c:view3D")
+            var view = Chart.BarView(x: v?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15,
+                                     y: v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20,
+                                     depth: (v?.first("c:depthPercent")?["val"].flatMap(Double.init) ?? 100) / 100,
+                                     gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
+            if let ra = v?.first("c:rAngAx") { view.rightAngles = (ra["val"] ?? "1") != "0" && (ra["val"] ?? "1") != "false" }
+            view.rows = (el.first("c:grouping")?["val"] ?? "standard") == "standard"
+            view.heightPercent = v?.first("c:hPercent")?["val"].flatMap(Double.init)
+            view.perspective = v?.first("c:perspective")?["val"].flatMap(Double.init) ?? 30
+            c.areaView = view
         }
         if el.name == "c:pie3DChart" {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
@@ -3547,7 +3561,11 @@ enum ChartPainter {
             return max(2, min(10, Int(room / (14.5 * k))))
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? 10,
-                                                                          headroom: c.barView != nil ? 0 : 0.05)
+                                                                          headroom: c.barView != nil ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
+        // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
+        // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
+        // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
+        // Only the one file says how far; 10% is the nearest round share that does.)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
@@ -5015,6 +5033,9 @@ enum ChartPainter {
                 radius = out ? max(room / 2, room - 1.6 * size) : rIn
             }
         }
+        // (Excel's doughnut with data labels on is 0.8655 of the size it is with none, at every chart size, legend and label
+        // size: Windows lab wip/lab-doughnut, sizes 200 to 640 pt, ring radius 115 of 133 at 480 x 288.)
+        if c.type == .doughnut, c.onSheet, c.dataLabels || c.pieLabels != nil { radius *= 0.8655 }
         let centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2
