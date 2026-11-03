@@ -1504,7 +1504,20 @@ extension RichLayout {
                     // page's foot, and the part with it.)
                     let below = (0 ..< i).reversed().prefix(while: { _cells[$0]?.table == c.table }).contains { m in
                         let d = _cells[m]!
-                        return d.row < c.row && d.row + d.rowSpan - 1 >= c.row && _tops[m] + _heights[m] > c.rowTop + part + 0.01
+                        guard d.row < c.row, d.row + d.rowSpan - 1 >= c.row, _tops[m] + _heights[m] > c.rowTop + part + 0.01 else { return false }
+                        // (A centred cell merged down whose whole text fits the rows of it on this page
+                        // is centred in them — lab `cm1` — so none of it runs on below the part:
+                        // zh-9bcea239's "企业管理（300分）", 100pt of text over eight rows, ends
+                        // page 11 in its rows' part, the table's last line 16pt higher than the foot in
+                        // Word's print, where ours ran it on to the foot.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, d.verticalAlign == "center", !d.vertical {
+                            var lo = m, hi = m
+                            while lo > 0, let e = _cells[lo - 1], e.table == c.table, e.row == d.row, e.column == d.column { lo -= 1 }
+                            while hi + 1 < i, let e = _cells[hi + 1], e.table == c.table, e.row == d.row, e.column == d.column { hi += 1 }
+                            let text = _tops[hi] + _heights[hi] - _tops[lo] + d.pad.top + d.pad.bottom
+                            if text <= c.rowTop + part - d.rowTop + 0.01 { return false }
+                        }
+                        return true
                     }
                     if !below { partHeight = part }
                     // (A centred cell merged down from the rows above, its text on
@@ -2986,12 +2999,19 @@ extension RichLayout {
                                     var block = 0.0
                                     var m = n
                                     while m > first, let h = _cells[m - 1], h.table == c.table, h.row == r, h.column == f.column { m -= 1 }
+                                    let blockFirst = m
                                     while m < count, let h = _cells[m], h.table == c.table, h.row == r, h.column == f.column { block += _heights[m]; m += 1 }
                                     let centred = f.verticalAlign == "center" || f.verticalAlign == "bottom"
                                     let whole = centred && block + f.pad.top + f.pad.bottom <= limit - e.rowTop
                                     if whole {
                                         kept = max(kept, block + f.pad.top + f.pad.bottom)
-                                    } else if let cut { kept = max(kept, cut - e.rowTop + f.pad.bottom) }
+                                    } else if let cut {
+                                        // (A centred cell parted at the foot is measured from its text's top, as `splitRow`
+                                        // does: zh-9bcea239's "6" row keeps 41pt, its three centred lines cut after two
+                                        // — the 50pt from the row's top centred "企业管理（300分）" 4pt low.)
+                                        let from = RichTextTheme.wordWindowsPages && f.verticalAlign == "center" ? max(e.rowTop, _tops[blockFirst] - f.pad.top) : e.rowTop
+                                        kept = max(kept, cut - from + f.pad.bottom)
+                                    }
                                     // (One set whole in the part keeps it, though the
                                     // whole row's middle puts its last line past the
                                     // foot: zh-1eeb9f9a's "其他政策文件", two lines
