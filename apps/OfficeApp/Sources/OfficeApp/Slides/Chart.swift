@@ -1152,6 +1152,18 @@ enum ChartXML {
 
     static func read(_ space: XNode, allowEmpty: Bool = false, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
+        // (A scatter group none of whose series draws anything — no line, no marks — is a sizing aid Excel keeps on
+        // a pair of axes of its own, chart-tdf140489's "YearSizing": it and those axes are left out, and the rest is
+        // plotted against its own.)
+        if plot.children.contains(where: { $0.name != "c:scatterChart" && $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }) {
+            for hidden in plot.children where hidden.name == "c:scatterChart" && hidden.all("c:ser").allSatisfy({ ser in
+                ser.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil && ser.first("c:marker")?.first("c:symbol")?["val"] == "none"
+            }) {
+                let ids = Set(hidden.all("c:axId").compactMap { $0["val"] })
+                let shared = plot.children.contains { $0 !== hidden && $0.name.hasSuffix("Chart") && $0.all("c:axId").contains { ids.contains($0["val"] ?? "") } }
+                plot.children.removeAll { $0 === hidden || (!shared && ["c:valAx", "c:catAx", "c:dateAx", "c:serAx"].contains($0.name) && ids.contains($0.first("c:axId")?["val"] ?? "")) }
+            }
+        }
         let kinds = plot.children.filter { $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }
         // A combination this app draws: columns (or bars) with lines over
         // them, both on one pair of axes.
@@ -1160,7 +1172,7 @@ enum ChartXML {
         var main = kinds.first
         var merged: [XNode] = []
         var columnsOnRight = false
-        if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" }),
+        if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" || $0.name == "c:areaChart" }),
            let line = kinds.first(where: { $0.name == "c:lineChart" }) {
             let barAxes = Set(bar.all("c:axId").compactMap { $0["val"] })
             let lineAxes = Set(line.all("c:axId").compactMap { $0["val"] })
@@ -1345,6 +1357,15 @@ enum ChartXML {
                 }
             } else if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
                 s.color = _meanColor(g, color)
+            }
+            // (A pattern fill as the colour it comes to: its foreground over its background by the share of the
+            // 8 x 8 cell the preset inks. Excel hatches the area; the mean stands in for the hatch.)
+            if fill == nil, type != .line, type != .scatter, let pf = pr?.first("a:pattFill"),
+               let preset = pf["prst"], let rows = PatternFill.rows[preset],
+               let fg = pf.first("a:fgClr").flatMap(color), let bg = pf.first("a:bgClr").flatMap(color) {
+                let ink = Double(rows.reduce(0) { $0 + $1.nonzeroBitCount }) / 64
+                let top = Color((Int(max(0, min(255, (ink * 255).rounded()))) << 24) | (fg.value & 0x00FF_FFFF))
+                s.color = DeckController.blend(top, over: bg)
             }
             // (Its labels moved one by one, as a combination's line's are:
             // zh-b8de3ae2's 3-D bars' close values, apart in Word's print,
