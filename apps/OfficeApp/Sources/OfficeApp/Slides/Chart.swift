@@ -541,6 +541,11 @@ struct Chart: Equatable {
     var titleFont: String? = nil
     var legendColor: Color? = nil
     var legendBold = false
+    /// The legend's own frame and fill (`c:legend/c:spPr`): its line's colour, width in points and dash, its fill.
+    var legendLine: Color? = nil
+    var legendLineWidth = 0.75
+    var legendLineDash: String? = nil
+    var legendFill: Color? = nil
     var plainText = false
     /// The labels' and legend's size where nothing says one: PowerPoint
     /// 2013's 12 pt for a chart that colours its text (as a new chart
@@ -1641,6 +1646,14 @@ enum ChartXML {
             }
             if let f = l.first("c:txPr")?.descendant("a:defRPr")?.first("a:solidFill") { c.legendColor = color(f) }
             c.legendBold = ["1", "true"].contains(l.first("c:txPr")?.descendant("a:defRPr")?["b"] ?? "")
+            if let sp = l.first("c:spPr") {
+                c.legendFill = sp.first("a:solidFill").flatMap(color)
+                if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
+                    c.legendLine = color(f)
+                    c.legendLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                    c.legendLineDash = PptxReader.dash(ln)
+                }
+            }
             if let m = l.first("c:layout")?.first("c:manualLayout"),
                (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
@@ -2751,6 +2764,31 @@ enum ChartPainter {
                 area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
             }
+            let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
+            func startX(_ w: Double) -> Double {
+                beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
+            }
+            // (Its frame and fill where the file gives them, on a sheet, under its entries: Excel's prints of WithChartSheet's
+            // black one and tdf135184RoundLineCap2's dotted green.)
+            if c.onSheet, c.legendFill != nil || c.legendLine != nil, !lines.isEmpty {
+                var l = Double.infinity, rr = -Double.infinity, yy = y
+                for (n, line) in lines.enumerated() {
+                    let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
+                    let x0 = startX(w)
+                    l = min(l, x0); rr = max(rr, x0 + w)
+                    yy += lineHs[n]
+                }
+                let b = Rect.fromLTRB(l - 5 * k, y - 3 * k, rr + 5 * k, yy + 3 * k)
+                let p = Paint()
+                p.isAntiAlias = true
+                if let f = c.legendFill { p.style = .fill; p.color = f; canvas.drawRect(b, p) }
+                if let ln = c.legendLine {
+                    p.style = .stroke; p.color = ln; p.strokeWidth = max(0.25, c.legendLineWidth * k)
+                    let path = Path()
+                    path.addRect(b)
+                    canvas.drawPath(SlidePainter.dashed(path, c.legendLineDash, width: p.strokeWidth, capped: false), p)
+                }
+            }
             for (n, line) in lines.enumerated() {
                 let lineH = lineHs[n]
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
@@ -2758,8 +2796,7 @@ enum ChartPainter {
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
                 // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
                 // theirs a 2007-style chart's, whose area is not centred.)
-                let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
-                var x = beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
+                var x = startX(w)
                 for e in line {
                     let p = Paint()
                     p.style = .fill
