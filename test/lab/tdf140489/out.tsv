@@ -1,0 +1,26 @@
+﻿series	1	INTEREST RATE	type=1	axisgroup=2	smooth=True	n=361	max=75887.4494031449
+series	2	EQUIVALENT NONTAXABLE RATE	type=1	axisgroup=2	smooth=True	n=361	max=38520.8950528772
+series	3	Year Sizing	type=75	axisgroup=1	smooth=False	n=2	max=5000
+series	4	IR_Line	type=4	axisgroup=2	smooth=True	n=361	max=75887.4494031449
+base	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+base	group1 type2	0	90000	10000	minAuto=True maxAuto=True majAuto=True
+base	group2 type1				minAuto= maxAuto= majAuto=
+a:delete Year Sizing	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+a:delete Year Sizing	group1 type2	0	80000	10000	minAuto=True maxAuto=True majAuto=True
+b:YearSizing Y={0,0}	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+b:YearSizing Y={0,0}	group1 type2	0	90000	10000	minAuto=True maxAuto=True majAuto=True
+b:YearSizing Y={0,0}	group2 type1				minAuto= maxAuto= majAuto=
+c:delete EQUIVALENT NONTAXABLE RATE	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+c:delete EQUIVALENT NONTAXABLE RATE	group1 type2	0	90000	10000	minAuto=True maxAuto=True majAuto=True
+c:delete EQUIVALENT NONTAXABLE RATE	group2 type1				minAuto= maxAuto= majAuto=
+d:delete IR_Line	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+d:delete IR_Line	group1 type2	0	90000	10000	minAuto=True maxAuto=True majAuto=True
+d:delete IR_Line	group2 type1				minAuto= maxAuto= majAuto=
+e:IR_Line smooth off	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+e:IR_Line smooth off	group1 type2	0	90000	10000	minAuto=True maxAuto=True majAuto=True
+e:IR_Line smooth off	group2 type1				minAuto= maxAuto= majAuto=
+f1:scatter to primary	group1 type1	0	30	5	minAuto=True maxAuto=False majAuto=True
+f1:scatter to primary	group1 type2	0	90000	10000	minAuto=True maxAuto=True majAuto=True
+f1:scatter to primary	group2 type1				minAuto= maxAuto= majAuto=
+f2:scatter to secondary	group1 type1	0	400	50	minAuto=True maxAuto=True majAuto=True
+f2:scatter to secondary	group1 type2	0	80000	10000	minAuto=True maxAuto=True majAuto=True
