@@ -2046,8 +2046,14 @@ struct DiagramLayout {
                 let pPr = XNode(name: "a:pPr", attrs: [:])
                 if level > 0 { pPr.attrs["lvl"] = String(min(8, level)) }
                 if bulleted {
-                    pPr.attrs["marL"] = String(171450 * (level + 2 - startLevel))
-                    pPr.attrs["indent"] = "-171450"
+                    // The hanging indent follows the paragraph's size in steps
+                    // of 4.5 pt, up to 22.5 (PowerPoint's 9 at 12 pt, 13.5 at
+                    // 16, 18 at 27, 22.5 from 31 up).
+                    let stated = runs.first { $0.name == "a:r" }?.first("a:rPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
+                    let own = stated ?? (level > 0 ? sec : prim)
+                    let unit = Int(4.5 * Double(min(5, Int((own / 6.75).rounded(.up)))) * 12700)
+                    pPr.attrs["marL"] = String(unit * (level + 2 - startLevel))
+                    pPr.attrs["indent"] = String(-unit)
                     pPr.children = [XNode(name: "a:buChar", attrs: ["char": "•"])]
                 } else {
                     pPr.children = [XNode(name: "a:buNone", attrs: [:])]
