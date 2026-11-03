@@ -77,9 +77,11 @@ enum WordArt {
     /// its size and 4.5pt) further out; and every line's letters are set a little closer than
     /// their advances — 1 - spacing x size in points (outer lines a touch less than the innermost).
     static let circleInset = 0.165
-    static let circleSpacing = 0.004
+    static let circleSpacing = 0.002
     static let circleSpacingOuter = 0.0035
     static let circlePitch = 0.975
+    /// A line of a slide's text on a circle keeps its size only up to this share of its circle's length (lab prints, textcircle).
+    static let circleFit = 0.55
 
     /// The presets whose text follows the area's ellipse.
     static let followsPath: Set<String> = ["textArchUp", "textArchDown", "textCircle", "textButton"]
@@ -737,7 +739,11 @@ enum WordArt {
             // 450 x 88 box's upper half in Word's print, about 52pt.)
             // Word sets a Georgia line on a warp at 0.84 of its size (labs: textArch*, textCircle).
             let top = line.glyphs.contains { $0.advance != nil } ? 0.84 : 1.0
-            let k = (fits ? arc / line.width : min(top, arc / line.width)) * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
+            // The letters keep their size (`fit`); a slide's text on a circle only sets them
+            // a little closer (`k`, lab prints) — it is the advances that shrink, not the glyphs.
+            var fit = fits ? arc / line.width : min(top, arc / line.width)
+            if slide, room == 1 { fit = min(fit, Self.circleFit * arc / line.width) }
+            let k = fit * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
             var s = line.alignment == .center ? free / 2 : line.alignment == .right ? free : 0
@@ -755,10 +761,11 @@ enum WordArt {
                 let (p, t) = at(s + w / 2)
                 s += w
                 guard g.width > 0 else { continue }
-                let base = g.painter.computeDistanceToActualBaseline(.alphabetic) * k
+                let base = g.painter.computeDistanceToActualBaseline(.alphabetic) * fit
                 // Along the tangent, and down its right-hand normal.
-                let ax = Offset(t.dx * k, t.dy * k), ay = Offset(-t.dy * k, t.dx * k)
-                let o = Offset(p.dx - t.dx * w / 2 + t.dy * base, p.dy - t.dy * w / 2 - t.dx * base)
+                let ax = Offset(t.dx * fit, t.dy * fit), ay = Offset(-t.dy * fit, t.dx * fit)
+                let gw = g.width * fit
+                let o = Offset(p.dx - t.dx * gw / 2 + t.dy * base, p.dy - t.dy * gw / 2 - t.dx * base)
                 draw(g, o, ax, ay)
             }
         }
