@@ -423,7 +423,7 @@ struct Scene3D: Equatable {
     /// A `legacy…` camera, which PowerPoint lights its old way.
     var legacy = false
     /// `a:bevelT`'s width and height, in points (0 for none); `a:contourClr` and `contourW`.
-    var bevelW = 0.0, bevelH = 0.0
+    var bevelW = 0.0, bevelH = 0.0, bevelPreset = "circle"
     var contourColor: Color? = nil
     var contourW = 0.0
 

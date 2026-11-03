@@ -223,6 +223,7 @@ enum Extrusion {
         if let b = sp3d?.first("a:bevelT") {
             s.bevelW = (b["w"].flatMap(Double.init) ?? 76200) / Pptx.emu
             s.bevelH = (b["h"].flatMap(Double.init) ?? 76200) / Pptx.emu
+            s.bevelPreset = b["prst"] ?? "circle"
         }
         s.contourColor = sp3d?.first("a:contourClr").flatMap(colors.color(in:))
         s.contourW = (sp3d?["contourW"].flatMap(Double.init) ?? 0) / Pptx.emu
@@ -488,7 +489,23 @@ enum Extrusion {
             shownFace = Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
         }
         face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil)
-        if rim, frontShows, scene.rig == "morning", scene.bevelW > 0, scene.bevelH > 0 {
+        // A top bevel under a rig the shapes' bevel model lights (ShapeBevel,
+        // paintBevel: Lab C) is that model's, so text and shapes share one;
+        // it lights the slopes as seen face-on, so a turned camera only foreshortens them.
+        var bevelled = false
+        if rim, frontShows, scene.rig != "morning", scene.bevelW > 0, scene.bevelH > 0, !scene.legacy {
+            let outline = Path()
+            for ring in rings { outline.addPolygon(ring.map { flat(place($0, 0)) }, true) }
+            var b = ShapeBevel(width: scene.bevelW, height: scene.bevelH)
+            b.rig = scene.rig; b.material = scene.material.isEmpty ? "warmMatte" : scene.material
+            b.preset = scene.bevelPreset; b.turn = scene.rigTurn
+            if let r = scene.rigRot { b.rot = r; b.turn = 0 }
+            if Extrusion.paintBevel(b, outline, outline.getBounds(), canvas, pxPerPt: px, fill: shownFace) {
+                RuleTrace.hit("slide-3d-text-bevel-is-the-shapes-bevel")
+                bevelled = true
+            }
+        }
+        if rim, frontShows, !bevelled, scene.rig == "morning", scene.bevelW > 0, scene.bevelH > 0 {
             // A top bevel is a rim just inside the outline, lit by which way its
             // edge faces. (Lab p3t, softRound 9 x 3 under morning: the brightness
             // a quarter of the way in, by the edge's direction, 0 = right, 90 = up.)
