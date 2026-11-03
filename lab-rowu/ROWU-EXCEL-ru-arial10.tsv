@@ -1,0 +1,17 @@
+# row	label	bottom_rule_y	this_row_height (rule minus previous rule; row 1 blank)
+1	A10 none	66.63	
+2	A10 single	79.01	12.38
+3	A10 double	91.37	12.36
+4	A10 singleAcc	105.89	14.52
+5	A10 doubleAcc	119.33	13.44
+6	16plain|B10 none	138.89	19.56
+7	16plain|B10 single	158.45	19.56
+8	16plain|B10 double	178.01	19.56
+9	16plain|B10 singleAcc	198.29	20.28
+10	16plain|B10 doubleAcc	217.85	19.56
+11	A16 none	237.41	19.56
+12	A16 single	257.00	19.59
+13	A16 double	276.56	19.56
+14	A16 singleAcc	299.36	22.80
+15	A16 doubleAcc	321.08	21.72
+16	16 control	340.64	19.56
