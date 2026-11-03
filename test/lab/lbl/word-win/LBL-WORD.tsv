@@ -1,0 +1,64 @@
+# doc	page	label	x0	top	baseline
+lbl-first	19	Note	144.02	222.49	231.50
+lbl-first	20	Note	144.02	128.05	137.06
+lbl-first	20	Important	144.02	244.00	253.01
+lbl-first	20	Important	144.02	327.04	336.05
+lbl-first	21	Note	144.02	257.32	266.33
+lbl-first	21	Note	144.02	421.38	430.39
+# lbl-first pages 21
+lbl-mar	19	Note	144.02	222.49	231.50
+lbl-mar	19	Note	144.02	690.20	699.22
+lbl-mar	20	Important	144.02	164.53	173.54
+lbl-mar	20	Important	144.02	247.48	256.49
+lbl-mar	21	Note	144.02	287.32	296.33
+lbl-mar	21	Note	144.02	451.38	460.39
+# lbl-mar pages 21
+lbl-noframe	19	Note	144.02	222.49	231.50
+lbl-noframe	19	Note	144.02	690.20	699.22
+lbl-noframe	20	Important	144.02	164.53	173.54
+lbl-noframe	20	Important	144.02	247.48	256.49
+lbl-noframe	21	Note	144.02	287.32	296.33
+lbl-noframe	21	Note	144.02	451.38	460.39
+# lbl-noframe pages 21
+lbl-rpr	19	Note	144.02	222.49	231.50
+lbl-rpr	19	Note	144.02	690.20	699.22
+lbl-rpr	20	Important	144.02	164.53	173.54
+lbl-rpr	20	Important	144.02	247.48	256.49
+lbl-rpr	21	Note	144.02	287.32	296.33
+lbl-rpr	21	Note	144.02	451.38	460.39
+# lbl-rpr pages 21
+lbl-shd	19	Note	144.02	222.49	231.50
+lbl-shd	19	Note	144.02	690.20	699.22
+lbl-shd	20	Important	144.02	164.53	173.54
+lbl-shd	20	Important	144.02	247.48	256.49
+lbl-shd	21	Note	144.02	287.32	296.33
+lbl-shd	21	Note	144.02	451.38	460.39
+# lbl-shd pages 21
+lbl-style	19	Note	144.02	222.49	231.50
+lbl-style	19	Note	126.02	690.20	699.22
+lbl-style	20	Important	126.02	164.53	173.54
+lbl-style	20	Important	126.02	247.48	256.49
+lbl-style	21	Note	144.02	287.32	296.33
+lbl-style	21	Note	144.02	451.38	460.39
+# lbl-style pages 21
+lbl-tblstyle	19	Note	144.02	222.49	231.50
+lbl-tblstyle	19	Note	126.02	690.20	699.22
+lbl-tblstyle	20	Important	126.02	164.53	173.54
+lbl-tblstyle	20	Important	126.02	247.48	256.49
+lbl-tblstyle	21	Note	144.02	287.32	296.33
+lbl-tblstyle	21	Note	144.02	451.38	460.39
+# lbl-tblstyle pages 21
+lbl-tcw	19	Note	144.02	222.49	231.50
+lbl-tcw	19	Note	144.02	690.20	699.22
+lbl-tcw	20	Important	144.02	164.53	173.54
+lbl-tcw	20	Important	144.02	247.48	256.49
+lbl-tcw	21	Note	144.02	287.32	296.33
+lbl-tcw	21	Note	144.02	451.38	460.39
+# lbl-tcw pages 21
+lbl-width0	19	Note	144.02	222.49	231.50
+lbl-width0	19	Note	144.02	690.20	699.22
+lbl-width0	20	Important	144.02	164.53	173.54
+lbl-width0	20	Important	144.02	233.53	242.54
+lbl-width0	21	Note	144.02	257.32	266.33
+lbl-width0	21	Note	144.02	421.38	430.39
+# lbl-width0 pages 21
