@@ -1788,6 +1788,15 @@ final class SlidePainter: CustomPainter {
     /// A `gamma` gradient's stops (`SlideFill.squared`) with in-betweens:
     /// each blend in sRGB, leaving the lighter of its two stops as the
     /// square of the way along.
+    /// How far along a `gamma` blend has gone from its lighter stop at `t` (0 to 1): PowerPoint's print
+    /// of the 45541 decks' backgrounds (102 -> 47 and 205 -> 94 in green) holds to the light end, then
+    /// falls fastest past the middle: a tenth of the way at a quarter, 0.38 at half, 0.79 at three quarters.
+    static func gammaEase(_ t: Double) -> Double {
+        let xs = [0.0, 0.25, 0.5, 0.75, 1.0], ys = [0.0, 0.10, 0.385, 0.79, 1.0]
+        let i = min(3, max(0, Int(t * 4)))
+        return ys[i] + (ys[i + 1] - ys[i]) * (t - xs[i]) / 0.25
+    }
+
     static func squaredRamp(_ stops: [SlideFill.GradientStop]) -> ([Color], [Double]) {
         func part(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
         func light(_ c: Color) -> Double { 0.2126 * part(c, 16) + 0.7152 * part(c, 8) + 0.0722 * part(c, 0) }
@@ -1800,7 +1809,7 @@ final class SlidePainter: CustomPainter {
                 let steps = 16
                 for k in 1 ..< steps {
                     let at = Double(k) / Double(steps)
-                    let t = fromLight ? at * at : 1 - (1 - at) * (1 - at)
+                    let t = fromLight ? Self.gammaEase(at) : 1 - Self.gammaEase(1 - at)
                     func ch(_ sh: Int) -> Int { Int((part(a.color, sh) * (1 - t) + part(s.color, sh) * t).rounded()) }
                     colors.append(Color((ch(24) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)))
                     positions.append(a.position + (s.position - a.position) * at)
