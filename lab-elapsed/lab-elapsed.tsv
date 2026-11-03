@@ -1,0 +1,225 @@
+system	value	fmt	via	text
+1900	0	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1900	0	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1900	0	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1900	0	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1900	0	s:[h]	TEXT	0:12
+1900	0	s:[h]	numfmt	0:12
+1900	0	m:[s]	TEXT	1:43200
+1900	0	m:[s]	numfmt	1:43200
+1900	0	s:[hh]:mm	TEXT	0:12:00
+1900	0	s:[hh]:mm	numfmt	0:12:00
+1900	0	[h]:s	TEXT	0:0
+1900	0	[h]:s	numfmt	0:0
+1900	0	s:[mm]	TEXT	0:720
+1900	0	s:[mm]	numfmt	0:720
+1900	0.5	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1900	0.5	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1900	0.5	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1900	0.5	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1900	0.5	s:[h]	TEXT	0:12
+1900	0.5	s:[h]	numfmt	0:12
+1900	0.5	m:[s]	TEXT	1:43200
+1900	0.5	m:[s]	numfmt	1:43200
+1900	0.5	s:[hh]:mm	TEXT	0:12:00
+1900	0.5	s:[hh]:mm	numfmt	0:12:00
+1900	0.5	[h]:s	TEXT	12:0
+1900	0.5	[h]:s	numfmt	12:0
+1900	0.5	s:[mm]	TEXT	0:720
+1900	0.5	s:[mm]	numfmt	0:720
+1900	1	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1900	1	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1900	1	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1900	1	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1900	1	s:[h]	TEXT	0:12
+1900	1	s:[h]	numfmt	0:12
+1900	1	m:[s]	TEXT	1:43200
+1900	1	m:[s]	numfmt	1:43200
+1900	1	s:[hh]:mm	TEXT	0:12:00
+1900	1	s:[hh]:mm	numfmt	0:12:00
+1900	1	[h]:s	TEXT	24:0
+1900	1	[h]:s	numfmt	24:0
+1900	1	s:[mm]	TEXT	0:720
+1900	1	s:[mm]	numfmt	0:720
+1900	0.0854629629	s:m" @ hour "[hh]	TEXT	4:3 @ hour 108
+1900	0.0854629629	s:m" @ hour "[hh]	numfmt	4:3 @ hour 108
+1900	0.0854629629	s" secs and "[m]" mins"	TEXT	4 secs and 6480 mins
+1900	0.0854629629	s" secs and "[m]" mins"	numfmt	4 secs and 6480 mins
+1900	0.0854629629	s:[h]	TEXT	4:108
+1900	0.0854629629	s:[h]	numfmt	4:108
+1900	0.0854629629	m:[s]	TEXT	1:388800
+1900	0.0854629629	m:[s]	numfmt	1:388800
+1900	0.0854629629	s:[hh]:mm	TEXT	4:108:03
+1900	0.0854629629	s:[hh]:mm	numfmt	4:108:03
+1900	0.0854629629	[h]:s	TEXT	2:4
+1900	0.0854629629	[h]:s	numfmt	2:4
+1900	0.0854629629	s:[mm]	TEXT	4:6480
+1900	0.0854629629	s:[mm]	numfmt	4:6480
+1900	0.25	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1900	0.25	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1900	0.25	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1900	0.25	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1900	0.25	s:[h]	TEXT	0:12
+1900	0.25	s:[h]	numfmt	0:12
+1900	0.25	m:[s]	TEXT	1:43200
+1900	0.25	m:[s]	numfmt	1:43200
+1900	0.25	s:[hh]:mm	TEXT	0:12:00
+1900	0.25	s:[hh]:mm	numfmt	0:12:00
+1900	0.25	[h]:s	TEXT	6:0
+1900	0.25	[h]:s	numfmt	6:0
+1900	0.25	s:[mm]	TEXT	0:720
+1900	0.25	s:[mm]	numfmt	0:720
+1900	3.14159	s:m" @ hour "[hh]	TEXT	53:23 @ hour 1293
+1900	3.14159	s:m" @ hour "[hh]	numfmt	53:23 @ hour 1293
+1900	3.14159	s" secs and "[m]" mins"	TEXT	53 secs and 77581 mins
+1900	3.14159	s" secs and "[m]" mins"	numfmt	53 secs and 77581 mins
+1900	3.14159	s:[h]	TEXT	53:1293
+1900	3.14159	s:[h]	numfmt	53:1293
+1900	3.14159	m:[s]	TEXT	1:4654886
+1900	3.14159	m:[s]	numfmt	1:4654886
+1900	3.14159	s:[hh]:mm	TEXT	53:1293:23
+1900	3.14159	s:[hh]:mm	numfmt	53:1293:23
+1900	3.14159	[h]:s	TEXT	75:53
+1900	3.14159	[h]:s	numfmt	75:53
+1900	3.14159	s:[mm]	TEXT	53:77581
+1900	3.14159	s:[mm]	numfmt	53:77581
+1900	10	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1900	10	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1900	10	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1900	10	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1900	10	s:[h]	TEXT	0:12
+1900	10	s:[h]	numfmt	0:12
+1900	10	m:[s]	TEXT	1:43200
+1900	10	m:[s]	numfmt	1:43200
+1900	10	s:[hh]:mm	TEXT	0:12:00
+1900	10	s:[hh]:mm	numfmt	0:12:00
+1900	10	[h]:s	TEXT	240:0
+1900	10	[h]:s	numfmt	240:0
+1900	10	s:[mm]	TEXT	0:720
+1900	10	s:[mm]	numfmt	0:720
+1900	100	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1900	100	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1900	100	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1900	100	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1900	100	s:[h]	TEXT	0:12
+1900	100	s:[h]	numfmt	0:12
+1900	100	m:[s]	TEXT	4:43200
+1900	100	m:[s]	numfmt	4:43200
+1900	100	s:[hh]:mm	TEXT	0:12:00
+1900	100	s:[hh]:mm	numfmt	0:12:00
+1900	100	[h]:s	TEXT	2400:0
+1900	100	[h]:s	numfmt	2400:0
+1900	100	s:[mm]	TEXT	0:720
+1900	100	s:[mm]	numfmt	0:720
+1904	0	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1904	0	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1904	0	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1904	0	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1904	0	s:[h]	TEXT	0:12
+1904	0	s:[h]	numfmt	0:12
+1904	0	m:[s]	TEXT	1:43200
+1904	0	m:[s]	numfmt	1:43200
+1904	0	s:[hh]:mm	TEXT	0:12:00
+1904	0	s:[hh]:mm	numfmt	0:12:00
+1904	0	[h]:s	TEXT	0:0
+1904	0	[h]:s	numfmt	0:0
+1904	0	s:[mm]	TEXT	0:720
+1904	0	s:[mm]	numfmt	0:720
+1904	0.5	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1904	0.5	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1904	0.5	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1904	0.5	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1904	0.5	s:[h]	TEXT	0:12
+1904	0.5	s:[h]	numfmt	0:12
+1904	0.5	m:[s]	TEXT	1:43200
+1904	0.5	m:[s]	numfmt	1:43200
+1904	0.5	s:[hh]:mm	TEXT	0:12:00
+1904	0.5	s:[hh]:mm	numfmt	0:12:00
+1904	0.5	[h]:s	TEXT	12:0
+1904	0.5	[h]:s	numfmt	12:0
+1904	0.5	s:[mm]	TEXT	0:720
+1904	0.5	s:[mm]	numfmt	0:720
+1904	1	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1904	1	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1904	1	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1904	1	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1904	1	s:[h]	TEXT	0:12
+1904	1	s:[h]	numfmt	0:12
+1904	1	m:[s]	TEXT	1:43200
+1904	1	m:[s]	numfmt	1:43200
+1904	1	s:[hh]:mm	TEXT	0:12:00
+1904	1	s:[hh]:mm	numfmt	0:12:00
+1904	1	[h]:s	TEXT	24:0
+1904	1	[h]:s	numfmt	24:0
+1904	1	s:[mm]	TEXT	0:720
+1904	1	s:[mm]	numfmt	0:720
+1904	0.0854629629	s:m" @ hour "[hh]	TEXT	4:3 @ hour 108
+1904	0.0854629629	s:m" @ hour "[hh]	numfmt	4:3 @ hour 108
+1904	0.0854629629	s" secs and "[m]" mins"	TEXT	4 secs and 6480 mins
+1904	0.0854629629	s" secs and "[m]" mins"	numfmt	4 secs and 6480 mins
+1904	0.0854629629	s:[h]	TEXT	4:108
+1904	0.0854629629	s:[h]	numfmt	4:108
+1904	0.0854629629	m:[s]	TEXT	1:388800
+1904	0.0854629629	m:[s]	numfmt	1:388800
+1904	0.0854629629	s:[hh]:mm	TEXT	4:108:03
+1904	0.0854629629	s:[hh]:mm	numfmt	4:108:03
+1904	0.0854629629	[h]:s	TEXT	2:4
+1904	0.0854629629	[h]:s	numfmt	2:4
+1904	0.0854629629	s:[mm]	TEXT	4:6480
+1904	0.0854629629	s:[mm]	numfmt	4:6480
+1904	0.25	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1904	0.25	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1904	0.25	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1904	0.25	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1904	0.25	s:[h]	TEXT	0:12
+1904	0.25	s:[h]	numfmt	0:12
+1904	0.25	m:[s]	TEXT	1:43200
+1904	0.25	m:[s]	numfmt	1:43200
+1904	0.25	s:[hh]:mm	TEXT	0:12:00
+1904	0.25	s:[hh]:mm	numfmt	0:12:00
+1904	0.25	[h]:s	TEXT	6:0
+1904	0.25	[h]:s	numfmt	6:0
+1904	0.25	s:[mm]	TEXT	0:720
+1904	0.25	s:[mm]	numfmt	0:720
+1904	3.14159	s:m" @ hour "[hh]	TEXT	53:23 @ hour 1293
+1904	3.14159	s:m" @ hour "[hh]	numfmt	53:23 @ hour 1293
+1904	3.14159	s" secs and "[m]" mins"	TEXT	53 secs and 77581 mins
+1904	3.14159	s" secs and "[m]" mins"	numfmt	53 secs and 77581 mins
+1904	3.14159	s:[h]	TEXT	53:1293
+1904	3.14159	s:[h]	numfmt	53:1293
+1904	3.14159	m:[s]	TEXT	1:4654886
+1904	3.14159	m:[s]	numfmt	1:4654886
+1904	3.14159	s:[hh]:mm	TEXT	53:1293:23
+1904	3.14159	s:[hh]:mm	numfmt	53:1293:23
+1904	3.14159	[h]:s	TEXT	75:53
+1904	3.14159	[h]:s	numfmt	75:53
+1904	3.14159	s:[mm]	TEXT	53:77581
+1904	3.14159	s:[mm]	numfmt	53:77581
+1904	10	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1904	10	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1904	10	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1904	10	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1904	10	s:[h]	TEXT	0:12
+1904	10	s:[h]	numfmt	0:12
+1904	10	m:[s]	TEXT	1:43200
+1904	10	m:[s]	numfmt	1:43200
+1904	10	s:[hh]:mm	TEXT	0:12:00
+1904	10	s:[hh]:mm	numfmt	0:12:00
+1904	10	[h]:s	TEXT	240:0
+1904	10	[h]:s	numfmt	240:0
+1904	10	s:[mm]	TEXT	0:720
+1904	10	s:[mm]	numfmt	0:720
+1904	100	s:m" @ hour "[hh]	TEXT	0:0 @ hour 12
+1904	100	s:m" @ hour "[hh]	numfmt	0:0 @ hour 12
+1904	100	s" secs and "[m]" mins"	TEXT	0 secs and 720 mins
+1904	100	s" secs and "[m]" mins"	numfmt	0 secs and 720 mins
+1904	100	s:[h]	TEXT	0:12
+1904	100	s:[h]	numfmt	0:12
+1904	100	m:[s]	TEXT	4:43200
+1904	100	m:[s]	numfmt	4:43200
+1904	100	s:[hh]:mm	TEXT	0:12:00
+1904	100	s:[hh]:mm	numfmt	0:12:00
+1904	100	[h]:s	TEXT	2400:0
+1904	100	[h]:s	numfmt	2400:0
+1904	100	s:[mm]	TEXT	0:720
+1904	100	s:[mm]	numfmt	0:720
