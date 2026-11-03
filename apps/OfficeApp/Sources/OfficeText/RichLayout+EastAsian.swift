@@ -1818,7 +1818,15 @@ extension RichLayout {
                     // mode 15, doNotCompress, 標楷體 12, a cell or the body, no grid) takes "保" with five spaces of 3.0
                     // 3.4pt over and not 3.8, with four 2.7 and not 3.1 — the digits' face and the "「" alike.)
                     let quarterEach = RichTextTheme.wordWindowsPages && !legacy && !onCharacterGrid && hang == 0 ? autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 4 : 0
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * autoGive, max(quarterEach, (closes && hang == 0) || opens ? em / 2 : em / 4))
+                    // (In a cell, Word for Windows from 2013's layout, no quarter em for an ideograph — the share
+                    // test below limits it — and half an em for a Latin word: at Word's own cell widths
+                    // zh-147bdae0's "…截至109年8月" takes "月" 3.25pt over with four of 3.0 and its "…公共設施保"
+                    // "保" 3.47 with five, and zh-4ea36aa8's "…為了加強臺灣IC" "IC" 3.15 with three, where its
+                    // "…國小至" leaves "高" 3.26 over by the share; zh-8628cfbe's "…每退步1名減" leaves "1" 7.0.)
+                    let cellWindows = RichTextTheme.wordWindowsPages && inCell && !legacy && !onCharacterGrid && hang == 0
+                    let autoCap: Double = cellWindows && eastAsianAt(a) ? .infinity
+                        : max(quarterEach, (closes && hang == 0) || opens || (cellWindows && units[a] < 0x2E80) ? em / 2 : em / 4)
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * autoGive, autoCap)
                     // (A word space beside East Asian text gives a fifth of
                     // itself, not a quarter, in Word for Windows' print:
                     // zh-b5359de4's "…宜选用 LED 灯或…控制方式；" (mode 15,
@@ -1862,7 +1870,11 @@ extension RichLayout {
                     // is taken where they can give it — zh-4ea36aa8's cell
                     // "…為了加強臺灣IC" ends so in Word's print.)
                     let autoRoom = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
-                    let shareGive = quarterEach > em / 4 ? 0.54 : autoGive   // (lab `asp`: five spaces' 3.4 shares as 0.54 of each, 標楷體's digits at 3.0 taking "保" 3.40 over in a cell, Word for Windows; zh-147bdae0's cell "…GPU計算資源供各界申" leaves "請" 3.48 over with a word space, which 0.55 took)
+                    // (In a cell, Word for Windows, 0.52 where each gives no more than the quarter em: at Word's
+                    // cell widths zh-301618c5's and zh-4f883dce's "…法規彙編」等" take "刊" 2.74 over with two
+                    // of 3.0, 0.50 and 0.52 of them by this test, and zh-147bdae0's "…所需之輔助介" "面" 2.70 at
+                    // 0.517, where its "…通盤檢討前" leaves "應" at 0.526.)
+                    let shareGive = quarterEach > em / 4 ? 0.54 : cellWindows ? 0.52 : autoGive   // (lab `asp`: five spaces' 3.4 shares as 0.54 of each, 標楷體's digits at 3.0 taking "保" 3.40 over in a cell, Word for Windows; zh-147bdae0's cell "…GPU計算資源供各界申" leaves "請" 3.48 over with a word space, which 0.55 took)
                     let spaceTrail = wordSpaces.filter { sp in sp.k < a && (sp.k + 1 ..< a).allSatisfy { isSpace(units[$0]) } }.reduce(0.0) { $0 + $1.w }
                     let spaceEms: Double = gapStretch()
                     let allSpaces: Double = wordSpaces.reduce(0.0) { $0 + $1.w }
@@ -1881,7 +1893,7 @@ extension RichLayout {
                             : need * oldStretch <= oldGive * (width - x + hair))
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
-                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\n".utf8))
+                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\t\(spaceEms / pt)\t\(inCell ? 1 : 0)\t\(windowsAfterMarks ? 1 : 0)\t\(quarterEach / pt)\n".utf8))
                     }
                     if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)

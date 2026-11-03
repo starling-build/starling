@@ -302,8 +302,12 @@ extension RichLayout {
                     }
                     return nil
                 }
-                if l == 0, c.column > 0, let d = neighbour(true) { l = sideLine(d, "right") }
-                if r == 0, c.column + c.span < widths.count, let d = neighbour(false) { r = sideLine(d, "left") }
+                // (Not where the cells stand separated, even by none: there the neighbour's line lies in
+                // the neighbour's box. zh-147bdae0's p14 table, tblCellSpacing 0, 0-twip left margins
+                // beside a 1pt line, starts "1.建置…" at the line's inner edge in Word's print, where ours,
+                // a whole line further in, left "系" for the next line.)
+                if l == 0, c.column > 0, !spaced(c.row), let d = neighbour(true) { l = sideLine(d, "right") }
+                if r == 0, c.column + c.span < widths.count, !spaced(c.row), let d = neighbour(false) { r = sideLine(d, "left") }
                 if l > 0 || r > 0 {
                     if spaced(c.row) {
                         // (Separated, each cell's lines lie inside its own

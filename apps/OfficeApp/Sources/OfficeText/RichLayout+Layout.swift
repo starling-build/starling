@@ -886,8 +886,13 @@ extension RichLayout {
         _tableMerged = [:]
         _tableFirstParagraph = [:]
         _tableOwnLeft = [:]
+        _tableOwnRight = [:]
+        var rightSides: [String: [(end: Int, side: (style: String, width: Double))]] = [:]
         for (k, p) in document.paragraphs.enumerated() {
             if let c = p.cell {
+                if let own = Self._cellSide(c.bordersXML, "right") ?? Self._cellSide(c.rowBordersXML, "right") {
+                    rightSides[c.table, default: []].append((c.column + c.span, own))
+                }
                 if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
                 if c.column == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
                    own.width > _tableOwnLeft[c.table]?.width ?? 0 { _tableOwnLeft[c.table] = own }
@@ -895,6 +900,9 @@ extension RichLayout {
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
                 if c.rowSpan > 1 { _tableMerged[c.table, default: []].append(k) }
             }
+        }
+        for (table, sides) in rightSides {
+            for r in sides where r.end >= columns[table] ?? 1 && r.side.width > _tableOwnRight[table]?.width ?? 0 { _tableOwnRight[table] = r.side }
         }
         var widths: [String: [Double]] = [:]
         _tableFlowWidth = [:]
@@ -925,10 +933,16 @@ extension RichLayout {
                         // table, 101.52% of a 487.3pt column with half-point rules, has its grid 1807 + 8077
                         // twips — the share less 10 — and its second column's 81.72% is the 8077, where Word's
                         // lines wrap; ours, 0.4pt wider, took a "及" there that Word leaves.)
+                        // (The edge cells' own wider lines count, as at the left edge: zh-147bdae0's 100% tables,
+                        // 0.5pt rules with 1.5pt ones on the last column's cells' right, have the grid
+                        // 13938 of a 13958-twip share — 20 in, half of 0.5 + 1.5 — ruled so in Word's print,
+                        // where ours, 0.3pt wider, left "應" and "月" lines a quarter-point short.)
                         let outerInset: Double = {
                             guard theme.wordRules, ts.borders else { return 0 }
                             let side: Double = ts.borderWidth ?? 0.5
-                            return _px(((ts.edgeWidths["left"] ?? side) + (ts.edgeWidths["right"] ?? side)) / 2)
+                            let left: Double = max(ts.edgeWidths["left"] ?? side, _tableOwnLeft[c.table]?.width ?? 0)
+                            let right: Double = max(ts.edgeWidths["right"] ?? side, _tableOwnRight[c.table]?.width ?? 0)
+                            return _px((left + right) / 2)
                         }()
                         scale = (theme.wordRules ? width * pct / 100 - outerInset : min(width, width * pct / 100)) / _px(sum)
                         // (A table whose grid — Word's own last fit of it —

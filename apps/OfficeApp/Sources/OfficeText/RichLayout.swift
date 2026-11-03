@@ -1534,6 +1534,8 @@ public final class RichLayout {
     /// The widest line a table's first-column cells state on their own
     /// left (points), by table: see `_edgeShift`.
     var _tableOwnLeft: [String: (style: String, width: Double)] = [:]
+    /// The widest right line a last-column cell states of its own, per table.
+    var _tableOwnRight: [String: (style: String, width: Double)] = [:]
 
     /// Column widths (points) shown instead of the document's while a
     /// border is being dragged; the edit lands on release.
