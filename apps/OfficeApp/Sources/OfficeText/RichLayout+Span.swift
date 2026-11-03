@@ -355,6 +355,7 @@ extension RichLayout {
         // there are only spaces (prints of 2026-10-13: three 20pt spaces
         // under an 18pt mark are a line of 30.9pt, under a 14pt mark of
         // 23.9, and 18pt spaces under a 20pt mark of 34.2).
+        // (A shade that shows: a white one paints nothing, and changes nothing.)
         let lineSize: (size: Double, blank: Bool)? = {
             // (Ideographic ones too: zh-64044a1d's form rows whose cells
             // hold "　" alone are as tall as its empty ones in Word's
@@ -575,7 +576,7 @@ extension RichLayout {
                 // line taller — zh-1563bd74's footer line, 19.0pt on the
                 // Mac against the ideographs' 18.6, and Word's lab `hfl`
                 // gives trailing spaces no height at all.)
-                if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s), height: 0.01) }
+                if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s), height: Self.shadeShows(run.highlight) ? s.height : 0.01) }
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
@@ -624,7 +625,9 @@ extension RichLayout {
                         // counted: YaHei's 10.5 is two pitches, and
                         // zh-2a241df1's caption took a line more. A tab, a
                         // no-break space and a glyph do count.)
-                        s = s.copyWith(height: 0.01)
+                        // (Shaded, they paint the shade: zh-1078e06f's grey blanks
+                        // after a signature line; a 0.01 box paints none.)
+                        if !Self.shadeShows(run.highlight) || own > lineSize.size + 0.01 { s = s.copyWith(height: 0.01) }
                     } else if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
                         var sized = run
                         sized.fontSize = lineSize.size
@@ -1867,7 +1870,10 @@ extension RichLayout {
         // (After an ideograph only: zh-7dc3afad's right-aligned figures,
         // "7,567 " in a table cell, stand where the space hangs past the
         // margin in Word's print — counted, 87 figures moved 3.5pt left.)
-        let roomyTrail = theme.wordRules && p.style.alignment == .right && p.text.hasSuffix(" ")
+        // (Shaded spaces end a paragraph too: Word paints them, the engine drops
+        // the shade of spaces that end a line — zh-1078e06f's blanks after a
+        // signature line.)
+                let roomyTrail = theme.wordRules && p.text.hasSuffix(" ") && (p.style.alignment == .right || Self.shadeShows(p.runs.last?.style.highlight))
             && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
         let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox }
         if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
@@ -2448,4 +2454,8 @@ extension RichLayout {
     static func _sameLine(_ s1: Double, _ h1: Double, _ s2: Double, _ h2: Double) -> Bool {
         abs(s1 * h1 - s2 * h2) < 0.01 || (abs(s1 - s2) < 0.01 && abs(s1 * h1 - s2 * h2) <= 0.015 * max(s1 * h1, s2 * h2))
     }
+}
+
+extension RichLayout {
+    static func shadeShows(_ c: Color?) -> Bool { c.map { $0 != Color(0xFFFFFFFF) } ?? false }
 }
