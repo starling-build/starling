@@ -1,0 +1,147 @@
+diff --git a/apps/OfficeApp/Sources/OfficeText/RichLayout+EastAsian.swift b/apps/OfficeApp/Sources/OfficeText/RichLayout+EastAsian.swift
+index c8e8bf410..e85589bc8 100644
+--- a/apps/OfficeApp/Sources/OfficeText/RichLayout+EastAsian.swift
++++ b/apps/OfficeApp/Sources/OfficeText/RichLayout+EastAsian.swift
+@@ -408,6 +408,20 @@ extension RichLayout {
+         var lineSpaced = false  // … or ends, so far, with one
+         var lineBlank = false   // a space character (U+0020) on the line so far
+         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
++        // (Word for Windows before 2013's layout, a justified paragraph: this line's word spaces that carry
++        // letter spacing, and how much. Lab `wsp` (zh-06c46ba9's reference "範例2  Iyengar, S., & S. Jackman
++        // (2004). Technology", mode 14, Times 14, its seven spaces spaced +1.85): Word takes "Technology" up to
++        // about 7.2pt over and not 7.7, where with the spacing removed nothing on the line gives — the spaces
++        // give back about half of what the spacing adds, and nothing of themselves.)
++        var spacedSpaces: [(k: Int, s: Double)] = []
++        // (A word space gives of its own width, not of the letter spacing its run adds, in Word for Windows:
++        // lab `wsp` c (zh-06c46ba9's reference in mode 15, seven spaces spaced +1.85) takes "Technology" 4.5pt
++        // nearer than a quarter of the spaced widths allows.)
++        func spaceSpacing(_ k: Int) -> Double {
++            guard theme.wordRules, RichTextTheme.wordWindowsPages, k < runOf.count else { return 0 }
++            return max(0, p.runs[runOf[k]].style.letterSpacing ?? 0) * theme.pixelsPerPoint * scale
++        }
++        let spacedSpacesGive = theme.wordRules && RichTextTheme.wordWindowsPages && legacy && p.style.alignment == .justify
+         var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
+         // (A line's word spaces, measured: lab `wsf` (Word for Windows, 14pt, mode 15, 24 ideographs
+         // and the next one taken as the line's width steps down, spaces 4 or 8, commas 0, 1 or 3,
+@@ -1701,6 +1715,18 @@ extension RichLayout {
+                         if after > 0 { adjust[tail, default: 0] -= after }
+                         fits = true
+                     }
++                    // (The letter-spaced spaces' give, for a Latin word at the line's end: `spacedSpaces`.)
++                    if !fits, spacedSpacesGive, hang == 0, a < units.count, units[a] < 0x2E80, need > hair {
++                        let give = spacedSpaces.filter { $0.k < a }.reduce(0.0) { $0 + $1.s } * 0.5
++                        let total = max(0, room) + give
++                        if give > 0, need <= total + hair {
++                            let share = min(1, (need + 0.02) / total)
++                            for mark in all { adjust[mark, default: 0] -= half(mark) * share }
++                            for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * share }
++                            for sp in spacedSpaces where sp.k < a { adjust[sp.k, default: 0] -= sp.s * 0.5 * share }
++                            fits = true
++                        }
++                    }
+                 }
+                 // (Under `balanceSingleByteDoubleByteWidth` word spaces give
+                 // nothing for East Asian text that follows them: zh-dc25c47e's cell "…□广播电视
+@@ -1852,7 +1878,7 @@ extension RichLayout {
+                     onFirstLine = false
+                     marks = []
+                     spaces = []
+-                    wordSpaces = []
++                    wordSpaces = []; spacedSpaces = []
+                     if piece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
+                     continue
+                 }
+@@ -1877,7 +1903,7 @@ extension RichLayout {
+                 onFirstLine = false
+                 marks = []
+                 spaces = []
+-                wordSpaces = []
++                wordSpaces = []; spacedSpaces = []
+                 lineWide = 0
+                 lineEms = 0
+                 lineLatin = false
+@@ -1927,7 +1953,7 @@ extension RichLayout {
+             if lastTab != nil {
+                 marks = []
+                 spaces = []
+-                wordSpaces = []
++                wordSpaces = []; spacedSpaces = []
+             }
+             for k in a ..< last {
+                 if isSpace(units[k]) { if lineWide > 0 { lineOther = true } }
+@@ -1982,12 +2008,21 @@ extension RichLayout {
+             // "能" 7.3pt over rather than squeeze its three marks.)
+             if squeezesSpaces, !flanked, RichTextTheme.wordWindowsPages, last > a {
+                 for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) }) {
+-                    wordSpaces.append((k, boxes(k, k + 1)))
++                    wordSpaces.append((k, boxes(k, k + 1) - spaceSpacing(k)))
+                 }
+             }
+             if squeezesSpaces || pageBox, piece.trail > 0, last < piece.b, !flanked {
+                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
+-                for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
++                for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)) - spaceSpacing(k))) }
++            }
++            if spacedSpacesGive {
++                // (Between Latin text only: zh-06c46ba9's "…取 自：網址 xxx。", spaced spaces beside ideographs,
++                // wraps "xxx。" in Word's print.)
++                for k in a ..< piece.b where units[k] == 0x20 && k < runOf.count && k > 0 && units[k - 1] < 0x2E80
++                    && (k + 1 ..< units.count).first(where: { units[$0] != 0x20 }).map({ units[$0] < 0x2E80 }) == true {
++                    let sp = p.runs[runOf[k]].style.letterSpacing ?? 0
++                    if sp > 0 { spacedSpaces.append((k, sp * theme.pixelsPerPoint * scale)) }
++                }
+             }
+             if topLinePunct, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._openingUnits.contains(units[k]),
+                !(onFirstLine && firstGiven) {
+@@ -2006,7 +2041,7 @@ extension RichLayout {
+                 onFirstLine = false
+                 marks = []
+                 spaces = []
+-                wordSpaces = []
++                wordSpaces = []; spacedSpaces = []
+                 opening = true
+                 lineWide = 0
+                 lineEms = 0
+diff --git a/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift b/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift
+index ca6a11580..1df963380 100644
+--- a/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift
++++ b/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift
+@@ -287,7 +287,13 @@ extension RichLayout {
+                     // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
+                     // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
+                     // two spaces between words, nor a page number's "—  10  —".)
+-                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") {
++                    // (Two between a digit and a letter as well, in Word for Windows: lab `bxr` (zh-bdae17c0's
++                    // reference "範例2  Bozeman…", Times 14) sets them 6.96 each with the label boxed or not, where
++                    // 3.5 took "concepts" on a line Word ends at "Two"; in the corpus's balanced prints every run of
++                    // two after a digit is half an em. Not before a dash: a footer's "—  10  —".)
++                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")")
++                        || (RichTextTheme.wordWindowsPages && run.count == 2 && left.map({ $0.isASCII && $0.isNumber }) == true
++                            && right.map({ $0.isASCII && $0.isLetter }) == true) {
+                         let balanced = run.filter { !complexSpaces.contains($0) }
+                         wideSpaces.formUnion(balanced)
+                         ordinaryBalancedSpaces.formUnion(balanced)
+@@ -1603,9 +1609,22 @@ extension RichLayout {
+                         // carry `<w:bdr w:val="none"/>`, and Word sets "14号" with
+                         // 2pt between, a quarter of its 8pt; ours took the run for
+                         // ruled and set 4, and every line held a character less.)
++                        // (In Word for Windows only where East Asian text follows the Latin run, past its spaces: lab
++                        // `bxr` and zh-06c46ba9's print set the boxed "範例2  Iyengar…" "例"→"2" 17.1 apart, the plain gap
++                        // (the line's width is in the two spaces after it, half an em each), and "範例1 詹中原…" 21.3.)
+                         if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.rangeOfSubstring("<w:bdr "),
+                            case let tag = xml[r.upperBound...].prefix(while: { $0 != ">" }),
+-                           !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") { gap *= 2 }
++                           !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") {
++                            var doubles = true
++                            if RichTextTheme.wordWindowsPages, (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 {
++                                let pu = Array(p.text.utf16)
++                                var k = nextAt
++                                while k < pu.count, pu[k] < 0x80, pu[k] != 0x20 { k += 1 }
++                                while k < pu.count, pu[k] == 0x20 || pu[k] == 0x3000 { k += 1 }
++                                doubles = k < pu.count && pu[k] >= 0x2E80
++                            }
++                            if doubles { gap *= 2 }
++                        }
+                         extra += gap
+                         autoSpaces?(offset, gap)
+                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
