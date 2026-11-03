@@ -265,11 +265,14 @@ final class ChartTests: XCTestCase {
 
     /// A chart this app cannot draw reads as nothing, so the frame keeps
     /// its own picture. (Every single kind is drawn since surfaces were,
-    /// 5c5d43a4; an area under a line is a combination still left alone.)
+    /// 5c5d43a4. An area under a line on one pair of axes is drawn too, since
+    /// bc0dd4262 — chart-tdf140489's; an area beside a pie is still left alone.)
     func testAKindThisAppCannotDrawIsKept() {
         let ser = "<c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/>"
         let combo = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:areaChart>\(ser)</c:areaChart><c:lineChart>\(ser)</c:lineChart></c:plotArea></c:chart></c:chartSpace>"
-        XCTAssertNil(ChartXML.read(XNode.parse(Data(combo.utf8))!, color: { _ in nil }))
+        XCTAssertNotNil(ChartXML.read(XNode.parse(Data(combo.utf8))!, color: { _ in nil }), "an area under a line on one pair of axes is drawn (bc0dd4262)")
+        let odd = combo.replacingOccurrences(of: "<c:lineChart>\(ser)</c:lineChart>", with: "<c:pieChart>\(ser)</c:pieChart>")
+        XCTAssertNil(ChartXML.read(XNode.parse(Data(odd.utf8))!, color: { _ in nil }))
         XCTAssertNotNil(ChartXML.read(XNode.parse(Data(combo.replacingOccurrences(of: "<c:lineChart>\(ser)</c:lineChart>", with: "").utf8))!, color: { _ in nil }), "the area alone is drawn")
     }
 
