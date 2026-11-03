@@ -1575,11 +1575,12 @@ extension RichLayout {
                     return held
                 }
             }
-            if painter.strutStyle == nil, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, !picturesInLine, inline.isEmpty,
+            if painter.strutStyle == nil, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, !picturesInLine, inline.allSatisfy({ $0.image == nil }),
                let flat = Self._unstackedFaces(span, painter) {
                 let flatter = TextPainter(text: flat, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
                 flatter.fractionalLineHeights = painter.fractionalLineHeights
                 flatter.lineIndents = painter.lineIndents
+                if !inline.isEmpty { flatter.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                 flatter.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                 if flatter.computeLineMetrics().count == lines {
                     RuleTrace.hit("latin-standin-shares-ideograph-line")

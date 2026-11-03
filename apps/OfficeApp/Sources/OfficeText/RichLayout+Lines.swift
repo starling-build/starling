@@ -95,7 +95,10 @@ extension RichLayout {
         var at = 0
         var simple = true
         func visit(_ s: InlineSpan) {
-            guard let t = s as? TextSpan else { simple = false; return }
+            guard let t = s as? TextSpan else {
+                if s is PlaceholderSpan { at += 1 } else { simple = false }
+                return
+            }
             if let text = t.text {
                 let n = text.utf16.count
                 if let st = t.style, let fs = st.fontSize, let h = st.height, n > 0 {
@@ -131,7 +134,7 @@ extension RichLayout {
         for (i, leaf) in leaves.enumerated() where leaf.ascii && !leafLines[i].isEmpty {
             let refs = leafLines[i].map { reference[$0] }
             guard refs.allSatisfy({ $0 != nil }) else { continue }
-            guard refs.allSatisfy({ r in r!.family != leaf.family && leaf.box <= r!.box + 0.01 }) else { continue }
+            guard refs.allSatisfy({ r in leaf.box <= r!.box + 0.01 }) else { continue }
             marked.insert(i)
         }
         guard !marked.isEmpty else { return nil }
