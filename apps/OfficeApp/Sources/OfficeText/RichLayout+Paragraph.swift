@@ -2845,7 +2845,16 @@ extension RichLayout {
             let drop = min(_spacing(i - 1, document).after, _spacing(i, document).before)
             if drop > 0.01 {
                 RuleTrace.hit("frame-label-adds-the-space-after-above-instead-of-merging")
-                _inkShift[i] += drop
+                // (A table under the label goes down with it: lo-a197b7a8's "To confirm the health…"
+                // (p21) and "To install the single server…" (p16) stand 3.1pt under where the
+                // merged spacing put them in Word's print, the table's text with them, 18.6 under
+                // the label as under a label that follows a table. A paragraph under it stays.)
+                if i + 1 < document.paragraphs.count, document.paragraphs[i + 1].cell != nil {
+                    _spaceBefore[i] += drop
+                    _heights[i] += drop
+                } else {
+                    _inkShift[i] += drop
+                }
             }
         }
         _topsValid = false
