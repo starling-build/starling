@@ -3190,6 +3190,9 @@ final class _TextCache {
     /// drawn in DejaVu Sans (a few per cent wider in its letters, narrower
     /// in its space — the format tests' lines ran past Excel's), in ems.
     private func _own(_ ch: Character, _ style: GridTextStyle) -> Double? {
+        // A Hangul syllable is a whole em in Excel's Malgun Gothic and Dotum (style-alternate-content's
+        // four-syllable "전화번호" at 11pt is 44.2 pt); the stand-in that draws it sets it 0.92.
+        if ch.unicodeScalars.count == 1, let h = ch.unicodeScalars.first?.value, (0xAC00 ... 0xD7A3).contains(h) { return 1.0 }
         if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
             return (style.bold ? OfficeFonts.aptosNarrowBoldAdvances : OfficeFonts.aptosNarrowAdvances)[Int(v - 0x20)]
         }
