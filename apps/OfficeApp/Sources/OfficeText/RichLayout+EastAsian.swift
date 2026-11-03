@@ -99,8 +99,9 @@ extension RichLayout {
         // and so end on the closing one whole — `parted` below — where
         // marks are not compressed: zh-147bdae0's cell paragraph "…管理系
         // 統」（紙本申報）…", set left, with nothing else to fit for.)
-        let partable = RichTextTheme.wordWindowsPages && !latinOnly && !turned && !squeezes
-            && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1) }
+        let partable = RichTextTheme.wordWindowsPages && !latinOnly && !turned
+            && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1)
+                && (!squeezes || !Self._pauseMarks.contains($0.0)) }
         guard marked || partable || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
@@ -527,11 +528,15 @@ extension RichLayout {
             // 世界的禮物〉（Taiwan’s…" is 3.9pt over with its "〉" whole, and
             // Word for Windows' print sends "物〉" down; its "…管理系統」（紙本
             // 申報）" sends "統」" down. Ours took the "〉" and "」" at half.
-            // Not where marks are compressed, where the line's last may give
-            // its half all the same: zh-6d1afa56's cell (compressPunctuation)
-            // ends "《政府信息公开条例》、" with "《社会" next in Word's print.)
+            // Where marks are compressed, a bracket so — not a pause mark, whose
+            // half goes all the same: lab `prt` (Word for Windows, zh-7a16a243's
+            // package, compressPunctuation, on its grid and off it) takes "積」",
+            // "積）" or "積〉" before "（" only with 8pt more room than before "如",
+            // at 16pt, and "積、" or "積，" with none; zh-6d1afa56's cell ends
+            // "《政府信息公开条例》、" with "《社会" next.)
             let parted = RichTextTheme.wordWindowsPages && last > a && piece.b == last && closesUp(last - 1) && last - 1 < ems.count
-                && last < units.count && (kinsokuOff && Self._closingUnits.contains(units[last]) || !squeezes && Self._openingUnits.contains(units[last]))
+                && last < units.count && (kinsokuOff && Self._closingUnits.contains(units[last])
+                    || Self._openingUnits.contains(units[last]) && (!squeezes || !Self._pauseMarks.contains(units[last - 1])))
             let pastRoom = pastFrom.flatMap { beyond[$0.tab] } ?? 0
             // (A Latin piece in letter-spaced text, a hundredth of a point: Word sets each character's spacing
             // in its own units, ours adds the exact twentieths, and over a line the sums part by a few
@@ -623,7 +628,13 @@ extension RichLayout {
                 FileHandle.standardError.write(Data("FITO\t\(i)\t\(lineNumber)\t\(a)\t\(last)\t\(x / pt)\t\(w / pt)\t\(width / pt)\t\(after / pt)\t\(marks.count)\t\(own.count)\t\(lineWide)\t\(lineEms / pt)\t\(lineOther ? 1 : 0)\n".utf8))
             }
             if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
-                let over = x + w - width
+                // (A parted bracket's whole width, as `fits` weighed it, and no
+                // hang for it — in Taiwan's convention, where marks are compressed:
+                // lab `prt` (zh-7a16a243's package) and that document's p26. Not
+                // the mainland's: zh-c97500b6's "…（中办发【2019】5号）" hangs its "）"
+                // before "《" in Word's print, and held whole, 899 lines fell.)
+                let partedWhole = parted && !kinsokuOff && (!squeezes || document.marksCentred)
+                let over = x + w - width + (partedWhole ? ems[last - 1] / 2 : 0)
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
                 // past the margin, by as much as it is wide; what is
@@ -820,7 +831,9 @@ extension RichLayout {
                 // zh-b00fef0d's "…协同更高效" is squeezed full for its "效", and its "、" opens the next.)
                 let kinsokuHang = RichTextTheme.wordWindowsPages && legacy && fitted && kinsokuOff && !inCell && !turned && last == a + 1
                     && x < width - _px(0.01) && units[a] >= 0x2000 && p.style.eastAsian["w:overflowPunct"] != "0"
-                let hung = (hangs || kinsokuHang) && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                // (Nor a bracket parted from the opening mark after it: lab `prt`'s
+                // body lines take "積」" before "（" only where the line holds it whole.)
+                let hung = (hangs || kinsokuHang) && !partedWhole && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
