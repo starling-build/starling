@@ -3636,6 +3636,12 @@ enum ChartPainter {
             } else {
                 tp.paint(canvas, Offset(frame.left + placed.at.dx * frame.width + 3 * k, frame.top + placed.at.dy * frame.height + 2.9 * k - top))
             }
+            // (Word's own layout of a 3-D column chart still gives a value axis title the file has placed its
+            // room at the left: zh-b8de3ae2's "千元" charts, the labels and the walls 17 pt further right.)
+            if placed.turned, t == c.valueAxisTitle, !c.onSlide, !c.onSheet, !c.chartex, c.barView != nil, c.plotLayout == nil, !horizontal {
+                RuleTrace.hit("word-3d-columns-leave-room-for-a-placed-value-title")
+                area = Rect.fromLTRB(area.left + tp.height + 1 * k, area.top, area.right, area.bottom)
+            }
             tp.dispose()
         }
         if let t = c.valueAxisTitle, c.valueAxisTitleAt == nil {
