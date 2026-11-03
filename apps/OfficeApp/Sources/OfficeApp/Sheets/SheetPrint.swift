@@ -345,12 +345,16 @@ extension SheetGridState {
             // going across only when it is whole rows: StructuredRefs-lots-
             // with-lookups' List!A5:L121 is fitted to its width with the empty
             // K and L, at Excel's 65% where ours left them out and made 75%.
+            // (Fitted to a number of pages tall, the area is the whole height
+            // that is fitted, empty rows too: lo-tdf148820's A1:I35 is
+            // Excel's 74%, where the used rows alone gave 91%.)
+            let setup = SheetPrintSetup.read(ws)
+            let fitsTall = (setup.fitHeight ?? 0) > 0
             let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
-                CellRange(top: a.top, left: a.left, bottom: min(a.bottom, max(a.top, used.bottom)),
+                CellRange(top: a.top, left: a.left, bottom: fitsTall ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
                           right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
             await _preloadPictures(ws)
-            let setup = SheetPrintSetup.read(ws)
             printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
             printMono = setup.blackAndWhite
             printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
