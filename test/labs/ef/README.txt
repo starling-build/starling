@@ -18,3 +18,8 @@ ef4 (amd-3): the real lo-eb12e7d4 page 14 neighbourhood, cut out (spacer standin
   Question: on page 1, the left column ends with the 92pt picture (y 403..495), then an empty paragraph.
   Does the empty paragraph stay at the foot of column 1 (the first line of column 2 at y 70.9) or move to column 2 (88.2)?
   Please print each page 1 and send y_top of the first line in the right column (x ~ 439), per variant. (meas.py is fine.)
+
+ef5 (amd-3): ef4a (Word moves the empty paragraph to column 2; without the pictures, ef4b, it stays) with the table's pictures changed.
+  ef5a = only the top-and-bottom picture kept; ef5b = only the square picture kept;
+  ef5c = square picture made no-wrap (top-and-bottom kept); ef5d = both pictures inline.
+  Same question as ef4: page 1, y_top of the first line in the right column (x ~ 439). Ours 70.9 in all four; 88.5 = the empty paragraph moved.
