@@ -1169,11 +1169,17 @@ enum ChartXML {
         // (A scatter group none of whose series draws anything — no line, no marks — is a sizing aid Excel keeps on
         // a pair of axes of its own, chart-tdf140489's "YearSizing": it and those axes are left out, and the rest is
         // plotted against its own.)
+        var hiddenValueAxis: XNode? = nil
         if plot.children.contains(where: { $0.name != "c:scatterChart" && $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }) {
             for hidden in plot.children where hidden.name == "c:scatterChart" && hidden.all("c:ser").allSatisfy({ ser in
                 ser.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil && ser.first("c:marker")?.first("c:symbol")?["val"] == "none"
             }) {
                 let ids = Set(hidden.all("c:axId").compactMap { $0["val"] })
+                // (Its value axis, where it is shown, is the one the rest is read against: the $ labels and rules.)
+                hiddenValueAxis = plot.all("c:valAx").first { ax in
+                    ids.contains(ax.first("c:axId")?["val"] ?? "") && ["l", "r"].contains(ax.first("c:axPos")?["val"] ?? "")
+                        && !["1", "true"].contains(ax.first("c:delete")?["val"] ?? "")
+                }
                 let shared = plot.children.contains { $0 !== hidden && $0.name.hasSuffix("Chart") && $0.all("c:axId").contains { ids.contains($0["val"] ?? "") } }
                 plot.children.removeAll { $0 === hidden || (!shared && ["c:valAx", "c:catAx", "c:dateAx", "c:serAx"].contains($0.name) && ids.contains($0.first("c:axId")?["val"] ?? "")) }
             }
@@ -1885,6 +1891,13 @@ enum ChartXML {
             c.valueLine = valueAxis.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         }
         c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
+        if let hy = hiddenValueAxis, c.valueAxisDeleted, c.secondValueAxis == nil, !c.lineSeries.isEmpty {
+            var second = SecondValueAxis()
+            second.sameScale = true
+            if let fmt = hy.first("c:numFmt"), fmt["sourceLinked"] != "1", let code = fmt["formatCode"], code.lowercased() != "general" { second.format = code }
+            c.secondValueAxis = second
+            if hy.first("c:majorGridlines") != nil { c.valueGrid = true }
+        }
         c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
         c.seriesAxisDeleted = ["1", "true"].contains(plot.children.first { $0.name == "c:serAx" }?.first("c:delete")?["val"] ?? "")
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
@@ -3427,7 +3440,7 @@ enum ChartPainter {
         let sharesFirst = !c.onSlide && !c.onSheet && !c.chartex && c.secondValueAxis.map {
             $0.deleted && $0.min == nil && $0.max == nil && $0.step == nil
         } == true
-        if c.secondValueAxis == nil || sharesFirst {
+        if c.secondValueAxis == nil || sharesFirst || c.secondValueAxis?.sameScale == true {
             if sharesFirst { RuleTrace.hit("word-lines-on-a-deleted-second-axis-stand-on-the-first") }
             for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
         }
@@ -3524,7 +3537,9 @@ enum ChartPainter {
             && c.dataTable == nil && !c.columnsOnRight && !c.chartex
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
-        if let second = c.secondValueAxis, !sharesFirst, !horizontal {
+        if let second = c.secondValueAxis, second.sameScale, !horizontal {
+            secondScale = sc
+        } else if let second = c.secondValueAxis, !sharesFirst, !horizontal {
             let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
             var s2 = scale(all.min() ?? 0, max(all.max() ?? 1, second.max ?? -Double.infinity), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
@@ -6509,4 +6524,6 @@ struct SecondValueAxis: Equatable {
     var min: Double? = nil
     var max: Double? = nil
     var step: Double? = nil
+    /// Stands on the first axis's scale (the file's visible axis belongs to a group left out).
+    var sameScale = false
 }
