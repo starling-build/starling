@@ -921,7 +921,16 @@ extension RichLayout {
                     // 482pt wide in a 439pt column, set out to the left by
                     // its indent, keeps its columns.)
                     if let pct = ts.widthPercent {
-                        scale = (theme.wordRules ? width * pct / 100 : min(width, width * pct / 100)) / _px(sum)
+                        // (Its outer rules inside the share there too, half each side's width in: zh-81aa310b's
+                        // table, 101.52% of a 487.3pt column with half-point rules, has its grid 1807 + 8077
+                        // twips — the share less 10 — and its second column's 81.72% is the 8077, where Word's
+                        // lines wrap; ours, 0.4pt wider, took a "及" there that Word leaves.)
+                        let outerInset: Double = {
+                            guard theme.wordRules, ts.borders else { return 0 }
+                            let side: Double = ts.borderWidth ?? 0.5
+                            return _px(((ts.edgeWidths["left"] ?? side) + (ts.edgeWidths["right"] ?? side)) / 2)
+                        }()
+                        scale = (theme.wordRules ? width * pct / 100 - outerInset : min(width, width * pct / 100)) / _px(sum)
                         // (A table whose grid — Word's own last fit of it —
                         // is wider than its share keeps the grid: zh-06c46ba9's
                         // table 4 says 100% of 415.6pt and Word sets its

@@ -551,7 +551,11 @@ extension RichLayout {
         // (… with a distance under 10pt only: lo-f48e444e's 14.2pt distance puts the text
         // exactly that far from the table in Word's print, 390.3, where the outdent
         // as well put ours at 395.4.)
-        let edge = right + _px(twips("w:rightFromText") / 20)
+        // (From the table's outer edge, its right rule's outer half too, where Word's rules are
+        // followed: lo-e1104feb's 40% table, 3pt rules, sets its text 181.6 in Word's print, its
+        // right rule centred at 171.0 and the distance 9pt.)
+        let ruleHalf: Double = theme.wordRules && ts.borders ? _px((ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5) / 2) : 0
+        let edge = right + ruleHalf + _px(twips("w:rightFromText") / 20)
             + ((document.compatibilityMode ?? 0) < 15 && twips("w:rightFromText") < 200 ? _px(document.tableStyles[source]?.textOutdentRight ?? 5.4) : 0)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         // (A table in the left half, or one that fills most of the column, whose
