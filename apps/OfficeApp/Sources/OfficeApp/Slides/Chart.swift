@@ -333,6 +333,8 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// The slices a pattern fills (`c:dPt` with `a:pattFill`), hatched; `pointColors` holds the colour it comes to.
+    var pointPatterns: [Int: PatternInk] = [:]
     /// A pie of pie or bar of pie (`c:ofPieChart`): which points leave the
     /// main pie for the second plot, which stands beside it.
     var ofPie: OfPie? = nil
@@ -545,6 +547,8 @@ struct Chart: Equatable {
     /// `c:spPr` has neither (a sheet's chart is then white with a light grey
     /// edge, Excel's look). Written back as read.
     var areaFill: Color? = nil
+    /// The chart area's pattern fill, hatched over `areaFill`'s colour it comes to.
+    var areaPattern: PatternInk? = nil
     /// A gradient the chart area is filled with instead (drawn, not yet
     /// written back: `areaFill` holds its first stop).
     var areaGradient: SlideFill? = nil
@@ -1247,6 +1251,7 @@ enum ChartXML {
         var categories: [String] = []
         var series: [ChartSeries] = []
         var pointColors: [Int: Color] = [:]
+        var pointPatterns: [Int: PatternInk] = [:]
         var levels: [[ChartLevelGroup]] = []
         var named = false
         for ser in el.all("c:ser") + merged.flatMap({ $0.all("c:ser") }) {
@@ -1352,6 +1357,11 @@ enum ChartXML {
                     // accents themselves).
                     else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
                             let g = pt.first("c:spPr")?.first("a:gradFill"), let c = _meanColor(g, color) { pointColors[i] = c }
+                    else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
+                            let pf = pt.first("c:spPr")?.first("a:pattFill"), let (ink, mean) = ChartPainter._patternInk(pf, color) {
+                        pointColors[i] = mean
+                        pointPatterns[i] = ink
+                    }
                 }
             }
             if let fill {
@@ -1366,15 +1376,10 @@ enum ChartXML {
             } else if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
                 s.color = _meanColor(g, color)
             }
-            // (A pattern fill as the colour it comes to: its foreground over its background by the share of the
-            // 8 x 8 cell the preset inks. Excel hatches the area; the mean stands in for the hatch.)
-            if fill == nil, type != .line, type != .scatter, let pf = pr?.first("a:pattFill"),
-               let preset = pf["prst"], let rows = PatternFill.rows[preset],
-               let fg = pf.first("a:fgClr").flatMap(color), let bg = pf.first("a:bgClr").flatMap(color) {
-                let ink = Double(rows.reduce(0) { $0 + $1.nonzeroBitCount }) / 64
-                let top = Color((Int(max(0, min(255, (ink * 255).rounded()))) << 24) | (fg.value & 0x00FF_FFFF))
-                s.color = DeckController.blend(top, over: bg)
-                s.pattern = PatternInk(preset: preset, foreground: fg, background: bg)
+            // (A pattern fill as the colour it comes to for what stands in for the hatch, and the hatch itself.)
+            if fill == nil, type != .line, type != .scatter, let pf = pr?.first("a:pattFill"), let (ink, mean) = ChartPainter._patternInk(pf, color) {
+                s.color = mean
+                s.pattern = ink
             }
             // (Its labels moved one by one, as a combination's line's are:
             // zh-b8de3ae2's 3-D bars' close values, apart in Word's print,
@@ -1803,6 +1808,7 @@ enum ChartXML {
             c.categoryLabelTurn = -rot / 60000
         }
         c.pointColors = pointColors
+        c.pointPatterns = pointPatterns
         if el.name == "c:ofPieChart", let values = c.series.first?.values {
             c.ofPie = Self._ofPie(el, values: values)
         }
@@ -1829,6 +1835,7 @@ enum ChartXML {
         c.areaNoFill = false; c.areaNoLine = false
         if let sp = space.first("c:spPr") {
             if let f = sp.first("a:solidFill") { c.areaFill = color(f) } else if sp.first("a:noFill") != nil { c.areaNoFill = true }
+            else if let pf = sp.first("a:pattFill"), let (ink, mean) = ChartPainter._patternInk(pf, color) { c.areaFill = mean; c.areaPattern = ink }
             // (chart-tdf100084's white to 9999CC, across one chart and back
             // across the other, as `a:lin`'s angle turns it.)
             else if let g = sp.first("a:gradFill") {
@@ -3325,10 +3332,20 @@ enum ChartPainter {
         }
     }
 
+    /// A pattern fill's preset and colours, and the colour it comes to (its foreground over its background by the
+    /// share of the 8 x 8 cell the preset inks), which stands in wherever the hatch is not drawn.
+    static func _patternInk(_ pf: XNode, _ color: (XNode) -> Color?) -> (PatternInk, Color)? {
+        guard let preset = pf["prst"], let rows = PatternFill.rows[preset],
+              let fg = pf.first("a:fgClr").flatMap(color), let bg = pf.first("a:bgClr").flatMap(color) else { return nil }
+        let ink = Double(rows.reduce(0) { $0 + $1.nonzeroBitCount }) / 64
+        let top = Color((Int(max(0, min(255, (ink * 255).rounded()))) << 24) | (fg.value & 0x00FF_FFFF))
+        return (PatternInk(preset: preset, foreground: fg, background: bg), DeckController.blend(top, over: bg))
+    }
+
     /// A pattern fill drawn as Excel prints it: the background under the path, then the preset's 8 x 8 marks, a
     /// pattern pixel 0.75 pt, as one clipped path of runs. False where the area is too large to hatch in vectors
     /// (the caller fills it flat in the colour the hatch comes to).
-    private static func _hatch(_ path: Path, _ ink: PatternInk, k: Double, _ canvas: any Canvas) -> Bool {
+    static func _hatch(_ path: Path, _ ink: PatternInk, k: Double, _ canvas: any Canvas) -> Bool {
         guard let rows = PatternFill.rows[ink.preset] else { return false }
         let b = path.getBounds()
         let px = 0.75 * k
@@ -4603,7 +4620,12 @@ enum ChartPainter {
                         let foot = rgb(h, min(1, sat * 1.3), l), head = rgb(h, 1, min(1, l + 0.273))
                         fill.shader = Gradient(linear: Offset(0, rect.top), to: Offset(0, rect.bottom), colors: [head, foot], colorStops: [0, 1])
                     }
-                    canvas.drawRect(rect, fill)
+                    if c.barView == nil, let ink = c.series[j].pattern, c.pointColors[i] == nil,
+                       Self._hatch({ let q = Path(); q.addRect(rect); return q }(), ink, k: k, canvas) {
+                        // (A pattern-filled column, hatched: its marks over its background.)
+                    } else {
+                        canvas.drawRect(rect, fill)
+                    }
                     fill.shader = nil
                     if c.barView != nil {
                         // The box's top and right side, darker, as
@@ -4937,7 +4959,15 @@ enum ChartPainter {
                 canvas.drawPath(ring, fill)
                 canvas.drawPath(ring, edge)
             } else {
-                canvas.drawArc(oval, angle, sweep, true, fill)
+                if let ink = c.pointPatterns[i] {
+                    let wedge = Path()
+                    wedge.moveTo(centre.dx, centre.dy)
+                    wedge.arcTo(oval, angle, sweep, false)
+                    wedge.close()
+                    if !_hatch(wedge, ink, k: k, canvas) { canvas.drawArc(oval, angle, sweep, true, fill) }
+                } else {
+                    canvas.drawArc(oval, angle, sweep, true, fill)
+                }
                 canvas.drawArc(oval, angle, sweep, true, edge)
             }
             let mid = angle + sweep / 2
