@@ -779,9 +779,10 @@ enum WordArt {
             let steps = 720
             var lift = liftFor(1)
             var c = c
+            var sx = 1.0
             var pts: [Offset] = [], lens: [Double] = [0]
             func build() {
-                let rx = max(1, offset ? rx0 : rx0 + lift), ry = max(1, offset ? ry0 : ry0 + lift)
+                let rx = max(1, offset ? rx0 : rx0 * sx + lift), ry = max(1, offset ? ry0 : ry0 + lift)
                 pts = []; lens = [0]
                 for i in 0 ... steps {
                     let a = (start + sweep * Double(i) / Double(steps)) * .pi / 180
@@ -796,10 +797,15 @@ enum WordArt {
                 if f < 0.84, size / pxPerPt >= 48 {
                     // PowerPoint's print puts big text on the box's own ellipse, a tenth of the box's height
                     // lower and 4.8% of its width to the right (lab p3q, p3r: four box sizes agree).
-                    lift = 0; c = Offset(c.dx + 0.048 * area.width, c.dy + 0.1 * area.height); build()
+                    if warp.preset == "textArchDown" {
+                        // Arch down (p3s): centred on the box, a tenth wider than its ellipse, raised.
+                        lift = 0; sx = 1.103; c = Offset(c.dx - 0.029 * area.width, c.dy - 0.085 * area.height); build()
+                    } else {
+                        lift = 0; c = Offset(c.dx + 0.048 * area.width, c.dy + 0.1 * area.height); build()
+                    }
                 } else if f < 0.84 { lift = liftFor(f); build() }
             }
-            let rx = max(1, offset ? rx0 : rx0 + lift), ry = max(1, offset ? ry0 : ry0 + lift)
+            let rx = max(1, offset ? rx0 : rx0 * sx + lift), ry = max(1, offset ? ry0 : ry0 + lift)
             let arc = lens[steps]
             guard arc > 0, line.width > 0 else { return }
             // (Fitted to its path — VML's `fitshape`/`fitpath`, Word's
