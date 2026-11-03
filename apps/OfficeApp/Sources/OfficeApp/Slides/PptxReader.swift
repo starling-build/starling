@@ -435,7 +435,7 @@ private struct LevelStyle {
             if let v = b.first("a:spcPct")?["val"].flatMap(Double.init) { s.beforePercent = v / 100000 }
         }
         if let a = p.first("a:spcAft") {
-            if let v = a.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = v / 100 }
+            if let v = a.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = (v / 100).rounded() }   // (PowerPoint for Windows sets the space after on whole points: lab p3b, 5.67 -> 6, 17.01 -> 17)
             if let v = a.first("a:spcPct")?["val"].flatMap(Double.init) { s.afterPercent = v / 100000 }
         }
         if p.has("a:buNone") { s.bullet = Bullet.none }
