@@ -2940,6 +2940,16 @@ private struct SlideContext {
             guard w > 0.1, h > 0 else { return nil }
             var b = ShapeBevel(width: w, height: h)
             if let rig = scene?.first("a:lightRig")?["rig"] { b.rig = rig }
+            b.preset = bev["prst"] ?? "circle"
+            if let rig = scene?.first("a:lightRig") {
+                let turns: [String: Double] = ["t": 0, "tr": 45, "r": 90, "br": 135, "b": 180, "bl": 225, "l": 270, "tl": 315]
+                b.turn = turns[rig["dir"] ?? "t"] ?? 0
+                if let r = rig.first("a:rot") {
+                    func deg(_ a: String) -> Double { (r[a].flatMap(Double.init) ?? 0) / 60000 }
+                    b.rot = [deg("lat"), deg("lon"), deg("rev")]
+                    b.turn = 0
+                }
+            }
             if let m = sp3d?["prstMaterial"] { b.material = m }
             return b
         }

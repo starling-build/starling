@@ -939,4 +939,9 @@ struct ShapeBevel: Hashable {
     var height: Double
     var rig = "threePt"
     var material = "warmMatte"
+    /// The bevel's profile (`a:bevelT prst`), the rig's turn about the line
+    /// of sight (`dir`) in degrees and its `a:rot` (lat, lon, rev).
+    var preset = "circle"
+    var turn = 0.0
+    var rot: [Double] = [0, 0, 0]
 }

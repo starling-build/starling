@@ -236,7 +236,7 @@ enum Extrusion {
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
             s.legacy = name.hasPrefix("legacy")
             if let rot = camera.first("a:rot") {
-                func deg(_ a: String) -> Double { (rot[a].flatMap(Double.init) ?? 0) / 60000 }
+                func deg(_ a: String) -> Double { let v = (rot[a].flatMap(Double.init) ?? 0) / 60000; return abs(v) < 0.05 ? 0 : v }
                 (s.lat, s.lon, s.rev) = (deg("lat"), deg("lon"), deg("rev"))
             }
         }
@@ -563,4 +563,151 @@ enum Extrusion {
         }
         return true
     }
+    // MARK: - Bevels
+
+    /// A bevel's tilt, in degrees, at each of fifteen steps in from its
+    /// edge (a quarter, a half ... of its width in fifteenths); 0 is flat,
+    /// a positive tilt rises inward, a negative one dips. Read out of Lab C
+    /// (test/labs/p3d, a face-on 108 pt square, width = height, threePt,
+    /// matte) by finding, at each step, the one tilt that explains the four
+    /// edges' brightness under the rig's lights; the circle comes out a
+    /// quarter circle, the angle a constant 43 degrees.
+    static let bevelProfiles: [String: [Double]] = [
+        "circle": [66.0, 56.0, 50.0, 44.0, 36.0, 32.0, 27.0, 23.0, 18.0, 14.0, 11.0, 8.0, 5.0, 2.0, 0.0],
+        "relaxedInset": [69.0, 60.0, 53.0, 46.0, 37.0, 30.0, 24.0, -49.0, -47.0, -46.0, -36.0, -27.0, -14.0, -7.0, 0.0],
+        "cross": [17.0, 0.0, 0.0, 0.0, 0.0, 11.0, 54.0, 32.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "coolSlant": [68.0, 65.0, 62.0, 59.0, 49.0, 30.0, 14.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "angle": [43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 22.0],
+        "softRound": [75.0, 56.0, -52.0, -56.0, -54.0, -49.0, -45.0, -36.0, -29.0, -23.0, -15.0, -10.0, -7.0, -3.0, 0.0],
+        "convex": [15.0, 4.0, 10.0, 16.0, 23.0, 29.0, 34.0, 41.0, 45.0, 49.0, 52.0, 57.0, 66.0, 33.0, 3.0],
+        "slope": [76.0, 68.0, 51.0, 14.0, 3.0, 0.0, 0.0, -3.0, -15.0, -52.0, -69.0, -76.0, -65.0, -28.0, -4.0],
+        "divot": [68.0, 60.0, 53.0, 45.0, 33.0, 25.0, 16.0, 6.0, -1.0, 0.0, 0.0, 0.0, 22.0, 16.0, 2.0],
+        "riblet": [63.0, 56.0, 51.0, 48.0, 46.0, 42.0, 33.0, 20.0, 8.0, 3.0, 0.0, 0.0, 13.0, 30.0, 3.0],
+        "hardEdge": [76.0, 71.0, 22.0, 1.0, 0.0, 0.0, 0.0, 0.0, -6.0, -53.0, -30.0, -18.0, -10.0, -4.0, 0.0],
+        "artDeco": [51.0, 32.0, 17.0, 8.0, 62.0, 61.0, 52.0, 42.0, 33.0, 26.0, 18.0, 12.0, 8.0, 3.0, 1.0],
+    ]
+
+
+    /// The outline sampled finely and thinned to what it needs: a straight
+    /// edge to its two ends, a curve to chords within a quarter of a pixel,
+    /// so a corner is a vertex and not a cut.
+    private static func fineContours(_ path: Path) -> [[Offset]] {
+        var out: [[Offset]] = []
+        for metric in path.computeMetrics() {
+            let n = max(8, min(2000, Int(metric.length)))
+            var pts: [Offset] = []
+            for i in 0 ..< n {
+                if let t = metric.getTangentForOffset(metric.length * Double(i) / Double(n)) { pts.append(t.position) }
+            }
+            guard pts.count >= 3 else { continue }
+            func dist(_ p: Offset, _ a: Offset, _ b: Offset) -> Double {
+                let dx = b.dx - a.dx, dy = b.dy - a.dy, l = max(1e-9, (dx * dx + dy * dy).squareRoot())
+                return abs((p.dx - a.dx) * dy - (p.dy - a.dy) * dx) / l
+            }
+            func rdp(_ lo: Int, _ hi: Int, _ keep: inout [Bool]) {
+                guard hi - lo > 1 else { return }
+                var worst = 0.0, at = lo
+                for i in (lo + 1) ..< hi {
+                    let d = dist(pts[i], pts[lo], pts[hi % pts.count])
+                    if d > worst { worst = d; at = i }
+                }
+                if worst > 0.25 { keep[at] = true; rdp(lo, at, &keep); rdp(at, hi, &keep) }
+            }
+            // Split the ring at its first point and the one farthest from it.
+            var far = 0, best = 0.0
+            for i in pts.indices { let d = hypot(pts[i].dx - pts[0].dx, pts[i].dy - pts[0].dy); if d > best { best = d; far = i } }
+            var keep = [Bool](repeating: false, count: pts.count)
+            keep[0] = true; keep[far] = true
+            rdp(0, far, &keep)
+            rdp(far, pts.count, &keep)
+            let thin = pts.indices.filter { keep[$0] }.map { pts[$0] }
+            if thin.count >= 3 { out.append(thin) }
+        }
+        return out
+    }
+
+    /// Paints a bevel on `outline` as the lit slope it is: bands in from the
+    /// edge, each as bright as a surface tilted as the profile says would be
+    /// under the rig (`rotatedShare`). False for a rig with no light model.
+    static func paintBevel(_ b: ShapeBevel, _ outline: Path, _ box: Rect, _ canvas: any Canvas, pxPerPt px: Double, fill: Color) -> Bool {
+        guard rotatedRigs[b.rig] != nil else { return false }
+        let profile = bevelProfiles[b.preset] ?? bevelProfiles["circle"]!
+        let w = min(b.width * px, min(box.width, box.height) / 2)
+        guard w > 0.25 * px else { return true }
+        let rot = [b.rot[0], b.rot[1], b.rot[2] + b.turn]
+        func share(_ n: P3) -> Double { rotatedShare(n, rig: b.rig, rot: rot) ?? 1 }
+        // (The glint's strength swept on 60810's bevelled boxes: 0.6.)
+        let glossy = !(b.material == "matte" || b.material == "legacyMatte")
+        let gloss = glossy ? 0.6 * 255 : 0
+        func tint(_ k: Double, _ white: Double = 0) -> Color {
+            func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k + gloss * white).rounded()))) }
+            return Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue))
+        }
+        let slopeScale = b.height / b.width
+        func tilt(_ t: Double) -> Double {
+            // t in 0...1 across the band; the table's step j sits at j / 15.
+            let x = t * 15
+            if x < 1 { return min(88, profile[0] + (profile[0] - profile[1]) * (1 - x)) }
+            let j = min(13, Int(x) - 1)
+            let f = min(1, x - Double(j + 1))
+            return profile[j] + (profile[j + 1] - profile[j]) * f
+        }
+        canvas.save()
+        canvas.clipPath(outline)
+        let p = Paint()
+        p.style = .fill
+        p.color = tint(share(P3(x: 0, y: 0, z: 1)))
+        canvas.drawRect(box, p)
+        let steps = 15
+        for ring in fineContours(outline) {
+            let n = ring.count
+            guard n >= 3 else { continue }
+            var area = 0.0
+            for i in 0 ..< n { let a = ring[i], c = ring[(i + 1) % n]; area += a.dx * c.dy - c.dx * a.dy }
+            // The inward side of each chord, by the ring's winding.
+            let sign = area > 0 ? 1.0 : -1.0
+            var inward: [Offset] = [], outward: [Offset] = []
+            for i in 0 ..< n {
+                let a = ring[i], c = ring[(i + 1) % n]
+                let dx = c.dx - a.dx, dy = c.dy - a.dy, len = max(1e-9, (dx * dx + dy * dy).squareRoot())
+                let inn = Offset(-dy / len * sign, dx / len * sign)
+                inward.append(inn); outward.append(Offset(-inn.dx, -inn.dy))
+            }
+            // Mitred offset rings at each depth.
+            func offsetRing(_ d: Double) -> [Offset] {
+                (0 ..< n).map { i in
+                    let a = inward[(i + n - 1) % n], c = inward[i]
+                    let k = 1 + a.dx * c.dx + a.dy * c.dy
+                    let s = d / max(0.35, k)
+                    return Offset(ring[i].dx + (a.dx + c.dx) * s, ring[i].dy + (a.dy + c.dy) * s)
+                }
+            }
+            var prev = offsetRing(0)
+            for j in 0 ..< steps {
+                let t0 = Double(j) / Double(steps), t1 = Double(j + 1) / Double(steps)
+                let cur = offsetRing(t1 * w)
+                let th = tilt((t0 + t1) / 2) * .pi / 180
+                let g = tan(th) * slopeScale
+                for i in 0 ..< n {
+                    let o = outward[i]
+                    let k = share(P3(x: g * o.dx, y: g * o.dy, z: 1))
+                    let q = Path()
+                    let i2 = (i + 1) % n
+                    q.addPolygon([prev[i], prev[i2], cur[i2], cur[i]], true)
+                    // A slope facing up catches a glint on a glossy material.
+                    let up = max(0, -o.dy) * g / (1 + g * g).squareRoot()
+                    p.color = tint(k, up)
+                    canvas.drawPath(q, p)
+                    p.style = .stroke
+                    p.strokeWidth = 0.5
+                    canvas.drawPath(q, p)
+                    p.style = .fill
+                }
+                prev = cur
+            }
+        }
+        canvas.restore()
+        return true
+    }
+
 }

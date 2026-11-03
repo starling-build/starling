@@ -1011,7 +1011,10 @@ final class SlidePainter: CustomPainter {
         // matrix print flat but for their own lines.)
         if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
            shape.picture == nil, shape.preset?.isOpenPath != true {
-            Self.paintBevel(bevel, path ?? { let q = Path(); q.addRect(area); return q }(), area, canvas, pxPerPt: px, fill: fill)
+            let outline = path ?? { let q = Path(); q.addRect(area); return q }()
+            if bevel.material == "translucentPowder" || !Extrusion.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill) {
+                Self.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill)
+            }
         }
         if let line = shape.outline, !drawnAlready, let sh = shape.shadow, shape.fill == nil, shape.fillStyle == nil,
            shape.picture == nil {
