@@ -774,18 +774,27 @@ enum WordArt {
             // A slide's line rides inside the box's ellipse by 0.165 of its size, and each
             // line after it (toward the middle) a pitch nearer.
             let size = line.glyphs.map(\.size).max() ?? 0
-            let lift = slide ? (warp.preset == "textArchDown" ? Self.circleInset : -Self.circleInset) * size + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0
-            // An arch's letters are spaced along the box's own ellipse and each stands `lift` off it
-            // (p3x lab, 20 to 200 pt); a circle's ride the ellipse that far in.
+            func liftFor(_ scale: Double) -> Double { slide ? (warp.preset == "textArchDown" ? Self.circleInset : -Self.circleInset) * size * scale + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0 }
             let offset = false
-            let rx = max(1, offset ? rx0 : rx0 + lift), ry = max(1, offset ? ry0 : ry0 + lift)
             let steps = 720
+            var lift = liftFor(1)
             var pts: [Offset] = [], lens: [Double] = [0]
-            for i in 0 ... steps {
-                let a = (start + sweep * Double(i) / Double(steps)) * .pi / 180
-                pts.append(Offset(c.dx + rx * cos(a), c.dy + ry * sin(a)))
-                if i > 0 { lens.append(lens[i - 1] + hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy)) }
+            func build() {
+                let rx = max(1, offset ? rx0 : rx0 + lift), ry = max(1, offset ? ry0 : ry0 + lift)
+                pts = []; lens = [0]
+                for i in 0 ... steps {
+                    let a = (start + sweep * Double(i) / Double(steps)) * .pi / 180
+                    pts.append(Offset(c.dx + rx * cos(a), c.dy + ry * sin(a)))
+                    if i > 0 { lens.append(lens[i - 1] + hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy)) }
+                }
             }
+            build()
+            // A slide's arch that has to shrink stands off the ellipse by the shrunk size (p3q: 100 and 200 pt draw one box).
+            if slide, ring == 0, warp.preset == "textArchUp" || warp.preset == "textArchDown", line.width > 0, lens[steps] > 0 {
+                let f = min(1, lens[steps] / line.width)
+                if f < 0.84 { lift = liftFor(f); build() }
+            }
+            let rx = max(1, offset ? rx0 : rx0 + lift), ry = max(1, offset ? ry0 : ry0 + lift)
             let arc = lens[steps]
             guard arc > 0, line.width > 0 else { return }
             // (Fitted to its path — VML's `fitshape`/`fitpath`, Word's
