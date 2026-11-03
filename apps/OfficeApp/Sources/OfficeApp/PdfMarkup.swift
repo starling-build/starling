@@ -203,7 +203,8 @@ struct PdfMarkup {
                     // paragraph whose properties change took its list numbering away:
                     // n830205's 39th to 59th, text then "¶" "¶" where the file has the
                     // text paragraph and one empty. From the print alone, no lab yet.)
-                    if DocxFormat.wordOnWindows, p.style.propertyChange?.oldRPrXML.contains("w:numPr") == true {
+                    // (Not the document's last paragraph, whose mark cannot be deleted: lab dtwo d1's balloon ends "t09t10t11t12¶".)
+                    if DocxFormat.wordOnWindows, srcIndex + 1 < source.paragraphs.count, p.style.propertyChange?.oldRPrXML.contains("w:numPr") == true {
                         RuleTrace.hit("deleted-numbered-paragraph-leaves-an-empty-mark-line")
                         open!.paragraphs[open!.paragraphs.count - 1] = "¶"; open!.paragraphs.append("")
                     }
@@ -377,7 +378,11 @@ struct PdfMarkup {
             // (A paragraph whose indents or alignment were changed: a
             // balloon for the stretch of paragraphs changed alike, "Formatted:
             // Centered", "Formatted: Right: 0\"".)
-            if let change = p.style.propertyChange {
+            // (The document's last paragraph keeps its mark whatever the file says, and Word says of it what its
+            // mark's look changed, not its alignment and indents: lab dtwo d1-d3 end "Formatted: Font: 9 pt",
+            // where ours said "Centered, Left: 0\"".)
+            let finalDeleted = DocxFormat.wordOnWindows && i == document.paragraphs.count - 1 && p.style.markRevision?.kind == .deleted
+            if let change = p.style.propertyChange, !finalDeleted {
                 let said = Self._describe(paragraph: p.style, was: change.oldRPrXML)
                 if said.isEmpty { paragraphLast = nil } else if paragraphLast != said {
                     out.append(Note(anchor: RichPosition(paragraph: i, offset: 0), label: "Formatted:", paragraphs: [said], author: change.author))
@@ -415,7 +420,7 @@ struct PdfMarkup {
                 out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Formatted:", paragraphs: [text], author: change.author))
                 last = (text, field)
             }
-            guard let mark = p.style.mark, let change = mark.formatChange, p.style.markRevision?.kind != .deleted else { last = nil; continue }
+            guard let mark = p.style.mark, let change = mark.formatChange, p.style.markRevision?.kind != .deleted || finalDeleted else { last = nil; continue }
             let text = _describe(mark, was: change.oldRPrXML)
             guard !text.isEmpty else { last = nil; continue }
             if let l = last, l.text == text, l.field == 0 { continue }
