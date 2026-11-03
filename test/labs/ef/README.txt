@@ -8,3 +8,6 @@ meas.py prints every text line of every page (python3 meas.py ef2.pdf > EF2-WORD
 
 Also print anc1.docx (same folder): the anc lab in ONE column, 7 one-line paragraphs per variant (A..J as in ../anc/README.txt; the picture is in p3, F's in p7). meas.py into ANC1-WORD.tsv.
 In the two-column print, top-and-bottom (C, J) set the anchor paragraph p3 UNDER the picture (p3 at 134 for C). Is that so in one column, or does p3 stay where it is and p4 go under?
+
+Also print ef3.docx (build3.py): two columns, 6 pages, one per variant (T0..T5: what follows the empty paragraph; the name is on each page's first line).
+The empty paragraph has 6.35pt to spare at the column foot. Report per page: y_top and x0 of the "Tk-NEXT" line (ours: x 211, y 50: the empty paragraph stays in column 1; Word y 67.7 would mean it went to the next column). meas.py -> EF3-WORD.tsv.
