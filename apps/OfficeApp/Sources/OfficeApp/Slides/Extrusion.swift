@@ -308,7 +308,9 @@ enum Extrusion {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
-        let depth = scene.depth * px
+        // Bevelled text under a rig other than morning prints deeper than its extrusionH: about the
+        // bevel's width more (amd-4's lab p3u: 9 pt, bounding boxes and cell scores, 9x3 and 9x9 alike).
+        let depth = (scene.depth + (rim && scene.rig != "morning" && scene.depth > 0 && scene.bevelW > 0 && scene.bevelH > 0 ? scene.bevelW : 0)) * px
         // The camera turns one way; what is seen turns the other.
         let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
         func turn(_ p: P3) -> P3 {
@@ -703,7 +705,13 @@ enum Extrusion {
         // (Text keeps the face the solid already drew.)
         if face { canvas.drawRect(box, p) }
         let steps = 15
-        for ring in fineContours(outline) {
+        let rings = fineContours(outline)
+        // Every chord of the outline, for the reach of an inward offset: a
+        // stroke thinner than the bevel closes up (the offset would cross the
+        // far side), so a vertex moves at most half its distance to it.
+        var chords: [(Int, Int, Offset, Offset)] = []
+        for (ri, r) in rings.enumerated() where r.count >= 3 { for i in 0 ..< r.count { chords.append((ri, i, r[i], r[(i + 1) % r.count])) } }
+        for (ringIndex, ring) in rings.enumerated() {
             let n = ring.count
             guard n >= 3 else { continue }
             var area = 0.0
@@ -718,11 +726,29 @@ enum Extrusion {
                 inward.append(inn); outward.append(Offset(-inn.dx, -inn.dy))
             }
             // Mitred offset rings at each depth.
+            let reach: [Double] = (0 ..< n).map { i in
+                let a = inward[(i + n - 1) % n], c = inward[i]
+                let bx = a.dx + c.dx, by = a.dy + c.dy, bl = (bx * bx + by * by).squareRoot()
+                guard bl > 1e-6 else { return 1e9 }
+                let ux = bx / bl, uy = by / bl
+                var best = 1e9
+                for (ri, ci, p, q) in chords where !(ri == ringIndex && (ci == i || ci == (i + n - 1) % n)) {
+                    let ex = q.dx - p.dx, ey = q.dy - p.dy
+                    let den = ux * ey - uy * ex
+                    if abs(den) < 1e-9 { continue }
+                    let wx = p.dx - ring[i].dx, wy = p.dy - ring[i].dy
+                    let t = (wx * ey - wy * ex) / den, v = (wx * uy - wy * ux) / den
+                    if t > 1e-6, v >= 0, v <= 1, t < best { best = t }
+                }
+                return best / 2
+            }
             func offsetRing(_ d: Double) -> [Offset] {
                 (0 ..< n).map { i in
                     let a = inward[(i + n - 1) % n], c = inward[i]
                     let k = 1 + a.dx * c.dx + a.dy * c.dy
-                    let s = d / max(0.35, k)
+                    var s = d / max(0.35, k)
+                    let bl = ((a.dx + c.dx) * (a.dx + c.dx) + (a.dy + c.dy) * (a.dy + c.dy)).squareRoot()
+                    if bl * s > reach[i] { s = reach[i] / max(1e-9, bl) }
                     return Offset(ring[i].dx + (a.dx + c.dx) * s, ring[i].dy + (a.dy + c.dy) * s)
                 }
             }
