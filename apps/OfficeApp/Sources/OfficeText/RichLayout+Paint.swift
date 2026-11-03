@@ -1002,6 +1002,19 @@ extension RichLayout {
                     // a line between their columns.)
                     line(nil, true, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0), side: "insideV")
                 }
+                // A cell's diagonal rules (`w:tl2br`, `w:tr2bl`), corner to
+                // corner of the cell as the row stands.
+                if theme.wordRules, d.rowSpan == 1 || bottomHere {
+                    for (name, down) in [("tl2br", true), ("tr2bl", false)] {
+                        guard let side = Self._cellSide(ref?.bordersXML, name) else { continue }
+                        let dp = Paint()
+                        dp.style = .stroke
+                        dp.color = Self._cellSideColor(ref?.bordersXML, name) ?? Color(0xFF000000)
+                        dp.strokeWidth = _px(side.width)
+                        let top = d.rowSpan == 1 ? rowTop : rowTop - (rowBottom - rowTop) * Double(d.rowSpan - 1)
+                        canvas.drawLine(Offset(down ? d.colLeft : cellRight, top), Offset(down ? cellRight : d.colLeft, rowBottom), dp)
+                    }
+                }
             }
             // Each cell of the row draws its edges; a cell from above that
             // spans into this row draws its left edge here too, and its

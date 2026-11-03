@@ -764,6 +764,16 @@ extension RichLayout {
         return (String(style), max(0.25, (value("w:sz").flatMap { Double($0) } ?? 4) / 8))
     }
 
+    /// The colour a side's `w:color` says (auto, or none said: nil).
+    static func _cellSideColor(_ xml: String?, _ side: String) -> Color? {
+        guard let xml, let a = xml.firstRange(of: "<w:\(side) "), let b = xml[a.upperBound...].firstRange(of: ">") else { return nil }
+        let element = xml[a.upperBound ..< b.lowerBound]
+        guard let s = element.firstRange(of: "w:color=\""), let e = element[s.upperBound...].firstRange(of: "\"") else { return nil }
+        let hex = String(element[s.upperBound ..< e.lowerBound])
+        guard hex.count == 6, let v = Int(hex, radix: 16) else { return nil }
+        return Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+    }
+
     func _cellInsets(_ table: String, _ document: RichDocument) -> (top: Double, left: Double, bottom: Double, right: Double) {
         let s = document.tableStyles[table]
         // A table that states no cell margins — one made in the editor —
