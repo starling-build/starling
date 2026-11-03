@@ -1,10 +1,10 @@
 1_NoIden.xlsx	summary pages=2 worst=5.95% mean=3.29%
 45430.xlsx	summary pages=0 worst=0.00% mean=0.00%
-45540_classic_Footer.xlsx	summary pages=11 worst=6.95% mean=3.57%
-45540_classic_Header.xlsx	summary pages=11 worst=6.95% mean=3.58%
+45540_classic_Footer.xlsx	summary pages=11 worst=6.43% mean=3.49%
+45540_classic_Header.xlsx	summary pages=11 worst=6.43% mean=3.49%
 45540_form_Footer.xlsx	summary pages=2 worst=3.89% mean=3.45%
 45540_form_Header.xlsx	summary pages=2 worst=3.87% mean=3.43%
-45544.xlsx	summary pages=10 worst=6.89% mean=3.85%
+45544.xlsx	summary pages=10 worst=6.37% mean=3.80%
 46535.xlsx	summary pages=20 worst=1.76% mean=1.43%
 46536.xlsx	summary pages=1 worst=0.06% mean=0.06%
 47090.xlsx	summary pages=0 worst=0.00% mean=0.00%
@@ -62,8 +62,8 @@
 54071.xlsx	summary pages=1 worst=1.14% mean=1.14%
 54084 - Greek - beyond BMP.xlsx	summary pages=1 worst=0.52% mean=0.52%
 54206.xlsx	summary pages=4 worst=2.75% mean=1.59%
-54288-ref.xlsx	summary pages=14 worst=5.66% mean=3.20%
 54288.xlsx	summary pages=14 worst=5.66% mean=3.20%
+54288-ref.xlsx	summary pages=14 worst=5.66% mean=3.20%
 54399.xlsx	summary pages=1 worst=0.00% mean=0.00%
 54436.xlsx	summary pages=1 worst=0.64% mean=0.64%
 54524.xlsx	summary pages=3 worst=0.56% mean=0.53%
@@ -207,8 +207,8 @@ NewlineInFormulas.xlsx	summary pages=1 worst=0.05% mean=0.05%
 NumberFormatApproxTests.xlsx	summary pages=8 worst=11.43% mean=7.47%
 NumberFormatTests.xlsx	summary pages=14 worst=9.27% mean=5.18%
 RepeatingRowsCols.xlsx	summary pages=4 worst=0.07% mean=0.05%
-SampleSS.strict.xlsx	summary pages=2 worst=0.11% mean=0.07%
 SampleSS.xlsx	summary pages=2 worst=0.11% mean=0.07%
+SampleSS.strict.xlsx	summary pages=2 worst=0.11% mean=0.07%
 SheetTabColors.xlsx	summary pages=0 worst=0.00% mean=0.00%
 ShrinkToFit.xlsx	summary pages=1 worst=0.17% mean=0.17%
 SimpleMultiCell.xlsx	summary pages=1 worst=0.05% mean=0.05%
@@ -224,7 +224,7 @@ TablesWithDifferentHeaders.xlsx	summary pages=3 worst=0.11% mean=0.08%
 TestShiftRowSharedFormula.xlsx	summary pages=1 worst=0.06% mean=0.06%
 TextFormatTests.xlsx	summary pages=2 worst=3.56% mean=2.28%
 Themes.xlsx	summary pages=1 worst=0.03% mean=0.03%
-Themes2.xlsx	summary pages=1 worst=0.31% mean=0.31%
+Themes2.xlsx	summary pages=1 worst=0.30% mean=0.30%
 TwoSheetsNoneHidden.xlsx	summary pages=2 worst=0.01% mean=0.01%
 TwoSheetsOneHidden.xlsx	summary pages=1 worst=0.01% mean=0.01%
 VLookupFullColumn.xlsx	summary pages=7 worst=1.46% mean=1.37%
@@ -282,9 +282,9 @@ chart-bubble_chart_simple.xlsx	summary pages=3 worst=0.63% mean=0.22%
 chart-chart-area-style-background.xlsx	summary pages=3 worst=1.38% mean=0.50%
 chart-chart-area-style-border.xlsx	summary pages=1 worst=1.26% mean=1.26%
 chart-chart-auto-background.xlsx	summary pages=1 worst=1.70% mean=1.70%
-chart-chart-hatch-fill.xlsx	summary pages=2 worst=4.17% mean=3.96%
-chart-chart-text-can-overlap.xlsx	summary pages=2 worst=1.04% mean=0.93%
+chart-chart-hatch-fill.xlsx	summary pages=2 worst=4.17% mean=3.89%
 chart-chart.xlsx	summary pages=2 worst=0.84% mean=0.75%
+chart-chart-text-can-overlap.xlsx	summary pages=2 worst=1.04% mean=0.93%
 chart-chart_label_text_break.xlsx	summary pages=1 worst=1.14% mean=1.14%
 chart-chart_title.xlsx	summary pages=3 worst=0.13% mean=0.05%
 chart-chart_with_name_range.xlsx	summary pages=2 worst=0.22% mean=0.14%
@@ -359,8 +359,8 @@ chart-tdf128732.xlsx	summary pages=2 worst=1.95% mean=1.55%
 chart-tdf130657.xlsx	summary pages=2 worst=1.07% mean=1.00%
 chart-tdf130986.xlsx	summary pages=2 worst=0.56% mean=0.28%
 chart-tdf132076.xlsx	summary pages=2 worst=0.34% mean=0.21%
-chart-tdf133190_tdf133191.xlsx	summary pages=2 worst=0.80% mean=0.78%
-chart-tdf133376.xlsx	summary pages=2 worst=1.28% mean=0.70%
+chart-tdf133190_tdf133191.xlsx	summary pages=2 worst=0.81% mean=0.79%
+chart-tdf133376.xlsx	summary pages=2 worst=1.24% mean=0.68%
 chart-tdf134118.xlsx	summary pages=2 worst=0.43% mean=0.24%
 chart-tdf134225.xlsx	summary pages=2 worst=1.26% mean=0.63%
 chart-tdf134978.xlsx	summary pages=2 worst=0.79% mean=0.40%
@@ -373,7 +373,7 @@ chart-tdf137505.xlsx	summary pages=2 worst=0.31% mean=0.15%
 chart-tdf137734.xlsx	summary pages=1 worst=1.81% mean=1.81%
 chart-tdf137917.xlsx	summary pages=2 worst=1.51% mean=1.00%
 chart-tdf138204.xlsx	summary pages=2 worst=0.38% mean=0.26%
-chart-tdf140489.xlsx	summary pages=1 worst=4.48% mean=4.48%
+chart-tdf140489.xlsx	summary pages=1 worst=4.41% mean=4.41%
 chart-tdf142351.xlsx	summary pages=2 worst=0.80% mean=0.41%
 chart-tdf143127.xlsx	summary pages=2 worst=0.72% mean=0.39%
 chart-tdf143942.xlsx	summary pages=2 worst=0.17% mean=0.10%
@@ -525,7 +525,7 @@ lo-named-ranges-hidden.xlsx	summary pages=1 worst=0.15% mean=0.15%
 lo-new_cond_format_test.xlsx	summary pages=3 worst=0.40% mean=0.26%
 lo-new_cond_format_test_export.xlsx	summary pages=3 worst=0.40% mean=0.26%
 lo-open-as-read-only.xlsx	summary pages=1 worst=0.31% mean=0.31%
-lo-orderOfCNumFmtElements.xlsx	summary pages=3 worst=10.69% mean=3.56%
+lo-orderOfCNumFmtElements.xlsx	summary pages=3 worst=6.47% mean=2.16%
 lo-page_scale.xlsx	summary pages=0 worst=0.00% mean=0.00%
 lo-pivot_dark1.xlsx	summary pages=2 worst=4.91% mean=2.89%
 lo-pivot_table_first_header_row.xlsx	summary pages=6 worst=3.92% mean=1.21%
@@ -712,8 +712,8 @@ lo-totalsRowFunction.xlsx	summary pages=2 worst=1.56% mean=0.81%
 lo-totalsRowShown.xlsx	summary pages=1 worst=0.69% mean=0.69%
 lo-twoCellAnchor_editAs_oneCell.xlsx	summary pages=2 worst=0.26% mean=0.17%
 lo-underlineColor.xlsx	summary pages=2 worst=0.59% mean=0.29%
-lo-universal-content-strict.xlsx	summary pages=1 worst=0.11% mean=0.11%
 lo-universal-content.xlsx	summary pages=1 worst=0.11% mean=0.11%
+lo-universal-content-strict.xlsx	summary pages=1 worst=0.11% mean=0.11%
 lo-user_defined_function.xlsx	summary pages=2 worst=0.57% mean=0.30%
 lo-value-in-column-2000.xlsx	summary pages=20 worst=0.18% mean=0.02%
 lo-writingMode.xlsx	summary pages=1 worst=0.12% mean=0.12%
@@ -726,8 +726,8 @@ ref-56737.xlsx	summary pages=3 worst=0.05% mean=0.03%
 ref2-56737.xlsx	summary pages=3 worst=0.09% mean=0.04%
 reordered_sheets.xlsx	summary pages=2 worst=0.01% mean=0.01%
 right-to-left.xlsx	summary pages=2 worst=0.14% mean=0.10%
-sample.strict.xlsx	summary pages=2 worst=0.65% mean=0.40%
 sample.xlsx	summary pages=2 worst=0.65% mean=0.40%
+sample.strict.xlsx	summary pages=2 worst=0.65% mean=0.40%
 shared_formulas.xlsx	summary pages=1 worst=1.32% mean=1.32%
 sharedhyperlink.xlsx	summary pages=1 worst=0.27% mean=0.27%
 sheetProtection_allLocked.xlsx	summary pages=0 worst=0.00% mean=0.00%
