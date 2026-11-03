@@ -489,8 +489,20 @@ extension RichLayout {
             let n = document.paragraphs[i + 1].style
             if !n.pageBreakInline, !n.pageBreakBefore { bottom = max(bottom, geometry(i + 1).textTop) }
         }
-        top = min(top, g.textTop)
+        top = min(top, g.textTop) - _droppedBefore(i, document)
         return (top, bottom, _px(1.4))
+    }
+
+    /// The space before a paragraph that opens a page the break ending the
+    /// paragraph above made goes from the flow at the page's top, but its box stays: the shading
+    /// and the sides run up over it (lab bdr3 b3, before 40: the sides start
+    /// 40 above the margin, 32.04 against 72; b2, which opens with its own
+    /// break, has none of it).
+    func _droppedBefore(_ i: Int, _ document: RichDocument) -> Double {
+        let st = document.paragraphs[i].style
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 14,
+              st.pageBreakBefore, st.breakEndsPrevious, !st.pageBreakInline, i < _spaceBefore.count else { return 0 }
+        return max(0, _spaceBefore[i])
     }
 
     func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all) {
@@ -1192,6 +1204,7 @@ extension RichLayout {
                 // paragraph's text where it follows on the page.)
                 if _bordersJoin(i - 1, i, document) { y0 = g.textTop }
                 if _bordersJoin(i, i + 1, document) { y1 = box.bottom }
+                y0 -= _droppedBefore(i, document)
             }
             if let l = b.left, l.style != "none" {
                 let x = (g.textLeft - _px(l.space) - _px(l.width) / 2 - out).rounded() + 0.5
