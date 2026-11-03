@@ -722,7 +722,11 @@ extension RichLayout {
                 } else if wl.first < 0, end <= 0.01, theme.wordRules, document.indentNotNumberingTabStop,
                           case let tab = _px(document.defaultTabStop ?? 36), tab > 0.01 {
                     let from = ownLeft + end
-                    end = min(0, ((from / tab + 0.001).rounded(.down) + 1) * tab - ownLeft)
+                    // (A number that ends on the indent has it no longer ahead: the default stop takes the
+                    // text. zh-12c4f07a's 14pt "3.3.2.10." fills its 63pt hang and Word starts "乙方…" at
+                    // the stop at 120pt, 12.4 past the indent; ours, at the indent, held a character more.)
+                    let next = ((from / tab + 0.001).rounded(.down) + 1) * tab - ownLeft
+                    end = end > -0.01 ? next : min(0, next)
                 } else if wl.first < 0, end <= 0.01 {
                     end = 0
                 } else if theme.wordRules, wl.first < 0, p.cell != nil {
