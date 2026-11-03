@@ -1558,6 +1558,13 @@ extension RichLayout {
             RuleTrace.hit("title-page-of-a-section-begun-earlier")
             return false
         }
+        // (The same while the pages are still being set: the section's first paragraph is on the page before.)
+        if theme.wordRules, p > 0, let first = _sectionOf.firstIndex(of: section.index),
+           !(first < _pieceStart.count && _pieceStart[first] < _allPieces.count), p * _columns - 1 < _pages.count,
+           _pages[p * _columns - 1].contains(where: { $0.paragraph == first }), !_blankPages.contains(p - 1) {
+            RuleTrace.hit("title-page-of-a-section-begun-earlier")
+            return false
+        }
         // (A page given the next section's headers has that section's
         // title-page setting: lo 090716's page 3, whose section has none.)
         if theme.wordRules, _pageHeaderSection[p] != nil, section.index < _sectionSetups.count, !section.last { return _sectionSetups[section.index].titlePage }
