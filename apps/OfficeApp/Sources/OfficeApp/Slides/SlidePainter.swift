@@ -1174,11 +1174,12 @@ final class SlidePainter: CustomPainter {
                         let left = g.textLeft + m.left, right = left + m.width
                         let at = Offset(left + (right - left) * ground.anchor.dx, top + (bottom - top) * ground.anchor.dy)
                         canvas.save()
-                        canvas.clipRect(Rect.fromLTRB(-10_000, top - 1, 10_000, bottom + 1).inflate(0))
                         canvas.translate(ground.dx * px, ground.dy * px)
                         canvas.translate(at.dx, at.dy)
                         canvas.transform([mm[0], mm[3], 0, 0, mm[2], mm[1], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
                         canvas.translate(-at.dx, -at.dy)
+                        // (The cut is of the letters being cast, this line's alone, not of where the shadow lands.)
+                        canvas.clipRect(Rect.fromLTRB(-10_000, top - 1, 10_000, bottom + 1))
                         layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
                         canvas.restore()
                     }
