@@ -85,6 +85,13 @@ if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
   names=($(tr -d '\015' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt"))
 fi
 [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.pptx | grep -v '^~\$'))
+# A row is only as good as the binary that made it: a sweep resumes (rows already there are skipped) only
+# with the same app; with another one the old rows are dropped so a stale score cannot be read as current.
+APP_ID=$(sha1sum "${OFFICE_APP:-$APP}" 2>/dev/null | cut -c1-16)
+if [ -n "$APP_ID" ] && [ "$(cat "$WORK/app.sha1" 2>/dev/null)" != "$APP_ID" ]; then
+  [ ! -s "$WORK/render.tsv" ] || echo "[sweep] the app changed since $WORK/render.tsv was written: starting it afresh" >&2
+  : > "$WORK/render.tsv"; echo "$APP_ID" > "$WORK/app.sha1"
+fi
 touch "$WORK/render.tsv"
 # OFFICE_WEB=1 sweeps the BROWSER build instead: every deck opened in
 # headless Chrome and exported there (build/tools/web-drive.mjs pdfs — one

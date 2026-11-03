@@ -75,6 +75,13 @@ if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
 fi
 # (By line: a workbook's name may have spaces in it.)
 [ ${#names[@]} -gt 0 ] || mapfile -t names < <(cd "$IN" && ls *.xlsx | grep -v '^~\$')
+# A row is only as good as the binary that made it: a sweep resumes (rows already there are skipped) only
+# with the same app; with another one the old rows are dropped so a stale score cannot be read as current.
+APP_ID=$(sha1sum "${OFFICE_APP:-$APP}" 2>/dev/null | cut -c1-16)
+if [ -n "$APP_ID" ] && [ "$(cat "$WORK/app.sha1" 2>/dev/null)" != "$APP_ID" ]; then
+  [ ! -s "$WORK/render.tsv" ] || echo "[sweep] the app changed since $WORK/render.tsv was written: starting it afresh" >&2
+  : > "$WORK/render.tsv"; echo "$APP_ID" > "$WORK/app.sha1"
+fi
 touch "$WORK/render.tsv"
 # OFFICE_WEB=1 sweeps the BROWSER build instead, as test/pptx-app-render.sh
 # does: every workbook opened in headless Chrome and printed whole there
