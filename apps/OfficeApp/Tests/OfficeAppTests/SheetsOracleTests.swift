@@ -71,7 +71,14 @@ final class SheetsOracleTests: XCTestCase {
         XCTAssertEqual(f(1.0032134017094001, "yyyy-mm-dd hh:mm:ss"), "1900-01-01 00:04:38")
         XCTAssertEqual(f(3.14159, "[h]:m:s.000"), "75:23:53.376")
         XCTAssertEqual(f(3.14159, "[h]:mm:ss"), "75:23:53")
+        // (The cached text of these files came from Excel for Mac; Excel for
+        // Windows prints hour 1293 here, which is the default: its twin below.)
+        NumberFormat.windowsElapsed = false
         XCTAssertEqual(f(3.14159, "s:m\" @ hour \"[hh]"), "53:23 @ hour 75")
+        NumberFormat.windowsElapsed = true
+        XCTAssertEqual(f(3.14159, "s:m\" @ hour \"[hh]"), "53:23 @ hour 1293")
+        XCTAssertEqual(f(0.0854629629, "s\" secs and \"[m]\" mins\""), "4 secs and 6480 mins")
+        NumberFormat.windowsElapsed = ProcessInfo.processInfo.environment["STARLING_XLSX_MAC"] == nil
         XCTAssertEqual(f(3.14159, "\"It was \"[h]\" [yes, \"h\"] hours and \"mm:ss"), "It was 75 [yes, 75] hours and 23:53")
         XCTAssertEqual(f(3.14159, "[s]\" [yes, \"ss\"] seconds\""), "271433 [yes, 271433] seconds")
         XCTAssertEqual(f(0.0854629629, "[hh]:mm:ss.0"), "02:03:04.0")

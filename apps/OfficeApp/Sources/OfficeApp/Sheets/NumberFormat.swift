@@ -10,11 +10,11 @@ import Foundation
 
 enum NumberFormat {
     /// Excel for Windows counts a seconds field ahead of an elapsed one as
-    /// days (3.14159 in s:m" @ hour "[hh] shows hour 1293); Excel for Mac and
-    /// the test files' own expected text show 75. Off by default (the
-    /// oracle tests hold the files' text); `--sheet-pdf`, which is compared
-    /// with Windows Excel's print, turns it on.
-    nonisolated(unsafe) static var windowsElapsed = false
+    /// days (3.14159 in s:m" @ hour "[hh] shows hour 1293); Excel for Mac
+    /// shows 75, and so do the test files' own cached texts (they were
+    /// written on a Mac). Windows is the default target; STARLING_XLSX_MAC
+    /// (or setting this false) gives the Mac text.
+    nonisolated(unsafe) static var windowsElapsed = ProcessInfo.processInfo.environment["STARLING_XLSX_MAC"] == nil
 
     /// The text a value shows in a cell with format `code`, and a colour
     /// the format asks for ([Red] etc.), if any.
