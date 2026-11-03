@@ -294,6 +294,8 @@ struct SlideFill: Equatable {
     /// over, so (0.5, 0) is `algn="t"`, the top middle — then moved by
     /// `tileOffset` (points), and the rest are laid edge to edge from it.
     var tiled = false
+    /// The picture is a generated pattern (`a:pattFill`), not the file's own.
+    var isPattern = false
     var tileScale = 1.0
     var tileScaleY = 1.0
     var tileAlign = Offset(0, 0)

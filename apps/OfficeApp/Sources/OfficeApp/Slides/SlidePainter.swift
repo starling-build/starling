@@ -1602,7 +1602,7 @@ final class SlidePainter: CustomPainter {
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
             // PowerPoint's PDF holds a tiled picture shrunk to 200 pixels an
             // inch (a 484 x 290 picture on a 69.7 x 48.7 pt tile is 193 x 135).
-            if fill.tiled, fill.duotone == nil, fill.imageLevels == nil {
+            if fill.tiled, !fill.isPattern, fill.duotone == nil, fill.imageLevels == nil {
                 let nw = Int(tw / pxPerPt * 200 / 72), nh = Int(th / pxPerPt * 200 / 72)
                 if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { decoded = small }
             }
