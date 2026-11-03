@@ -1807,7 +1807,12 @@ extension RichLayout {
                     // 3.0 with six is not; zh-64c27df5's cell "…標準大" leaves "氣" 1.42 over with one of 3.0,
                     // zh-4ea36aa8's "…國小至" "高" 2.96 with three, where zh-4f883dce's 2.44 with two is taken.)
                     let autoGive = RichTextTheme.wordWindowsPages ? 0.47 : 0.5
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * autoGive, (closes && hang == 0) || opens ? em / 2 : em / 4)
+                    // (From 2013's layout a quarter of each, where that is more than the quarter em: lab `asp`
+                    // (Word for Windows, zh-147bdae0's p64 line "地之檢討，102年11月29日已頒訂「都市計畫公共設施保",
+                    // mode 15, doNotCompress, 標楷體 12, a cell or the body, no grid) takes "保" with five spaces of 3.0
+                    // 3.4pt over and not 3.8, with four 2.7 and not 3.1 — the digits' face and the "「" alike.)
+                    let quarterEach = RichTextTheme.wordWindowsPages && !legacy && !onCharacterGrid && hang == 0 ? autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 4 : 0
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * autoGive, max(quarterEach, (closes && hang == 0) || opens ? em / 2 : em / 4))
                     // (A word space beside East Asian text gives a fifth of
                     // itself, not a quarter, in Word for Windows' print:
                     // zh-b5359de4's "…宜选用 LED 灯或…控制方式；" (mode 15,
@@ -1851,6 +1856,7 @@ extension RichLayout {
                     // is taken where they can give it — zh-4ea36aa8's cell
                     // "…為了加強臺灣IC" ends so in Word's print.)
                     let autoRoom = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
+                    let shareGive = quarterEach > em / 4 ? 0.5 : autoGive   // (lab `asp`: five spaces' 3.4 shares as half of each)
                     let spaceTrail = wordSpaces.filter { sp in sp.k < a && (sp.k + 1 ..< a).allSatisfy { isSpace(units[$0]) } }.reduce(0.0) { $0 + $1.w }
                     let spaceEms: Double = gapStretch()
                     let allSpaces: Double = wordSpaces.reduce(0.0) { $0 + $1.w }
@@ -1861,8 +1867,8 @@ extension RichLayout {
                     let hungComma = hang > 0 && (units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B)
                     let budgetStretch: Double = spaceEms + autoRoom * (hungComma ? 2.08 : 1) + max(0, weighedSpaces - spaceTrail) * 0.47
                     let oldStretch: Double = spaceEms + autoRoom + allSpaces
-                    let oldGive: Double = autoRoom * autoGive + allSpaces / 4
-                    let budgetGive: Double = autoRoom * autoGive + giverRoom
+                    let oldGive: Double = autoRoom * shareGive + allSpaces / 4
+                    let budgetGive: Double = autoRoom * shareGive + giverRoom
                     let sharesStretch: Bool = onCharacterGrid || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
                             ? need * budgetStretch <= budgetGive * (width - x + spaceTrail + hair)
