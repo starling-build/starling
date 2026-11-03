@@ -6069,9 +6069,14 @@ extension ChartPainter {
                     // 165° and 8% at 150°, 10% at 135°, where its box's corners
                     // overhang the slice by up to 5pt; at 3 and 9 o'clock and
                     // up to 10° past them its corners still have to fit.)
+                    // (… and its corners stick out of it by no more than a fifth of the box's shorter side:
+                    // lab pie10 (Word for Windows, zh-27a874b7's view, 2% slices walked round the pie, 12 x 24pt
+                    // labels): inside at 86.4° and 93.6°, corners out 1.5pt; outside at 79.2° and 100.8°, out 4.3,
+                    // in all 24 charts; p3dside's held labels stick out up to 5pt of 33.)
                     if sin(s.mid) > sin(10 * .pi / 180) {
-                        let c0 = on(s.mid, 0.76)
-                        if [(-tw / 2, 0.0), (tw / 2, 0.0), (0.0, -th / 2), (0.0, th / 2)].allSatisfy({ contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }) { return c0 }
+                        let c0 = on(s.mid, 0.76), m = 0.2 * min(tw, th)
+                        if [(-tw / 2, 0.0), (tw / 2, 0.0), (0.0, -th / 2), (0.0, th / 2)].allSatisfy({ contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }),
+                           c.onSlide || c.onSheet || [(-tw / 2 + m, -th / 2 + m), (tw / 2 - m, -th / 2 + m), (-tw / 2 + m, th / 2 - m), (tw / 2 - m, th / 2 - m)].allSatisfy({ contains(Offset(c0.dx + $0.0, c0.dy + $0.1)) }) { return c0 }
                     }
                     let c = on(s.mid, 0)
                     if let d = stride(from: max(rx, ry), through: 0, by: -0.25 * k).first(where: { fits(Offset(c.dx + cos(s.mid) * $0, c.dy + sin(s.mid) * $0)) }) {
@@ -6204,7 +6209,23 @@ extension ChartPainter {
                 // against Word's print, all 56 labels.)
                 let wide3D = point != nil && !c.onSlide && !c.onSheet && l.moves[s.index] == nil && l.position == "outEnd"
                 let gapX = wide3D ? gap + 4.5 * k : gap, gapY = gap
-                at = Offset(edge.dx + dx * gapX + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * upright * (gapY + h / 2))
+                // (A 3-D pie's best fit in a Word document stands level with its rim point
+                // until the slice's middle is about 20° off the horizontal, and from there
+                // its text's half height and 2.5pt above or below it — a step, not a slope:
+                // lab pie10 (Word for Windows, 2% slices walked round zh-27a874b7's view, 219
+                // outside labels) 6.5 -> 4.4pt off up and down; pie7 (352 labels, four views)
+                // 4.4 -> 3.7. The step comes sooner above the pie than below it. A label of
+                // three lines or more goes there by degrees, 26pt for the whole of the sine:
+                // Word's print of zh-27a874b7's chart 2, 德國 9.7 under its rim at 0.38,
+                // 新加坡 17 at 0.61, 韓國 19.8 at 0.82 — stepped, 德國 stood clear of
+                // 新加坡 and lost the push away from it that Word's print has.)
+                let stepped = point != nil && l.fitted && !c.onSlide && !c.onSheet && l.moves[s.index] == nil
+                if stepped { RuleTrace.hit("word-pie3d-best-fit-label-steps-over-or-under-its-rim") }
+                let reach = tp.height / 2 + 2.5 * k
+                let down = !stepped ? dy * upright * (gapY + h / 2)
+                    : tp.computeLineMetrics().count > 2 ? (dy < 0 ? -1 : 1) * min(reach, 26 * k * abs(dy))
+                    : abs(dy) > (dy < 0 ? 0.3 : 0.4) ? (dy < 0 ? -1 : 1) * reach : 0
+                at = Offset(edge.dx + dx * gapX + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + down)
             } else {
                 // (A 3-D pie's 0.9 of the way out: the survey's. Where the file
                 // says "ctr", half way out along the slice's middle, seen
