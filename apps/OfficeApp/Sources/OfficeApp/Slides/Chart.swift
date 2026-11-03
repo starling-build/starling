@@ -5794,8 +5794,11 @@ extension ChartPainter {
         let centre = at(0, 0)
         // (A slice pulled out, in a Word document: along its middle, by its own pull or the series'.)
         let word = !c.onSlide && !c.onSheet
+        // (And in Excel's and PowerPoint's: lo-orderOfCNumFmtElements's two pies, pulled 25%, stand apart
+        // in Excel's print as in Word's.)
+        let pulls = word || ((c.onSheet || c.onSlide) && !c.chartex)
         func pullOf(_ index: Int, _ mid: Double) -> (x: Double, z: Double) {
-            guard word else { return (0, 0) }
+            guard pulls else { return (0, 0) }
             let e = c.piePulls[index] ?? c.pieSeriesPull
             return (e * cos(mid), -e * sin(mid))
         }
@@ -5889,7 +5892,7 @@ extension ChartPainter {
             fill.shader = nil
             canvas.drawPath(p, edge)
         }
-        if word, c.pieExplosion > 0 {
+        if pulls, c.pieExplosion > 0 {
             // A slice's cut faces, where a pulled-out neighbour has left them showing, then its rim and
             // top; the far slices first.
             func wall(_ s: (from: Double, to: Double, color: Color, value: Double, index: Int), _ t: Double, leading: Bool) {
@@ -5938,7 +5941,7 @@ extension ChartPainter {
                        // zh-27a874b7's moved "經濟", 95.9°, is moved from the foot.)
                        point: { a, f in at(a, f, f >= 1 && sin(a) > sin(8.5 * .pi / 180) ? deep : 0) },
                        movedEdge: { a in at(a, 1, sin(a) > 0 ? deep : 0) },
-                       pulled: word && c.pieExplosion > 0 ? { i in
+                       pulled: pulls && c.pieExplosion > 0 ? { i in
                            guard let m = placed.first(where: { $0.index == i })?.mid else { return .zero }
                            let q = at(0, 0, 0, pull: pullOf(i, m))
                            // (At a wider perspective than 30 Word stands the label of a slice on the left of the pie
@@ -5947,13 +5950,13 @@ extension ChartPainter {
                            let table: [(Double, Double)] = [(0, 21), (0.1, 11.5), (0.25, 9.6), (0.5, 6.8), (1, 4)]
                            let pull = c.piePulls[i] ?? c.pieSeriesPull
                            var up = 0.0
-                           if cos(m) < 0, wide > 0, let hi = table.firstIndex(where: { $0.0 >= pull }) {
+                           if word, cos(m) < 0, wide > 0, let hi = table.firstIndex(where: { $0.0 >= pull }) {
                                let lo = max(0, hi - 1)
                                let t = hi == lo ? 0 : (pull - table[lo].0) / (table[hi].0 - table[lo].0)
                                up = (table[lo].1 + (table[hi].1 - table[lo].1) * t) * wide * k
                            }
                            // (One on the right stands 4pt over ours when it is not the one pulled, 1 when it is.)
-                           if cos(m) >= 0, wide > 0 { up = (pull > 0 ? 1 : 4) * wide * k }
+                           if word, cos(m) >= 0, wide > 0 { up = (pull > 0 ? 1 : 4) * wide * k }
                            return Offset(q.dx - centre.dx, q.dy - centre.dy - up)
                        } : nil)
         } else if c.dataLabels {
@@ -6097,8 +6100,13 @@ extension ChartPainter {
             let labelBold: Bool = own?.bold ?? c.series[0].labelBold
             let labelWeight: FontWeight = labelBold ? .bold : .normal
             let labelFace: String = own?.face ?? c.font ?? theme.bodyFont
+            // (Excel breaks a pie's label only at its spaces, never after a slash: 45544's "Investment
+            // Banking/Brokerage" sets "Investment " / "Banking/Brokerage" where the line could have held
+            // "Investment Banking/". A word joiner after each slash keeps the two halves together.)
+            let sheetText = c.onSheet && !c.chartex && text.containsSubstring("/")
+                ? String(text.flatMap { $0 == "/" ? ["/", "\u{2060}"] : [$0] }) : text
             func makeLabel(_ maxLines: Int?, _ shown: String? = nil) -> TextPainter {
-                TextPainter(text: Self.labelSpan(c, shown ?? text, Flutter.TextStyle(
+                TextPainter(text: Self.labelSpan(c, shown ?? sheetText, Flutter.TextStyle(
                     color: colour, fontSize: size, fontWeight: labelWeight,
                     fontFamily: OfficeFonts.substitute(labelFace),
                     fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index))), traditional: l.traditional.contains(s.index)), textAlign: .center, textDirection: .ltr,
@@ -6112,7 +6120,11 @@ extension ChartPainter {
             // "label 1" (24.2) — between 24.3 and 34.5 — where a fifth, 38.6,
             // held "data label". Not for Chinese text: zh-61aaad09's pie labels
             // stand where they did with the whole fifth.)
-            let wordLabelRoom = !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k : 0
+            // (Excel's own print wraps a little sooner, past 0.19 of the chart: 45544's 525.8pt chart keeps
+            // "Finance - Company" (99.7pt) on a line and breaks "Investment Banking" (102.6) and "Finance - Sales
+            // and" (100.8).)
+            let wordLabelRoom = !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k
+                : c.onSheet && !c.chartex ? frame.width * 0.01 : 0
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
             // (And a one-line label a little narrower: past 0.1857 of the
             // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
