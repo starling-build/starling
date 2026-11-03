@@ -1177,12 +1177,19 @@ extension RichLayout {
             let unit = labSum ? 1.0 : 20.0
             let column = labSum ? Double(w) : Double(w) / 20
             let rest = column - sixteenth(l) - outdent(r)
-            tieShort.rest = rest < Double(w - l - r) / unit - eps
+            // (With a Latin letter or digit in text whose characters are spaced out, a line exactly
+            // as wide as its room does not fit: zh-447f1d5c's p57, "依据《…》（GB/T14885-2010）标准编码"
+            // and its 的, 20 ideographs at 16.3pt and 14 Latin at 8.3 in a room of 442.2, keeps the
+            // 的 in Word's print only with the right indent at -1 twip (amd-perf's lab p57).)
+            let named = _named(p, document)?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0
+            let latinTie = latin && !p.text.unicodeScalars.contains("\t") && (_grid(i, document).chars ?? 0) == 0
+                && p.runs.contains { ($0.style.letterSpacing ?? named) > 0.0001 }
+            tieShort.rest = rest < Double(w - l - r) / unit - eps || latinTie
             tieShort.first = tieShort.rest
             if tieShort.rest { tieSlack = -0.0005 }
             if lead != 0 {
                 let first = column - sixteenth(l) + outdent(h) - outdent(r)
-                tieShort.first = first < Double(w - l + h - r) / unit - eps
+                tieShort.first = first < Double(w - l + h - r) / unit - eps || latinTie
                 let firstSlack = tieShort.first ? -0.0005 : 0.001
                 // (The first line's room is the painter's width less its
                 // indent box: the box takes what the other lines' slack
