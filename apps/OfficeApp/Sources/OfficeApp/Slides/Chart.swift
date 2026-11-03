@@ -5983,7 +5983,17 @@ extension ChartPainter {
                        // the wall's foot at 99.7°, the same at 270° and 265°.
                        // zh-27a874b7's moved "經濟", 95.9°, is moved from the foot.)
                        point: { a, f in at(a, f, f >= 1 && sin(a) > sin(8.5 * .pi / 180) ? deep : 0) },
-                       movedEdge: { a in at(a, 1, sin(a) > 0 ? deep : 0) },
+                       // (Tilted past 30°, in a Word document, half a wall lower again by 45°:
+                       // zh-b8de3ae2's chart at rotX 50 sets its two moved front labels, "業務費"
+                       // at 28° and "獎補助費" at 125°, both 9.5pt under ours in Word's print — the
+                       // wall there 19pt deep as drawn — and its back two where ours stand.)
+                       movedEdge: { a in
+                           guard sin(a) > 0 else { return at(a, 1, 0) }
+                           let foot = at(a, 1, deep)
+                           guard steep > 0 else { return foot }
+                           let top = at(a, 1, 0)
+                           return Offset(foot.dx, foot.dy + (foot.dy - top.dy) * 0.5 * steep)
+                       },
                        pulled: pulls && c.pieExplosion > 0 ? { i in
                            guard let m = placed.first(where: { $0.index == i })?.mid else { return .zero }
                            let q = at(0, 0, 0, pull: pullOf(i, m))
