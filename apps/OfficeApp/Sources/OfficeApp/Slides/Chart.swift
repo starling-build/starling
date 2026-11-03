@@ -4174,6 +4174,18 @@ enum ChartPainter {
                     wall = fit
                 }
             }
+            // (Excel's 3-D columns at right angles with no height of their own (hPercent) stand no taller than
+            // 0.305 of their front's width, centred in the room they had: chart-tdf111824's 876 pt wide chart,
+            // its front 737 across and 225 up where ours ran 312, and its walls' top 45 pt lower. Only the one witness,
+            // one row of depth per series: chart-rAngAx's one row fills its height, 0.56 of its width, in Excel's print.)
+            if c.onSheet, v.rightAngles, v.rows, c.series.count > 1, !c.stacked, v.heightPercent == nil, c.plotLayout == nil, !horizontal {
+                let cap = 0.305 * plot.width
+                if plot.height > cap {
+                    RuleTrace.hit("excel-3d-columns-at-right-angles-stand-no-taller-than-a-third-of-their-width")
+                    let d = (plot.height - cap) / 2
+                    plot = Rect.fromLTRB(plot.left, plot.top + d, plot.right, plot.bottom - d)
+                }
+            }
         }
         guard plot.width > 4, plot.height > 4 else {
             for t in valueLabels + catLabels + secondLabels { t.dispose() }
@@ -5032,6 +5044,13 @@ enum ChartPainter {
                                      k: k, theme: theme, ink: ink ?? theme.text, probe: true)
                 radius = out ? max(room / 2, room - 1.6 * size) : rIn
             }
+        }
+        // (Excel's doughnut on a sheet, no labels, a legend at the right: as wide as the chart less 89 pt and as high as it less
+        // 22 pt, whole; at the top, 46.2 pt less than its height as at the foot. Windows lab wip/lab-doughnut: 200 x 400 ring 111 across
+        // (ours 120), 400 x 400 311 (314), the sizes limited by their height as they were.)
+        if c.type == .doughnut, c.onSheet, c.plotLayout == nil, c.legend, let fr = frame {
+            if c.legendPosition == "r" { radius = min(radius, (fr.width - 89) / 2) }
+            if c.legendPosition == "t" { radius = min(radius, (fr.height - 46.2) / 2) }
         }
         // (Excel's doughnut with data labels on is 0.8655 of the size it is with none, at every chart size, legend and label
         // size: Windows lab wip/lab-doughnut, sizes 200 to 640 pt, ring radius 115 of 133 at 480 x 288.)
