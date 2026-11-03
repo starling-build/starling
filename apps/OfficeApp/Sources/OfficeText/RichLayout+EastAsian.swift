@@ -95,7 +95,13 @@ extension RichLayout {
         // space may stand beside.)
         let marked = topOnly || (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
             || squeezes && units.contains(0xB7)   // (a middle dot set an em gives too: `wideDot`)
-        guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
+        // (Or a closing mark before an opening one, which a line may part
+        // and so end on the closing one whole — `parted` below — where
+        // marks are not compressed: zh-147bdae0's cell paragraph "…管理系
+        // 統」（紙本申報）…", set left, with nothing else to fit for.)
+        let partable = RichTextTheme.wordWindowsPages && !latinOnly && !turned && !squeezes
+            && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1) }
+        guard marked || partable || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
@@ -105,7 +111,7 @@ extension RichLayout {
         // end on past the margin: `RichDocument.hangsLatinStops`.)
         let stops = document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
             && units.contains(where: { $0 == 0x2E || $0 == 0x2C })
-        guard marked || stops || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
+        guard marked || stops || partable || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
@@ -184,6 +190,12 @@ extension RichLayout {
                                    pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
           .union(_fittingWordHyphens(p, document, textWidth: width, named: _named(p, document),
                                      pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
+          // (And automatic hyphenation's points, where the engine will part a
+          // word: zh-147bdae0's cell paragraph ends its first line "（Peter
+          // Bell-", in Word's print and ours, but was weighed here with
+          // "Bellwood）" whole, and every line after it was judged on breaks
+          // the page never had — "…禮物〉" was taken 3.9pt over.)
+          .union(wordRules ? (_hyphenPoints[i] ?? []) : [])
         let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
         if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
         probe.layout(minWidth: 0, maxWidth: 1)
@@ -302,7 +314,11 @@ extension RichLayout {
                 // lost — the stretch taken whole here and parted by the
                 // engine, "开。" a line down where Word's print squeezes
                 // the line's marks for it.)
-                if a > 0, units[a - 1] == 0xA0, !pieces.isEmpty, pieces[pieces.count - 1].b == a { pieces[pieces.count - 1].w += w }
+                // (And a hyphen drawn where automatic hyphenation ends a line
+                // is the end of that line, not the start of the next: "（Peter
+                // Bell-" above.)
+                if a > 0, units[a - 1] == 0xA0 || (wordRules && _hyphenShown[i]?.contains(a) == true),
+                   !pieces.isEmpty, pieces[pieces.count - 1].b == a { pieces[pieces.count - 1].w += w }
                 else { pending += w }
                 continue
             }
@@ -506,8 +522,16 @@ extension RichLayout {
             // pair's. zh-72da925e's "…根據應明確說明」；工務局…" sets "」" on
             // p9's first line in Word's print; ours took it at its half,
             // 8.5pt, to the margin exactly.)
-            let parted = RichTextTheme.wordWindowsPages && kinsokuOff && last > a && piece.b == last && closesUp(last - 1) && last - 1 < ems.count
-                && last < units.count && Self._closingUnits.contains(units[last])
+            // (So too, line-breaking rules on or off, before an opening mark,
+            // which may always start a line: zh-147bdae0's cell line "…〈臺灣給
+            // 世界的禮物〉（Taiwan’s…" is 3.9pt over with its "〉" whole, and
+            // Word for Windows' print sends "物〉" down; its "…管理系統」（紙本
+            // 申報）" sends "統」" down. Ours took the "〉" and "」" at half.
+            // Not where marks are compressed, where the line's last may give
+            // its half all the same: zh-6d1afa56's cell (compressPunctuation)
+            // ends "《政府信息公开条例》、" with "《社会" next in Word's print.)
+            let parted = RichTextTheme.wordWindowsPages && last > a && piece.b == last && closesUp(last - 1) && last - 1 < ems.count
+                && last < units.count && (kinsokuOff && Self._closingUnits.contains(units[last]) || !squeezes && Self._openingUnits.contains(units[last]))
             let pastRoom = pastFrom.flatMap { beyond[$0.tab] } ?? 0
             // (A Latin piece in letter-spaced text, a hundredth of a point: Word sets each character's spacing
             // in its own units, ours adds the exact twentieths, and over a line the sums part by a few
