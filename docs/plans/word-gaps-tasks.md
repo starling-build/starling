@@ -14328,3 +14328,4 @@ TIP WATCH amd-8, round 118 (tip 20406c25a, Slides round): Word no drops; unit te
 TIP WATCH amd-8, round 119 (tip 3a5e52588): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 
 TIP WATCH amd-8, round 120 (tip f3129973f): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- amd-6 (placement): landed f3129973f - a slide's arch that has to shrink now stands off the ellipse by its shrunk size (not the full size). p3q 100 and 200 pt arches now agree with each other (as PP's do); texteffects 3.10 -> 3.00, no other deck moved. Still ~100 px narrower than PP's arch (PP 653..1736 px, ours 680..1632), so PP's oversize arch ellipse is bigger still; next: try no lift at all when shrunk.
