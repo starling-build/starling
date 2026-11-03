@@ -84,7 +84,8 @@ def check(path):
             assert abs(indented[0][0] - zero[0][0] - 9) < 0.2, "first glyph lost its 9pt indent"
             assert abs(indented[0][1] - zero[0][1]) < 0.2, "the indent occupied a line by itself"
             assert not hidden, f"glyph past the fixed frame still drawn: {hidden}"
-            assert [w[4] for w in turned] == ["0"], f"turned frame must retain only the second digit: {turned}"
+            # (Word's print holds both digits of the turned label: the "3" at the indent past the box, the "0" on its second line; zh-b24b396a.)
+            assert sorted(w[4] for w in turned) == ["0", "3"], f"turned frame must keep both digits: {turned}"
         for page in list(pdf)[8:]:
             spans = [s for b in page.get_text("dict")["blocks"] for line in b.get("lines", [])
                      for s in line["spans"] if s["text"].strip() == "B" and s["color"] == 0]
