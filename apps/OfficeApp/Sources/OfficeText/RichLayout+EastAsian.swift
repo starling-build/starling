@@ -1621,6 +1621,11 @@ extension RichLayout {
                     // cell, two or more together 13-14; a closing mark that
                     // ends the piece lifts the cap. zh-72da925e p13 leaves
                     // "「基" 23.5 over with "」，：" before it, which ours took.)
+                    // (The cap is the piece's grid cell's 0.855, not its em's 0.823:
+                    // lab gcap (Word for Windows, zh-7a16a243's "的公益性、對價性、
+                    // 適法性下，可以給予" in its table, mode 15, cells of the size
+                    // plus 1.0076) takes "予" with three marks up to 0.843 of a cell
+                    // and not 0.867, at 10, 12, 14 and 16pt alike; with two, 0.787.)
                     let gridCapped: Bool = {
                         // (An East Asian piece: a Latin word is taken as before —
                         // zh-72da925e's "…控制站流量5,400cms" with "，「」" giving.)
@@ -1640,7 +1645,8 @@ extension RichLayout {
                         let joined = before.filter { $0 > 0 && marks.contains($0 - 1) }
                         let mid = before.filter { !($0 > 0 && marks.contains($0 - 1)) }.reduce(0.0) { $0 + half($1) }
                         let ownRoom = all.filter { $0 >= a }.reduce(0.0) { $0 + half($1) }
-                        return need > min(mid, 0.823 * em) + joined.reduce(0.0) { $0 + half($1) } + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
+                        let cell = boxes(a, a + 1) - (gaps[a] ?? 0)
+                        return need > min(mid, 0.855 * cell) + joined.reduce(0.0) { $0 + half($1) } + ownRoom + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 } + hair
                     }()
                     // (An opening bracket that opens what is being taken, right after a closing mark it closes up
                     // with, gives 0.22 of an em less than its half, in Word for Windows: at 16pt zh-6c447317 takes
