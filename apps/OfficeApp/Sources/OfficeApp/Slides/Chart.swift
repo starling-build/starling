@@ -3407,6 +3407,131 @@ enum ChartPainter {
         }
     }
 
+    /// The box of a 3-D area chart at right angles in a room (see `_area3DRight`): its front's width and height and the depth's
+    /// run across (dx) and up (dy), all in the room's units.
+    static func area3DRightBox(roomW: Double, roomH: Double, series s: Int, categories n: Int, depth: Double, heightPercent: Double?,
+                               rotX: Double, rotY: Double) -> (width: Double, height: Double, dx: Double, dy: Double) {
+        let sinY = sin(abs(rotY) * .pi / 180), sinX = sin(abs(rotX) * .pi / 180)
+        let rowFrac = Double(s) * depth / Double(max(1, n))
+        var faceW = roomW / (1 + rowFrac * sinY)
+        var dx = faceW * rowFrac * sinY, dy = faceW * rowFrac * sinX
+        let factor = s <= 2 ? 0.5 : 0.75
+        var faceH = heightPercent.map { $0 / 100 * 0.5 * faceW } ?? factor * roomH * faceW / roomW
+        if heightPercent == nil { faceH = min(faceH, roomH - dy) }
+        else if faceH + dy > roomH {
+            let f = roomH / (faceH + dy)
+            faceW *= f; faceH *= f; dx *= f; dy *= f
+        }
+        return (faceW, faceH, dx, dy)
+    }
+
+    /// A 3-D area chart at right angles (`c:rAngAx` 1): its series slabs one behind another, each as wide as the front, the front
+    /// first. Windows lab view3d (Excel, 36 prints, area sheets): depth one category slot a series times depthPercent (gapDepth moves
+    /// nothing); the front's height 0.5 of the room's for one or two series (0.75 for three or four) times its share of the room's
+    /// width, or hPercent/100 x half the front's width, the box shrunk whole into the room where taller; the room the chart less
+    /// 34.3 pt at the left (half the first name and its margin), 47.3 at the right (36.5 with one series), 13.7 above and 49.7
+    /// under (45.6 more above under a title); the box centred in it. Points stand on the walls' edges, names under them.
+    static func _area3DRight(_ c: Chart, _ canvas: any Canvas, frame: Rect, k: Double, lo: Double, hi: Double, theme: DeckTheme,
+                             valueText: (String, Double, Double) -> TextPainter, categoryText: (String, Double, Double) -> TextPainter) {
+        guard let v = c.areaView else { return }
+        let n = c.categories.count, s = c.series.count
+        let titled = c.title?.isEmpty == false
+        let size = c.categoryLabelSize ?? c.baseTextSize
+        let first = categoryText(c.categories[0], size, .infinity)
+        let firstHalf = first.width / 2
+        first.dispose()
+        let roomL = frame.left + max(22.5, firstHalf + 12.8), roomR = frame.right - (s > 1 ? 47.3 : 36.5)
+        let roomT = frame.top + 13.7 + (titled ? 45.6 : 0), roomB = frame.bottom - 49.7
+        let roomW = roomR - roomL, roomH = roomB - roomT
+        guard roomW > 20, roomH > 20 else { return }
+        let box = Self.area3DRightBox(roomW: roomW, roomH: roomH, series: s, categories: n, depth: v.depth, heightPercent: v.heightPercent, rotX: v.x, rotY: v.y)
+        let faceW = box.width, faceH = box.height, dx = box.dx, dy = box.dy
+        let left = roomL + (roomW - faceW - dx) / 2
+        let bottom = roomT + (roomH - faceH - dy) / 2 + faceH + dy        // the floor's front edge
+        let intervals = max(2, min(10, Int(faceH / 16)))
+        var sc = scale(lo, hi, intervals: intervals, headroom: 0.05)
+        if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil { sc = fixedScale(auto: sc, min: c.valueMin, max: c.valueMax, step: c.valueStep) }
+        let span = max(1e-9, sc.hi - sc.lo)
+        // A point of the box: across (0...1), up (0...1, the axis), back (0...1).
+        func at(_ u: Double, _ up: Double, _ back: Double) -> Offset {
+            Offset(left + u * faceW + back * dx, bottom - back * dy - up * faceH)
+        }
+        let line = Paint()
+        line.style = .stroke
+        line.strokeWidth = max(0.5, 0.75 * k)
+        line.color = c.gridColor ?? Color(0xFF868686)
+        func poly(_ pts: [Offset], _ paint: Paint) {
+            let p = Path()
+            p.moveTo(pts[0].dx, pts[0].dy)
+            for o in pts.dropFirst() { p.lineTo(o.dx, o.dy) }
+            canvas.drawPath(p, paint)
+        }
+        var ticks: [Double] = []
+        var t = sc.lo
+        while t <= sc.hi + sc.step / 2 && ticks.count < 60 { ticks.append(t); t += sc.step }
+        let labelSize = c.valueLabelSize ?? c.baseTextSize
+        for tv in ticks {
+            let up = (tv - sc.lo) / span
+            if c.valueGrid || tv == sc.lo { poly([at(0, up, 0), at(0, up, 1), at(1, up, 1)], line) }
+            if !c.valueAxisDeleted {
+                let tp = valueText(tickLabel(tv), labelSize, .infinity)
+                let p = at(0, up, 0)
+                tp.paint(canvas, Offset(p.dx - 6 - tp.width, p.dy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+        poly([at(0, 0, 0), at(1, 0, 0), at(1, 0, 1)], line)
+        poly([at(0, 0, 0), at(0, 1, 0)], line)
+        let fillA = Paint()
+        fillA.style = .fill
+        func face(_ pts: [Offset], _ color: Color) {
+            let q = Path()
+            q.moveTo(pts[0].dx, pts[0].dy)
+            for o in pts.dropFirst() { q.lineTo(o.dx, o.dy) }
+            q.close()
+            fillA.color = color
+            canvas.drawPath(q, fillA)
+        }
+        let rowD = 1 / Double(s)
+        let own = rowD / (1 + v.gapDepth)
+        func ux(_ i: Int) -> Double { Double(i) / Double(max(1, n - 1)) }
+        for j in (0 ..< s).reversed() {
+            let base = c.color(series: j, accents: theme.accents)
+            let zf = Double(j) * rowD + (rowD - own) / 2, zb = zf + own
+            let ups = (0 ..< n).map { i -> Double in
+                let val = c.series[j].values[safe: i].flatMap { $0 } ?? 0
+                return (max(sc.lo, min(sc.hi, val)) - sc.lo) / span
+            }
+            let zero = (max(sc.lo, min(sc.hi, 0)) - sc.lo) / span
+            for i in 0 ..< max(0, n - 1) {
+                face([at(ux(i), ups[i], zf), at(ux(i + 1), ups[i + 1], zf), at(ux(i + 1), ups[i + 1], zb), at(ux(i), ups[i], zb)], Self._scaled(base, 0.757))
+            }
+            face([at(1, zero, zf), at(1, ups[n - 1], zf), at(1, ups[n - 1], zb), at(1, zero, zb)], Self._scaled(base, 0.64))
+            var front: [Offset] = [at(0, zero, zf)]
+            for i in 0 ..< n { front.append(at(ux(i), ups[i], zf)) }
+            front.append(at(1, zero, zf))
+            face(front, base)
+        }
+        if !c.categoryAxisDeleted {
+            for i in 0 ..< n {
+                let p = at(ux(i), 0, 0)
+                poly([p, Offset(p.dx, p.dy + 3)], line)
+                let tp = categoryText(c.categories[i], size, .infinity)
+                tp.paint(canvas, Offset(p.dx - tp.width / 2, p.dy + 14 - tp.height / 2))
+                tp.dispose()
+            }
+        }
+        if c.seriesAxisShown, s > 1 {
+            for j in 0 ..< s {
+                let tt = (Double(j) + 0.5) / Double(s)
+                let tp = categoryText(c.series[j].name, size, .infinity)
+                let p = at(1, 0, tt)
+                tp.paint(canvas, Offset(p.dx + 12, p.dy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+    }
+
     /// An axis tick in the General format: as many decimals as the value needs
     /// (the ticks are multiples of a nice step, so ten are all there are).
     /// Word's print of tdf130969 (axis 0.35781 to 0.3579 by 0.00001) reads
@@ -3634,6 +3759,12 @@ enum ChartPainter {
             var camScale = scale(lo, max(hi, c.valueMax ?? hi), intervals: 4, headroom: 0.05)
             if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil { camScale = fixedScale(auto: camScale, min: c.valueMin, max: c.valueMax, step: c.valueStep) }
             _columns3DCamera(c, canvas, area0, frame: frame, k: k, scale: camScale, theme: theme, valueText: valueText, categoryText: categoryText)
+            return
+        }
+        if let v = c.areaView, c.barView == nil, v.rightAngles, c.type == .area, !c.stacked, !c.percent, v.rows, c.categories.count >= 2,
+           c.dataTable == nil, !c.series.isEmpty, c.plotLayout == nil, frame.height / k >= 150 {
+            RuleTrace.hit("excel-3d-areas-at-right-angles-stand-as-slabs-in-their-room")
+            _area3DRight(c, canvas, frame: frame, k: k, lo: lo, hi: max(hi, c.valueMax ?? hi), theme: theme, valueText: valueText, categoryText: categoryText)
             return
         }
         if let v = c.barView, !v.rightAngles, c.type == .column, !c.stacked, !c.percent, !c.chartex,

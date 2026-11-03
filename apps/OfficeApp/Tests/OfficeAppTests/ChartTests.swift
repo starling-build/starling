@@ -25,6 +25,22 @@ final class ChartTests: XCTestCase {
         }
     }
 
+    /// Excel's box of a 3-D area at right angles, from Windows lab view3d's prints (480 x 288 pt, its room 398.4 x 224.6 pt):
+    /// the front 340.0 x 96.7 pt, its depth 57.2 across, for two series; 297.2 x 126.8 and 101.0 for four; hPercent 100 makes the
+    /// front 170.5 high.
+    func testA3DAreaAtRightAnglesStandsInItsRoomAsExcelPrintsIt() {
+        let two = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: nil, rotX: 15, rotY: 20)
+        XCTAssertEqual(two.width, 340.0, accuracy: 1.5)
+        XCTAssertEqual(two.height, 96.7, accuracy: 1.5)
+        XCTAssertEqual(two.dx, 57.2, accuracy: 1.5)
+        let four = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 4, categories: 4, depth: 1, heightPercent: nil, rotX: 15, rotY: 20)
+        XCTAssertEqual(four.width, 297.2, accuracy: 1.5)
+        XCTAssertEqual(four.height, 126.8, accuracy: 2)
+        XCTAssertEqual(four.dx, 101.0, accuracy: 1.5)
+        let tall = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: 100, rotX: 15, rotY: 20)
+        XCTAssertEqual(tall.height, 170.5, accuracy: 1.5)
+    }
+
     func testStackingAndBlanks() throws {
         var c = Chart.sample(.column)
         c.stacked = true
