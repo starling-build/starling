@@ -661,6 +661,30 @@ enum DocxFormat {
         return nil
     }
 
+    /// A section break whose paragraph mark stands while a field's CODE is still open — the field has begun and
+    /// not yet separated — is not one: Word keeps the text running, lo-8928a1e9's IF fields wrapped round two of
+    /// them, 1 page in its print where ours had 3. (One in a field's result stands: lo-9bb072ca's continuous
+    /// breaks inside fields keep their sections.) The break is taken out of the markup, before anything reads
+    /// the sections.
+    static func _dropSectionBreaksInsideFields(_ root: XNode) {
+        guard let body = root.first("w:body") else { return }
+        var open: [Bool] = []   // each open field: still in its code
+        for p in body.descendants("w:p") {
+            for mark in p.descendants("w:fldChar") {
+                switch mark["w:fldCharType"] {
+                case "begin": open.append(true)
+                case "separate": if !open.isEmpty { open[open.count - 1] = false }
+                case "end": if !open.isEmpty { open.removeLast() }
+                default: break
+                }
+            }
+            if open.contains(true), let pPr = p.first("w:pPr"), let at = pPr.children.firstIndex(where: { $0.name == "w:sectPr" }) {
+                RuleTrace.hit("section-break-inside-a-field-code-is-ignored")
+                pPr.children.remove(at: at)
+            }
+        }
+    }
+
     /// A package whose main part is not named `word/document.xml`: the root
     /// relationships say which it is (LibreOffice's tdf104713_undefinedStyles
     /// names `word/trial.xml`), and it and its relationships file are read
@@ -687,6 +711,7 @@ enum DocxFormat {
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
         _hoistTablesOutOfParagraphs(root)
+        _dropSectionBreaksInsideFields(root)
         _renumberSequences(root)
         let kept = _keptParts(entries, part)
         // Relationships: hyperlink targets and media parts.
@@ -3452,6 +3477,67 @@ enum DocxFormat {
     /// A header/footer part's text with PAGE and NUMPAGES fields (simple or
     /// complex) turned into placeholders; paragraphs joined with spaces.
     /// Whether a field instruction is a page number or a page count.
+    /// The text an `IF left op right "then" "else"` field shows where the file wrote no result: the comparison
+    /// made on what the field itself holds — quoted strings and numbers, `=`, `<>`, `<`, `>`, `<=`, `>=`, two
+    /// numbers as numbers, anything else as text without regard to case — and the true or the false text (empty
+    /// when there is none). Nil for an instruction that is not that whole shape (a nested field's operand is
+    /// not in it; a wildcard is not understood).
+    static func _ifFieldResult(_ instr: String) -> String? {
+        var tokens: [(text: String, quoted: Bool)] = []
+        var chars = Array(instr.trimmingWhitespace(newlines: true))
+        var i = 0
+        let open: Set<Character> = ["\"", "\u{201C}"], close: Set<Character> = ["\"", "\u{201D}"]
+        while i < chars.count {
+            if chars[i].isWhitespace { i += 1; continue }
+            if open.contains(chars[i]) {
+                var j = i + 1, text = ""
+                while j < chars.count, !close.contains(chars[j]) { text.append(chars[j]); j += 1 }
+                guard j < chars.count else { return nil }
+                tokens.append((text, true)); i = j + 1
+            } else {
+                var j = i, text = ""
+                while j < chars.count, !chars[j].isWhitespace, !open.contains(chars[j]) { text.append(chars[j]); j += 1 }
+                tokens.append((text, false)); i = j
+            }
+        }
+        chars = []
+        guard tokens.count >= 1, !tokens[0].quoted, tokens[0].text.uppercased() == "IF" else { return nil }
+        var rest = Array(tokens.dropFirst())
+        // `1=2` written close: split it where the operator is.
+        if rest.count >= 1, !rest[0].quoted, !["=", "<>", "<", ">", "<=", ">="].contains(rest[0].text) {
+            let t = Array(rest[0].text)
+            if let at = t.firstIndex(where: { "=<>".contains($0) }) {
+                var end = at + 1
+                if end < t.count, "=<>".contains(t[end]), t[at] != t[end] || t[at] == "<" && t[end] == ">" { end += 1 }
+                var split: [(text: String, quoted: Bool)] = []
+                if at > 0 { split.append((String(t[..<at]), false)) }
+                split.append((String(t[at ..< end]), false))
+                if end < t.count { split.append((String(t[end...]), false)) }
+                rest.replaceSubrange(0 ... 0, with: split)
+            }
+        }
+        // left op right then [else]
+        guard rest.count >= 4, !rest[1].quoted, ["=", "<>", "<", ">", "<=", ">="].contains(rest[1].text), rest.count <= 5 else { return nil }
+        let (left, op, right) = (rest[0].text, rest[1].text, rest[2].text)
+        let order: Int
+        if let a = Double(left), let b = Double(right) {
+            order = a < b ? -1 : a > b ? 1 : 0
+        } else {
+            let a = left.lowercased(), b = right.lowercased()
+            order = a < b ? -1 : a > b ? 1 : 0
+        }
+        let holds: Bool
+        switch op {
+        case "=": holds = order == 0
+        case "<>": holds = order != 0
+        case "<": holds = order < 0
+        case ">": holds = order > 0
+        case "<=": holds = order <= 0
+        default: holds = order >= 0
+        }
+        return holds ? rest[3].text : (rest.count == 5 ? rest[4].text : "")
+    }
+
     /// The circled number an `eq \o\ac(○,N)` field draws (N from 1 to
     /// 20), or nil for any other field.
     static func _ringedNumber(_ instr: String) -> String? {
@@ -6139,6 +6225,12 @@ enum DocxFormat {
                         // zh-e0ca7252's 27 "○1".."○4" open lines of its
                         // insurance clauses; dropped, each line took two
                         // characters more and its pages ran ahead.)
+                        if let f = notes.fields.last, !f.result, let shownText = DocxFormat._ifFieldResult(f.instr) {
+                            RuleTrace.hit("if-field-shows-its-branch")
+                            var shown = cs
+                            shown.field = f.instr.trimmingWhitespace(newlines: true)
+                            if !shownText.isEmpty { addText(shownText, shown) }
+                        }
                         if let f = notes.fields.last, !f.result, let ringed = DocxFormat._ringedNumber(f.instr) {
                             var shown = cs
                             shown.field = f.instr.trimmingWhitespace(newlines: true)

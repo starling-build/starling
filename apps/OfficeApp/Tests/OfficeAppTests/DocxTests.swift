@@ -18,6 +18,19 @@ final class DocxTests: XCTestCase {
         _ = TestText.icuLoaded
     }
 
+    /// An IF field with no result written shows the branch its comparison picks: strings without regard to case,
+    /// two numbers as numbers, `<>` `<` `>` `<=` `>=`, a missing false text empty; anything else, nothing.
+    func testAnIfFieldShowsItsBranch() {
+        XCTAssertEqual(DocxFormat._ifFieldResult(" IF 1=2 \"yes\" \"no\" "), "no")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF 2 > 10 \"big\" \"small\""), "small")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF \"Abc\" = \"aBC\" \"same\" \"other\""), "same")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF 3 <> 3 \"x\""), "")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF 3 <= 3 \"x\" \"y\""), "x")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF \"a\" < \"b\" \"lt\" \"ge\""), "lt")
+        XCTAssertNil(DocxFormat._ifFieldResult("IF = \"BASEDMAFAC\" \""))
+        XCTAssertNil(DocxFormat._ifFieldResult("MERGEFIELD Name"))
+    }
+
     private func sample() -> RichDocument {
         var paragraphs: [RichParagraph] = []
         paragraphs.append(RichParagraph(text: "Title — with an em dash", style: RichParagraphStyle(heading: 1)))
