@@ -14397,3 +14397,4 @@ TIP WATCH amd-8, round 128 (tip 88cd4071c): Word no drops; unit tests 613 run, 0
 
 TIP WATCH amd-8, round 129 (tip 433c0e922): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 - amd-opus LANDED 8988a0c92 zh-147bdae0 p64 (lab asp): off a grid, mode 15, automatic spaces beside digits give a quarter each (was capped at a quarter em in all). 756: 306 -> 298, none worse; zh-147bdae0 100. Gap noted: Word kerns Times "11" under w:kern (table style), we don't. Next: zh-7a16a243 grid cap (p23/p29/p31), lab to windows.
+- amd-opus QUEUE (coordinator): after zh-7a16a243's grid cap — kerning switched on by a table style (w:kern in the style's rPr reaching runs that state none; Word kerns Times "11" to 5.52 there). First check how far kerning already reaches in our Word mode, then build.
