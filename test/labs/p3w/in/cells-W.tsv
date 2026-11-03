@@ -1,0 +1,18 @@
+1	plain, rotation off, no depth, no bevel
+2	plain, rotation off, depth 27
+3	plain, rot 20,330, no depth
+4	plain, rot 20,330, depth 27
+5	plain, rot 0,330 only (turn about the vertical), depth 27
+6	plain, rot 20,0 only (tip), depth 27
+7	curveDown 56338, rotation off, no depth, no bevel
+8	curveDown 56338, rotation off, depth 27
+9	curveDown 56338, rot 20,330, no depth
+10	curveDown 56338, rot 20,330, depth 27
+11	curveDown 56338, rot 0,330 only (turn about the vertical), depth 27
+12	curveDown 56338, rot 20,0 only (tip), depth 27
+13	arch up, rotation off, no depth, no bevel
+14	arch up, rotation off, depth 27
+15	arch up, rot 20,330, no depth
+16	arch up, rot 20,330, depth 27
+17	arch up, rot 0,330 only (turn about the vertical), depth 27
+18	arch up, rot 20,0 only (tip), depth 27
