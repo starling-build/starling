@@ -3081,7 +3081,11 @@ enum OfficeFonts {
             // MinionPro-Regular text, 13pt at least 15, steps 15.17 in
             // Word's print over 29 lines and its MinionPro-It titles
             // beside Times 15.16 over 69; Caladea's line made both 15.24.)
-            if clone == cambria, !["cambria", "caladea", "carlito"].contains(family.trimmingWhitespace().lowercased()) {
+            // (Not "Liberation Serif" on Windows, which Word draws in Cambria by its font-table signature —
+            // `windowsSigFace` — with Cambria's own line: lo-11ad5a95's 48pt lines step 56.77 in Word's print,
+            // 56.48 with this one; tdf153136's 56.7.)
+            if clone == cambria, !["cambria", "caladea", "carlito"].contains(family.trimmingWhitespace().lowercased()),
+               !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif") {
                 face.naturalHeight = 0.95 + 0.2163
             }
             if clone == serif {
