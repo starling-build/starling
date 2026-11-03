@@ -662,6 +662,8 @@ struct Chart: Equatable {
     var highLowLines: HighLowLines? = nil
     var categoryTicksOut = false
     var categoryAxisDeleted = false
+    /// The categories are sparse tick names on edges (a scatter's years), each set on one line.
+    var categoryLabelsSparse = false
     /// The axes' own lines are drawn (no `a:ln/a:noFill` in their
     /// `c:spPr`). Not the value axis' of a new chart, which is written
     /// without one.
@@ -1170,6 +1172,7 @@ enum ChartXML {
         // a pair of axes of its own, chart-tdf140489's "YearSizing": it and those axes are left out, and the rest is
         // plotted against its own.)
         var hiddenValueAxis: XNode? = nil
+        var hiddenXAxis: XNode? = nil
         if plot.children.contains(where: { $0.name != "c:scatterChart" && $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }) {
             for hidden in plot.children where hidden.name == "c:scatterChart" && hidden.all("c:ser").allSatisfy({ ser in
                 ser.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil && ser.first("c:marker")?.first("c:symbol")?["val"] == "none"
@@ -1178,6 +1181,10 @@ enum ChartXML {
                 // (Its value axis, where it is shown, is the one the rest is read against: the $ labels and rules.)
                 hiddenValueAxis = plot.all("c:valAx").first { ax in
                     ids.contains(ax.first("c:axId")?["val"] ?? "") && ["l", "r"].contains(ax.first("c:axPos")?["val"] ?? "")
+                        && !["1", "true"].contains(ax.first("c:delete")?["val"] ?? "")
+                }
+                hiddenXAxis = plot.all("c:valAx").first { ax in
+                    ids.contains(ax.first("c:axId")?["val"] ?? "") && ["b", "t"].contains(ax.first("c:axPos")?["val"] ?? "")
                         && !["1", "true"].contains(ax.first("c:delete")?["val"] ?? "")
                 }
                 let shared = plot.children.contains { $0 !== hidden && $0.name.hasSuffix("Chart") && $0.all("c:axId").contains { ids.contains($0["val"] ?? "") } }
@@ -1780,6 +1787,26 @@ enum ChartXML {
         let titledCategory = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name != "c:valAx" }
         let titledValue = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name == "c:valAx" }
         c.categoryAxisTitle = axisTitle(titledCategory)
+        // (An area's points, 361 of a 30-year run, read against the left-out scatter's bottom axis: its years, 0 to 30, named
+        // at every step, its title under them.)
+        var yearsAxis = false
+        if let hx = hiddenXAxis, type == .area, categories.count > 1, let hi = hx.first("c:scaling")?.first("c:max")?["val"].flatMap(Double.init) {
+            let lo = hx.first("c:scaling")?.first("c:min")?["val"].flatMap(Double.init) ?? 0
+            let steps: [Double] = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
+            let step = hx.first("c:majorUnit")?["val"].flatMap(Double.init) ?? steps.first { (hi - lo) / $0 <= 8 } ?? 1000
+            let n = categories.count
+            var labels = Array(repeating: "", count: n)
+            var v = lo
+            while v <= hi + step * 1e-6 {
+                let i = Int(((v - lo) / (hi - lo) * Double(n - 1)).rounded())
+                if i >= 0, i < n { labels[i] = v == v.rounded() ? String(Int(v)) : String(v) }
+                v += step
+            }
+            c.categories = labels
+            yearsAxis = true
+            c.categoryLabelsSparse = true
+            if let t = hx.first("c:title") { let text = _texts(t, "a:t").joined(); if !text.isEmpty { c.categoryAxisTitle = text } }
+        }
         c.dateAxis = axes.contains { $0.name == "c:dateAx" }
         c.valueAxisTitle = axisTitle(titledValue)
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 18 }
@@ -1807,6 +1834,7 @@ enum ChartXML {
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.categoryLabelColor = color(f) }
         }
+        if yearsAxis { c.categoryLabelColor = nil }
         if let run = valueAxis?.first("c:txPr")?.descendant("a:defRPr") {
             c.valueLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.valueLabelColor = color(f) }
@@ -3647,7 +3675,7 @@ enum ChartPainter {
                 // over the chart's middle, and 3.5 pt higher. Painted once the plot is known.)
                 deferredCategoryTitle = (tp, area.bottom - tp.height - 3.5 * k)  // (baselines 295.5 and 307.7 in Word's print, ours 299.0 and 311.1)
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
-            } else if !c.onSlide, !c.onSheet, c.type == .scatter, c.plotLayoutInner {
+            } else if (!c.onSlide && !c.onSheet && c.type == .scatter) || c.categoryLabelsSparse, c.plotLayoutInner {
                 // (A plot the file places leaves the title under the numbers, not at the
                 // chart's foot: lo-c4c60fcb's, 15 pt under their line in Word's print.)
                 deferredCategoryTitle = (tp, -1)
@@ -3728,7 +3756,7 @@ enum ChartPainter {
             let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty ? barNameWidth : .infinity) : max(slot - 2 * k, 8 * k)) }
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot - 2 * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -3747,7 +3775,7 @@ enum ChartPainter {
                     let upright = abs(turn) >= 90 && !c.onSlide && !c.onSheet
                     catLabels = c.categories.map { categoryText($0, catSize, upright ? 0.5 * area.height : .infinity) }
                 }
-            } else if !horizontal, c.type != .area || (!c.onSlide && !c.onSheet), !c.categoryAxisDeleted {
+            } else if !horizontal, !c.categoryLabelsSparse, c.type != .area || (!c.onSlide && !c.onSheet), !c.categoryAxisDeleted {
                 // (An area chart's date labels in a Word document are turned a
                 // quarter right angle, like the columns', when they do not fit
                 // their slots: lo-c996762f20bf4f32's five dates in a 217pt chart;
@@ -4089,7 +4117,7 @@ enum ChartPainter {
             return
         }
         if let (tp, top) = deferredCategoryTitle {
-            let under = c.type == .scatter && top < 0 ? plot.bottom + (c.styled2013 || !c.officeStyled ? 4 : 7.6) * k + belowOut + 14.5 * k : top
+            let under = (c.type == .scatter || c.categoryLabelsSparse) && top < 0 ? plot.bottom + (c.styled2013 || !c.officeStyled ? 4 : 7.6) * k + belowOut + 14.5 * k : top
             tp.paint(canvas, Offset((plot.left + plot.right) / 2 - tp.width / 2, under))
             tp.dispose()
         }
@@ -4396,7 +4424,9 @@ enum ChartPainter {
                 let colour = l.color ?? c.color(series: c.series.count + j, accents: theme.accents)
                 func at(_ i: Int) -> Offset? {
                     guard let v = l.values[safe: i] ?? nil else { return nil }
-                    return Offset(plot.left + (Double(i) + 0.5) * slot, vpos2(v))
+                    // (An area's points sit on the edges, so lines over it do.)
+                    let x = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
+                    return Offset(x, vpos2(v))
                 }
                 if !l.lineHidden {
                     let path = Path()
@@ -4771,7 +4801,7 @@ enum ChartPainter {
                     }
                 }
             }
-            if c.type == .line, !horizontal { paintOverlayLines() }
+            if c.type == .line || (c.type == .area && !c.lineSeries.isEmpty), !horizontal { paintOverlayLines() }
         case .scatter:
             for j in 0 ..< s {
                 fill.color = c.color(series: j, accents: theme.accents)
