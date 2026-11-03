@@ -14359,3 +14359,4 @@ TIP WATCH amd-8, round 123 (tip b371a2f0e): Word no drops; unit tests 613 run, 0
 - 2026-11-03 amd-1 STATUS: tdf111824 3-D column projection IN PROGRESS (standard-grouping rows landed c0571b017; box height rule + perspective wall still open, 6.1). tdf140489 + doughnut label size landed 3ffa8e2ab. Next after tdf111824: doughnut legend-top / tall-narrow, then 3-D area.
 - amd-5 LANDED 813d4b6a0 lo-11ad5a95 97.6 -> 100 (Liberation Serif drawn in Cambria on Windows keeps Cambria's own line)
 - amd-5 LANDED b7e3a0d8a lo-e3095781 98.3 -> 100 (floating table's bottom cell margin taken off a cut once, not twice). lo-a197b7a8 still mine (label drop rule open).
+- amd-opus landed 3fe4443f1: zh-147bdae0 "CT-P" (hyphenation no longer treats ideographs as Latin letters), 756 335 -> 333, none worse. Next: its p27/p33 closing bracket before an opening one counts whole when the line parts the pair.
