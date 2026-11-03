@@ -1,0 +1,17 @@
+1	deck case: wrap, bullets, h=4269029, fs=85/20
+2	no bullets
+3	wrap none, bullets
+4	wrap none, no bullets
+5	normAutofit bare (no fontScale), bullets
+6	normAutofit bare, no bullets
+7	bare, bullets, h=2000000
+8	bare, bullets, h=3000000
+9	bare, bullets, h=6000000 (fits)
+10	fs=85 stated, h=2000000
+11	fs=85 stated, h=6000000
+12	fs=92.5/10
+13	fs=77.5/20
+14	fs=70/20
+15	no autofit, sz=27.2
+16	no autofit, sz=27
+17	no autofit, sz=32 (no shrink)
