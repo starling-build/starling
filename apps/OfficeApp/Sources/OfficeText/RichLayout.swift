@@ -625,7 +625,8 @@ public final class RichTextTheme {
         // widths are what break the lines — and drawn pulled back to
         // its height: `RichLayout._paintScaled`.)
         let classScale: Double = characterClass.flatMap { k in face?.classScales.flatMap { k < $0.count ? $0[k] : nil } } ?? 1
-        let ownScale: Double = style.horizontalScale ?? named?.char.horizontalScale ?? 1
+        let ownScale: Double = RichTextTheme.wordWidthScale(style.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: wordRules,
+            eastAsiaFamily: style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName)
         let widen: Double = (face?.sizeScale ?? 1) * classScale * ownScale
         if named == nil, let h = paragraph.heading, h >= 1 {
             // A heading the sheet has no entry for: the theme's look.

@@ -8,6 +8,33 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+extension RichTextTheme {
+    /// A character scale (`w:w`) as Word for Windows sets it, narrowed: in
+    /// the Chinese system faces, SimSun, FangSong, KaiTi and SimHei, to a
+    /// whole 128th (their half-width advance, 128 of 256 units). Lab `wsc`
+    /// (Word for Windows, SimSun and FangSong at 9 to 28pt, a line of
+    /// ideographs each) sets 95% as 121/128 (16pt: 15.12 apart, not 15.2),
+    /// 99% as 126/128, 90% as 115 and 80% as 102, each to within 0.036pt
+    /// where the plain percentage was out by up to 0.18 (28pt at 99%);
+    /// 150% exact. zh-4e5fe46f's 95% FangSong cells set 9.225 apart in its
+    /// print, ours 9.275, and broke a character early. A face of finer
+    /// units comes out as asked: zh-7773163d's 18pt 細明體_HKSCS at 95%
+    /// is 17.08 a character in its print (1024ths: 972), not 17.02.
+    static func wordWidthScale(_ w: Double, wordRules: Bool, eastAsiaFamily: String?) -> Double {
+        guard wordRules, wordWindowsPages, w > 0, w < 1, let f = eastAsiaFamily?.lowercased(), _wordGBSystemFace(f) else { return w }
+        return (w * 128 + 1e-6).rounded(.down) / 128
+    }
+
+    /// SimSun, NSimSun, FangSong, KaiTi or SimHei by any of their names
+    /// (the _GB2312 ones too, which Windows sets in them), not a foundry's
+    /// face of the same style (方正, 华文).
+    static func _wordGBSystemFace(_ f: String) -> Bool {
+        let names = ["宋体", "simsun", "仿宋", "fangsong", "楷体", "kaiti", "黑体", "simhei"]
+        let foundries = ["方正", "华文", "stsong", "stfangsong", "stkaiti", "fz"]
+        return names.contains(where: { f.containsSubstring($0) }) && !foundries.contains(where: { f.containsSubstring($0) })
+    }
+}
+
 extension RichLayout {
 
     /// The paragraph's runs as a span tree. An empty paragraph lays out a
@@ -488,7 +515,8 @@ extension RichLayout {
                 && hAnsiFace.map { !$0.isEastAsian } == true
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             // (The run's character scale, Word's `w:w`.)
-            let wScale = run.horizontalScale ?? named?.char.horizontalScale ?? 1
+            let wScale = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
+                eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
             let closes = _closesUpMarks(run, named, document)
             // (So may text whose East Asian language has no such rules —
             // its run's own, else the document's: `eastAsianLineRules`.)

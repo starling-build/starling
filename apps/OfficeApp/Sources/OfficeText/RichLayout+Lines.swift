@@ -923,7 +923,11 @@ extension RichLayout {
         let named = _named(p, document)
         let sheet = named?.char.horizontalScale
         guard p.image == nil, sheet != nil || p.runs.contains(where: { $0.style.horizontalScale != nil }) else { return false }
-        func scale(of run: Run) -> Double { max(0.01, run.style.horizontalScale ?? sheet ?? 1) }
+        func scale(of run: Run) -> Double {
+            let latin = run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
+            return max(0.01, RichTextTheme.wordWidthScale(run.style.horizontalScale ?? sheet ?? 1, wordRules: true,
+                                                          eastAsiaFamily: run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latin))
+        }
         let scales = Set(p.runs.filter { $0.length > 0 && $0.style.inlineImage == nil }.map { scale(of: $0) })
         guard scales.contains(where: { abs($0 - 1) > 0.001 }) else { return false }
         let lines = g.painter.computeLineMetrics()
