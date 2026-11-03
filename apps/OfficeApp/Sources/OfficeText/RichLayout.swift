@@ -185,6 +185,25 @@ public final class RichTextTheme {
         // pt low.)
         let name = style.fontFamily ?? fontFamily
         let own = name.flatMap { ownDescentShare?($0) }
+        if exactLinesAsPowerPoint, lineSpacingReduction == 0, multiple != 1 {
+            // PowerPoint for Windows, lab p3lp (Arial, Calibri, Courier New,
+            // Times New Roman, Cambria, Segoe UI, MS Gothic at 18 and 32 pt, 80%
+            // to 200%): a line's foot (its baseline to its bottom) is the
+            // face's own depth of single's 1.2 size; over single it is that
+            // and 0.25 of the extra, and besides 0.313 less 1.27 times the
+            // depth where that is above nothing (Arial's 0.072 of the size,
+            // Courier New's none). Under single it stays what single's is.
+            // (A deeper face's slight lift under single, Calibri's 0.027 and
+            // Courier New's 0.06 at 80%, is left out: 90% in the SmartArt
+            // decks, 82 of them, went worse with it.)
+            let family = name.map { fontFamilyResolver?($0) ?? $0 }
+            let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
+            let depth = own ?? drawn
+            let line = multiple * single
+            var foot = single * depth
+            if multiple > 1 { foot += max(0, 0.313 - 1.27 * depth) + 0.25 * (line - single) }
+            return line * drawn - foot
+        }
         if multiple > 1, own == nil, let share = extraAboveShare {
             // That share of the extra above the first baseline, the rest
             // below, against the engine's share by the drawn face's ascent
