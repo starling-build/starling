@@ -300,6 +300,8 @@ struct Chart: Equatable {
         var perspective = 30.0
         /// `c:hPercent`: the box's height as a percentage of its width; nil is automatic.
         var heightPercent: Double? = nil
+        /// `c:grouping` standard: each series stands in a row of its own, one behind another.
+        var rows = false
     }
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
@@ -1748,6 +1750,7 @@ enum ChartXML {
             func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
             c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
             if let ra = v?.first("c:rAngAx") { c.barView?.rightAngles = (ra["val"] ?? "1") != "0" && (ra["val"] ?? "1") != "false" }
+            c.barView?.rows = (el.first("c:grouping")?["val"] ?? "clustered") == "standard"
             c.barView?.heightPercent = v?.first("c:hPercent")?["val"].flatMap(Double.init)
             c.barView?.perspective = v?.first("c:perspective")?["val"].flatMap(Double.init) ?? 30
             c.barShape = el.first("c:shape")?["val"] ?? el.first("c:ser")?.first("c:shape")?["val"] ?? "box"
@@ -4084,10 +4087,13 @@ enum ChartPainter {
                     // (15.5 across, 12 up), where a category's depth made them
                     // four times that.
                     let slot = (horizontal ? plot.height : plot.width) / Double(max(1, n))
-                    let lanes = c.stacked ? 1.0 : Double(max(1, c.series.count))
+                    let rowsDeep = v.rows && !c.stacked && !horizontal
+                    let lanes = c.stacked || rowsDeep ? 1.0 : Double(max(1, c.series.count))
                     let pitch = c.stacked ? 0 : 1 - c.overlapFraction
                     let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
-                    box = depthAt(bar * (1 + v.gapDepth) * v.depth)
+                    // (Standard grouping: one row of that depth per series, one behind another —
+                    // chart-tdf111824's two series, Excel's print, the second 43 pt right and 32 up.)
+                    box = depthAt(bar * (1 + v.gapDepth) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1))
                     if let wall {
                         plot = Rect.fromLTRB(wall.left - box.dx, whole.top + box.dy, wall.right - box.dx, whole.bottom + box.dy)
                     } else {
@@ -4554,8 +4560,9 @@ enum ChartPainter {
             let slot = (horizontal ? plot.height : plot.width) / Double(n)
             // A category's slot holds its bars plus one gap; bars step by
             // (1 - overlap) of a bar, so a stacked chart's sit on one another.
-            let lanes = c.stacked ? 1.0 : Double(s)
-            let pitch = c.stacked ? 0 : 1 - c.overlapFraction
+            let rowsDeep = c.barView?.rows == true && !c.stacked && !horizontal
+            let lanes = c.stacked || rowsDeep ? 1.0 : Double(s)
+            let pitch = c.stacked || rowsDeep ? 0 : 1 - c.overlapFraction
             let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
             let step = bar * pitch
             let group = bar + (lanes - 1) * step
@@ -4564,7 +4571,7 @@ enum ChartPainter {
                 // Series 1 nearest the origin: leftmost in a column group,
                 // lowest in a bar group.
                 let centre = horizontal ? plot.bottom - (Double(i) + 0.5) * slot : plot.left + (Double(i) + 0.5) * slot
-                for j in 0 ..< s {
+                for j in (rowsDeep ? Array((0 ..< s).reversed()) : Array(0 ..< s)) {
                     guard let raw = c.series[j].values[safe: i] ?? nil else { continue }
                     let v = scaled(raw, i)
                     var a = 0.0, b = v
@@ -4614,8 +4621,11 @@ enum ChartPainter {
                     var d = Offset.zero
                     if let v = c.barView, box != .zero {
                         let own = 1 / (1 + v.gapDepth)
-                        d = Offset(box.dx * own, box.dy * own)
-                        let back = Offset(box.dx * (1 - own) / 2, box.dy * (1 - own) / 2)
+                        let rowShare = rowsDeep ? 1 / Double(s) : 1
+                        let row = Offset(box.dx * rowShare, box.dy * rowShare)
+                        d = Offset(row.dx * own, row.dy * own)
+                        let behind = rowsDeep ? Double(j) : 0
+                        let back = Offset(row.dx * (1 - own) / 2 + row.dx * behind, row.dy * (1 - own) / 2 + row.dy * behind)
                         rect = rect.shift(Offset(back.dx, -back.dy))
                         if let last = labels.popLast() { labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy), last.2)) }
                     }
