@@ -5156,7 +5156,12 @@ extension RichLayout {
             for c in h.breaks(word) { out.insert(start + lens[c]) }
         }
         for ch in p.text {
-            if ch.isLetter {
+            // (An East Asian character is no letter of a word here: it
+            // parts the Latin words beside it. zh-147bdae0's "…利用CTP平台"
+            // went to the English patterns as one word and was parted
+            // "利用CT-P平台" at a line's end, a three-letter "CTP" Word
+            // keeps whole.)
+            if ch.isLetter, (ch.unicodeScalars.first?.value ?? 0) < 0x2E80 {
                 if word.isEmpty { start = k }
                 word.append(ch)
             } else { finish() }
