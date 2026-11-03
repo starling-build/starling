@@ -172,6 +172,8 @@ struct Chart: Equatable {
     /// The axis titles' size where their text says nothing at all of its
     /// look (`bareTitles`); nil is the usual.
     var axisTitleSize: Double? = nil
+    /// The axis titles say nothing of their look (openpyxl's): Excel sets them 20 pt.
+    var bareAxisTitle = false
     var axisTitleColor: Color? = nil   // (Word's own: the title's run, else its default run properties)
     /// An axis title the file places itself (`c:title/c:layout`, edge-mode
     /// x and y of the chart's frame), set across and in its own size: the
@@ -1507,7 +1509,7 @@ enum ChartXML {
             // Text that says nothing of its look, nor does the chart: the
             // run's own defaults, 18 pt and not bold (openpyxl's titles,
             // chart-tdf119138's, in Excel's print).
-            if Self._bare(t, in: space) { titleSize = 18; titleBold = false }
+            if Self._bare(t, in: space) { titleSize = 20; titleBold = false }
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
@@ -1818,7 +1820,7 @@ enum ChartXML {
         }
         c.dateAxis = axes.contains { $0.name == "c:dateAx" }
         c.valueAxisTitle = axisTitle(titledValue)
-        if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 18 }
+        if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 20; c.bareAxisTitle = true }
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title") {
             let layers = [t.descendant("a:rPr"), t.first("c:tx")?.descendant("a:defRPr"), t.first("c:txPr")?.descendant("a:defRPr")].compactMap { $0 }
             for layer in layers where c.axisTitleColor == nil {
@@ -3685,7 +3687,8 @@ enum ChartPainter {
             if deferredValueTitle !== tp { tp.dispose() }
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
-            let tp = axisText(t, titleSize, min(horizontal ? area.height : area.width, !c.onSlide && !c.onSheet ? 0.8 * (horizontal ? frame.height : frame.width) : .infinity))
+            // (Excel's bare titles stand as long as four fifths of the chart: tdf119138's 162 pt "Sample length (mm)" beside a 150 pt plot.)
+            let tp = axisText(t, titleSize, !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
             if horizontal {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
@@ -3704,8 +3707,10 @@ enum ChartPainter {
                 // chart's foot: lo-c4c60fcb's, 15 pt under their line in Word's print.)
                 deferredCategoryTitle = (tp, -1)
             } else {
-                tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
-                area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
+                // (A bare title, 20 pt in Excel, stands 6 pt up from the chart's foot: tdf119138's.)
+                let up = c.onSheet && c.bareAxisTitle ? 6 * k : 0
+                tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height - up))
+                area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k - up)
             }
             if deferredCategoryTitle?.tp !== tp { tp.dispose() }
         }
