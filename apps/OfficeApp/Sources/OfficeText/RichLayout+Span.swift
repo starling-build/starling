@@ -1636,6 +1636,16 @@ extension RichLayout {
                             // a quarter of the shrunk one (2.20) makes three times. In the body it does shrink it: zh-d68ac84a
                             // (grid -1.35), zh-eb54d3b0 and zh-8d6f702e lose lines with the full em.)
                             ? (em + _px(p.cell != nil ? max(0, grid ?? 0) : (grid ?? 0)) + 2 * spacing) / 4
+                            : RichTextTheme.wordWindowsPages && ch.isASCII == false && following.isNumber && following.isASCII
+                            // (Each side its own, in Word for Windows: lab asz (zh-147bdae0's package, left-aligned,
+                            // sizes varied) sets an ideograph then a digit a quarter of the ideograph's em apart —
+                            // 3.00 at 12pt, 3.96-4.08 at 16, 2.28 at 9, whatever the digit's size — and a digit then
+                            // an ideograph half the digit face's average width apart — Times 2.40 at 12pt, 1.86 at 9,
+                            // 3.30 at 16, 標楷體 3.00 — whatever the ideograph's. Ours set both 2.70 beside Times, and
+                            // lab asp's line took its character a step late.)
+                            ? (em + _px(grid ?? 0) + spacing) / 4
+                            : RichTextTheme.wordWindowsPages && ch.isNumber && ch.isASCII && following.isASCII == false
+                            ? (2 * (theme.averageCharWidth?(latin) ?? 0.5) * (em + _px(grid ?? 0)) + spacing) / 4
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         // (Twice inside text ruled round where the widths are
                         // balanced: labs `ap1`–`ap4`, zh-06c46ba9's boxed
