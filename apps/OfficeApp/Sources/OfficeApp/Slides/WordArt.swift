@@ -26,7 +26,7 @@ enum WordArt {
         func arc(_ u: Double) -> Double { 1 - (max(0, 1 - bow(u))).squareRoot() }   // the same, round
         switch warp.preset {
         case "textPlain": return { _ in (0, 1) }
-        case "textInflate": let a = adj(18750); return { (a * arc($0), 1 - a * arc($0)) }   // an ellipse's arc, as the preset draws it
+        case "textInflate": let a = adj(18750); return { (a * bow($0), 1 - a * bow($0)) }   // a parabola (lab wordart-fit2: 14.2 pt at a fifth of the way in)
         case "textDeflate": let a = adj(18750); return { (a * (1 - bow($0)), 1 - a * (1 - bow($0))) }
         case "textInflateTop": let a = adj(40000); return { (a * bow($0), 1) }
         case "textInflateBottom": let a = adj(60000); return { (0, 1 - (1 - a) * bow($0)) }
@@ -107,6 +107,8 @@ enum WordArt {
         var size = 0.0
         /// The run's fill is fully transparent: a shadow follows it away.
         var clear = false
+        /// The glyph's plain colour.
+        var color = Color(0xFF000000)
         var width: Double { advance ?? painter.width }
     }
 
@@ -320,6 +322,7 @@ enum WordArt {
         tp.layout(minWidth: 0, maxWidth: Double.infinity)
         var g = Glyph(painter: tp, text: ch, style: style, look: look)
         g.size = base.fontSize ?? 14
+        g.color = base.color ?? Color(0xFF000000)
         g.clear = (base.color?.alpha ?? 255) == 0 && !(look?.fill != nil)
         if RichTextTheme.wordWindowsPages, family?.lowercased() == "georgia", base.fontWeight == nil || base.fontWeight == .normal,
            base.fontStyle != .italic, let u = ch.unicodeScalars.first, ch.unicodeScalars.count == 1,
@@ -340,26 +343,59 @@ enum WordArt {
         // Text on a path is filled letter by letter, each with the whole
         // gradient; text fitted to the box shares one across it.
         let fillsEachGlyph = followsPath.contains(warp.preset)
-        func draw(_ g: Glyph, origin: Offset, x: Offset, y: Offset) {
+        // `map`, when given, takes a point of the letter's own box to the page:
+        // PowerPoint bends the outline point by point (a letter's top and foot
+        // lean apart where the box curves), which one flat map per letter
+        // cannot do. Letters without an outline keep the flat map.
+        func draw(_ g: Glyph, origin: Offset, x: Offset, y: Offset, map: ((Double, Double) -> Offset)? = nil) {
+            var warped: Path? = nil
+            if let map, let outline = g.painter.glyphPath() {
+                let bent = Path()
+                bent.fillType = outline.fillType
+                for metric in outline.computeMetrics() {
+                    let n = max(8, min(900, Int(metric.length / 1.0)))
+                    var started = false
+                    for i in 0 ..< n {
+                        guard let t = metric.getTangentForOffset(metric.length * Double(i) / Double(n)) else { continue }
+                        let p = map(t.position.dx, t.position.dy)
+                        if started { bent.lineTo(p.dx, p.dy) } else { bent.moveTo(p.dx, p.dy); started = true }
+                    }
+                    if started { bent.close() }
+                }
+                warped = bent
+            }
             let m = [x.dx, x.dy, 0, 0, y.dx, y.dy, 0, 0, 0, 0, 1, 0, origin.dx, origin.dy, 0, 1]
-            let det = x.dx * y.dy - x.dy * y.dx
+            let det = warped != nil ? 1.0 : x.dx * y.dy - x.dy * y.dx
             guard abs(det) > 1e-9 else { return }
             // (A shadow follows its letter's fill: none under a clear one.)
             if shadowPaint != nil, g.clear { return }
             // Collecting the letters' outlines, as the page sees them, to be drawn as a solid.
             if let collect {
-                if let outline = g.painter.glyphPath() { collect.path.addPath(outline.transform(m), .zero); collect.count += 1 }
+                if let warped { collect.path.addPath(warped, .zero); collect.count += 1 }
+                else if let outline = g.painter.glyphPath() { collect.path.addPath(outline.transform(m), .zero); collect.count += 1 }
                 return
             }
             /// The glyph again with another paint, through the same map.
             func drawn(_ paint: Paint) {
+                if let warped { canvas.drawPath(warped, paint); return }
                 let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(paint)), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: Double.infinity)
                 tp.paint(canvas, .zero)
                 tp.dispose()
             }
+            /// The letter in its own colour.
+            func plain() {
+                if let warped {
+                    let paint = Paint()
+                    paint.style = .fill
+                    paint.color = g.color
+                    canvas.drawPath(warped, paint)
+                } else {
+                    g.painter.paint(canvas, .zero)
+                }
+            }
             canvas.save()
-            canvas.transform(m)
+            if warped == nil { canvas.transform(m) }
             if let shadowPaint {
                 // The letters' silhouette, outline and all.
                 if !(g.look?.noFill ?? false) { drawn(shadowPaint) }
@@ -384,7 +420,7 @@ enum WordArt {
                 // The fill is the whole area's — one gradient across the
                 // word, not one a letter — so its shader is set in the
                 // area's space: under the inverse of the glyph's map.
-                let inv = [y.dy / det, -x.dy / det, 0, 0, -y.dx / det, x.dx / det, 0, 0, 0, 0, 1, 0,
+                let inv = warped != nil ? nil : [y.dy / det, -x.dy / det, 0, 0, -y.dx / det, x.dx / det, 0, 0, 0, 0, 1, 0,
                            (y.dx * origin.dy - y.dy * origin.dx) / det, (x.dy * origin.dx - x.dx * origin.dy) / det, 0, 1]
                 let paint = Paint()
                 paint.style = .fill
@@ -413,18 +449,18 @@ enum WordArt {
                     let oy = fill.tiled ? (area.height - h * sy) * fill.tileAlign.dy + fill.tileOffset.dy * px : 0
                     let own = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, area.left + ox, area.top + oy, 0, 1]
                     var local = [Double](repeating: 0, count: 16)
-                    for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { local[c * 4 + r] += inv[k * 4 + r] * own[c * 4 + k] } } }
+                    if let inv { for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { local[c * 4 + r] += inv[k * 4 + r] * own[c * 4 + k] } } } } else { local = own }
                     if let shader = try? ImageShader(decoded, .repeated, .repeated, local, filterQuality: .medium) {
                         paint.shader = shader
                         drawn(paint)
                     } else {
-                        g.painter.paint(canvas, .zero)
+                        plain()
                     }
                 } else {
-                    g.painter.paint(canvas, .zero)
+                    plain()
                 }
             } else if !(g.look?.noFill ?? false) {
-                g.painter.paint(canvas, .zero)
+                plain()
             }
             if let o = g.look?.outline {
                 let stroke = Paint()
@@ -433,7 +469,7 @@ enum WordArt {
                 stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
                 stroke.strokeJoin = .round
                 stroke.color = o
-                if g.look?.outlineDash != nil, let outlinePath = g.painter.glyphPath() {
+                if g.look?.outlineDash != nil, let outlinePath = warped ?? g.painter.glyphPath() {
                     // A dashed line is cut from the letter's own outline, in its
                     // unwarped space: the pattern scales with the line's width,
                     // not the letter (PowerPoint's sysDot is 1 wide on, 1 off).
@@ -504,7 +540,7 @@ enum WordArt {
                 // advance-box fit instead of losing the shape's text.
             }
             if followsPath.contains(warp.preset) {
-                _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, slide: cache != nil, pxPerPt: px, draw)
+                _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, slide: cache != nil, pxPerPt: px, { draw($0, origin: $1, x: $2, y: $3) })
                 return
             }
             // The bands: one for the whole text, or several — deflate-inflate's
@@ -696,7 +732,9 @@ enum WordArt {
                         let c = Offset((p00.dx + p10.dx + p01.dx + p11.dx) / 4, (p00.dy + p10.dy + p01.dy + p11.dy) / 4)
                         let o = Offset(c.dx - ax.dx * g.width / 2 - ay.dx * g.painter.height / 2,
                                        c.dy - ax.dy * g.width / 2 - ay.dy * g.painter.height / 2)
-                        draw(g, origin: o, x: ax, y: ay)
+                        draw(g, origin: o, x: ax, y: ay, map: cache == nil ? nil : { gx, gy in
+                            point(u0 + (u1 - u0) * gx / g.width, v0 + (v1 - v0) * gy / g.painter.height)
+                        })
                     }
                 }
             }
