@@ -2525,9 +2525,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
             if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
         }
-        return GridTextStyle(family: face,
+        var style = GridTextStyle(family: face,
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
+        if book.fontName(st).trimmingWhitespace().lowercased() == "aptos narrow" { style.own = "aptos narrow" }
+        return style
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
@@ -3112,6 +3114,9 @@ struct GridTextStyle: Hashable {
     /// The face whose hinted widths it is set to (`SheetHinting`), where
     /// what draws it has that face's advances; "" for none.
     var hint = ""
+    /// The face whose own widths it is set to, where Excel's face has none
+    /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
+    var own = ""
 
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
@@ -3185,6 +3190,9 @@ final class _TextCache {
     /// drawn in DejaVu Sans (a few per cent wider in its letters, narrower
     /// in its space — the format tests' lines ran past Excel's), in ems.
     private func _own(_ ch: Character, _ style: GridTextStyle) -> Double? {
+        if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
+            return (style.bold ? OfficeFonts.aptosNarrowBoldAdvances : OfficeFonts.aptosNarrowAdvances)[Int(v - 0x20)]
+        }
         guard style.family == OfficeFonts.verdana, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value else { return nil }
         if v >= 0x20, v <= 0x7E { return (style.bold ? OfficeFonts.verdanaBoldAdvances : OfficeFonts.verdanaAdvances)[Int(v - 0x20)] }
         return (style.bold ? OfficeFonts.verdanaBoldOtherAdvances : OfficeFonts.verdanaOtherAdvances)[v]
@@ -3193,7 +3201,7 @@ final class _TextCache {
     /// own widths, or on a page (`GridTextStyle.dots`) — save where its
     /// script joins or stacks its letters, which only the whole run shapes.
     private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
-        guard style.family == OfficeFonts.verdana || style.dots > 0 else { return false }
+        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || style.dots > 0 else { return false }
         return !run.unicodeScalars.contains { v in
             let x = v.value
             return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)
