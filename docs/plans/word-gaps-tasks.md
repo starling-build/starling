@@ -14369,3 +14369,4 @@ TIP WATCH amd-8, round 125 (tip fbc67cf36): Word no drops; unit tests 613 run, 0
 - amd-opus landed f91da4110: zh-147bdae0 p19/p39 row offset (lab rgap: a vMerge continuation cell's margins set its row's), 756 326 -> 320, none worse. Next: zh-7a16a243 p14/p26 (character-grid squeeze, lab gsq out to windows), then zh-db07d44e separating lab.
 
 TIP WATCH amd-8, round 126 (tip d965873e1): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- amd-opus landed a6583961d: zh-147bdae0 merged-cell centring (its last row's continuation margin) and zh-7a16a243 p14 (unhinted × in an East Asian ASCII face over a Latin hAnsi is the hAnsi face's), 756 320 -> 315, none worse. Lab prt (windows): a closing BRACKET parted from a following （ counts whole and gives nothing, compressPunctuation too; 、，unchanged. Fitting zh-7a16a243 p26 to it now.
