@@ -14370,3 +14370,5 @@ TIP WATCH amd-8, round 125 (tip fbc67cf36): Word no drops; unit tests 613 run, 0
 
 TIP WATCH amd-8, round 126 (tip d965873e1): Word no drops; unit tests 613 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 - amd-opus landed a6583961d: zh-147bdae0 merged-cell centring (its last row's continuation margin) and zh-7a16a243 p14 (unhinted × in an East Asian ASCII face over a Latin hAnsi is the hAnsi face's), 756 320 -> 315, none worse. Lab prt (windows): a closing BRACKET parted from a following （ counts whole and gives nothing, compressPunctuation too; 、，unchanged. Fitting zh-7a16a243 p26 to it now.
+
+- lenovo-3 (WordArt placement): ThemeColorTransparency (4.12) looked at again, side by side with the PowerPoint print. Word placement matches; no slant rule found. What differs is appearance: our outline is thicker (108000 EMU at 25% alpha) and the fill shows a stray sliver at the top of the H and the bottom of the y (fill and outline warped differently). That is amd-4 territory (fill/stroke warp mismatch). My queue is empty apart from the parked cases (short arch words, arch-down 40-100 pt, button 90/270).
