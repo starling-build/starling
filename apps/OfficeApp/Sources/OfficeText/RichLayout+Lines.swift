@@ -649,7 +649,10 @@ extension RichLayout {
                     let own = _px(p.style.indentLeft)
                     let rightGap = _px(p.style.indentRight)
                     let leftEdge = x - _px(float.distanceLeft ?? 9), rightEdge = x + w + _px(float.distanceRight ?? 9)
-                    if w > 0, leftEdge - own >= size * 3, inner - rightEdge - rightGap >= size * 3 {
+                    // (Room at its left for a character and a half is enough: lab `anc` D (Word for Windows, 12pt,
+                    // a 40pt square at x 20 from the column's edge, no gap) sets "D-" in the 20pt strip and "p3"
+                    // after the picture, on each of the three lines it spans; the room was three ems.)
+                    if w > 0, leftEdge - own >= size * 1.5 - 0.01, inner - rightEdge - rightGap >= size * 3 {
                         let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                                     bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                         if band.bottom > 0.01 { boxes.append((band.top, band.bottom, leftEdge - own, rightEdge - own)) }
