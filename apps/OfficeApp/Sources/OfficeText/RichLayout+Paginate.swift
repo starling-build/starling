@@ -1042,7 +1042,7 @@ extension RichLayout {
                     // lo-c9b8c5ab's A5, four lines on page 1 to 594 on a 612pt page in Word's print.)
                     let growsPastStated = document.tableStyles[c.table]?.rowHeights[c.row].map { c.ownRowHeight > _px($0) + _px(2) } ?? true
                             if byLines, growsPastStated {
-                        avail = max(avail, max(edge, _px(setup.height) - _bodyInsets(page: page / _columns, document).top) - y)
+                        avail = max(avail, max(edge, _px(setup.height - 14) - _bodyInsets(page: page / _columns, document).top) - y)
                     } else if byLines || y + (bottom - c.rowTop) <= edge + 0.01 && (c.row == 0 || y + (bottom - c.rowTop) - contentH <= _px(40)) && !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && c.row > 0) { avail = max(avail, edge - y) }
                 }
                 // (What goes over is a row again, and no shorter than
