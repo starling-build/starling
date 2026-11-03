@@ -683,7 +683,7 @@ enum WordArt {
                         inkU = (all.l / widest, all.r / widest)
                         // Deflate-inflate's two bands keep the line-box rule (lab: the ink-fit
                         // top overshot the box there).
-                        if bands.count == 1 { inkV = (mine.t, mine.b) }
+                        inkV = (mine.t, mine.b)
                     }
                 }
                 func point(_ u: Double, _ v: Double) -> Offset {
