@@ -544,6 +544,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// A table floating in a cell, centred (`w:tblpXSpec` center), read as paragraphs of the cell: its indent is already the middle
     /// of the cell, and a nested cell's left margin is not added to it.
     public var centredFloat = false
+    /// The paragraph a centred float in a cell is anchored to, the first after it: Word sets it beside the float's last part and gives
+    /// it no height of its own (lo-c7082c66's "End of inner table", on page 4's first line at x 48; the lines after it follow the float).
+    public var besideFloat = false
     /// Points. The same for the room under: the bottom margins and bottom lines
     /// of the nested cells the paragraph stands in and that go on past it. A
     /// part of the row that ends a page keeps that room clear of the foot, as

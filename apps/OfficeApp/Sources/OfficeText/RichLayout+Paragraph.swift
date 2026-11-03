@@ -2817,6 +2817,8 @@ extension RichLayout {
             // `_markBesideOffsetFloat`.)
             if strip >= _px(size), !_stripBesideLeftTable(before.table, i, document), ts.floatOffsetY == nil { _heights[i] = 0; _spaceBefore[i] = 0 }
         }
+        // (The paragraph a centred float in a cell is anchored to takes no room: see `besideFloat`.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, style.besideFloat { _heights[i] = after; _spaceBefore[i] = 0 }
         // A floating frame takes no room either: the text that follows
         // starts where it does.
         if frameLeft != nil {

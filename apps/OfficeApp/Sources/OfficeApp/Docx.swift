@@ -1463,6 +1463,8 @@ enum DocxFormat {
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
+        var afterCentredFloat = -1
+        var afterCentredFloatCell: CellRef? = nil
         var pendingBreakCharacter = false   // ... made by a break character, in a run with these properties
         var pendingBreakRPr: String? = nil
         var pendingBreakColumn = false
@@ -1514,6 +1516,8 @@ enum DocxFormat {
         var joinInto: Int? = nil
         func emit(_ p: RichParagraph) {
             var p = p
+            if afterCentredFloat == paragraphs.count, afterCentredFloatCell == currentCell, p.cell == nil || p.cell == currentCell { p.style.besideFloat = true }
+            afterCentredFloat = -1
             if pendingPageBreak {
                 p.style.pageBreakBefore = true; pendingPageBreak = false
                 if pendingBreakCharacter, !p.style.pageBreakInline {
@@ -1758,6 +1762,7 @@ enum DocxFormat {
                     for k in before ..< paragraphs.count { paragraphs[k].keptTable = kid }
                     keptTables[kid]!.texts = paragraphs[before...].map(\.text)
                 }
+                if pos?["w:tblpXSpec"] == "center", pos?["w:vertAnchor"] == "text", paragraphs.count > before { afterCentredFloat = paragraphs.count; afterCentredFloatCell = currentCell }
             case "w:tbl" where currentCell != nil && depth < maxNesting && (_nestingDepth(node) == 1 || Self._formHoldingATable(node))
                                 // (Not a single row of as many paragraphs as a page holds: a block does not part inside a row,
                                 // and one of 75 lines ran 40pt past the foot with the rest of its lines
