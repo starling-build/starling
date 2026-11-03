@@ -575,6 +575,9 @@ struct Chart: Equatable {
         /// keeps inside its slices.
         var fitted = false
         var moves: [Int: [Double]] = [:]
+        /// The points whose `moves` are where the label's box stands, its top left as a share of the
+        /// chart's frame (`c:xMode`/`c:yMode` "edge"), not a move from where it would stand.
+        var placedAt: Set<Int> = []
         /// A point's label box's own width, as a share of the chart's (`c15:layout`'s `c:w`).
         var boxWidths: [Int: Double] = [:]
         /// A point's own `c:dLblPos`.
@@ -1703,6 +1706,7 @@ enum ChartXML {
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
                     l.moves[i] = [x, y]
+                    if (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge" { l.placedAt.insert(i) }
                 }
                 if let m = one.first("c:extLst")?.descendant("c15:layout")?.first("c:manualLayout"),
                    let w = m.first("c:w")?["val"].flatMap(Double.init), w > 0 {
@@ -6409,7 +6413,13 @@ extension ChartPainter {
             // before the file's move: zh-b8de3ae2 p9's four, their edges at 571 for a bar ending 529.)
             if let right = l.anchorRight { at = Offset(right - ((tp.computeLineMetrics().map(\.width).max() ?? tp.width) + pad * 2) / 2, at.dy) }
             let moved = l.moves[s.index]
-            if let m = moved {
+            if let m = moved, l.placedAt.contains(s.index) {
+                // (Placed by the file, "edge": the box's top left at that share of the frame. Excel's
+                // print of 45540's "Top Six Functions" pie stands its seven labels there, round the
+                // pie; ours took the shares for moves from beside the slices and piled them up.)
+                RuleTrace.hit("chart-data-label-edge-layout-places-its-box")
+                at = Offset(frame.left + m[0] * frame.width + w / 2, frame.top + m[1] * frame.height + h / 2)
+            } else if let m = moved {
                 // Word moves a flat pie's label from its default position
                 // already fitted into the chart frame. In zh-61aaad09 the
                 // outside default reaches above the frame: moving it before
