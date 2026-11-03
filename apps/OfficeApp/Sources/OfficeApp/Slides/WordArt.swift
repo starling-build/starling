@@ -681,8 +681,7 @@ enum WordArt {
                     let all = extent(bands.flatMap(\.lines), widest), mine = extent(band.lines, widest)
                     if all.r > all.l, mine.b > mine.t {
                         inkU = (all.l / widest, all.r / widest)
-                        // Deflate-inflate's two bands keep the line-box rule (lab: the ink-fit
-                        // top overshot the box there).
+                        // Every band is fitted by its own letters' ink.
                         inkV = (mine.t, mine.b)
                     }
                 }
