@@ -124,7 +124,7 @@ extension PdfExport {
                 let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
                 var piece = String(p.text[at ..< end])
                 at = end
-                if let field = run.style.field, field.uppercased().hasPrefix("PAGEREF "), !field.contains("\\p"),
+                if let field = run.style.field, field.uppercased().hasPrefix("PAGEREF "), !field.containsSubstring("\\p"),
                    let target = field.split(separator: " ", omittingEmptySubsequences: true).dropFirst().first
                        .map({ String($0.filter { $0 != "\"" }).lowercased() }),
                    let paragraph = home[target], let label = layout.pageLabel(ofParagraph: paragraph, document) {

@@ -445,7 +445,7 @@ extension RichLayout {
             let text: Substring = moved.map { Substring($0) } ?? rawText
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
-            if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.contains("\u{00AD}") {
+            if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.containsSubstring("\u{00AD}") {
                 var out = ""
                 var at = base
                 for ch in text {

@@ -163,7 +163,7 @@ struct PdfMarkup {
                         // A list item deleted with its mark loses its number
                         // too, which Word writes "<#>" (delins's tika items).
                         if start == own, run.length > 0, p.style.list != nil, p.style.markRevision?.kind == .deleted { piece = "<#>" + piece }
-                        if piece.contains("\u{FFFC}"), let id = run.style.inlineImage, let image = p.inlineImages[id] {
+                        if piece.containsSubstring("\u{FFFC}"), let id = run.style.inlineImage, let image = p.inlineImages[id] {
                             for u in piece.unicodeScalars where u == "\u{FFFC}" { open!.pictures.append((image.width, image.height)) }
                         }
                         open!.paragraphs[open!.paragraphs.count - 1] += piece
@@ -204,7 +204,7 @@ struct PdfMarkup {
                     // n830205's 39th to 59th, text then "¶" "¶" where the file has the
                     // text paragraph and one empty. From the print alone, no lab yet.)
                     // (Not the document's last paragraph, whose mark cannot be deleted: lab dtwo d1's balloon ends "t09t10t11t12¶".)
-                    if DocxFormat.wordOnWindows, srcIndex + 1 < source.paragraphs.count, p.style.propertyChange?.oldRPrXML.contains("w:numPr") == true {
+                    if DocxFormat.wordOnWindows, srcIndex + 1 < source.paragraphs.count, p.style.propertyChange?.oldRPrXML.containsSubstring("w:numPr") == true {
                         RuleTrace.hit("deleted-numbered-paragraph-leaves-an-empty-mark-line")
                         open!.paragraphs[open!.paragraphs.count - 1] = "¶"; open!.paragraphs.append("")
                     }
@@ -215,9 +215,9 @@ struct PdfMarkup {
                     // not the numbered one's, and no repeat where the run starts at the numbered one.)
                     if DocxFormat.wordOnWindows, p.text.isEmpty, p.style.propertyChange != nil, srcIndex > 0, srcIndex + 1 < source.paragraphs.count,
                        case let before = source.paragraphs[srcIndex - 1], case let after = source.paragraphs[srcIndex + 1],
-                       before.style.markRevision?.kind == .deleted, !before.text.isEmpty, before.style.propertyChange != nil, before.style.propertyChange?.oldRPrXML.contains("w:numPr") != true,
+                       before.style.markRevision?.kind == .deleted, !before.text.isEmpty, before.style.propertyChange != nil, before.style.propertyChange?.oldRPrXML.containsSubstring("w:numPr") != true,
                        after.style.markRevision?.kind == .deleted, !after.text.isEmpty,
-                       after.style.propertyChange?.oldRPrXML.contains("w:numPr") == true {
+                       after.style.propertyChange?.oldRPrXML.containsSubstring("w:numPr") == true {
                         RuleTrace.hit("deleted-empty-paragraph-repeats-the-text-before-it")
                         open!.paragraphs[open!.paragraphs.count - 1] = before.text + "¶"
                         open!.paragraphs.append("¶"); open!.paragraphs.append("¶"); open!.paragraphs.append("")
@@ -695,7 +695,7 @@ struct PdfMarkup {
             var pictureAt = 0
             var placeholders: [PlaceholderDimensions] = []
             func exactSpans(_ text: String, _ style: Flutter.TextStyle) -> [InlineSpan] {
-                guard windows, note.label == "Deleted:", exactFace != nil || text.contains("\u{FFFC}") else { return [TextSpan(text: text, style: style)] }
+                guard windows, note.label == "Deleted:", exactFace != nil || text.containsSubstring("\u{FFFC}") else { return [TextSpan(text: text, style: style)] }
                 let table = exactFace?.advances ?? []
                 var out: [InlineSpan] = []
                 for ch in text {

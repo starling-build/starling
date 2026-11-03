@@ -2071,7 +2071,7 @@ private struct SlideContext {
             // its zip cut short, print as nothing.)
             let blip = el.first("p:blipFill")?.first("a:blip")
             if blip?["r:embed"] == nil, blip?["r:link"] == nil, case .opaque(var obj) = o.kind {
-                obj.rendering = Self.brokenPicture(in: o.frame, onMaster: part.contains("slideMasters/") || part.contains("slideLayouts/"), id: id)
+                obj.rendering = Self.brokenPicture(in: o.frame, onMaster: part.containsSubstring("slideMasters/") || part.containsSubstring("slideLayouts/"), id: id)
                 obj.clipsRendering = true
                 o.kind = .opaque(obj)
             }

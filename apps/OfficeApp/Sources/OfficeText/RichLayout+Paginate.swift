@@ -5101,13 +5101,13 @@ extension RichLayout {
     /// suppress it, and a pattern list is bundled for the run's language.
     func _autoHyphenPoints(_ p: RichParagraph, _ document: RichDocument) -> Set<Int> {
         guard theme.wordRules, p.style.eastAsian["w:suppressAutoHyphens"] != "1",
-              let setting = document.keptSettings["w:autoHyphenation"], !setting.contains("w:val=\"0\""), !setting.contains("w:val=\"false\""),
+              let setting = document.keptSettings["w:autoHyphenation"], !setting.containsSubstring("w:val=\"0\""), !setting.containsSubstring("w:val=\"false\""),
               !p.text.isEmpty else { return [] }
-        let noCaps = document.keptSettings["w:doNotHyphenateCaps"].map { !$0.contains("w:val=\"0\"") && !$0.contains("w:val=\"false\"") } ?? false
+        let noCaps = document.keptSettings["w:doNotHyphenateCaps"].map { !$0.containsSubstring("w:val=\"0\"") && !$0.containsSubstring("w:val=\"false\"") } ?? false
         func language(_ xml: String?) -> String? {
-            guard let xml, let r = xml.range(of: "<w:lang ") else { return nil }
-            let rest = xml[r.upperBound...]
-            guard let v = rest.range(of: "w:val=\"") else { return nil }
+            guard let xml, let r = xml.rangeOfSubstring("<w:lang ") else { return nil }
+            let rest = String(xml[r.upperBound...])
+            guard let v = rest.rangeOfSubstring("w:val=\"") else { return nil }
             let tail = rest[v.upperBound...]
             return tail.firstIndex(of: "\"").map { String(tail[..<$0]) }
         }
@@ -5157,7 +5157,7 @@ extension RichLayout {
         guard theme.wordRules, !automatic.isEmpty || p.text.utf16.contains(0x00AD) else { _hyphenShown[i] = nil; return }
         let units = Array(p.text.utf16)
         let limit = document.keptSettings["w:consecutiveHyphenLimit"].flatMap { x -> Int? in
-            guard let r = x.range(of: "w:val=\"") else { return nil }
+            guard let r = x.rangeOfSubstring("w:val=\"") else { return nil }
             return Int(x[r.upperBound...].prefix(while: { $0.isNumber }))
         } ?? 0
         for _ in 0 ..< 8 {

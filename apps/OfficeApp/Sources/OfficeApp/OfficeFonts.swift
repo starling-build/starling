@@ -3191,7 +3191,7 @@ enum OfficeFonts {
             // (細明體_HKSCS sets its first line 1pt higher at 18pt than 細明體 does:
             // zh-7773163d's lines stand 71, 95, 128 ... in Word for Windows' print and one
             // point lower in ours, with the same pitch.)
-            if wordOnWindows, family.lowercased().contains("hkscs"), let b = face.baseline { face.baseline = b - 1.0 / 18 }
+            if wordOnWindows, family.lowercased().containsSubstring("hkscs"), let b = face.baseline { face.baseline = b - 1.0 / 18 }
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
             face.fullWidthSymbols = ea.squareSymbols ?? (ea.latinAdvances == nil)
@@ -3339,7 +3339,7 @@ enum OfficeFonts {
             // line took the "＜" Word sends on.)
             // (Not 細明體's: Word for Windows sets zh-7773163d's "§" in 細明體_HKSCS half an em, 9pt
             // at 18pt, and no blank after it; the table is GB2312's.)
-            if ea.latin == mono, face.otherAdvances == nil, !["細明體", "新細明體", "mingliu", "pmingliu"].contains(where: { family.lowercased().contains($0) }) {
+            if ea.latin == mono, face.otherAdvances == nil, !["細明體", "新細明體", "mingliu", "pmingliu"].contains(where: { family.lowercased().containsSubstring($0) }) {
                 let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1, 0x2032: 1, 0x2033: 1]
                 face.otherAdvances = gb
                 face.boldOtherAdvances = gb
@@ -3386,7 +3386,7 @@ enum OfficeFonts {
         // zh-8415d258's numbered rows.)
         // 仿宋 and 標楷體 keep the old drawn-width stand-in: its digits stand ~1% wider than a half em in Word
         // (zh-5450d509), and widening them breaks ~100 documents on a knife-edge.
-        let fangsong = ["仿宋", "fangsong", "標楷", "dfkai", "kaiu"].contains(where: { family.lowercased().contains($0) })
+        let fangsong = ["仿宋", "fangsong", "標楷", "dfkai", "kaiu"].contains(where: { family.lowercased().containsSubstring($0) })
         if fangsong, ea.latin == mono, ea.latinAdvances == nil, ea.latinScale == 0.85 {
             face.sizeScale = 1024.0 / 1229.0
         } else if ea.latin == mono, ea.latinAdvances == nil, ea.latinScale == 0.85 {

@@ -5941,6 +5941,7 @@ extension ChartPainter {
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return false }
+        #if !os(WASI)
         if Self._pieLog, let point {
             // (STARLING_PIE_LOG: the top face's rim, a point a degree, from the frame's top left.)
             var line = "PIER"
@@ -5950,6 +5951,7 @@ extension ChartPainter {
             }
             FileHandle.standardError.write((line + "\n").data(using: .utf8)!)
         }
+        #endif
         let whole = Self.wholePercents(slices.map { (key: $0.index, value: $0.value) })
         // The labels' text so far, for an outside label to stand clear of.
         var taken: [Rect] = []
@@ -6349,6 +6351,7 @@ extension ChartPainter {
             // chart 2: 德國's text (3.8% at eight o'clock) 2.6 left of
             // 新加坡's, which it overlapped by 16 x 13 in ours where it stood
             // 15.5 right of Word's.)
+            #if !os(WASI)
             if Self._pieLog, point != nil {
                 // (STARLING_PIE_LOG: each 3-D pie label's slice, rim point, place before it is
                 // moved clear of the others, and text size, in points from the frame's top left.)
@@ -6359,6 +6362,7 @@ extension ChartPainter {
                                   frame.width / k, frame.height / k, rx / k, ry / k)
                 FileHandle.standardError.write(line.data(using: .utf8)!)
             }
+            #endif
             if point != nil, l.outside, !fitsInside, moved == nil, !c.onSlide, !c.onSheet {
                 let gap = 2.6 * k, tw = tp.width, th = tp.height, slack = 4 * k
                 for _ in 0 ..< 4 {

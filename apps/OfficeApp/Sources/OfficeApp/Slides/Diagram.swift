@@ -361,7 +361,9 @@ struct DiagramLayout {
         }
         #endif
         let emitted = engine.emit(root)
+        #if !os(WASI)
         if ProcessInfo.processInfo.environment["STARLING_DIAGRAM_XML"] != nil { FileHandle.standardError.write(Data((PptxXML.serialize(emitted) + "\n").utf8)) }
+        #endif
         return emitted
     }
 

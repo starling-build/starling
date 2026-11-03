@@ -115,7 +115,7 @@ extension RichLayout {
     /// 128 pixel parchment is 122.88pt at 75 dpi), or nil.
     func _pageTileSource(_ document: RichDocument) -> (ImageAttachment, Double, Double)? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, let xml = document.backgroundXML,
-              xml.contains("type=\"tile\""), let at = xml.range(of: "r:id=\"") else { return nil }
+              xml.containsSubstring("type=\"tile\""), let at = xml.rangeOfSubstring("r:id=\"") else { return nil }
         let rest = xml[at.upperBound...]
         guard let q = rest.firstIndex(of: "\"") else { return nil }
         let id = String(rest[..<q])

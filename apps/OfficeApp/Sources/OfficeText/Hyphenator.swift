@@ -13,7 +13,7 @@ final class Hyphenator {
         var table: [String: [UInt8]] = [:]
         var longest = 0
         for line in text.split(separator: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let trimmed = String(line.drop { $0 == " " || $0 == "\t" }.reversed().drop { $0 == " " || $0 == "\t" }.reversed())
             if trimmed.isEmpty || trimmed.hasPrefix("%") { continue }
             var letters = ""
             var numbers: [UInt8] = [0]
@@ -28,7 +28,7 @@ final class Hyphenator {
         for line in list.split(separator: "\n") {
             var word = ""
             var at = Set<Int>()
-            for ch in line.trimmingCharacters(in: .whitespaces) {
+            for ch in line.drop(while: { $0 == " " || $0 == "\t" }).reversed().drop(while: { $0 == " " || $0 == "\t" }).reversed() {
                 if ch == "-" { at.insert(word.count) } else { word.append(ch) }
             }
             if !word.isEmpty { held[word] = at }
@@ -41,7 +41,7 @@ final class Hyphenator {
     }
 
     private static var cache: [String: Hyphenator?] = [:]
-    private static let lock = NSLock()
+    private static let lock = OfficeLock()
     static let enabled: Set<String> = ["en-us", "es", "fr"]
 
     /// The hyphenator for a language tag (`en-US`, `nl-NL`, `de-DE`…), or nil

@@ -2025,7 +2025,7 @@ extension RichLayout {
                     // height the lab could not measure (方正小标宋 was not installed; zh-6d1afa56's
                     // 14pt marks on 15.6 keep Word's page break only at the least of both): the least.)
                     let latinOverhang = theme.gridOverhang(for: look, in: style, named: named, eastAsian: false, gridPitch: pitch)
-                    _overhang[i] = _px((look.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? "").contains("標楷")
+                    _overhang[i] = _px((look.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? "").containsSubstring("標楷")
                         ? latinOverhang
                         : min(theme.gridOverhang(for: look, in: style, named: named, eastAsian: true, gridPitch: pitch), latinOverhang))
                 } else {
@@ -2280,7 +2280,7 @@ extension RichLayout {
         if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages || p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             let bareText = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
             for image in (p.image.map { [$0] } ?? []) + p.inlineImages.inOrder {
-                guard bareText || image.sourceXML?.contains("drawingml/2006/chart") == true else { continue }
+                guard bareText || image.sourceXML?.containsSubstring("drawingml/2006/chart") == true else { continue }
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y > 0,
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))

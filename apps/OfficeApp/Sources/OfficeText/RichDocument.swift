@@ -1049,7 +1049,7 @@ public struct ImageAttachment: Hashable, Sendable {
         self.naturalHeight = naturalHeight
     }
 
-    private static let _seqLock = NSLock()
+    private static let _seqLock = OfficeLock()
     nonisolated(unsafe) private static var _seqCounter = 0
     private static func _nextSeq() -> Int {
         _seqLock.lock(); defer { _seqLock.unlock() }
