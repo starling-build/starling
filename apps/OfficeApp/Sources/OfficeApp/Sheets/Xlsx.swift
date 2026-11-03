@@ -536,7 +536,7 @@ enum Xlsx {
         43: "_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)",
     ]
 
-    private struct _Font { var bold = false, italic = false, underline = false, strike = false, script = 0
+    private struct _Font { var bold = false, italic = false, underline = false, accounting = 0, strike = false, script = 0
         var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
 
     /// A font's face. One of the theme's (`scheme` minor or major) is the
@@ -591,6 +591,7 @@ enum Xlsx {
             font.bold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.italic = f.child("i").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
+            font.accounting = ["singleAccounting": 1, "doubleAccounting": 2][f.child("u")?["val"] ?? ""] ?? 0
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.script = ["superscript": 1, "subscript": -1][f.child("vertAlign")?["val"] ?? ""] ?? 0
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
@@ -638,7 +639,7 @@ enum Xlsx {
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
-                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.strike = f.strike; s.script = f.script
+                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.accounting = f.accounting; s.strike = f.strike; s.script = f.script
                 // The default font is the theme's: left nil, so a new face follows it.
                 if f.name != base.name { s.fontName = f.name }
                 if f.size != base.size { s.fontSize = f.size }

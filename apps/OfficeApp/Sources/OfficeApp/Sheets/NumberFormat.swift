@@ -753,6 +753,7 @@ enum NumberFormat {
         // the code decide how the time is rounded and what h, m, s mean.
         var fracDigits = 0
         var elapsedH = false, elapsedM = false, elapsedS = false
+        var secondsFirst = false, sSeen = false, elapsedSeenBefore = false
         do {
             var k = 0
             var inQuote = false
@@ -766,6 +767,8 @@ enum NumberFormat {
                     if inner.hasPrefix("h") { elapsedH = true }
                     else if inner.hasPrefix("m") { elapsedM = true }
                     else if inner.hasPrefix("s") { elapsedS = true }
+                    if sSeen, !elapsedSeenBefore { secondsFirst = true }
+                    elapsedSeenBefore = true
                     k = close + 1
                     if inner.hasPrefix("s"), k < chars.count, chars[k] == "." {
                         var n = 0
@@ -775,6 +778,7 @@ enum NumberFormat {
                     continue
                 }
                 if ch == "s" || ch == "S" {
+                    if !elapsedSeenBefore { sSeen = true }
                     while k < chars.count, chars[k] == "s" || chars[k] == "S" { k += 1 }
                     if k < chars.count, chars[k] == "." {
                         var n = 0
@@ -796,7 +800,19 @@ enum NumberFormat {
         let seconds = Int64(whole)
         let secOfDay = Int(seconds - Int64(dayNumber) * 86400)
         let hh = secOfDay / 3600, mi = (secOfDay % 3600) / 60, ss = secOfDay % 60
-        let elapsedHours = seconds / 3600, elapsedMinutes = seconds / 60, elapsedSeconds = seconds
+        var elapsedHours = seconds / 3600, elapsedMinutes = seconds / 60, elapsedSeconds = seconds
+        // A seconds field ahead of the first elapsed one (s:m" @ hour "[hh],
+        // s" secs and "[m]): Excel for Windows takes that field's value as
+        // a number of DAYS, and adds half a day and the fraction of the
+        // second — the lab's 3.14159, seconds 53.376, prints hour 1293
+        // (53.876 days), 2:03:04 hour 108 (4.5 days), 0 hour 12.
+        if secondsFirst {
+            let ms = (serial * 86400 * 1000).rounded() / 1000
+            let q = Double(Int(floor(ms)) % 60) + 0.5 + (ms - floor(ms))
+            elapsedHours = Int64((q * 24).rounded(.down))
+            elapsedMinutes = Int64((q * 1440).rounded(.down))
+            elapsedSeconds = Int64((q * 86400).rounded(.down))
+        }
         let (y, mo, d) = ExcelDate.ymd(Double(dayNumber))
         let weekday = ExcelDate.weekday(Double(dayNumber)) - 1
         let lower = code.lowercased()

@@ -356,6 +356,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 for r in g.top...min(g.bottom, g.top + 1000) { merged[r, default: []].append(g) }
             }
             var fit: [Int: Double] = [:]     // by row
+            var fitSize: [Int: Double] = [:] // the size of the font that sets it
+            var accounting: [Int: [(Double, Int)]] = [:]
             for (a, cell) in ws.cells where refits(a.row) {
                 // (Nor is one merged down over rows, wrapping or not:
                 // LIBRE_OFFICE-128382-0's date of Calibri 14 in D22:D23
@@ -363,7 +365,26 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
                    g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
                 let l = line(cell.style)
-                if l > fit[a.row] ?? 0 { fit[a.row] = l }
+                if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
+                let acc = book.style(cell.style).accounting
+                if acc > 0 { accounting[a.row, default: []].append((book.fontSize(book.style(cell.style)), acc)) }
+            }
+            // An accounting underline stands below the descent, at the foot
+            // of the cell, and the row grows to hold it (the underline lab,
+            // Excel 16): a 10 pt cell of singleAccounting makes its row
+            // 2.28 pt taller in Verdana (2.16 in Arial), a 16 pt one 3.6
+            // (3.24); doubleAccounting 1.08 and 2.4 (2.16). Where a larger
+            // font sets the row, only what overhangs ITS descent counts:
+            // a 10 pt singleAccounting in a plain 16 pt row adds 0.84
+            // (0.72), a doubleAccounting none. (48962's rows 10-12.)
+            for (r, list) in accounting {
+                guard let base = fit[r], let big = fitSize[r] else { continue }
+                var extra = 0.0
+                for (size, kind) in list {
+                    let e = size * (kind == 1 ? 0.22 : 0.13)
+                    extra = max(extra, 0.24 * size + e - 0.24 * big)
+                }
+                fit[r] = base + extra
             }
             for r in Set(fit.keys).union(ws.fittedRows) {
                 let floor = ws.rowStyle(r).map(line) ?? blank

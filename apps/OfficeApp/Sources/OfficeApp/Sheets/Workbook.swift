@@ -39,6 +39,9 @@ struct CellStyle: Hashable, Sendable {
     var bold = false
     var italic = false
     var underline = false
+    /// The underline is an accounting one: 1 single, 2 double (they sit at
+    /// the cell's foot, and make its row taller).
+    var accounting = 0
     var strike = false
     /// The font's `vertAlign`: 1 superscript, -1 subscript.
     var script = 0
