@@ -5918,7 +5918,9 @@ extension ChartPainter {
         if var l = c.pieLabels {
             var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
             var a = -Double.pi / 2 + c.pieTurn * .pi / 180
-            for (i, v) in values.enumerated() where v > 0 {
+            // (A point of nothing has its label too, where its slice would begin: PowerPoint's print
+            // of LIBRE_OFFICE-100610-0's slide 2 sets "0" over the pie's top for its Cupe, last of three.)
+            for (i, v) in values.enumerated() where v >= 0 {
                 let sweep = v / sum * 2 * .pi
                 placed.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
                 a += sweep
