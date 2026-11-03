@@ -1,0 +1,43 @@
+diff --git a/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift b/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift
+index ca6a11580..1df963380 100644
+--- a/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift
++++ b/apps/OfficeApp/Sources/OfficeText/RichLayout+Span.swift
+@@ -287,7 +287,13 @@ extension RichLayout {
+                     // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
+                     // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
+                     // two spaces between words, nor a page number's "—  10  —".)
+-                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") {
++                    // (Two between a digit and a letter as well, in Word for Windows: lab `bxr` (zh-bdae17c0's
++                    // reference "範例2  Bozeman…", Times 14) sets them 6.96 each with the label boxed or not, where
++                    // 3.5 took "concepts" on a line Word ends at "Two"; in the corpus's balanced prints every run of
++                    // two after a digit is half an em. Not before a dash: a footer's "—  10  —".)
++                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")")
++                        || (RichTextTheme.wordWindowsPages && run.count == 2 && left.map({ $0.isASCII && $0.isNumber }) == true
++                            && right.map({ $0.isASCII && $0.isLetter }) == true) {
+                         let balanced = run.filter { !complexSpaces.contains($0) }
+                         wideSpaces.formUnion(balanced)
+                         ordinaryBalancedSpaces.formUnion(balanced)
+@@ -1603,9 +1609,22 @@ extension RichLayout {
+                         // carry `<w:bdr w:val="none"/>`, and Word sets "14号" with
+                         // 2pt between, a quarter of its 8pt; ours took the run for
+                         // ruled and set 4, and every line held a character less.)
++                        // (In Word for Windows only where East Asian text follows the Latin run, past its spaces: lab
++                        // `bxr` and zh-06c46ba9's print set the boxed "範例2  Iyengar…" "例"→"2" 17.1 apart, the plain gap
++                        // (the line's width is in the two spaces after it, half an em each), and "範例1 詹中原…" 21.3.)
+                         if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.rangeOfSubstring("<w:bdr "),
+                            case let tag = xml[r.upperBound...].prefix(while: { $0 != ">" }),
+-                           !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") { gap *= 2 }
++                           !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") {
++                            var doubles = true
++                            if RichTextTheme.wordWindowsPages, (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 {
++                                let pu = Array(p.text.utf16)
++                                var k = nextAt
++                                while k < pu.count, pu[k] < 0x80, pu[k] != 0x20 { k += 1 }
++                                while k < pu.count, pu[k] == 0x20 || pu[k] == 0x3000 { k += 1 }
++                                doubles = k < pu.count && pu[k] >= 0x2E80
++                            }
++                            if doubles { gap *= 2 }
++                        }
+                         extra += gap
+                         autoSpaces?(offset, gap)
+                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
