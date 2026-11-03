@@ -14434,3 +14434,4 @@ TIP WATCH amd-8, round 131 (tip 1b09e0a4f): Word no drops; unit tests 615 run (2
 - amd-5: LANDED lo-9f27ef40 89.0 -> 97.3 (overflowing balloon cuts the tallest box; balloon with no face takes next run's). Left: a "¶..." line and "Formatted: Font" line near y 609-619.
 - amd-5: LANDED stated-height row page-foot rule from windows lab c9b: line stays while bottom <= text margin + 66.5pt (replaces the 14pt-short-of-page guess). lo-c9b8c5ab stays 100.
 - amd-5: PARKED lo-a594fa6b (98.3): one line needs "squeeze inner spaces up to ~15% of a space before hyphenating" in the line breaker (engine side); no existing hook.
+- amd-5: NOTE on the 66.5pt page-foot rule: it fits windows' c9b height and margin sweeps at tblpY 3286, not their start-shift sweep (A5 keeps 4 lines wherever it opens; Word's count looks like floor((M-473.7)/13.45), independent of the start). Only one corpus document is on it; revisit if another with a different start shows up.
