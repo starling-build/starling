@@ -435,7 +435,7 @@ private struct LevelStyle {
             if let v = b.first("a:spcPct")?["val"].flatMap(Double.init) { s.beforePercent = v / 100000 }
         }
         if let a = p.first("a:spcAft") {
-            if let v = a.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = (v / 100).rounded() }   // (PowerPoint for Windows sets the space after on whole points: lab p3b, 5.67 -> 6, 17.01 -> 17)
+            if let v = a.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = v / 100 }
             if let v = a.first("a:spcPct")?["val"].flatMap(Double.init) { s.afterPercent = v / 100000 }
         }
         if p.has("a:buNone") { s.bullet = Bullet.none }
@@ -2369,12 +2369,12 @@ private struct SlideContext {
                     // cells, 6 pt before each paragraph, sat that much high).
                     let endMark: Double? = p.first("a:endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
                     let size: Double = runs.first?.style.fontSize ?? endMark ?? level.size ?? 18
-                    if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints { style.lineHeightPoints = pts }
+                    if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints { style.lineHeightPoints = pts.rounded() }
                     // (None before a cell's first paragraph, as none before a
                     // body's: aptia's empty first line and the text under it
                     // both say 6 pt, and the text is 6 lower, not 12.)
-                    style.spaceBefore = cellParas.isEmpty ? 0 : level.beforePoints ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
-                    style.spaceAfter = level.afterPoints ?? (level.afterPercent.map { $0 * size * 1.2 } ?? 0)
+                    style.spaceBefore = cellParas.isEmpty ? 0 : level.beforePoints.map { $0.rounded() } ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
+                    style.spaceAfter = level.afterPoints.map { $0.rounded() } ?? (level.afterPercent.map { $0 * size * 1.2 } ?? 0)
                     // A bulleted cell paragraph. In a cell the layout puts
                     // the text at `indentLeft` and the bullet in the 18 pt
                     // slot before it (no per-level indent), so the text edge
@@ -3312,7 +3312,11 @@ private struct SlideContext {
             // lines under a 28 pt level, each 1.3 pt further apart.)
             let endSize = p.all("a:r").isEmpty ? p.first("a:endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 } : nil
             let size = runSizes.max() ?? endSize ?? level.size ?? 18
-            var style = RichParagraphStyle(spaceAfter: level.afterPoints ?? 0, lineSpacing: 1.0)
+            // (PowerPoint for Windows sets the space before and after and an exact line spacing on whole points:
+            // labs p3b and p3c, 5.67 pt -> 6, 17.01 -> 17, 27.5 -> 28. Not under its shrink to fit, where the
+            // spacing is scaled and lo-font-scale's 6.41 stands as it is.)
+            let whole: (Double) -> Double = { scale < 1 ? $0 : $0.rounded() }
+            var style = RichParagraphStyle(spaceAfter: level.afterPoints.map(whole) ?? 0, lineSpacing: 1.0)
             switch level.algn {
             case "ctr": style.alignment = .center
             case "r": style.alignment = .right
@@ -3321,14 +3325,14 @@ private struct SlideContext {
             }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
-                style.lineHeightPoints = pts
+                style.lineHeightPoints = whole(pts)
             } else {
                 style.lineSpacingUnstated = true
             }
             // (A percentage is of the text as drawn: under PowerPoint's own
             // shrink to fit, `fontScale` of it — bug62513's 20% before its
             // 77.5% list items is 6 pt in the print, ours was 7.7.)
-            style.spaceBefore = level.beforePoints ?? (level.beforePercent.map { $0 * size * scale * 1.2 } ?? 0)
+            style.spaceBefore = level.beforePoints.map(whole) ?? (level.beforePercent.map { $0 * size * scale * 1.2 } ?? 0)
             // A percentage after, as before: of the line, taken as 1.2 of the
             // size — but not under the last paragraph, where PowerPoint adds
             // nothing: counted there, a one-line SmartArt label (35% after,
