@@ -1349,6 +1349,11 @@ enum ChartXML {
                     s.markerSize = m.first("c:size")?["val"].flatMap(Double.init) ?? 5
                     if let f = m.first("c:spPr")?.first("a:solidFill") { s.markerFill = color(f) }
                     if let f = m.first("c:spPr")?.first("a:ln")?.first("a:solidFill") { s.markerLine = color(f) }
+                } else if ser.first("c:marker") == nil, el.first("c:marker")?["val"] == "1", !s.lineHidden {
+                    // (A line group that turns marks on (c:marker val 1) and a series that names none gets Excel's own, one symbol a series in turn: WithThreeCharts'
+                    // diamond and square, drawn in Excel's print and not in ours.)
+                    s.marker = ["diamond", "square", "triangle", "x", "star", "circle", "plus"][series.count % 7]
+                    s.markerSize = 7
                 }
             }
             let fill = type == .line ? pr?.first("a:ln")?.first("a:solidFill")
@@ -1772,6 +1777,15 @@ enum ChartXML {
             view.heightPercent = v?.first("c:hPercent")?["val"].flatMap(Double.init)
             view.perspective = v?.first("c:perspective")?["val"].flatMap(Double.init) ?? 30
             c.areaView = view
+        }
+        if el.name == "c:pieChart", let ser = el.all("c:ser").first {
+            // (A flat pie's slices pulled out too: lo-orderOfCNumFmtElements's, WithThreeCharts' pie at 25%.)
+            let pulls = ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
+            c.pieExplosion = max(0, pulls.max() ?? 0) / 100
+            c.pieSeriesPull = max(0, ser.first("c:explosion")?["val"].flatMap(Double.init) ?? 0) / 100
+            for d in ser.all("c:dPt") {
+                if let i = d.first("c:idx")?["val"].flatMap(Int.init), let e = d.first("c:explosion")?["val"].flatMap(Double.init) { c.piePulls[i] = max(0, e) / 100 }
+            }
         }
         if el.name == "c:pie3DChart" {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
@@ -5280,6 +5294,8 @@ enum ChartPainter {
         // (Excel's doughnut with data labels on is 0.8655 of the size it is with none, at every chart size, legend and label
         // size: Windows lab wip/lab-doughnut, sizes 200 to 640 pt, ring radius 115 of 133 at 480 x 288.)
         if c.type == .doughnut, c.onSheet, c.dataLabels || c.pieLabels != nil { radius *= 0.8655 }
+        // (Pulled slices leave room: the pie is that much smaller, as the 3-D pie's.)
+        if c.type == .pie, c.pieSeriesPull > 0, !c.chartex { radius /= 1 + c.pieExplosion }
         let centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2
@@ -5338,6 +5354,9 @@ enum ChartPainter {
             let sweep = v / sum * 2 * .pi
             let color = c.pointColor(i, accents: theme.accents)
             fill.color = color
+            // (A slice pulled out stands off along its middle, by its own pull or the series'.)
+            let pull = c.type == .pie && !c.chartex && c.pieSeriesPull > 0 ? (c.piePulls[i] ?? c.pieSeriesPull) : 0
+            let oval = pull > 0 ? oval.shift(Offset(cos(angle + sweep / 2) * pull * radius, sin(angle + sweep / 2) * pull * radius)) : oval
             if hole > 0 {
                 let ring = Path()
                 ring.arcTo(oval, angle, sweep, true)
