@@ -160,6 +160,12 @@ struct PdfMarkup {
                             open!.indentLeft = p.style.indentLeft
                             open!.indentRight = p.style.indentRight
                         }
+                        // (A balloon whose first run names no face takes the next run's that does: lo-9f27ef40's
+                        // 30-line Deleted balloon opens on a section break and goes on in Arial, at Arial's 1.149 a line
+                        // in Word's print where the Balloon Text style's Tahoma gave 1.207.)
+                        if DocxFormat.wordOnWindows, open != nil, open!.family == nil, !piece.isEmpty, let f = run.style.fontFamily {
+                            open!.family = OfficeFonts.drawn(f)
+                        }
                         // A list item deleted with its mark loses its number
                         // too, which Word writes "<#>" (delins's tika items).
                         if start == own, run.length > 0, p.style.list != nil, p.style.markRevision?.kind == .deleted { piece = "<#>" + piece }
@@ -826,6 +832,18 @@ struct PdfMarkup {
         if let lt = tops.last, lt + heights[heights.count - 1] > limit {
             // Packed from the first box down, edge to edge; the one that runs
             // past the page's foot is cut short and the rest are not shown.
+            // (Cut where the one that is tallest stands, and the boxes after it stay, packed below it: lo-9f27ef40's
+            // Deleted balloon of 30 lines is cut at 137pt with a "..." and three Formatted boxes follow it.)
+            var tall = 0
+            for i in 1 ..< entries.count where heights[i] > heights[tall] { tall = i }
+            let total = heights.reduce(0, +) + gap * Double(entries.count - 1)
+            let over = tops[0] + total - limit
+            if windows, heights[tall] - over > 24 {
+                heights[tall] -= over
+                cut = tall
+                var g2 = tops[0]
+                for i in 0 ..< entries.count { tops[i] = g2; g2 += heights[i] + gap }
+            } else {
             var g = tops[0]
             for i in 0 ..< entries.count {
                 tops[i] = g
@@ -834,6 +852,7 @@ struct PdfMarkup {
                     break
                 }
                 g += heights[i] + gap
+            }
             }
         }
         for (i, e) in entries.enumerated() where i < shown {
