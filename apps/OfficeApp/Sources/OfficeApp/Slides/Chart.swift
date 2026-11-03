@@ -1820,6 +1820,13 @@ enum ChartXML {
                 } else if ln.first("a:noFill") != nil { c.areaNoLine = true }
             }
         }
+        // (Office 2007's styles 41-48 are the dark row: a black chart area, white text and dim rules, where the
+        // file gives the area no fill of its own — chart-chart-area-style-background.)
+        if space.first("c:spPr") == nil, let st = styleNode?["val"].flatMap(Int.init), (41 ... 48).contains(st) {
+            c.areaFill = Color(0xFF000000); c.areaNoFill = false
+            if c.textColor == nil { c.textColor = Color(0xFFFFFFFF) }
+            if c.gridColor == nil { c.gridColor = Color(0xFF3A3A3A) }
+        }
         if let ln = plot.first("c:spPr")?.first("a:ln"), let f = ln.first("a:solidFill") {
             c.plotBorder = color(f)
             c.plotBorderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
