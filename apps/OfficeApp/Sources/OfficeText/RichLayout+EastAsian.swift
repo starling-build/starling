@@ -406,6 +406,7 @@ extension RichLayout {
         var lineTabbed = false  // a tab stands on the line (see `afterTabSpace`)
         var onFirstLine = true  // the paragraph's first line, which its first-line indent sets
         var lineWide = 0        // this line's characters, and whether it has spaces among them
+        var lineFrom = 0        // where this line starts
         var lineEms = 0.0       // … and their ems, summed
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
         var lineLetters = false // … and whether any is a Latin letter (see `gridCapped`)
@@ -1155,6 +1156,14 @@ extension RichLayout {
                     }
                     let markRoom = all.reduce(0.0) { $0 + half($1) }
                     var room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
+                    // (Before a digit, from 2013's layout, the automatic space after the piece gives
+                    // half of itself besides: lab `dbt` (Word for Windows, zh-db07d44e's p10 cell line
+                    // "(1)台電公司經營績效指標（配分權重50％", mode 15) takes "重" 1.34pt past what its
+                    // "（" gives and not 1.54 at 12pt, 1.47 and not 1.77 at 14pt, 1.71 and not 2.01 at
+                    // 16pt — an eighth of an em each time; with "五十" for the "50", or in mode 14,
+                    // only to what the marks give. The label, the cell and the face change nothing.)
+                    let digitAfter = RichTextTheme.wordWindowsPages && !legacy && after > 0 && last < units.count
+                        && units[last] >= 0x30 && units[last] <= 0x39 && units[last - 1] >= 0x2E80
                     let need = over - hang - after
                     // (In a cell, where the space just before it gives and the
                     // marks cannot give it all, every space of the line gives
@@ -1711,7 +1720,7 @@ extension RichLayout {
                     // zh-30d86fcf's "…条件：①" (8.7 over, half an em 8) stays refused and its "…申请条件。③" (0.7 over, the "。"
                     // set 15.72) is taken.)
                     let circled = !inCell && !RichTextTheme.wordWindowsPages && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
-                    if room + spacedGive + kinsokuGive > 0, taken, !circled, need <= room + spacedGive + kinsokuGive - ownGive - finalGive + (gridGive ?? hair) {
+                    if room + spacedGive + kinsokuGive > 0 || digitAfter, taken, !circled, need <= room + spacedGive + kinsokuGive - ownGive - finalGive + (gridGive ?? hair) + (digitAfter ? after / 2 : 0) {
                         let share = room > 0 ? min(1, (need + 0.02) / room) : 0
                         // (The marks give first, and the automatic spaces
                         // what is still needed: the colon of lab `ovc` is
@@ -1733,7 +1742,13 @@ extension RichLayout {
                             for space in wordSpaces where spaceGives(space.k) { adjust[space.k, default: 0] -= space.w * spaceGiveShare(space.k) * spaceDraw }
                             short -= spacedGive * spaceDraw
                         }
-                        if short > 0.001 { adjust[last - 1, default: 0] -= short }
+                        // (Before a digit, what the marks cannot give the line's ideographs do, a
+                        // hundredth of an em or so each: lab `dbs`'s print sets "（" 5.88 and the
+                        // ideographs 11.88 and 12.00 to take "重" 1.34 past the "（"'s half.)
+                        let wides = digitAfter ? (lineFrom ..< last).filter { units[$0] >= 0x3400 && !all.contains($0) } : []
+                        if short > 0.001, !wides.isEmpty {
+                            for k in wides { adjust[k, default: 0] -= short / Double(wides.count) }
+                        } else if short > 0.001 { adjust[last - 1, default: 0] -= short }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         if after > 0 { adjust[tail, default: 0] -= after }
                         fits = true
@@ -1890,7 +1905,7 @@ extension RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
+                    if piece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineFrom = piece.b; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
                     continue
                 }
             }
@@ -1916,6 +1931,7 @@ extension RichLayout {
                 spaces = []
                 wordSpaces = []
                 lineWide = 0
+                lineFrom = a
                 lineEms = 0
                 lineLatin = false
                 lineLetters = false
@@ -2046,6 +2062,7 @@ extension RichLayout {
                 wordSpaces = []
                 opening = true
                 lineWide = 0
+                lineFrom = piece.b
                 lineEms = 0
                 lineLatin = false
                 lineLetters = false
