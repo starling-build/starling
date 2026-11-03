@@ -309,6 +309,79 @@ final class SlideTextCache {
         }
     }
 
+    /// A shape body's stacked text (`bodyPr vert="wordArtVert"`, `"wordArtVertRtl"`), as PowerPoint prints it (lab
+    /// wordartvert): every character upright in a square place 1.414 em on a side, one under the other from the
+    /// top of the box (a space takes its place), the next column to the right (to the left for Rtl) once the box's
+    /// height is used; a paragraph starts a column of its own. The columns stand together at the start side
+    /// (`anchor` top), in the middle (centre) or at the far side (bottom); more than fit run past the box.
+    static func paintStacked(_ shape: SlideShape, _ r: Rect, _ px: Double, _ canvas: Canvas, _ cache: SlideTextCache) -> Bool {
+        guard let layout = cache.layout(shape, pxPerPt: px) else { return false }
+        let ins = shape.drawInsets
+        let left = r.left + ins.left * px, top = r.top + ins.top * px
+        let width = r.width - (ins.left + ins.right) * px, height = r.height - (ins.top + ins.bottom) * px
+        struct Place { var glyph: TextPainter; var column: Int; var row: Int; var size: Double }
+        var places: [Place] = []
+        var pitches: [Double] = []
+        var column = 0
+        for i in 0 ..< layout.count {
+            guard let root = layout.geometry(i).painter.text else { continue }
+            let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+            var styles: [Flutter.TextStyle?] = []
+            func walk(_ span: InlineSpan, _ inherited: Flutter.TextStyle?) {
+                guard let t = span as? TextSpan else { styles.append(inherited); return }
+                let own = inherited.map { $0.merge(t.style) } ?? t.style
+                if let s = t.text { styles.append(contentsOf: repeatElement(own, count: s.utf16.count)) }
+                for child in t.children ?? [] { walk(child, own) }
+            }
+            walk(root, nil)
+            guard styles.count == text.count, !text.isEmpty else { continue }
+            var row = 0
+            var k = 0
+            var started = false
+            while k < text.count {
+                let size = styles[k]?.fontSize ?? 18
+                let perColumn = max(1, Int(height / (1.414 * size) + 1e-6))
+                if row >= perColumn { row = 0; column += 1 }
+                if !started { started = true; while pitches.count <= column { pitches.append(1.414 * size) } }
+                while pitches.count <= column { pitches.append(1.414 * size) }
+                let unit = text[k]
+                let end = (unit >= 0xD800 && unit <= 0xDBFF && k + 1 < text.count) ? k + 2 : k + 1
+                if unit != 0x20 && unit != 0x00A0 {
+                    let g = TextPainter(text: TextSpan(text: String(decoding: text[k ..< end], as: UTF16.self),
+                                                       style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                    g.layout()
+                    places.append(Place(glyph: g, column: column, row: row, size: size))
+                }
+                row += 1
+                k = end
+            }
+            if started { column += 1 }
+        }
+        guard !places.isEmpty else { return false }
+        let block = pitches.reduce(0, +)
+        let rtl = shape.textStacked < 0
+        // The block's start edge: where the first column stands.
+        var start: Double
+        switch shape.anchor {
+        case .top: start = rtl ? left + width : left
+        case .middle: start = rtl ? left + width / 2 + block / 2 : left + width / 2 - block / 2
+        case .bottom: start = rtl ? left + block : left + width - block
+        }
+        var offsets: [Double] = []
+        var x = 0.0
+        for w in pitches { offsets.append(x); x += w }
+        for pl in places {
+            let pitch = pitches[pl.column]
+            let colLeft = rtl ? start - offsets[pl.column] - pitch : start + offsets[pl.column]
+            let gx = colLeft + pitch / 2 - pl.glyph.width / 2
+            let baseline = top + Double(pl.row) * pitch + pitch / 2 + 0.45 * pl.size
+            pl.glyph.paint(canvas, Offset(gx, baseline - pl.glyph.computeDistanceToActualBaseline(.alphabetic)))
+            pl.glyph.dispose()
+        }
+        return true
+    }
+
+
     /// Where the text's column starts right of the shape's left edge, in
     /// pixels: the left inset — less what unwrapped text wider than its box
     /// hangs out on that side (none of it for text aligned left, half
@@ -1045,7 +1118,9 @@ final class SlidePainter: CustomPainter {
         }
         defer { shape.frame = keptFrame; shape.insets = keptInsets }
         // (An empty table still has its rows' fills and borders to draw.)
-        if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, tr, canvas, pxPerPt: px, cache: cache) {
+        if text, shape.textStacked != 0, !shape.isEmptyText, SlideTextCache.paintStacked(shape, r, px, canvas, cache) {
+            // Stacked text (`wordArtVert`): every character upright, one to a square place down the box.
+        } else if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, tr, canvas, pxPerPt: px, cache: cache) {
             // WordArt: fitted to the box and bent, not laid out in it.
         } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = tr.left + cache.textLeft(shape, pxPerPt: px), oy = tr.top + cache.textTop(shape, pxPerPt: px)

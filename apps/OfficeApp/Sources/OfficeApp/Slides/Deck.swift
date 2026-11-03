@@ -506,6 +506,9 @@ final class SlideShape {
     /// `bodyPr vert`: the text set a quarter turn clockwise (1: `vert`,
     /// `eaVert`) or anticlockwise (-1: `vert270`); 0 across.
     var textTurn = 0
+    /// `bodyPr vert="wordArtVert"` (1) or `"wordArtVertRtl"` (-1): every character upright, one to a square place
+    /// down the box, the next column to the right (to the left, for -1).
+    var textStacked = 0
     /// The text turned about its own middle, degrees clockwise (a
     /// camera's `rev`, the other way).
     var textSpin = 0.0

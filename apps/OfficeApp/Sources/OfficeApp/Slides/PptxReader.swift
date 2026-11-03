@@ -1625,6 +1625,7 @@ private struct SlideContext {
         st.noWrap = text.noWrap
         st.anchorCentred = text.anchorCentred
         st.textTurn = text.textTurn
+        st.textStacked = text.textStacked
         st.textSpin = text.textSpin
         st.textRev = text.textRev
         st.textScene = text.textScene
@@ -3025,6 +3026,7 @@ private struct SlideContext {
         var anchorCentred = false
         /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.
         var textTurn = 0
+        var textStacked = 0
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
@@ -3550,6 +3552,8 @@ private struct SlideContext {
         switch attr("vert") {
         case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
         case "vert270": body0.textTurn = -1
+        case "wordArtVert": body0.textStacked = 1
+        case "wordArtVertRtl": body0.textStacked = -1
         default: break
         }
         // A flat camera turned about its axis (`rev`, lat and lon nought)
