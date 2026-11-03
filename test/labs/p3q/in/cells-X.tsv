@@ -1,0 +1,21 @@
+1	textArchUp noAutofit 18pt box 135x71 FontEffectArcUp wrap square
+2	textArchUp spAutoFit 18pt box 135x71 FontEffectArcUp wrap square
+3	textArchUp normAutofit 18pt box 135x71 FontEffectArcUp wrap square
+4	textArchUp noAutofit 100pt box 340x170 WordArt Arial Black wrap none
+5	textArchUp spAutoFit 100pt box 340x170 WordArt Arial Black wrap none
+6	textArchUp normAutofit 100pt box 340x170 WordArt Arial Black wrap none
+7	textArchUp noAutofit 200pt box 340x170 WordArt Arial Black wrap none
+8	textArchUp spAutoFit 200pt box 340x170 WordArt Arial Black wrap none
+9	textArchUp normAutofit 200pt box 340x170 WordArt Arial Black wrap none
+10	textArchUp noAutofit 100pt box 340x170 WordArt Arial Black wrap square
+11	textArchUp noAutofit 200pt box 340x170 WordArt Arial Black wrap square
+12	TCT as the deck
+13	TCT no outline
+14	TCT opaque outline and fill
+15	TCT no trailing space
+16	TCT round join
+17	TCT anchorCtr off
+18	TCT default insets
+19	TCT textPlain 50000
+20	TCT textInflate adj 50000
+21	TCT 96 pt
