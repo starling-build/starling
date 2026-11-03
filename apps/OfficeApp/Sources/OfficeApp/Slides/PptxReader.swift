@@ -663,7 +663,12 @@ struct PptxReader {
                                    tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart,
                                    unsaidKern: unsaidKern)
             var shapes: [ShapeState] = []
-            if let tree = slide.first("p:cSld")?.first("p:spTree") {
+            // A shape whose `p:cNvPr` has no `id` breaks the schema (id is
+            // required): PowerPoint prints that slide as a blank page, its
+            // backdrop and background gone too (clusterfuzz 4986's p5, whose
+            // eighty shapes read `nd=` for `id=`). The page stays, empty.
+            let noIds = slide.first("p:cSld")?.first("p:spTree")?.descendants("p:cNvPr").contains { $0["id"] == nil } ?? false
+            if !noIds, let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
             }
             // What the master and the layout draw behind the slide — their
@@ -671,7 +676,7 @@ struct PptxReader {
             // unless the slide (or, for the master's, the layout) says
             // `showMasterSp="0"`. Drawn, never written.
             var decorations: [ShapeState] = []
-            if slide["showMasterSp"] != "0" {
+            if slide["showMasterSp"] != "0", !noIds {
                 var owners: [(String, XNode)] = []
                 if let masterPart, let master, layout?["showMasterSp"] != "0" { owners.append((masterPart, master)) }
                 if let layoutPart, let layout { owners.append((layoutPart, layout)) }
@@ -708,14 +713,16 @@ struct PptxReader {
                 ctx.shapes(in: tree, transform: nil, into: &found, id: id)
                 decorations += found.filter { if case .picture = $0.kind { return true } else { return false } }
             }
-            let bg = slide.first("p:cSld")?.first("p:bg")
+            let bg = noIds ? nil : slide.first("p:cSld")?.first("p:bg")
             let themeRoot = themePart.flatMap(package.xml)
             // The slide's own background is its; one from its layout or
             // master is only drawn (writing it per slide would copy the
             // master's picture into every slide).
             var bgFill: SlideFill? = nil
             var inherited: SlideFill? = nil
-            if let b = slide.first("p:cSld")?.first("p:bg") {
+            if noIds {
+                // (blank: no background of its own, none inherited)
+            } else if let b = slide.first("p:cSld")?.first("p:bg") {
                 bgFill = _background(b, owner: part, colors: colors, theme: themeRoot, themePart: themePart)
                 // Shaded to the title (`shadeToTitle`): the path gradient
                 // runs out from a point at the title box's top centre, as
