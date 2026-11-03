@@ -345,6 +345,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--xlsx-check"), i + 1 < Command
 // (test/xlsx-app-render.sh). `SHEET_PDF_MAX_PAGES` caps the job (200).
 if let i = CommandLine.arguments.firstIndex(of: "--sheet-pdf"), i + 2 < CommandLine.arguments.count {
     initializeHeadlessText()
+    NumberFormat.windowsElapsed = true
     do {
         let src = CommandLine.arguments[i + 1], dst = CommandLine.arguments[i + 2]
         let data = try Data(contentsOf: URL(fileURLWithPath: src))

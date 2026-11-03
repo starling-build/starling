@@ -9,6 +9,13 @@
 import Foundation
 
 enum NumberFormat {
+    /// Excel for Windows counts a seconds field ahead of an elapsed one as
+    /// days (3.14159 in s:m" @ hour "[hh] shows hour 1293); Excel for Mac and
+    /// the test files' own expected text show 75. Off by default (the
+    /// oracle tests hold the files' text); `--sheet-pdf`, which is compared
+    /// with Windows Excel's print, turns it on.
+    nonisolated(unsafe) static var windowsElapsed = false
+
     /// The text a value shows in a cell with format `code`, and a colour
     /// the format asks for ([Red] etc.), if any.
     /// `pads`: keep each `_x` as `padMark` and x, for the grid to leave
@@ -806,7 +813,7 @@ enum NumberFormat {
         // a number of DAYS, and adds half a day and the fraction of the
         // second — the lab's 3.14159, seconds 53.376, prints hour 1293
         // (53.876 days), 2:03:04 hour 108 (4.5 days), 0 hour 12.
-        if secondsFirst {
+        if secondsFirst, windowsElapsed {
             let ms = (serial * 86400 * 1000).rounded() / 1000
             let q = Double(Int(floor(ms)) % 60) + 0.5 + (ms - floor(ms))
             elapsedHours = Int64((q * 24).rounded(.down))
