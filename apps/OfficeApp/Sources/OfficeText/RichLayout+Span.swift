@@ -1135,6 +1135,17 @@ extension RichLayout {
                 // a justified line's gaps stretched for it — where the
                 // engine's dictionary broke inside words and set 596 lines
                 // to Word's 614.)
+                // (A second space in a justified line, set as a patch of its
+                // own: the engine takes a run of spaces for one gap and gives
+                // the run one step, so "igreja.  Nos" lost a space; the
+                // joiner between them makes each space a gap, stretched as
+                // its neighbour is, as PowerPoint's print of Divino_Revelado
+                // p12 sets them — 12.9pt for two where ours had 7.)
+                else if !theme.wordRules, ch == " ", before == " ", p.style.alignment == .justify {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
                 else if thaiJoins.contains(offset), let b = before,
                         let pb = b.unicodeScalars.first?.value, let pc = ch.unicodeScalars.first?.value,
                         (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) {
