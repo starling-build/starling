@@ -1,0 +1,161 @@
+# variant	page	y_top	baseline	x0	text
+ef5a	1	88.55	98.54	441.4	5.2 Als twee paren hoekblokjes verwisseld moeten worden, draaien we Z;
+ef5a	1	107.66	117.50	455.6	we komen dan terug in geval 5.1.
+ef5a	1	213.65	223.49	70.9	We zullen in hoofdstuk V laten zien dat, nu de ribbeblokjes allemaal op
+ef5a	1	220.73	230.57	548.1	5.2 draai Z en ga naar 5.1
+ef5a	1	232.61	242.45	70.9	hun plaats zitten, er voor de hoekblokjes slechts de volgende
+ef5a	1	239.69	249.53	438.6	Na deze stap zitten alle hoekblokjes op de goede plaats.
+ef5a	1	251.57	261.41	70.9	mogelijkheden zijn: of ze zitten allemaal op de goede plaats (eventueel
+ef5a	1	270.53	280.37	70.9	gedraaid), of ze moeten twee aan twee paarsgewijs verwisseld worden, of
+ef5a	1	277.70	290.21	438.6	6e Stap: oriënteer de hoekblokjes
+ef5a	1	289.49	299.33	70.9	er zit er één op de goede plaats (eventueel gedraaid), en de andere drie
+ef5a	1	301.85	311.69	438.6	Als de kubus nu nog niet in start terug is, zitten er alleen nog maar
+ef5a	1	308.45	318.29	70.9	moeten cyclisch worden verwisseld.
+ef5a	1	320.83	330.67	438.6	hoekblokjes in het bovenvlak verkeerd gedraaid. In hoofdstuk V zullen we
+ef5a	1	327.55	337.39	73.7	5.1 Eén hoekblokje zit op de goede plaats (eventueel gedraaid), en de
+ef5a	1	339.79	349.63	438.6	aantonen dat het aantal verkeerd gedraaide blokjes slechts gelijk kan zijn
+ef5a	1	346.51	356.35	87.8	andere drie moeten cyclisch verwisseld worden, hetzij met de klok
+ef5a	1	358.75	368.59	438.6	aan twee, drie of vier; dat als het er twee of vier zijn, er evenveel linksom
+ef5a	1	365.47	375.31	87.8	mee, hetzij tegen de klok in. Houd de kubus zo, dat het goede blokje
+ef5a	1	377.71	387.55	438.6	als rechtsom gedraaid moeten worden, en dat als het er drie zijn, ze alle
+ef5a	1	384.43	394.27	87.8	zit op UFR, en draai Z, resp. Z'.
+ef5a	1	396.67	406.51	438.6	drie dezelfde kant op moeten worden gedraaid. We zullen dit in orde
+ef5a	1	415.63	425.47	438.6	brengen met de series T en T' die we ook al in de tweede stap hebben
+ef5a	1	434.71	444.55	438.6	gebruikt. Maar eerst draaien we de kubus helemaal om, zodat het vlak met
+ef5a	1	453.67	463.51	438.6	de verkeerd gedraaide hoekblokjes nu benedenvlak wordt. Ter herinnering
+ef5a	1	472.66	482.50	438.6	vermelden we nogmaals de series T en T':
+ef5a	1	491.29	501.46	438.6	T = R U2 R' F ' U2 F en T' = F ' U2 F R U2 R'.
+ef5a	2	71.42	81.26	438.6	gedraaide blokje kan dan nog zitten op
+ef5a	2	90.23	100.22	441.4	6.1.1  LDF; draai dan T D T ' D '
+ef5a	2	109.02	119.18	441.4	6.1.2  LDB; draai dan T D2 T '  D2
+ef5a	2	128.15	138.14	441.4	6.1.3   RDB draai dan T D' T ' D.
+ef5a	2	171.86	181.70	555.1	6.1.1 draai T D T ' D'
+ef5a	2	226.58	236.57	70.9	6.1 Als er twee blokjes gedraaid moeten worden, houden we de
+ef5a	2	234.53	244.37	438.6	6.2 Als er drie blokjes gedraaid moeten worden, zorgen we dat het goede
+ef5a	2	253.49	263.33	438.6	blokje op RBD zit, en daarna draaien we T D T ' D '. We zijn dan terug in
+ef5a	2	272.45	282.29	438.6	geval 6.1.
+ef5a	2	291.41	301.25	438.6	6.3 Als er vier blokjes gedraaid moeten worden, passen we eerst de
+ef5a	2	310.37	320.21	438.6	methode van 6.1 toe op één paar dat linksom-rechtsom moet worden
+ef5a	2	329.35	339.19	438.6	gedraaid, en dan op het andere paar.
+ef5a	2	348.43	358.27	438.6	De kubus is nu terug in de beginpositie!!!
+ef5a	2	354.07	363.91	70.9	kubus zo, dat het blokje dat rechtsom moet, op RDF zit. Het andere
+ef5b	1	71.27	81.26	441.4	5.2 Als twee paren hoekblokjes verwisseld moeten worden, draaien we Z;
+ef5b	1	90.38	100.22	455.6	we komen dan terug in geval 5.1.
+ef5b	1	181.94	191.78	548.1	5.2 draai Z en ga naar 5.1
+ef5b	1	200.93	210.77	438.6	Na deze stap zitten alle hoekblokjes op de goede plaats.
+ef5b	1	213.65	223.49	70.9	We zullen in hoofdstuk V laten zien dat, nu de ribbeblokjes allemaal op
+ef5b	1	232.61	242.45	70.9	hun plaats zitten, er voor de hoekblokjes slechts de volgende
+ef5b	1	238.94	251.45	438.6	6e Stap: oriënteer de hoekblokjes
+ef5b	1	251.57	261.41	70.9	mogelijkheden zijn: of ze zitten allemaal op de goede plaats (eventueel
+ef5b	1	263.09	272.93	438.6	Als de kubus nu nog niet in start terug is, zitten er alleen nog maar
+ef5b	1	270.53	280.37	70.9	gedraaid), of ze moeten twee aan twee paarsgewijs verwisseld worden, of
+ef5b	1	282.05	291.89	438.6	hoekblokjes in het bovenvlak verkeerd gedraaid. In hoofdstuk V zullen we
+ef5b	1	289.49	299.33	70.9	er zit er één op de goede plaats (eventueel gedraaid), en de andere drie
+ef5b	1	301.01	310.85	438.6	aantonen dat het aantal verkeerd gedraaide blokjes slechts gelijk kan zijn
+ef5b	1	308.45	318.29	70.9	moeten cyclisch worden verwisseld.
+ef5b	1	319.97	329.81	438.6	aan twee, drie of vier; dat als het er twee of vier zijn, er evenveel linksom
+ef5b	1	327.55	337.39	73.7	5.1 Eén hoekblokje zit op de goede plaats (eventueel gedraaid), en de
+ef5b	1	338.95	348.79	438.6	als rechtsom gedraaid moeten worden, en dat als het er drie zijn, ze alle
+ef5b	1	346.51	356.35	87.8	andere drie moeten cyclisch verwisseld worden, hetzij met de klok
+ef5b	1	357.91	367.75	438.6	drie dezelfde kant op moeten worden gedraaid. We zullen dit in orde
+ef5b	1	365.47	375.31	87.8	mee, hetzij tegen de klok in. Houd de kubus zo, dat het goede blokje
+ef5b	1	376.87	386.71	438.6	brengen met de series T en T' die we ook al in de tweede stap hebben
+ef5b	1	384.43	394.27	87.8	zit op UFR, en draai Z, resp. Z'.
+ef5b	1	395.83	405.67	438.6	gebruikt. Maar eerst draaien we de kubus helemaal om, zodat het vlak met
+ef5b	1	414.91	424.75	438.6	de verkeerd gedraaide hoekblokjes nu benedenvlak wordt. Ter herinnering
+ef5b	1	433.87	443.71	438.6	vermelden we nogmaals de series T en T':
+ef5b	1	452.51	462.67	438.6	T = R U2 R' F ' U2 F en T' = F ' U2 F R U2 R'.
+ef5b	2	71.42	81.26	438.6	gedraaide blokje kan dan nog zitten op
+ef5b	2	90.23	100.22	441.4	6.1.1  LDF; draai dan T D T ' D '
+ef5b	2	109.02	119.18	441.4	6.1.2  LDB; draai dan T D2 T '  D2
+ef5b	2	128.15	138.14	441.4	6.1.3   RDB draai dan T D' T ' D.
+ef5b	2	171.86	181.70	555.1	6.1.1 draai T D T ' D'
+ef5b	2	226.58	236.57	70.9	6.1 Als er twee blokjes gedraaid moeten worden, houden we de
+ef5b	2	234.53	244.37	438.6	6.2 Als er drie blokjes gedraaid moeten worden, zorgen we dat het goede
+ef5b	2	253.49	263.33	438.6	blokje op RBD zit, en daarna draaien we T D T ' D '. We zijn dan terug in
+ef5b	2	272.45	282.29	438.6	geval 6.1.
+ef5b	2	291.41	301.25	438.6	6.3 Als er vier blokjes gedraaid moeten worden, passen we eerst de
+ef5b	2	310.37	320.21	438.6	methode van 6.1 toe op één paar dat linksom-rechtsom moet worden
+ef5b	2	329.35	339.19	438.6	gedraaid, en dan op het andere paar.
+ef5b	2	348.43	358.27	438.6	De kubus is nu terug in de beginpositie!!!
+ef5b	2	354.07	363.91	70.9	kubus zo, dat het blokje dat rechtsom moet, op RDF zit. Het andere
+ef5c	1	88.55	98.54	441.4	5.2 Als twee paren hoekblokjes verwisseld moeten worden, draaien we Z;
+ef5c	1	107.66	117.50	455.6	we komen dan terug in geval 5.1.
+ef5c	1	213.65	223.49	70.9	We zullen in hoofdstuk V laten zien dat, nu de ribbeblokjes allemaal op
+ef5c	1	220.73	230.57	548.1	5.2 draai Z en ga naar 5.1
+ef5c	1	232.61	242.45	70.9	hun plaats zitten, er voor de hoekblokjes slechts de volgende
+ef5c	1	239.69	249.53	438.6	Na deze stap zitten alle hoekblokjes op de goede plaats.
+ef5c	1	251.57	261.41	70.9	mogelijkheden zijn: of ze zitten allemaal op de goede plaats (eventueel
+ef5c	1	270.53	280.37	70.9	gedraaid), of ze moeten twee aan twee paarsgewijs verwisseld worden, of
+ef5c	1	277.70	290.21	438.6	6e Stap: oriënteer de hoekblokjes
+ef5c	1	289.49	299.33	70.9	er zit er één op de goede plaats (eventueel gedraaid), en de andere drie
+ef5c	1	301.85	311.69	438.6	Als de kubus nu nog niet in start terug is, zitten er alleen nog maar
+ef5c	1	308.45	318.29	70.9	moeten cyclisch worden verwisseld.
+ef5c	1	320.83	330.67	438.6	hoekblokjes in het bovenvlak verkeerd gedraaid. In hoofdstuk V zullen we
+ef5c	1	327.55	337.39	73.7	5.1 Eén hoekblokje zit op de goede plaats (eventueel gedraaid), en de
+ef5c	1	339.79	349.63	438.6	aantonen dat het aantal verkeerd gedraaide blokjes slechts gelijk kan zijn
+ef5c	1	346.51	356.35	87.8	andere drie moeten cyclisch verwisseld worden, hetzij met de klok
+ef5c	1	358.75	368.59	438.6	aan twee, drie of vier; dat als het er twee of vier zijn, er evenveel linksom
+ef5c	1	365.47	375.31	87.8	mee, hetzij tegen de klok in. Houd de kubus zo, dat het goede blokje
+ef5c	1	377.71	387.55	438.6	als rechtsom gedraaid moeten worden, en dat als het er drie zijn, ze alle
+ef5c	1	384.43	394.27	87.8	zit op UFR, en draai Z, resp. Z'.
+ef5c	1	396.67	406.51	438.6	drie dezelfde kant op moeten worden gedraaid. We zullen dit in orde
+ef5c	1	415.63	425.47	438.6	brengen met de series T en T' die we ook al in de tweede stap hebben
+ef5c	1	434.71	444.55	438.6	gebruikt. Maar eerst draaien we de kubus helemaal om, zodat het vlak met
+ef5c	1	453.67	463.51	438.6	de verkeerd gedraaide hoekblokjes nu benedenvlak wordt. Ter herinnering
+ef5c	1	472.66	482.50	438.6	vermelden we nogmaals de series T en T':
+ef5c	1	491.29	501.46	438.6	T = R U2 R' F ' U2 F en T' = F ' U2 F R U2 R'.
+ef5c	2	71.42	81.26	438.6	gedraaide blokje kan dan nog zitten op
+ef5c	2	90.23	100.22	441.4	6.1.1  LDF; draai dan T D T ' D '
+ef5c	2	109.02	119.18	441.4	6.1.2  LDB; draai dan T D2 T '  D2
+ef5c	2	128.15	138.14	441.4	6.1.3   RDB draai dan T D' T ' D.
+ef5c	2	171.86	181.70	555.1	6.1.1 draai T D T ' D'
+ef5c	2	226.58	236.57	70.9	6.1 Als er twee blokjes gedraaid moeten worden, houden we de
+ef5c	2	234.53	244.37	438.6	6.2 Als er drie blokjes gedraaid moeten worden, zorgen we dat het goede
+ef5c	2	253.49	263.33	438.6	blokje op RBD zit, en daarna draaien we T D T ' D '. We zijn dan terug in
+ef5c	2	272.45	282.29	438.6	geval 6.1.
+ef5c	2	291.41	301.25	438.6	6.3 Als er vier blokjes gedraaid moeten worden, passen we eerst de
+ef5c	2	310.37	320.21	438.6	methode van 6.1 toe op één paar dat linksom-rechtsom moet worden
+ef5c	2	329.35	339.19	438.6	gedraaid, en dan op het andere paar.
+ef5c	2	348.43	358.27	438.6	De kubus is nu terug in de beginpositie!!!
+ef5c	2	354.07	363.91	70.9	kubus zo, dat het blokje dat rechtsom moet, op RDF zit. Het andere
+ef5d	1	71.27	81.26	441.4	5.2 Als twee paren hoekblokjes verwisseld moeten worden, draaien we Z;
+ef5d	1	90.38	100.22	455.6	we komen dan terug in geval 5.1.
+ef5d	1	181.46	191.30	548.1	5.2 draai Z en ga naar 5.1
+ef5d	1	200.45	210.29	438.6	Na deze stap zitten alle hoekblokjes op de goede plaats.
+ef5d	1	213.65	223.49	70.9	We zullen in hoofdstuk V laten zien dat, nu de ribbeblokjes allemaal op
+ef5d	1	232.61	242.45	70.9	hun plaats zitten, er voor de hoekblokjes slechts de volgende
+ef5d	1	238.46	250.97	438.6	6e Stap: oriënteer de hoekblokjes
+ef5d	1	251.57	261.41	70.9	mogelijkheden zijn: of ze zitten allemaal op de goede plaats (eventueel
+ef5d	1	262.49	272.33	438.6	Als de kubus nu nog niet in start terug is, zitten er alleen nog maar
+ef5d	1	270.53	280.37	70.9	gedraaid), of ze moeten twee aan twee paarsgewijs verwisseld worden, of
+ef5d	1	281.45	291.29	438.6	hoekblokjes in het bovenvlak verkeerd gedraaid. In hoofdstuk V zullen we
+ef5d	1	289.49	299.33	70.9	er zit er één op de goede plaats (eventueel gedraaid), en de andere drie
+ef5d	1	300.41	310.25	438.6	aantonen dat het aantal verkeerd gedraaide blokjes slechts gelijk kan zijn
+ef5d	1	308.45	318.29	70.9	moeten cyclisch worden verwisseld.
+ef5d	1	319.49	329.33	438.6	aan twee, drie of vier; dat als het er twee of vier zijn, er evenveel linksom
+ef5d	1	327.55	337.39	73.7	5.1 Eén hoekblokje zit op de goede plaats (eventueel gedraaid), en de
+ef5d	1	338.47	348.31	438.6	als rechtsom gedraaid moeten worden, en dat als het er drie zijn, ze alle
+ef5d	1	346.51	356.35	87.8	andere drie moeten cyclisch verwisseld worden, hetzij met de klok
+ef5d	1	357.43	367.27	438.6	drie dezelfde kant op moeten worden gedraaid. We zullen dit in orde
+ef5d	1	365.47	375.31	87.8	mee, hetzij tegen de klok in. Houd de kubus zo, dat het goede blokje
+ef5d	1	376.39	386.23	438.6	brengen met de series T en T' die we ook al in de tweede stap hebben
+ef5d	1	384.43	394.27	87.8	zit op UFR, en draai Z, resp. Z'.
+ef5d	1	395.35	405.19	438.6	gebruikt. Maar eerst draaien we de kubus helemaal om, zodat het vlak met
+ef5d	1	414.31	424.15	438.6	de verkeerd gedraaide hoekblokjes nu benedenvlak wordt. Ter herinnering
+ef5d	1	433.27	443.11	438.6	vermelden we nogmaals de series T en T':
+ef5d	1	451.91	462.07	438.6	T = R U2 R' F ' U2 F en T' = F ' U2 F R U2 R'.
+ef5d	2	71.42	81.26	438.6	gedraaide blokje kan dan nog zitten op
+ef5d	2	90.23	100.22	441.4	6.1.1  LDF; draai dan T D T ' D '
+ef5d	2	109.02	119.18	441.4	6.1.2  LDB; draai dan T D2 T '  D2
+ef5d	2	128.15	138.14	441.4	6.1.3   RDB draai dan T D' T ' D.
+ef5d	2	171.86	181.70	555.1	6.1.1 draai T D T ' D'
+ef5d	2	226.58	236.57	70.9	6.1 Als er twee blokjes gedraaid moeten worden, houden we de
+ef5d	2	234.53	244.37	438.6	6.2 Als er drie blokjes gedraaid moeten worden, zorgen we dat het goede
+ef5d	2	253.49	263.33	438.6	blokje op RBD zit, en daarna draaien we T D T ' D '. We zijn dan terug in
+ef5d	2	272.45	282.29	438.6	geval 6.1.
+ef5d	2	291.41	301.25	438.6	6.3 Als er vier blokjes gedraaid moeten worden, passen we eerst de
+ef5d	2	310.37	320.21	438.6	methode van 6.1 toe op één paar dat linksom-rechtsom moet worden
+ef5d	2	329.35	339.19	438.6	gedraaid, en dan op het andere paar.
+ef5d	2	348.43	358.27	438.6	De kubus is nu terug in de beginpositie!!!
+ef5d	2	354.07	363.91	70.9	kubus zo, dat het blokje dat rechtsom moet, op RDF zit. Het andere
