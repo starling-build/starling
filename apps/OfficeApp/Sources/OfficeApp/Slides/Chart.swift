@@ -3103,7 +3103,15 @@ enum ChartPainter {
         let rawX: [Double] = raw.map { $0.dx }, rawY: [Double] = raw.map { $0.dy }
         let midX: Double = (rawX.min()! + rawX.max()!) / 2
         let midY: Double = (rawY.min()! + rawY.max()!) / 2
-        let shift = Offset(room.dx - midX, titled ? room.dy - midY : roomTop - rawY.min()!)
+        // (Word only, untitled: the box's middle sits at the plot area's middle, less a lean that grows with the perspective
+        // and with the turn (sin·|sin|, so a turn the other way leans right): Word for Windows' lab persp2, centres 1.9 / 6.7 /
+        // 16.1 pt left of the frame's at turns of 20 / 40 / 70. Only turns of 20-70 were printed, at one frame width; the
+        // scaling by width is a guess. Slides and Sheets keep the old fixed centre.)
+        let turn = sin(v.y * .pi / 180)
+        let lean = persp > 0 && !c.legend ? 17.5 * turn * abs(turn) * persp / 30 * frame.width / (432.5 * k) : 0
+        let legendBias = c.legend ? 0.8 : 0.0
+        let midTarget = titled || c.onSlide || c.onSheet ? room.dx : (area.left + area.right) / 2 + (1.6 - lean + legendBias * frame.width / (432.5 * k)) * k
+        let shift = Offset(midTarget - midX, titled ? room.dy - midY : roomTop - rawY.min()!)
         func at(_ x: Double, _ y: Double, _ z: Double) -> Offset { let o = flatK(cam(x, y, z)); return Offset(o.dx + shift.dx, o.dy + shift.dy) }
         func yAt(_ value: Double) -> Double { -height / 2 + height * (value - sc.lo) / max(1e-9, sc.hi - sc.lo) }
         let front = depth / 2, back = -depth / 2
