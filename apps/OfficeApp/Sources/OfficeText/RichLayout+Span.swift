@@ -1409,7 +1409,11 @@ extension RichLayout {
                 // line of it at 6.2pt took a character Word wraps.)
                 if let u = ch.unicodeScalars.first?.value,
                    !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
-                   (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022),
+                   (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022)
+                    // (And the reference mark ※ where the run's Latin face is a square face too: zh-ae2dd08d's
+                    // 標楷體 "※依照財政部…" sets it 14pt at 14 in Word's print, where DejaVu's 11.8 took "就"
+                    // onto the line.)
+                    || (u == 0x203B && (ea || latinFace?.isEastAsian == true)),
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {
                     let g = _glyphWidth(style(kind), ch)
