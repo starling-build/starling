@@ -14418,7 +14418,7 @@ TIP WATCH amd-8, round 130 (tip d8175823b, Slides round): Word no drops; unit te
   - At 10, 10.5 and 11pt the ideograph advances alternate by one unit (83/84 at 10pt).
   - The first ideograph-to-digit space on a line takes a fractional extra (25.42 units, not 25, at 12pt), and every position after it carries that fraction. That is the 0.05pt.
   - Kerned pairs round to whole units too: Times "11" at 12pt kerns 4 units (0.48pt), ours 0.434. That is lab asp's 5.52 against our 5.56.
-  - Not modelled yet. It would mean snapping our glyph positions to 1/600in when Word for Windows pages are on. A wide change; parked unless a document needs it.
+  - QUEUED, amd-opus (coordinator 2026-11-03: zh-81aa310b p2 and the "11" kern need it). A Windows-mode rule in pairable steps: (1) kerned pairs rounded to whole 1/600in units; (2) each line's running x snapped to the grid, the fraction carried as lab rnd shows; (3) review what moves.
 - amd-opus lab asp's one-step lag, now two causes:
   - Times row: the kerning rounding above. Our need is 3.37, Word's 3.33, against a quarter of 13.2 = 3.30.
   - 標楷體-digit row: our in-cell share test (spaces' give vs the line's stretch, at half of each) refuses 3.40 over, which Word takes. It would need at least 0.534. Trying that now.
