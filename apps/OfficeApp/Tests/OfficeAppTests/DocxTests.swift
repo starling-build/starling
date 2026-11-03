@@ -448,6 +448,43 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try Zip.write(entries)).document.footer, "Left\t\tPage {PAGE}")
     }
 
+    func testTableStyleRunPropertiesStandUnderTheParagraphStyle() throws {
+        // A table style's own w:rPr (kern, East Asian face, colour) reaches
+        // its cells' runs where the Normal style says nothing of it; a
+        // paragraph style that states one keeps its own. (Read and then
+        // dropped, a table style's w:kern left Word's kerned pairs unkerned:
+        // lab asp's Times "11".)
+        var a = RichParagraph(text: "11 a"), b = RichParagraph(text: "11 b")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Before"), a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Tight\"><w:name w:val=\"Tight\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:kern w:val=\"0\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Base\"><w:name w:val=\"Base\"/><w:rPr><w:color w:val=\"336699\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Kerned\"><w:name w:val=\"Kerned\"/><w:basedOn w:val=\"Base\"/><w:rPr><w:rFonts w:eastAsia=\"PMingLiU\"/><w:kern w:val=\"2\"/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>", with: "<w:tblPr><w:tblStyle w:val=\"Kerned\"/><w:tblW w:w=\"0\" w:type=\"auto\"/>")
+        XCTAssertTrue(xml.contains("<w:tblStyle w:val=\"Kerned\"/>"), xml)
+        // The second cell's paragraph in a style that states its own kern.
+        let marker = "<w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr>"
+        if let last = xml.range(of: marker, options: .backwards) {
+            xml.replaceSubrange(last, with: marker + "<w:pStyle w:val=\"Tight\"/>")
+        }
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Tight\"/>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let cells = back.paragraphs.filter { $0.cell != nil }
+        XCTAssertEqual(cells.count, 2)
+        XCTAssertEqual(cells[0].runs[0].style.kerningFrom, 1)
+        XCTAssertEqual(cells[0].runs[0].style.eastAsiaFontFamily, "PMingLiU")
+        XCTAssertEqual(cells[0].runs[0].style.color, Color(0xFF336699), "the parent table style's colour")
+        XCTAssertNil(cells[1].runs[0].style.kerningFrom, "the paragraph's style states its own")
+        XCTAssertEqual(cells[1].runs[0].style.eastAsiaFontFamily, "PMingLiU")
+        XCTAssertNil(back.paragraphs[0].runs[0].style.kerningFrom, "outside the table")
+    }
+
     func testStyleNumberingColourAutoAndConditionalTableParts() throws {
         // 65099: a heading style based on a blue Heading 3 that says
         // colour auto and carries its own numPr, and a table style whose

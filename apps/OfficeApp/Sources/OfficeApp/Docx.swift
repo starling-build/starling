@@ -960,6 +960,11 @@ enum DocxFormat {
         // says none of its own (`tableSizes`).
         var tableSizes: [String: Double] = [:]
         var normalStatesSize = false
+        // A table style's other run properties, by its chain (its own over
+        // its parent's), and what the Normal style states of its own: the
+        // table's stand under the paragraph's style, over the defaults.
+        var tableChars: [String: CharStyle] = [:]
+        var normalChar = CharStyle()
         // Table styles (and the default one) that fix the layout: a table
         // that says nothing itself is then not autofitted.
         var fixedTableStyles = Set<String>()
@@ -1110,6 +1115,22 @@ enum DocxFormat {
                     if let v = node.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init) { tableSizes[id] = v / 2; break }
                     cur = node.first("w:basedOn")?["w:val"]
                 }
+            }
+            if let normal = styles.all("w:style").first(where: { style in
+                style["w:type"] == "paragraph" && (style["w:default"] == "1" || style["w:styleId"] == "Normal") }),
+               let rPr = normal.first("w:rPr") {
+                normalChar = _charStyle(rPr, base: CharStyle())
+            }
+            for id in tableNodes.keys {
+                var chain: [XNode] = [], seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    chain.append(node)
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
+                var cs = CharStyle()
+                for node in chain.reversed() { if let rPr = node.first("w:rPr") { cs = _charStyle(rPr, base: cs) } }
+                tableChars[id] = cs
             }
             for id in tableNodes.keys {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
@@ -2202,6 +2223,7 @@ enum DocxFormat {
                 // on (attributes in 2010 files, bits of w:val in 2007's).
                 let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
                 let tableStyleSize = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableSizes[$0] }
+                let tableStyleChar = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableChars[$0] }
                 let look = node.first("w:tblPr")?.first("w:tblLook")
                 let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
@@ -2728,6 +2750,7 @@ enum DocxFormat {
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         notes.cellSizeFromTable = false
                         if cellChar.fontSize == nil, !normalStatesSize, let size = tableStyleSize { cellChar.fontSize = size; notes.cellSizeFromTable = true }
+                        notes.cellCharFromTable = tableStyleChar.map { _takeTableChar(&cellChar, $0, normal: normalChar) } ?? []
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -4663,6 +4686,10 @@ enum DocxFormat {
         /// The cell's run base takes its size from the table's style
         /// (`tableSizes`): a paragraph whose own style states one keeps that.
         var cellSizeFromTable = false
+        /// The cell's run base's other properties taken from the table's
+        /// style (`_takeTableChar`), which a paragraph style stating its own
+        /// takes back.
+        var cellCharFromTable = Set<String>()
         /// A text box whose text holds a table, by its attachment's id:
         /// its `w:txbxContent`, for the body's reader to read again with
         /// its tables (this reader sets paragraphs only).
@@ -5136,6 +5163,10 @@ enum DocxFormat {
         if notes.cellSizeFromTable, let id = p.first("w:pPr")?.first("w:pStyle")?["w:val"], let ours = styleIds[id],
            sheet[ours]?.char.fontSize != nil {
             cellChar.fontSize = nil
+        }
+        if !notes.cellCharFromTable.isEmpty, let id = p.first("w:pPr")?.first("w:pStyle")?["w:val"], let ours = styleIds[id],
+           let named = sheet[ours]?.char {
+            _dropTableChar(&cellChar, stated: named, took: notes.cellCharFromTable)
         }
         // The paragraph mark's look (w:pPr/w:rPr): an empty paragraph is
         // as tall as its mark's font — a 28pt mark is a 28pt spacer. Word
@@ -7077,6 +7108,42 @@ enum DocxFormat {
     /// ones (Arabic, Hebrew, ...): Word applies w:bCs/w:iCs/w:szCs to those
     /// characters only, so a Latin "Reino de España" inside an Arabic
     /// paragraph stays plain. nil falls back to the run's w:rtl.
+    // A table style's run properties stand under the paragraph's style and
+    // over the document's defaults: the cell's runs take each one the
+    // Normal style leaves unsaid (its size apart: `tableSizes`). Read and
+    // then dropped, a table style's w:kern left its cells' Latin pairs
+    // unkerned where Word kerns them (lab asp's Times "11", 5.52pt in
+    // Word's print, 5.56 ours), and its fonts and colour went the same way.
+    private static let _tableCharKeys: [(String, WritableKeyPath<CharStyle, String?>)] = [
+        ("ascii", \.fontFamily), ("hAnsi", \.hAnsiFontFamily), ("eastAsia", \.eastAsiaFontFamily),
+        ("cs", \.complexFontFamily), ("hint", \.fontHint),
+    ]
+    private static let _tableCharNumbers: [(String, WritableKeyPath<CharStyle, Double?>)] = [
+        ("kern", \.kerningFrom), ("spacing", \.letterSpacing), ("w", \.horizontalScale), ("position", \.raised),
+    ]
+    private static func _takeTableChar(_ cell: inout CharStyle, _ table: CharStyle, normal: CharStyle) -> Set<String> {
+        var took = Set<String>()
+        for (name, k) in _tableCharKeys where cell[keyPath: k] == nil && normal[keyPath: k] == nil {
+            if let v = table[keyPath: k] { cell[keyPath: k] = v; took.insert(name) }
+        }
+        for (name, k) in _tableCharNumbers where cell[keyPath: k] == nil && normal[keyPath: k] == nil {
+            if let v = table[keyPath: k] { cell[keyPath: k] = v; took.insert(name) }
+        }
+        if took.contains("hAnsi") || took.contains("ascii") { cell.hAnsiNamedAsAscii = table.hAnsiNamedAsAscii }
+        if cell.color == nil, normal.color == nil, !normal.off.contains(.autoColor), let c = table.color { cell.color = c; took.insert("color") }
+        if !cell.bold, !normal.bold, table.bold { cell.bold = true; took.insert("bold") }
+        if !cell.italic, !normal.italic, table.italic { cell.italic = true; took.insert("italic") }
+        if !cell.smallCaps, !normal.smallCaps, table.smallCaps { cell.smallCaps = true; took.insert("smallCaps") }
+        return took
+    }
+    /// A paragraph style that states a property takes it back from the
+    /// table's.
+    private static func _dropTableChar(_ cell: inout CharStyle, stated named: CharStyle, took: Set<String>) {
+        for (name, k) in _tableCharKeys where took.contains(name) && named[keyPath: k] != nil { cell[keyPath: k] = nil }
+        for (name, k) in _tableCharNumbers where took.contains(name) && named[keyPath: k] != nil { cell[keyPath: k] = nil }
+        if took.contains("color"), named.color != nil || named.off.contains(.autoColor) { cell.color = nil }
+    }
+
     private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil) -> CharStyle {
         var cs = base
         // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
