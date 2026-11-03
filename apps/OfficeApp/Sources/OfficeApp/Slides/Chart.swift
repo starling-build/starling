@@ -4591,8 +4591,15 @@ enum ChartPainter {
                         let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
                         // (A label written out over the value: lines of its own below or above the value's.)
                         let shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
-                        labels.append((shown, Offset(rect.center.dx, c.stacked ? rect.center.dy
-                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + (raw < 0 && !c.onSlide && !c.onSheet && !c.stacked ? lowered(j, i) : nudge(j, i)), j))
+                        var labelAt = Offset(rect.center.dx, c.stacked ? rect.center.dy
+                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + (raw < 0 && !c.onSlide && !c.onSheet && !c.stacked ? lowered(j, i) : nudge(j, i))
+                        // (A falling bar's label stands clear below the row of names where the names hang from the zero
+                        // line: zh-b8de3ae2's chart 8 has "-960,118" and "-474,492", their bars ending 17 and 9 pt
+                        // under the axis, on one line under the names in Word's print.)
+                        if raw < 0, atZero, !c.onSlide, !c.onSheet, !c.stacked, !c.categoryAxisDeleted {
+                            labelAt = Offset(labelAt.dx, max(labelAt.dy, zero + 3.3 * size * k))
+                        }
+                        labels.append((shown, labelAt, j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
                     // depth, its own depth a 1 + gapDepth share of it.
