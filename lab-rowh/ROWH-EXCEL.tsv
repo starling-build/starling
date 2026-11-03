@@ -19,3 +19,8 @@ rh-Verdana10-13	1	40	64.44	12.960	12.960	12.990
 rh-Verdana10-15	1	40	64.44	12.960	12.960	12.990	
 rh-Verdana10-15-c	1	40	59.28	7.800	7.800	7.830	
 rh-Verdana10-none	1	40	64.44	12.960	12.960	12.990	sheetFormatPr removed by Windows session (Excel refuses the element without defaultRowHeight)
+v0-plain	1	40	64.44	12.960	12.960	12.990	lab-rowh3
+v1-freeze	1	40	64.44	12.960	12.960	12.990	lab-rowh3
+v2-boldrow	1	40	64.44	12.960	12.960	12.990	lab-rowh3
+v3-colstyle	1	40	64.44	12.960	12.960	12.990	lab-rowh3
+v4-all	1	40	64.44	12.960	12.960	12.990	lab-rowh3
