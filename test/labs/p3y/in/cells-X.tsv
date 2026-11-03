@@ -1,0 +1,22 @@
+1	textArchUp 12pt box 135x71 FontEffectArcUp
+2	textArchUp 18pt box 135x71 FontEffectArcUp
+3	textArchUp 28pt box 135x71 FontEffectArcUp
+4	textArchUp 40pt box 135x71 FontEffectArcUp
+5	textArchDown 12pt box 135x71 FontEffectArcUp
+6	textArchDown 18pt box 135x71 FontEffectArcUp
+7	textArchDown 28pt box 135x71 FontEffectArcUp
+8	textArchDown 40pt box 135x71 FontEffectArcUp
+9	textCircle 12pt box 135x71 FontEffectArcUp
+10	textCircle 18pt box 135x71 FontEffectArcUp
+11	textCircle 28pt box 135x71 FontEffectArcUp
+12	textCircle 40pt box 135x71 FontEffectArcUp
+13	textButton 12pt box 135x71 FontEffectArcUp
+14	textButton 18pt box 135x71 FontEffectArcUp
+15	textButton 28pt box 135x71 FontEffectArcUp
+16	textButton 40pt box 135x71 FontEffectArcUp
+17	textArchUp 12pt box 135x71 short "Arch"
+18	textArchUp 18pt box 135x71 short "Arch"
+19	textArchUp 28pt box 135x71 short "Arch"
+20	textArchUp 18pt box 135x71 wrap none
+21	textArchUp 18pt box 135x71 zero insets
+22	textArchUp 18pt box 300x150
