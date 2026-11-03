@@ -2520,7 +2520,7 @@ enum OfficeFonts {
     /// The faces whose Word tables Sheets reads (lower case).
     static let tabledNames: Set<String> = ["georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
     nonisolated(unsafe) private static var tabledCache: [String: RichResolvedFace?] = [:]
-    private static let tabledLock = NSLock()
+    private static let tabledLock = RegistryLock()
     static func tabledFaceCached(_ name: String) -> RichResolvedFace? {
         tabledLock.lock(); defer { tabledLock.unlock() }
         if let known = tabledCache[name] { return known }
