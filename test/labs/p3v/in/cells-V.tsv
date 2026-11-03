@@ -1,0 +1,16 @@
+1	27pt spc=0 kern=1200
+2	27pt spc=-1 kern=1200
+3	27pt spc=-5 kern=1200
+4	27pt spc=-10 kern=1200
+5	27pt spc=0 kern=0
+6	27pt spc=-1 kern=0
+7	27pt spc=0 no kern attr
+8	1100 spc=0 kern=1200
+9	1100 spc=0 kern=0
+10	1300 spc=0 kern=1200
+11	1300 spc=0 kern=0
+12	2000 spc=0 kern=1200
+13	2000 spc=0 kern=0
+14	32pt fontScale=85 spc=-1 kern=1200
+15	32pt fontScale=85 spc=0 kern=1200
+16	27.2pt spc=0 kern=1200
