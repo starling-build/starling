@@ -849,7 +849,17 @@ extension RichLayout {
                 if anyEastAsian, line > room + 0.5 {
                     let map = layout._map(k)
                     let end = units.lastIndex { $0 != 0x20 } ?? 0
-                    for (off, u) in units.enumerated() where u == 0x20 && off < end && !setEastAsian(off - 1) && !setEastAsian(off + 1) {
+                    // (A run of spaces is beside the dash when either end of the run is.)
+                    func dashBeside(_ off: Int) -> Bool {
+                        func dash(_ i: Int) -> Bool { i >= 0 && i < units.count && units[i] == 0x2014 && !latinDashes.contains(i) }
+                        var a = off, b = off
+                        while a > 0, units[a - 1] == 0x20 { a -= 1 }
+                        while b + 1 < units.count, units[b + 1] == 0x20 { b += 1 }
+                        return dash(a - 1) || dash(b + 1)
+                    }
+                    // (An un-hinted em dash is East Asian here too, and gives nothing beside it: zh-5be7e156's "—  11  —".)
+                    for (off, u) in units.enumerated() where u == 0x20 && off < end && !setEastAsian(off - 1) && !setEastAsian(off + 1)
+                        && !(RichTextTheme.wordWindowsPages && dashBeside(off)) {
                         let a = map.painter(off)
                         for b in g.painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: a + 1)) { spaces += b.right - b.left }
                     }
