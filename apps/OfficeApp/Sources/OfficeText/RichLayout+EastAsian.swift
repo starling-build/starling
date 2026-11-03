@@ -1862,7 +1862,7 @@ extension RichLayout {
                     // is taken where they can give it — zh-4ea36aa8's cell
                     // "…為了加強臺灣IC" ends so in Word's print.)
                     let autoRoom = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
-                    let shareGive = quarterEach > em / 4 ? 0.5 : autoGive   // (lab `asp`: five spaces' 3.4 shares as half of each)
+                    let shareGive = quarterEach > em / 4 ? 0.54 : autoGive   // (lab `asp`: five spaces' 3.4 shares as 0.54 of each, 標楷體's digits at 3.0 taking "保" 3.40 over in a cell, Word for Windows; zh-147bdae0's cell "…GPU計算資源供各界申" leaves "請" 3.48 over with a word space, which 0.55 took)
                     let spaceTrail = wordSpaces.filter { sp in sp.k < a && (sp.k + 1 ..< a).allSatisfy { isSpace(units[$0]) } }.reduce(0.0) { $0 + $1.w }
                     let spaceEms: Double = gapStretch()
                     let allSpaces: Double = wordSpaces.reduce(0.0) { $0 + $1.w }
