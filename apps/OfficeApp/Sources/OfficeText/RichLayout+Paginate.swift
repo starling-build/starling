@@ -2803,7 +2803,10 @@ extension RichLayout {
                     // down that page too, as one taken there before it is set: lab compat1415b rows19, compat 14,
                     // A1 at 66.0 on page 2 with tblpY 323 twips.)
                     if theme.wordRules, c.row == 0, c.firstInRow, y < 0.01, i == 0 || _cells[i - 1]?.table != c.table,
-                       let down = document.tableStyles[c.table]?.floatOffsetY, down > 0, !(document.tableStyles[c.table]?.pageAnchored ?? false) {
+                       let down = document.tableStyles[c.table]?.floatOffsetY, down > 0, !(document.tableStyles[c.table]?.pageAnchored ?? false),
+                       // (Not when the row, clamped to the page, would then no longer fit: lo-a48482e7's A2 fills page 3 and
+                       // stands there in Word's print under its 1-twip offset.)
+                       pageHeight() + ruleUnder(c) + _px(down) <= contentH + 0.01 {
                         RuleTrace.hit("floating-table-first-row-carried-whole-stands-its-offset-down")
                         y += _px(down)
                     }
