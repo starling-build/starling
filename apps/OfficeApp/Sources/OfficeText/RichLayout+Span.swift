@@ -1614,6 +1614,13 @@ extension RichLayout {
                                 // Asian closes up, 7.13 in Word's print, and its line takes "机".)
                                 || (fullQuotes && !narrowQuotes && (following == "\u{201C}" || following == "\u{2018}") && Self._closingMarks.contains(ch)
                                     && Self.isEastAsian(following, hinted: after < text.endIndex ? hinted : runHinted(atOffset: base + text.utf16.count)))
+                                // (And before a full-width closing quote, mid-line with room as well: lab `sqp`
+                                // (Word for Windows, zh-424775e4's p5 line, SimSun 12, kerned) sets "。”" 6 + 12 in
+                                // modes 12 and 15 and under doNotCompress alike, and takes "机，" 6pt sooner than ours
+                                // did with the "。" a whole em; the "。" not centred, as a closing bracket's.)
+                                || (fullQuotes && !narrowQuotes && (following == "\u{201D}" || following == "\u{2019}") && Self._closingMarks.contains(ch)
+                                    && !(document.marksCentred && "，。、；：！？".contains(ch))
+                                    && Self.isEastAsian(following, hinted: after < text.endIndex ? hinted : runHinted(atOffset: base + text.utf16.count)))
                                 // (Not a face's own narrow quote, which has no
                                 // blank to give: zh-0aac9d1a's Arial Unicode MS
                                 // "黑名单”。" keeps its 5.52pt "”" before the "。" in
