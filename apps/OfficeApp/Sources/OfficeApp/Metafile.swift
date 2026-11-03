@@ -979,7 +979,7 @@ private struct Player {
                 let rop = u32(a + 60), w = Double(i32(a + 64)), h = Double(i32(a + 68))
                 let image = headLength > 0 ? bitmap(header: p + head, headerLength: headLength, bits: p + bits, bitsLength: bitsLength) : nil
                 let source = image.map { Rect.fromLTWH(sx, $0.height - sy - sh, sw, sh) }
-                blit(rop: rop, dest: Rect.fromLTWH(x, y, w, h), source: source, image: image)
+                blit(rop: rop, dest: Rect.fromLTWH(x, y, w > 1 ? w - 1 : w, h > 1 ? h - 1 : h), source: source, image: image)
             default:
                 break
             }
