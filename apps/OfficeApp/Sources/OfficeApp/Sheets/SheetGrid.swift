@@ -2528,7 +2528,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var style = GridTextStyle(family: face,
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
-        if book.fontName(st).trimmingWhitespace().lowercased() == "aptos narrow" { style.own = "aptos narrow" }
+        let lower = book.fontName(st).trimmingWhitespace().lowercased()
+        if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
         return style
     }
 
@@ -3196,6 +3197,14 @@ final class _TextCache {
         if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
             return (style.bold ? OfficeFonts.aptosNarrowBoldAdvances : OfficeFonts.aptosNarrowAdvances)[Int(v - 0x20)]
         }
+        if OfficeFonts.tabledNames.contains(style.own), ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value,
+           let face = OfficeFonts.tabledFaceCached(style.own) {
+            // (Word's table for the face, as its print set it: bold, italic and bold italic its own.)
+            let table = style.italic ? (style.bold ? (face.boldItalicAdvances ?? face.italicAdvances) : face.italicAdvances) : nil
+            let t = table ?? (style.bold ? face.boldAdvances : face.advances)
+            if v >= 0x20, v <= 0x7E, let t, t.count > Int(v - 0x20) { return t[Int(v - 0x20)] }
+            return (style.bold ? face.boldOtherAdvances ?? face.otherAdvances : face.otherAdvances)?[v]
+        }
         guard style.family == OfficeFonts.verdana, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value else { return nil }
         if v >= 0x20, v <= 0x7E { return (style.bold ? OfficeFonts.verdanaBoldAdvances : OfficeFonts.verdanaAdvances)[Int(v - 0x20)] }
         return (style.bold ? OfficeFonts.verdanaBoldOtherAdvances : OfficeFonts.verdanaOtherAdvances)[v]
@@ -3204,7 +3213,7 @@ final class _TextCache {
     /// own widths, or on a page (`GridTextStyle.dots`) — save where its
     /// script joins or stacks its letters, which only the whole run shapes.
     private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
-        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || style.dots > 0 else { return false }
+        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || OfficeFonts.tabledNames.contains(style.own) || style.dots > 0 else { return false }
         return !run.unicodeScalars.contains { v in
             let x = v.value
             return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)

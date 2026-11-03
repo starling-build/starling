@@ -2501,6 +2501,40 @@ enum OfficeFonts {
     /// is a face it has (仿宋 for 仿宋_GB2312 is its cloud FangSong), else
     /// YaHei — to compare with its prints. The default is the faces the
     /// author had (`fangSongFamily`, the 方正 titles' own line).
+    /// The widths and line Word's print gave a face we hold a table for
+    /// (Georgia, Garamond, Corbel, Consolas, Century Gothic, Comic Sans),
+    /// laid over its stand-in. Word reads it on Windows only; Sheets reads
+    /// it through `tabledFace`.
+    static func applyTabled(_ family: String, to face: inout RichResolvedFace) {
+        switch family.trimmingWhitespace().lowercased() {
+                case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
+                case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
+                case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.naturalHeight = 1.1362; face.baseline = 0.9170
+                case "corbel": face.advances = corbelAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
+                case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
+                case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.1914; face.baseline = 0.9712
+        default: break
+        }
+    }
+
+    /// The faces whose Word tables Sheets reads (lower case).
+    static let tabledNames: Set<String> = ["georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
+    nonisolated(unsafe) private static var tabledCache: [String: RichResolvedFace?] = [:]
+    private static let tabledLock = NSLock()
+    static func tabledFaceCached(_ name: String) -> RichResolvedFace? {
+        tabledLock.lock(); defer { tabledLock.unlock() }
+        if let known = tabledCache[name] { return known }
+        let f = tabledFace(name); tabledCache[name] = f; return f
+    }
+
+    /// `family`'s stand-in with its own widths laid on, for the faces that
+    /// have a table (Windows-gated for Word, here not): what a page of cells reads.
+    static func tabledFace(_ family: String) -> RichResolvedFace? {
+        guard var face = standInFace(family, eastAsian: false) else { return nil }
+        applyTabled(family, to: &face)
+        return face
+    }
+
     private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
     /// The face Word for Windows sets a Latin name it has no face for,
     /// and whose font-table entry gives no alternate, by the entry's
@@ -3022,17 +3056,7 @@ enum OfficeFonts {
                 face.baseline = 0.9858
                 RuleTrace.hit("century-own-widths")
             }
-            if wordOnWindows {
-                switch family.trimmingWhitespace().lowercased() {
-                case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
-                case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
-                case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.naturalHeight = 1.1362; face.baseline = 0.9170
-                case "corbel": face.advances = corbelAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
-                case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
-                case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.1914; face.baseline = 0.9712
-                default: break
-                }
-            }
+            if wordOnWindows { Self.applyTabled(family, to: &face) }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "tahoma" {
                 face.advances = tahomaAdvances
