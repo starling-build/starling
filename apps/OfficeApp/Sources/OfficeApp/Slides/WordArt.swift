@@ -812,7 +812,7 @@ enum WordArt {
             // a little closer (`k`, lab prints) — it is the advances that shrink, not the glyphs.
             var fit = fits ? arc / line.width : min(top, arc / line.width)
             if slide, room == 1, warp.preset == "textCircle" { fit = min(fit, Self.circleFit * arc / line.width) }
-            let archSpread = slide && (warp.preset == "textArchDown" || (warp.preset == "textArchUp" && line.glyphs.count <= 8)) ? 1.05 : 1.0
+            let archSpread = slide && (warp.preset == "textArchDown" || (warp.preset == "textArchUp" && line.glyphs.count <= 8)) ? 1.05 : (slide && warp.preset == "textArchUp" ? 0.975 : 1.0)
             let k = fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * min(size / pxPerPt, 60) : 1)
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
