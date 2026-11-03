@@ -191,6 +191,11 @@ extension RichLayout {
             let ins = _cellInsets(c.table, document)
             var pad = c.padding.map { EdgeInsets(left: _px($0.left), top: _px($0.top), right: _px($0.right), bottom: _px($0.bottom)) }
                 ?? EdgeInsets(left: ins.left, top: ins.top, right: ins.right, bottom: ins.bottom)
+            // (A cell merged down into the row sets it deeper: `CellRef.rowMarginTop`.)
+            if theme.wordRules, c.rowMarginTop != nil || c.rowMarginBottom != nil {
+                pad = EdgeInsets(left: pad.left, top: max(pad.top, _px(c.rowMarginTop ?? 0)), right: pad.right,
+                                 bottom: max(pad.bottom, _px(c.rowMarginBottom ?? 0)))
+            }
             // The text keeps clear of the cell's own side lines: its left
             // edge stands the margin and half the line's width in, and
             // never inside the line; its right inset is the margin less

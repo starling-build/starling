@@ -1164,6 +1164,11 @@ public struct CellRef: Hashable, Sendable {
     /// one above — by what its cells hold, and a continued cell holds
     /// these.
     public var continuationParagraphs: [[RichParagraph]] = []
+    /// Points: the top and bottom margins of a cell merged down into this
+    /// cell's row from above, where they exceed what the row's cells say —
+    /// Word sets every cell of the row that far in (lab `rgap`); nil: none.
+    public var rowMarginTop: Double? = nil
+    public var rowMarginBottom: Double? = nil
     /// The table's border switch when `bordersXML` was read: once the
     /// editor toggles the table's borders, the summary is written instead.
     public var bordersKeptUnder: Bool? = nil

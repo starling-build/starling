@@ -2477,6 +2477,16 @@ enum DocxFormat {
                 var openSpan: [Int: Range<Int>] = [:]   // column → the spanning cell's paragraphs
                 let rowCount = unwrapped(node, "w:tr").count
                 let gridCount = tableColumns[id]?.count ?? Int.max
+                // (A cell merged down into a row sets that row's top and
+                // bottom margins where its own are the larger: lab `rgap`
+                // (Word for Windows, zh-147bdae0's p19 table alone) — row 2's
+                // continued "其他參與人員" states no margins and takes the
+                // table's 108 twips above and below, every other cell says 0,
+                // and Word sets the row's text 5.4pt lower and the row 5.4pt
+                // deeper; with the continued cell's margins 0, or the
+                // table's, it does not. Ours set the row as its own cells say.)
+                let tableStart = paragraphs.count
+                var continuedMargins: [Int: (top: Double, bottom: Double)] = [:]
                 for (r, tr) in unwrapped(node, "w:tr").enumerated() {
                     // (A row's cells start after the grid columns it leaves
                     // empty: zh-51af781b's scoring table switches from a
@@ -2515,6 +2525,13 @@ enum DocxFormat {
                                                                       { id in chainOver(id, cellBase, cellRootBase) }).map(\.paragraph)
                                     }
                                 }
+                                // (Its margins, as an own cell's are read below.)
+                                let m = tcPr?.first("w:tcMar") != nil ? _cellMargins(tcPr, "w:tcMar").under(margins)
+                                    : !cellMars.isEmpty && (cellMar.top != nil || cellMar.left != nil || cellMar.bottom != nil || cellMar.right != nil)
+                                    ? _cellMargins(tr.first("w:tblPrEx")).under(_cellMargins(node.first("w:tblPr"))).under(styled).under(defaultMargins).under(_Margins.word)
+                                    : _cellMargins(tr.first("w:tblPrEx")).under(margins)
+                                let was = continuedMargins[r] ?? (0, 0)
+                                continuedMargins[r] = (max(was.top, m.top ?? 0), max(was.bottom, m.bottom ?? 0))
                                 for k in range {
                                     paragraphs[k].cell?.rowSpan += 1
                                     paragraphs[k].cell?.continuationEdges.append(contEdges)
@@ -2718,6 +2735,11 @@ enum DocxFormat {
                         if restart { openSpan[column] = before ..< paragraphs.count }
                         column += span
                     }
+                }
+                for k in tableStart ..< paragraphs.count {
+                    guard let cell = paragraphs[k].cell, cell.table == id, let m = continuedMargins[cell.row] else { continue }
+                    if m.top > 0 { paragraphs[k].cell?.rowMarginTop = m.top }
+                    if m.bottom > 0 { paragraphs[k].cell?.rowMarginBottom = m.bottom }
                 }
                 currentCell = nil
                 cellChar = CharStyle()
