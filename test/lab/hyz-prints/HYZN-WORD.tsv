@@ -1,0 +1,5 @@
+# natural (left-aligned, unwrapped) width of line-3 content; x0 56.64; col at fit threshold 481.1 (right indent 16tw) fits, 481.0 (18tw) hyphenates
+# text_tail	x0	last_char_origin	x1_bbox	x1_minus_x0
+ment,sickness,	56.64	541.15	544.66	488.02
+ess,disability	56.64	593.19	600.21	543.57
+funemployment,	56.64	487.54	491.05	434.41
