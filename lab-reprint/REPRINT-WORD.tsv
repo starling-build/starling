@@ -1,0 +1,10 @@
+# which=today
+# doc	pages	rows_on_p1	pitch_median	pitch_min	pitch_max	first_baselines
+chart-tdf98690	7	38	12.72	12.24	24.99	120.5 133.22 145.94 158.66 171.38
+lo-functions-excel-2010	6	47	14.52	14.52	14.55	65.04 79.58 94.1 108.62 123.14
+lo-tdf76115	20	45	14.88	14.88	14.91	65.04 79.46 94.34 109.22 124.1
+# which=reference
+# doc	pages	rows_on_p1	pitch_median	pitch_min	pitch_max	first_baselines
+chart-tdf98690	7	38	12.72	12.24	24.99	120.5 133.22 145.94 158.66 171.38
+lo-functions-excel-2010	6	47	14.52	14.52	14.55	65.04 79.58 94.1 108.62 123.14
+lo-tdf76115	20	45	14.88	14.88	14.91	65.04 79.46 94.34 109.22 124.1
