@@ -204,7 +204,7 @@ enum WordArt {
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }
         guard !lines.isEmpty else { return true }
-        guard let scene = shape.textScene, !scene.isFlatTurn else {
+        guard let scene = shape.textScene, !scene.isFlatTurn || scene.bevelW > 0 else {
             // A shadow on the runs (`a:effectLst outerShdw`): the letters again behind them, moved and blurred.
             if lines.contains(where: { $0.glyphs.contains(where: { !$0.clear && $0.text != " " }) }), let sh = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.shadow }).first(where: { $0.ground == nil && !$0.glow }) {
                 RuleTrace.hit("slide-wordart-text-shadow-is-the-letters-blurred")

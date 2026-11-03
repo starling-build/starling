@@ -3582,7 +3582,7 @@ private struct SlideContext {
         // land 11 pt off with each — so that deck keeps the unturned text.)
         if let turn = attr("rot").flatMap(Double.init), turn != 0 { body0.textSpin += turn / 60000 }
         if body0.warp != nil, let bp = body?.first("a:bodyPr"), bp.first("a:scene3d") != nil {
-            body0.textScene = Extrusion.read(bp, colors: colors)
+            body0.textScene = Extrusion.read(bp, colors: colors, text: true)
         }
         return body0
     }

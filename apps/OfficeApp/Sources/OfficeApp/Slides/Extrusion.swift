@@ -216,7 +216,7 @@ enum Extrusion {
         return at(bin(azimuth))
     }
 
-    static func read(_ spPr: XNode?, colors: ColorContext) -> Scene3D? {
+    static func read(_ spPr: XNode?, colors: ColorContext, text: Bool = false) -> Scene3D? {
         let sp3d = spPr?.first("a:sp3d")
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)
         s.extrusionColor = sp3d?.first("a:extrusionClr").flatMap(colors.color(in:))
@@ -254,8 +254,9 @@ enum Extrusion {
                 s.rigRot = [deg("lat"), deg("lon"), deg("rev")]
             }
         }
-        // Looked at square on, a solid is its own front.
-        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
+        // Looked at square on, a solid is its own front — but text with a top
+        // bevel still wears it (lab p3u: PowerPoint bevels face-on letters).
+        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0, !(text && s.bevelW > 0 && s.bevelH > 0) { return nil }
         return s
     }
 
@@ -500,7 +501,7 @@ enum Extrusion {
             b.rig = scene.rig; b.material = scene.material.isEmpty ? "warmMatte" : scene.material
             b.preset = scene.bevelPreset; b.turn = scene.rigTurn
             if let r = scene.rigRot { b.rot = r; b.turn = 0 }
-            if Extrusion.paintBevel(b, outline, outline.getBounds(), canvas, pxPerPt: px, fill: shownFace) {
+            if Extrusion.paintBevel(b, outline, outline.getBounds(), canvas, pxPerPt: px, fill: fill, face: false) {
                 RuleTrace.hit("slide-3d-text-bevel-is-the-shapes-bevel")
                 bevelled = true
             }
@@ -646,7 +647,7 @@ enum Extrusion {
     /// Paints a bevel on `outline` as the lit slope it is: bands in from the
     /// edge, each as bright as a surface tilted as the profile says would be
     /// under the rig (`rotatedShare`). False for a rig with no light model.
-    static func paintBevel(_ b: ShapeBevel, _ outline: Path, _ box: Rect, _ canvas: any Canvas, pxPerPt px: Double, fill: Color) -> Bool {
+    static func paintBevel(_ b: ShapeBevel, _ outline: Path, _ box: Rect, _ canvas: any Canvas, pxPerPt px: Double, fill: Color, face: Bool = true) -> Bool {
         guard rotatedRigs[b.rig] != nil else { return false }
         let profile = bevelProfiles[b.preset] ?? bevelProfiles["circle"]!
         let w = min(b.width * px, min(box.width, box.height) / 2)
@@ -674,7 +675,8 @@ enum Extrusion {
         let p = Paint()
         p.style = .fill
         p.color = tint(share(P3(x: 0, y: 0, z: 1)))
-        canvas.drawRect(box, p)
+        // (Text keeps the face the solid already drew.)
+        if face { canvas.drawRect(box, p) }
         let steps = 15
         for ring in fineContours(outline) {
             let n = ring.count
