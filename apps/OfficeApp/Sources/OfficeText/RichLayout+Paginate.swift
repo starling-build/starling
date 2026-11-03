@@ -1541,9 +1541,16 @@ extension RichLayout {
                             let wantAt = y + (d.rowTop + d.pad.top + max(0, free) * 0.5 - c.rowTop)
                             // (Only for a cell merged from above that runs on: the other cells keep the
                             // flow's own offset and move up only, as the first lab-checked rule did.)
-                            let delta = onFoot ? wantAt - nowAt : d.rowTop + d.pad.top + max(0, free) * 0.5 - top
-                            guard onFoot ? abs(delta) > 0.5 : delta < -0.5 else { continue }
-                            guard !onPage.isEmpty, onPage.allSatisfy({ _allPieces[$0].flowBottom <= c.rowTop + reach + 0.01 || _allPieces[$0].flowBottom <= bottom + 0.01 || (onFoot && bottom <= c.rowTop + reach + 0.01) }) else { continue }
+                            // (… and DOWN to that middle, where the cell's text begins on this page in one piece and
+                            // stands above it: zh-5450d509's "监督检查", merged over three rows the last of which parts at
+                            // p6's and p7's feet, 23.9 and 16.1pt lower in Word's print, centred over its rows' part down
+                            // to the foot; ours, centred over the two whole rows, 23.7 and 15.9 high. Not text that began on
+                            // the page before — zh-9ba2ead7's and zh-4d143b5e's stood far off Word's when moved.)
+                            let down = theme.wordRules && wantAt - nowAt > 0.5 && onPage.count == 1 && top >= _allPieces[first0].flowTop - 0.01
+                            let delta = onFoot || down ? wantAt - nowAt : d.rowTop + d.pad.top + max(0, free) * 0.5 - top
+                            guard onFoot || down ? abs(delta) > 0.5 : delta < -0.5 else { continue }
+                            guard !onPage.isEmpty, onPage.allSatisfy({ _allPieces[$0].flowBottom <= c.rowTop + reach + 0.01 || _allPieces[$0].flowBottom <= bottom + 0.01 || (onFoot && bottom <= c.rowTop + reach + 0.01) })
+                                    || (down && bottom <= c.rowTop + reach + 0.01) else { continue }
                             RuleTrace.hit("word-merged-centred-cell-centres-in-its-part-of-the-page")
                             for n in onPage.reversed() {
                                 let old = _allPieces[n]
