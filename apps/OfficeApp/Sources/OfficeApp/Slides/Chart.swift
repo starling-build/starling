@@ -3118,7 +3118,9 @@ enum ChartPainter {
                                          scale sc: (lo: Double, hi: Double, step: Double), theme: DeckTheme,
                                          valueText: (String, Double, Double) -> TextPainter,
                                          categoryText: (String, Double, Double) -> TextPainter) {
-        guard let v = c.barView else { return }
+        guard let v = c.barView ?? c.areaView else { return }
+        // (A 3-D area chart: its series are slabs one behind another, the first in front, its points on the walls' edges.)
+        let isArea = c.barView == nil
         let n = c.categories.count, s = c.series.count
         let u = frame.height / 251                      // canvas units to the fit's points (the frame in the lab's prints: 432.5 x 251 pt)
         var scaleA = 221.448 * u
@@ -3128,10 +3130,10 @@ enum ChartPainter {
         let slot = 1 / Double(n)
         let lanes = Double(s), pitch = 1 - c.overlapFraction
         let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
-        let depth = min(2, bar * (1 + v.gapDepth) * v.depth)
+        let depth = isArea ? min(2, slot * (1 + v.gapDepth) * v.depth * Double(s)) : min(2, bar * (1 + v.gapDepth) * v.depth)
         // A stated height percentage (c:hPercent) makes the box that fraction of its width, times 1.05 (Word for Windows'
         // lab persp2: hPercent 50 and 100 both within 1 pt of the print's width); automatic keeps the fitted 0.595.
-        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? 0.595
+        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? (isArea ? 0.3 : 0.595)
         // Camera space (right, up, toward the viewer) of a box point, and its place on the page.
         func cam(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
             let x1 = x * cos(th) + z * sin(th), z1 = -x * sin(th) + z * cos(th)
@@ -3244,11 +3246,20 @@ enum ChartPainter {
             }
         }
         // The floor's category ticks, and the names a little under and before each slot's middle.
-        for i in 0 ... n {
-            let p = at(-0.5 + Double(i) * slot, yAt(sc.lo), front)
+        let px: (Int) -> Double = { isArea ? -0.5 + Double($0) / Double(max(1, n - 1)) : -0.5 + Double($0) * slot }
+        for i in 0 ... (isArea ? n - 1 : n) {
+            let p = at(px(i), yAt(sc.lo), front)
             poly([p, Offset(p.dx, p.dy + 3 * k)], line)
         }
-        if !c.categoryAxisDeleted {
+        if isArea, !c.categoryAxisDeleted {
+            let catSize = c.categoryLabelSize ?? c.baseTextSize
+            for i in 0 ..< n {
+                let a = at(px(i), yAt(sc.lo), front)
+                let tp = categoryText(c.categories[i], catSize, .infinity)
+                tp.paint(canvas, Offset(a.dx - tp.width / 2, a.dy + 26 * k - tp.height / 2))
+                tp.dispose()
+            }
+        } else if !c.categoryAxisDeleted {
             let catSize = c.categoryLabelSize ?? c.baseTextSize
             // (Every name wraps at the narrowest slot's width: "Category 4" breaks like the others.)
             var slotWidth = Double.infinity
@@ -3263,6 +3274,38 @@ enum ChartPainter {
                 tp.paint(canvas, Offset(mid.dx - tp.width / 2, mid.dy - tp.height / 2))
                 tp.dispose()
             }
+        }
+        if isArea {
+            let rowD = depth / Double(s)
+            let own = rowD / (1 + v.gapDepth)
+            let fillA = Paint()
+            fillA.style = .fill
+            func face(_ pts: [Offset], _ color: Color) {
+                let q = Path()
+                q.moveTo(pts[0].dx, pts[0].dy)
+                for o in pts.dropFirst() { q.lineTo(o.dx, o.dy) }
+                q.close()
+                fillA.color = color
+                canvas.drawPath(q, fillA)
+            }
+            for j in (0 ..< s).reversed() {
+                let base = c.color(series: j, accents: theme.accents)
+                let zf = front - Double(j) * rowD - (rowD - own) / 2, zb = zf - own
+                let vals = (0 ..< n).map { i -> Double in c.series[j].values[safe: i].flatMap { $0 } ?? 0 }
+                let y0 = yAt(max(sc.lo, min(sc.hi, 0)))
+                let ys = vals.map { yAt(max(sc.lo, min(sc.hi, $0))) }
+                // The top, a strip along the points, behind the front face.
+                for i in 0 ..< max(0, n - 1) {
+                    face([at(px(i), ys[i], zf), at(px(i + 1), ys[i + 1], zf), at(px(i + 1), ys[i + 1], zb), at(px(i), ys[i], zb)], Self._scaled(base, 0.757))
+                }
+                // The right cap.
+                face([at(px(n - 1), y0, zf), at(px(n - 1), ys[n - 1], zf), at(px(n - 1), ys[n - 1], zb), at(px(n - 1), y0, zb)], Self._scaled(base, 0.64))
+                var front2: [Offset] = [at(px(0), y0, zf)]
+                for i in 0 ..< n { front2.append(at(px(i), ys[i], zf)) }
+                front2.append(at(px(n - 1), y0, zf))
+                face(front2, base)
+            }
+            return
         }
         // The columns, the far ones first.
         struct Col { var i: Int; var j: Int; var cx: Double; var value: Double; var z: Double }
@@ -3581,6 +3624,15 @@ enum ChartPainter {
             }
         }
         let sc = valueScale
+        if let v = c.areaView, c.barView == nil, !v.rightAngles, c.type == .area, !c.stacked, !c.percent, v.rows, c.categories.count >= 2,
+           c.dataTable == nil, !c.series.isEmpty, frame.height / k >= 150 {
+            RuleTrace.hit("excel-3d-areas-stand-as-slabs-in-perspective")
+            // (Its axis goes 0 to 8 by twos for data to 7, chart-test3DAreaChartZAxis: the 5% over the data and four steps.)
+            var camScale = scale(lo, max(hi, c.valueMax ?? hi), intervals: 4, headroom: 0.05)
+            if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil { camScale = fixedScale(auto: camScale, min: c.valueMin, max: c.valueMax, step: c.valueStep) }
+            _columns3DCamera(c, canvas, area0, frame: frame, k: k, scale: camScale, theme: theme, valueText: valueText, categoryText: categoryText)
+            return
+        }
         if let v = c.barView, !v.rightAngles, c.type == .column, !c.stacked, !c.percent, !c.chartex,
            c.type != .scatter, c.dataTable == nil, !c.series.isEmpty,
            // (Word, PowerPoint and Excel share the camera (lab persp3). Only the frames and legends the lab's prints cover: a legend at the right or none, 150 pt of frame and more.)
