@@ -2475,6 +2475,27 @@ extension RichLayout {
                 }
                 painter.dispose()
             }
+            // (What follows a hyphen between Latin letters, wider than the
+            // line by itself, opens a line of its own and is parted there:
+            // lo-d1e88d77's last bullet, "woosroosﬂoosw-" and a run of
+            // letters a line and a half long, has the hyphen end the first
+            // line in Word's print and the run fill the next; ours, with no
+            // opportunity short enough, set the run's start beside the hyphen.
+            // The last hyphen only: what lies between two is kept on the line.)
+            if RichTextTheme.wordWindowsPages, end - k > 8 {
+                for o in (k + 2 ..< end) where units[o - 1] == 0x2D && o + 8 < end
+                    && Self._isLatinWordUnit(units[o]) && Self._isLatinWordUnit(units[o - 2]) && units[o] < 0x80
+                    && !units[o ..< end].contains(0x2D) {
+                    var at = 0
+                    var run = p.runs[0].style
+                    for r in p.runs { if o < at + r.length { run = r.style; break }; at += r.length }
+                    let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                    let painter = TextPainter(text: TextSpan(text: String(decoding: units[o ..< end], as: UTF16.self), style: style), textDirection: .ltr)
+                    painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                    if painter.width > textWidth { out.insert(o) }
+                    painter.dispose()
+                }
+            }
             k = end
         }
         return out
