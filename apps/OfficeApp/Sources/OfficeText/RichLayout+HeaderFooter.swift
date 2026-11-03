@@ -2497,7 +2497,10 @@ extension RichLayout {
                             // tall. The engine drops text wholly outside the
                             // clip, so the whole paragraph is drawn again at
                             // an alpha no eye sees.)
-                            if theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top",
+                            // (A centred cell's too where it is merged down, its text too tall to centre and set from the
+                            // top: zh-df9310bd p8's "3.项目时间以证书时间为准；" and "4.专利申请项目…", under three exact
+                            // rows of 25.7pt. Not one row's own: zh-16e0a12a's "经办人（签字）" form rows have none of it.)
+                            if theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top" || (c.verticalAlign == "center" && c.rowSpan > 1),
                                document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
                                piece.flowBottom < _tops[piece.paragraph] + _heights[piece.paragraph] - 0.5 {
                                 canvas.restore()
