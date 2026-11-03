@@ -3894,7 +3894,8 @@ extension RichLayout {
                 // is left, and a table next whose cell holds a picture wrapped top and bottom: Word's
                 // print carries the empty paragraph to the top of the next column with them — lab
                 // ef4/ef5, from lo-eb12e7d4's page 14, where it moved only with that picture, not a
-                // square-wrapped or an inline one, and the column after it stood 17pt lower.)
+                // square-wrapped or an inline one, and the column after it stood 17pt lower. Only seen with the table
+                // exactly two paragraphs on, and the paragraph between them: the labs did not try a gap of two or a keep-with-next chain.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, y > 0.01, !ender, _cells[i] == nil,
                    document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].inlineImages.isEmpty,
                    i + 2 < count, _cells[i + 1] == nil, !document.paragraphs[i + 1].text.isEmpty, _cells[i + 2] != nil,
