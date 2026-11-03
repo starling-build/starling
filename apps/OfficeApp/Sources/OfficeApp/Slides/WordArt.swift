@@ -407,7 +407,7 @@ enum WordArt {
                     if let outlinePath = g.painter.glyphPath() {
                         canvas.restore()
                         stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
-                        canvas.drawPath(outlinePath.transform(m), stroke)
+                        canvas.drawPath(warped ?? outlinePath.transform(m), stroke)
                         return
                     }
                     stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
@@ -483,7 +483,8 @@ enum WordArt {
                     // stretch and thin along it (PowerPoint's is even).
                     canvas.restore()
                     stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
-                    canvas.drawPath(outlinePath.transform(m), stroke)
+                    // (Where the letter was bent point by point, the line follows the bent outline the fill does.)
+                    canvas.drawPath(warped ?? outlinePath.transform(m), stroke)
                     return
                 } else {
                     drawn(stroke)
