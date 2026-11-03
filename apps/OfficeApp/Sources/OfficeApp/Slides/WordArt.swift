@@ -366,9 +366,15 @@ enum WordArt {
                 if g.look?.outline != nil {
                     let stroke = Paint()
                     stroke.style = .stroke
-                    stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
                     stroke.strokeJoin = .round
                     stroke.color = shadowPaint.color
+                    if let outlinePath = g.painter.glyphPath() {
+                        canvas.restore()
+                        stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
+                        canvas.drawPath(outlinePath.transform(m), stroke)
+                        return
+                    }
+                    stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
                     drawn(stroke)
                 }
                 canvas.restore()
@@ -434,6 +440,15 @@ enum WordArt {
                     let round = g.look?.outlineRound ?? false
                     if round { stroke.strokeCap = .round }
                     canvas.drawPath(SlidePainter.dashed(outlinePath, g.look?.outlineDash, width: stroke.strokeWidth, capped: round), stroke)
+                } else if let outlinePath = g.painter.glyphPath() {
+                    // The letter's outline is carried to the page first and
+                    // stroked there: a line as wide on every side, where a
+                    // stroke inside the stretched glyph is thick across the
+                    // stretch and thin along it (PowerPoint's is even).
+                    canvas.restore()
+                    stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
+                    canvas.drawPath(outlinePath.transform(m), stroke)
+                    return
                 } else {
                     drawn(stroke)
                 }
