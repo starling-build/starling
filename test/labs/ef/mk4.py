@@ -11,6 +11,10 @@ head,body=x[:bs],'<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="2844" 
 def paras(b): return [m.start() for m in re.finditer(r'<w:p[ >]',b)]
 def cut(b,i):  # remove paragraph i (relative, 0 = para 166)
     ps=paras(b); s=ps[i]; e=b.index('</w:p>',s)+6; return b[:s]+b[e:]
+def nopic(b,i):
+    ps=paras(b); s=ps[i]; e=b.index('</w:p>',s)+6
+    seg=re.sub(r'<w:r>(?:(?!</w:r>).)*?<w:drawing>.*?</w:drawing></w:r>','',b[s:e],flags=re.S)
+    return b[:s]+seg+b[e:]
 def variant(name,fn):
     b=fn(body)
     out=head+b
@@ -21,6 +25,6 @@ def variant(name,fn):
 W=[i for i,p in enumerate(paras(body)) if body[p:p+3000].split('</w:p>')[0].find('We zullen in hoofdstuk V')>=0][0]
 print('W',W)
 variant('ef4a.docx',lambda b:b)
-variant('ef4b.docx',lambda b:cut(cut(b,W+6),W+5))          # no anchors 171,172
+variant('ef4b.docx',lambda b:nopic(nopic(b,W+6),W+5))          # no anchors 171,172
 variant('ef4c.docx',lambda b:b.replace('<w:numPr><w:ilvl w:val="1"/><w:numId w:val="3"/></w:numPr><w:spacing w:line="360" w:lineRule="auto"/><w:rPr><w:spacing w:val="1"/><w:sz w:val="22"/>','<w:spacing w:line="360" w:lineRule="auto"/><w:rPr><w:spacing w:val="1"/><w:sz w:val="22"/>',1))
-variant('ef4d.docx',lambda b:cut(cut(cut(b,W+6),W+5),W+4))   # also no para 170
+variant('ef4d.docx',lambda b:cut(nopic(nopic(b,W+6),W+5),W+4))   # also no para 170
