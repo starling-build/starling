@@ -3890,6 +3890,29 @@ extension RichLayout {
                 let ender = theme.wordRules && _heights[i] == 0 && document.paragraphs[i].style.sectionXML != nil
                     && document.paragraphs[i].cell == nil && document.paragraphs[i].text.isEmpty
                 if y > contentH - 0.01, !ender { newPage() }
+                // (An empty paragraph at a column's foot, the paragraph after it too long for what
+                // is left, and a table next whose cell holds a picture wrapped top and bottom: Word's
+                // print carries the empty paragraph to the top of the next column with them — lab
+                // ef4/ef5, from lo-eb12e7d4's page 14, where it moved only with that picture, not a
+                // square-wrapped or an inline one, and the column after it stood 17pt lower.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, y > 0.01, !ender, _cells[i] == nil,
+                   document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].inlineImages.isEmpty,
+                   i + 2 < count, _cells[i + 1] == nil, !document.paragraphs[i + 1].text.isEmpty, _cells[i + 2] != nil,
+                   contentH - (y + _heights[i]) < _heights[i + 1] {
+                    let table = _cells[i + 2]!.table
+                    var topAndBottom = false
+                    var k = i + 2
+                    while k < count, let cell = _cells[k], cell.table == table, cell.row == 0 {
+                        for image in Array(document.paragraphs[k].inlineImages.inOrder) + (document.paragraphs[k].image.map { [$0] } ?? []) {
+                            if let float = image.float, float.takesRoom || float.bandsPage, !float.wraps { topAndBottom = true }
+                        }
+                        k += 1
+                    }
+                    if topAndBottom {
+                        RuleTrace.hit("word-empty-paragraph-before-a-top-and-bottom-picture-table-goes-with-it-to-the-next-column")
+                        newPage()
+                    }
+                }
                 var mine = _wrapBoxes(i)
                 for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height), $0.above, $0.below) : $0 } } }
                 // (A box of the paragraph's own that the page fixes — a text box
