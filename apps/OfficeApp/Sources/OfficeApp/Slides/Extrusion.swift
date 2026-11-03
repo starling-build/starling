@@ -299,7 +299,10 @@ enum Extrusion {
         }
         func litLocal(_ base: Color, _ n: P3) -> Color {
             if let rot = scene.rigRot, let k = Extrusion.rotatedShare(n, rig: scene.rig, rot: rot) {
-                func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k).rounded()))) }
+                // A wall also takes the default material's white floor (swept on
+                // lightRig_rot_rotation: 0.06-0.08 best, 0 and 0.12 worse).
+                let floor = abs(n.z) < 0.5 ? 0.07 * 255 : 0
+                func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k + floor).rounded()))) }
                 return Color(argb: base.alpha, ch(base.red), ch(base.green), ch(base.blue))
             }
             if let table = Extrusion.rigs[scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: scene.rig == "twoPt" && scene.rigTurn != 0 ? Extrusion.material(scene.material) : nil) }
