@@ -6564,9 +6564,13 @@ extension ChartPainter {
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
             if l.leaders, moved != nil || leftOut {
-                let from = on(s.mid, 1)
+                // (A doughnut's leader ends in the middle of its ring: tdf161607's, Excel's print.)
+                let from = on(s.mid, c.type == .doughnut ? (1 + Double(c.holeSize) / 100) / 2 : 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
-                if hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
+                // (None where the label already touches the ring: tdf161607's "Category 4".)
+                let touches = c.type == .doughnut && point == nil
+                    && hypot(min(max(centre.dx, box.left), box.right) - centre.dx, min(max(centre.dy, box.top), box.bottom) - centre.dy) <= rx
+                if !touches, hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
                     let p = Paint()
                     p.style = .stroke
                     p.isAntiAlias = true
