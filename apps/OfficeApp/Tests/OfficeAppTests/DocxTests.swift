@@ -11,6 +11,42 @@ import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class DocxTests: XCTestCase {
+    func testPageReferenceKeepsEveryFormattedResultRunWhenSaved() throws {
+        let instruction = "PAGEREF _Target \\h"
+        var p = RichParagraph(text: "See XLII now")
+        p.applyStyle(4 ..< 8) { $0.field = instruction; $0.fieldResult = 1 }
+        var target = RichParagraph(text: "Target")
+        target.bookmarks = ["_Target"]
+        var doc = try DocxFormat.read(DocxFormat.write(RichDocument(paragraphs: [p, target]), pageSetup: .letter)).document
+        // Editing only part of the cached number splits the result into
+        // runs while retaining the imported field's identity.
+        doc.paragraphs[0].applyStyle(5 ..< 8) { $0.bold = true }
+        let saved = try DocxFormat.write(doc, pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document.paragraphs[0]
+        XCTAssertEqual(back.text, p.text)
+        XCTAssertEqual(back.runs(in: 4 ..< 8).map(\.style.field), [instruction, instruction])
+        XCTAssertFalse(back.runs(in: 4 ..< 5)[0].style.bold)
+        XCTAssertTrue(back.runs(in: 5 ..< 8)[0].style.bold)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "w:fldCharType=\"begin\"").count - 1, 1)
+        XCTAssertEqual(xml.components(separatedBy: "w:fldCharType=\"end\"").count - 1, 1)
+    }
+
+    func testAdjacentPageReferencesWithTheSameInstructionStaySeparate() throws {
+        var p = RichParagraph(text: "12")
+        p.applyStyle(0 ..< 1) { $0.field = "PAGEREF _Target"; $0.fieldResult = 1 }
+        p.applyStyle(1 ..< 2) { $0.field = "PAGEREF _Target"; $0.fieldResult = 2 }
+        var target = RichParagraph(text: "Target")
+        target.bookmarks = ["_Target"]
+        let saved = try DocxFormat.write(RichDocument(paragraphs: [p, target]), pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document.paragraphs[0]
+        XCTAssertEqual(back.text, "12")
+        XCTAssertNotEqual(try XCTUnwrap(back.runs(in: 0 ..< 1).first).style.fieldResult,
+                          try XCTUnwrap(back.runs(in: 1 ..< 2).first).style.fieldResult)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "w:fldCharType=\"begin\"").count - 1, 2)
+    }
+
     // (ICU's data before this class lays any text out: a run filtered to
     // it has no `AAATextSetupTests` ahead of it.)
     override class func setUp() {

@@ -7548,7 +7548,6 @@ enum DocxFormat {
                 let id = 100_000 + writtenBookmarks.count
                 body += "<w:bookmarkStart w:id=\"\(id)\" w:name=\"\(_esc(name))\"/><w:bookmarkEnd w:id=\"\(id)\"/>"
             }
-            var fieldBefore: String? = nil   // the field the run before this one was the result of
             if inlineBreak {
                 // In its own run's look: an indent counted in characters
                 // is measured by the paragraph's first run, which the
@@ -7672,12 +7671,28 @@ enum DocxFormat {
                     runXML = "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                 }
                 if let instr = s.field {
-                    // One field per result: a result in two looks is still
-                    // one number, and Word writes all of it afresh.
-                    if fieldBefore == instr { continue }
-                    runXML = "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(instr)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>\(runXML)<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
+                    // One field may have several result runs (a contents
+                    // number with only some digits bold, for example).
+                    // Keep every run inside the field rather than skipping
+                    // later runs. Distinct imported fields can have the
+                    // same instruction, so compare their result ids too.
+                    func sameField(_ other: Run?) -> Bool {
+                        guard let other, other.style.field == instr,
+                              other.style.fieldResult == s.fieldResult else { return false }
+                        if let id = other.style.inlineImage, p.inlineImages[id] != nil { return false }
+                        if let note = other.style.note,
+                           doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil { return false }
+                        return true
+                    }
+                    let prior = p.runs.prefix(runIndex).last { $0.length > 0 }
+                    let next = p.runs.dropFirst(runIndex + 1).first { $0.length > 0 }
+                    if !sameField(prior) {
+                        runXML = "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(instr)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>\(runXML)"
+                    }
+                    if !sameField(next) {
+                        runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
+                    }
                 }
-                fieldBefore = s.field
                 if let rev = s.revision {
                     revisionCount += 1
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
