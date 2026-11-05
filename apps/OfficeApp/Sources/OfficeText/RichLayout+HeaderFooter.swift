@@ -2503,7 +2503,15 @@ extension RichLayout {
                             // head — bug59058's "g g y" over page 25, which
                             // PDFKit reads as a line of text there.)
                             let inset = !shading && piece.flowTop > _tops[i] + 0.5 ? _px(0.75) : 0
-                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy))
+                            // (A heavy rule under a row is centred on its edge: the half below stays inside the clip —
+                            // lo-5b86b731's 6pt inside rules.)
+                            var heavy = 0.0
+                            if theme.wordRules, RichTextTheme.wordWindowsPages, !shading, let c = _cells[piece.paragraph],
+                               let w = document.tableStyles[c.table]?.borderWidth, w >= 2 {
+                                heavy = _px(w) / 2
+                                RuleTrace.hit("word-heavy-table-rule-paints-its-lower-half-past-the-row")
+                            }
+                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy + heavy))
                         }
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _shadingFloats = floats; _paintShading(piece.paragraph, canvas, document, part: piece.part); _shadingFloats = false } else {

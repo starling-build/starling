@@ -991,6 +991,16 @@ extension RichLayout {
                     // zh-77bd4900's p3 tables open under a 2.16pt line at
                     // 68.64, ours at 67.6.)
                     let into = theme.wordRules && (side == "bottom" || side == "top") ? max(0.5, p.strokeWidth / 2) : 0.5
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, side == "insideH", inward.dy < 0, p.strokeWidth >= _px(2) {
+                        // (A heavy rule between two rows is one band centred on their edge, half in each:
+                        // lo-5b86b731's 6pt inside rules, 3pt of each under the clip to the row above.)
+                        RuleTrace.hit("word-heavy-inside-rule-is-centred-on-the-row-edge")
+                        canvas.save()
+                        canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom + p.strokeWidth / 2))
+                        canvas.drawLine(from, to, p)
+                        canvas.restore()
+                        return
+                    }
                     canvas.drawLine(from + inward * into, to + inward * into, p)
                 }
             }
