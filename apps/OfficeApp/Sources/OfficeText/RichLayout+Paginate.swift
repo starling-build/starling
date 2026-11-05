@@ -3527,11 +3527,15 @@ extension RichLayout {
                     // what follows it, as the title over zh-6d402586's box.)
                     tableBands.append((top: top, bottom: bottom, owner: mine ? i : -1))
                     var moved: [PagePiece] = []
+                    // (A hair above its own line, -0.9pt as in lo-eb12e7d4's 137pt picture: the
+                    // line before it is not under the picture — Word sets it where it stood and
+                    // the picture after it, at the paragraph's first place.)
+                    let moveTop = mine && RichTextTheme.wordWindowsPages && f.y < -0.3 && f.y > -2 ? max(top, y) : top
                     while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
-                          last.pageY + (last.flowBottom - last.flowTop) > top + 0.01 {
+                          last.pageY + (last.flowBottom - last.flowTop) > moveTop + 0.01 {
                         moved.insert(_pages[page].removeLast(), at: 0)
                         if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
-                        if last.pageY <= top + 0.01 { break }
+                        if last.pageY <= moveTop + 0.01 { break }
                     }
                     if !moved.isEmpty {
                         reordered = true
