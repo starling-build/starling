@@ -14581,3 +14581,4 @@ TIP WATCH amd-8, round 146 (tip f850ebe6e, Slides round): Word no drops; unit te
 TIP WATCH amd-8, round 147 (tip 1a7df88e8): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 
 TIP WATCH amd-8, round 148 (cfc97a7cd): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- lenovo-2 LANDED 512337d70: bdae17c0 p69 / 06c46ba9 p66 outline text box (picture-only paragraph in an exact line keeps its w:position; group text box takes its own insets). 2 up 0 down. It was not a row split. Next: exact-height row clips its lines (rsplit lab exact: Word 14 lines, ours 42); lo-47598455 needs nothing from the row-split lab (already 99.9%, only border colour).
