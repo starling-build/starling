@@ -157,6 +157,8 @@ struct Chart: Equatable {
     var legendPosition = "b"
     /// The legend floats over the plot (`c:overlay` 1): the plot gives it no room.
     var legendOverlay = false
+    /// The title floats over the plot (`c:title/c:overlay` 1): the plot starts as if untitled.
+    var titleOverlay = false
     /// The legend's entries the file deletes (`c:legendEntry/c:delete`):
     /// series, or a pie's points, by index — not drawn.
     var hiddenLegendEntries: Set<Int> = []
@@ -1495,7 +1497,9 @@ enum ChartXML {
         var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil, titleFace: String? = nil
         var titleLineSizes: [Int: Double] = [:]
         var titleAt: Offset? = nil
+        var titleOverlay = false
         if let t = chart.first("c:title") {
+            titleOverlay = ["1", "true"].contains(t.first("c:overlay")?["val"] ?? "0")
             // Line by line: a paragraph, or a break inside one, starts a new line.
             let paragraphs = t.first("c:tx")?.first("c:rich")?.all("a:p") ?? []
             let text = paragraphs.isEmpty ? _texts(t, "a:t").joined() : paragraphs.map { p in
@@ -1610,6 +1614,7 @@ enum ChartXML {
         c.titleSize = titleSize
         c.titleLineSizes = titleLineSizes
         c.titleAt = titleAt
+        c.titleOverlay = titleOverlay
         c.titleBold = titleBold
         c.titleColor = titleColor
         if let sp = chart.first("c:title")?.first("c:spPr") {
@@ -2555,7 +2560,9 @@ enum ChartPainter {
             // 2.75 pt lower in PowerPoint's print and the pie 3.25 smaller.)
             let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
             let beforeTitle = area.top
-            area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
+            if !(c.onSheet && c.titleOverlay) {
+                area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
+            }
             if c.type == .pie, c.ofPie == nil, c.pieTilt == nil, !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.titleAt == nil,
                c.plotLayout == nil, !c.legendPlaced, c.legend, ["r", "l"].contains(c.legendPosition),
                !(c.pieLabels.map { $0.series || $0.category || $0.value || $0.percent } ?? false) {
@@ -4252,7 +4259,7 @@ enum ChartPainter {
             // lo-8743d336's and lo-40949e85's plots stand where they did.)
             let untitledWordRise = -4.0
             let pt = k / 0.75
-            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil && !(c.onSheet && c.titleOverlay)
             // (An untitled 2007-style column chart on a slide: its plot starts
             // 4 pt higher and ends 2 pt nearer the frame's right edge than
             // the rest: both of cooper's charts in PowerPoint's print, top
