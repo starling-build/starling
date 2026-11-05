@@ -504,10 +504,20 @@ extension RichLayout {
     /// and the sides run up over it (lab bdr3 b3, before 40: the sides start
     /// 40 above the margin, 32.04 against 72; b2, which opens with its own
     /// break, has none of it).
+    /// The paragraph above is nothing but the page break (an empty paragraph): Word then treats the
+    /// page as opened by flow, the box top 75 against the margin 72 (lab sbox b1e; b1t, with text
+    /// above the break, runs up over the dropped space).
+    func _afterBareBreak(_ i: Int, _ document: RichDocument) -> Bool {
+        guard i > 0, i < document.paragraphs.count else { return false }
+        let p = document.paragraphs[i - 1]
+        return p.text.isEmpty && p.image == nil && p.cell == nil && p.style.borders == nil
+    }
+
     func _droppedBefore(_ i: Int, _ document: RichDocument) -> Double {
         let st = document.paragraphs[i].style
         guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 14,
-              st.pageBreakBefore, st.breakEndsPrevious, !st.pageBreakInline, i < _spaceBefore.count else { return 0 }
+              st.pageBreakBefore, st.breakEndsPrevious, !st.pageBreakInline, i < _spaceBefore.count,
+              !_afterBareBreak(i, document) else { return 0 }
         return max(0, _spaceBefore[i])
     }
 
