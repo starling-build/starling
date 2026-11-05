@@ -14518,3 +14518,4 @@ TIP WATCH amd-8, round 137 (tip a93351d42): Word no drops; unit tests 628 run, 0
 
 TIP WATCH amd-8, round 138 (tip 45edd1225): Word no drops (3 small ups); unit tests 628 run, 0 failures; visual no rise over 2 points (LO mean 0.57%); WEB build OK and layout exit 0. All gates green.
 - amd-5 2026-11-05: CLAIM lo-7ec36a70 (93.5, RTL headings 3pt/2pt spacing, released by amd-3). Queue was empty; macos told.
+- amd-5 2026-11-05: lo-7ec36a70 BLOCKED on a Word print (lab request: an RTL paragraph, run size 12/15/20, mark szCs 0/20/30/40, spacing before/after 0 and 12; first-line baseline and paragraph height each). Only 2 lines off (heading 3pt/2pt); no rule from one document. Other lo documents 90-98 are closed on the board (a43021ca footer date, e6dce9d6 text artefact, af36644e kashida, 677416be WordArt, c4c60fcb charts/amd-1). Amd-5 has an empty queue; asked macos for work.
