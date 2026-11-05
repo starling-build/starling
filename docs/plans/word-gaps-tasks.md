@@ -14577,3 +14577,5 @@ CLAIM (amd-5, 2026-11-05): zh-b3e8dec4 p9 (23%) and zh-cb57eaad (17.6%), the top
 - lo5 (Linux): zh-77bd4900 p10 LANDED (189a993f2): a line may break between an ideograph and a RUN of tabs after it (得 stays on its line). The general form (a break before ANY tab after an ideograph) dropped zh-ab1ea005 100 -> 15.3 and zh-875759ff 99.7 -> 98.8, so it is NOT a general rule: a lone tab after an ideograph (contents lines) must not break. The other near-tab roots in lenovo-2 list were not checked one by one.
 
 TIP WATCH amd-8, round 146 (tip f850ebe6e, Slides round): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; SLIDES 555 decks mean 0.7907 -> 0.7892, 0 worse, 1 better, matched-win 98/98 exact; SHEETS 757 workbooks mean 0.648 -> 0.647, 0 worse, 3 better; WEB build OK and layout exit 0. All gates green.
+
+TIP WATCH amd-8, round 147 (tip 1a7df88e8): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
