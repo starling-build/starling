@@ -3565,6 +3565,22 @@ extension RichLayout {
                let head = omittedHeadHeight[before.table], y + head > contentH + 0.01 {
                 newPage()
             }
+            // The document's final empty paragraph under a table that has
+            // reached its third page goes to a page of its own, whatever room
+            // is left (a table ending on its second page keeps it beside it):
+            // Word's lab prints of lo-28f9b886 (amd-5 lab A).
+            if theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, i == document.paragraphs.count - 1, _cells[i] == nil,
+               resumeCursor == nil, y > 0.01, document.paragraphs[i].text.isEmpty, let before = _cells[i - 1], headerRows(before.table) > 0, let first = _tableFirstParagraph[before.table],
+               // (… with repeated header rows over a quarter of the page: the lab's two, 213pt, made the table
+               // reach its third page; the 90 long tables of the corpus with a one-line header keep it beside them.)
+               case let headTop = _cells[first]?.rowTop ?? 0,
+               (first ..< i).reduce(0.0, { acc, k in
+                   guard let d = _cells[k], d.table == before.table, d.row < headerRows(before.table) else { return acc }
+                   return max(acc, d.rowTop + d.ownRowHeight - headTop)
+               }) > contentH * 0.25,
+               (0 ... page).filter({ pg in _pages[pg].contains(where: { _cells[$0.paragraph]?.table == before.table && !$0.repeated }) }).count >= 3 {
+                newPage()
+            }
             // this paragraph, any kept run after it, and the start of
             // what follows them go to the next page together when this
             // page has no room for all of it.
