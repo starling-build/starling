@@ -274,6 +274,14 @@ extension RichLayout {
             canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom - _px(text.insetBottom)),
                             clipOp: .intersect, doAntiAlias: false)
         }
+        // (A picture in the line bigger than a box that keeps its size is
+        // cut at the box's edge: zh-701eda18 p6's 154x159pt emblem in a
+        // 126x27pt box shows as nothing in Word's print; ours drew it whole.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit,
+           inside.layout._inline.contains(where: { $0.contains { $0.float == nil && _px($0.height) > rect.height * 1.5 } }) {
+            RuleTrace.hit("textBoxCutsBigPicture")
+            canvas.clipRect(rect, clipOp: .intersect, doAntiAlias: false)
+        }
         switch text.textDirection {
         case .horizontal:
             canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
