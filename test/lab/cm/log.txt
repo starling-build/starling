@@ -1,0 +1,7 @@
+ok cm-fa 57 17.3
+ok cm-fang 16 10.2
+ok cm-fei 36 12.8
+ok cm-guan 30 13.5
+ok cm-jiu 73 19.5
+ok cm-wu 20 10.7
+ok cm-ze 39 12.2
