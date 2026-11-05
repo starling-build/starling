@@ -445,8 +445,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // (Excel wraps on its face's whole pixels at 96 dpi — GDI's — in the column less 3 pixels: the
                     // design advances put LIBRE_OFFICE-116306-0's "NONKQUB", 65 px in a 68-px column, a line
                     // over, and CVLKRA-KYC's "alphan|umeric" at 42 and 50 px.)
-                    if let n = Self._hintedLines(text, face: book.fontName(st), size: book.fontSize(st), bold: st.bold, italic: st.italic,
-                                                 availablePx: (m.screenColumn(chars) - 2.25) * scale / 0.75) {
+                    if abs(printRowScale - 1) < 0.001, let n = Self._hintedLines(text, face: book.fontName(st), size: book.fontSize(st), bold: st.bold, italic: st.italic,
+                                                 availablePx: (Double(chars) * m.screenDigit / 2).rounded() - 3) {
                         lines = Double(n) * one
                     }
                     // (Text that wraps to one line is its font's line, which the
@@ -2628,9 +2628,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
         // (Printed, a wrapped cell breaks where the row fit counted: Excel's whole-pixel lines.)
         var hinted = false
-        if printing, wraps {
+        if printing, wraps, abs(printRowScale - 1) < 0.001 {
+            // (A one-column cell has the column's whole pixels; a merge, its width less the cell's margin.)
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            let cc = ws.colWidths[a.col].map { Xlsx._widthChars(ws, a.col, $0) } ?? ws.defaultColWidthChars ?? m.defaultChars
+            let px = abs(m.screenColumn(cc) * scale - width) < 1 ? (Double(cc) * m.screenDigit / 2).rounded() - 3 : (width - 2.25 * scale) / (0.75 * scale)
             if let b = Self._hintedBreaks(text, face: book.fontName(st), size: book.fontSize(st), bold: st.bold, italic: st.italic,
-                                          availablePx: (width - 2.25 * scale) / (0.75 * scale)) { text = b; hinted = true }
+                                          availablePx: px) { text = b; hinted = true }
         }
         // (Its lines are already whole: the painter must not break them again, though its design advances run wider.)
         var wrapWidth = max(1, width - pad * 2)
@@ -2865,12 +2869,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let room = Int(availablePx.rounded(.down) + 0.0001)
         var out = [String]()
         for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            var tooWide = false
             var lines = [String](), cur = "", line = 0, spaces = "", spacePx = 0, word = "", wordPx = 0
             func flush() {
                 guard !word.isEmpty else { return }
                 if line + spacePx + wordPx <= room { cur += spaces + word; line += spacePx + wordPx }
                 else if wordPx <= room { lines.append(cur); cur = word; line = wordPx }
                 else {
+                    // (A word wider than the line is cut at Excel's own places, which a lab of URLs shows are
+                    // not only by width: left to the old measure.)
+                    if word.contains(where: { $0 == "/" || $0 == "?" || $0 == "&" }) { tooWide = true }
                     if line > 0 { lines.append(cur); cur = ""; line = 0 }
                     for c in word {
                         let px = w(c) ?? 0
@@ -2892,6 +2900,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 prev = c
             }
             flush()
+            if tooWide { return nil }
             lines.append(cur)
             out.append(lines.joined(separator: "\n"))
         }
