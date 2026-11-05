@@ -768,8 +768,9 @@ enum Xlsx {
             var used = Set<String>()
             for (i, col) in (t.ref.left ... t.ref.right).enumerated() {
                 let a = CellAddress(row: t.ref.top, col: col)
-                let text = NumberFormat.display(ws.value(a), "General", width: 255).text.trimmingWhitespace()
-                if !text.isEmpty { used.insert(text.lowercased()); continue }
+                let raw = NumberFormat.display(ws.value(a), "General", width: 255).text
+                // (A header of blank spaces stays as the file has it: chart-auto_marker_excel10's " ".)
+                if !raw.isEmpty { used.insert(raw.trimmingWhitespace().lowercased()); continue }
                 var name = "Column\(i + 1)", n = 2
                 while used.contains(name.lowercased()) { name = "Column\(i + 1)\(n)"; n += 1 }
                 used.insert(name.lowercased())
