@@ -82,7 +82,7 @@ enum OfficeFonts {
             if wordOnWindows, n == "liberation serif", let by = windowsSigFace(family) { return substitute(by) }
             return serif
         case "liberation mono", "courier new", "courier", "consolas", "menlo", "monaco",
-             "lucida console", "cousine":
+             "lucida console", "lucida sans typewriter", "cousine":
             return mono
         case "carlito", "calibri", "calibri light":
             // (The Windows box has no Carlito, and a file with no font-table
