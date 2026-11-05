@@ -1870,7 +1870,15 @@ extension RichLayout {
                     }
                     let windowsAfterMarks = RichTextTheme.wordWindowsPages && eastAsianAt(a) && !inCell
                     let givers = windowsAfterMarks ? wordSpaces.filter { spaceGives($0.k) } : wordSpaces
-                    let roomSpaces = givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos
+                    // (A number or Latin word brought onto a body line, Word for Windows, no grid: the automatic
+                    // spaces give a quarter em and 0.3 of themselves, and a word space nothing. Lab `ds`
+                    // (zh-eccb2003's "…資訊公開從105", mode 15, doNotCompress, 14pt) takes "105" 6.2pt over and not
+                    // 6.7 with three spaces of 9.8, 8.0 and not 8.5 with five of 16.1, and with "2025 年"'s word
+                    // space for an automatic one 5.4 and not 5.9.)
+                    let latinPulled = RichTextTheme.wordWindowsPages && !inCell && !legacy && !onCharacterGrid && hang == 0
+                        && !pageBox && units[a] < 0x2E80 && !circled(units[a]) && !autos.isEmpty
+                    let roomSpaces = latinPulled ? em / 4 + autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.3
+                        : givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
                     // next line: lab `jg` (Word for Windows, Times New
@@ -1931,8 +1939,8 @@ extension RichLayout {
                     if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
-                        for space in givers { adjust[space.k, default: 0] -= space.w * (windowsAfterMarks ? 0.25 : spaceGive(space.k)) * share }
-                        let autoShare = roomAutos / max(0.001, autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
+                        if !latinPulled { for space in givers { adjust[space.k, default: 0] -= space.w * (windowsAfterMarks ? 0.25 : spaceGive(space.k)) * share } }
+                        let autoShare = (latinPulled ? roomSpaces : roomAutos) / max(0.001, autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
                         for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) * autoShare * share }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
