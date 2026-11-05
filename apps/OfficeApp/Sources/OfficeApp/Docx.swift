@@ -1376,7 +1376,17 @@ enum DocxFormat {
                     // glyphs; map the common ones, else a plain bullet.
                     if let raw = lvl.first("w:lvlText")?["w:val"], let ch = raw.unicodeScalars.first {
                         let glyph: String
+                        let face = lvl.first("w:rPr")?.first("w:rFonts")?["w:ascii"]?.lowercased()
+                        let wingdings = face == "wingdings"
                         switch ch.value {
+                        // (Wingdings' own shapes where the level names that face — Word's prints
+                        // draw them: "n" a black square, "u" a diamond, the box at 0xA8, "o" a white
+                        // square, 0x9E a small dot. Symbol's 0xA8 is a diamond suit, not this.)
+                        case 0xF06E where wingdings: glyph = "\u{25FC}"
+                        case 0xF075 where wingdings: glyph = "\u{25C6}"
+                        case 0xF0A8 where wingdings: glyph = "\u{25FB}"
+                        case 0xF06F where wingdings: glyph = "\u{25A1}"
+                        case 0xF09E where wingdings: glyph = "\u{00B7}"
                         case 0xF0B7, 0x2022: glyph = "\u{2022}"
                         case 0xF06F, 0x006F: glyph = "\u{25E6}"
                         case 0xF0A7, 0x25AA: glyph = "\u{25AA}"

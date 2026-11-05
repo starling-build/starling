@@ -1270,7 +1270,7 @@ extension RichLayout {
     /// stand-ins (`Docx`'s bullet map), as Word's prints embed them: "Ø"
     /// (zh-3fe252ff, zh-0d036e4e), "§" (Numbering), "l" (bug69628,
     /// zh-15428325).
-    static let _wingdingsAdvances: [UInt32: Double] = [0xF0D8: 0.794, 0xF0A7: 0.458, 0xF06C: 0.747]
+    static let _wingdingsAdvances: [UInt32: Double] = [0xF0D8: 0.794, 0xF0A7: 0.458, 0xF06C: 0.747, 0xF06E: 0.747, 0xF075: 0.986, 0xF0A8: 0.891, 0xF06F: 0.891, 0xF09E: 0.313]
 
     /// Cambria Math's advances (ems, its hmtx) for the symbols Word for
     /// Windows sets in it where they open a stretch of what an embedded
