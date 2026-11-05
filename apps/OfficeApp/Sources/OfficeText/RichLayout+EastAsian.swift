@@ -2923,7 +2923,10 @@ extension RichLayout {
         // (After a full-width colon too: zh-40fe33a3's cell "…103年：-8.4%"
         // ends a line "…年：" in Word's print and opens the next "-8.4%".)
         if b == "-" || b == "/" {
-            return wide(a) && !_openingMarks.contains(a) && (!_closingMarks.contains(a) || b == "-" && a == "：")
+            // (And before a slash after a full-width closing bracket, Word for Windows: zh-6e7ff836's
+            // cell "…平均值）/ 前3年…" ends a line "…平均值）" and opens the next "/ 前"; see `_span`.)
+            return wide(a) && !_openingMarks.contains(a) && (!_closingMarks.contains(a) || b == "-" && a == "："
+                || b == "/" && RichTextTheme.wordWindowsPages && "）」』】〉》〕］｝".contains(a))
         }
         // (And between two geometric shapes, which Word parts as it does
         // ideographs: zh-7654804a's "…民間機構○" ends a line in Word's

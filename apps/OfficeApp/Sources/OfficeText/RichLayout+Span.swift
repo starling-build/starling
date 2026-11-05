@@ -1232,6 +1232,14 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, ch == "/", let b = before, "）」』】〉》〕］｝".contains(b) {
+                    // (A line may break between a full-width closing bracket and a "/", Word for
+                    // Windows: zh-6e7ff836's cell formula "…實際數平均值）/ 前3年…" ends a line
+                    // "…平均值）" in Word's print, the "/" opening the next; the engine, which never
+                    // breaks before a slash, squeezed the "）" to keep "值）/" on the line.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if RichTextTheme.wordWindowsPages, theme.wordRules, ch == "\u{FE6A}", before.map({ $0.isASCII && $0.isNumber }) == true {
                     // (A line may break between a digit and the small percent
                     // sign "﹪", which is no Latin "%": zh-146f4e02's "…價值）的8﹪給予"
