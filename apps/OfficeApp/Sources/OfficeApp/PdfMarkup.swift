@@ -834,6 +834,44 @@ struct PdfMarkup {
             // past the page's foot is cut short and the rest are not shown.
             // (Cut where the one that is tallest stands, and the boxes after it stay, packed below it: lo-9f27ef40's
             // Deleted balloon of 30 lines is cut at 137pt with a "..." and three Formatted boxes follow it.)
+            // (Word's rule for a column that overflows, lo-9f27ef40: the first Deleted balloon to run past the foot is cut
+            // with "..." and the short Formatted balloons — those standing before the run of deletions it ends, then those
+            // after it, three at most — are packed under it, the cut one given what they leave.)
+            var placed = false
+            let top0 = tops[0]
+            if windows {
+                var c = 0, g = tops[0]
+                while c < entries.count, g + heights[c] <= limit { g += heights[c] + gap; c += 1 }
+                func formatted(_ n: Note) -> Bool { n.label == "Formatted:" || n.label == "Field Code Changed" }
+                if c < entries.count, c > 0, entries[c].note.label == "Deleted:" {
+                    var b = c
+                    while b > 0, entries[b - 1].note.label == "Deleted:" { b -= 1 }
+                    var f = b
+                    while f > 0, formatted(entries[f - 1].note) { f -= 1 }
+                    let under = Array((Array(b ..< b) + (c + 1 ..< entries.count).filter { formatted(entries[$0].note) }).prefix(3))
+                    var head = Array(0 ... c)
+                    var y = tops[0]
+                    for k in head.dropLast() { y += heights[k] + gap }
+                    let room = limit - Double(3) * ((under.last.map { heights[$0] } ?? 0) + gap) - y
+                    if !under.isEmpty, room > 24 {
+                        let cutAt = head.count - 1
+                        head += under
+                        let others = (0 ..< entries.count).filter { !head.contains($0) }
+                        let order = head + others
+                        entries = order.map { entries[$0] }
+                        heights = order.map { heights[$0] }
+                        heights[cutAt] = room
+                        tops = []
+                        placed = true
+                        cut = cutAt
+                        shown = head.count
+                    }
+                }
+            }
+            if placed {
+                var g3 = top0
+                for i in 0 ..< entries.count { tops.append(g3); g3 += heights[i] + gap }
+            } else {
             var tall = 0
             for i in 1 ..< entries.count where heights[i] > heights[tall] { tall = i }
             let total = heights.reduce(0, +) + gap * Double(entries.count - 1)
@@ -852,6 +890,7 @@ struct PdfMarkup {
                     break
                 }
                 g += heights[i] + gap
+            }
             }
             }
         }
