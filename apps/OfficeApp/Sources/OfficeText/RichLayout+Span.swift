@@ -1164,8 +1164,8 @@ extension RichLayout {
                 // "1" go down and "habe?)" stays; the engine has no break there, wrapped "habe?)"
                 // with them, and a line behind the contents ran on.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\t", offset > 0, let b = before,
-                        b != " ", b != "\t", b != "\n", b != "\u{2028}", b.isASCII || Self.isEastAsian(b, hinted: false) {
-                    // (An ideograph before the tab as well: zh-77bd4900 p10's "…人數不得<tab><tab><tab>低於十人"
+                        b != " ", b != "\t", b != "\n", b != "\u{2028}", b.isASCII || (following == "\t" && Self.isEastAsian(b, hinted: false)) {
+                    // (An ideograph before a run of tabs as well (not a lone tab: zh-ab1ea005's contents lines): zh-77bd4900 p10's "…人數不得<tab><tab><tab>低於十人"
                     // keeps "得" on its line in Word's print and sends the tabs down; ours took "得" with them.)
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
