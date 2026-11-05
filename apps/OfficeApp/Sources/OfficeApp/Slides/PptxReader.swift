@@ -3322,7 +3322,7 @@ private struct SlideContext {
             // (PowerPoint for Windows sets the space before and after and an exact line spacing on whole points:
             // labs p3b and p3c, 5.67 pt -> 6, 17.01 -> 17, 27.5 -> 28. Not under its shrink to fit, where the
             // spacing is scaled and lo-font-scale's 6.41 stands as it is.)
-            let whole: (Double) -> Double = { scale < 1 ? $0 : $0.rounded() }
+            let whole: (Double) -> Double = { $0.rounded() }
             var style = RichParagraphStyle(spaceAfter: level.afterPoints.map(whole) ?? 0, lineSpacing: 1.0)
             switch level.algn {
             case "ctr": style.alignment = .center

@@ -185,24 +185,30 @@ public final class RichTextTheme {
         // pt low.)
         let name = style.fontFamily ?? fontFamily
         let own = name.flatMap { ownDescentShare?($0) }
-        if exactLinesAsPowerPoint, lineSpacingReduction == 0, multiple != 1 {
-            // PowerPoint for Windows, lab p3lp (Arial, Calibri, Courier New,
-            // Times New Roman, Cambria, Segoe UI, MS Gothic at 18 and 32 pt, 80%
-            // to 200%): a line's foot (its baseline to its bottom) is the
-            // face's own depth of single's 1.2 size; over single it is that
-            // and 0.25 of the extra, and besides 0.313 less 1.27 times the
-            // depth where that is above nothing (Arial's 0.072 of the size,
-            // Courier New's none). Under single it stays what single's is.
-            // (A deeper face's slight lift under single, Calibri's 0.027 and
-            // Courier New's 0.06 at 80%, is left out: 90% in the SmartArt
-            // decks, 82 of them, went worse with it.)
+        if exactLinesAsPowerPoint, multiple != 1 {
+            // PowerPoint for Windows, labs p3lp and p3lu (Arial, Calibri, Courier
+            // New, Times New Roman, Cambria, Segoe UI, MS Gothic at 18 and 32 pt,
+            // 80% to 200%, in a box, a shape and under a shrink's reduction): a
+            // line's foot (its baseline to its bottom) is a quarter of the line
+            // and K, K being 0.013 less 0.07 of the face's depth, or its single
+            // line's foot less 0.3 where that is more (Courier New's). Over
+            // single that is the foot; under single, no more than single's own
+            // (the face's depth of its 1.2 size) — Arial's has no lift, Calibri's
+            // is under 90%, Courier New's at every spacing.
             let family = name.map { fontFamilyResolver?($0) ?? $0 }
             let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
             let depth = own ?? drawn
             let line = multiple * single
-            var foot = single * depth
-            if multiple > 1 { foot += max(0, 0.313 - 1.27 * depth) + 0.25 * (line - single) }
-            return line * drawn - foot
+            let natural = single * depth
+            var foot = 0.25 * line + max(0.013 - 0.07 * depth, natural - 0.25 * single)
+            if multiple < 1 { foot = min(foot, natural) }
+            let shift = line * drawn - foot
+            // (Unsaid spacing under a reduction keeps its floor: three fifths of
+            // a single line down.)
+            if multiple < 1, paragraph.lineSpacingUnstated, lineSpacingReduction > 0 {
+                return max(shift, single * (0.6 - multiple * (1 - drawn)))
+            }
+            return shift
         }
         if multiple > 1, own == nil, let share = extraAboveShare {
             // That share of the extra above the first baseline, the rest

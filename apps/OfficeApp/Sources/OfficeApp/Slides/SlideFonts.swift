@@ -210,6 +210,10 @@ enum SlideFonts {
         // put a share of it under the baseline in the engine's line, and
         // Arial's 43 decks stood 0.011 em high.)
         if n == "arial" { return 434.0 / 2288 }
+        // (MS Gothic by its own, 0.859 over and 0.141 under of its square
+        // 1.0 em line: lab p3lp's first baseline stood 0.073 of the size
+        // high in its stand-in's depth, 1.3 pt at 18 pt, 2.2 at 32.)
+        if n == "ms gothic" || n == "ｍｓ ゴシック" { return 0.141 }
         if n == "times new roman" { return 443.0 / 2268 }
         return nil
     }
