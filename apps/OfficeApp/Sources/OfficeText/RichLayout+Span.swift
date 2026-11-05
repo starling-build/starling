@@ -1218,6 +1218,20 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, ea,
+                          (before == "\u{2014}" && ch == "\u{2014}")
+                            || ((ch.unicodeScalars.first?.value).map { 0x2260 ... 0x226F ~= $0 } == true
+                                && before.map { $0.isASCII && ($0.isLetter || $0.isNumber) } == true) {
+                    // (A line may break between the two dashes of an East Asian "——", and
+                    // before a mathematical sign set as East Asian after Latin letters or
+                    // digits, Word for Windows: zh-447f1d5c's "…准则5号—" / "—公共基础设施》"
+                    // and zh-0060058e's "…中型排水管道（600mm" / "≤管径＜1000mm）" in Word's
+                    // print, both runs hinted East Asian (the comparison signs only: zh-0978dee9's
+                    // ratio "6∶3∶1" stays whole); the engine kept "——" whole and
+                    // "600mm≤管径" together, and carried both down.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if RichTextTheme.wordWindowsPages, theme.wordRules, ch == "\u{FE6A}", before.map({ $0.isASCII && $0.isNumber }) == true {
                     // (A line may break between a digit and the small percent
                     // sign "﹪", which is no Latin "%": zh-146f4e02's "…價值）的8﹪給予"
