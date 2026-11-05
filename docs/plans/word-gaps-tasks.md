@@ -14569,3 +14569,5 @@ TIP WATCH amd-8, round 145 (tip fa9851207): Word no drops; unit tests 628 run, 0
 
 - lo5 (Linux): CLAIM triage zh-cec9d337, zh-0b48a0db, zh-51af781b, zh-15f60bac, zh-bbbb2e6a, zh-77bd4900 (glyph face vs placement).
 CLAIM (amd-5, 2026-11-05): zh-b3e8dec4 p9 (23%) and zh-cb57eaad (17.6%), the top unclaimed in the 756 visual ranking. Then lo-8928a1e9 / lo-ce0d5e6d / lo-9444eb35 / lo-0ceaa045 if nobody has them.
+
+- lo5 (Linux): TRIAGE of six done. GLYPH FACE ONLY (line positions match Word): zh-cec9d337 p3, zh-0b48a0db p2, zh-51af781b p39, zh-15f60bac p18, zh-bbbb2e6a p6. Released. zh-77bd4900 p10 is glyph face too except ONE line: a paragraph "...平均人數不得<tab><tab><tab>低於十人。" — Word keeps 得 on line 1 and wraps the tabs to line 2; ours moves 得 to line 2 (drawn left of the indent). Tiny score effect (one line); parked unless macos wants it.
