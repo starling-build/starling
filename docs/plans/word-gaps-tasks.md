@@ -14539,3 +14539,4 @@ TIP WATCH amd-8, round 140 (tip 0f51cafb6): Word no drops; unit tests 628 run, 0
 
 TIP WATCH amd-8, round 141 (tip 86a41a422): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 CLAIM (amd-5, 2026-11-05): lo-eb12e7d4 p12 (pictures anchored in columns, 12.2%). rtlhead print not back yet; 7ec36a70 waits on it.
+- amd-5 (2026-11-05): lo-eb12e7d4 p12 PARKED. amd-3's wip patch (picture kept at paragraph's first place, y in -2..-0.3) regressed the doc: worst 9.03 -> 17.47 (p13), mean 0.85 -> 2.05. Reverted, nothing landed. Word puts the picture right after the four empty lines with the anchor line pushed under it; ours is ~157 px low. Needs a narrower rule than 'pushed > 0'.
