@@ -887,7 +887,10 @@ extension RichLayout {
             let stroke = Paint()
             stroke.style = .stroke
             stroke.strokeWidth = max(1, _px(ts?.borderWidth ?? 0.5).rounded())
-            stroke.color = ts?.borderColor ?? (theme.wordRules && RichTextTheme.wordWindowsPages ? Color(0xFF000000) : theme.textColor.withOpacity(0.6))
+            // (Outset rules with the colour left "auto" are grey in Word's print — 9F9F9F, one
+            // 0.75pt line between rows — bib-chernigovka's tables; black here was most of its diff.)
+            let outsetGrey = theme.wordRules && RichTextTheme.wordWindowsPages && ts?.borderColor == nil && ts?.borderStyle == "outset"
+            stroke.color = ts?.borderColor ?? (outsetGrey ? Color(0xFF9F9F9F) : theme.wordRules && RichTextTheme.wordWindowsPages ? Color(0xFF000000) : theme.textColor.withOpacity(0.6))
             // Every line lies inside the row (the paint is clipped to the
             // row's page piece, so a stroke centred on the row's bottom
             // edge lost its outer half and the table's last row had no
