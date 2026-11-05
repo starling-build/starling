@@ -2466,6 +2466,8 @@ public struct RichDocument: Hashable, Sendable {
     /// its tables a line further down on every page — so dropping it
     /// moved every page, not just its colour.
     public var backgroundXML: String? = nil
+    /// The page colour a plain `w:background w:color` names (0xRRGGBB), which Word for Windows prints.
+    public var backgroundColor: UInt32? = nil
     public var backgroundRels: [KeptRel] = []
     /// The file's own ids for styles the sheet knows under ours (its "1"
     /// is our Heading1), for the markup kept verbatim that still names

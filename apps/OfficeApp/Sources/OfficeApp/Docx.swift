@@ -3208,6 +3208,7 @@ enum DocxFormat {
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
             document.backgroundRels = frag.rels
+            if bg["w:themeColor"] == nil, let c = bg["w:color"], c.count == 6, let v = UInt32(c, radix: 16), v != 0xFFFFFF { document.backgroundColor = v }
         }
         document.keptParts = notes.kept
         document.keptPartTypes = notes.keptTypes
