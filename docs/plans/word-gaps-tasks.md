@@ -14517,3 +14517,4 @@ TIP WATCH amd-8, round 137 (tip a93351d42): Word no drops; unit tests 628 run, 0
 - amd-opus 2026-11-05: landed 92c7eec4e — East Asian "——" may break between its dashes, and a comparison sign (≤ ≥ ≠, set East Asian) may start a line after Latin letters/digits (Word for Windows): 288 -> 286 (zh-447f1d5c, zh-0060058e), LO unchanged. Next: lab cm2 shows Word refuses a squeeze with any hung final mark (。：」）” too, not just ，、；) at the same point; extending that rule.
 
 TIP WATCH amd-8, round 138 (tip 45edd1225): Word no drops (3 small ups); unit tests 628 run, 0 failures; visual no rise over 2 points (LO mean 0.57%); WEB build OK and layout exit 0. All gates green.
+- amd-5 2026-11-05: CLAIM lo-7ec36a70 (93.5, RTL headings 3pt/2pt spacing, released by amd-3). Queue was empty; macos told.
