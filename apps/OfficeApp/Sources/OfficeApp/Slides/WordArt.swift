@@ -594,6 +594,20 @@ enum WordArt {
                 }
             }
             func bow(_ u: Double) -> Double { (2 * u - 1) * (2 * u - 1) }
+            // Every line stands as tall as the fullest band makes it: a band
+            // with fewer lines keeps that height and sits in the middle of its
+            // envelope (lab wordart-banded: 3 lines of a deflate-inflate leave
+            // the lone last line unstretched; 1 + 1 stretches both).
+            func centreShortBands() {
+                let most = bands.map { $0.lines.count }.max() ?? 1
+                for i in bands.indices where bands[i].lines.count < most {
+                    let env = bands[i].env, share = Double(bands[i].lines.count) / Double(most)
+                    bands[i].env = { u in
+                        let (t, b) = env(u), c = (t + b) / 2, h = (b - t) * share
+                        return (c - h / 2, c + h / 2)
+                    }
+                }
+            }
             switch warp.preset {
             case "textDeflateInflate":
                 let a = (warp.adjust.first ?? 35000) / 100_000
@@ -608,12 +622,18 @@ enum WordArt {
                     let top = (lines.count + 1) / 2
                     bands = [(Array(lines[..<top]), { u in (0, mid(u) - 0.03) }, false, nil),
                              (Array(lines[top...]), { u in (mid(u) + 0.03, 1) }, false, nil)]
+                    centreShortBands()
                 }
             case "textDeflateInflateDeflate":
                 // Three bands: pinched, swollen, pinched.
-                let a = (warp.adjust.first ?? 25000) / 100_000
+                // The pinch stops short of the middle: at the largest adjusts
+                // the upper band reaches 0.59 of the box and the lower one
+                // starts 0.07 below it, so the middle band stays a thin strip
+                // instead of the curves crossing (lab wordart-banded, adjust
+                // 80000: Happy 0-148 pt, Birthday a thin strip, To from 168).
+                let a = min((warp.adjust.first ?? 25000) / 100_000, 0.59)
                 func upper(_ u: Double) -> Double { 1.0 / 3 - (1.0 / 3 - a) * (1 - bow(u)) }
-                func lower(_ u: Double) -> Double { 1 - upper(u) }
+                func lower(_ u: Double) -> Double { max(1 - upper(u), upper(u) + 0.07) }
                 if lines.count < 3 {
                     // Fewer lines than bands: the bands from the top down.
                     bands = [([lines[0]], { u in (0, upper(u) - 0.02) }, false, nil)]
@@ -627,6 +647,7 @@ enum WordArt {
                     bands = [(Array(lines[..<first]), { u in (0, upper(u) - 0.02) }, false, nil),
                              (Array(lines[first ..< first + second]), { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil),
                              (Array(lines[(first + second)...]), { u in (lower(u) + 0.02, 1) }, false, nil)]
+                    centreShortBands()
                 }
             case "textRingInside", "textRingOutside":
                 // The text round a ring seen from the front: its first half
