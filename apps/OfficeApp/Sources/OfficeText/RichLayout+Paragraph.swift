@@ -1596,7 +1596,14 @@ extension RichLayout {
                     return held
                 }
             }
-            if painter.strutStyle == nil, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, !picturesInLine, inline.allSatisfy({ $0.image == nil }),
+            // (An equation in the line is no picture here: its box stands in
+            // the line as text does, and a stand-in's split beside it
+            // stacks the line all the same — zh-c2c92639's "i   ——拆除…",
+            // 宋体 spaces before the "——" set in Liberation Mono, stood
+            // 1.1pt deeper than its ideographs, each such line 25.9pt
+            // under the last where Word's print keeps 24.6.)
+            if painter.strutStyle == nil, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout,
+               inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
                let flat = Self._unstackedFaces(span, painter) {
                 let flatter = TextPainter(text: flat, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
                 flatter.fractionalLineHeights = painter.fractionalLineHeights
