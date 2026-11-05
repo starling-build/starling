@@ -14568,3 +14568,4 @@ TIP WATCH amd-8, round 145 (tip fa9851207): Word no drops; unit tests 628 run, 0
 - lo5 (Linux): zh-701eda18 p6 LANDED (5288a65ce): a picture bigger than its fixed text box is cut at the box edge (16.05 -> 12.75; no UP/DOWN elsewhere). Rest of the page is CJK glyph face. Released. lo-eb12e7d4 p12 was landed by amd-5; my two-line-gap variant on top regressed the doc (100 -> 93.4), dropped.
 
 - lo5 (Linux): CLAIM triage zh-cec9d337, zh-0b48a0db, zh-51af781b, zh-15f60bac, zh-bbbb2e6a, zh-77bd4900 (glyph face vs placement).
+CLAIM (amd-5, 2026-11-05): zh-b3e8dec4 p9 (23%) and zh-cb57eaad (17.6%), the top unclaimed in the 756 visual ranking. Then lo-8928a1e9 / lo-ce0d5e6d / lo-9444eb35 / lo-0ceaa045 if nobody has them.
