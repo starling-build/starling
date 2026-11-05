@@ -2257,7 +2257,16 @@ extension RichLayout {
                         y = _px(down) - insetTop
                     } else if RichTextTheme.wordWindowsPages, i > 0, _cells[i - 1] == nil, document.paragraphs[i - 1].text.isEmpty,
                               document.paragraphs[i - 1].image == nil, document.paragraphs[i - 1].style.frameXML == nil,
-                              i == 1, page == 0, let before = _pages[page].last, before.paragraph == 0, before.pageY <= y + 0.01 {
+                              i == 1, page == 0, let before = _pages[page].last, before.paragraph == 0, before.pageY <= y + 0.01,
+                              !{ () -> Bool in
+                                  // (Not where another floating table follows at once: the anchor of both is the paragraph after
+                                  // them, which stands under that empty line. LibreOffice's tdf97090, tblpY 941 and -36: the
+                                  // first table 47pt under the paragraph after, 126 on the page, ours 103.)
+                                  var k = i
+                                  while k < count, let d = _cells[k], d.table == c.table { k += 1 }
+                                  guard theme.wordRules, k < count, let n = _cells[k], n.table != c.table, let ns = document.tableStyles[n.table] else { return false }
+                                  return ns.floatsOverText && ns.floatRaiseY != nil
+                              }() {
                         // (An empty first paragraph of the document, just before
                         // the table, is its anchor, and the offset is from that
                         // line's top, not from under it: LibreOffice's
