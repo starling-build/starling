@@ -14502,3 +14502,5 @@ TIP WATCH amd-8, round 136 (tip 90515623d, full round with the codex-amd landing
   4. Connectors (landed): arrow5 ring for 9+ nodes and '#n' ids; cycle7 arrows 0.8 x the smallest gap.
   5. Not SmartArt-shaped: Pyramid, rightArrow, smartart-simple, org-chart(2), composite-infer-right match PowerPoint in sizes and boxes; remaining 1.2-2.1 is glyph placement. textposition has a stray rectangle in PPT's print. Matrix: 3-D bevels, with amd-2.
   Lab: wip/lab-smartfit (SMARTFIT-WORD.txt); my scripts in /data/s/amd-7/sp/sa (cmp.py, sfcmp.py).
+
+TIP WATCH amd-8, round 136 bisect results (no reverts): SLIDES lo-tdf140852 1.55->1.75, lo-tdf137367 1.75->1.85, oox-outliner-list-style 0.23->0.33 all come from d21a54ec0 (percentage line spacing, lab p3lp); the commit is lab-tuned, so accepted, baseline reseeded. SHEETS chart-tdf111824 worst page 6.14->6.25 (mean 3.56->3.37, better) comes from 5750fd557; chart-auto_marker_excel10 3.28->3.33 comes from 4cf4ce4c8 or 6589f8852 (6589f8852 already shows 3.33). Both under 0.15 pt; Sheets baseline reseeded.
