@@ -1,0 +1,10 @@
+normal font: Calibri 11
+zoom=100  ver=16.0
+what	ColumnWidth	points	px(PointsToScreenPixelsX)	px(from-pt-96dpi)
+default(A)	8.47	51	363	68
+stdWidth=8.47 8.47
+set 7	7	42.75	355	57
+set 9.0667	9.07	54.375	366	72.5
+set 8.43	8.4	50.625	363	67.5
+set 10	10	59.625	372	79.5
+set 12	12	70.875	383	94.5
