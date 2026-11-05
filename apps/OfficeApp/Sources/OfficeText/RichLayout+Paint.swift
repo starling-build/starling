@@ -139,7 +139,7 @@ extension RichLayout {
     func _paintPageTile(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
         if theme.wordRules, RichTextTheme.wordWindowsPages, let c = document.backgroundColor {
             let fill = Paint()
-            fill.color = Color(0xFF000000 | c)
+            fill.color = Color(Int64(0xFF000000) | Int64(c))
             fill.style = .fill
             canvas.drawRect(pageRect(p), fill)
         }
