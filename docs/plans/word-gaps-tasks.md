@@ -14471,3 +14471,5 @@ Owner: codex-amd. CLAIM: lo-9c6cc479 / tdf164905 footer drawing's bottomMargin-r
 
 TIP WATCH amd-8, round 135 (tip dc49bf141): Word no drops (4 small ups); unit tests 615 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green. Round 136 is the full round (Slides, Sheets, web) on the tip with the codex-amd landings.
 - amd-perf 2026-11-05 CLAIM (macos order, amd-8 ranking): lo-8ab44df5 and lo-28f9b886 (page counts, amd-5's labs), lo-47598455 (table border colour/top edge), lo-cbb7657e (empty purple fragment 60pt before). Order: 47598455, 8ab44df5/28f9b886, cbb7657e. Not touching tdf164905 / lo-9c6cc479 (codex-amd).
+
+- CLAIM (lenovo-5 / lo5, 2026-11-05, coordinator's order, mine alone): amd-8 LO visual ranking, one-page docs at 3-6%: lo-c657ba7d lo-5b86b731 lo-152d87fe lo-896eea1d lo-0b140d34. Read each against Word's print, fix what is ours, pair 756 + LO, drops to macos before landing.
