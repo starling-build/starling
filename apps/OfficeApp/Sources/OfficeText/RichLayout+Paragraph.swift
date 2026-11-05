@@ -2321,9 +2321,14 @@ extension RichLayout {
             let bareText = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
             for image in (p.image.map { [$0] } ?? []) + p.inlineImages.inOrder {
                 guard bareText || image.sourceXML?.containsSubstring("drawingml/2006/chart") == true else { continue }
-                guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y > 0,
+                // (A hair above the line, -0.9pt as in lo-eb12e7d4's 137pt picture, in an empty
+                // paragraph: Word sets the line under it all the same — its p12 has the picture
+                // where the paragraph stood and the next paragraph at its foot, not over it.)
+                guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                      f.y > 0 || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
-                push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
+                // (… and one more line than the picture's height: Word's p12 has two lines under it before the next paragraph.)
+                push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom) + (f.y < 0 ? max(painter.height, _markLineHeight(i, document)) : 0))
             }
         }
         // (A picture wrapped top and bottom that stands at the top of the paragraph holding
