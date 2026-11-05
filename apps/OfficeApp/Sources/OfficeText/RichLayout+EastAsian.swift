@@ -1439,7 +1439,15 @@ extension RichLayout {
                                           + (RichTextTheme.wordWindowsPages && eastAsianAt(a) ? wordSpaces.reduce(0.0) { $0 + $1.w } * 0.47 : 0))
                                     <= markRoom * (stretchRoom + hair)
                                 : need * (gapStretch() + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } - macWordGap + spacedStretch)
-                                    <= (room + spacedGive + kinsokuGive) * (stretchRoom + spacedTrail + hair) || cellRest
+                                    <= (room + spacedGive + kinsokuGive) * (stretchRoom + spacedTrail + hair)
+                                        * (RichTextTheme.wordWindowsPages && inCell && !legacy && !given.isEmpty ? 1.03 : 1) || cellRest
+                                    // (In a cell, a line with automatic spaces as well as
+                                    // marks gets 3% more, Word for Windows. Labs cend/cend2
+                                    // (the cells alone, w:right stepped): zh-073c9234's
+                                    // "…精" takes "進" at a share of 1.047 and
+                                    // zh-12db188f's "…函" takes "釋" at 1.046, while
+                                    // zh-073c9234's "…擴" refuses "充" at 1.057. Every row
+                                    // of all three matches from 1.025 to 1.0375.)
                                     // (A digit that ends a cell's line, Word for Windows: lab
                                     // `sqc`'s "11" is taken 4.5 over and left from 6, half
                                     // its "月", whatever the share test says of the line's
