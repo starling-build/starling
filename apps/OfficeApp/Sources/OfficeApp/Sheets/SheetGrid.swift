@@ -441,7 +441,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
                     let one = texts.painter("X", style).height
                     let trailing = Double(text.reversed().prefix { $0 == "\n" }.count)
-                    let lines = texts.painter(text, style, maxWidth: width).height + trailing * one
+                    var lines = texts.painter(text, style, maxWidth: width).height + trailing * one
+                    // (Excel wraps on its face's whole pixels at 96 dpi — GDI's — in the column less 3 pixels: the
+                    // design advances put LIBRE_OFFICE-116306-0's "NONKQUB", 65 px in a 68-px column, a line
+                    // over, and CVLKRA-KYC's "alphan|umeric" at 42 and 50 px.)
+                    if let n = Self._hintedLines(text, face: book.fontName(st), size: book.fontSize(st), bold: st.bold, italic: st.italic,
+                                                 availablePx: (m.screenColumn(chars) - 2.25) * scale / 0.75) {
+                        lines = Double(n) * one
+                    }
                     // (Text that wraps to one line is its font's line, which the
                     // fonts above have given the row: lo-pivottable_invalid_formats'
                     // wrapping one-line rows print at Arial 10's 12.36, where
@@ -2619,7 +2626,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
-        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity, align: wraps ? lineAlign : .left)
+        // (Printed, a wrapped cell breaks where the row fit counted: Excel's whole-pixel lines.)
+        var hinted = false
+        if printing, wraps {
+            if let b = Self._hintedBreaks(text, face: book.fontName(st), size: book.fontSize(st), bold: st.bold, italic: st.italic,
+                                          availablePx: (width - 2.25 * scale) / (0.75 * scale)) { text = b; hinted = true }
+        }
+        // (Its lines are already whole: the painter must not break them again, though its design advances run wider.)
+        var wrapWidth = max(1, width - pad * 2)
+        if hinted {
+            for l in text.split(separator: "\n", omittingEmptySubsequences: true) { wrapWidth = max(wrapWidth, texts.painter(String(l), style).width + 1) }
+        }
+        var tp = texts.painter(text, style, maxWidth: wraps ? wrapWidth : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -2739,7 +2757,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2))
+            let lines = (hinted ? NumberFormat.unpad(text) : texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2)))
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
@@ -2826,6 +2844,60 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (Bold counts where the face's bold has a line of its own, though the
     /// style names neither face nor size: FormulaSheetRange's bold Arial 10
     /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
+    /// The lines `text` takes in `availablePx` of Excel's screen pixels, wrapped on the face's whole-pixel widths
+    /// (`HintedAdvances`), or nil where the table has no such face and size. Words break at spaces; a word wider than
+    /// the line starts a line of its own and is cut by character.
+    static func _hintedLines(_ text: String, face: String, size: Double, bold: Bool, italic: Bool, availablePx: Double) -> Int? {
+        guard let broken = _hintedBreaks(text, face: face, size: size, bold: bold, italic: italic, availablePx: availablePx) else { return nil }
+        return broken.split(separator: "\n", omittingEmptySubsequences: false).count
+    }
+
+    /// `text` with a line break wherever Excel wraps it (see `_hintedLines`), or nil.
+    static func _hintedBreaks(_ text: String, face: String, size: Double, bold: Bool, italic: Bool, availablePx: Double) -> String? {
+        let sizeKey = size == size.rounded() ? String(Int(size)) : String(size)
+        guard let row = HintedAdvances.table["\(face.lowercased())|\(sizeKey)|\(bold ? 1 : 0)|\(italic ? 1 : 0)"] else { return nil }
+        let widths = Array(row.unicodeScalars).map { Int($0.value) - 48 }
+        func w(_ c: Character) -> Int? {
+            guard let u = c.unicodeScalars.first, c.unicodeScalars.count == 1, u.value >= 0x20, u.value <= 0xFF else { return nil }
+            let v = widths[Int(u.value) - 0x20]
+            return v > 0 ? v : nil
+        }
+        let room = Int(availablePx.rounded(.down) + 0.0001)
+        var out = [String]()
+        for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            var lines = [String](), cur = "", line = 0, spaces = "", spacePx = 0, word = "", wordPx = 0
+            func flush() {
+                guard !word.isEmpty else { return }
+                if line + spacePx + wordPx <= room { cur += spaces + word; line += spacePx + wordPx }
+                else if wordPx <= room { lines.append(cur); cur = word; line = wordPx }
+                else {
+                    if line > 0 { lines.append(cur); cur = ""; line = 0 }
+                    for c in word {
+                        let px = w(c) ?? 0
+                        if line + px > room, line > 0 { lines.append(cur); cur = ""; line = 0 }
+                        cur.append(c); line += px
+                    }
+                }
+                word = ""; wordPx = 0; spaces = ""; spacePx = 0
+            }
+            var prev: Character = " "
+            for c in paragraph {
+                guard let px = w(c) else { return nil }
+                if c == " " { flush(); spaces.append(c); spacePx += px }
+                else {
+                    // (A hyphen after a letter ends a piece: CVLKRA-KYC's "Non-|Individual".)
+                    if prev == "-", let q = word.dropLast().last, q.isLetter, c.isLetter { flush() }
+                    word.append(c); wordPx += px
+                }
+                prev = c
+            }
+            flush()
+            lines.append(cur)
+            out.append(lines.joined(separator: "\n"))
+        }
+        return out.joined(separator: "\n")
+    }
+
     static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
         st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
             : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
