@@ -6203,7 +6203,7 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(back.paragraphs[4].style.pageBreakBefore && back.paragraphs[4].style.columnBreak)
         let again = try part("word/document.xml", of: back)
         XCTAssertTrue(again.contains("<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t xml:space=\"preserve\">6</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"), again)
-        XCTAssertTrue(again.contains("w:name=\"_Toc1\"/><w:bookmarkEnd"), again)
+        XCTAssertTrue(again.contains("w:name=\"_Toc1\"/>"), again)
         XCTAssertTrue(again.contains("<w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"column\"/></w:r>"), again)
         XCTAssertFalse(again.contains("<w:pageBreakBefore/>"), again)
         XCTAssertTrue(again.contains("<w:framePr w:h=\"6974\" w:hAnchor=\"page\" w:vAnchor=\"page\" w:w=\"9639\" w:x=\"1419\" w:y=\"6408\"/>"), again)

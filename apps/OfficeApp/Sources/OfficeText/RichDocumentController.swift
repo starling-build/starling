@@ -43,6 +43,8 @@ public enum RichChange: Equatable, Sendable {
 public indirect enum EditOp: Equatable, Sendable {
     case insertText(RichPosition, String, [Run])
     case deleteText(RichPosition, String, [Run])
+    /// Restore exact bookmark boundaries as well as text when undoing an edit.
+    case restoreParagraphs(Int, count: Int, [RichParagraph])
     /// Split the paragraph at the position; the tail takes `tailStyle`.
     case splitParagraph(RichPosition, tailStyle: RichParagraphStyle)
     /// Join paragraph `index + 1` onto `index`; `removedStyle` is the tail's
@@ -70,18 +72,30 @@ public indirect enum EditOp: Equatable, Sendable {
     func apply(to doc: inout RichDocument, changes: inout [RichChange]) -> EditOp {
         switch self {
         case .insertText(let pos, let text, let runs):
+            let before = doc.paragraphs[pos.paragraph]
             doc.paragraphs[pos.paragraph].insert(text, at: pos.offset, runs: runs)
             changes.append(.changed(pos.paragraph))
+            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
             return .deleteText(pos, text, runs)
         case .deleteText(let pos, let text, let runs):
+            let before = doc.paragraphs[pos.paragraph]
             let units = text.utf16.count
             let removed = doc.paragraphs[pos.paragraph].delete(pos.offset ..< pos.offset + units)
             changes.append(.changed(pos.paragraph))
+            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 1, [before]) }
             // Prefer what was actually removed (defensive: identical unless a
             // caller composed ops by hand).
             return .insertText(pos, removed.text.isEmpty ? text : removed.text,
                                removed.runs.isEmpty ? runs : removed.runs)
+        case .restoreParagraphs(let index, let count, let paragraphs):
+            let before = Array(doc.paragraphs[index ..< index + count])
+            doc.paragraphs.replaceSubrange(index ..< index + count, with: paragraphs)
+            changes.append(.changed(index))
+            if count > 1 { changes.append(.removed(at: index + 1, count: count - 1)) }
+            if paragraphs.count > 1 { changes.append(.inserted(at: index + 1, count: paragraphs.count - 1)) }
+            return .restoreParagraphs(index, count: paragraphs.count, before)
         case .splitParagraph(let pos, let tailStyle):
+            let before = doc.paragraphs[pos.paragraph]
             var tail = doc.paragraphs[pos.paragraph].split(at: pos.offset)
             let removedStyle = tail.style
             tail.style = tailStyle
@@ -89,14 +103,19 @@ public indirect enum EditOp: Equatable, Sendable {
             changes.append(.changed(pos.paragraph))
             changes.append(.inserted(at: pos.paragraph + 1, count: 1))
             _ = removedStyle
+            if !before.bookmarkMarkers.isEmpty { return .restoreParagraphs(pos.paragraph, count: 2, [before]) }
             return .mergeParagraph(pos.paragraph, removedStyle: tailStyle)
         case .mergeParagraph(let index, let removedStyle):
+            let head = doc.paragraphs[index]
             let headLength = doc.paragraphs[index].length
             let tail = doc.paragraphs.remove(at: index + 1)
             doc.paragraphs[index].append(tail)
             changes.append(.changed(index))
             changes.append(.removed(at: index + 1, count: 1))
             _ = removedStyle
+            if !head.bookmarkMarkers.isEmpty || !tail.bookmarkMarkers.isEmpty {
+                return .restoreParagraphs(index, count: 1, [head, tail])
+            }
             return .splitParagraph(RichPosition(paragraph: index, offset: headLength),
                                    tailStyle: tail.style)
         case .setRuns(let index, let old, let new):

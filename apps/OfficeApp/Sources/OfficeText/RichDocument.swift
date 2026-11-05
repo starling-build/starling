@@ -206,6 +206,11 @@ public struct CharStyle: Hashable, Sendable {
     /// (`PAGEREF _Toc123 \h`): written back as the field, so Word can
     /// still bring a contents page's numbers up to date.
     public var field: String? = nil
+    /// A live field kept for DOCX save without evaluating it in layout.
+    /// Separate from `field`, which drives page-number substitution.
+    public var preservedField: String? = nil
+    /// The kept field's lock/dirty flags, independent of run formatting.
+    public var preservedFieldProperties: [String: String] = [:]
     /// Ruby set over this run's text (Word's `w:ruby`: furigana over
     /// kanji); nil for none.
     public var ruby: RubyText? = nil
@@ -1732,6 +1737,18 @@ public struct Run: Hashable, Sendable {
     }
 }
 
+/// One endpoint of a named DOCX text range, in paragraph-local UTF-16 units.
+public struct RichBookmarkMarker: Hashable, Sendable {
+    public var id: String
+    /// A start marker's name; nil for its matching end.
+    public var name: String?
+    public var offset: Int
+
+    public init(id: String, name: String? = nil, offset: Int) {
+        self.id = id; self.name = name; self.offset = offset
+    }
+}
+
 /// One paragraph: its text, the runs that cover it exactly, and its style.
 ///
 /// Invariant (`isValid`): the run lengths sum to `text.utf16.count`, no run
@@ -1755,6 +1772,8 @@ public struct RichParagraph: Hashable, Sendable {
     /// Names of the bookmarks that start in this paragraph (what a
     /// contents page's page references point at).
     public var bookmarks: [String] = []
+    /// Ordered start/end markers at UTF-16 positions, including empty ranges.
+    public var bookmarkMarkers: [RichBookmarkMarker] = []
 
     public static let inlineImageCharacter = "\u{FFFC}"
 
@@ -1873,6 +1892,9 @@ public struct RichParagraph: Hashable, Sendable {
         let insertUnits = string.utf16.count
         guard insertUnits > 0 else { return }
         let offset = max(0, min(offset, length))
+        for i in bookmarkMarkers.indices where bookmarkMarkers[i].offset >= offset {
+            bookmarkMarkers[i].offset += insertUnits
+        }
         let styled = newRuns ?? [Run(length: insertUnits, style: style(at: offset))]
         // Split the run at `offset` and splice the new runs between.
         var out: [Run] = []
@@ -1907,6 +1929,11 @@ public struct RichParagraph: Hashable, Sendable {
         let lo = max(0, min(range.lowerBound, length))
         let hi = max(lo, min(range.upperBound, length))
         guard hi > lo else { return ("", []) }
+        for i in bookmarkMarkers.indices {
+            bookmarkMarkers[i].offset = bookmarkMarkers[i].offset > hi
+                ? bookmarkMarkers[i].offset - (hi - lo)
+                : min(bookmarkMarkers[i].offset, lo)
+        }
         let removedRuns = runs(in: lo ..< hi)
         var out: [Run] = []
         var pos = 0
@@ -1974,6 +2001,13 @@ public struct RichParagraph: Hashable, Sendable {
         var tail = RichParagraph(text: tailText,
                                  runs: tailRuns.isEmpty ? [Run(length: 0, style: headStyleAtEnd)] : tailRuns,
                                  style: style)
+        tail.bookmarkMarkers = bookmarkMarkers.filter { $0.offset >= offset }.map {
+            RichBookmarkMarker(id: $0.id, name: $0.name, offset: $0.offset - offset)
+        }
+        bookmarkMarkers.removeAll { $0.offset >= offset }
+        let movedNames = Set(tail.bookmarkMarkers.compactMap(\.name))
+        tail.bookmarks = bookmarks.filter { movedNames.contains($0) }
+        bookmarks.removeAll { movedNames.contains($0) }
         tail.normalize()
         if image != nil { tail.image = nil }
         tail.cell = cell
@@ -1986,6 +2020,10 @@ public struct RichParagraph: Hashable, Sendable {
 
     /// Append `other`'s text and runs; the paragraph style stays self's.
     public mutating func append(_ other: RichParagraph) {
+        bookmarkMarkers += other.bookmarkMarkers.map {
+            RichBookmarkMarker(id: $0.id, name: $0.name, offset: length + $0.offset)
+        }
+        bookmarks += other.bookmarks.filter { !bookmarks.contains($0) }
         if other.text.isEmpty { return }
         if text.isEmpty {
             text = other.text

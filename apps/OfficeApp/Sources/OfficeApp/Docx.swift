@@ -1572,6 +1572,10 @@ enum DocxFormat {
                     RuleTrace.hit("hidden-mark-joins-second")
                     paragraphs[i].style.alignment = p.style.alignment
                 }
+                let bookmarkOffset = paragraphs[i].length
+                paragraphs[i].bookmarkMarkers += p.bookmarkMarkers.map {
+                    RichBookmarkMarker(id: $0.id, name: $0.name, offset: bookmarkOffset + $0.offset)
+                }
                 paragraphs[i].text += p.text
                 paragraphs[i].runs += p.runs
                 paragraphs[i].bookmarks += p.bookmarks
@@ -1685,7 +1689,7 @@ enum DocxFormat {
                         guard let content = notes.boxTables.removeValue(forKey: image.id), var box = image.textBox else { return image }
                         let saved = (paragraphs, currentCell, cellChar, cellBase, cellRootBase, recordingBody,
                                      pendingPageBreak, pendingBreakCharacter, pendingBreakRPr, pendingBreakColumn)
-                        let counts = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                        let counts = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                                       notes.seenComments, notes.fieldShown)
                         paragraphs = []; currentCell = nil; recordingBody = false; pendingPageBreak = false
                         cellChar = CharStyle()
@@ -1695,7 +1699,7 @@ enum DocxFormat {
                         let inner = paragraphs
                         (paragraphs, currentCell, cellChar, cellBase, cellRootBase, recordingBody,
                          pendingPageBreak, pendingBreakCharacter, pendingBreakRPr, pendingBreakColumn) = saved
-                        (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                        (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                          notes.seenComments, notes.fieldShown) = counts
                         guard !inner.isEmpty else { return image }
                         let ids = Set(inner.compactMap { $0.cell?.table })
@@ -2775,7 +2779,19 @@ enum DocxFormat {
                     for child in content.children { walkBlock(child, indent: indent) }
                 }
             case "w:bookmarkStart":
-                if let name = node["w:name"], name != "_GoBack" { notes.pendingBookmarks.append(name) }
+                if let name = node["w:name"], name != "_GoBack" {
+                    notes.pendingBookmarks.append(name)
+                    if let id = node["w:id"] { notes.pendingBookmarkMarkers.append(RichBookmarkMarker(id: id, name: name, offset: 0)) }
+                }
+            case "w:bookmarkEnd":
+                if let id = node["w:id"] {
+                    if notes.pendingBookmarkMarkers.contains(where: { $0.id == id }) {
+                        notes.pendingBookmarkMarkers.append(RichBookmarkMarker(id: id, offset: 0))
+                    } else if !paragraphs.isEmpty {
+                        let i = paragraphs.count - 1
+                        paragraphs[i].bookmarkMarkers.append(RichBookmarkMarker(id: id, offset: paragraphs[i].length))
+                    }
+                }
             case "w:commentRangeStart":
                 // A range may open or close between paragraphs
                 // (WordWithAttachments), not only inside one.
@@ -3636,6 +3652,13 @@ enum DocxFormat {
     static func _isPageField(_ instr: String) -> Bool {
         let word = instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
         return word == "PAGE" || word == "NUMPAGES" || word == "SECTIONPAGES"
+    }
+
+    /// Metadata fields keep their cached result and instruction; layout
+    /// does not update them or confuse them with page-number fields.
+    private static func _preservesField(_ instr: String) -> Bool {
+        let word = instr.split(whereSeparator: { $0.isWhitespace }).first?.uppercased() ?? ""
+        return ["AUTHOR", "DATE", "DOCPROPERTY"].contains(word)
     }
 
     private static func _fieldText(_ root: XNode) -> String {
@@ -4709,6 +4732,7 @@ enum DocxFormat {
         /// Bookmarks started since the last paragraph was built: they go
         /// to the next one.
         var pendingBookmarks: [String] = []
+        var pendingBookmarkMarkers: [RichBookmarkMarker] = []
         /// The names (lower-cased) of the bookmarks the body defines, and the
         /// page references already answered "Error! Bookmark not defined."
         /// (one answer per field, however many runs its old result was in).
@@ -4718,7 +4742,7 @@ enum DocxFormat {
         /// contents field spans paragraphs and holds a page reference per
         /// line): each one's instruction, whether its result has begun,
         /// and its number in the document (`CharStyle.fieldResult`).
-        var fields: [(instr: String, result: Bool, id: Int)] = []
+        var fields: [(instr: String, result: Bool, id: Int, properties: [String: String])] = []
         /// The look of each field's code (its first instruction run), by id.
         var fieldCodeStyle: [Int: CharStyle] = [:]
         var fieldCount = 0
@@ -5340,6 +5364,7 @@ enum DocxFormat {
 
         var built: [_Built] = []
         var text = ""
+        var bookmarkMarkers: [RichBookmarkMarker] = []
         var runs: [Run] = []
         var positionalTabs: [Int: TabStop.Alignment] = [:]
         var inlineImages: [String: ImageAttachment] = [:]
@@ -5381,6 +5406,9 @@ enum DocxFormat {
             para.normalize()
             para.bookmarks = notes.pendingBookmarks
             notes.pendingBookmarks = []
+            para.bookmarkMarkers = notes.pendingBookmarkMarkers + bookmarkMarkers
+            notes.pendingBookmarkMarkers = []
+            bookmarkMarkers = []
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
             text = ""
             runs = []
@@ -5622,12 +5650,12 @@ enum DocxFormat {
             // reader, but leave the body's notes and field state alone.
             var drawingWordArt: [ObjectIdentifier: WriterGroups.DrawingWordArt] = [:]
             if !notes.inTextBox, node.descendant("wpg:wgp") != nil || att.outline == nil {
-                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                              notes.seenComments, notes.fieldShown)
                 notes.inTextBox = true
                 defer {
                     notes.inTextBox = false
-                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                      notes.seenComments, notes.fieldShown) = saved
                 }
                 for shape in node.descendants("wps:wsp") {
@@ -5664,10 +5692,10 @@ enum DocxFormat {
                 // was: reading its text again must leave no mark on what
                 // the body's own reading counts — notes, comments,
                 // bookmarks, open fields.)
-                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                              notes.seenComments, notes.fieldShown)
                 defer {
-                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                      notes.seenComments, notes.fieldShown) = saved
                 }
                 notes.fields = []
@@ -6146,6 +6174,10 @@ enum DocxFormat {
             if let f = notes.fields.last, f.result {
                 cs.fieldResult = f.id
                 let instr = f.instr.trimmingWhitespace(newlines: true)
+                if Self._preservesField(instr) {
+                    cs.preservedField = instr
+                    cs.preservedFieldProperties = f.properties
+                }
                 if instr.uppercased().hasPrefix("PAGEREF ") {
                     cs.field = instr
                     // (A page reference to a bookmark the file does not have:
@@ -6268,7 +6300,8 @@ enum DocxFormat {
                     switch child["w:fldCharType"] {
                     case "begin":
                         notes.fieldCount += 1
-                        notes.fields.append((instr: "", result: false, id: notes.fieldCount)); notes.fieldShown = false
+                        notes.fields.append((instr: "", result: false, id: notes.fieldCount,
+                                             properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" })); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
                     case "end":
                         // (A page field with no result yet shows a number
@@ -6507,7 +6540,11 @@ enum DocxFormat {
                 switch child.name {
                 case "w:r": walkRun(child, link: link, revision: revision)
                 case "w:hyperlink":
-                    let target = child["r:id"].flatMap { rels[$0] } ?? child["w:anchor"].map { "#\($0)" }
+                    // Word appends the bookmark to an external Target URL
+                    // (MS-OI29500 2.1.521), even with r:id present.
+                    let external = child["r:id"].flatMap { rels[$0] }
+                    let target = external.map { $0 + (child["w:anchor"].map { "#\($0)" } ?? "") }
+                        ?? child["w:anchor"].map { "#\($0)" }
                     walkInline(child, link: target, revision: revision)
                 case "w:ins", "w:del":
                     // Tracked changes stay tracked: the text with its mark,
@@ -6533,9 +6570,10 @@ enum DocxFormat {
                     let mark = RevisionMark(kind: child.name == "w:moveTo" ? .inserted : .deleted,
                                             author: child["w:author"] ?? "", date: child["w:date"] ?? "", moved: true)
                     walkInline(child, link: link, revision: mark)
-                case "w:fldSimple" where notes.inHeaderFooter && DocxFormat._isPageField(child["w:instr"] ?? ""):
+                case "w:fldSimple" where Self._preservesField(child["w:instr"] ?? "") || notes.inHeaderFooter && DocxFormat._isPageField(child["w:instr"] ?? ""):
                     notes.fieldCount += 1
-                    notes.fields.append((instr: child["w:instr"] ?? "", result: true, id: notes.fieldCount))
+                    notes.fields.append((instr: child["w:instr"] ?? "", result: true, id: notes.fieldCount,
+                                         properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" }))
                     walkInline(child, link: link, revision: revision)
                     notes.fields.removeLast()
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
@@ -6583,8 +6621,13 @@ enum DocxFormat {
                 case "w:commentRangeEnd":
                     if let id = child["w:id"] { notes.openComments.removeAll { $0 == id } }
                 case "w:bookmarkStart":
-                    if let name = child["w:name"], name != "_GoBack" { notes.pendingBookmarks.append(name) }
-                case "w:pPr", "w:proofErr", "w:bookmarkEnd":
+                    if let name = child["w:name"], name != "_GoBack" {
+                        notes.pendingBookmarks.append(name)
+                        if let id = child["w:id"] { bookmarkMarkers.append(RichBookmarkMarker(id: id, name: name, offset: text.utf16.count)) }
+                    }
+                case "w:bookmarkEnd":
+                    if let id = child["w:id"] { bookmarkMarkers.append(RichBookmarkMarker(id: id, offset: text.utf16.count)) }
+                case "w:pPr", "w:proofErr":
                     break
                 default: break
                 }
@@ -7350,8 +7393,7 @@ enum DocxFormat {
         }
         /// The comment ids on the run after (`index`, `runIndex`): the next
         /// run of the paragraph, else the next paragraph's first.
-        func commentsAfter(_ index: Int, _ runIndex: Int) -> [String] {
-            let p = doc.paragraphs[index]
+        func commentsAfter(_ index: Int, _ runIndex: Int, in p: RichParagraph) -> [String] {
             if let next = p.runs[(runIndex + 1)...].first(where: { $0.length > 0 }) { return next.style.comments }
             guard index + 1 < doc.paragraphs.count else { return [] }
             let np = doc.paragraphs[index + 1]
@@ -7428,6 +7470,25 @@ enum DocxFormat {
             return frag
         }
         var writtenBookmarks = Set<String>()   // a name is written once (a split paragraph carries its twice)
+        var nextPointBookmarkID = 100_000
+        var rangedBookmarkNames = Set<String>(), rangedBookmarkIDs = Set<String>(), seenBookmarkNames = Set<String>()
+        var openBookmarks: [String: (paragraph: Int, marker: Int, name: String)] = [:]
+        var bookmarkMarkersToWrite: [Int: Set<Int>] = [:]
+        for (i, paragraph) in doc.paragraphs.enumerated() {
+            for (j, marker) in paragraph.bookmarkMarkers.enumerated() {
+                if let name = marker.name {
+                    // Pasting a paragraph can copy its markers too. A
+                    // bookmark name/id still defines only one range.
+                    guard !seenBookmarkNames.contains(name), !rangedBookmarkIDs.contains(marker.id) else { continue }
+                    seenBookmarkNames.insert(name); rangedBookmarkIDs.insert(marker.id)
+                    openBookmarks[marker.id] = (i, j, name)
+                } else if let start = openBookmarks.removeValue(forKey: marker.id) {
+                    rangedBookmarkNames.insert(start.name)
+                    bookmarkMarkersToWrite[start.paragraph, default: []].insert(start.marker)
+                    bookmarkMarkersToWrite[i, default: []].insert(j)
+                }
+            }
+        }
         /// Whether paragraph `i`'s page break goes back as the break
         /// character that ended the paragraph before it, as the file had
         /// it: Word drops the space before a paragraph that follows one
@@ -7443,7 +7504,31 @@ enum DocxFormat {
                 && prev.image == nil && prev.keptTable == nil && p.keptTable == nil
         }
         func paragraphXML(_ index: Int) -> String {
-            let p = doc.paragraphs[index]
+            var p = doc.paragraphs[index]
+            // Boundaries can fall inside a normalized run. Split only the
+            // serialization view, keeping the document's run invariants.
+            let cuts = Set(p.bookmarkMarkers.map { max(0, min($0.offset, p.length)) })
+            if !cuts.isEmpty {
+                var split: [Run] = [], offset = 0
+                for run in p.runs {
+                    let end = offset + run.length
+                    for cut in cuts.filter({ $0 > offset && $0 < end }).sorted() {
+                        split.append(Run(length: cut - offset, style: run.style)); offset = cut
+                    }
+                    split.append(Run(length: end - offset, style: run.style)); offset = end
+                }
+                p.runs = split
+            }
+            func bookmarkXML(at offset: Int) -> String {
+                p.bookmarkMarkers.enumerated().filter {
+                    bookmarkMarkersToWrite[index]?.contains($0.offset) == true && max(0, min($0.element.offset, p.length)) == offset
+                }.map { _, marker in
+                    if let name = marker.name {
+                        return "<w:bookmarkStart w:id=\"\(_esc(marker.id))\" w:name=\"\(_esc(name))\"/>"
+                    }
+                    return "<w:bookmarkEnd w:id=\"\(_esc(marker.id))\"/>"
+                }.joined()
+            }
             var body = ""
             var pPr = ""
             if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
@@ -7543,9 +7628,10 @@ enum DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
-            for name in p.bookmarks where writtenBookmarks.insert(name).inserted {
+            for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
-                let id = 100_000 + writtenBookmarks.count
+                repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID))
+                let id = nextPointBookmarkID
                 body += "<w:bookmarkStart w:id=\"\(id)\" w:name=\"\(_esc(name))\"/><w:bookmarkEnd w:id=\"\(id)\"/>"
             }
             if inlineBreak {
@@ -7592,6 +7678,7 @@ enum DocxFormat {
             var pos = 0
             let utf16 = p.text.utf16
             for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
+                body += bookmarkXML(at: pos)
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
                 let b = utf16.index(a, offsetBy: run.length)
                 let piece = String(utf16[a ..< b]) ?? ""
@@ -7670,14 +7757,14 @@ enum DocxFormat {
                 } else {
                     runXML = "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                 }
-                if let instr = s.field {
+                if let instr = s.field ?? s.preservedField {
                     // One field may have several result runs (a contents
                     // number with only some digits bold, for example).
                     // Keep every run inside the field rather than skipping
                     // later runs. Distinct imported fields can have the
                     // same instruction, so compare their result ids too.
                     func sameField(_ other: Run?) -> Bool {
-                        guard let other, other.style.field == instr,
+                        guard let other, (other.style.field ?? other.style.preservedField) == instr,
                               other.style.fieldResult == s.fieldResult else { return false }
                         if let id = other.style.inlineImage, p.inlineImages[id] != nil { return false }
                         if let note = other.style.note,
@@ -7687,7 +7774,10 @@ enum DocxFormat {
                     let prior = p.runs.prefix(runIndex).last { $0.length > 0 }
                     let next = p.runs.dropFirst(runIndex + 1).first { $0.length > 0 }
                     if !sameField(prior) {
-                        runXML = "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(instr)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>\(runXML)"
+                        let properties = s.preservedFieldProperties.keys.sorted().map {
+                            " \($0)=\"\(_esc(s.preservedFieldProperties[$0]!))\""
+                        }.joined()
+                        runXML = "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"\(properties)/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(instr)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>\(runXML)"
                     }
                     if !sameField(next) {
                         runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
@@ -7717,8 +7807,9 @@ enum DocxFormat {
                 } else {
                     body += runXML
                 }
-                if commentsKept { body += closeComments(except: commentsAfter(index, runIndex)) }
+                if commentsKept { body += closeComments(except: commentsAfter(index, runIndex, in: p)) }
             }
+            body += bookmarkXML(at: p.length)
             if breakRidesOnPrevious(index + 1) {
                 let next = doc.paragraphs[index + 1].style
                 body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
