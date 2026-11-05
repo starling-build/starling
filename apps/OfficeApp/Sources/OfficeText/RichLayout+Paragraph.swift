@@ -659,6 +659,17 @@ extension RichLayout {
             lead = _px(style.firstLineIndent) - _px(theme.listIndent) + marker.width
             marker.dispose()
         }
+        // A hanging bullet wider than its hang pushes the first line's text
+        // right, to just after it, instead of the bullet standing back over
+        // the margin: lo-smartart-bullet-list's 25.4 pt bullet over a hang of
+        // 22.5, the text 25.4 in.
+        if theme.markersAtHang, style.list != nil, !p.text.isEmpty,
+           _px(style.firstLineIndent) < _px(theme.listIndent) - 0.01, let label = listLabel(i, document) {
+            let marker = _hangMarker(i, p, document, label: label)
+            let hang = _px(theme.listIndent) - _px(style.firstLineIndent)
+            if marker.width > hang + 0.01 { lead = marker.width - hang }
+            marker.dispose()
+        }
         if let wl = wordList, let label = listLabel(i, document) {
             let marker = _marker(i, p, document, label: label, strut: nil)
             // (A number set right — `w:lvlJc` right — ends where the first

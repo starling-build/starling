@@ -1310,7 +1310,9 @@ extension RichLayout {
                     // at the box's edge, 104.)
                     var along = 0.0
                     if p.style.alignment == .center || p.style.alignment == .right, let first = g.painter.computeLineMetrics().first { along = first.left }
-                    marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4) + along, top()))
+                    // (A bullet wider than its hang stays at the hang, the text pushed past it: `lead`.)
+                    let wide = marker.width > g.textLeft - hang + 0.01
+                    marker.paint(canvas, Offset((wide ? hang : min(hang, g.textLeft - marker.width - 4)) + along, top()))
                 }
             } else if theme.wordRules, !document.readFromFile {
                 // No level of its own yet: where the file it is saved to

@@ -2053,7 +2053,11 @@ struct DiagramLayout {
                     // 16, 18 at 27, 22.5 from 31 up).
                     let stated = runs.first { $0.name == "a:r" }?.first("a:rPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
                     let own = stated ?? (level > 0 ? sec : prim)
-                    let unit = Int(4.5 * Double(min(5, Int((own / 6.75).rounded(.up)))) * 12700)
+                    // (A hang the data's own paragraph states is kept: missing-
+                    // bullet's 8.75 pt, under which the 12 pt bullet pushes its
+                    // text right in PowerPoint's print.)
+                    let said = para.first("a:pPr")?["indent"].flatMap(Int.init).map { -$0 }
+                    let unit = said.flatMap { $0 > 0 ? $0 : nil } ?? Int(4.5 * Double(min(5, Int((own / 6.75).rounded(.up)))) * 12700)
                     pPr.attrs["marL"] = String(unit * (level + 2 - startLevel))
                     pPr.attrs["indent"] = String(-unit)
                     pPr.children = [XNode(name: "a:buChar", attrs: ["char": "•"])]
@@ -2068,8 +2072,12 @@ struct DiagramLayout {
                     n.children = [XNode(name: "a:spcPct", attrs: ["val": String(v)])]
                     return n
                 }
-                pPr.children.insert(contentsOf: [pct("a:lnSpc", 90000), pct("a:spcBef", 0),
-                                                 pct("a:spcAft", level > 0 ? 15000 : 35000)], at: 0)
+                // (What the data's own paragraph states stands: missing-bullet's
+                // bullet line is at 100% and no space after, a tenth taller than
+                // the generated 90%, in PowerPoint's print.)
+                func stated(_ name: String, _ fallback: XNode) -> XNode { para.first("a:pPr")?.first(name) ?? fallback }
+                pPr.children.insert(contentsOf: [stated("a:lnSpc", pct("a:lnSpc", 90000)), stated("a:spcBef", pct("a:spcBef", 0)),
+                                                 stated("a:spcAft", pct("a:spcAft", level > 0 ? 15000 : 35000))], at: 0)
                 out.children = [pPr]
                 for run in runs {
                     let r = clone(run)
