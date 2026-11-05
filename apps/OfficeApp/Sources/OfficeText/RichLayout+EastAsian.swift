@@ -1812,7 +1812,12 @@ extension RichLayout {
                     // (0.47 of itself in Word for Windows: lab `sq`'s 2.2 of 2.5 with two at 10pt is taken and
                     // 3.0 with six is not; zh-64c27df5's cell "…標準大" leaves "氣" 1.42 over with one of 3.0,
                     // zh-4ea36aa8's "…國小至" "高" 2.96 with three, where zh-4f883dce's 2.44 with two is taken.)
-                    let autoGive = RichTextTheme.wordWindowsPages ? 0.47 : 0.5
+                    let cellWindows = RichTextTheme.wordWindowsPages && inCell && !legacy && !onCharacterGrid && hang == 0
+                    // (In a cell, 0.54: lab `cend` (Word for Windows, zh-147bdae0's p60 cell, 標楷體 12, mode 15) takes
+                    // "程" with one automatic space of 3.0 and no word space 1.51pt over and not 1.76, and with the
+                    // line's word space of 6.0 3.01 and not 3.26 — the word space its quarter; zh-64c27df5's cell
+                    // leaves "氣" 1.73 over with one, at Word's own width.)
+                    let autoGive = cellWindows ? 0.54 : RichTextTheme.wordWindowsPages ? 0.47 : 0.5
                     // (From 2013's layout a quarter of each, where that is more than the quarter em: lab `asp`
                     // (Word for Windows, zh-147bdae0's p64 line "地之檢討，102年11月29日已頒訂「都市計畫公共設施保",
                     // mode 15, doNotCompress, 標楷體 12, a cell or the body, no grid) takes "保" with five spaces of 3.0
@@ -1823,7 +1828,6 @@ extension RichLayout {
                     // zh-147bdae0's "…截至109年8月" takes "月" 3.25pt over with four of 3.0 and its "…公共設施保"
                     // "保" 3.47 with five, and zh-4ea36aa8's "…為了加強臺灣IC" "IC" 3.15 with three, where its
                     // "…國小至" leaves "高" 3.26 over by the share; zh-8628cfbe's "…每退步1名減" leaves "1" 7.0.)
-                    let cellWindows = RichTextTheme.wordWindowsPages && inCell && !legacy && !onCharacterGrid && hang == 0
                     let autoCap: Double = cellWindows && eastAsianAt(a) ? .infinity
                         : max(quarterEach, (closes && hang == 0) || opens || (cellWindows && units[a] < 0x2E80) ? em / 2 : em / 4)
                     let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * autoGive, autoCap)
@@ -1884,7 +1888,11 @@ extension RichLayout {
                     // the line: lab `hcg`, "工，" and "工；" 1.7 short and not 2.7, where "工並" takes 3.7.)
                     let hungComma = hang > 0 && (units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B)
                     let budgetStretch: Double = spaceEms + autoRoom * (hungComma ? 2.08 : 1) + max(0, weighedSpaces - spaceTrail) * 0.47
-                    let oldStretch: Double = spaceEms + autoRoom + allSpaces
+                    // (In a cell, Word for Windows, a word space stretches half of itself by this test: lab `cend`
+                    // takes "程" 3.01pt over with one automatic space and a word space of 6.0, where whole it
+                    // refused from 2.4; zh-147bdae0's "…2 vCPUs）…GPU計算資源供各界申" still leaves "請" 3.83 over,
+                    // five automatic spaces and a word space giving.)
+                    let oldStretch: Double = spaceEms + autoRoom + allSpaces * (cellWindows ? 0.5 : 1)
                     let oldGive: Double = autoRoom * shareGive + allSpaces / 4
                     let budgetGive: Double = autoRoom * shareGive + giverRoom
                     let sharesStretch: Bool = onCharacterGrid || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
