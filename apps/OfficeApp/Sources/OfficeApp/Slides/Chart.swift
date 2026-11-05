@@ -2688,8 +2688,21 @@ enum ChartPainter {
             let latin = styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor)
             let textH = entries.isEmpty ? size * k : latin.height
             latin.dispose()
-            let lineH = beside ? textH + 6 * k : textH
+            // (On a sheet a legend beside the plot sets its entries 1.2213 x the size + 5.88 pt apart: Excel's
+            // COM readback of the lab legend, 8, 10 and 14 pt at 15.67, 18.08, 22.92 — ours 14.5, 16.5, 21.5.)
+            let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + 6 * k) : textH
             // (Each line as tall as its tallest name, a wrapped one too.)
+            var droppedLegend: [(i: Int, tp: TextPainter)] = []
+            // (A column too tall for the chart drops its last entries: the lab legend's 12 and 20 entries
+            // at 195 pt high stand 8 (144.7 pt), at 379 pt 12 and 17 (307.4): the room 0.82 of the chart's
+            // height less the 5 pt its readback takes off.)
+            if beside, c.onSheet, box == nil, !pie, lines.count > 1 {
+                let rows = max(1, Int(0.82 * (r.height - 5) / lineH))
+                if lines.count > rows {
+                    droppedLegend = lines[rows...].flatMap { $0 }   // (still measure the column: the box stays as wide)
+                    lines = Array(lines[..<rows])
+                }
+            }
             var lineHs = lines.map { line in max(lineH, line.map { $0.tp.height }.max() ?? 0) }
             // (A place of its own taller than its lines shares its height
             // among them: zh-61aaad09's two entries, in a box 94% of the
@@ -2735,7 +2748,7 @@ enum ChartPainter {
                     // (A point further in than the plot's margin on a slide:
                     // the names end 9.8 and 10.2 pt short of the frame in
                     // tdf149985's and aascu 5864's columns.)
-                    columnX = area.right - columnW - (c.onSlide ? 1 : libreLegend ? 1.3 : 0) * k
+                    columnX = area.right - columnW - (c.onSlide ? 1 : libreLegend ? 1.3 : 0) * k - (c.onSheet ? 1.7 : 0)
                     // (17.3 to the legend's keys: the 2007-style line,
                     // scatter, radar and bar charts' plots end 5.3 pt
                     // short of where 12 left them, in PowerPoint's print.)
@@ -2848,6 +2861,15 @@ enum ChartPainter {
                     } else {
                         let high = wideKeys ? 4.9 * k : key
                         canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), p)
+                        // (On a sheet the key wears the series' own outline, as the bars do: WithChartSheet's pivot chart.)
+                        if c.onSheet, !byPoint, e.i < c.series.count, let o = c.series[e.i].outline {
+                            let q = Paint()
+                            q.style = .stroke
+                            q.isAntiAlias = true
+                            q.strokeWidth = min(c.series[e.i].outlineWidth, 0.75)
+                            q.color = o
+                            canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), q)
+                        }
                     }
                     e.tp.paint(canvas, Offset(x + lead, y + (lineH - e.tp.height) / 2))
                     x += lead + e.tp.width + spacing
@@ -2855,6 +2877,7 @@ enum ChartPainter {
                 y += lineH
             }
             for line in lines { for e in line { e.tp.dispose() } }
+            for e in droppedLegend { e.tp.dispose() }
         }
 
         if pie, let l = c.plotLayout {
