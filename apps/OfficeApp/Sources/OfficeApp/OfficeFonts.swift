@@ -82,7 +82,7 @@ enum OfficeFonts {
             if wordOnWindows, n == "liberation serif", let by = windowsSigFace(family) { return substitute(by) }
             return serif
         case "liberation mono", "courier new", "courier", "consolas", "menlo", "monaco",
-             "lucida console", "lucida sans typewriter", "cousine":
+             "lucida console", "cousine":
             return mono
         case "carlito", "calibri", "calibri light":
             // (The Windows box has no Carlito, and a file with no font-table
@@ -449,6 +449,9 @@ enum OfficeFonts {
     static func sheetClone(_ family: String) -> String {
         let face = substitute(family)
         let n = family.trimmingWhitespace().lowercased()
+        // (Monospaced in Excel's prints, 0.6 em: the number-format books' Lucida Sans Typewriter cells. Only a cell's own face: as a
+        // glyph-fallback name it moved CVLKRA-KYC, 51519 and others.)
+        if n == "lucida sans typewriter" { return mono }
         if face == cambria, !n.hasPrefix("cambria"), n != "caladea" { return sans }
         return face
     }
