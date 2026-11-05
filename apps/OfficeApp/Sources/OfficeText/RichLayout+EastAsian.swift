@@ -2545,7 +2545,12 @@ extension RichLayout {
             // print, the address opening the next and parted at its margin.)
             let afterSpace = k > 0 && units[k - 1] == 0x20
                 && (narrowCell || p.cell != nil && document.usesEastAsianLayout
-                    || p.cell == nil && (!document.usesEastAsianLayout || spaceAfterIdeograph))
+                    || p.cell == nil && (!document.usesEastAsianLayout || spaceAfterIdeograph
+                        // (Word for Windows takes a word with letters in it to a line of its own there too:
+                        // zh-06c46ba9's "…June 26, 2005, from http://www.civicyouth.org/PopUps/…" (mode 14,
+                        // 14pt) ends its line at "from " and parts the address at the next margin; ours
+                        // parted it after "ht". Lab `ww`'s underscores, Mac, are parted where they stand.)
+                        || RichTextTheme.wordWindowsPages && (k ..< part).contains { (0x41 ... 0x5A).contains(units[$0]) || (0x61 ... 0x7A).contains(units[$0]) }))
             let afterIdeograph = k > 0 && wide(units[k - 1])
             if afterSpace || afterIdeograph, part - k >= (narrowCell && afterSpace ? 3 : 20),
                !(k ..< part).contains(where: { wide(units[$0]) }) {
