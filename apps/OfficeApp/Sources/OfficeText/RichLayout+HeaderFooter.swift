@@ -1225,6 +1225,16 @@ extension RichLayout {
         return Rect.fromLTWH(c.dx - h / 2, c.dy - w / 2, h, w)
     }
 
+    /// The `w:position` of a run's saved properties, in points (half-points in the file).
+    static func _runPosition(_ xml: String?) -> Double? {
+        guard let xml, let at = xml.rangeOfSubstring("w:position") else { return nil }
+        let rest = String(xml[at.upperBound...])
+        guard let q = rest.rangeOfSubstring("w:val=\"") else { return nil }
+        let value = String(rest[q.upperBound...])
+        guard let end = value.rangeOfSubstring("\"") else { return nil }
+        return Double(String(value[..<end.lowerBound])).map { $0 / 2 }
+    }
+
     /// The room a picture in the line takes round its box, in pixels:
     /// its effect extent on each side, and its run's character border
     /// (`ImageAttachment.frame`) `space + width` out on every side.

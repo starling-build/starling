@@ -5753,6 +5753,7 @@ enum DocxFormat {
                 // whose text stands at its foot; only the first was read.)
                 var parts: [RichTextBox.Part] = []
                 var perPart = false
+                var ownShape: XNode? = nil   // the shape in a drawing group that holds this text
                 if let group = node.descendant("wpg:wgp") {
                     // (The boxes of the groups in it too, each at its place
                     // in the group: zh-ae2dd08d p21's flowchart nests its
@@ -5760,6 +5761,7 @@ enum DocxFormat {
                     // box's text, set across the whole group.)
                     let placed = Self._groupTextBoxes(group).filter { drawingWordArt[ObjectIdentifier($0.box)] == nil }
                     let boxes = placed.map(\.box)
+                    ownShape = boxes.first(where: { $0.descendant("w:txbxContent") === content })
                     let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
                     let ext = Double(gx?.first("a:ext")?["cy"] ?? "") ?? 0, chExt = Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0
                     let k = chExt > 0 && ext > 0 ? ext / chExt : 1
@@ -5882,7 +5884,9 @@ enum DocxFormat {
                         // (Each part carries its own place: the group's
                         // box has no insets of its own.)
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
-                    } else if let body = node.descendant("wps:bodyPr") {
+                    } else if let body = ownShape?.first("wps:bodyPr") ?? node.descendant("wps:bodyPr") {
+                        // (Its own insets, not the first shape's of the group: zh-bdae17c0 p69's outline box is
+                        // a text box of none after a border line of the default 3.6pt, and its text stood 3.9 low.)
                         box.hasFixedFrame = body.first("a:noAutofit") != nil
                         if let anchor = body["anchor"], anchor == "ctr" || anchor == "b" { box.anchor = anchor }
                         // (Not where the body says `upright`: its text stays level in the turned shape, as
@@ -5902,7 +5906,7 @@ enum DocxFormat {
                         // 2pt, 3.96 for 8pt, and not at all with none —
                         // 60316's "Allison" line, 0.24 under the same line
                         // set in the body.)
-                        let half = Self._halfOutline(node.descendant("wps:spPr"))
+                        let half = Self._halfOutline(ownShape?.first("wps:spPr") ?? node.descendant("wps:spPr"))
                         box.insetLeft += half; box.insetTop += half; box.insetRight += half; box.insetBottom += half
                         // (Turned text: zh-b24b396a's drawing labels "20",
                         // "36" and "297" are `vert270` boxes 10.5pt wide and

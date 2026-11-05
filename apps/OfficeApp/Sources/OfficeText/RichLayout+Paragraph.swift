@@ -2492,7 +2492,10 @@ extension RichLayout {
                 // (Lowered as its run's `w:position` says, as on any line: zh-06c46ba9 p66's
                 // 265.5pt outline group, in a 265.45pt exact line and a run at -52.5, has its
                 // top at the line's in Word's print; ours stood it 52.5pt high.)
-                let lowered = p.runs.first(where: { $0.style.inlineImage == image.id }).flatMap { $0.style.raised } ?? 0
+                // (A paragraph that is the picture alone keeps no run of it: the `w:position` is read from
+                // the run's saved properties. zh-bdae17c0 p69's outline group, the same one as zh-06c46ba9 p66's
+                // in a 265.45pt exact line at -52.5, stood 48pt high with the first two lines of its text cut off.)
+                let lowered = p.runs.first(where: { $0.style.inlineImage == image.id }).flatMap { $0.style.raised } ?? Self._runPosition(image.sourceRunPropertiesXML) ?? 0
                 _imageDrop[i] = _px(exact * 4 / 5) - h - room.bottom - _px(lowered)
             }
             // (A picture shorter than its paragraph's line of text stands
