@@ -14549,3 +14549,4 @@ TIP WATCH amd-8, round 142 (tip 0c27ab8b3): Word no drops; unit tests 628 run, 0
 TIP WATCH amd-8, round 143 (tip ec4ba3068, Slides round): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; SLIDES 555 decks mean 0.7907 = baseline, 0 worse, matched-win 98/98 exact; SHEETS 757 workbooks mean 0.648 -> 0.647, 0 worse, 3 better; WEB build OK and layout exit 0. All gates green.
 
 TIP WATCH amd-8, round 144 (tip 5873aba6c): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- starling-lo5 (2026-11-05): CLAIM lo-eb12e7d4 p12 (pictures anchored in columns), zh-ec6158d0, zh-e5eb092a, zh-701eda18 p6 (box position, badge cut). Taking them in that order.
