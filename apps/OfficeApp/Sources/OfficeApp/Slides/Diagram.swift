@@ -1399,7 +1399,7 @@ struct DiagramLayout {
             // (A "#1" or "#2" after the id is a copy of the same layout, drawn the same: autoTxRot's pages 2 and 3.)
             // (Nine and more: lo-smartart-autoTxRot's sixteen arrows are 48.04 pt on a ring whose neighbours
             // are 1.1038 of one apart in PowerPoint's print, c = 1.2038 with the file's -0.1.)
-            let chord = m == 3 ? s * 1.2216 : s * (m == 4 ? 2.0.squareRoot() : m >= 9 ? 1.2038 : 1.2908) + (node.vals["sibSp"] ?? 0)
+            let chord = m == 3 ? s * 1.1708 : s * (m == 4 ? 2.0.squareRoot() : m >= 9 ? 1.2038 : 1.2908) + (node.vals["sibSp"] ?? 0)
             radius = chord / (2 * sin(abs(step) / 2 * .pi / 180))
         } else if m > 1 {
             let chord = max(w, h) + (node.vals["sibSp"] ?? 0)
