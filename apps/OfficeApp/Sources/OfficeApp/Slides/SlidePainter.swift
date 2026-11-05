@@ -819,7 +819,15 @@ final class SlidePainter: CustomPainter {
                     canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, w, h),
                                          Rect.fromLTWH(r.left - src.left * sx, r.top - src.top * sy, w * sx, h * sy), paint)
                 } else {
-                    canvas.drawImageRect(decoded, src, r, paint)
+                    // PowerPoint's PDF holds an uncropped picture shrunk to 200 pixels an inch
+                    // (a 3508 px picture over 841.6 pt is 2337; 1890 over 204.1 pt is 567).
+                    var shown = decoded
+                    if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, !Self.pngHasAlpha(image.data),
+                       c.left == 0, c.right == 0, c.top == 0, c.bottom == 0, px > 0 {
+                        let nw = Int((r.width / px * 200 / 72).rounded(.down)), nh = Int((r.height / px * 200 / 72).rounded(.down))
+                        if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { shown = small }
+                    }
+                    canvas.drawImageRect(shown, shown === decoded ? src : Rect.fromLTWH(0, 0, Double(shown.width), Double(shown.height)), r, paint)
                 }
                 canvas.restore()
             } else {
@@ -1662,6 +1670,22 @@ final class SlidePainter: CustomPainter {
     }
 
     /// `r` inset by fractions of its own size from each edge.
+    /// A PNG with an alpha channel (colour type 4 or 6, or a tRNS chunk): PowerPoint's PDF
+    /// keeps it at its own pixels (lo-tdf95932: 996 px over 325.9 pt, 220/in, with a soft mask).
+    static func pngHasAlpha(_ data: Data) -> Bool {
+        let b = [UInt8](data.prefix(4096))
+        guard b.count > 33, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 else { return false }
+        if b[25] == 4 || b[25] == 6 { return true }
+        let t: [UInt8] = [0x74, 0x52, 0x4E, 0x53]
+        var i = 33
+        while i + 8 <= b.count {
+            if Array(b[(i + 4)..<(i + 8)]) == t { return true }
+            let n = Int(b[i]) << 24 | Int(b[i + 1]) << 16 | Int(b[i + 2]) << 8 | Int(b[i + 3])
+            i += 12 + n
+        }
+        return false
+    }
+
     static func inset(_ r: Rect, _ f: EdgeInsets) -> Rect {
         guard f != .zero else { return r }
         return Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
