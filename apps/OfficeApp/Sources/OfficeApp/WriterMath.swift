@@ -409,7 +409,7 @@ enum WriterMath {
         }
 
         /// Sub- and superscripts beside a base, stacked.
-        func stackScripts(sub: Box?, sup: Box?, size: Double, base: Box) -> Box {
+        func stackScripts(sub: Box?, sup: Box?, size: Double, base: Box, fixed: (Double, Double)? = nil) -> Box {
             // (A superscript's baseline 0.38 em up, a subscript's 0.18 down,
             // a tenth more each where both stand; past a taller base than a
             // letter's, that much further. zh-c2c92639's "C" over "dm" in
@@ -417,8 +417,8 @@ enum WriterMath {
             // the scripts' own heights, ours went 6.9 down and its line
             // took a second grid pitch.)
             let both = sub != nil && sup != nil ? size * 0.1 : 0
-            let up = max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
-            let down = max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
+            let up = fixed?.0 ?? max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
+            let down = fixed?.1 ?? max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
             var parts: [Box] = []
             // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
             // subscript with its own scripts, then the superscript — lo-4aa628bd's
@@ -492,7 +492,11 @@ enum WriterMath {
                 if let sup, sup.width > 0 { withLimits = over(withLimits, sup, gap: s * 0.08) }
                 if let sub, sub.width > 0 { withLimits = under(withLimits, sub, gap: s * 0.08) }
             } else {
-                withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op)])
+                // (Word's print stands a display sum's limits beside the big sign on fixed
+                // baselines off the text's: about 1.0 em up, 0.85 down (as laid out here 0.95, 0.89). zh-c2c92639's three
+                // sums at 10.6pt: 10.7 up, 8.7 down.)
+                let fixed: (Double, Double)? = display && level == 0 && !integral ? (s * 0.95, s * 0.89) : nil
+                withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op, fixed: fixed)])
             }
             return hbox([withLimits, space(s * 0.12), row(n.first("m:e"), size: size, level: level)])
         }
