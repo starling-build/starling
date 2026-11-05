@@ -1397,7 +1397,18 @@ extension RichLayout {
                                 || RichTextTheme.wordWindowsPages && Self._hangingUnits.contains(units[tail]) && hang < em * 0.75 else { return false }
                         guard lineWide > 1, room > 0 else { return true }
                         let gapSum: Double = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
-                        let capacity: Double = gapStretch() + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
+                        // (Word for Windows weighs the stretch of the line as it would be with the piece on it: lab
+                        // `cm2` (zh-c2c92639's "…起吊方法、", 43 characters and 5 marks before the pair, 10.5pt)
+                        // takes "法、" 12.54 over the hang and refuses it at 13.04, as zh-c2c92639's print does,
+                        // for every mark after "法"; the line's stretch without the pair allowed 13.54.)
+                        var stretch: Double = gapStretch()
+                        if RichTextTheme.wordWindowsPages, last > a, last <= ems.count {
+                            var pieceEms: Double = 0
+                            for k in a ..< last { pieceEms += ems[k] }
+                            let n: Int = lineWide + (last - a)
+                            stretch = (lineEms + pieceEms) * Double(n - 1) / Double(n) / 64
+                        }
+                        let capacity: Double = stretch + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
                         return !(need * capacity <= room * (stretchRoom + hair))
                     }()
                     let takenFirst = squeezedFirst && !wordSpaced
