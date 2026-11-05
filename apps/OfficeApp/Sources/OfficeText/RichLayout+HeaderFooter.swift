@@ -1189,6 +1189,10 @@ extension RichLayout {
            image.name != "table", !float.leavesCell {
             RuleTrace.hit("page-offset-down-of-an-anchor-in-a-cell-is-from-the-cell")
             y = d.rowTop + _px(float.y)
+            // (Under the cell's top margin: lo-152d87fe's header group, 39.5pt up "the page" in a cell
+            // with a 41pt top margin, has its banner 33pt down the group at 63pt in Word's print,
+            // the cell's text at 69.8 less 39.5; ours stood 25pt higher.)
+            if float.y < 0 { y += d.pad.top; RuleTrace.hit("page-offset-up-of-an-anchor-in-a-cell-counts-from-the-cell-text") }
         }
         // (A picture as big as the page, set from the text far off it, is
         // kept on the page, at its corner: lo-4dec07ec's 595 by 842pt

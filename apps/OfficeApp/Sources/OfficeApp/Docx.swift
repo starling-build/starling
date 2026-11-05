@@ -2674,7 +2674,11 @@ enum DocxFormat {
                                 for n in names {
                                     guard let e = tb.first(n), !["nil", "none"].contains(e["w:val"] ?? "nil"), let sz = Double(e["w:sz"] ?? "") else { continue }
                                     let width = max(0.25, sz / 8)
-                                    guard width != (style.borderWidth ?? 0.5), (e["w:val"] ?? "single") == "single" else { return nil }
+                                    // (A table whose width came from its cells' own lines draws each cell's side as it states it:
+                                    // lo-c657ba7d's rows say 4.5pt navy on some sides and 1pt on others, the table's width the
+                                    // 4.5 they mostly name, so those sides were left to the table's edges and drew nothing;
+                                    // Word's print has the heavy rules between the rows.)
+                                    guard (e["w:val"] ?? "single") == "single", width != (style.borderWidth ?? 0.5) || (style.bordersFromCells && width > 1) else { return nil }
                                     var color = Color(0xFF000000)
                                     if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
                                         color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
@@ -3492,6 +3496,7 @@ enum DocxFormat {
                 guard let props = core ?? nil else { return }
                 var value = props.children.first { $0.name.hasSuffix(":" + local) }?.text ?? ""
                 value = value.trimmingWhitespace(newlines: true)
+                var placeholderRun: XNode?
                 if value.isEmpty {
                     guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { return }
                     if glossary == nil { glossary = .some(part("word/glossary/document.xml").flatMap(XNode.parse)) }
@@ -3502,12 +3507,20 @@ enum DocxFormat {
                     texts(body, &shown)
                     value = shown.map { $0.text }.joined()
                     if value.isEmpty { return }
+                    placeholderRun = body.descendants("w:r").first
                 }
                 var runs: [XNode] = []
                 texts(content, &runs)
                 guard let first = runs.first else { return }
                 RuleTrace.hit("core-bound-control-shows-the-property")
                 first.text = value
+                // (The placeholder shows in its own formatting, not that of the text the control held:
+                // lo-c657ba7d's title, bold orange "Communication digitale" in the file, is "[Titre du
+                // document]" in the glossary's plain 16pt black in Word's print.)
+                if let ph = placeholderRun, let run = content.descendants("w:r").first(where: { $0.children.contains { $0 === first } }) {
+                    run.children.removeAll { $0.name == "w:rPr" }
+                    if let rpr = ph.first("w:rPr") { run.children.insert(rpr, at: 0) }
+                }
                 for r in runs.dropFirst() { r.text = "" }
                 return
             }
