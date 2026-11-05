@@ -766,7 +766,22 @@ final class SlidePainter: CustomPainter {
                 canvas.restore()
             } else if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)
-                let c = shape.crop ?? .zero
+                let c: EdgeInsets = {
+                    let c0 = shape.crop ?? .zero
+                    // PowerPoint cuts a cropped picture to whole pixels (customGeo p36: 991 x 614 taken at
+                    // (152, 265) of a 1280 x 1024 PNG with l=11.852% t=25.887% r=10.76% b=14.165%, zero
+                    // error against the source) and stretches that to the frame: the start rounds, the span rounds.
+                    var l = c0.left, rr = c0.right, t = c0.top, bt = c0.bottom
+                    if l >= 0, rr >= 0, l > 0 || rr > 0, w * (1 - l - rr) >= 1 {
+                        let x0 = (l * w).rounded(), span = (w * (1 - l - rr)).rounded()
+                        if span >= 1 { l = x0 / w; rr = (w - x0 - span) / w }
+                    }
+                    if t >= 0, bt >= 0, t > 0 || bt > 0, h * (1 - t - bt) >= 1 {
+                        let y0 = (t * h).rounded(), span = (h * (1 - t - bt)).rounded()
+                        if span >= 1 { t = y0 / h; bt = (h - y0 - span) / h }
+                    }
+                    return EdgeInsets(left: l, top: t, right: rr, bottom: bt)
+                }()
                 // `a:fillRect`: the picture's place within the frame.
                 let frame = r
                 let place = Self.inset(r, shape.pictureInset)
