@@ -1388,7 +1388,13 @@ extension RichLayout {
                         // 2.7, 4.6 and 6.5; unhung it is taken 3.7, 6.6 and 7.5 short. So the line's three
                         // automatic spaces weigh about twice themselves against a hung mark. Balance on or
                         // off, the same.)
-                        guard hang > 0, modern, !lineOther, !inCell, !paragraphEnd, units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B else { return false }
+                        // (Word for Windows any hung mark so: lab `cm2` (zh-c2c92639's "…起吊方法、", mode 15,
+                        // 5 marks on the line) with "、，。；：”」）" after "法" refuses the pair at the same width for all eight,
+                        // each hung by its half. Not one hung whole: zh-505b9619's "…為30%）" is taken with the "）" a whole
+                        // em past the margin, as above.)
+                        guard hang > 0, modern, !lineOther, !inCell, !paragraphEnd,
+                              units[tail] == 0xFF0C || units[tail] == 0x3001 || units[tail] == 0xFF1B
+                                || RichTextTheme.wordWindowsPages && Self._hangingUnits.contains(units[tail]) && hang < em * 0.75 else { return false }
                         guard lineWide > 1, room > 0 else { return true }
                         let gapSum: Double = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
                         let capacity: Double = gapStretch() + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
