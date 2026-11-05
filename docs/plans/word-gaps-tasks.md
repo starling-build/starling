@@ -14537,3 +14537,4 @@ TIP WATCH amd-8, round 140 (tip 0f51cafb6): Word no drops; unit tests 628 run, 0
 - amd-5: lo-896eea1d LANDED (86545aa67): a floating table followed at once by another hangs from the paragraph after both; visual 4.48 -> 0.31. lo-0b140d34 PARKED at 3.62: Word keeps the shaded empty line holding a leading column/page break on the page before (no space before, no borders) and the text opens the next column WITH space before 60pt and the first-line indent; splitting the paragraph there gave 3.20 worst but mean 1.57 -> 2.16 (pieces lose before/indent). Needs per-piece spacing rules + a lab. Next: lo-7ec36a70 when the rtlhead print arrives.
 
 TIP WATCH amd-8, round 141 (tip 86a41a422): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+CLAIM (amd-5, 2026-11-05): lo-eb12e7d4 p12 (pictures anchored in columns, 12.2%). rtlhead print not back yet; 7ec36a70 waits on it.
