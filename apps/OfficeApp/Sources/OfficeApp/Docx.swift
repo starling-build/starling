@@ -3212,7 +3212,11 @@ enum DocxFormat {
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
             document.backgroundRels = frag.rels
-            if bg["w:themeColor"] == nil, let c = bg["w:color"], c.count == 6, let v = UInt32(c, radix: 16), v != 0xFFFFFF { document.backgroundColor = v }
+            if let tc = bg["w:themeColor"] {
+                // (Word prints the theme slot, not the w:color fallback; a tint or shade moves its HSL lightness, and
+                // with both present only the tint shows: lab bg 1-6, accent2 ED7D31 -> F7CAAC / C45911 / F4B083.)
+                if let v = _themeBackground(tc, tint: bg["w:themeTint"], shade: bg["w:themeShade"]), v != 0xFFFFFF { document.backgroundColor = v }
+            } else if let c = bg["w:color"], c.count == 6, let v = UInt32(c, radix: 16), v != 0xFFFFFF { document.backgroundColor = v }
         }
         document.keptParts = notes.kept
         document.keptPartTypes = notes.keptTypes
@@ -7120,6 +7124,37 @@ enum DocxFormat {
         }
         out["tx1"] = out["dk1"]; out["bg1"] = out["lt1"]; out["tx2"] = out["dk2"]; out["bg2"] = out["lt2"]
         return out
+    }
+
+    /// A theme slot's colour for a page background, with `w:themeTint` / `w:themeShade` (hex bytes) applied to its HSL lightness.
+    private static func _themeBackground(_ slot: String, tint: String?, shade: String?) -> UInt32? {
+        let name = ["text1": "tx1", "background1": "bg1", "text2": "tx2", "background2": "bg2"][slot] ?? slot
+        guard let c = _themeColors[name] else { return nil }
+        let r = Double(c.0) / 255, g = Double(c.1) / 255, b = Double(c.2) / 255
+        let mx = max(r, g, b), mn = min(r, g, b)
+        var l = (mx + mn) / 2, h = 0.0, sat = 0.0
+        if mx != mn {
+            let d = mx - mn
+            sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+            h = mx == r ? (g - b) / d + (g < b ? 6 : 0) : mx == g ? (b - r) / d + 2 : (r - g) / d + 4
+            h /= 6
+        }
+        if let t = tint, let v = Int(t, radix: 16) { l = l * Double(v) / 255 + (1 - Double(v) / 255) }
+        else if let t = shade, let v = Int(t, radix: 16) { l *= Double(v) / 255 }
+        func ch(_ p: Double, _ q: Double, _ t0: Double) -> Double {
+            var t = t0; if t < 0 { t += 1 }; if t > 1 { t -= 1 }
+            if t < 1.0 / 6 { return p + (q - p) * 6 * t }
+            if t < 0.5 { return q }
+            if t < 2.0 / 3 { return p + (q - p) * (2.0 / 3 - t) * 6 }
+            return p
+        }
+        var out: (Double, Double, Double) = (l, l, l)
+        if sat != 0 {
+            let q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q
+            out = (ch(p, q, h + 1.0 / 3), ch(p, q, h), ch(p, q, h - 1.0 / 3))
+        }
+        func by(_ x: Double) -> UInt32 { UInt32(max(0, min(255, (x * 255).rounded()))) }
+        return by(out.0) << 16 | by(out.1) << 8 | by(out.2)
     }
 
     /// A `w14:srgbClr` / `w14:schemeClr`'s colour with its tint, shade and saturation / luminance modifiers applied
