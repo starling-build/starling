@@ -2925,6 +2925,31 @@ enum ChartPainter {
         }
     }
 
+    /// Style 18 on a sheet: the light head and the foot of a fill's shading, read off 47813's bars — the foot the accent at a
+    /// saturation 1.3 times its own, lightness the same, the head at lightness 0.273 above it and full saturation.
+    static func _style18Shade(_ base: Color) -> (head: Color, foot: Color) {
+                        let v = base.value
+                        let r = Double((v >> 16) & 0xFF) / 255, g = Double((v >> 8) & 0xFF) / 255, bl = Double(v & 0xFF) / 255
+                        let mx = max(r, g, bl), mn = min(r, g, bl), l = (mx + mn) / 2, d = mx - mn
+                        var h = 0.0, sat = 0.0
+                        if d > 0 {
+                            sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+                            if mx == r { h = (g - bl) / d + (g < bl ? 6 : 0) } else if mx == g { h = (bl - r) / d + 2 } else { h = (r - g) / d + 4 }
+                            h /= 6
+                        }
+                        func rgb(_ h: Double, _ s: Double, _ l: Double) -> Color {
+                            let q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q
+                            func f(_ t0: Double) -> Int64 {
+                                var t = t0; if t < 0 { t += 1 }; if t > 1 { t -= 1 }
+                                let x = t < 1.0 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2.0 / 3 ? p + (q - p) * (2.0 / 3 - t) * 6 : p
+                                return Int64((max(0, min(1, x)) * 255).rounded())
+                            }
+                            return Color(Int64(0xFF00_0000) | f(h + 1.0 / 3) << 16 | f(h) << 8 | f(h - 1.0 / 3))
+                        }
+                        let foot = rgb(h, min(1, sat * 1.3), l), head = rgb(h, 1, min(1, l + 0.273))
+        return (rgb(h, 1, min(1, l + 0.273)), rgb(h, min(1, sat * 1.3), l))
+    }
+
     private static func _mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         func ch(_ v: Int, _ s: Int) -> Int { (v >> s) & 0xFF }
         func m(_ s: Int) -> Int { Int((Double(ch(a.value, s)) * t + Double(ch(b.value, s)) * (1 - t)).rounded()) }
@@ -5030,25 +5055,7 @@ enum ChartPainter {
                     let shaded18 = c.onSheet && c.style18 && c.barView == nil && c.pointColors.isEmpty && !c.variedPoints
                         && c.monochromeAccent == nil && c.series[j].color == nil && c.series[j].scheme == nil
                     if shaded18 {
-                        let v = fill.color.value
-                        let r = Double((v >> 16) & 0xFF) / 255, g = Double((v >> 8) & 0xFF) / 255, bl = Double(v & 0xFF) / 255
-                        let mx = max(r, g, bl), mn = min(r, g, bl), l = (mx + mn) / 2, d = mx - mn
-                        var h = 0.0, sat = 0.0
-                        if d > 0 {
-                            sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
-                            if mx == r { h = (g - bl) / d + (g < bl ? 6 : 0) } else if mx == g { h = (bl - r) / d + 2 } else { h = (r - g) / d + 4 }
-                            h /= 6
-                        }
-                        func rgb(_ h: Double, _ s: Double, _ l: Double) -> Color {
-                            let q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q
-                            func f(_ t0: Double) -> Int64 {
-                                var t = t0; if t < 0 { t += 1 }; if t > 1 { t -= 1 }
-                                let x = t < 1.0 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2.0 / 3 ? p + (q - p) * (2.0 / 3 - t) * 6 : p
-                                return Int64((max(0, min(1, x)) * 255).rounded())
-                            }
-                            return Color(Int64(0xFF00_0000) | f(h + 1.0 / 3) << 16 | f(h) << 8 | f(h - 1.0 / 3))
-                        }
-                        let foot = rgb(h, min(1, sat * 1.3), l), head = rgb(h, 1, min(1, l + 0.273))
+                        let (head, foot) = Self._style18Shade(fill.color)
                         fill.shader = Gradient(linear: Offset(0, rect.top), to: Offset(0, rect.bottom), colors: [head, foot], colorStops: [0, 1])
                     }
                     if c.barView == nil, let ink = c.series[j].pattern, c.pointColors[i] == nil,
@@ -5136,6 +5143,15 @@ enum ChartPainter {
                     for i in stride(from: n - 1, through: 0, by: -1) { path.lineTo(xAt(i), vpos(lower[i])) }
                     path.close()
                     fill.color = color
+                    // (Style 18 on a sheet, an area with no colour of its own: the bars' foot colour at its top, going
+                    // 0.75 darker to the baseline — WithTwoCharts' red 201,60,57 to 153,51,53 and blue 59,123,200 to
+                    // 46,97,158 in Excel's print.)
+                    if c.onSheet, c.style18, c.pointColors.isEmpty, c.monochromeAccent == nil, c.series[j].color == nil, c.series[j].scheme == nil, c.series[j].pattern == nil {
+                        let foot = Self._style18Shade(color).foot
+                        let hiTop = (0 ..< n).compactMap { tops[j][$0] }.max() ?? 0
+                        fill.shader = Gradient(linear: Offset(0, vpos(hiTop)), to: Offset(0, vpos(0)), colors: [foot, Self._scaled(foot, 0.75)], colorStops: [0, 1])
+                    }
+                    defer { fill.shader = nil }
                     if let ink = c.series[j].pattern, Self._hatch(path, ink, k: c.onSheet ? 1 : k, canvas) {
                         // (Hatched: its background, then the preset's marks over it.)
                     } else {
