@@ -3305,7 +3305,10 @@ enum OfficeFonts {
                 // lines wrapped late when □ inherited the black square.)
                 let shapes: [UInt32: Double] = [0x25A1: 1336.0 / 2048, 0x25CF: 1336.0 / 2048,
                                               0x25C7: 1229.0 / 2048, 0x25C6: 1229.0 / 2048, 0x203B: 1724.0 / 2048,
-                                              0x2190: 1, 0x2192: 1, 0x2191: 0.5, 0x2193: 0.5]
+                                              0x2190: 1, 0x2192: 1, 0x2191: 0.5, 0x2193: 0.5,
+                                              // (And its curly quotes, an em where the run hints East Asian: zh-e61c3dff's
+                                              // 方正公文小标宋 title, which Word sets in YaHei, steps "“" 21.9 at 22pt.)
+                                              ]
                 face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x2027: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604,
                                       0x25CB: 0.604].merging(circled(1.0)) { $1 }
                 // (And its bold "★", 1678/2048: zh-f6886fbb's bold
@@ -3313,6 +3316,14 @@ enum OfficeFonts {
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395, 0x2027: 0.2861, 0x2605: 1678.0 / 2048].merging(circled(1.0)) { $1 }
                 face.otherAdvances = face.otherAdvances?.merging(shapes) { $1 }
                 face.boldOtherAdvances = face.boldOtherAdvances?.merging(shapes) { $1 }
+                // (Only the 小标宋 titles: the same quotes of the other 方正 faces, which land on this
+                // stand-in too, are not Word's em in the documents that pair clean today; widening them
+                // dropped seven, zh-1e7e7cb3 100 to 44.)
+                if family.containsSubstring("小标宋") {
+                    let quotes: [UInt32: Double] = [0x2018: 1, 0x2019: 1, 0x201C: 1, 0x201D: 1]
+                    face.otherAdvances = face.otherAdvances?.merging(quotes) { $1 }
+                    face.boldOtherAdvances = face.boldOtherAdvances?.merging(quotes) { $1 }
+                }
             }
             // (The face's own widths past ASCII: SimSun's, `EastAsianFace.otherAdvances`.)
             if let own = ea.otherAdvances {
