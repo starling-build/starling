@@ -850,6 +850,12 @@ extension RichLayout {
             case "margin": from = floatsFrames ? x : x - setup.gutter
             default: from = x
             }
+            // (A table that is also centred (`w:jc`) against the page is centred on it, its
+            // tblpX not read: zh-f43c9edf's tblpX 1690 jc center 8815-twip table stands at
+            // 77.3, the page's middle, in Word's print, where ours stood 84.5.)
+            if style?.alignment == .center, style?.floatXAnchor == "page", !floatsFrames {
+                return (_px(setup.width) - sum) / 2 - _px(setup.marginLeft + setup.gutter) - left
+            }
             return _px(from) - left
         }
         switch style?.alignment ?? .left {
