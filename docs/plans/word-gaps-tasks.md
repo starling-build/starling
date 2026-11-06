@@ -14696,3 +14696,5 @@ TIP WATCH amd-8, round 157 (f006f9dce): Word one DOWN, lo-8ab44df5 100 -> 97.7 (
 - amd-5 CLAIM zh-c4eb4b19 p1 (rank 26)
 - amd-5 RELEASED zh-c4eb4b19 p1 (rank 26): rows and text line up; only the Latin digit face differs (plus a faint grey on two row borders).
 - amd-5 CLAIM zh-06c46ba9 p32 (rank 27)
+- amd-5 RELEASED zh-06c46ba9 p32 (rank 27): same lines and positions as Word; only the CJK/Latin glyph faces and full-width punctuation shapes differ.
+- amd-5 CLAIM zh-72da925e p13 (rank 28)
