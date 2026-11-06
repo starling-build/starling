@@ -667,7 +667,14 @@ extension RichLayout {
                 let target = g.points * theme.pixelsPerPoint * scale
                 fitLastSingle = lastLength == 1
                 let gaps = lastLength == 1 ? count - 1 : count
-                let pitch = gaps > 0 ? (target - total) / Double(gaps) : 0
+                var pitch = gaps > 0 ? (target - total) / Double(gaps) : 0
+                // (Word keeps the spacing in twips, rounding a spread up: zh-a4b0f6ea's
+                // 单位(盖章)：…年   月   日 wants 0.073pt and Word sets 0.10, so 日 ends
+                // 1.6pt past the group's width as Word's print does.)
+                if pitch > 0, theme.wordRules, RichTextTheme.wordWindowsPages {
+                    let unit = 0.05 * theme.pixelsPerPoint * scale
+                    pitch = (pitch / unit - 1e-6).rounded(.up) * unit
+                }
                 fitPitch = pitch
                 return pitch
             }
@@ -1660,6 +1667,10 @@ extension RichLayout {
                     // the run's own, and not counted twice — zh-9dd9ce6d's
                     // five after "…发布" at 14.25pt are 7.15 apiece in Word's
                     // print, ours 13.3, and its footer took a line more.)
+                    // (Not the fit pitch of a w:fitText group, which the space takes
+                    // once like every character: zh-a4b0f6ea's "单位(盖章)：   年 月 日"
+                    // set each space 0.07 too wide and 日 2 pt right of Word's.)
+                    if fitGroup != nil, !fitBusy, let f = fitPitch { extra -= f }
                     if kind == -2 {
                         let base = style(classed ? RichResolvedFace.characterClass(" ") : 0)
                         extra -= 2 * ((s.letterSpacing ?? 0) - (base.letterSpacing ?? 0))
