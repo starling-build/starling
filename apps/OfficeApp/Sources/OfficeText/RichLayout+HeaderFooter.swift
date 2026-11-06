@@ -271,7 +271,7 @@ extension RichLayout {
         // foot; ours ran them down over "一、前言". Not a box wrapped none:
         // zh-01071d55's header box shows its second line under its foot.)
         if clips, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
-            canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom - _px(text.insetBottom)),
+            canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom),
                             clipOp: .intersect, doAntiAlias: false)
         }
         // (A picture in the line bigger than a box that keeps its size is
