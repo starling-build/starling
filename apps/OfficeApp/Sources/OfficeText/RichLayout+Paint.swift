@@ -301,6 +301,28 @@ extension RichLayout {
         return first ..< min(_tops.count, last + 1)
     }
 
+    /// A turned cell's "at least" line: Word puts all of the line's extra height above
+    /// the text, which is `_inkShift` where the paragraph is laid out horizontally and
+    /// was left out of the turned origin (lab vlab1: atLeast 480 at 12 pt printed the
+    /// text 14.55 from the cell's edge, ours 11.38 — the shift is the missing half).
+    func _turnedInkShift(_ i: Int, _ document: RichDocument) -> Double {
+        let p = document.paragraphs[i]
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightIsMinimum,
+              p.style.lineHeightPoints != nil, let run = p.runs.first else { return 0 }
+        // (The painter centres the extra over its own line; Word puts all of it above, so the
+        // other half is half of what "at least" adds to the baseline over the text's own line.)
+        let named = _named(p, document)
+        let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
+        let hinted = run.style.fontHint == "eastAsia"
+        let ea = p.text.contains { Self.isEastAsian($0, hinted: hinted) }
+        var natural = p.style
+        natural.lineHeightPoints = nil
+        guard let with = theme.baseline(for: run.style, in: p.style, named: named, eastAsian: ea, gridPitch: pitch, centresInLine: document.spacesForUnderline),
+              let without = theme.baseline(for: run.style, in: natural, named: named, eastAsian: ea, gridPitch: pitch, centresInLine: document.spacesForUnderline),
+              with > without else { return 0 }
+        return _px(with - without) / 2
+    }
+
     /// A turned cell's paragraph, laid out in its own horizontal space and
     /// painted turned a quarter about the corner it reads from (see
     /// `_paintParagraph`): where the painter's origin lies in that space,
@@ -315,7 +337,7 @@ extension RichLayout {
         let along = c.alongStart + indent
             - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
             - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 ? min(indent, _px(2.25)) : 0)
-        let origin = Offset(along, c.across + _spaceBefore[i])
+        let origin = Offset(along, c.across + _spaceBefore[i] + _turnedInkShift(i, document))
         if c.direction == .up {
             // (x, y) -> (colLeft + y, rowTop + height - x)
             let ox = c.colLeft, oy = c.rowTop + height
@@ -1196,7 +1218,7 @@ extension RichLayout {
             let along = c.alongStart + indent
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
                 - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
-            let origin = Offset(along, c.across + _spaceBefore[i])
+            let origin = Offset(along, c.across + _spaceBefore[i] + _turnedInkShift(i, document))
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
                 canvas.restore()
