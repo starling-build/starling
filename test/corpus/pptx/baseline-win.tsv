@@ -59,7 +59,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6435650376957952.pptx	ERROR	deck pd
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=0.55% mean=0.55%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=8.57% mean=3.73%
+customGeo.pptx	summary pages=48 worst=8.22% mean=3.44%
 ececapstonespring2012.pptx	summary pages=24 worst=2.49% mean=1.47%
 highlight-test-case.pptx	summary pages=1 worst=0.56% mean=0.56%
 layouts.pptx	summary pages=10 worst=1.42% mean=0.55%
@@ -92,7 +92,7 @@ lo-bnc480256.pptx	summary pages=1 worst=0.84% mean=0.84%
 lo-bnc584721_1_2.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-bnc584721_4.pptx	summary pages=2 worst=0.10% mean=0.05%
 lo-bnc591147.pptx	summary pages=2 worst=0.00% mean=0.00%
-lo-bnc862510_5.pptx	summary pages=1 worst=1.62% mean=1.62%
+lo-bnc862510_5.pptx	summary pages=1 worst=1.63% mean=1.63%
 lo-bnc862510_6.pptx	summary pages=1 worst=0.50% mean=0.50%
 lo-bnc862510_7.pptx	summary pages=1 worst=0.65% mean=0.65%
 lo-bnc870233_1.pptx	summary pages=1 worst=0.40% mean=0.40%
@@ -120,10 +120,10 @@ lo-custgeom-overlapping-contours.pptx	summary pages=1 worst=0.05% mean=0.05%
 lo-custgeom-placeholder.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-customshape-bitmapfill-srcrect.pptx	summary pages=1 worst=0.42% mean=0.42%
 lo-customxml.pptx	summary pages=2 worst=0.05% mean=0.04%
-lo-effectOrder.pptx	summary pages=1 worst=0.10% mean=0.10%
+lo-effectOrder.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-empty-title-placeholder.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-fdo83751.pptx	summary pages=1 worst=0.26% mean=0.26%
-lo-fill-color-list.pptx	summary pages=1 worst=0.33% mean=0.33%
+lo-fill-color-list.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-font-scale.pptx	summary pages=1 worst=5.29% mean=5.29%
 lo-formatting-bullet-indent.pptx	summary pages=1 worst=1.06% mean=1.06%
 lo-forum-mso-de-138303.pptx	summary pages=1 worst=0.83% mean=0.83%
@@ -161,7 +161,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.19% mean=0.19%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.06%
+lo-numfmt.pptx	summary pages=9 worst=0.12% mean=0.06%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.10% mean=0.10%
 lo-ole.pptx	summary pages=1 worst=0.19% mean=0.19%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -177,7 +177,7 @@ lo-pres-with-notes.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-presLeftAlign.pptx	summary pages=1 worst=0.13% mean=0.13%
 lo-presetDashDot.pptx	summary pages=1 worst=1.29% mean=1.29%
 lo-rightToLeftParagraph.pptx	summary pages=1 worst=0.28% mean=0.28%
-lo-shape-blur-effect.pptx	summary pages=1 worst=0.22% mean=0.22%
+lo-shape-blur-effect.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-shape-glow-effect.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-shape-soft-edges.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-shape-text-glow-effect.pptx	summary pages=1 worst=0.32% mean=0.32%
@@ -215,7 +215,7 @@ lo-smartart-preserve.pptx	summary pages=1 worst=0.34% mean=0.34%
 lo-smartart-pyramid-1child.pptx	summary pages=1 worst=0.36% mean=0.36%
 lo-smartart-recursion.pptx	summary pages=1 worst=0.51% mean=0.51%
 lo-smartart-rightoleftblockdiagram.pptx	summary pages=1 worst=0.21% mean=0.21%
-lo-smartart-rotation.pptx	summary pages=1 worst=1.31% mean=1.31%
+lo-smartart-rotation.pptx	summary pages=1 worst=0.50% mean=0.50%
 lo-smartart-rotation2.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-smartart-snake-rows.pptx	summary pages=1 worst=1.03% mean=1.03%
 lo-smartart-tdf134221.pptx	summary pages=1 worst=0.02% mean=0.02%
@@ -372,7 +372,7 @@ lo-tdf149206.pptx	summary pages=1 worst=3.40% mean=3.40%
 lo-tdf149314.pptx	summary pages=3 worst=0.48% mean=0.16%
 lo-tdf149551_SmartArt_Gear.pptx	summary pages=1 worst=0.60% mean=0.60%
 lo-tdf149551_SmartArt_Pie.pptx	summary pages=1 worst=0.38% mean=0.38%
-lo-tdf149551_SmartArt_Pyramid.pptx	summary pages=1 worst=1.29% mean=1.29%
+lo-tdf149551_SmartArt_Pyramid.pptx	summary pages=1 worst=0.68% mean=0.68%
 lo-tdf149551_SmartArt_Venn.pptx	summary pages=1 worst=0.55% mean=0.55%
 lo-tdf149588_transparentSolidFill.pptx	summary pages=1 worst=0.26% mean=0.26%
 lo-tdf149697.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -478,7 +478,7 @@ oox-Scene3d_lightRig_dir_rotation.pptx	summary pages=1 worst=1.41% mean=1.41%
 oox-Scene3d_lightRig_legacyCamera.pptx	summary pages=1 worst=0.50% mean=0.50%
 oox-Scene3d_lightRig_modernCamera.pptx	summary pages=1 worst=0.41% mean=0.41%
 oox-Scene3d_lightRig_rot_rotation.pptx	summary pages=1 worst=1.23% mean=1.23%
-oox-Scene3d_material_highlight.pptx	summary pages=1 worst=3.67% mean=3.67%
+oox-Scene3d_material_highlight.pptx	summary pages=1 worst=2.55% mean=2.55%
 oox-Scene3d_material_wireframe.pptx	summary pages=1 worst=0.89% mean=0.89%
 oox-Scene3d_obliqueTopRight.pptx	summary pages=1 worst=0.13% mean=0.13%
 oox-Scene3d_orthographicFront.pptx	summary pages=1 worst=0.26% mean=0.26%
