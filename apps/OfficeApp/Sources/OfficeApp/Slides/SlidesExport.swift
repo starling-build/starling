@@ -56,6 +56,9 @@ enum SlidesPdf {
         if let data = FileManager.default.contents(atPath: path), let smooth = smoothPictures(data) {
             try? smooth.write(to: URL(fileURLWithPath: path))
         }
+        if let data = FileManager.default.contents(atPath: path), let exact = exactPageSize(data, width: size.width, height: size.height) {
+            try? exact.write(to: URL(fileURLWithPath: path))
+        }
         return true
     }
 
@@ -129,7 +132,7 @@ enum SlidesPdf {
             if let open = (0 ..< r).reversed().first(where: { bytes[$0] == 0x3C && bytes[$0 + 1] == 0x3C }),
                let close = _find(Array(">>".utf8), in: bytes, from: r),
                let w = value("/Width ", in: bytes[open ..< close]), let h = value("/Height ", in: bytes[open ..< close]),
-               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) || _find(smask, in: Array(bytes[open ..< close]), from: 0) != nil
+               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) || (_find(smask, in: Array(bytes[open ..< close]), from: 0) != nil && !SlideTextCache.alphaSmooth.contains(UInt64(w) << 32 | UInt64(h)))
                 || (otherSizes.contains(UInt64(w) << 32 | UInt64(h)) && !_isGrey(bytes, dict: bytes[open ..< close], close: close, value: { value($0, in: $1) })) {
                 i = r + mark.count
                 continue
@@ -148,6 +151,59 @@ enum SlidesPdf {
         for a in at { out += bytes[from ..< a]; out += add; from = a }
         out += bytes[from ..< table]
         // The table: "0 N" then N twenty-byte entries, offsets moved.
+        var lines = String(decoding: bytes[table ..< sx], as: UTF8.self).components(separatedBy: "\n")
+        guard lines.count > 2, lines[0] == "xref" else { return nil }
+        for k in 2 ..< lines.count {
+            let f = lines[k].split(separator: " ")
+            guard f.count == 3, f[2] == "n", let o = Int(f[0]) else { continue }
+            let digits = String(moved(o))
+            lines[k] = String(repeating: "0", count: max(0, 10 - digits.count)) + digits + " \(f[1]) n "
+        }
+        out += Array(lines.joined(separator: "\n").utf8)
+        out += Array("startxref\n\(moved(table))\n%%EOF\n".utf8)
+        return Data(out)
+    }
+
+    /// The PDF with every page's size as PowerPoint writes it: the slide's size
+    /// in twelfths of a point of 1/600 inch (round(EMU / 1524) x 0.12 pt:
+    /// 10077450 EMU is 793.56 pt, where Skia writes the whole point, 794).
+    /// A page of another size is scored stretched against PowerPoint's, and a
+    /// tiled background drifts across it. Nil when nothing changes or the file
+    /// is not one classic cross-reference table.
+    static func exactPageSize(_ data: Data, width: Double, height: Double) -> Data? {
+        func units(_ pt: Double) -> Double { (pt * 12700 / 1524).rounded() * 0.12 }
+        func text(_ v: Double) -> String {
+            var t = String(Int((v * 100).rounded()))
+            while t.count < 3 { t = "0" + t }
+            let whole = String(t.dropLast(2)), frac = String(t.suffix(2))
+            return frac == "00" ? whole : frac.hasSuffix("0") ? "\(whole).\(frac.prefix(1))" : "\(whole).\(frac)"
+        }
+        let bytes = [UInt8](data)
+        let key = Array("/MediaBox [0 0 ".utf8)
+        // (Skia lays a page's content from its foot, upward from the whole-point
+        // height it wrote; the top edge stays there and the foot moves up.)
+        var spans: [(Int, Int, [UInt8])] = []
+        var i = 0
+        while let r = _find(key, in: bytes, from: i) {
+            guard let close = bytes[r...].firstIndex(of: 0x5D) else { return nil }
+            let old = String(decoding: bytes[(r + key.count) ..< close], as: UTF8.self).split(separator: " ").compactMap { Double($0) }
+            guard old.count == 2 else { return nil }
+            let h = units(height)
+            let new = Array("/MediaBox [0 \(text(old[1] - h)) \(text(units(width))) \(text(old[1]))]".utf8)
+            if Array(bytes[r ... close]) != new { spans.append((r, close + 1, new)) }
+            i = close + 1
+        }
+        guard !spans.isEmpty, let sx = _find(Array("startxref\n".utf8), in: bytes, from: max(0, bytes.count - 64)),
+              let end = bytes[(sx + 10)...].firstIndex(of: 0x0A), let table = Int(String(decoding: bytes[(sx + 10) ..< end], as: UTF8.self)),
+              table > spans.last!.1, table + 5 < bytes.count, Array(bytes[table ..< table + 5]) == Array("xref\n".utf8)
+        else { return nil }
+        func moved(_ offset: Int) -> Int {
+            offset + spans.filter { $0.1 <= offset }.reduce(0) { $0 + $1.2.count - ($1.1 - $1.0) }
+        }
+        var out: [UInt8] = []
+        var from = 0
+        for (a, b, new) in spans { out += bytes[from ..< a]; out += new; from = b }
+        out += bytes[from ..< table]
         var lines = String(decoding: bytes[table ..< sx], as: UTF8.self).components(separatedBy: "\n")
         guard lines.count > 2, lines[0] == "xref" else { return nil }
         for k in 2 ..< lines.count {

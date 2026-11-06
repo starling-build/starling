@@ -30,6 +30,8 @@ final class SlideTextCache {
     /// The pixel sizes (width << 32 | height) of the pictures decoded from a
     /// JPEG: the ones PowerPoint for Windows marks smooth in its PDF.
     nonisolated(unsafe) static var jpegSizes: Set<UInt64> = []
+    /// Sizes of tiled pictures with an alpha mask that PowerPoint still marks smooth.
+    nonisolated(unsafe) static var alphaSmooth: Set<UInt64> = []
     static func noteJpeg(_ bytes: [UInt8], _ image: Image) {
         if bytes.starts(with: [0xFF, 0xD8]) { jpegSizes.insert(UInt64(image.width) << 32 | UInt64(image.height)) }
     }
@@ -1659,6 +1661,10 @@ final class SlidePainter: CustomPainter {
             // picture in the PDF, with an alpha channel, not the JPEG).
             let baked = fill.imageAlpha < 1 && fill.duotone == nil && fill.imageLevels == nil ? cache.withAlpha(drawn, fill.imageAlpha) : nil
             var decoded = baked ?? drawn
+            // (A tiled PNG with its own transparency is written as a colour
+            // picture with a mask and marked smooth, as a JPEG is: lo-page_transparent_bitmap's
+            // brick tile, PowerPoint's PDF; a lone PNG with alpha stays lossless and sharp.)
+            if let b = baked, fill.tiled, !fill.isPattern { let k = UInt64(b.width) << 32 | UInt64(b.height); SlideTextCache.jpegSizes.insert(k); SlideTextCache.alphaSmooth.insert(k) }
             let paint = baked != nil ? imagePaint(alpha: 1, duotone: nil) : imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
