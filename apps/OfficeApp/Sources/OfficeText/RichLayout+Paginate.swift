@@ -5162,6 +5162,11 @@ extension RichLayout {
         // it lays none over the one above's after: lo-373ee508's heading, 6pt after, then the
         // section's mark of 6 before — 6 between the lines it numbers in Word's print, ours 0.)
         if theme.wordRules, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, style.sectionXML != nil { return 0 }
+        // (Nor over the space after one that only ends a section: `_spacing` already takes that
+        // off this one's space before, so it comes off once. lo-563123f3's "C", 12pt before under
+        // a continuous section's mark of 10 after: 111.9 in Word's print, lab sect563b, ours 109.9.)
+        if theme.wordRules, _heights[above] == 0, document.paragraphs[above].text.isEmpty, document.paragraphs[above].image == nil,
+           document.paragraphs[above].style.sectionXML != nil { return 0 }
         let shared = min(_spacing(above, document).after, _spacing(i, document).before)
         return theme.wordRules ? shared : shared.rounded(.down)
     }
