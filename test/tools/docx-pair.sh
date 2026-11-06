@@ -71,6 +71,24 @@ score() {  # WORK CORPUSDIR — v2 and v1 side by side, each over MATCH_JOBS pro
   wait
 }
 
+# vis_set SET FIXWORK BASEWORK — the VISUAL-scored documents (Word's print has no text lines: lines 0/n in v2) are scored
+# from the pages instead (test/tools/docx-combine.py; 100 at worst page <= 1% of pixels, 0 at 10%). Both sides are rendered
+# or reused from their sweep, then scored by test/docx-visual.py over just those documents. Writes $FIX/$S.{vis,combined};
+# $BASE/$S.{vis,combined} too when BASEWORK is given. The "vis v2" section's header ends in " v2" on purpose: land.sh blocks
+# on a DOWN there like on any v2 drop, and LAND_ACCEPT_DROP names them the same way.
+vis_side() {  # SET WORKDIR(with pdf/) V2FILE OUTDIR LABEL [BIN]
+  local S=$1 W=$2 V2=$3 OUT=$4 L=$5 BIN=${6:-} C names v n; C=$(corpus "$S")
+  names=$($PY "$HERE/docx-combine.py" select "$V2") || return 1
+  local VW=$STAGE/work/vis-$L-$S; rm -rf "$VW"; mkdir -p "$VW/pdf" "$VW/refs"
+  for n in $names; do
+    ln -s "$C/word-win/$n-orig.pdf" "$VW/refs/$n-orig.pdf" 2>/dev/null
+    if [ -s "$W/pdf/$n.pdf" ]; then ln -s "$W/pdf/$n.pdf" "$VW/pdf/$n.pdf"
+    elif [ -n "$BIN" ]; then ( cd "$C/docs" && perl -e "alarm 300; exec @ARGV" "$BIN" --convert "$n.docx" "$VW/pdf/$n.pdf" >/dev/null 2>&1 ); fi
+  done
+  DOCX_CORPUS=$C $PY -W ignore "$HERE/../docx-visual.py" "$VW" "$VW/refs" "$VW/visual" >"$VW/visual.log" 2>&1 || { echo "visual scoring failed for $L $S (see $VW/visual.log)" >&2; return 1; }
+  $PY "$HERE/docx-combine.py" combine "$V2" "$VW/visual" "$OUT/$S.vis" "$OUT/$S.combined" "$L $S"
+}
+
 # The sets are swept side by side (JOBS each; the LibreOffice set is short, the 756's slowest document sets the wall time):
 # wait_sets LABEL — wait for every background sweep; if one aborted, so does the run.
 wait_sets() { local bad=0 j; for j in $(jobs -p); do wait "$j" || bad=1; done
@@ -104,12 +122,19 @@ for S in $SETS; do
   echo "fix $S: $(cat "$STAGE/work/fix-$S.time"), failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
   for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done
 done
+for S in $SETS; do vis_side $S "$STAGE/work/fix-$S" "$FIX/$S.v2" "$FIX" fix || { echo "ABORT: visual scoring (fix, $S)" >&2; exit 1; }; done
 test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
 if [ $SEED = 1 ]; then echo "seed written to $FIX (cp $FIX/* $STORED/)"; exit 0; fi
 # movers (and the nondeterministic ones)
 for S in $SETS; do for v in v2 v1; do
   echo "== $S $v"; $PY "$HERE/docx-cmp.py" "$FIX/$S.$v" "$BASE/$S.$v" > "$STAGE/cmp-$S-$v.txt"; cat "$STAGE/cmp-$S-$v.txt"
 done; done
+# the visual-scored documents: base rendered (or reused) and scored beside the fix; movers in a "vis v2" section
+for S in $SETS; do
+  bw=$STAGE/work/base-$S; [ -d "$bw/pdf" ] || bw=$STAGE/work/none
+  vis_side $S "$bw" "$BASE/$S.v2" "$BASE" base "$BASEBIN" || { echo "ABORT: visual scoring (base, $S)" >&2; exit 1; }
+  echo "== $S vis v2"; $PY "$HERE/docx-cmp.py" "$FIX/$S.vis" "$BASE/$S.vis" > "$STAGE/cmp-$S-vis.txt"; cat "$STAGE/cmp-$S-vis.txt"
+done
 # re-print every mover with FIXBIN once more; a different score the second time is noise
 echo "== nondeterminism check"
 for S in $SETS; do

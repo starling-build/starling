@@ -9,7 +9,7 @@ def load(p):
     return d
 def mean(d,keys,text):
     v=[d[k][0] for k in keys if k in d and (not text or d[k][2]>0)]
-    return sum(v)/len(v),len(v)
+    return (sum(v)/len(v) if v else 0.0),len(v)
 a,b=load(sys.argv[1]),load(sys.argv[2]); thr=float(sys.argv[3]) if len(sys.argv)>3 else 0.05
 keys=sorted(set(a)&set(b))
 for n,d in(("NEW",a),("OLD",b)):

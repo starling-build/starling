@@ -1,0 +1,11 @@
+10 visual-scored documents (Word's print has no text lines): 100 at worst page <= 1% of pixels, 0 at 10%
+ 100.0%  lines 0/0  pages 0/0  51921-Word-Crash067
+ 100.0%  lines 0/0  pages 0/0  59378
+ 100.0%  lines 0/0  pages 0/0  Bug62859
+ 100.0%  lines 0/0  pages 0/0  TestTableColumns
+ 100.0%  lines 0/0  pages 0/0  comment
+ 100.0%  lines 0/0  pages 0/0  headerPic
+ 100.0%  lines 0/0  pages 0/0  issue_51265_1
+ 100.0%  lines 0/0  pages 0/0  issue_51265_2
+ 100.0%  lines 0/0  pages 0/0  issue_51265_3
+ 100.0%  lines 0/0  pages 0/0  zero-length
