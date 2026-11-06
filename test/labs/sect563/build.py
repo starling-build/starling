@@ -15,18 +15,18 @@ def para(t,before=0,after=0,sz=20,brk=False,bold=False):
     sp=f'<w:spacing w:before="{before}" w:after="{after}" w:line="240" w:lineRule="auto"/>'
     sect=f'<w:sectPr><w:type w:val="continuous"/>{PG}</w:sectPr>' if brk else ''
     b='<w:b/>' if bold else ''
-    return (f'<w:p><w:pPr>{sp}{sect}</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>{b}<w:sz w:val="{sz}"/></w:rPr>'
-            f'<w:t xml:space="preserve">{t}</w:t></w:r></w:p>')
+    mark=f'<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="{sz}"/></w:rPr>'
+    return f'<w:p><w:pPr>{sp}{sect}{mark}</w:pPr>{run}</w:p>'
 BEF=[0,120,240,480]
 def build(out):
     os.makedirs(out,exist_ok=True)
     for mode in (14,15):
-        for kind in ("brk","ctl"):
+        for kind in ("brk","ctl","brkE","ctlE"):
             body=""
             for b in BEF:
                 body+=para(f"{kind} m{mode} before-text {b}",after=0)
                 # the break paragraph is an empty-ish line that ends section 1 (kept 1pt so it has a height)
-                body+=para("x",sz=2,brk=(kind=="brk"))
+                body+=(para("",sz=22,brk=(kind=="brkE")) if kind.endswith("E") else para("x",sz=2,brk=(kind=="brk")))
                 body+=para(f"HEAD before={b}",before=b,sz=32,bold=True)
                 body+=para("body line after heading",sz=20)
                 body+=para("filler",sz=20)
