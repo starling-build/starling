@@ -1,0 +1,17 @@
+# doc	cx	cy	R	npts	rms_resid  (circle fit to the vertices of the coloured wedge paths; the wedge apex is excluded by using only points far from the best apex guess)
+ps-len-30-legnone	250.85	190.02	70.45	20	0.003
+ps-len-30	250.85	162.46	46.33	20	0.000
+ps-len-36-legnone	250.85	190.02	70.45	20	0.003
+ps-len-36	250.85	162.46	46.33	20	0.000
+ps-len-40-ctr	250.85	145.59	37.64	20	0.001
+ps-len-40-fr480	310.85	206.33	84.72	20	0.002
+ps-len-40-legnone	250.85	190.02	70.45	20	0.003
+ps-len-40-legr	186.35	190.02	70.45	20	0.003
+ps-len-40-n2	250.85	170.90	53.71	8	0.000
+ps-len-40-n3	250.85	162.46	46.33	16	0.003
+ps-len-40-n8	250.85	128.71	16.80	32	0.002
+ps-len-40	250.85	145.58	31.56	20	0.001
+ps-len-40-sz6	250.85	145.58	31.56	20	0.001
+ps-len-40-v	250.85	145.58	31.56	20	0.001
+ps-len-50-legnone	250.85	190.02	70.45	20	0.003
+ps-len-50	250.85	145.58	31.56	20	0.001
