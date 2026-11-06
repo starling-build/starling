@@ -1347,7 +1347,13 @@ extension RichLayout {
                                   // lines on the page, stands from the part's top two lines there and one
                                   // under the repeated header; ours sent all three over.)
                                   // (`partedBelow`.)
-                                  !(theme.wordRules && RichTextTheme.wordWindowsPages && d0.rowSpan > 1 && column.cut > c.rowTop + 0.01 && column.cut >= column.bottom - 0.01 && first) {
+                                  !(theme.wordRules && RichTextTheme.wordWindowsPages && d0.rowSpan > 1 && column.cut > c.rowTop + 0.01 && column.cut >= column.bottom - 0.01 && first),
+                                  // (Nor one merged down whose bottom is only the row's, its own last line
+                                  // standing past it: zh-4d143b5e's "有计划…理想信念、统计法制…" over two rows,
+                                  // five lines to a part that holds two, was set whole on p6 with its third
+                                  // line under the foot and again from the top of p7; Word cuts after the
+                                  // second line.)
+                                  !(theme.wordRules && RichTextTheme.wordWindowsPages && d0.rowSpan > 1 && (column.cuts.last ?? 0) > column.bottom + 0.01) {
                             // (All that is left of this cell is on this page.)
                             // (Above the line the part is closed with, as a cut
                             // must be: zh-e1b09977's p13 closes under its table's
