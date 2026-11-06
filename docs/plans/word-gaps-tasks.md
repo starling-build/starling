@@ -14761,3 +14761,4 @@ TIP WATCH amd-8, round 162 (53ace9774): Word no drops; unit tests 628 run, 0 fai
 - lenovo-5 LANDED zh-e51c31a7 p5 text-box clip: text-layer artefact, approved by starling-bd (LAND_ACCEPT_DROP=zh-e51c31a7; Word keeps clipped dashes as invisible text, page matches Word's print).
 
 TIP WATCH amd-8, round 163 (d7deaf3c7): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- CLAIM lenovo-5: zh-6b4b9397e p2, zh-207a7cc32 p5 (visual 86, 89; no earlier board mention), then zh-314d6d09 p3, zh-2f7f5cb2 p4, zh-34c5b0c3 p1, zh-d9563f2f p11 (1 mention each).
