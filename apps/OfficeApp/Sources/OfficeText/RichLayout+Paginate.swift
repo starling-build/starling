@@ -5115,8 +5115,7 @@ extension RichLayout {
         // the page's top in Word's print.)
         if theme.wordRules, i > 0, case let above = document.paragraphs[i - 1], above.cell == nil, !p.style.pageBreakBefore,
            p.cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) ?? true,
-           above.text.isEmpty, above.image == nil, let sx = above.style.sectionXML,
-           (sx.rangeOfSubstring("w:num=\"").map { Int(sx[$0.upperBound...].prefix { $0.isNumber }) ?? 1 } ?? 1) <= 1 {
+           above.text.isEmpty, above.image == nil, above.style.sectionXML != nil {
             spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
         }
         // An HTML block's margins: its top over its first paragraph, its
@@ -5164,10 +5163,10 @@ extension RichLayout {
         if theme.wordRules, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, style.sectionXML != nil { return 0 }
         // (Nor over the space after one that only ends a section: `_spacing` already takes that
         // off this one's space before, so it comes off once. lo-563123f3's "C", 12pt before under
-        // a continuous section's mark of 10 after: 111.9 in Word's print, lab sect563b, ours 109.9.)
+        // a continuous section's mark of 10 after: 111.9 in Word's print, lab sect563b, ours 109.9.
+        // The section's column count and break type change nothing: lab sect5359, Word's print.)
         if theme.wordRules, _heights[above] == 0, document.paragraphs[above].text.isEmpty, document.paragraphs[above].image == nil,
-           let sx = document.paragraphs[above].style.sectionXML,
-           (sx.rangeOfSubstring("w:num=\"").map { Int(sx[$0.upperBound...].prefix { $0.isNumber }) ?? 1 } ?? 1) <= 1 { return 0 }
+           document.paragraphs[above].style.sectionXML != nil { return 0 }
         let shared = min(_spacing(above, document).after, _spacing(i, document).before)
         return theme.wordRules ? shared : shared.rounded(.down)
     }
