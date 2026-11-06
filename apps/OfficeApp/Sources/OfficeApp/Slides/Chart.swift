@@ -2804,7 +2804,12 @@ enum ChartPainter {
                     // gap these gaps were measured with: its edge is
                     // PowerPoint's, the column's keys moved within it.)
                     let measured = (entries.map(\.tp.width).max() ?? 0) + 11 * k * m
-                    area = Rect.fromLTRB(area.left, area.top, area.right - measured - apart * k, area.bottom)
+                    // (A Word pie's legend at the right takes at most 0.366 of the frame: forty-character names, 155 pt
+                    // wide, leave the pie as large as with no legend, its centre 64.5 pt left of the frame's: lab
+                    // piesize3 ps-len-40-legr.)
+                    let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
+                    let taken = word ? min(measured + apart * k, 0.366 * r.width) : measured + apart * k
+                    area = Rect.fromLTRB(area.left, area.top, area.right - taken, area.bottom)
                 }
             } else if c.legendPosition == "t" {
                 // (Under a title, 4.3 further off it than a plot would
