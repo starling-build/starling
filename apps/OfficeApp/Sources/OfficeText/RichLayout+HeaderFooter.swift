@@ -2568,6 +2568,24 @@ extension RichLayout {
                         }
                         lines?.painter.dispose()
                         canvas.restore()
+                        // (A shaded paragraph that opens with a page break, after
+                        // text on the page: Word shades a line-high strip at the
+                        // flow cursor of the page it leaves: pbmid lab, sbox b2.)
+                        if shading, theme.wordRules, RichTextTheme.wordWindowsPages, pieceIndex == _pages[slot].count - 1,
+                           piece.part != .rules, _cells[piece.paragraph] == nil, piece.paragraph + 1 < document.paragraphs.count {
+                            let nx = document.paragraphs[piece.paragraph + 1]
+                            if nx.style.pageBreakInline, !nx.style.columnBreak, let fill = nx.style.fill, nx.text != "\u{FFFC}",
+                               _cells[piece.paragraph + 1] == nil, let line = geometry(piece.paragraph + 1).painter.computeLineMetrics().first {
+                                let paint = Paint()
+                                paint.style = .fill
+                                paint.color = fill
+                                let y = bottom
+                                if y + line.height <= pageRect(p).top + _pxPageH(p) - _px(pageSetup(forPage: p).marginBottom) + 0.5 {
+                                    canvas.drawRect(Rect.fromLTRB((left - _px(1.4)).rounded(), y.rounded(), (left + columnW + _px(1.4)).rounded(), (y + line.height).rounded()), paint)
+                                    RuleTrace.hit("word-shaded-page-break-paints-a-strip-on-the-page-it-leaves")
+                                }
+                            }
+                        }
                         if numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
                             _paintLineNumbers(piece, ordinal: ordinal, origin: Offset(left, top - piece.flowTop), canvas, document)
                         }
