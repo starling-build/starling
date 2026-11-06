@@ -4413,6 +4413,20 @@ enum ChartPainter {
             table = (top, rows, plot.left - column, size)
         }
         if let placed, c.plotLayoutInner { plot = placed }
+        // Word keeps room at the right of a laid plot for the second value axis's labels: 16.55 pt and 0.821 of the
+        // widest label (23.2 pt for "-5", 33.3 for "-500".."1000"). Where the file leaves less, the whole plot moves
+        // left by the shortfall, its width kept, up to 9.4 pt (lab chart2x, Windows 01QbbApP: room 8..32 pt;
+        // zh-547fc43c p6's chart 21.0 pt, plot 2.1 left of the file's).
+        if placed != nil, c.plotLayoutInner, inWord, !c.onSheet, !c.onSlide, !c.chartex, c.barView == nil, !horizontal,
+           !secondLabels.isEmpty, c.secondValueAxis?.deleted != true {
+            let need = (16.55 + 0.821 * (secondLabels.map(\.width).max() ?? 0) / k) * k
+            let short = plot.right - (frame.right - need)
+            if short > 0 {
+                RuleTrace.hit("word-laid-plot-gives-way-to-the-second-axis-labels")
+                let shift = min(short, 9.4 * k)
+                plot = Rect.fromLTRB(plot.left - shift, plot.top, max(plot.left - shift + 1, plot.right - short), plot.bottom)
+            }
+        }
         // A 3-D chart stands in a box whose floor and walls run back, up
         // and to the right, one category deep: the plot is its front, and
         // the room behind it is taken out of the area (aascu 5864's
