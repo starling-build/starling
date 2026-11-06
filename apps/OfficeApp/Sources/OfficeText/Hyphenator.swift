@@ -68,7 +68,7 @@ final class Hyphenator {
         let made: Hyphenator
         switch key {
         case "en-gb": made = Hyphenator(patterns: HyphenationData.en_gbPatterns, exceptions: HyphenationData.en_gbExceptions, leftMin: 3, rightMin: 3)
-        case "en-us": made = Hyphenator(patterns: HyphenationData.en_usPatterns, exceptions: HyphenationData.en_usExceptions, leftMin: 3, rightMin: 3)
+        case "en-us": made = Hyphenator(patterns: HyphenationData.en_usPatterns, exceptions: HyphenationData.en_usExceptions + "\n" + HyphenationData.en_usWordLab, leftMin: 2, rightMin: 3)
         case "nl": made = Hyphenator(patterns: HyphenationData.nlPatterns, exceptions: HyphenationData.nlExceptions, leftMin: 2, rightMin: 2)
         case "de": made = Hyphenator(patterns: HyphenationData.de_1996Patterns, exceptions: HyphenationData.de_1996Exceptions, leftMin: 2, rightMin: 2)
         case "es": made = Hyphenator(patterns: HyphenationData.esPatterns, exceptions: HyphenationData.esExceptions, leftMin: 2, rightMin: 2)
