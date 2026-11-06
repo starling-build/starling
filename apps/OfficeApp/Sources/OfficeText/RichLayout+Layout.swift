@@ -2256,7 +2256,7 @@ extension RichLayout {
                                 if measured[p] == nil { measured[p] = _detachedHeight(p, document, pair: cell.rowSpan == 2) }
                                 h += measured[p]!
                             }
-                            own[r + offset] = max(own[r + offset], h + pads + (offset == cell.rowSpan - 1 ? cell.ruleBelow : 0))
+                            own[r + offset] = max(own[r + offset], h + pads + cell.ruleBelow)
                         }
                     }
                 }
