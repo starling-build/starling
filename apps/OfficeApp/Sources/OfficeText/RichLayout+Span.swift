@@ -1471,7 +1471,17 @@ extension RichLayout {
                    following.map({ $0 != " " }) ?? (theme.wordRules && RichTextTheme.wordWindowsPages) {
                     extra -= _px(g) / 2
                 } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.balancesSpaceWidth, let g = grid, g != 0,
-                          ch == " " || following == " ", kind >= 0, !wideSpaces.contains(offset) {
+                          ch == " " || following == " ", kind >= 0, !wideSpaces.contains(offset),
+                          { () -> Bool in
+                              // (Latin on both sides of the space: a letter before it, the space, or a space before a letter.)
+                              let gapAt = ch == " " ? i : after
+                              guard gapAt > text.startIndex, gapAt < text.endIndex else { return false }
+                              let before = shown(text[text.index(before: gapAt)])
+                              let afterGap = text.index(after: gapAt)
+                              guard afterGap < text.endIndex else { return false }
+                              let nxt = shown(text[afterGap])
+                              return before != " " && nxt != " " && !RichLayout.isEastAsian(before, hinted: hinted) && !RichLayout.isEastAsian(nxt, hinted: hinted)
+                          }() {
                     // (A plain space between Latin words, and the letter before it, are
                     // half-width characters like the rest: half the addition each. zh-c2c92639's
                     // contents page: a word gap was 2.25 + 1.5 g, Word's 2.25 + 0.5 g.)
