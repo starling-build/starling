@@ -1502,8 +1502,8 @@ extension RichLayout {
             // about 0.105 of the width for medium, 0.19 for high; low fits as `both`.)
             if theme.wordRules, style.alignment == .justify {
                 switch style.eastAsian["w:jc"] {
-                case "mediumKashida": painter.fitReserve = 0.105 * lineWidth
-                case "highKashida": painter.fitReserve = 0.19 * lineWidth
+                case "mediumKashida": painter.fitReserve = 0.10 * lineWidth
+                case "highKashida": painter.fitReserve = 0.20 * lineWidth
                 default: break
                 }
             }
