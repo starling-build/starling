@@ -7070,7 +7070,9 @@ extension ChartPainter {
                 // 3-4 nearer up and down than the flat rule, lab pie5 outEnd
                 // against Word's print, all 56 labels.)
                 let wide3D = point != nil && !c.onSlide && !c.onSheet && l.moves[s.index] == nil && l.position == "outEnd"
-                let gapX = wide3D ? gap + 4.5 * k : gap, gapY = tuneFlat ? 3.5 * k : gap
+                let gapX = wide3D ? gap + 4.5 * k : gap, gapY = tuneFlat ? (dy > 0 ? 7 : 3.5) * k : gap
+                // (Under the pie, a Word flat pie's best-fit labels stand 3 to 4 pt lower than that, median +4.3 at 157.5°, +2.7 at
+                // 202.5° on Word's own pie: 589 of 754 labels in the pielabel3/5/6, pieang and piewid prints within 3 pt in y, from 472.)
                 // (A 3-D pie's best fit in a Word document stands level with its rim point
                 // until the slice's middle is about 20° off the horizontal, and from there
                 // its text's half height and 2.5pt above or below it — a step, not a slope:
