@@ -15046,3 +15046,5 @@ TIP WATCH amd-8, round 200 (6d0232726): Word no drops (six sections up 0 down 0)
 - f43d071d3: SimSun curly quotes are an em where the run's Latin face is SimSun and nothing hints East Asian. Lab pc2 (Word prints, wip/lenovo2-pc2-prints): 429 of 440 lines matched before, 440 of 440 now. Hinted (eastAsia) quotes stay as before; widening them in the shared table dropped 7 docs. No score moves.
 - Comma/bracket squeeze: the existing equal-share rule matches Word on all 385 lines of the first lab for the comma, enumeration comma, full stop and closing bracket. The quote difference was the font slot's width, not the squeeze rule (17d3619d4). The opening book-title bracket was not separated in pc2: its kinds all matched ours.
 - Still open: zh-ea43dd6d (1.5 pt line), zh-e61c3dff (99.6, not examined), the narrow-space gate (zh-6c447317).
+
+TIP WATCH amd-8, round 201 (050818b8e): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
