@@ -1249,7 +1249,7 @@ extension RichLayout {
             // columns hold the plain "、" at the plain step, none of
             // U+FE10 to FE19 — zh-74b34f3b's "會議、研習、喜宴", where the
             // drop below stood ours 9pt low.)
-            let family = styles[k]?.fontFamily ?? ""
+            let family = styles[k]?.debugLabel ?? styles[k]?.fontFamily ?? ""
             let plain = family.containsSubstring("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
             let form = plain ? ch : (Self._verticalForms[ch] ?? ch)
             // (Its own advance, without the run's letter spacing: that
@@ -1262,6 +1262,11 @@ extension RichLayout {
             // with the character low in it: zh-2b955411's 28pt lines set
             // "评估目的" 5pt below Word's.)
             let em = styles[k]?.fontSize ?? 14
+            // (A 標楷體 column stands 0.085 em further toward the line's
+            // start than the square centred in its box: lab vlab1, a 12 pt
+            // column 1.0 to 1.1 pt left of ours at every exact, auto and
+            // aligned line, 10 to 20 pt scaling with the size; zh-20c1d74a's
+            // 0.95 pt.)
             let middle = glyph.computeDistanceToActualBaseline(.alphabetic) - 0.38 * em
             canvas.save()
             // (A mark's vertical form further down its box or up it, as
@@ -1275,7 +1280,7 @@ extension RichLayout {
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
             let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
-            canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + across(box))
+            canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + across(box) + (plain ? 0.085 * em : 0))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()

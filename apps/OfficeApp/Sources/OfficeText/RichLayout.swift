@@ -852,6 +852,7 @@ public final class RichTextTheme {
             }(),
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
+            debugLabel: familyName,
             fontFamily: family,
             fontFamilyFallback: {
                 let list = (face?.fallback ?? []) + Self.glyphFallback
