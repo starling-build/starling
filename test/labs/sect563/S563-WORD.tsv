@@ -1,0 +1,81 @@
+warning: The `fitz` API is deprecated and will be removed in future. Use `import pymupdf` instead.
+sect563-brk14 1 70.1 84.7 81.4 brk m14 before-text 0 
+sect563-brk14 1 83.5 84.6 84.4 x
+sect563-brk14 1 85.2 103.0 99.6 HEAD before=0 
+sect563-brk14 1 101.2 115.8 112.5 body line after heading 
+sect563-brk14 1 112.6 127.2 123.9 filler 
+sect563-brk14 1 124.1 138.8 135.4 brk m14 before-text 120 
+sect563-brk14 1 137.6 138.7 138.5 x
+sect563-brk14 1 145.3 163.1 159.7 HEAD before=120 
+sect563-brk14 1 161.2 175.8 172.5 body line after heading 
+sect563-brk14 1 172.7 187.4 184.0 filler 
+sect563-brk14 1 184.2 198.9 195.5 brk m14 before-text 240 
+sect563-brk14 1 197.6 198.7 198.5 x
+sect563-brk14 1 211.3 229.1 225.7 HEAD before=240 
+sect563-brk14 1 227.2 241.8 238.5 body line after heading 
+sect563-brk14 1 238.7 253.4 250.0 filler 
+sect563-brk14 1 250.2 264.9 261.5 brk m14 before-text 480 
+sect563-brk14 1 263.8 264.9 264.6 x
+sect563-brk14 2 96.6 114.4 111.0 HEAD before=480 
+sect563-brk14 2 112.5 127.1 123.7 body line after heading 
+sect563-brk14 2 124.0 138.6 135.3 filler 
+sect563-brk15 1 70.1 84.7 81.4 brk m15 before-text 0 
+sect563-brk15 1 83.5 84.6 84.4 x
+sect563-brk15 1 85.2 103.0 99.6 HEAD before=0 
+sect563-brk15 1 101.2 115.8 112.5 body line after heading 
+sect563-brk15 1 112.6 127.2 123.9 filler 
+sect563-brk15 1 124.1 138.8 135.4 brk m15 before-text 120 
+sect563-brk15 1 137.6 138.7 138.5 x
+sect563-brk15 1 145.3 163.1 159.7 HEAD before=120 
+sect563-brk15 1 161.2 175.8 172.5 body line after heading 
+sect563-brk15 1 172.7 187.4 184.0 filler 
+sect563-brk15 1 184.2 198.9 195.5 brk m15 before-text 240 
+sect563-brk15 1 197.6 198.7 198.5 x
+sect563-brk15 1 211.3 229.1 225.7 HEAD before=240 
+sect563-brk15 1 227.2 241.8 238.5 body line after heading 
+sect563-brk15 1 238.7 253.4 250.0 filler 
+sect563-brk15 1 250.2 264.9 261.5 brk m15 before-text 480 
+sect563-brk15 1 263.8 264.9 264.6 x
+sect563-brk15 2 96.6 114.4 111.0 HEAD before=480 
+sect563-brk15 2 112.5 127.1 123.7 body line after heading 
+sect563-brk15 2 124.0 138.6 135.3 filler 
+sect563-ctl14 1 70.1 84.7 81.4 ctl m14 before-text 0 
+sect563-ctl14 1 73.1 87.8 84.4 x 
+sect563-ctl14 1 85.2 103.0 99.6 HEAD before=0 
+sect563-ctl14 1 101.2 115.8 112.5 body line after heading 
+sect563-ctl14 1 112.6 127.2 123.9 filler 
+sect563-ctl14 1 124.1 138.8 135.4 ctl m14 before-text 120 
+sect563-ctl14 1 127.2 141.9 138.5 x 
+sect563-ctl14 1 145.3 163.1 159.7 HEAD before=120 
+sect563-ctl14 1 161.2 175.8 172.5 body line after heading 
+sect563-ctl14 1 172.7 187.4 184.0 filler 
+sect563-ctl14 1 184.2 198.9 195.5 ctl m14 before-text 240 
+sect563-ctl14 1 187.2 201.9 198.5 x 
+sect563-ctl14 1 211.3 229.1 225.7 HEAD before=240 
+sect563-ctl14 1 227.2 241.8 238.5 body line after heading 
+sect563-ctl14 1 238.7 253.4 250.0 filler 
+sect563-ctl14 1 250.2 264.9 261.5 ctl m14 before-text 480 
+sect563-ctl14 1 253.4 268.0 264.6 x 
+sect563-ctl14 1 289.4 307.3 303.9 HEAD before=480 
+sect563-ctl14 1 305.3 320.0 316.6 body line after heading 
+sect563-ctl14 1 316.9 331.5 328.1 filler 
+sect563-ctl15 1 70.1 84.7 81.4 ctl m15 before-text 0 
+sect563-ctl15 1 73.1 87.8 84.4 x 
+sect563-ctl15 1 85.2 103.0 99.6 HEAD before=0 
+sect563-ctl15 1 101.2 115.8 112.5 body line after heading 
+sect563-ctl15 1 112.6 127.2 123.9 filler 
+sect563-ctl15 1 124.1 138.8 135.4 ctl m15 before-text 120 
+sect563-ctl15 1 127.2 141.9 138.5 x 
+sect563-ctl15 1 145.3 163.1 159.7 HEAD before=120 
+sect563-ctl15 1 161.2 175.8 172.5 body line after heading 
+sect563-ctl15 1 172.7 187.4 184.0 filler 
+sect563-ctl15 1 184.2 198.9 195.5 ctl m15 before-text 240 
+sect563-ctl15 1 187.2 201.9 198.5 x 
+sect563-ctl15 1 211.3 229.1 225.7 HEAD before=240 
+sect563-ctl15 1 227.2 241.8 238.5 body line after heading 
+sect563-ctl15 1 238.7 253.4 250.0 filler 
+sect563-ctl15 1 250.2 264.9 261.5 ctl m15 before-text 480 
+sect563-ctl15 1 253.4 268.0 264.6 x 
+sect563-ctl15 1 289.4 307.3 303.9 HEAD before=480 
+sect563-ctl15 1 305.3 320.0 316.6 body line after heading 
+sect563-ctl15 1 316.9 331.5 328.1 filler 
