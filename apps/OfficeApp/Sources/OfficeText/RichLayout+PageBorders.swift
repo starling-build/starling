@@ -39,7 +39,7 @@ extension RichLayout {
         let first = p == 0 || p >= _pageSection.count || _pageSection[p - 1] != _pageSection[p]
         if display == "firstPage" && !first { return }
         if display == "notFirstPage" && first { return }
-        let fromText = (Self._attr(head, "w:offsetFrom") ?? "page") == "text"
+        let fromText = (Self._attr(head, "w:offsetFrom") ?? "text") == "text"
         let page = pageRect(p)
         let s = pageSetup(forPage: p)
 
@@ -68,14 +68,6 @@ extension RichLayout {
         let pxLeftText = page.left + _pxMarginLeft(p)
         let pxRightText = page.right - _px(s.marginRight)
         let pxBottomText = page.bottom - _px(s.marginBottom)
-        let tEdge = top.map { fromText ? pxTopText - _px($0.space) : page.top + _px($0.space) }
-        let lEdge = left.map { fromText ? pxLeftText - _px($0.space) : page.left + _px($0.space) }
-        let bEdge = bottom.map { fromText ? pxBottomText + _px($0.space) : page.bottom - _px($0.space) }
-        let rEdge = right.map { fromText ? pxRightText + _px($0.space) : page.right - _px($0.space) }
-
-        let x0 = lEdge ?? page.left, x1 = rEdge ?? page.right
-        let y0 = tEdge ?? page.top, y1 = bEdge ?? page.bottom
-
         // The strokes of a style as (offset inward, thickness) in points.
         func strokes(_ sd: Side, thickOutside: Bool) -> [(Double, Double)] {
             let w = sd.width
@@ -94,6 +86,17 @@ extension RichLayout {
             default: return [(0, w)]
             }
         }
+        // (From the text, `space` is to the line's INNER edge, so the outer
+        // one lies the line's own width further out: lo-811b5975's box.)
+        func extent(_ sd: Side) -> Double { strokes(sd, thickOutside: false).map { $0.0 + $0.1 }.max() ?? sd.width }
+        let tEdge = top.map { fromText ? pxTopText - _px($0.space + extent($0)) : page.top + _px($0.space) }
+        let lEdge = left.map { fromText ? pxLeftText - _px($0.space + extent($0)) : page.left + _px($0.space) }
+        let bEdge = bottom.map { fromText ? pxBottomText + _px($0.space + extent($0)) : page.bottom - _px($0.space) }
+        let rEdge = right.map { fromText ? pxRightText + _px($0.space + extent($0)) : page.right - _px($0.space) }
+
+        let x0 = lEdge ?? page.left, x1 = rEdge ?? page.right
+        let y0 = tEdge ?? page.top, y1 = bEdge ?? page.bottom
+
         func fill(_ r: Rect, _ color: Int64) {
             let paint = Paint()
             paint.color = Color(Int64(0xFF000000) | color)
