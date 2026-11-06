@@ -3,8 +3,8 @@
 (3-D horizontal bars, axes deleted, rAngAx, rotX 15 rotY 20, inner plot manual x .1219 y .1906 w .8567 h .7484, three series 13, 6, 2).
 Question: where PowerPoint puts the box (front face + depth) inside the inner plot, and how long the value axis runs.
 Ours: front 562..842, depth 21; PowerPoint: front 569..828.5, depth 19.5 (frame at 496.7 pt, 404.7 wide).
-Tags: orig; w40 w60 w95 (inner w); x02 (inner x .02); h40 (inner h); v26 v130 (values x2, x10); ry0 ry10 ry30 (rotY); rx0 rx30 (rotX); gap100 (gapWidth)."""
-import zipfile, sys, os
+Tags: orig; w40 w60 w95 (inner w); x02 (inner x .02); h40 (inner h); v26 v130 (values x2, x10); ry0 ry10 ry30 (rotY); rx0 rx30 (rotX); gap100 (gapWidth); s1 s2 s4 s5 (series count 1, 2, 4, 5: the box standing-in depends on it? pages 2/4/6/8 of the deck have 3-4 series and sit 6.5 pt further in than ours, page 10 with 2 does not)."""
+import zipfile, sys, os, re
 SRC = "test/corpus/pptx/decks/LIBRE_OFFICE-100610-0.pptx"
 def rep(a, b): return lambda x: x.replace(a, b, 1)
 def vals(m):
@@ -20,6 +20,18 @@ V = {"orig": lambda x: x,
  "ry0": rep('<c:rotY val="20"/>', '<c:rotY val="0"/>'), "ry10": rep('<c:rotY val="20"/>', '<c:rotY val="10"/>'), "ry30": rep('<c:rotY val="20"/>', '<c:rotY val="30"/>'),
  "rx0": rep('<c:rotX val="15"/>', '<c:rotX val="0"/>'), "rx30": rep('<c:rotX val="15"/>', '<c:rotX val="30"/>'),
  "gap100": rep('<c:gapWidth val="0"/>', '<c:gapWidth val="100"/>')}
+def nser(k):
+    def f(x):
+        sers = re.findall(r'<c:ser>.*?</c:ser>', x, re.S)
+        keep = []
+        for i in range(k):
+            b = sers[i % len(sers)]
+            b = re.sub(r'<c:idx val="\d+"/>', '<c:idx val="%d"/>' % i, b, 1); b = re.sub(r'<c:order val="\d+"/>', '<c:order val="%d"/>' % i, b, 1)
+            keep.append(b)
+        a = x.find(sers[0]); z = x.find(sers[-1]) + len(sers[-1])
+        return x[:a] + ''.join(keep) + x[z:]
+    return f
+for _k in (1, 2, 4, 5): V["s%d" % _k] = nser(_k)
 os.makedirs("test/lab/bar3dbox/decks", exist_ok=True)
 for k, f in V.items():
     zi = zipfile.ZipFile(SRC)
