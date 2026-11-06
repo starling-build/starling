@@ -2110,6 +2110,19 @@ extension RichLayout {
                 _inkShift[i] = _px(target) - line.baseline
             }
         }
+        // An empty numbered paragraph in a cell, on an exact line: its number stands where
+        // the same line's text would, which is lower than the strut sets it
+        // (zh-c97500b6's 1, 2, 3, 4: 6pt high).
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.text.isEmpty, p.image == nil, !p.runs.isEmpty, p.style.list != nil,
+           i < _cells.count, _cells[i] != nil, let exact = p.style.lineHeightPoints, exact > 0, !p.style.lineHeightIsMinimum,
+           let line = painter.computeLineMetrics().first {
+            let named = _named(p, document)
+            let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
+            if let target = theme.baseline(for: _markerChar(p, document), in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
+                RuleTrace.hit("word-empty-list-item-number-on-the-exact-line-baseline")
+                _inkShift[i] = _px(target) - line.baseline
+            }
+        }
         // Over single spacing Word puts all of a line's extra height under its text, so a
         // line with a taller run in it stands on that run's own ascent from the line's top.
         // The engine scales every run's box and puts the baseline at the tallest run's
