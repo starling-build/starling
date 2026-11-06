@@ -2352,6 +2352,7 @@ extension RichLayout {
         // (Under a header's box that leaves the text no room: `_headerBoxFloor`.)
         if let under = _headPushUse[i], under > push { push = under }
         if i < _floatPush.count { _floatPush[i] = push }
+        if i < _floatTight.count { _floatTight[i] = p.inlineImages.inOrder.contains { $0.float?.wraps == true && $0.float?.wrapsTight == true } }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height + _px(segoeLift)
         if let pair = Self._paired(painter) { bodyHeight -= pair.saving }

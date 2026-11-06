@@ -4091,6 +4091,7 @@ enum DocxFormat {
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
+            f.wrapsTight = anchor.first("wp:wrapTight") != nil || anchor.first("wp:wrapThrough") != nil
             if let w = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].lazy.compactMap({ anchor.first($0) }).first,
                let side = w["wrapText"], side == "left" || side == "right" || side == "largest" { f.wrapSide = side }
             // (A tight wrap's polygon with a cut corner at the top: the right edge reaches its full

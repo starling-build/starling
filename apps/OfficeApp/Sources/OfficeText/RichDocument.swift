@@ -362,6 +362,8 @@ public struct ImageFloat: Hashable, Sendable {
     /// A tight wrap's polygon that starts narrow at the top and reaches its full width within the
     /// first few points (points): the lines over that stretch keep the full width.
     public var wrapTopSkip = 0.0
+    /// The wrap is tight or through (not square): lab anch.
+    public var wrapsTight = false
     /// How far text keeps from its top and its foot where it wraps round
     /// it (`wp:anchor`'s `distT`/`distB`, VML's `mso-wrap-distance-top`
     /// and `-bottom`), in points.

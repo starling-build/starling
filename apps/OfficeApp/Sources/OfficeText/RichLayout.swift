@@ -1460,6 +1460,8 @@ public final class RichLayout {
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
     var _floatPush: [Double] = []
+    /// Paragraph i has a float wrapped tight or through (lab anch): the one thing that carries a box with its pushed line.
+    var _floatTight: [Bool] = []
     /// The width (pixels, either sign) of the box that stands before
     /// each paragraph's text for its first line's indent or its list
     /// number; 0 for none.

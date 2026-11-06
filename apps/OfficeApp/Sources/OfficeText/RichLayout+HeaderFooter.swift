@@ -1070,7 +1070,9 @@ extension RichLayout {
                piece.pageY > _pxMarginTop(piece.page) + 1, g.textTop > top, g.textTop - top < _px(40) { y = g.textTop + _px(float.y) }
         }
         // (… where the paragraph's own line went under a float of its that
-        // left it no room, one in front of the text goes with the line:
+        // left it no room, one in front of the text goes with the line
+        // (lab anch, Word for Windows: when the float is wrapped tight or through; under a
+        // square wrap the box stays at the paragraph, lo-7b8ccfbe):
         // zh-d62da4dd's empty paragraphs each hold a chart wrapped tight,
         // 27.3pt down, and a "單位：張(人)數,%" box, 32.1pt down, which
         // Word's print sets under the chart, at the line's new place —
@@ -1078,7 +1080,8 @@ extension RichLayout {
         // (Not one that bands the page, top and bottom: it holds its own
         // place, and the line goes under it — lo's c4c60fcb, a chart group
         // 9.5pt under an empty line, drew 294pt too low.)
-        if theme.wordRules, !float.wraps, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0 { y += pushed }
+        if theme.wordRules, !float.wraps, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0,
+           i < _floatTight.count, _floatTight[i] { y += pushed }
         // (A table floating in a cell from the page or margin stands its offset
         // under the cell's top, not under the paragraph its anchor is in.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, float.fromCellTop, float.horizontalFrom == "cell", i < _cells.count, let d = _cells[i] {
