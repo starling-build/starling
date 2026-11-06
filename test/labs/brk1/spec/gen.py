@@ -3,7 +3,7 @@
 Source: zh-de97afa7 (mode 12, compressPunctuation, jc both, exact lines): Word squeezes the space before an opening bracket (about 4.3pt at 16pt) on lines it then leaves unstretched; ours keeps every bracket full width.
 gen.py test OUT: one file per variant, 56 paragraphs each. Line = 8 ideographs + OPEN1 + 11 ideographs + [S spaces] + OPEN2 + 3 ideographs + CLOSE + filler,
 14pt 標楷體, zh-TW, compressPunctuation, exact 34pt, no grid. Right indent steps the width W from 273pt in 0.5pt steps (OPEN2 starts at 280pt natural), so OPEN2 goes from just past the line end to inside it.
-Variants: OPEN in （ 【 《 「 x jc both|left x compat 14|15 x S 0|1 spaces before OPEN2.
+Variants: OPEN in （ 【 《 「 x jc both|left x compat 12|14|15 x S 0|1 spaces before OPEN2.
 Read-out (meas.py of lab wsf): x of every character per line; where each line breaks (OPEN2 on or off the line), the width of OPEN1 and OPEN2 and of the space, and whether the line is stretched (jc both)."""
 import sys, os, json, zipfile
 A0 = "政府機關辦理考核成績優良"       # 12
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     os.makedirs(out, exist_ok=True)
     for op in "（【《「":
         for jc in ("both", "left"):
-            for mode in (14, 15):
+            for mode in (12, 14, 15):
                 for S in (0, 1):
                     body = ""; meta = []
                     for i in range(56):
