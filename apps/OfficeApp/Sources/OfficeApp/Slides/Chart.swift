@@ -4657,6 +4657,16 @@ enum ChartPainter {
                     wall = fit
                 }
             }
+            // (PowerPoint's 3-D bars at right angles in a plot the file places (inner): the front's axis runs 68 pt short of the
+            // plot's width whatever the depth, and the box, the depth added, stands centred in the plot: lab bar3dbox, rotY 0 / 10 / 20 /
+            // 30, plots 162 to 347 pt wide, three series — the front-left 580, 575, 569 where ours took the depth out of the axis; with one, two,
+            // four or five series the old way stood nearer Word, and with rotX 0 or 30 or a gap the box is not yet modelled.)
+            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, c.series.count == 3, let raw = placed, raw.width >= 240 * k, box != .zero {
+                RuleTrace.hit("slide-3d-bars-hold-their-axis-length-and-centre-the-box-in-the-laid-plot")
+                let axis = raw.width - 68 * k
+                let left = raw.center.dx - (axis + box.dx) / 2
+                plot = Rect.fromLTRB(left, plot.top, left + axis, plot.bottom)
+            }
             // (Excel's 3-D columns at right angles, one row of depth per series (Windows lab view3d, 480 x 288 and 320 x 400 pt, one to
             // four series, depthPercent 50-200, hPercent 50-100): the front is as high as 0.25 (series + 1) of the room's height times the
             // front's share of the room's width, no more than the room less the depth's rise; a stated hPercent makes it that share
