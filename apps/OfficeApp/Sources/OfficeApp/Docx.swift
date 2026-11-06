@@ -4497,7 +4497,10 @@ enum DocxFormat {
             // start 28pt in).)
             if element == "w:ind", n["w:firstLine"] != nil || n["w:hanging"] != nil || n["w:firstLineChars"] != nil || n["w:hangingChars"] != nil {
                 let together = (n["w:firstLine"] != nil && n["w:firstLineChars"] != nil) || (n["w:hanging"] != nil && n["w:hangingChars"] != nil)
-                style.eastAsian["w:indentStored"] = together && direct ? "1" : nil
+                // (Twips alone over a style's count stand too where they are within 1.5pt of
+                // the count — layout checks that: zh-bfe04e2f's firstLine 482 under a style's
+                // 200 characters of 12pt starts 24.12pt in Word's print, not the 24.00 counted.)
+                style.eastAsian["w:indentStored"] = (together || n["w:firstLine"] != nil || n["w:hanging"] != nil) && direct ? "1" : nil
             }
             for a in attrs {
                 guard let v = n[a], Int(v) != nil else { continue }
