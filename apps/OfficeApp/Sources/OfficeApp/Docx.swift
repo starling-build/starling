@@ -2156,7 +2156,8 @@ enum DocxFormat {
                 // what most cells say wins, with their colour.
                 let styledBorders = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableBorders[$0] }
                 let cells = unwrapped(node, "w:tr").flatMap { unwrapped($0, "w:tc") }
-                let cellSaid = cells.compactMap { _borders($0.first("w:tcPr"), "w:tcBorders") }
+                let lostEdges = _lostCellEdges(rows: unwrapped(node, "w:tr").map { unwrapped($0, "w:tc") })
+                let cellSaid = cells.compactMap { _borders($0.first("w:tcPr"), "w:tcBorders", lost: lostEdges[ObjectIdentifier($0)] ?? []) }
                 var cellBorders: _Borders? = nil
                 if cellSaid.count * 2 >= cells.count, !cells.isEmpty {
                     let on = cellSaid.filter(\.on)
@@ -4882,18 +4883,83 @@ enum DocxFormat {
     /// cell): nil when it says nothing, off when every edge it lists is
     /// nil/none, else on, with the first drawn edge's colour (nil for
     /// auto).
-    private static func _borders(_ pr: XNode?, _ tag: String) -> _Borders? {
+    private static func _borders(_ pr: XNode?, _ tag: String, lost: Set<String> = []) -> _Borders? {
         guard let b = pr?.first(tag), !b.children.isEmpty else { return nil }
         let drawn = b.children.filter { !["nil", "none"].contains($0["w:val"] ?? "nil") }
         guard let first = drawn.first else { return _Borders(on: false, color: nil) }
         var color: Color? = nil
-        if let hex = drawn.first(where: { ($0["w:color"] ?? "auto").lowercased() != "auto" })?["w:color"] ?? first["w:color"],
+        // An edge the neighbour's edge beats names no colour for the cell.
+        let kept = drawn.filter { !lost.contains($0.name) }
+        if let hex = kept.first(where: { ($0["w:color"] ?? "auto").lowercased() != "auto" })?["w:color"] ?? kept.first?["w:color"],
            hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
             color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
         }
         let width = Double(first["w:sz"] ?? "").map { max(0.25, $0 / 8) }
         let style = first["w:val"].flatMap { $0 == "single" ? nil : $0 }
         return _Borders(on: true, color: color, width: width, style: style)
+    }
+
+    /// Edges of a table's cells that lose to the neighbour across the shared
+    /// line. Word draws one line there: the heavier one, and at equal weight
+    /// the darker colour (auto counts as black). zh-604e21e5's cells name a
+    /// white bottom edge over a row whose top is auto, and Word's print
+    /// rules them black. Keyed by cell identity; the value holds the
+    /// element names that lose. Neighbours are matched by position in the
+    /// row, so spanned/merged cells are left alone.
+    private static func _lostCellEdges(rows: [[XNode]]) -> [ObjectIdentifier: Set<String>] {
+        func rank(_ e: XNode) -> (Double, Double)? {
+            guard !["nil", "none"].contains(e["w:val"] ?? "nil") else { return nil }
+            let w = Double(e["w:sz"] ?? "") ?? 0
+            let c = (e["w:color"] ?? "auto").lowercased()
+            var lum = 0.0
+            if c.count == 6, let v = Int(c, radix: 16) {
+                lum = 0.299 * Double((v >> 16) & 255) + 0.587 * Double((v >> 8) & 255) + 0.114 * Double(v & 255)
+            }
+            return (w, -lum)   // larger wins: heavier, then darker
+        }
+        func edge(_ cell: XNode, _ names: [String]) -> XNode? {
+            guard let b = cell.first("w:tcPr")?.first("w:tcBorders") else { return nil }
+            for n in names { if let e = b.first(n) { return e } }
+            return nil
+        }
+        func span(_ cell: XNode) -> Int { max(1, Int(cell.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1) }
+        func continues(_ cell: XNode) -> Bool {
+            guard let m = cell.first("w:tcPr")?.first("w:vMerge") else { return false }
+            return (m["w:val"] ?? "continue") != "restart"
+        }
+        var lost: [ObjectIdentifier: Set<String>] = [:]
+        func duel(_ a: XNode, _ ea: XNode?, _ b: XNode, _ eb: XNode?) {
+            guard let ea, let eb, let ra = rank(ea), let rb = rank(eb), ra != rb else { return }
+            if ra < rb { lost[ObjectIdentifier(a), default: []].insert(ea.name) }
+            else { lost[ObjectIdentifier(b), default: []].insert(eb.name) }
+        }
+        // Each cell by the grid column it starts at, with its span.
+        let grid: [[(cell: XNode, col: Int, span: Int)]] = rows.map { row in
+            var c = 0
+            return row.map { cell in let sp = span(cell); defer { c += sp }; return (cell, c, sp) }
+        }
+        for (ri, row) in grid.enumerated() {
+            for (ci, g) in row.enumerated() {
+                if ci + 1 < row.count {
+                    duel(g.cell, edge(g.cell, ["w:right", "w:end"]), row[ci + 1].cell, edge(row[ci + 1].cell, ["w:left", "w:start"]))
+                }
+                if ri + 1 < grid.count {
+                  // (Every cell under any part of this one's width shares the line.)
+                  for below in grid[ri + 1] where below.col < g.col + g.span && g.col < below.col + below.span {
+                    if continues(below.cell) {
+                        // Inside a merged block the line is not drawn: neither
+                        // side names a colour for it (zh-604e21e5's merged
+                        // column carries a white bottom on every row).
+                        if let e = edge(g.cell, ["w:bottom"]) { lost[ObjectIdentifier(g.cell), default: []].insert(e.name) }
+                        if let e = edge(below.cell, ["w:top"]) { lost[ObjectIdentifier(below.cell), default: []].insert(e.name) }
+                    } else {
+                        duel(g.cell, edge(g.cell, ["w:bottom"]), below.cell, edge(below.cell, ["w:top"]))
+                    }
+                  }
+                }
+            }
+        }
+        return lost
     }
 
     /// The sides a `w:tblBorders`/`w:tcBorders` names: false for nil or
