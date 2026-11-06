@@ -40,6 +40,7 @@ SETS=${SETS:-756 lo}
 INPUTS="apps/OfficeApp sdk test/docx-line-match.py"
 for d in ${ENGINE_OUT:-} engine/src/out/host_release_arm64 engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
 [ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
+export OFFICE_NOW_TABLE=$ROOT/test/corpus/docx/clock.tsv
 export OFFICE_FONT_SOURCE=bundled OFFICE_WORD_FONTS=windows STARLING_ICU=$EO/icudtl.dat STARLING_ENGINE_OUT=$EO FLUTTER_SWIFT_ENGINE_OUT=$EO
 case $HOST in
   mac) export DYLD_LIBRARY_PATH=$EO;;

@@ -415,6 +415,19 @@ if let i = CommandLine.arguments.firstIndex(of: "--read-bench"), i + 1 < Command
     exit(ReadBench.run(Array(CommandLine.arguments[(i + 1)...])))
 }
 
+// OFFICE_NOW_TABLE=<tsv> (document name, tab, time): a test script pins the clock DATE and TIME fields read to the
+// moment the reference print was made (test/corpus/docx/clock.tsv). Unset, the real clock is used.
+if getenv("OFFICE_NOW") == nil, let table = getenv("OFFICE_NOW_TABLE"),
+   let i = CommandLine.arguments.firstIndex(where: { $0 == "--convert" || $0 == "--trace-rules" }),
+   i + 1 < CommandLine.arguments.count,
+   let text = try? String(contentsOfFile: String(cString: table), encoding: .utf8) {
+    let stem = CommandLine.arguments[i + 1].lastPathComponent.deletingPathExtension
+    for line in text.split(separator: "\n") {
+        let cols = line.split(separator: "\t")
+        if cols.count == 2, String(cols[0]) == stem { setenv("OFFICE_NOW", String(cols[1]), 1) }
+    }
+}
+
 // `--trace-rules <in>`: the document laid out as `--convert in out.pdf` lays
 // it out, without the PDF; with OFFICE_RULE_TRACE=<file> set, the rules it
 // reaches (`RuleTrace.hit`) are appended there. Several times faster than

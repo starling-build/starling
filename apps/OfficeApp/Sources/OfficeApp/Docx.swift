@@ -3495,6 +3495,13 @@ enum DocxFormat {
                                     }
                                 }
                             }
+                            if state == 2, let clock = FieldClock.current(), let first = results.first,
+                               let shown = clock.text(instr: instr.trimmingWhitespace(newlines: true), cached: results.map { $0.text }.joined()),
+                               shown != first.text {
+                                RuleTrace.hit("date-time-field-shows-the-print-moment")
+                                first.text = shown
+                                for t in results.dropFirst() { t.text = "" }
+                            }
                             state = 0
                         default: break
                         }

@@ -47,6 +47,7 @@ ICU=${STARLING_ICU:-${WORD_EO:+$WORD_EO/icudtl.dat}}
 DOCS=$ROOT/test/corpus/docx/docs; WIN=$ROOT/test/corpus/docx/word-win
 mkdir -p "$WORK/pdf"; rm -f "$WORK/fail.txt" "$WORK/trace.tsv" "$WORK/trace.keys"
 unset LD_LIBRARY_PATH
+export OFFICE_NOW_TABLE=$ROOT/test/corpus/docx/clock.tsv
 export OFFICE_FONT_SOURCE=bundled STARLING_ICU="$ICU" OFFICE_WORD_FONTS=windows
 
 # The documents: every one with a Word for Windows print, or those the key file (and canaries) name.
