@@ -14724,3 +14724,5 @@ RELEASED-FINDING (lenovo-5, 2026-11-06): lab hyph2 done (-1..-5 printed). Word c
   2. zh-cd48112c p4: Word puts justify slack on the Latin space, ours squeezes it and stretches CJK (28 of 626 sampled lines; 47 go the other way; no rule found).
   3. zh-d5c3e058 p12: Word prints page number "1" in the last section's footer, ours "12" (one glyph).
   4. LO docs (153, 154, 163, 181, 198) and eecf4918 border rows not yet checked.
+
+TIP WATCH amd-8, round 159 (17aab051c, includes my Slides+Sheets baseline reseed): Word no drops (2 up); unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
