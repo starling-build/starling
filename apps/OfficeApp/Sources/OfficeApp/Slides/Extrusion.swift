@@ -91,33 +91,45 @@ enum Extrusion {
     /// as far as the rig's turn: twoPt 145 + 2/3 turn, threePt 165 at turn
     /// 90). `back` is the share of the fill the unlit back face keeps.
     /// PROVISIONAL for turns other than the three printed.
-    struct Band { var diffuse, floor, lobe, sigma: Double }
-    struct Material { var two: Band, three: Band, back: Double }
+    /// Refit colour-aware (2026-11-06): a wall is the line colour times `diffuse`
+    /// of the rig's curve plus `floor` white (about 0.17 for the opaque materials,
+    /// 0.2 under threePt, 0.65 for the translucent ones), and the highlight band is
+    /// narrower and brighter than the first fit had it; `shift` moves its centre
+    /// (degrees, to the later rows) from the two-thirds-of-the-turn rule, and
+    /// twoPt is printed at two turns (90, 0) and interpolated between.
+    struct Band { var diffuse, floor, lobe, sigma, shift: Double }
+    struct Material { var two: Band, two0: Band, three: Band, back: Double }
     static func material(_ name: String) -> Material {
-        func m(_ t: (Double, Double, Double, Double), _ h: (Double, Double, Double, Double), _ back: Double = 0.25) -> Material {
-            Material(two: Band(diffuse: t.0, floor: t.1, lobe: t.2, sigma: t.3), three: Band(diffuse: h.0, floor: h.1, lobe: h.2, sigma: h.3), back: back)
+        func m(_ t: (Double, Double, Double, Double, Double), _ z: (Double, Double, Double, Double, Double), _ h: (Double, Double, Double, Double, Double), _ back: Double = 0.25) -> Material {
+            func bd(_ v: (Double, Double, Double, Double, Double)) -> Band { Band(diffuse: v.0, floor: v.1, lobe: v.2, sigma: v.3, shift: v.4) }
+            return Material(two: bd(t), two0: bd(z), three: bd(h), back: back)
         }
         switch name {
-        case "legacyPlastic": return m((0.85, 0.07, 0.7, 15), (1.04, 0.03, 0.31, 17))
-        case "legacyMetal": return m((0.71, 0.03, 0.62, 16), (0.8, 0.03, 0.21, 13), 0.17)
-        case "plastic": return m((0.86, 0.06, 0.51, 18), (1.04, 0.03, 0.19, 15))
-        case "metal": return m((0.78, 0.11, 0.62, 18), (1.04, 0.03, 0.21, 18))
-        case "translucentPowder": return m((0.39, 0.61, 0.13, 26), (0.34, 0.69, 0.06, 24))
-        case "powder": return m((0.84, 0.13, 0.28, 19), (0.96, 0.12, 0.13, 24))
-        case "dkEdge": return m((0.81, 0.04, 0.65, 13), (0.95, 0.03, 0.08, 11), 0.23)
-        case "softEdge": return m((0.77, 0.1, 0.6, 14), (1.08, 0.03, 0.05, 15))
-        case "clear": return m((0.33, 0.59, 0.19, 26), (0.72, 0.41, 0.13, 17))
-        case "flat": return m((0.26, 0.6, 0.31, 10), (0.25, 0.57, 0.02, 7))
-        case "softmetal": return m((0.67, 0.13, 0.63, 23), (1.05, 0.03, 0.24, 20))
-        case "matte", "legacyMatte": return m((1, 0, 0, 30), (1, 0.07, 0, 30))
-        default: return m((0.91, 0.06, 0.29, 16), (1.04, 0.03, 0.13, 23))   // warmMatte, PowerPoint's default
-        }
+        case "legacyPlastic": return m((0.69, 0.17, 0.89, 9, 6), (0.55, 0.18, 0.93, 11, -8), (0.87, 0.22, 0.36, 5, 0))
+        case "legacyMetal": return m((0.52, 0.17, 0.75, 8, 6), (0.47, 0.19, 0.75, 8, -8), (0.62, 0.21, 0.17, 5, -4), 0.17)
+        case "plastic": return m((0.72, 0.18, 0.68, 9, 4), (0.60, 0.20, 0.68, 11, -6), (0.87, 0.21, 0.16, 7, -4))
+        case "metal": return m((0.78, 0.17, 0.75, 9, 4), (0.63, 0.20, 0.80, 11, -6), (0.89, 0.21, 0.20, 5, -2))
+        case "translucentPowder": return m((0.26, 0.65, 0.32, 11, 2), (0.24, 0.65, 0.41, 12, -8), (0.34, 0.71, 0.09, 5, 0))
+        case "powder": return m((0.77, 0.19, 0.34, 12, 4), (0.72, 0.22, 0.26, 12, -8), (0.90, 0.24, 0.09, 5, -2))
+        case "dkEdge": return m((0.62, 0.16, 0.90, 7, 6), (0.52, 0.17, 0.89, 8, -8), (0.75, 0.24, 0.00, 30, 0), 0.23)
+        case "softEdge": return m((0.70, 0.16, 0.91, 7, 6), (0.59, 0.18, 0.93, 8, -8), (0.87, 0.22, 0.00, 30, 0))
+        case "clear": return m((0.21, 0.63, 0.45, 10, 10), (0.18, 0.66, 0.40, 11, -10), (0.44, 0.62, 0.16, 6, -2))
+        case "flat": return m((0.94, 0.15, 0.95, 7, 6), (0.98, 0.17, 0.94, 7, -8), (0.90, 0.19, 0.00, 30, 0))
+        case "softmetal": return m((0.78, 0.19, 0.75, 10, 4), (0.63, 0.21, 0.82, 12, -6), (0.89, 0.22, 0.26, 5, 0))
+        case "matte", "legacyMatte": return m((0.70, 0.18, 0.00, 30, 0), (0.66, 0.18, 0.00, 30, 0), (0.84, 0.18, 0.00, 30, 0))
+        default: return m((0.73, 0.17, 0.33, 11, 4), (0.68, 0.21, 0.25, 11, -8), (0.90, 0.25, 0.00, 30, 0))   // warmMatte, PowerPoint's default
+    }
     }
 
     /// A wall at azimuth `az` (degrees, shape frame) under material `m`: its multiple of the rig's colour and the share of white added.
     static func band(_ m: Material, az: Double, turn: Double, threePt: Bool) -> (diffuse: Double, white: Double) {
-        let b = threePt ? m.three : m.two
-        let centre = threePt ? 165 + 2.0 / 3 * (turn - 90) : 145 + 2.0 / 3 * turn
+        var b = m.three
+        if !threePt {
+            let t = max(0, min(1, turn / 90))
+            func mix(_ p: Double, _ q: Double) -> Double { p + (q - p) * t }
+            b = Band(diffuse: mix(m.two0.diffuse, m.two.diffuse), floor: mix(m.two0.floor, m.two.floor), lobe: mix(m.two0.lobe, m.two.lobe), sigma: mix(m.two0.sigma, m.two.sigma), shift: mix(m.two0.shift, m.two.shift))
+        }
+        let centre = (threePt ? 165 + 2.0 / 3 * (turn - 90) : 145 + 2.0 / 3 * turn) - b.shift
         var d = (az - centre).truncatingRemainder(dividingBy: 360)
         if d > 180 { d -= 360 } else if d < -180 { d += 360 }
         let g = d / b.sigma
