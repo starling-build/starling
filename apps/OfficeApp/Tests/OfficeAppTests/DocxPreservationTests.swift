@@ -145,8 +145,22 @@ final class DocxPreservationTests: XCTestCase {
         XCTAssertEqual(begin["w:dirty"], "0")
     }
 
+    /// A DATE field's result is the print moment, as Word updates it: the new text takes the first run's
+    /// formatting and the instruction survives save (the cached "First"/"Second" runs are not a date).
+    func testDateFieldInstructionSurvivesSaveAndShowsADate() throws {
+        let instruction = "DATE \\@ \"yyyy-MM-dd\""
+        let escaped = instruction.replacingOccurrences(of: "\"", with: "&quot;")
+        let doc = try fixture("<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText>\(escaped)</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>First</w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>Second</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>")
+        let root = try savedBody(doc)
+        XCTAssertEqual(root.descendants("w:instrText").map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }, [instruction])
+        let back = try DocxFormat.read(DocxFormat.write(doc, pageSetup: .letter)).document.paragraphs[0]
+        XCTAssertEqual(back.text.count, 10)
+        XCTAssertEqual(back.text.filter { $0 == "-" }.count, 2)
+        XCTAssertTrue(back.runs(in: 0 ..< 10).allSatisfy { !$0.style.bold })   // the first run's formatting (not the bold second run's)
+    }
+
     func testOrdinaryFieldInstructionsAndFormattedResultsSurviveSave() throws {
-        for instruction in ["AUTHOR", "DATE \\@ \"yyyy-MM-dd\"", "DOCPROPERTY Title"] {
+        for instruction in ["AUTHOR", "DOCPROPERTY Title"] {
             let escaped = instruction.replacingOccurrences(of: "\"", with: "&quot;")
             let doc = try fixture("<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText>\(escaped)</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>First</w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>Second</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>")
             let root = try savedBody(doc)
