@@ -4069,7 +4069,8 @@ extension RichLayout {
                                 .contains { $0.id == box.id && ($0.sourceXML?.containsSubstring("allowOverlap=\"1\"") ?? false) }
                         for b in (allowsOverlap ? bands : bands + placed) where b.top < r.bottom - 10 && b.bottom > r.top + 10
                             && b.left < span.1 + shift - 0.5 && b.right > span.0 + shift + 0.5 && span.0 + shift < b.right {
-                            shift = max(shift, b.right - span.0)
+                            // (Moved clear it lands at the other's right edge PLUS its own offset along the column: windows' overlap2.)
+                            shift = max(shift, b.right - span.0 + (allowsOverlap ? r.left : 0))
                         }
                         _floatShift[box.id] = shift > 0.5 ? shift : nil
                         r.left += shift; r.right += shift
