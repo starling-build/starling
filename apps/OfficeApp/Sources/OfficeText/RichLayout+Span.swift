@@ -307,6 +307,24 @@ extension RichLayout {
             }
         }
         if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
+            // (Spaces that end a run with a font of its own for East Asian text, before a run without one, are
+            // half an em in Word for Windows even between Latin characters: zh-c2c92639's TOC "1␣␣" + "General
+            // Provisions" sets them 5.5 each, where 3.2 left the text 4.5 pt left.)
+            // (Nor the spaces after a number that opens the paragraph, "3␣␣General Regulations": the same TOC
+            // lines, a single run with 宋体 for East Asian text, 5.5 apiece in Word's print.)
+            let leadingNumber = p.text.prefix(while: { $0.isNumber || $0 == "." }).utf16.count
+            func numberedHead(_ run: [Int]) -> Bool {
+                RichTextTheme.wordWindowsPages && leadingNumber > 0 && run.count >= 2 && run.first == leadingNumber
+                    && p.runs.first?.style.eastAsiaFontFamily != nil
+            }
+            var eaRunEnds: Set<Int> = []
+            if RichTextTheme.wordWindowsPages {
+                var st = 0
+                for (i, r) in p.runs.enumerated() {
+                    st += r.length
+                    if i + 1 < p.runs.count, r.style.eastAsiaFontFamily != nil, p.runs[i + 1].style.eastAsiaFontFamily == nil { eaRunEnds.insert(st) }
+                }
+            }
             var at = 0
             var run: [Int] = []
             var nbsp: Set<Int> = []
@@ -322,7 +340,7 @@ extension RichLayout {
                     // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
                     // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
                     // two spaces between words, nor a page number's "—  10  —".)
-                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") {
+                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") || eaRunEnds.contains((run.last ?? 0) + 1) || numberedHead(run) {
                         let balanced = run.filter { !complexSpaces.contains($0) }
                         wideSpaces.formUnion(balanced)
                         ordinaryBalancedSpaces.formUnion(balanced)
