@@ -14828,3 +14828,5 @@ TIP WATCH amd-8, round 170 (6ad6ba2dd): Word no drops; unit tests 628 run, 0 fai
 - amd-3 (queued after paragraph borders): row-layout gaps of 1-2 pt on heavy-rule docs: zh-77bd4900 p3 (rule at 69.87 vs Word 68.64), zh-20c1d74a p28 (667.12 vs 668.5), Bug54771b p1 (rows 2.2-2.4 pt off). Line shape is fine (thickness within 0.1); gap is row height/position.
 
 TIP WATCH amd-8, round 171 (740453791): Word no drops; unit tests 628 run, 0 failures; visual 756 mean worst page 1.13 -> 1.11 (377 under 1%), no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+
+- amd-3 (2026-11-06): table-rule shapes done. Landed: single rules as Word boxes (f50c2a351), doubles at 0.96 (9f2903683). Heavy between-rows rules: thickness fine, only row-layout gaps (queued above). Paragraph borders (zh-ae2dd08d p79, zh-ab9cbe66 p77, 6 pt boxes): thickness exact, edges within 0.2 pt; nothing to change. Left over: Word draws a double where we draw a single when a cell double meets a neighbour single (zh-e2dc9dce p28 at 139.58, zh-e51c31a7 p5 at 551.11) - border conflict, not claimed.
