@@ -1,0 +1,51 @@
+# doc	label	start_x	start_y	elbow_x	elbow_y	end_x	end_y	start_minus_R	end_to_label_dist
+pl6-no2-w360	-	no leaders
+pl6-no2-w367	-	no leaders
+pl6-no3-w360	-	no leaders
+pl6-no3-w367	-	no leaders
+pl6-no7-w360	-	no leaders
+pl6-no7-w367	-	no leaders
+pl6-no8-w360	-	no leaders
+pl6-no8-w367	-	no leaders
+pl6-rev-w350	-	no leaders
+pl6-rev-w360	4	230.3	220.5	226.3	225.0	221.8	225.0	-0.0	25.3
+pl6-rev-w367	-	no leaders
+pl6-w240	-	no leaders
+pl6-w242	1	212.4	121.3	215.4	114.1	219.9	114.1	-0.1	21.7
+pl6-w242	5	171.3	220.5	167.3	235.5	162.8	235.5	-0.0	29.1
+pl6-w242	7	142.2	150.3	128.8	142.4	124.3	142.4	-0.0	28.8
+pl6-w244	-	no leaders
+pl6-w246	3	243.5	191.5	251.6	194.9	256.1	194.9	-0.1	21.4
+pl6-w246	5	173.3	220.5	169.3	235.5	164.8	235.5	-0.0	28.9
+pl6-w248	5	174.3	220.5	170.3	235.5	165.8	235.5	-0.0	29.0
+pl6-w250	5	175.3	220.5	171.2	235.5	166.8	235.5	-0.0	29.2
+pl6-w252	5	176.3	220.5	172.3	235.5	167.8	235.5	-0.0	28.8
+pl6-w254	5	177.3	220.5	173.3	235.5	168.8	235.5	-0.0	29.0
+pl6-w256	5	178.3	220.5	174.2	235.5	169.8	235.5	-0.0	29.3
+pl6-w258	5	179.3	220.5	175.3	235.5	170.8	235.5	-0.0	28.8
+pl6-w260	-	no leaders
+pl6-w359	-	no leaders
+pl6-w359_25	-	no leaders
+pl6-w359_5	-	no leaders
+pl6-w359_75	5	230.2	220.5	226.2	225.0	221.7	225.0	-0.0	25.9
+pl6-w360	5	230.3	220.5	226.3	225.0	221.8	225.0	-0.0	25.3
+pl6-w360_25	5	230.4	220.5	226.4	225.0	221.9	225.0	-0.0	25.5
+pl6-w360_5	5	230.6	220.5	226.6	225.0	222.1	225.0	-0.0	25.6
+pl6-w366	5	233.3	220.5	229.3	225.0	224.8	225.0	-0.0	25.3
+pl6-w366_25	5	233.4	220.5	229.4	225.0	224.9	225.0	-0.0	25.5
+pl6-w366_5	-	no leaders
+pl6-w366_75	-	no leaders
+pl6-w367	-	no leaders
+pl6-w367_25	-	no leaders
+pl6-w367_5	-	no leaders
+pl6-w470	-	no leaders
+pl6-w472	-	no leaders
+pl6-w474	-	no leaders
+pl6-w476	-	no leaders
+pl6-w478	-	no leaders
+pl6-w480	-	no leaders
+pl6-w482	-	no leaders
+pl6-w484	-	no leaders
+pl6-w486	-	no leaders
+pl6-w488	-	no leaders
+pl6-w490	-	no leaders
