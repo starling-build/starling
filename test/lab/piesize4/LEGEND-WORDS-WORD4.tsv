@@ -1,0 +1,155 @@
+# doc	kind	text	x0	y0	x1	y1
+ps-legr-len-34	word	label1_xxxxxxxxxx	231.72	103.39	296.84	112.39
+ps-legr-len-34	word	xxxxxxxxxxxxxxxx	233.28	114.43	295.1	123.43
+ps-legr-len-34	word	x,	255.6	125.47	261.69	134.47
+ps-legr-len-34	word	20	263.76	125.47	272.88	134.47
+ps-legr-len-34	word	label2_xxxxxxxxxx	257.23	195.64	322.35	204.64
+ps-legr-len-34	word	xxxxxxxxxxxxxxxx	258.79	206.68	320.61	215.68
+ps-legr-len-34	word	x,	281.11	217.72	287.2	226.72
+ps-legr-len-34	word	20	289.27	217.72	298.39	226.72
+ps-legr-len-34	word	label3_xxxxxxxxxx	229.46	248.9	294.58	257.9
+ps-legr-len-34	word	xxxxxxxxxxxxxxxx	231.02	259.94	292.84	268.94
+ps-legr-len-34	word	x,	253.34	270.98	259.43	279.98
+ps-legr-len-34	word	20	261.5	270.98	270.65	279.98
+ps-legr-len-34	word	label4_xxxxxxxxxx	74.95	248.9	140.07	257.9
+ps-legr-len-34	word	xxxxxxxxxxxxxxxx	76.51	259.94	138.33	268.94
+ps-legr-len-34	word	x,	98.83	270.98	104.92	279.98
+ps-legr-len-34	word	20	106.99	270.98	116.11	279.98
+ps-legr-len-34	word	label5_xxxxxxxxxx	74.95	109.39	140.07	118.39
+ps-legr-len-34	word	xxxxxxxxxxxxxxxx	76.51	120.43	138.33	129.43
+ps-legr-len-34	word	x,	98.83	131.47	104.92	140.47
+ps-legr-len-34	word	20	106.99	131.47	116.11	140.47
+ps-legr-len-34	word	Chart	221.26	81.15	252.34	95.19
+ps-legr-len-34	word	Title	255.46	81.15	280.45	95.19
+ps-legr-len-34	word	label1_xxxxxxxxxxxxxxxxxxxxx	313.68	124.89	422.15	133.89
+ps-legr-len-34	word	xxxxxx	313.68	135.86	337.12	144.86
+ps-legr-len-34	word	label2_xxxxxxxxxxxxxxxxxxxxx	313.68	152.63	422.15	161.63
+ps-legr-len-34	word	xxxxxx	313.68	163.63	337.12	172.63
+ps-legr-len-34	word	label3_xxxxxxxxxxxxxxxxxxxxx	313.68	180.36	422.18	189.39
+ps-legr-len-34	word	xxxxxx	313.68	191.37	337.12	200.37
+ps-legr-len-34	word	label4_xxxxxxxxxxxxxxxxxxxxx	313.68	208.15	422.15	217.15
+ps-legr-len-34	word	xxxxxx	313.68	219.14	337.12	228.14
+ps-legr-len-34	word	label5_xxxxxxxxxxxxxxxxxxxxx	313.68	235.89	422.15	244.89
+ps-legr-len-34	word	xxxxxx	313.68	246.88	337.12	255.88
+ps-legr-len-34	key	(0.27, 0.45, 0.77)	306.57	126.61	311.51	131.55
+ps-legr-len-34	key	(0.93, 0.49, 0.19)	306.57	154.36	311.51	159.3
+ps-legr-len-34	key	(0.65, 0.65, 0.65)	306.57	182.11	311.51	187.05
+ps-legr-len-34	key	(1.0, 0.75, 0.0)	306.57	209.86	311.51	214.8
+ps-legr-len-34	key	(0.36, 0.61, 0.83)	306.57	237.61	311.51	242.55
+ps-legr-len-40	word	label1_xxxxxxxxxx	295.49	86.87	360.61	95.87
+ps-legr-len-40	word	xxxxxxxxxxxxxxxx	297.05	97.89	358.88	106.92
+ps-legr-len-40	word	xxxxxxx,	307.61	108.98	336.74	117.98
+ps-legr-len-40	word	20	339.17	108.98	348.29	117.98
+ps-legr-len-40	word	label2_xxxxxxxxxx	255.72	204.64	320.84	213.64
+ps-legr-len-40	word	xxxxxxxxxxxxxxxx	257.28	215.68	319.1	224.68
+ps-legr-len-40	word	xxxxxxx,	267.84	226.72	296.97	235.72
+ps-legr-len-40	word	20	299.42	226.72	308.54	235.72
+ps-legr-len-40	word	label3_xxxxxxxxxx	230.21	248.9	295.47	257.9
+ps-legr-len-40	word	xxxxxxxxxxxxxxxx	231.77	259.94	293.67	268.94
+ps-legr-len-40	word	xxxxxxx,	242.35	270.98	271.48	279.98
+ps-legr-len-40	word	20	273.91	270.98	283.03	279.98
+ps-legr-len-40	word	label4_xxxxxxxxxx	74.95	248.9	140.07	257.9
+ps-legr-len-40	word	xxxxxxxxxxxxxxxx	76.51	259.94	138.33	268.94
+ps-legr-len-40	word	xxxxxxx,	87.07	270.98	116.2	279.98
+ps-legr-len-40	word	20	118.63	270.98	127.75	279.98
+ps-legr-len-40	word	label5_xxxxxxxxxx	74.95	107.13	140.07	116.13
+ps-legr-len-40	word	xxxxxxxxxxxxxxxx	76.51	118.17	138.33	127.17
+ps-legr-len-40	word	xxxxxxx,	87.07	129.21	116.2	138.21
+ps-legr-len-40	word	20	118.63	129.21	127.75	138.21
+ps-legr-len-40	word	Chart	221.26	81.15	252.34	95.19
+ps-legr-len-40	word	Title	255.46	81.15	280.45	95.19
+ps-legr-len-40	word	label1_xxxxxxxxxxxxxxxxxxxxx	313.68	124.89	422.15	133.89
+ps-legr-len-40	word	xxxxxxxxxxxx	313.68	135.86	360.5	144.86
+ps-legr-len-40	word	label2_xxxxxxxxxxxxxxxxxxxxx	313.68	152.63	422.15	161.63
+ps-legr-len-40	word	xxxxxxxxxxxx	313.68	163.63	360.5	172.63
+ps-legr-len-40	word	label3_xxxxxxxxxxxxxxxxxxxxx	313.68	180.36	422.18	189.39
+ps-legr-len-40	word	xxxxxxxxxxxx	313.68	191.37	360.5	200.37
+ps-legr-len-40	word	label4_xxxxxxxxxxxxxxxxxxxxx	313.68	208.15	422.15	217.15
+ps-legr-len-40	word	xxxxxxxxxxxx	313.68	219.14	360.5	228.14
+ps-legr-len-40	word	label5_xxxxxxxxxxxxxxxxxxxxx	313.68	235.89	422.15	244.89
+ps-legr-len-40	word	xxxxxxxxxxxx	313.68	246.88	360.5	255.88
+ps-legr-len-40	key	(0.27, 0.45, 0.77)	306.57	126.61	311.51	131.55
+ps-legr-len-40	key	(0.93, 0.49, 0.19)	306.57	154.36	311.51	159.3
+ps-legr-len-40	key	(0.65, 0.65, 0.65)	306.57	182.11	311.51	187.05
+ps-legr-len-40	key	(1.0, 0.75, 0.0)	306.57	209.86	311.51	214.8
+ps-legr-len-40	key	(0.36, 0.61, 0.83)	306.57	237.61	311.51	242.55
+ps-legr-len-60	word	label1_xxxxxxxxxx	146.21	76.39	211.33	85.39
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	147.77	87.43	209.59	96.43
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	147.77	98.47	209.59	107.47
+ps-legr-len-60	word	xxxxxxxxxxx,	150.53	109.39	195.02	118.39
+ps-legr-len-60	word	20	197.69	109.39	206.81	118.39
+ps-legr-len-60	word	label2_xxxxxxxxxx	278.23	237.62	343.36	246.65
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	279.79	248.71	341.61	257.71
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	279.79	259.75	341.61	268.75
+ps-legr-len-60	word	xxxxxxxxxxx,	282.55	270.67	327.04	279.67
+ps-legr-len-60	word	20	329.71	270.67	338.83	279.67
+ps-legr-len-60	word	label3_xxxxxxxxxx	74.95	237.62	140.08	246.65
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	76.51	248.71	138.33	257.71
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	76.51	259.75	138.33	268.75
+ps-legr-len-60	word	xxxxxxxxxxx,	79.27	270.67	123.76	279.67
+ps-legr-len-60	word	20	126.43	270.67	135.55	279.67
+ps-legr-len-60	word	label4_xxxxxxxxxx	74.95	191.15	140.07	200.15
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	76.51	202.19	138.33	211.19
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	76.51	213.23	138.33	222.23
+ps-legr-len-60	word	xxxxxxxxxxx,	79.27	224.15	123.76	233.15
+ps-legr-len-60	word	20	126.43	224.15	135.55	233.15
+ps-legr-len-60	word	label5_xxxxxxxxxx	74.95	100.39	140.07	109.39
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	76.51	111.43	138.33	120.43
+ps-legr-len-60	word	xxxxxxxxxxxxxxxx	76.51	122.47	138.33	131.47
+ps-legr-len-60	word	xxxxxxxxxxx,	79.27	133.39	123.76	142.39
+ps-legr-len-60	word	20	126.43	133.39	135.55	142.39
+ps-legr-len-60	word	Chart	221.26	81.15	252.34	95.19
+ps-legr-len-60	word	Title	255.46	81.15	280.45	95.19
+ps-legr-len-60	word	label1_xxxxxxxxxxxxxxxxxxxxx	313.68	116.97	422.18	126.0
+ps-legr-len-60	word	xxxxxxxxxxxxxxxxxxxxxxxxxxx	313.68	127.99	418.9	136.99
+ps-legr-len-60	word	xxxxx	313.68	138.98	333.17	147.98
+ps-legr-len-60	word	label2_xxxxxxxxxxxxxxxxxxxxx	313.68	155.63	422.15	164.63
+ps-legr-len-60	word	xxxxxxxxxxxxxxxxxxxxxxxxxxx	313.68	166.63	418.9	175.63
+ps-legr-len-60	word	xxxxx	313.68	177.62	333.17	186.62
+ps-legr-len-60	word	label3_xxxxxxxxxxxxxxxxxxxxx	313.68	194.27	422.15	203.27
+ps-legr-len-60	word	xxxxxxxxxxxxxxxxxxxxxxxxxxx	313.68	205.22	418.94	214.25
+ps-legr-len-60	word	xxxxx	313.68	216.23	333.17	225.23
+ps-legr-len-60	word	label4_xxxxxxxxxxxxxxxxxxxxx	313.68	232.89	422.15	241.89
+ps-legr-len-60	word	xxxxxxxxxxxxxxxxxxxxxxxxxxx	313.68	243.88	418.9	252.88
+ps-legr-len-60	word	xxxxx	313.68	254.87	333.17	263.87
+ps-legr-len-60	key	(0.27, 0.45, 0.77)	306.57	118.74	311.51	123.68
+ps-legr-len-60	key	(0.93, 0.49, 0.19)	306.57	157.36	311.51	162.3
+ps-legr-len-60	key	(0.65, 0.65, 0.65)	306.57	195.99	311.51	200.93
+ps-legr-len-60	key	(1.0, 0.75, 0.0)	306.57	234.61	311.51	239.55
+ps-legl-len-40	word	label1_xxxxxxxxxx	357.0	110.13	422.12	119.13
+ps-legl-len-40	word	xxxxxxxxxxxxxxxx	358.56	121.17	420.38	130.17
+ps-legl-len-40	word	xxxxxxx,	369.12	132.21	398.25	141.21
+ps-legl-len-40	word	20	400.68	132.21	409.8	141.21
+ps-legl-len-40	word	label2_xxxxxxxxxx	357.0	248.9	422.12	257.9
+ps-legl-len-40	word	xxxxxxxxxxxxxxxx	358.56	259.94	420.38	268.94
+ps-legl-len-40	word	xxxxxxx,	369.12	270.98	398.25	279.98
+ps-legl-len-40	word	20	400.68	270.98	409.8	279.98
+ps-legl-len-40	word	label3_xxxxxxxxxx	201.72	248.9	266.84	257.9
+ps-legl-len-40	word	xxxxxxxxxxxxxxxx	203.28	259.94	265.1	268.94
+ps-legl-len-40	word	xxxxxxx,	213.84	270.98	242.97	279.98
+ps-legl-len-40	word	20	245.4	270.98	254.52	279.98
+ps-legl-len-40	word	label4_xxxxxxxxxx	98.95	85.39	164.07	94.39
+ps-legl-len-40	word	xxxxxxxxxxxxxxxx	100.51	96.43	162.33	105.43
+ps-legl-len-40	word	xxxxxxx,	111.07	107.47	140.2	116.47
+ps-legl-len-40	word	20	142.63	107.47	151.75	116.47
+ps-legl-len-40	word	label5_xxxxxxxxxx	202.46	102.64	267.58	111.64
+ps-legl-len-40	word	xxxxxxxxxxxxxxxx	204.02	113.68	265.84	122.68
+ps-legl-len-40	word	xxxxxxx,	214.58	124.72	243.71	133.72
+ps-legl-len-40	word	20	246.14	124.72	255.26	133.72
+ps-legl-len-40	word	Chart	221.26	81.15	252.34	95.19
+ps-legl-len-40	word	Title	255.46	81.15	280.45	95.19
+ps-legl-len-40	word	label1_xxxxxxxxxxxxxxxxxxxxx	88.63	124.89	197.1	133.89
+ps-legl-len-40	word	xxxxxxxxxxxx	88.63	135.86	135.45	144.86
+ps-legl-len-40	word	label2_xxxxxxxxxxxxxxxxxxxxx	88.63	152.63	197.1	161.63
+ps-legl-len-40	word	xxxxxxxxxxxx	88.63	163.63	135.45	172.63
+ps-legl-len-40	word	label3_xxxxxxxxxxxxxxxxxxxxx	88.63	180.36	197.14	189.39
+ps-legl-len-40	word	xxxxxxxxxxxx	88.63	191.37	135.45	200.37
+ps-legl-len-40	word	label4_xxxxxxxxxxxxxxxxxxxxx	88.63	208.15	197.1	217.15
+ps-legl-len-40	word	xxxxxxxxxxxx	88.63	219.14	135.45	228.14
+ps-legl-len-40	word	label5_xxxxxxxxxxxxxxxxxxxxx	88.63	235.89	197.1	244.89
+ps-legl-len-40	word	xxxxxxxxxxxx	88.63	246.88	135.45	255.88
+ps-legl-len-40	key	(0.27, 0.45, 0.77)	81.57	126.61	86.52	131.55
+ps-legl-len-40	key	(0.93, 0.49, 0.19)	81.57	154.36	86.52	159.3
+ps-legl-len-40	key	(0.65, 0.65, 0.65)	81.57	182.11	86.52	187.05
+ps-legl-len-40	key	(1.0, 0.75, 0.0)	81.57	209.86	86.52	214.8
+ps-legl-len-40	key	(0.36, 0.61, 0.83)	81.57	237.61	86.52	242.55
