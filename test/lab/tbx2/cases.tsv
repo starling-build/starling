@@ -1,0 +1,14 @@
+C00	exact
+C01	eb=0
+C02	eb=40000
+C03	h=400000
+C04	h=800000
+C05	offV=0
+C06	offV=150000
+C07	distB=114300
+C08	notbold
+C09	sz=24
+C10	face=標楷體
+C11	face=PMingLiU
+C12	noindent
+C13	boxtext-short
