@@ -457,7 +457,9 @@ extension RichLayout {
             return lineEms * Double(lineWide - 1) / Double(lineWide) / 64
         }
         var pastFrom: (x: Double, tab: Int)? = nil   // where a tab to a right stop at the margin starts, the piece before ending with it
-        for piece in pieces {
+        var wordRest = 0   // pieces of an Arabic word a squeeze took whole, already on the line
+        for (pieceIndex, piece) in pieces.enumerated() {
+            if wordRest > 0 { wordRest -= 1; continue }
             let a = piece.a, last = piece.last, w = piece.w
             if lineSpaced, last > a { lineOther = true }
             // (The automatic space after this stretch, which is no part
@@ -1838,7 +1840,16 @@ extension RichLayout {
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
-                    let need = x + w - after - width - hang
+                    var need = x + w - after - width - hang
+                    // (Right to left, an Arabic word is placed in pieces; the squeeze weighs the whole
+                    // word, and takes its other pieces with it: kash2 lab, docs/plans/kashida.md.)
+                    var restPieces = 0
+                    if RichTextTheme.wordWindowsPages, p.style.rightToLeft, !legacy, !piece.hard, piece.last == piece.b {
+                        var q = pieceIndex
+                        while q + 1 < pieces.count, pieces[q].last == pieces[q].b, !pieces[q].hard, pieces[q + 1].a == pieces[q].b, !pieces[q + 1].hard {
+                            q += 1; need += pieces[q].w; restPieces += 1
+                        }
+                    }
                     // (The automatic spaces between ideographs and Latin
                     // give too, half of themselves at most: zh-b13d0fb4's
                     // "家新創品牌Startup Island TAIWAN，提升臺灣國際能見度。"
@@ -1991,6 +2002,7 @@ extension RichLayout {
                         if after > 0 { adjust[last - 1, default: 0] -= after }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         fits = true
+                        wordRest = restPieces
                     }
                 }
                 // (A Thai stretch's closing "?" hangs past the margin, its whole
