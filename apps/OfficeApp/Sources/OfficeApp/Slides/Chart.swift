@@ -5369,6 +5369,22 @@ enum ChartPainter {
         return (square.contains(f) ? 0.3 : 0.25) * size
     }
 
+    /// The rows a pie's legend at the foot or top wraps to, by the greedy fill the legend's own layout uses (key and gap 8 pt, 6
+    /// between entries, fitted on lab piesize's one-row legends): one where it is beside the plot or absent.
+    private static func _pieLegendRows(_ c: Chart, frame: Rect, k: Double, text: (String, Double, Double) -> TextPainter) -> Int {
+        guard c.legend, ["b", "t"].contains(c.legendPosition), !c.categories.isEmpty else { return 1 }
+        let size = c.legendSize ?? c.baseTextSize
+        var rows = 1, lineW = 0.0
+        for name in c.categories {
+            let t = text(name, size, .infinity)
+            let w = 8 * k + t.width
+            t.dispose()
+            if lineW > 0, lineW + 6 * k + w > frame.width { rows += 1; lineW = 0 }
+            lineW += (lineW > 0 ? 6 * k : 0) + w
+        }
+        return rows
+    }
+
     private static func _pie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
                              text: (String, Double, Double) -> TextPainter, frame: Rect? = nil, ink: Color? = nil) {
         if c.ofPie != nil, c.type == .pie {
@@ -5434,7 +5450,10 @@ enum ChartPainter {
             if c.type == .pie {
                 let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
                 let footOrTop = c.legend && ["b", "t"].contains(c.legendPosition)
-                let wordRoom = 1.0307 * room - 5.82 * k + (titled ? 0 : 2.7 * k) + (footOrTop ? 0 : 1.2 * k)
+                // (No title and no legend band both: the larger, 2.7, only — lo-f391267c's pie, R 59.0 in Word's print. A legend of two
+                // rows takes 2.2 pt more of the radius than ours, as of the centre: 12 labels' legend, lab piesize and lo-f9b9a8fc.)
+                let rows = Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text)
+                let wordRoom = 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - 2.2 * k * Double(max(0, rows - 1))
                 RuleTrace.hit("word-flat-pie-outside-labels-size-the-pie-0.875-of-the-room-less-1.37pt")
                 radius = max(room / 2, 0.875 * wordRoom - 1.37 * k)
             }
@@ -5459,6 +5478,7 @@ enum ChartPainter {
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
             let place = !c.legend ? "n" : c.legendPosition
             let down = (place == "b" ? 1.55 : place == "t" ? 3.47 : 2.69) - (titled ? 0 : 2.68)
+                - 2.2 * Double(max(0, Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text) - 1))
             RuleTrace.hit("word-flat-pie-centre-by-its-title-and-legend-bands")
             centre = Offset(centre.dx, centre.dy + down * k)
         }
