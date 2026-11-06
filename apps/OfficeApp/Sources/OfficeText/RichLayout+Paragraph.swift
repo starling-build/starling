@@ -1524,6 +1524,41 @@ extension RichLayout {
                 let whole = painter.maxIntrinsicWidth.rounded(.up) + 1
                 if whole > lineWidth { painter.layout(minWidth: whole, maxWidth: whole) }
             }
+            // (A first line that holds a picture keeps what a line of its text
+            // alone has under its baseline: the picture stands on the
+            // baseline and the text's room is under it. Lab hdr264b
+            // (Word for Windows, zh-264d7516's header: a 24.3pt logo before 16pt
+            // 宋体 on a 15.6pt grid): the line below the baseline is 24.5pt to the
+            // next line's baseline, as the text alone's, where ours was 22.4, the
+            // page's text 2.2pt high of Word's print.)
+            if picturesInLine, strut == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
+               style.lineHeightPoints == nil,
+               !p.text.isEmpty, p.text.unicodeScalars.contains(where: { $0.value != 0xFFFC && $0.value != 0x20 }),
+               inline.allSatisfy({ $0.image.map { $0.textBox == nil && $0.name != "hr" && ($0.float == nil || $0.float.map { !$0.takesRoom } == true) } ?? true }),
+               let first = painter.computeLineMetrics().first, let ref = _strut(span, near: spacedOver) {
+                let flat = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: ref)
+                flat.fractionalLineHeights = painter.fractionalLineHeights
+                flat.lineIndents = painter.lineIndents
+                flat.setPlaceholderDimensions(inline.map {
+                    PlaceholderDimensions(size: Size($0.dimensions.size.width, 0), alignment: .baseline, baseline: .alphabetic, baselineOffset: 0)
+                })
+                flat.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+                let deficit = (flat.computeLineMetrics().first.map { $0.height - $0.baseline } ?? 0) - (first.height - first.baseline)
+                let boxes = painter.inlinePlaceholderBoxes ?? []
+                if deficit > 0.01, !boxes.isEmpty, boxes.allSatisfy({ $0.toRect().top < first.height - 1 }) {
+                    RuleTrace.hit("word-first-line-with-a-picture-keeps-the-texts-room-under-its-baseline")
+                    painter.setPlaceholderDimensions(inline.map { entry in
+                        guard let image = entry.image, image.float == nil, _pageFill[image.id] == nil else { return entry.dimensions }
+                        _pageFill[image.id] = entry.dimensions.size.height
+                        _lineCentre[image.id] = 0
+                        let d = entry.dimensions
+                        return PlaceholderDimensions(size: Size(d.size.width, d.size.height + deficit), alignment: d.alignment,
+                                                     baseline: d.baseline, baselineOffset: d.baselineOffset)
+                    })
+                    painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+                }
+                flat.dispose()
+            }
             if picturesInLine, strut != nil, let first = painter.computeLineMetrics().first {
                 let free = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
                 free.fractionalLineHeights = painter.fractionalLineHeights
