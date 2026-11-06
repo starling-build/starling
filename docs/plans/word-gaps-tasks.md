@@ -14694,3 +14694,5 @@ TIP WATCH amd-8, round 157 (f006f9dce): Word one DOWN, lo-8ab44df5 100 -> 97.7 (
 - amd-5 CLAIM zh-505b9619 p46 (rank 25)
 - amd-5 RELEASED zh-505b9619 p46 (rank 25): layout identical line for line; only the digits/Latin differ (Word draws them from DFKaiShu at 14pt, ours falls back to a small mono face). Font gap, not layout.
 - amd-5 CLAIM zh-c4eb4b19 p1 (rank 26)
+- amd-5 RELEASED zh-c4eb4b19 p1 (rank 26): rows and text line up; only the Latin digit face differs (plus a faint grey on two row borders).
+- amd-5 CLAIM zh-06c46ba9 p32 (rank 27)
