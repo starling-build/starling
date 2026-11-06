@@ -848,7 +848,12 @@ struct PdfMarkup {
                     while b > 0, entries[b - 1].note.label == "Deleted:" { b -= 1 }
                     var f = b
                     while f > 0, formatted(entries[f - 1].note) { f -= 1 }
-                    let under = Array((Array(b ..< b) + (c + 1 ..< entries.count).filter { formatted(entries[$0].note) }).prefix(3))
+                    // (The formatted balloons standing right before that run come first, then the ones after it, the paragraph-format
+                    // ones — "Formatted: Centered" — last: lo-9f27ef40's tail prints "Font: 9 pt", "Font: 9 pt", "Centered" where the
+                    // anchors stand Centered first.)
+                    func fontOnly(_ k: Int) -> Bool { entries[k].note.paragraphs.first?.hasPrefix("Font") == true }
+                    let pool = Array(f ..< b) + (c + 1 ..< entries.count).filter { formatted(entries[$0].note) }
+                    let under = Array((pool.filter(fontOnly) + pool.filter { !fontOnly($0) }).prefix(3))
                     var head = Array(0 ... c)
                     var y = tops[0]
                     for k in head.dropLast() { y += heights[k] + gap }
