@@ -1015,7 +1015,7 @@ extension RichLayout {
                         let style = said?.style ?? ts?.edgeStyles[side] ?? ts?.borderStyle
                         let width = said?.width ?? ts?.edgeWidths[side] ?? ts?.borderWidth ?? 0.5
                         let parts = Self._ruleLines(style, width)
-                        if parts.count > 1, said != nil, side != "insideH", side != "insideV" {
+                        if parts.count > 1, said != nil || ts?.edgeStyles[side] != nil || ts?.borderStyle != nil, side != "insideH", side != "insideV" {
                             RuleTrace.hit("word-table-compound-rule-is-drawn-as-its-lines")
                             let room = _px(Self._ruleRoom(style, width))
                             let centred = side == "insideH" || side == "insideV"
