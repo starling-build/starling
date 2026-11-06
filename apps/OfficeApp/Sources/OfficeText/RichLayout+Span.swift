@@ -1849,7 +1849,7 @@ extension RichLayout {
                     flush(i)
                     let s = style(kind)
                     // (A no-break space: the box is no place to part a line.)
-                    spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, "\u{00A0}"))))
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, ch))))
                     start = after
                 } else if theme.wordRules, !ea, let u = ch.unicodeScalars.first?.value, u >= 0x25A0, u <= 0x25FF,
                           (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.lowercased() == "times new roman" {
