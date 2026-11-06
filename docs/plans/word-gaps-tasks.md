@@ -14668,3 +14668,4 @@ TIP WATCH amd-8, round 155 (09b887524): Word no drops; unit tests 628 run, 0 fai
 - amd-5 2026-11-06: CLAIM zh-7773163d p41 (rank 23)
 - amd-5 2026-11-06: RELEASED zh-7773163d p41 (rank 23): a flowchart page; layout matches Word line for line; the difference is glyph weight (ours bolds runs Word prints lighter, Latin digits in another face) — font, not layout.
 - amd-5 2026-11-06: CLAIM zh-604e21e5 p32 (rank 24)
+- lenovo-2 LANDED 5e125b287 (starling-bd approved LAND_ACCEPT_DROP=lo-8ab44df5): lo-8ab44df5 3 -> 2 pages, worst page 100% -> 0.04%; line score 100 -> 97.7 is the UNCOVERED ERROR logged: its old 100 came from an extra b) line (the empty numbered last paragraph of the vMerge cell, which Word does not draw) matching a blank Word line while the page count was 3 for 2. Rule: that empty paragraph in a top-aligned cell merged over exact rows takes no height; centred cells keep it. Nothing else moved in 756 + LO. Next: ranks 3-20 not claimed by others.
