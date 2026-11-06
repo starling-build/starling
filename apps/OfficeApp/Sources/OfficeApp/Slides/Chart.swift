@@ -2880,6 +2880,9 @@ enum ChartPainter {
                 let yRoom = y + lineH * Double(lines.count - roomRows)
                 area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
+                // (Word's legend at the foot stands 0.9 pt higher than ours, the plot where it was: zh-b8de3ae2's
+                // bar, 3-D and bar+line charts, 12 legends, all +0.9 before.)
+                if c.legendPosition == "b", !pie, !c.onSlide, !c.onSheet, !c.chartex, box == nil { y -= 0.9 * k }
             }
             // (The plot keeps the room it had; only the rows are drawn further apart, the first 5.9 higher.)
             if wordPieRows { lineHs = lineHs.map { $0 + 5.9 * k }; y -= 5.9 * k * Double(lines.count - 1) }
