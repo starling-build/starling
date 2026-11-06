@@ -637,9 +637,11 @@ extension RichLayout {
             let fitGroup = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._fitText(run.keptXML) : nil
             var fitPitch: Double? = nil
             var fitBusy = false
+            var fitSpaced = false
+            var fitNone = false
             var fitLastSingle = false
             func fitSpacing() -> Double? {
-                guard let g = fitGroup else { return nil }
+                guard let g = fitGroup, !fitNone else { return nil }
                 if let f = fitPitch { return f }
                 fitBusy = true
                 defer { fitBusy = false }
@@ -652,10 +654,14 @@ extension RichLayout {
                     let piece = String(decoding: units[at ..< at + r.length], as: UTF16.self)
                     lastLength = piece.count
                     for ch in piece {
+                        if ch.isWhitespace { fitSpaced = true }
                         total += _glyphWidth(style(RichLayout.isEastAsian(ch, hinted: hinted) ? -1 : 0), ch)
                         count += 1
                     }
                 }
+                // (A group with spaces in it is left as it was: the spaces
+                // are set by paths of their own that this does not reach.)
+                if fitSpaced { fitPitch = nil; fitNone = true; return nil }
                 let target = g.points * theme.pixelsPerPoint * scale
                 fitLastSingle = lastLength == 1
                 let gaps = lastLength == 1 ? count - 1 : count
@@ -762,8 +768,9 @@ extension RichLayout {
                         }
                     }
                 }
-                if !fitBusy, fitGroup != nil, s.fontSize ?? 0 > 0.5, kind != -2, let f = fitSpacing() {
-                    s = s.copyWith(letterSpacing: text.count == 1 && fitLastSingle ? 0 : f)
+                if !fitBusy, fitGroup != nil, s.fontSize ?? 0 > 0.5, let f = fitSpacing() {
+                    let own = text.count == 1 && fitLastSingle ? 0 : f
+                    s = s.copyWith(letterSpacing: kind == -2 ? (s.letterSpacing ?? 0) + own : own)
                 }
                 if !fitBusy { styles[kind] = s }
                 return s
