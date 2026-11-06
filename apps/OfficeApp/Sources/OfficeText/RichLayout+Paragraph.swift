@@ -1450,7 +1450,7 @@ extension RichLayout {
             // as the picture's height takes it — see below. lo-7ec36a70's rows of Persian, 13.8pt
             // in Word's print, were 16.2 in the fallback face's own height, a 43pt picture
             // opening one of them.)
-            let strut = picturesInLine && !(theme.wordRules && RichTextTheme.wordWindowsPages && style.rightToLeft) ? nil : _strut(span, near: spacedOver)
+            let strut = picturesInLine ? nil : _strut(span, near: spacedOver)
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
@@ -1616,7 +1616,46 @@ extension RichLayout {
             // line 1.7pt high over two and three lines, and right over
             // one. A line without that stretch is its own height — the
             // footer of zh-1563bd74, an "X" in 16pt over a 14pt line.)
-            if painter.strutStyle == nil, theme.wordRules, !picturesInLine || (RichTextTheme.wordWindowsPages && style.rightToLeft), !Self._risesForNumber(inline),
+            // (A paragraph with an inline picture: the lines that hold its tallest text are held to that
+            // text's height, and the lines that do not keep their own. lo-7ec36a70's Persian lines
+            // stand 13.8pt apart in Word's print with a Latin-only line 12.0 under the last; a strut
+            // for the whole paragraph set that line 13.9 down. The engine keeps each run's own total
+            // and takes only the SPLIT above and below the baseline from an override, so every run
+            // of the tallest stretch gets one height and one split — the share of Arial's line under
+            // its baseline, by the face the run is drawn in, not the stand-in a font name resolves to.)
+            if picturesInLine, theme.wordRules, RichTextTheme.wordWindowsPages, !Self._risesForNumber(inline) {
+                var top = 0.0
+                var counts: [Double: (Int, String?, Bool)] = [:]
+                func tallest(_ s: InlineSpan) {
+                    guard let t = s as? TextSpan else { return }
+                    if let text = t.text, text.contains(where: { !Self._setsNoLine($0) }), let x = t.style, let size = x.fontSize, let h = x.height, size > 0.5, h > 0.05 {
+                        top = max(top, size * h)
+                        let key = (size * h * 100).rounded() / 100
+                        counts[key] = ((counts[key]?.0 ?? 0) + text.count, x.fontFamily, x.fontWeight == .bold)
+                    }
+                    for c in t.children ?? [] { tallest(c) }
+                }
+                tallest(span)
+                // (The stretch most of the text has among those within 3% of the tallest, as `_strut` does.)
+                if top > 0, let held = counts.filter({ $0.key >= top * 0.97 }).max(by: { $0.value.0 < $1.value.0 }) {
+                    let down = theme.descentShare(family: held.value.1, bold: held.value.2, italic: false)
+                    func sized(_ s: InlineSpan) -> InlineSpan {
+                        guard let t = s as? TextSpan else { return s }
+                        var st = t.style
+                        if let text = t.text, !text.isEmpty, let x = st, let size = x.fontSize, let h = x.height, size > 0.5, size * h >= top * 0.97 {
+                            st = x.copyWith(ascentOverride: (1 - down) * held.key, descentOverride: down * held.key, height: held.key / size)
+                        }
+                        return TextSpan(text: t.text, children: t.children?.map { sized($0) }, style: st, recognizer: t.recognizer, locale: t.locale)
+                    }
+                    let each = TextPainter(text: sized(span), textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                    each.fractionalLineHeights = painter.fractionalLineHeights
+                    each.lineIndents = painter.lineIndents
+                    if !inline.isEmpty { each.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+                    each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                    if each.computeLineMetrics().count == lines { return each }
+                }
+            }
+            if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
                // (On a grid, every line is held to the tallest, so not to
                // a word joiner's: the one before a compatibility ideograph
                // set in Noto Sans SC is Noto's line, and it held all of
@@ -1625,7 +1664,7 @@ extension RichLayout {
                // Word's print keeps two pitches, 45.7, on every line, the
                // ones holding Noto's characters within 0.4 of it.)
                let strut = _strut(span, tallest: true, near: spacedOver, joiners: !(gridded && lines > 1)),
-               lines == 1 || gridded || (picturesInLine && style.rightToLeft) || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
+               lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
                 held.lineIndents = painter.lineIndents
