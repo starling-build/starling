@@ -2579,9 +2579,12 @@ extension RichLayout {
                             // (A centred cell's too where it is merged down, its text too tall to centre and set from the
                             // top: zh-df9310bd p8's "3.项目时间以证书时间为准；" and "4.专利申请项目…", under three exact
                             // rows of 25.7pt. Not one row's own: zh-16e0a12a's "经办人（签字）" form rows have none of it.)
-                            if _dropCapPass != 2, theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top" || (c.verticalAlign == "center" && c.rowSpan > 1),
+                            if _dropCapPass != 2, theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all || (piece.flowBottom >= _tops[piece.paragraph] - 0.5 && _heights[piece.paragraph] < 0.02 && document.paragraphs[piece.paragraph].text.isEmpty), !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top" || (c.verticalAlign == "center" && c.rowSpan > 1),
                                document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
-                               piece.flowBottom < _tops[piece.paragraph] + _heights[piece.paragraph] - 0.5 {
+                               // (An empty closing paragraph given no height — see `_heights[k] = 0.01` in the cell's
+                               // layout — still has its number below the cut: lo-8ab44df5's "b)".)
+                               piece.flowBottom < _tops[piece.paragraph] + (_heights[piece.paragraph] < 0.02 && document.paragraphs[piece.paragraph].text.isEmpty
+                                                                              ? geometry(piece.paragraph).painter.height : _heights[piece.paragraph]) - 0.5 {
                                 canvas.restore()
                                 canvas.save()
                                 // (Only what lies under the cut: the lines the
