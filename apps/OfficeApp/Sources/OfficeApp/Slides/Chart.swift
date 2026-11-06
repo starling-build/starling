@@ -111,6 +111,10 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// A moved bar label's leader line (`c15:showLeaderLines` 1 in the series' `c:dLbls`), its colour and width.
+    var labelLeader = false
+    var labelLeaderColor: Color? = nil
+    var labelLeaderWidth = 0.75
     /// A point's label written out in the file (`c:dLbl/c:tx/c:rich`): its
     /// paragraphs, the value field (`type="VALUE"`) as nil — lo tdf136061's
     /// "4.3" over "Custom label". Only where every field is the value.
@@ -1429,6 +1433,13 @@ enum ChartXML {
             // (Its labels moved one by one, as a combination's line's are:
             // zh-b8de3ae2's 3-D bars' close values, apart in Word's print,
             // stood over each other.)
+            if let d = ser.first("c:dLbls"), d.descendant("c15:showLeaderLines")?["val"] == "1" {
+                s.labelLeader = true
+                if let ln = d.descendant("c15:leaderLines")?.first("c:spPr")?.first("a:ln") {
+                    if let f = ln.first("a:solidFill") { s.labelLeaderColor = color(f) }
+                    s.labelLeaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                }
+            }
             for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), let rich = one.first("c:tx")?.first("c:rich") {
                     var paras: [String?] = []
@@ -1478,6 +1489,13 @@ enum ChartXML {
             }
             // Its values, where its labels (else its chart's) show them.
             let own = ser.first("c:dLbls"), group = overlay?.first("c:dLbls")
+            if let d = own, d.descendant("c15:showLeaderLines")?["val"] == "1" {
+                s.labelLeader = true
+                if let ln = d.descendant("c15:leaderLines")?.first("c:spPr")?.first("a:ln") {
+                    if let f = ln.first("a:solidFill") { s.labelLeaderColor = color(f) }
+                    s.labelLeaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                }
+            }
             s.valueLabels = (own?.first("c:showVal") ?? group?.first("c:showVal"))?["val"] == "1"
                 && own?.first("c:delete")?["val"] != "1"
             s.labelPos = (own?.first("c:dLblPos") ?? group?.first("c:dLblPos"))?["val"]
@@ -4846,6 +4864,8 @@ enum ChartPainter {
         }
 
         var labels: [(String, Offset, Int)] = []
+        // A moved label's leader: from the middle of its bar's top face (by label index).
+        var leaderFrom: [Int: Offset] = [:]
         /// A bar's label moved as the file says (`ChartSeries.labelNudges`,
         /// fractions of the frame).
         func nudge(_ j: Int, _ i: Int) -> Offset {
@@ -5050,6 +5070,9 @@ enum ChartPainter {
                         let back = Offset(row.dx * (1 - own) / 2 + row.dx * behind, row.dy * (1 - own) / 2 + row.dy * behind)
                         rect = rect.shift(Offset(back.dx, -back.dy))
                         if let last = labels.popLast() { labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy), last.2)) }
+                    }
+                    if c.series[j].labelLeader, !horizontal, !c.onSlide, nudge(j, i) != .zero, !labels.isEmpty, labels[labels.count - 1].2 == j {
+                        leaderFrom[labels.count - 1] = Offset(rect.center.dx, rect.top)
                     }
                     if c.barView != nil, !horizontal, d != .zero, c.barShape != "box", rect.height > 0.2 {
                         // (A column that is not a box: its footprint — the ellipse, or the square, the box's
@@ -5328,7 +5351,7 @@ enum ChartPainter {
             tp.dispose()
         }
         if c.dataLabels {
-            for (s, at, j) in labels {
+            for (li, (s, at, j)) in labels.enumerated() {
                 // In the series' own label look where it has one.
                 let ser = c.series[j]
                 let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil ? text(s, c.baseTextSize, .infinity)
@@ -5345,7 +5368,22 @@ enum ChartPainter {
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)
                 let grown = lineCount > 1 ? tp.height - tp.height / Double(lineCount) : 0
-                tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2))
+                let origin = Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2)
+                // (Word draws the leader from the bar's top to the label's bottom middle, the box
+                // the text and its 1.5pt insets: zh-b8de3ae2's chart 1 in Word's print.)
+                if let from = leaderFrom[li] {
+                    let boxBottom = origin.dy + tp.height + 1.5 * k, boxTop = origin.dy - 1.5 * k
+                    let to = Offset(origin.dx + tp.width / 2, from.dy > boxBottom ? boxBottom : boxTop)
+                    if hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
+                        let lp = Paint()
+                        lp.style = .stroke
+                        lp.isAntiAlias = true
+                        lp.strokeWidth = max(0.5, ser.labelLeaderWidth * k)
+                        lp.color = ser.labelLeaderColor ?? Color(0xFFA6A6A6)
+                        canvas.drawLine(from, to, lp)
+                    }
+                }
+                tp.paint(canvas, origin)
                 tp.dispose()
             }
         }
