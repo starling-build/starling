@@ -4272,9 +4272,25 @@ enum ChartPainter {
             // edge, and Word keeps it clear of the frame, fitted on one witness: lo-c996762f's plot starts
             // 35.0 in where ours stood 26.8, the values with it.)
             if word, c.type == .area, aslant, let first = catLabels.first { left = max(left, drop(first) - 6.2 * k) }
+            // (A column chart's first turned name, centred under its first slot, sticks out to the left of the plot, and
+            // Word keeps it 1.9 pt inside the frame (an area's 6.2 off its edge): lo-1e6077df's plot starts 25.4 in where ours stood 15,
+            // with both value axes deleted. The slot is itself a share of the plot, so solve for it.)
+            if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil, c.type == .column, aslant, let first = catLabels.first, c.categories.count > 1 {
+                let half = 1 / (2 * Double(c.categories.count))
+                let want = (drop(first) - (area.width - right) * half + 1.9 * k) / (1 - half)
+                if want > left {
+                    RuleTrace.hit("word-column-chart-turned-first-name-stays-inside-the-frame")
+                    left = want
+                }
+            }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            // (Lines on a deleted second axis in a 2007-style Word chart: the plot still stands off the plot's right edge: lo-1e6077df's plot ends
+            // 14.2 pt in from its frame's right in Word for Windows' print, ours 10.3.)
+            if !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.plotLayout == nil, c.valueAxisDeleted, !c.lineSeries.isEmpty, secondLabels.isEmpty {
+                right += 3.9 * k
+            }
             // (A title of the second axis, in a Word document whose file leaves the plot to Word, takes a band beyond its
             // labels: zh-b8de3ae2's chart 10 has them 19 pt further in than ours, its "%" past them.)
             if !secondLabels.isEmpty, !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil, c.secondValueAxis?.deleted != true, c.secondValueAxis?.title != nil {
@@ -4308,6 +4324,8 @@ enum ChartPainter {
             // untitled column and area charts of the LibreOffice set, lo-6b6ece9c and nine like
             // it; a titled one stands 41.15 and is not moved. Not a 3-D chart's, nor a chart without the 2013 style:
             // lo-8743d336's and lo-40949e85's plots stand where they did.)
+            // (An untitled 2007-style Word chart whose value axis is deleted has no top tick label to stand 3 pt higher by: its plot
+            // starts 1.5 pt lower than the generic one, 9.8 under the frame's top in lo-1e6077df's print, ours 5.3.)
             let untitledWordRise = -4.0
             let pt = k / 0.75
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil && !(c.onSheet && c.titleOverlay)
@@ -4318,7 +4336,7 @@ enum ChartPainter {
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
             let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
-                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? -3 * k
+                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : -3) * k
                    // (A titled 3-D column chart: its front plane starts 5.4 pt lower than ours at any title size —
                    // lab ch4 (Word for Windows, rotX 15 / rotY 20, legend below): the top value label's baseline
                    // 60.58 / 55.73 / 50.88 under the frame's top for a title of 18 / 14 / 10pt, ours 55.2 / 50.4 /
