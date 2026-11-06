@@ -14629,3 +14629,7 @@ TIP WATCH amd-8, round 153 (67fac563c): Word no drops; unit tests 628 run, 0 fai
   60c80728: already matches at tip. Next: 7b125a21, then d950cedb + 424775e4.
 - CLAIM lenovo-5 (2026-11-06), from the coordinator: zh-bfe04e2f p8 ("S19-" taken onto line 1; Word breaks before it) and zh-8f9b19f4 p13 ("别号话金额").
 - RELEASE lenovo-5 (2026-11-06): zh-cd48112c p3/p5 "分。" is not layout. Our line matches Word's; Word's text layer keeps the "。" clipped by the exact-height row, ours drops it (same artefact as tdf117982 and lenovo-2's parked exact-row clip).
+
+- amd-3 (2026-11-06) squeeze 7b125a21: 7 disagreements (4 we take/Word refuses, 3 reverse), all justified, no given spaces. Whole corpus same class: we take/Word refuses 9 vs 1858 agreed takes. Noise, not a rule. Released.
+- amd-3 424775e4: 0 disagreements in the full sweep (426 rows), already matches. Released.
+- amd-3 d950cedb: one row (配, over 8.02, half-em 8.00, markRoom 8.0, 1 space), we take, Word refuses. LEAD: across the corpus (legacy, took rows) Word takes up to 0.016 past half an em (15 rows, 3 docs) and refuses at 0.019 (d950cedb) and 0.023 (015abfaf, 9 rows): clean split, 0 takes in between. So a margin of about 0.017 exists somewhere in the "past half an em" path, but I have not found which of the take paths in RichLayout+EastAsian (~1457 / 1526 / 1754) lets these through. Not changed. Needs a FITQ trace of the d950cedb line to see which one.
