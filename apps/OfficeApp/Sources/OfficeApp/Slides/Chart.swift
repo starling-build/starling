@@ -2741,6 +2741,13 @@ enum ChartPainter {
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
                 y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - lineH * Double(lines.count) / 2
+                // (A Word chart with a title, its plot left where the file puts it (manual layout) and
+                // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
+                // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
+                if titled, !pie, !c.onSlide, !c.onSheet, c.plotLayout != nil, c.legendPosition == "r", box == nil {
+                    RuleTrace.hit("word-legend-beside-a-placed-plot-stands-4pt-lower-under-a-title")
+                    y += 4.1 * k
+                }
                 if c.legendPosition == "l" {
                     columnX = area.left
                     area = Rect.fromLTRB(area.left + columnW + 12 * k, area.top, area.right, area.bottom)
