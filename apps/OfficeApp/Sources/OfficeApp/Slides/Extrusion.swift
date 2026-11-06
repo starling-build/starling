@@ -348,7 +348,12 @@ enum Extrusion {
             return P3(x: q.x * cos(rev) - q.y * sin(rev), y: q.x * sin(rev) + q.y * cos(rev), z: q.z)
         }
         func place(_ p: Offset, _ z: Double) -> P3 {
-            var q = turn(P3(x: p.dx - c.dx, y: p.dy - c.dy, z: z))
+            // `a:sp3d z` under a legacy perspective camera (lab p3fit, z -18..36 pt): the whole solid
+            // draws larger by 650/(650 - z) (face 107.2 pt at z 0, 113.2 at 36, 104.4 at -18) and slides
+            // 0.22 pt left per point; the depth below the face is placed as if z were 0.
+            let lifted = scene.perspective && scene.oblique != nil
+            let lz = lifted ? scene.lift * px : 0
+            var q = turn(P3(x: p.dx - c.dx, y: p.dy - c.dy, z: z - lz))
             // An oblique camera: what lies behind slides aside as it recedes
             // — and, in perspective, draws in toward a point as it goes.
             if scene.oblique == nil, scene.cameraName.hasPrefix("perspective") {
@@ -361,6 +366,10 @@ enum Extrusion {
                 let f = scene.perspective ? 250 * px / (250 * px + max(0, -q.z)) : 1
                 q.x = q.x * f - o.dx * q.z * f
                 q.y = q.y * f - o.dy * q.z * f
+            }
+            if lifted, lz != 0 {
+                let g = 650 * px / (650 * px - lz)
+                q.x = q.x * g - 0.22 * lz; q.y *= g
             }
             return q
         }
