@@ -637,7 +637,6 @@ extension RichLayout {
             let fitGroup = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._fitText(run.keptXML) : nil
             var fitPitch: Double? = nil
             var fitBusy = false
-            var fitSpaced = false
             var fitNone = false
             var fitLastSingle = false
             func fitSpacing() -> Double? {
@@ -653,15 +652,18 @@ extension RichLayout {
                     guard Self._fitText(r.style.keptXML)?.id == g.id, at + r.length <= units.count else { continue }
                     let piece = String(decoding: units[at ..< at + r.length], as: UTF16.self)
                     lastLength = piece.count
-                    for ch in piece {
-                        if ch.isWhitespace { fitSpaced = true }
-                        total += _glyphWidth(style(RichLayout.isEastAsian(ch, hinted: hinted) ? -1 : 0), ch)
+                    for (k, ch) in piece.enumerated() {
+                        // (A space the paragraph sets half an em wide
+                        // (`wideSpaces`) is measured so, as it is painted:
+                        // 6 pt at 12, not the stand-in's 3.3.)
+                        if ch == " ", wideSpaces.contains(at + k) {
+                            total += _glyphWidth(style(-1), "\u{5355}") / 2
+                        } else {
+                            total += _glyphWidth(style(RichLayout.isEastAsian(ch, hinted: hinted) ? -1 : 0), ch)
+                        }
                         count += 1
                     }
                 }
-                // (A group with spaces in it is left as it was: the spaces
-                // are set by paths of their own that this does not reach.)
-                if fitSpaced { fitPitch = nil; fitNone = true; return nil }
                 let target = g.points * theme.pixelsPerPoint * scale
                 fitLastSingle = lastLength == 1
                 let gaps = lastLength == 1 ? count - 1 : count
