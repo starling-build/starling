@@ -1470,6 +1470,12 @@ extension RichLayout {
                 if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ",
                    following.map({ $0 != " " }) ?? (theme.wordRules && RichTextTheme.wordWindowsPages) {
                     extra -= _px(g) / 2
+                } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.balancesSpaceWidth, let g = grid, g != 0,
+                          ch == " " || following == " ", kind >= 0, !wideSpaces.contains(offset) {
+                    // (A plain space between Latin words, and the letter before it, are
+                    // half-width characters like the rest: half the addition each. zh-c2c92639's
+                    // contents page: a word gap was 2.25 + 1.5 g, Word's 2.25 + 0.5 g.)
+                    extra -= _px(g) / 2
                 }
                 // (In a paragraph off the grid, that half alone — no
                 // whole addition to take it from: zh-8d6f702e's "24小时…
