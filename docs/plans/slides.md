@@ -4869,3 +4869,21 @@ The app is one bundle for both kinds, and its name is "Writer" today.
 A suite name is needed before the macOS bundle and the About box can
 say anything sensible; until then the bundle stays "Writer" and each
 window's title names its kind.
+
+**SmartArt causes, amd-7, 2026-11-06 (vs powerpoint-win; 50 decks, all 0.0-2.4%, so
+near the noise floor).** Rotation question: lo-smartart-rotation's drawing part has 0
+shapes (so do 33 of the lo-* decks); nothing cached to lay out from, and the 17 decks
+whose drawing has shapes already draw from it. fa9851207 took rotation 1.31 to 0.50.
+1. Bevel/3D from the quick style (`sp3d bevelT`, e.g. dkEdge) not drawn on a diagram's
+   shapes: lo-tdf145528_SmartArt_Matrix 2.27, lo-smartart-composite-infer-right 2.07.
+   Tried passing the label's sp3d/scene3d into the laid-out shapes: composite 2.07 to 2.59
+   (bevel far heavier than PowerPoint's). Parked, needs the painter's bevel tuned first.
+2. Quick style effectRef idx 1 (theme outerShdw) on laid-out decks: lo-smartart-cycle-matrix
+   2.27. Passing the idx through drew a big hard grey block (2.27 to 3.10); PowerPoint
+   shows no such shadow there. Parked; Diagram.swift still writes effectRef 0.
+3. Text glyph raster / 1-2 px text offsets only (no shape error): missing-bullet 2.42,
+   textposition 2.15, org-chart 1.34, org-chart2, accent-process 1.47 (frames 2 px low),
+   snake-rows, autofit-sync. Noise floor; nothing to build.
+4. Pyramid (lo-tdf149551_SmartArt_Pyramid 1.29): PowerPoint prints dark text, we print
+   white, from the cached drawing's own style; not yet read down.
+Nothing landed in this pass.
