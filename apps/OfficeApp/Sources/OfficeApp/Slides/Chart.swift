@@ -2400,7 +2400,7 @@ enum ChartPainter {
     /// its first baseline 12.48 over the second (ours 12.9), the label
     /// 1.1pt shorter than ours and so inside its 11% slice, where ours
     /// stood outside.
-    static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle, traditional: Bool = false) -> TextSpan {
+    static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle, traditional: Bool = false, mixedLine: Double = 1.3301 * 1.3) -> TextSpan {
         // (Word for Windows' bold Chinese labels where the theme's East Asian
         // face is no Mincho: a label of its own rich text in Traditional
         // Chinese is PMingLiU's, a line 1.31 em, the others YuGothic Bold's,
@@ -2417,7 +2417,7 @@ enum ChartPainter {
         var runs: [(String, Double?)] = []
         for ch in text {
             let cjk = ch.unicodeScalars.first.map { (0x2E80 ... 0x9FFF).contains($0.value) } ?? false
-            let h: Double? = cjk ? (ch.unicodeScalars.allSatisfy { covers.contains($0.value) } ? 1.3 : 1.3301 * 1.3) : nil
+            let h: Double? = cjk ? (ch.unicodeScalars.allSatisfy { covers.contains($0.value) } ? 1.3 : mixedLine) : nil
             if let last = runs.last, last.1 == h { runs[runs.count - 1].0.append(ch) } else { runs.append((String(ch), h)) }
         }
         return TextSpan(children: runs.map { TextSpan(text: $0.0, style: $0.1.map { Flutter.TextStyle(height: $0) }) }, style: style)
@@ -2441,11 +2441,11 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(c.font ?? (c.onSlide || c.onSheet ? nil : c.axisFont) ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3) -> TextPainter {
             let style = Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback(c))
-            let tp = TextPainter(text: windowsLines ? Self.labelSpan(c, s, style) : TextSpan(text: s, style: style),
+            let tp = TextPainter(text: windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style),
                 textAlign: align, textDirection: .ltr, maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
@@ -3047,7 +3047,7 @@ enum ChartPainter {
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
                    titleText: { styled($0, $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor) },
-                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, windowsLines: c.barView == nil && c.lineSeries.isEmpty) },
+                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, windowsLines: true, mixedLine: 1.494) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
         if let (tp, at) = placed {
@@ -4542,7 +4542,9 @@ enum ChartPainter {
             // foot of that place. zh-b8de3ae2's chart 4, page 15; the labels follow it.)
             if inWord, !v.walled, c.plotLayoutInner, c.plotLayout != nil, !horizontal, !c.onSheet, !c.onSlide, !c.chartex {
                 RuleTrace.hit("word-3d-columns-without-walls-stand-inside-their-laid-plot")
-                whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top, whole.right - 8.5 * k, whole.bottom - 5.1 * k)
+                // (Word's print: the tick labels all 3.1 pt lower than the box stood before, top and foot alike — zh-b8de3ae2 p15 —
+                // with the category names' Mincho line now taken, which moved them up 1.1.)
+                whole = Rect.fromLTRB(whole.left + 7.0 * k, whole.top + 3.1 * k, whole.right - 8.5 * k, whole.bottom - 2.0 * k)
                 plot = whole
             }
             // Left to Word's own layout, a 3-D column chart stands a little
@@ -4572,8 +4574,11 @@ enum ChartPainter {
                 // names in Latin letters stand 4.1 pt lower than CJK ones: lab sets A and B.)
                 let latin = c.categories.allSatisfy { $0.unicodeScalars.allSatisfy { $0.isASCII } }
                 let reserve = 42.6 + legendFoot + turnedExtra - 0.035 * (540 - frame.width / k) - (latin ? 4.1 : 0)
-                whole = Rect.fromLTRB(whole.left, frame.top + (titleHeight + legendTop) * k, whole.right,
-                                      frame.bottom - reserve * k)
+                // (A title Word was told where to stand: zh-b8de3ae2's 3-D columns, p12 and p18, stand 0.6 pt
+                // lower at the top and 1.1 at the foot than the lab fit gives.)
+                let placedTitle = c.titleAt != nil && c.title?.isEmpty == false
+                whole = Rect.fromLTRB(whole.left, frame.top + (titleHeight + legendTop + (placedTitle ? 0.6 : 0)) * k, whole.right,
+                                      frame.bottom - (reserve - (placedTitle ? 1.1 : 0)) * k)
             }
             var wall: (left: Double, right: Double)? = nil
             for pass in 0 ..< (wordAuto3D ? 2 : 1) {
