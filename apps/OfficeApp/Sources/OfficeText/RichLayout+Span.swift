@@ -2374,7 +2374,13 @@ extension RichLayout {
                     var box = ImageAttachment(data: Data(), width: size * 0.936, height: size * 0.936, name: p.text[idx] == "\u{2612}" ? "checkbox-on" : "checkbox")
                     box.outline = ShapeOutline(kind: .box, color: run.style.color ?? theme.textColor, width: size * 0.072)
                     box.effectLeft = size * 0.106
-                    box.effectRight = size * 0.108
+                    // (Word's advance by font, from its lab print: 1.147 em in
+                    // Times/Arial, 1.219 Calibri, 1.295 in MS Gothic / SimSun /
+                    // MS Mincho; the extra goes after the box.)
+                    let boxFace = (run.style.fontFamily ?? named?.char.fontFamily ?? "").lowercased()
+                    let boxAdvance: Double = boxFace.containsSubstring("gothic") || boxFace.containsSubstring("mincho") || boxFace.containsSubstring("simsun") ? 1.295
+                        : boxFace.containsSubstring("calibri") ? 1.219 : 1.15
+                    box.effectRight = size * (0.108 + boxAdvance - 1.15)
                     // (After the character, which a tab before it sets at
                     // its stop; and a zero-width space in the run's style
                     // with it, so a line of the box alone is a line of
@@ -2385,7 +2391,7 @@ extension RichLayout {
                     children.append(TextSpan(text: "\u{200B}", style: style))
                     inserts.append(at + 1)
                     children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
-                    inline.append((box, PlaceholderDimensions(size: Size(_px(size * 1.15), _px(size * 0.936)), alignment: PlaceholderAlignment.baseline,
+                    inline.append((box, PlaceholderDimensions(size: Size(_px(size * boxAdvance), _px(size * 0.936)), alignment: PlaceholderAlignment.baseline,
                                                               baseline: TextBaseline.alphabetic, baselineOffset: _px(size * 0.84))))
                     inserts.append(at + 1)
                     start = after
