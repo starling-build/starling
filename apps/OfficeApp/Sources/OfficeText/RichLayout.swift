@@ -446,7 +446,10 @@ public final class RichTextTheme {
             // down (28.05 by the baseline and 6.45 more), at 30pt 30.45;
             // its paragraphs with the switch added, 23.97, and zh-1563bd74's
             // with it taken out, 30.54 for 21.66.)
-            if paragraph.eastAsian["w:textAlignment"] == "center",
+            // ("top" sets it the same: zh-df505e38's 16pt 仿宋 title in a 30pt exact
+            // line stands 313.9 in Word's print; ours 317.9 by the baseline,
+            // 310.0 at the ascent, 314.6 centred.)
+            if ["center", "top"].contains(paragraph.eastAsian["w:textAlignment"] ?? ""),
                let middle = lineMiddle(for: style, named: named, eastAsian: eastAsian) {
                 return (centresInLine ? points / 2 : lineBox(size: size, natural: 1, baseline: 0, in: paragraph, gridPitch: gridPitch).baseline ?? points / 2) + middle
             }
