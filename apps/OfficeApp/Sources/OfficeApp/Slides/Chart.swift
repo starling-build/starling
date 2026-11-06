@@ -99,6 +99,10 @@ struct ChartSeries: Equatable {
     var markerLine: Color? = nil
     var unmarked: Set<Int> = []
     var lineHidden = false
+    /// A line's ends drawn as dots (`a:ln/a:headEnd`, `a:tailEnd` of type oval): their diameter in line widths (sm 2, med 3,
+    /// lg 5), 0 for none. Word draws them on the line's first and last points and on the legend's key.
+    var lineHead = 0.0
+    var lineTail = 0.0
     /// A pattern fill (`a:pattFill`): its preset and two colours, hatched over the area it fills.
     var pattern: PatternInk? = nil
     /// A combination's line with its values by its points (`c:dLbls`
@@ -1454,6 +1458,13 @@ enum ChartXML {
             s.format = Self._format(ser.first("c:val"))
             if let k = ser.first("c:idx")?["val"].flatMap(Int.init), k != series.count + lines.count { s.autoIndex = k }
             let ln = ser.first("c:spPr")?.first("a:ln")
+            // (Word draws a line's oval ends as dots, on the points and in the legend's key: zh-547fc43c's growth rates.)
+            for (end, name) in [(0, "a:headEnd"), (1, "a:tailEnd")] {
+                if let e = ln?.first(name), e["type"] == "oval" {
+                    let size = ["sm": 2.0, "lg": 5.0][e["w"] ?? "med"] ?? 3.0
+                    if end == 0 { s.lineHead = size } else { s.lineTail = size }
+                }
+            }
             s.lineHidden = ln?.has("a:noFill") ?? false
             if let f = ln?.first("a:solidFill") { s.color = color(f) }
             if let m = ser.first("c:marker") {
@@ -2847,6 +2858,11 @@ enum ChartPainter {
                             p.strokeWidth = 2.25 * k
                             p.color = colour
                             canvas.drawLine(Offset(x - (wideKeys ? 0 : 2 * k), mid.dy), Offset(x + key + (wideKeys ? 0 : 2 * k), mid.dy), p)
+                            if l.lineHead > 0 || l.lineTail > 0 {
+                                p.style = .fill
+                                if l.lineHead > 0 { canvas.drawCircle(Offset(x - (wideKeys ? 0 : 2 * k), mid.dy), l.lineHead * 2.25 * k / 2, p) }
+                                if l.lineTail > 0 { canvas.drawCircle(Offset(x + key + (wideKeys ? 0 : 2 * k), mid.dy), l.lineTail * 2.25 * k / 2, p) }
+                            }
                         }
                         Self._mark(l, at: mid, k: k, colour: colour, canvas)
                         e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
@@ -4868,6 +4884,13 @@ enum ChartPainter {
                     p.strokeWidth = max(0.5, 2.25 * k)
                     p.color = colour
                     canvas.drawPath(path, p)
+                    // (Its oval ends: the first and last points.)
+                    if l.lineHead > 0 || l.lineTail > 0 {
+                        let seen = (0 ..< n).compactMap { at($0) }
+                        p.style = .fill
+                        if l.lineHead > 0, let q = seen.first { canvas.drawCircle(q, l.lineHead * 2.25 * k / 2, p) }
+                        if l.lineTail > 0, let q = seen.last { canvas.drawCircle(q, l.lineTail * 2.25 * k / 2, p) }
+                    }
                 }
                 for i in 0 ..< n where !l.unmarked.contains(i) {
                     guard let q = at(i) else { continue }
@@ -5179,7 +5202,9 @@ enum ChartPainter {
                 let color = c.color(series: j, accents: theme.accents)
                 if c.type == .area {
                     let path = Path()
-                    let lower: [Double] = c.stacked && j > 0 ? tops[j - 1].map { $0 ?? 0 } : [Double](repeating: 0, count: n)
+                    // (An area stands on the axis, not below it: lo-60124a3f's axis runs 4.4 to 6.2 and Word's fill stops at the
+                    // 4.4 line, where ours went down to the frame's foot, the baseline being zero.)
+                    let lower: [Double] = c.stacked && j > 0 ? tops[j - 1].map { $0 ?? 0 } : [Double](repeating: min(max(0, sc.lo), sc.hi), count: n)
                     path.moveTo(xAt(0), vpos(lower[0]))
                     for i in 0 ..< n { path.lineTo(xAt(i), vpos(tops[j][i] ?? lower[i])) }
                     for i in stride(from: n - 1, through: 0, by: -1) { path.lineTo(xAt(i), vpos(lower[i])) }
