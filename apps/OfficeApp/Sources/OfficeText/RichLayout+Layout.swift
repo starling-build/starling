@@ -1940,6 +1940,20 @@ extension RichLayout {
                         }
                     }
                 }
+                // (The empty paragraph that closes a merged cell of exact-height rows asks nothing of what
+                // follows the table, though its number is still drawn: Word for Windows' lab amd5 b3,
+                // lo-8ab44df5's empty "b)" — its spacing after 0, 6, 12 or 200 puts the next paragraph at the
+                // same y, where in an unmerged cell it is a line like any other. Top-aligned cells only: a centred one
+                // (zh-884c6e3e p2, zh-b0401810 p15) still holds the line, and the text above it stands as Word's.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages {
+                    for k in k0 + 1 ..< j {
+                        guard let cell = _cells[k], cell.rowSpan > 1, cell.verticalAlign == nil || cell.verticalAlign == "top", _cells[k - 1]!.column == cell.column,
+                              k + 1 == j || _cells[k + 1]!.column != cell.column,
+                              (cell.row ... min(rows.count + 1000, cell.row + cell.rowSpan - 1)).allSatisfy({ ts?.rowsExactHeight.contains($0) ?? false }) else { continue }
+                        let q = document.paragraphs[k]
+                        if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty { _heights[k] = 0.01 }
+                    }
+                }
                 var stack: [Int: Double] = [:]
                 var rowHeight = 0.0
                 var ruled = 0.0
