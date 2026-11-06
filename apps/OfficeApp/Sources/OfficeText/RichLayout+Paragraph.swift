@@ -2547,7 +2547,13 @@ extension RichLayout {
             // does: zh-b8de3ae2's 圖6 chart, 483.75pt under `w:firstLine` 660, has its title at
             // 185 in Word's print and 152 where ours stood without it. Centred, the room left is
             // shared out after the indent; right-aligned, the indent changes nothing.)
-            let indent = theme.wordRules && style.alignment != .right && image.float == nil && style.list == nil ? _px(p.style.firstLineIndent) : 0
+            let rawIndent = theme.wordRules && style.alignment != .right && image.float == nil && style.list == nil ? _px(p.style.firstLineIndent) : 0
+            // (Not one as wide as the column or wider: zh-76700e5f's w:firstLine 31680 put the centred picture off the page; Word counts the style's characters instead, as for text.)
+            var indent = rawIndent
+            if RichTextTheme.wordWindowsPages, rawIndent >= textWidth, let chars = Double(p.style.eastAsian["w:firstLineChars"] ?? ""), chars > 0 {
+                let size: Double = p.runs.first?.style.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize
+                indent = _px(chars / 100 * size)
+            } else if RichTextTheme.wordWindowsPages, rawIndent >= textWidth { indent = 0 }
             let spare = theme.wordRules ? max(0, textWidth - indent - w.rounded() - room.left - room.right) : 0
             // (Not its effect extent's left, in a frame placed on the page: the
             // drawing stands at the frame's x — lab frame.)
