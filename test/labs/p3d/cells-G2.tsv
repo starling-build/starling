@@ -1,0 +1,10 @@
+1	var=style rig=threePt rev=90 mat=none
+2	var=style rig=threePt rev=0 mat=none
+3	var=style rig=twoPt rev=90 mat=none
+4	var=style rig=twoPt rev=0 mat=none
+5	var=styletx rig=threePt rev=90 mat=none
+6	var=styletx rig=threePt rev=0 mat=none
+7	var=styletx rig=twoPt rev=90 mat=none
+8	var=styletx rig=twoPt rev=0 mat=none
+9	var=style rig=threePt rev=90 mat=warmMatte
+10	var=style rig=twoPt rev=90 mat=warmMatte
