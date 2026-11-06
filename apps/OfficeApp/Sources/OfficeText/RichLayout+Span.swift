@@ -1480,6 +1480,14 @@ extension RichLayout {
                 // of zh-d0a207ac, 10.68 at 12pt, where the stand-in's is an
                 // em, and its "☐鲁班杯" line lost its "杯".)
                 if symbolsShown, let w = theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) { extra += w * em - _glyphWidth(style(kind), ch) }
+                // (The ballot box with check ☑, U+2611, in a SimSun run is Segoe
+                // UI Symbol's in Word's print — 1758/2048 = 0.858 em — where the
+                // fallback face here sets it 0.89 and zh-a7a889eb's
+                // "☑10、…复印件" lost its last character.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{2611}", !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil) {
+                    RuleTrace.hit("ballot-box-with-check-is-segoe-ui-symbols")
+                    extra += (1758.0 / 2048.0) * em - _glyphWidth(style(kind), ch)
+                }
                 if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
@@ -1514,6 +1522,7 @@ extension RichLayout {
                 // line of it at 6.2pt took a character Word wraps.)
                 if let u = ch.unicodeScalars.first?.value,
                    !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
+                   !(theme.wordRules && RichTextTheme.wordWindowsPages && u == 0x2611),
                    (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022)
                     // (And the reference mark ※ where the run's Latin face is a square face too: zh-ae2dd08d's
                     // 標楷體 "※依照財政部…" sets it 14pt at 14 in Word's print, where DejaVu's 11.8 took "就"
