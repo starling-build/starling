@@ -887,7 +887,7 @@ extension RichLayout {
                 // (A curly quote an embedded subset lacks is Word's fallback face's too, full width:
                 // zh-5450d509's “ ” after 仿宋_GB2312's five glyphs are JhengHei's 12pt in the
                 // print; ours set them as a missing glyph, 17.8 and 12.1, and a line lost a character.)
-                if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80 || (RichTextTheme.wordWindowsPages && (0x2018 ... 0x201D).contains(u)) {
+                if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80 || (RichTextTheme.wordWindowsPages && ((0x2018 ... 0x201D).contains(u) || (0x2460 ... 0x2473).contains(u))) {
                     if covers.contains(u) { chainAt = nil }
                     else if let chain {
                         if let at = chainAt, chain[at].covers?.contains(u) ?? true {
