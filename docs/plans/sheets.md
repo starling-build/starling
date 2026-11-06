@@ -148,6 +148,22 @@ round-trips with its cached value.
 - Function list — anything the user's own sheets need that is missing
   above.
 
+## Worst workbooks by cause (amd-3, 2026-11-06, tip sweep = baseline-mupdf.tsv, 757 rows, identical)
+
+Ranked by mean page diff; text positions compared with Excel's PDF (median dy/dx per page).
+
+1. clusterfuzz-testcase-minimized-POIXSSFFuzzer (9.96): **not ours** — Excel printed it on Letter at 0.92 scale (repaired file, see "Fills and frames"). Skip.
+2. 49609 (7.32), NumberFormatApproxTests (6.64), lo-pivottable_invalid_formats (6.09): positions match Excel to 0.1 pt. **Font floor** (glyph rendering). Skip.
+3. bug66675 (6.55, 20 pp): **row heights**, rows 1.5 pt high per page (header rows 15.24 in Excel; known open, line ~580).
+4. 47813 (5.62, 17 pp): **row heights**, dy -5.9 by page end; default Verdana 10 rows 13.20 in Excel, 12.96 ours (known open, line ~418). One rule fixes 17 pages.
+5. lo-tdf76115 (4.45 mean, 14.35 worst, 20 pp): **row heights**, Excel rows 14.9 pt, ours 14.5; also first row 13.3 v 12.9. Drift 8-30 pt per page.
+6. lo-forum-mso-de-104083 (4.75): **pagination / row heights**, 20 pt jumps on pages 1 and 3.
+7. chart-tdf119138 (5.89), lo-tdf58243 (5.25): **charts** (labels 200 pt off in x) and **fit-to-page centring** (known open, line ~556).
+8. style-alternate-content (5.79): CJK font line + a few row heights; mostly **font floor**.
+9. Tables (5.04), AverageTaxRates (4.66), lo-tdf100034, lo-tdf118668, NumberFormatTests: under 1 pt off in position, **font floor** plus 0.2-1.1 pt **row height** drift.
+
+Cause totals: row heights are the one real class showing in 5 of the top 9 real cases. Starting there: 47813, then lo-tdf76115. Both need an Excel lab on Windows to settle the rule.
+
 ## Where it stands
 
 **Sweep 14 (2026-10-16): mean 1.43%, median 0.39%**, 751 scored, 1 with
