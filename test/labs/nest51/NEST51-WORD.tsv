@@ -1,0 +1,67 @@
+== nest51-bw15-orig.pdf
+ label bw15 #1 ind-60 cm85 bw0
+ label bw15 #2 ind-60 cm85 bw4
+ label bw15 #3 ind-60 cm85 bw24
+ label bw15 #4 ind-60 cm85 bw48
+  T text x 76.22 y 78  leftmost rect x0 None
+  T text x 76.58 y 136  leftmost rect x0 72.02400207519531
+  T text x 77.78 y 197  leftmost rect x0 72.14399719238281
+  T text x 79.22 y 263  leftmost rect x0 72.02400207519531
+== nest51-cm15-orig.pdf
+ label cm15 #1 ind-60 cm0 bw48
+ label cm15 #2 ind-60 cm85 bw48
+ label cm15 #3 ind-60 cm170 bw48
+  T text x 78.02 y 84  leftmost rect x0 72.02400207519531
+  T text x 79.22 y 154  leftmost rect x0 72.02400207519531
+  T text x 83.54 y 223  leftmost rect x0 72.02400207519531
+== nest51-cmz15-orig.pdf
+ label cmz15 #1 ind0 cm0 bw48
+ label cmz15 #2 ind0 cm85 bw48
+ label cmz15 #3 ind0 cm170 bw48
+  T text x 78.02 y 84  leftmost rect x0 72.02400207519531
+  T text x 79.22 y 154  leftmost rect x0 72.02400207519531
+  T text x 83.54 y 223  leftmost rect x0 72.02400207519531
+== nest51-ind12-orig.pdf
+ label ind12 #1 ind-120 cm85 bw48
+ label ind12 #2 ind-60 cm85 bw48
+ label ind12 #3 ind0 cm85 bw48
+ label ind12 #4 ind60 cm85 bw48
+ label ind12 #5 ind120 cm85 bw48
+  T text x 79.22 y 84  leftmost rect x0 72.02400207519531
+  T text x 79.22 y 154  leftmost rect x0 72.02400207519531
+  T text x 79.22 y 223  leftmost rect x0 72.02400207519531
+  T text x 82.22 y 292  leftmost rect x0 75.02400207519531
+  T text x 85.22 y 362  leftmost rect x0 78.02400207519531
+== nest51-ind15-orig.pdf
+ label ind15 #1 ind-120 cm85 bw48
+ label ind15 #2 ind-60 cm85 bw48
+ label ind15 #3 ind0 cm85 bw48
+ label ind15 #4 ind60 cm85 bw48
+ label ind15 #5 ind120 cm85 bw48
+  T text x 79.22 y 84  leftmost rect x0 72.02400207519531
+  T text x 79.22 y 154  leftmost rect x0 72.02400207519531
+  T text x 79.22 y 223  leftmost rect x0 72.02400207519531
+  T text x 82.22 y 292  leftmost rect x0 75.02400207519531
+  T text x 85.22 y 362  leftmost rect x0 78.02400207519531
+== nest51-top12-orig.pdf
+ label top12 #1 ind-120 cm85 bw48
+ label top12 #2 ind-60 cm85 bw48
+ label top12 #3 ind0 cm85 bw48
+ label top12 #4 ind60 cm85 bw48
+ label top12 #5 ind120 cm85 bw48
+  T text x 66.02 y 84  leftmost rect x0 58.79999923706055
+  T text x 69.02 y 154  leftmost rect x0 61.82400131225586
+  T text x 72.02 y 223  leftmost rect x0 64.8239974975586
+  T text x 75.02 y 292  leftmost rect x0 67.8239974975586
+  T text x 78.02 y 362  leftmost rect x0 70.8239974975586
+== nest51-top15-orig.pdf
+ label top15 #1 ind-120 cm85 bw48
+ label top15 #2 ind-60 cm85 bw48
+ label top15 #3 ind0 cm85 bw48
+ label top15 #4 ind60 cm85 bw48
+ label top15 #5 ind120 cm85 bw48
+  T text x 73.22 y 84  leftmost rect x0 66.02400207519531
+  T text x 76.22 y 154  leftmost rect x0 69.02400207519531
+  T text x 79.22 y 223  leftmost rect x0 72.02400207519531
+  T text x 82.22 y 292  leftmost rect x0 75.02400207519531
+  T text x 85.22 y 362  leftmost rect x0 78.02400207519531
