@@ -15048,3 +15048,5 @@ TIP WATCH amd-8, round 200 (6d0232726): Word no drops (six sections up 0 down 0)
 - Still open: zh-ea43dd6d (1.5 pt line), zh-e61c3dff (99.6, not examined), the narrow-space gate (zh-6c447317).
 
 TIP WATCH amd-8, round 201 (050818b8e): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
+
+TIP WATCH amd-8, round 202 (ff96173cd): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
