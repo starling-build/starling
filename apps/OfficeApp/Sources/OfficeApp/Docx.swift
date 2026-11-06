@@ -6041,7 +6041,12 @@ enum DocxFormat {
                 [ln.first("a:headEnd"), ln.first("a:tailEnd")].contains { ($0?["type"]).map { $0 != "none" } ?? false }
             } ?? false)
             if arrowed, att.outline?.kind == .line { att.outline = nil }
-            if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
+            // A drawing the file hides (`wp:docPr hidden="1"`) is not printed:
+            // lo-14656c7f's anchored rectangle was drawn over Word's first lines.
+            // It is still kept and written back; it just has no outline or group to paint.
+            let hiddenDrawing = ["1", "true"].contains(node.descendant("wp:docPr")?["hidden"] ?? "")
+            if hiddenDrawing { att.outline = nil; RuleTrace.hit("hidden-drawing-not-painted") }
+            if !hiddenDrawing, let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), wordArt: drawingWordArt,
                                       picture: { rid in
