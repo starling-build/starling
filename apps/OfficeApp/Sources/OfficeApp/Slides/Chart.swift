@@ -2698,9 +2698,15 @@ enum ChartPainter {
             if c.type == .bar, !c.stacked { entries.reverse() }
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
+            var wasWide = false
             for e in entries {
                 let w = lead + e.tp.width
-                if lineW > 0, beside || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
+                // (A pie's legend in a Word document sets an entry whose name is wider than 0.41 of the frame (names of 140 pt in a 360 frame stand two to a row, of 155 alone) on a row of its own: lab piesize3, two
+                // 40-character names (163 pt, 0.45) stand on two rows in a 360pt frame, as five of them stand on five, where
+                // five 14-character ones and three 24-character ones (0.28) share rows.)
+                let ownRow = c.type == .pie && !c.onSlide && !c.onSheet && box == nil && (e.tp.width > 0.41 * area.width || wasWide)
+                wasWide = c.type == .pie && !c.onSlide && !c.onSheet && box == nil && e.tp.width > 0.41 * area.width
+                if lineW > 0, beside || ownRow || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
             }
@@ -5409,15 +5415,25 @@ enum ChartPainter {
 
     /// The rows a pie's legend at the foot or top wraps to, by the greedy fill the legend's own layout uses (key and gap 8 pt, 6
     /// between entries, fitted on lab piesize's one-row legends): one where it is beside the plot or absent.
+    /// What a legend of `rows` rows takes of a flat pie's room beyond its first row (lab piesize and piesize3, Word for Windows):
+    /// 2.2 pt for the second, 2.93 for each after it to the seventh, where the legend stops growing (8 slices of 40 characters stand
+    /// as 7 rows' worth).
+    private static func _pieLegendCost(_ rows: Int) -> Double {
+        guard rows > 1 else { return 0 }
+        return 2.2 + 2.93 * Double(max(0, min(rows, 7) - 2))
+    }
+
     private static func _pieLegendRows(_ c: Chart, frame: Rect, k: Double, text: (String, Double, Double) -> TextPainter) -> Int {
         guard c.legend, ["b", "t"].contains(c.legendPosition), !c.categories.isEmpty else { return 1 }
         let size = c.legendSize ?? c.baseTextSize
-        var rows = 1, lineW = 0.0
+        var rows = 1, lineW = 0.0, wasWide = false
         for name in c.categories {
             let t = text(name, size, .infinity)
             let w = 8 * k + t.width
+            let wide = t.width > 0.41 * frame.width
             t.dispose()
-            if lineW > 0, lineW + 6 * k + w > frame.width { rows += 1; lineW = 0 }
+            if lineW > 0, wide || wasWide || lineW + 6 * k + w > frame.width { rows += 1; lineW = 0 }
+            wasWide = wide
             lineW += (lineW > 0 ? 6 * k : 0) + w
         }
         return rows
@@ -5442,7 +5458,7 @@ enum ChartPainter {
         // across a plot 107 high, where 0.97 made 103.7.)
         let fills = !c.onSlide && !c.onSheet && !c.chartex && c.plotLayout != nil
         var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : fills ? 1.0 : 0.97)
-        let insideLabelled = c.pieLabels != nil && !c.pieLabelsAround && c.pieLabels?.position == "ctr" && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex
+        let insideLabelled = c.pieLabels != nil && !c.pieLabelsAround && ["ctr", "inEnd"].contains(c.pieLabels?.position ?? "") && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex
         // On a sheet, a line of the labels' less each side where they
         // stand round the pie: Excel's prints of five labelled pies are
         // 8.5 to 17 pt smaller a side than ours were, the unlabelled
@@ -5492,7 +5508,7 @@ enum ChartPainter {
                 // (No title and no legend band both: the larger, 2.7, only — lo-f391267c's pie, R 59.0 in Word's print. A legend of two
                 // rows takes 2.2 pt more of the radius than ours, as of the centre: 12 labels' legend, lab piesize and lo-f9b9a8fc.)
                 let rows = Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text)
-                let wordRoom = 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - 2.2 * k * Double(max(0, rows - 1))
+                let wordRoom = 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - Self._pieLegendCost(rows) * k
                 RuleTrace.hit("word-flat-pie-outside-labels-size-the-pie-0.875-of-the-room-less-1.37pt")
                 radius = max(room / 2, 0.875 * wordRoom - 1.37 * k)
             }
@@ -5506,7 +5522,7 @@ enum ChartPainter {
             let footOrTop = c.legend && ["b", "t"].contains(c.legendPosition)
             let rows = Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text)
             RuleTrace.hit("word-flat-pie-centred-labels-size-the-pie-by-the-room")
-            radius = max(room / 2, 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - 2.2 * k * Double(max(0, rows - 1)))
+            radius = max(room / 2, 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - Self._pieLegendCost(rows) * k)
         }
         // (Excel's doughnut on a sheet, no labels, a legend at the right: as wide as the chart less 89 pt and as high as it less
         // 22 pt, whole; at the top, 46.2 pt less than its height as at the foot. Windows lab wip/lab-doughnut: 200 x 400 ring 111 across
@@ -5528,7 +5544,7 @@ enum ChartPainter {
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
             let place = !c.legend ? "n" : c.legendPosition
             let down = (place == "b" ? 1.55 : place == "t" ? 3.47 : 2.69) - (titled ? 0 : 2.68)
-                - 2.2 * Double(max(0, Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text) - 1))
+                - Self._pieLegendCost(Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text))
             RuleTrace.hit("word-flat-pie-centre-by-its-title-and-legend-bands")
             centre = Offset(centre.dx, centre.dy + down * k)
         }
