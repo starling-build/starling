@@ -161,6 +161,7 @@ extension RichLayout {
         }
         var prevContentH = contentH
         var prevY = 0.0   // how far down the page before was filled
+        var prevPartBottom: Double? = nil   // where the part of a row that parted there ends, when a cell runs on below it
         // The floating pictures on this page that text wraps round: page
         // y, and x from the column's edge.
         var bands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
@@ -782,6 +783,7 @@ extension RichLayout {
         // page under it, what of it did not fit on the page before goes
         // on from the top of this one.
         func continueSpans(into i: Int, _ c: _CellGeo) {
+            defer { prevPartBottom = nil }
             guard theme.wordRules, page > 0 else { return }
             var spans: [[Int]] = []
             var open: (row: Int, column: Int)? = nil
@@ -813,9 +815,17 @@ extension RichLayout {
                 // (… or the foot of the table's last row there, where
                 // the row after it went over whole: the cell's lines
                 // below that go with it.)
-                let limit = ref.flowTop + (min(prevContentH - ruleUnder(c, parted: true), prevY) - ref.pageY) + 0.01
+                // (A centred cell merged down that runs on below the part keeps only the lines that end no
+                // lower than the part, as its neighbours' kept lines close it: lab cm4 (Word for Windows),
+                // zh-9ba2ead7 p7's "房屋及设施设备…", whose ninth line stood 15pt under the last line the row
+                // keeps there and goes over with the rest in Word's print.)
+                let firstMember = _cells[members[0]]!
+                let footY = prevContentH - ruleUnder(c, parted: true)
+                let closeY = prevPartBottom.map { firstMember.verticalAlign == "center" ? min(footY, $0) : footY } ?? footY
+                let limit = ref.flowTop + (min(closeY, prevY) - ref.pageY) + 0.01
                 let last = members[members.count - 1]
                 guard _tops[last] + _heights[last] > limit else { continue }
+                if false { FileHandle.standardError.write(Data("DBG span \(members[0]) limit \(limit) prevY \(prevY) prevContentH \(prevContentH) refflowTop \(ref.flowTop) refpageY \(ref.pageY)\n".utf8)) }
                 var cut: Double? = nil
                 for m in members {
                     let cuts = cellCuts(m), slacks = cellSlacks(m)
@@ -1549,6 +1559,7 @@ extension RichLayout {
                         return true
                     }
                     if !below { partHeight = part }
+                    prevPartBottom = below && theme.wordRules && RichTextTheme.wordWindowsPages ? y + part : nil
                     // (A centred cell merged down from the rows above, its text on
                     // this page, is centred in the part of its rows that is on the
                     // page — down to this row's part — not over every row it
