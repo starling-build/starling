@@ -954,9 +954,19 @@ extension RichLayout {
                     p.style = .stroke
                     p.strokeWidth = max(1, _px(own.width))
                     p.color = color
-                    canvas.save()
-                    canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom))
                     var from = from, to = to
+                    var clipBottom = rowBottom
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, abs(from.dy - to.dy) < 0.01 {
+                        // (A cell's own line is the same box as the table's: 0.96 of its width, a horizontal
+                        // one hanging below the edge, a vertical one centred.)
+                        RuleTrace.hit("word-table-rule-is-a-box-0.96-wide-hanging-below-a-horizontal-edge")
+                        from = Offset(from.dx, from.dy + p.strokeWidth / 2)
+                        to = Offset(to.dx, to.dy + p.strokeWidth / 2)
+                        clipBottom += p.strokeWidth
+                    }
+                    if theme.wordRules, RichTextTheme.wordWindowsPages { p.strokeWidth *= 0.96 }
+                    canvas.save()
+                    canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, clipBottom))
                     if theme.cellLinesPastCorners, (to - from).distance > 0 {
                         let along = (to - from) * (p.strokeWidth / 2 / (to - from).distance)
                         from = from - along
@@ -1036,7 +1046,20 @@ extension RichLayout {
                         canvas.restore()
                         return
                     }
-                    canvas.drawLine(from + inward * into, to + inward * into, p)
+                    var a = from + inward * into, b = to + inward * into
+                    if theme.wordRules, RichTextTheme.wordWindowsPages {
+                        // (Word's print draws a table rule as a filled box 0.96 of its width: a vertical one
+                        // centred on the edge, a horizontal one hanging below it. Measured on zh-ab9cbe66,
+                        // zh-5251dd23, zh-e2dc9dce, zh-37b6536f: width 0.48/0.72/0.96/1.44/2.16 for
+                        // 0.5/0.75/1/1.5/2.25, a horizontal box's top on our centre line.)
+                        RuleTrace.hit("word-table-rule-is-a-box-0.96-wide-hanging-below-a-horizontal-edge")
+                        if abs(a.dy - b.dy) < 0.01 {
+                            a = Offset(a.dx, a.dy + p.strokeWidth / 2)
+                            b = Offset(b.dx, b.dy + p.strokeWidth / 2)
+                        }
+                        p.strokeWidth *= 0.96
+                    }
+                    canvas.drawLine(a, b, p)
                 }
             }
             // Whether the cell of this row whose left side stands at `x`
