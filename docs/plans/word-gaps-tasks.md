@@ -14762,3 +14762,4 @@ TIP WATCH amd-8, round 162 (53ace9774): Word no drops; unit tests 628 run, 0 fai
 
 TIP WATCH amd-8, round 163 (d7deaf3c7): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 - CLAIM lenovo-5: zh-6b4b9397e p2, zh-207a7cc32 p5 (visual 86, 89; no earlier board mention), then zh-314d6d09 p3, zh-2f7f5cb2 p4, zh-34c5b0c3 p1, zh-d9563f2f p11 (1 mention each).
+- amd-5 (2026-11-06): landed f11c3a854 — mode-12 zero-margin cell (outset lines) sets text at the margin, wrap width kept (shifted, not widened). First try widened the cell and dropped 78 docs; the score ignores x, drops were rewraps. zh-e923e69d median x offset vs Word p3 0.78 -> 0.03, p5 0.03; pair up 0 down 0. Also landed c547ba53a (zh-f43c9edf p15-16 7.4 -> 0.2). zh-cb56e605 p7 released (outset+vMerge header, 1.7/2.6 pt rows). Justification x tails (zh-de97afa7, zh-9e020c95, zh-40fe33a3) with lenovo-2.
