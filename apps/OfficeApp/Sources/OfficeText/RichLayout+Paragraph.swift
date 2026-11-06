@@ -1616,7 +1616,7 @@ extension RichLayout {
             // line 1.7pt high over two and three lines, and right over
             // one. A line without that stretch is its own height — the
             // footer of zh-1563bd74, an "X" in 16pt over a 14pt line.)
-            if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
+            if painter.strutStyle == nil, theme.wordRules, !picturesInLine || (RichTextTheme.wordWindowsPages && style.rightToLeft), !Self._risesForNumber(inline),
                // (On a grid, every line is held to the tallest, so not to
                // a word joiner's: the one before a compatibility ideograph
                // set in Noto Sans SC is Noto's line, and it held all of
@@ -1625,7 +1625,7 @@ extension RichLayout {
                // Word's print keeps two pitches, 45.7, on every line, the
                // ones holding Noto's characters within 0.4 of it.)
                let strut = _strut(span, tallest: true, near: spacedOver, joiners: !(gridded && lines > 1)),
-               lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
+               lines == 1 || gridded || (picturesInLine && style.rightToLeft) || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
                 held.lineIndents = painter.lineIndents
