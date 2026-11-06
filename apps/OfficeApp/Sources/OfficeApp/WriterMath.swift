@@ -480,22 +480,45 @@ enum WriterMath {
             // (Inline, the limits stand beside the sign whatever it says.)
             let limits = display ? pr?.first("m:limLoc")?["m:val"] ?? (integral ? "subSup" : "undOvr") : "subSup"
             let s = runSize(n.first("m:e") ?? n, size, level)
-            // (A display equation's operator 1.6 times its
-            // text, as Word draws ∑: zh-20ff844e's.)
-            let opSize = display && level == 0 ? s * 1.6 : s
-            let op = raised(text(chr, size: opSize, italic: false), -(opSize - s) * 0.35)
+            // (A display equation's ∑ is Cambria Math's large variant, the face's own
+            // glyph at the text size: ink 1.240 em over the baseline to 0.669 under it,
+            // 1.326 em advance (read from the Cambria Math subset in Word's own PDFs, as
+            // the constants below: its MATH table). The stand-in's ∑ is 0.667 em tall, so
+            // it is drawn 2.864 times larger, its ink on the variant's.)
+            let big = display && level == 0 && chr == "\u{2211}"
+            let opSize = display && level == 0 && !big ? s * 1.6 : s
+            var op: Box
+            if big {
+                let glyph = text(chr, size: s * 2.0, italic: false)
+                op = Box(width: s * 1.326, ascent: s * 1.240, descent: s * 0.669) { canvas, at in
+                    glyph.draw(canvas, Offset(at.dx - s * 0.082, at.dy + s * 0.094))
+                }
+            } else {
+                op = raised(text(chr, size: opSize, italic: false), -(opSize - s) * 0.35)
+            }
             let hidden = { (name: String) in pr?.first(name).map { ["1", "on", "true"].contains($0["m:val"] ?? "1") } ?? false }
             let sub = hidden("m:subHide") ? nil : n.first("m:sub").map { row($0, size: size, level: level + 1) }
             let sup = hidden("m:supHide") ? nil : n.first("m:sup").map { row($0, size: size, level: level + 1) }
             var withLimits = op
             if limits == "undOvr" {
-                if let sup, sup.width > 0 { withLimits = over(withLimits, sup, gap: s * 0.08) }
-                if let sub, sub.width > 0 { withLimits = under(withLimits, sub, gap: s * 0.08) }
+                // (Cambria Math: the upper limit's baseline at least 500/2048 em over the
+                // sign, the lower's at least 1240/2048 under it, each at least 133/2048 em
+                // clear of the sign; the limit's ink being about 0.75 of its size tall.)
+                if let sup, sup.width > 0 {
+                    withLimits = over(withLimits, sup, gap: big ? max(s * 0.244 - sup.descent, s * 0.065) : s * 0.08)
+                }
+                if let sub, sub.width > 0 {
+                    withLimits = under(withLimits, sub, gap: big ? max(s * 0.605, s * 0.065 + min(sub.ascent, s * 0.55)) - sub.ascent : s * 0.08)
+                }
             } else {
-                // (Word's print stands a display sum's limits beside the big sign on fixed
-                // baselines off the text's: about 1.0 em up, 0.85 down (as laid out here 0.95, 0.89). zh-c2c92639's three
+                // (Cambria Math, beside: the superscript's baseline 460/2048 em under the
+                // sign's top, the subscript's 320/2048 em under its foot; zh-c2c92639's
                 // sums at 10.6pt: 10.7 up, 8.7 down.)
-                let fixed: (Double, Double)? = display && level == 0 && !integral ? (s * 0.95, s * 0.89) : nil
+                // (The inline sign: its limits' baselines 0.349 em over and 0.292 em under the line,
+                // read from zh-c2c92639's inline sum in Word's print: the face's 0.70 em
+                // ink top less 0.35, the 0.21 em it hangs plus 0.08.)
+                let fixed: (Double, Double)? = big ? (op.ascent - s * 0.282, op.descent + s * 0.222)
+                    : chr == "\u{2211}" ? (s * 0.292, s * 0.359) : nil
                 withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op, fixed: fixed)])
             }
             return hbox([withLimits, space(s * 0.12), row(n.first("m:e"), size: size, level: level)])
