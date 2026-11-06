@@ -198,6 +198,32 @@ enum WriterMath {
         /// A string set as one piece, its baseline at the box's.
         func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
             guard !s.isEmpty else { return .empty }
+            // Word's formula letters are the mathematical italic ones (U+1D44E on): OMML letters
+            // default to math italic, and its print has those code points, not slanted plain letters.
+            var s = s, italic = italic
+            if italic, RichTextTheme.wordWindowsPages, s.unicodeScalars.allSatisfy({ $0.isASCII }) {
+                s = String(String.UnicodeScalarView(s.unicodeScalars.map { u -> Unicode.Scalar in
+                    switch u.value {
+                    case 0x41 ... 0x5A: return Unicode.Scalar(0x1D434 + u.value - 0x41)!
+                    case 0x68: return Unicode.Scalar(0x210E)!
+                    case 0x61 ... 0x7A: return Unicode.Scalar(0x1D44E + u.value - 0x61)!
+                    default: return u
+                    }
+                }))
+                italic = false
+                // Each letter stands at Cambria Math's advance, not the fallback face's own.
+                let adv = OfficeFonts.cambriaMathAdvances
+                let glyphs = s.unicodeScalars.map { String($0) }
+                if !s.unicodeScalars.contains(where: { $0.isASCII }), s.unicodeScalars.allSatisfy({ adv[$0.value] != nil }) {
+                    let ps = glyphs.map { Painter($0, size: size, italic: false, color: ink, family: family?.family, height: family?.naturalHeight) }
+                    var xs: [Double] = [], x = 0.0
+                    for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
+                    let total = x
+                    return Box(width: total, ascent: ps.map(\.ascent).max() ?? 0, descent: ps.map(\.descent).max() ?? 0) { canvas, at in
+                        for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
+                    }
+                }
+            }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
             return Box(width: p.tp.width, ascent: p.ascent, descent: p.descent) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
