@@ -4035,9 +4035,14 @@ extension RichLayout {
                         // (A float only grazing another does not move: tdf128207's four charts, in a
                         // grid of two by two, `allowOverlap` 1, the right-hand pair 8.5 twips into
                         // each other from the wrap polygon, kept their columns in Word's print.)
+                        // (Its own left and right, not the open side run out to the column's edge: lo-697c2375's
+                        // blue box, text on its right, 90pt tall at 286 across and 157 down, overlapped the orange one
+                        // above it by that run, was moved a column's width away and not drawn; Word's print has it at
+                        // 286, and the green box after it 51pt higher than ours.)
+                        let span = _wrapOwnSpan[box.id].map { ($0.left - before, $0.right - before) } ?? (r.left, r.right)
                         for b in bands + placed where b.top < r.bottom - 10 && b.bottom > r.top + 10
-                            && b.left < r.right + shift - 0.5 && b.right > r.left + shift + 0.5 && r.left + shift < b.right {
-                            shift = max(shift, b.right - r.left)
+                            && b.left < span.1 + shift - 0.5 && b.right > span.0 + shift + 0.5 && span.0 + shift < b.right {
+                            shift = max(shift, b.right - span.0)
                         }
                         _floatShift[box.id] = shift > 0.5 ? shift : nil
                         r.left += shift; r.right += shift

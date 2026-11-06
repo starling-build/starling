@@ -1402,6 +1402,7 @@ extension RichLayout {
             var r = _floatRect(float, image, g, i)
             // ("largest": the side with more room, whichever that is.)
             let side = float.wrapSide == "largest" ? ((r.left + r.right) / 2 >= g.textLeft - _textLeftInColumn(i) + _flowWidth(i) / 2 ? "left" : "right") : float.wrapSide
+            _wrapOwnSpan[image.id] = (r.left, r.right)
             if side == "right" { r = Rect.fromLTRB(-1_000_000, r.top, r.right, r.bottom) }
             if side == "left" { r = Rect.fromLTRB(r.left, r.top, 1_000_000, r.bottom) }
             // (Its drawn effects' reach below its box is part of what the

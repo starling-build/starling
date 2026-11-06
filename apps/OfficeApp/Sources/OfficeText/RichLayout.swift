@@ -1258,6 +1258,8 @@ public final class RichLayout {
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
     var _floatShiftY: [String: Double] = [:]
+    /// A box wrapped on one side only: its own left and right, before the open side is run out to the column's edge.
+    var _wrapOwnSpan: [String: (left: Double, right: Double)] = [:]
     /// Floats set before the content above their anchor on their page
     /// (see `_paginate`): the page, their band there (page y, x from the
     /// column's edge, wrap distances in) and where their anchor stood.
