@@ -3149,7 +3149,7 @@ enum DocxFormat {
                 guard let id = Int(note["w:id"] ?? "") else { continue }
                 let type = note["w:type"] ?? "normal"
                 guard type == "normal" || type == "separator" else { continue }
-                guard type == "separator" || notes.footnoteNumbers[id] != nil else { continue }
+                guard type == "separator" || notes.footnoteNumbers[id] != nil || notes.customFootnotes.contains(id) else { continue }
                 notes.currentNote = notes.footnoteNumbers[id]
                 paragraphs = []
                 currentCell = nil
@@ -3188,7 +3188,7 @@ enum DocxFormat {
                 guard let id = Int(note["w:id"] ?? "") else { continue }
                 let type = note["w:type"] ?? "normal"
                 guard type == "normal" || type == "separator" else { continue }
-                guard type == "separator" || notes.endnoteNumbers[id] != nil else { continue }
+                guard type == "separator" || notes.endnoteNumbers[id] != nil || notes.customEndnotes.contains(id) else { continue }
                 notes.currentNoteLabel = notes.endnoteNumbers[id].map { notes.label($0, footnote: false) }
                 paragraphs = []
                 currentCell = nil
@@ -4733,6 +4733,8 @@ enum DocxFormat {
         /// and, while a note's own text is read, its number for its
         /// `w:footnoteRef`.
         var footnoteNumbers: [Int: Int] = [:], endnoteNumbers: [Int: Int] = [:]
+        // (Notes whose mark is the author's own text, customMarkFollows: they take no number but are set all the same.)
+        var customFootnotes: Set<Int> = [], customEndnotes: Set<Int> = []
         var currentNote: Int? = nil
         /// An endnote's own mark, in its numbering's form ("i").
         var currentNoteLabel: String? = nil
@@ -6648,6 +6650,7 @@ enum DocxFormat {
                     mark.note = NoteReference(kind: footnote ? .footnote : .endnote, id: id)
                     if child["w:customMarkFollows"] == "1" || child["w:customMarkFollows"] == "true" {
                         addText("\u{200B}", mark)
+                        if !notes.inTextBox { if footnote { notes.customFootnotes.insert(id) } else { notes.customEndnotes.insert(id) } }
                     } else {
                         let n = notes.next(footnote: footnote)
                         if footnote, !notes.inTextBox, notes.footnoteNumbers[id] == nil { notes.footnoteNumbers[id] = n }
