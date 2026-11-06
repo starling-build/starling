@@ -3728,7 +3728,7 @@ extension RichLayout {
                 // Word's print. Longer runs keep the stricter sum: zh-64044a1d's
                 // and zh-c34269bd's fall 28 and 44 points with either credit.)
                 let sharedNow = i > 0 && _cells[i - 1] == nil ? min(y, max(0, _tops[i - 1] + _heights[i - 1] - top)) : 0
-                let room = contentH - y
+                func weigh(_ room: Double) -> Bool {
                 var cum = 0.0
                 var k = i
                 var violated = false
@@ -3769,7 +3769,20 @@ extension RichLayout {
                     let single = k == i + 1 && _cells[k] == nil && !document.paragraphs[k].style.keepNext
                     violated = cum + start(k, trailing: single) > room + (single ? sharedNow : 0) + 0.01
                 }
-                if violated { newPage() }
+                    return violated
+                }
+                var violated = weigh(contentH - y)
+                if violated {
+                    newPage()
+                    // (The run weighed again where it landed: sent into a
+                    // column that cannot hold it either, it goes on to the
+                    // next page, as in Word's print of lab col2flow, where
+                    // "目录" and the two kept empties above it open page 3
+                    // and ours left 152pt of column 1 empty above them.)
+                    if theme.wordRules, _columns > 1, page % _columns != 0, weigh(contentH - y) {
+                        while page % _columns != 0 { newPage() }
+                    }
+                }
             }
             // The space it shares with the paragraph above (`_sharedSpace`)
             // is on the page once, as it is in the flow.
