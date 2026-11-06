@@ -14693,3 +14693,4 @@ TIP WATCH amd-8, round 157 (f006f9dce): Word one DOWN, lo-8ab44df5 100 -> 97.7 (
 - amd-5 LANDED 0aa4bd77b zh-604e21e5 p31-34 (rank 24): a table cell's border colour now ignores edges that lose to the neighbour's (heavier, then darker, auto=black) and edges inside a vertically merged block; the merged column's white bottoms had whitened the whole table. Pair: up 0 down 0 (visual only). Next: rank 25 zh-505b9619.
 - amd-5 CLAIM zh-505b9619 p46 (rank 25)
 - amd-5 RELEASED zh-505b9619 p46 (rank 25): layout identical line for line; only the digits/Latin differ (Word draws them from DFKaiShu at 14pt, ours falls back to a small mono face). Font gap, not layout.
+- amd-5 CLAIM zh-c4eb4b19 p1 (rank 26)
