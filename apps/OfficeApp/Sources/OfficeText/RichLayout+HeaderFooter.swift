@@ -948,7 +948,7 @@ extension RichLayout {
         // The band it is placed in, from the paragraph's column edge.
         let column = _flowWidth(i)
         var bandLeft = g.textLeft - _textLeftInColumn(i), bandWidth = column
-        if float.horizontalFrom == "page" {
+        if float.horizontalFrom == "page" || float.horizontalFrom == "leftMargin" {
             let setup = _setup(ofParagraph: i)
             let margins = floatsFrames ? frameMargins : (setup.marginLeft + setup.gutter, setup.marginRight)
             // (The page's edge, not the cell's text: a box placed from the
@@ -959,6 +959,9 @@ extension RichLayout {
             if theme.wordRules, i < _cells.count, _cells[i] != nil { bandLeft = 0 }
             bandLeft -= _px(margins.0)
             bandWidth += _px(margins.0 + margins.1)
+            // (Aligned within the left margin: the strip from the page's edge to the text.
+            // zh-147bdae0's "附件4" box, right in it, stands by the left edge in Word's print.)
+            if float.horizontalFrom == "leftMargin" { bandWidth = _px(margins.0) }
         }
         // (The margin is the text area across all its columns, not the
         // column the anchor stands in: lo-7afc5602's box, aligned right to

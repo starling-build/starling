@@ -4080,9 +4080,9 @@ enum DocxFormat {
                 // offset runs from its start: lo-08b61fb0's box at -144.35pt "from the
                 // left margin" stands 144.4pt left of the page's edge in Word's print,
                 // not 73.5 as measured from the text.)
-                if f.horizontalFrom == "leftMargin" { f.horizontalFrom = "page" }
                 if let v = Double(h.first("wp:posOffset")?.text ?? "") { f.x = v / 12700 }
                 f.horizontalAlign = h.first("wp:align")?.text
+                if f.horizontalFrom == "leftMargin", f.horizontalAlign == nil { f.horizontalFrom = "page" }
             }
             if let v = position("wp:positionV") {
                 f.verticalFrom = v["relativeFrom"] ?? "paragraph"
