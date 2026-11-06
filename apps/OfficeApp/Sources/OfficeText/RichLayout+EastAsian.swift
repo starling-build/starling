@@ -884,8 +884,11 @@ extension RichLayout {
                 // 21 — but there ours hangs sooner and ends the same lines:
                 // zh-505b9619's "…以供隨時查閱。" and zh-1b74ed91's "…前3名，"
                 // keep their hang and squeeze.)
+                let olderSqueezed = legacy && RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && !paragraphEnd && !kinsokuOff
                 let squeezedFirst: Bool = {
-                    guard hung > 0, over > hung + 0.0001, squeezes, paragraphEnd, !legacy, !inCell, !document.hangsHalf else { return false }
+                    // (Word for Windows' older layout, a line of brackets and a closing 、 inside a paragraph: zh-de97afa7's
+                    // "据《…》(…、" is 8.7 over; Word squeezes 《 and 》( 4.3 each and ends the 、 inside the margin; ours hung it. Lab zde.)
+                                        guard hung > 0, over > hung + 0.0001 && !olderSqueezed || olderSqueezed && over >= hung / 2 && over <= hung + 0.0001, squeezes, paragraphEnd && !legacy || olderSqueezed, !inCell, !document.hangsHalf else { return false }
                     // (Not a Latin ")" or ",": it gives nothing, so it hangs
                     // whole and the rest is weighed as any line's.
                     // zh-e0ca7252's fresh Mac print (mode 15) takes
@@ -895,13 +898,22 @@ extension RichLayout {
                     // ran a line late.)
                     guard !(latinComma && units[tail] < 0x2E80) else { return false }
                     let muted: (Int) -> Bool = { o in
-                        RichTextTheme.wordWindowsPages && runRulesOff(o)
+                        (olderSqueezed && o == tail) || RichTextTheme.wordWindowsPages && runRulesOff(o)
                             && (Self._pauseMarks.contains(units[o]) || [0x201C, 0x201D, 0x2018, 0x2019].contains(units[o]))
                     }
                     let give = (marks + own).filter { !runLanguageNone($0) && !muted($0) }.reduce(0.0) { sum, k in
                         sum + (wideQuote(k) ? (ems[k] + quoteSpacing(k)) / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2)
                     }
-                    return over <= (spaces + ownSpaces).reduce(give) { $0 + (gaps[$1] ?? 0) / 2 } + hair
+                    let verdict = over <= (olderSqueezed ? give : (spaces + ownSpaces).reduce(give) { $0 + (gaps[$1] ?? 0) / 2 }) + hair
+                    #if os(Linux)
+                    if olderSqueezed, getenv("STARLING_SQ") != nil {
+                        let part: (Set<Int>) -> Double = { u in (marks + own).filter { !runLanguageNone($0) && !muted($0) && u.contains(Int(units[$0])) }.reduce(0.0) { $0 + (boxes($1, $1 + 1) - (gaps[$1] ?? 0)) / 2 } }
+                        let pauses = Set(Self._pauseMarks.map { Int($0) })
+                        let sp = (spaces + ownSpaces).reduce(0.0) { $0 + (gaps[$1] ?? 0) / 2 }
+                        fputs("SQ tail=\(String(UnicodeScalar(units[tail]) ?? "?")) over=\(over) hung=\(hung) give=\(give) pause=\(part(pauses)) spaces=\(sp) nmarks=\((marks + own).count) -> \(verdict)\n", stderr)
+                    }
+                    #endif
+                    return verdict
                 }()
                 let hang = squeezedFirst ? 0 : hung
                 // (Whole, a spaced mark hangs its spaced width: lab `p01`
@@ -977,7 +989,7 @@ extension RichLayout {
                     // and the Mac's "…等，" with two commas are carried.)
                     let alone = !(marks + own).contains { $0 != tail }
                     let centredKept = centredEnd && (paragraphEnd ? alone && p.style.eastAsian["w:overflowPunct"] != "0" && !altFinal : true)
-                    let kept = centredKept || (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
+                    let kept = centredKept || (squeezedFirst && olderSqueezed) || (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     // (A mark in text whose East Asian language is stated
                     // as none gives nothing: zh-0513f641's body style "ad"
                     // says `w:eastAsia` x-none, and Word's print leaves "維"
