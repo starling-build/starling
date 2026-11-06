@@ -4064,13 +4064,15 @@ extension RichLayout {
                         // (With `allowOverlap` 1 a float is left over another anchored in its own paragraph,
                         // behind the text or in front, any wrap; one over an earlier paragraph's is moved clear.
                         // Windows' labs overlap and overlap2, and lo-6f698ba2's Caption frame.)
-                        let allowsOverlap = theme.wordRules && RichTextTheme.wordWindowsPages
-                            && ((i < _floatImages.count ? [_floatImages[i]].compactMap { $0 } : []) + (i < _inline.count ? _inline[i] : []))
-                                .contains { $0.id == box.id && ($0.sourceXML?.containsSubstring("allowOverlap=\"1\"") ?? false) }
+                        let ownFloat = ((i < _floatImages.count ? [_floatImages[i]].compactMap { $0 } : []) + (i < _inline.count ? _inline[i] : []))
+                            .first { $0.id == box.id && ($0.sourceXML?.containsSubstring("allowOverlap=\"1\"") ?? false) }
+                        let allowsOverlap = theme.wordRules && RichTextTheme.wordWindowsPages && ownFloat != nil
+                        // (Only an offset the file gives, along the column: an aligned float has none to keep.)
+                        let keptOffset = allowsOverlap && ownFloat?.float?.horizontalAlign == nil && ownFloat?.float?.horizontalFrom == "column"
                         for b in (allowsOverlap ? bands : bands + placed) where b.top < r.bottom - 10 && b.bottom > r.top + 10
                             && b.left < span.1 + shift - 0.5 && b.right > span.0 + shift + 0.5 && span.0 + shift < b.right {
                             // (Moved clear it lands at the other's right edge PLUS its own offset along the column: windows' overlap2.)
-                            shift = max(shift, b.right - span.0 + (allowsOverlap ? r.left : 0))
+                            shift = max(shift, b.right - span.0 + (keptOffset ? r.left : 0))
                         }
                         _floatShift[box.id] = shift > 0.5 ? shift : nil
                         r.left += shift; r.right += shift
