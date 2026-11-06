@@ -1638,9 +1638,9 @@ extension RichLayout {
                 tallest(span)
                 // (The stretch most of the text has among those within 3% of the tallest, as `_strut` does.)
                 // (Only where our stand-in's own line is taller than the authored face's: Persian's 15.9 against Arial's 13.8.
-                // (Persian's stand-in stands 15% over; zh's 6.6%, a margin that also keeps near-equal faces from flipping on rounding.)
-                // A face whose stand-in is no taller already lays out as Word does — zh-e49d7943 p14's Chinese title line held
-                // to its runs' height put the picture below it 2.4pt high.)
+                // (Persian's stand-in stands 15% over. Not on a line grid (docGrid type lines): zh-e49d7943 p14's Chinese title
+                // line is a grid line, 36 by the grid and 38.6 in Word's print (baseline 104.2, picture 119.4), which the stand-in's
+                // 38.4 matches; held to the runs' 36 it put the picture 2.4pt high. The 0.5% is rounding only.)
                 if top > 0, let held = counts.filter({ $0.key >= top * 0.97 }).max(by: { $0.value.0 < $1.value.0 }) {
                     let standIn = painter.computeLineMetrics().map { $0.height }.filter { $0 >= held.key * 0.97 }.min() ?? 0
                     // (The authored face's own line where the layout knows it — 標楷體's 1.30 — else the runs' own height.)
@@ -1651,7 +1651,7 @@ extension RichLayout {
                         for c in t.children ?? [] { probe(c) } }
                     probe(span)
                     let authored = lab.flatMap { theme.faceResolver?($0, cjk) }?.naturalHeight.map { $0 * held.key / hh } ?? held.key
-                    if standIn > max(authored, held.key) * 1.1 {
+                    if (_offGrid(i, document) || _grid(i, document).pitch == nil), standIn > max(authored, held.key) * 1.005 {
                     let down = theme.descentShare(family: held.value.1, bold: held.value.2, italic: false)
                     func sized(_ s: InlineSpan) -> InlineSpan {
                         guard let t = s as? TextSpan else { return s }
