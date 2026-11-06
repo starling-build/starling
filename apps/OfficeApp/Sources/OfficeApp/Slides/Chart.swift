@@ -3986,7 +3986,7 @@ enum ChartPainter {
                 if c.valueMin == nil { valueScale.lo = lo0 - (lo0 < 0 ? span * 0.05 : 0) }
             }
         }
-        let sc = valueScale
+        var sc = valueScale
         if let v = c.areaView, c.barView == nil, !v.rightAngles, c.type == .area, !c.stacked, !c.percent, v.rows, c.categories.count >= 2,
            c.dataTable == nil, !c.series.isEmpty, frame.height / k >= 150 {
             RuleTrace.hit("excel-3d-areas-stand-as-slabs-in-perspective")
@@ -4517,6 +4517,7 @@ enum ChartPainter {
             return Offset(thick * sin(abs(v.y) * .pi / 180), thick * sin(abs(v.x) * .pi / 180))
         }
         var box = Offset.zero
+        var zThick = 0.0
         if let v = c.barView, c.type == .column || c.type == .bar {
             // A walled 3-D column chart whose file places the plot (inner)
             // is drawn inside that place, the walls, floor and their depth
@@ -4599,7 +4600,8 @@ enum ChartPainter {
                     let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
                     // (Standard grouping: one row of that depth per series, one behind another —
                     // chart-tdf111824's two series, Excel's print, the second 43 pt right and 32 up.)
-                    box = depthAt((c.onSheet && rowsDeep ? slot : bar * (1 + v.gapDepth)) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1))
+                    zThick = (c.onSheet && rowsDeep ? slot : bar * (1 + v.gapDepth)) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1)
+                    box = depthAt(zThick)
                     if let wall {
                         plot = Rect.fromLTRB(wall.left - box.dx, whole.top + box.dy, wall.right - box.dx, whole.bottom + box.dy)
                     } else {
@@ -4657,15 +4659,23 @@ enum ChartPainter {
                     wall = fit
                 }
             }
-            // (PowerPoint's 3-D bars at right angles in a plot the file places (inner): the front's axis runs 68 pt short of the
-            // plot's width whatever the depth, and the box, the depth added, stands centred in the plot: lab bar3dbox, rotY 0 / 10 / 20 /
-            // 30, plots 162 to 347 pt wide, three series — the front-left 580, 575, 569 where ours took the depth out of the axis; with one, two,
-            // four or five series the old way stood nearer Word, and with rotX 0 or 30 or a gap the box is not yet modelled.)
-            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, c.series.count == 3, let raw = placed, raw.width >= 240 * k, box != .zero {
-                RuleTrace.hit("slide-3d-bars-hold-their-axis-length-and-centre-the-box-in-the-laid-plot")
-                let axis = raw.width - 68 * k
+            // (PowerPoint's 3-D bars at right angles in a plot the file places (inner), rotX 15, rotY 0 to 20: the box's front axis
+            // plus its unprojected depth Z (the bars' thickness times the depth share) stand 7 pt short of the plot's width, and the
+            // box, the depth added, is centred in the plot. Lab bar3dbox, one to five series, rotY 0 / 10 / 20, a gap of 100, the
+            // plot at x 0.02, plots 243 to 347 pt wide: axis + Z = 340.8, 340.1, 339.5, 337.8, 339.3 pt for 1 to 5 series, and the
+            // axis keeps a tick to every 37.5 pt (13 runs to 14 by twos at 279 pt and to 15 by fives at 207 and 258). Not
+            // modelled, so left on the old way: one series (Word's depth is 0.79 of ours, 134.6 pt against 170), rotX 0 or 30, rotY 30 (14 pt short), a plot narrower than 240 pt; h40 is 20 px out.)
+            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x == 15, v.y <= 20, c.series.count >= 2, let raw = placed, raw.width >= 240 * k, zThick > 0 {
+                RuleTrace.hit("slide-3d-bars-share-the-laid-plot-between-axis-and-depth-and-centre-the-box")
+                // (A bar's own depth, a 1 + gapDepth share of the box's.)
+                let own = 1 / (1 + v.gapDepth)
+                let axis = raw.width - 7 * k - zThick * own
+                // (Our box is drawn with its first bar half the unused depth in from its left: centre the whole box.)
                 let left = raw.center.dx - (axis + box.dx) / 2
                 plot = Rect.fromLTRB(left, plot.top, left + axis, plot.bottom)
+                if c.valueMax == nil, c.valueStep == nil, !c.percent, c.valueAxisDeleted, !c.valueGrid {
+                    sc = Self.scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, Int(axis / (37.5 * k))), headroom: 0)
+                }
             }
             // (Excel's 3-D columns at right angles, one row of depth per series (Windows lab view3d, 480 x 288 and 320 x 400 pt, one to
             // four series, depthPercent 50-200, hPercent 50-100): the front is as high as 0.25 (series + 1) of the room's height times the
