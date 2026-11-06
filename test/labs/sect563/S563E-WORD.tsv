@@ -1,0 +1,72 @@
+sect563-brkE14 1 72.3 83.5 81.4 brkE m14 before-text 0 
+sect563-brkE14 1 84.1 101.9 98.5 HEAD before=0 
+sect563-brkE14 1 102.2 113.4 111.3 body line after heading 
+sect563-brkE14 1 113.8 124.9 122.8 filler 
+sect563-brkE14 1 125.3 136.4 134.3 brkE m14 before-text 120 
+sect563-brkE14 1 143.0 160.8 157.5 HEAD before=120 
+sect563-brkE14 1 161.2 172.3 170.2 body line after heading 
+sect563-brkE14 1 172.7 183.8 181.7 filler 
+sect563-brkE14 1 184.1 195.2 193.1 brkE m14 before-text 240 
+sect563-brkE14 1 207.8 225.6 222.3 HEAD before=240 
+sect563-brkE14 1 226.1 237.2 235.1 body line after heading 
+sect563-brkE14 1 237.5 248.6 246.5 filler 
+sect563-brkE14 1 249.0 260.1 258.0 brkE m14 before-text 480 
+sect563-brkE14 2 96.6 114.4 111.0 HEAD before=480 
+sect563-brkE14 2 114.7 125.8 123.7 body line after heading 
+sect563-brkE14 2 126.2 137.4 135.3 filler 
+sect563-brkE15 1 72.3 83.5 81.4 brkE m15 before-text 0 
+sect563-brkE15 1 84.1 101.9 98.5 HEAD before=0 
+sect563-brkE15 1 102.2 113.4 111.3 body line after heading 
+sect563-brkE15 1 113.8 124.9 122.8 filler 
+sect563-brkE15 1 125.3 136.4 134.3 brkE m15 before-text 120 
+sect563-brkE15 1 143.0 160.8 157.5 HEAD before=120 
+sect563-brkE15 1 161.2 172.3 170.2 body line after heading 
+sect563-brkE15 1 172.7 183.8 181.7 filler 
+sect563-brkE15 1 184.1 195.2 193.1 brkE m15 before-text 240 
+sect563-brkE15 1 207.8 225.6 222.3 HEAD before=240 
+sect563-brkE15 1 226.1 237.2 235.1 body line after heading 
+sect563-brkE15 1 237.5 248.6 246.5 filler 
+sect563-brkE15 1 249.0 260.1 258.0 brkE m15 before-text 480 
+sect563-brkE15 2 96.6 114.4 111.0 HEAD before=480 
+sect563-brkE15 2 114.7 125.8 123.7 body line after heading 
+sect563-brkE15 2 126.2 137.4 135.3 filler 
+sect563-ctlE14 1 72.3 83.5 81.4 ctlE m14 before-text 0 
+sect563-ctlE14 1 83.9 96.2 93.9  
+sect563-ctlE14 1 96.7 114.5 111.1 HEAD before=0 
+sect563-ctlE14 1 114.8 126.0 123.9 body line after heading 
+sect563-ctlE14 1 126.4 137.5 135.4 filler 
+sect563-ctlE14 1 137.9 149.0 146.9 ctlE m14 before-text 120 
+sect563-ctlE14 1 149.4 161.7 159.4  
+sect563-ctlE14 1 168.2 186.0 182.7 HEAD before=120 
+sect563-ctlE14 1 186.5 197.6 195.5 body line after heading 
+sect563-ctlE14 1 197.9 209.0 206.9 filler 
+sect563-ctlE14 1 209.4 220.5 218.4 ctlE m14 before-text 240 
+sect563-ctlE14 1 220.9 233.2 230.9  
+sect563-ctlE14 1 245.9 263.7 260.3 HEAD before=240 
+sect563-ctlE14 1 264.0 275.1 273.0 body line after heading 
+sect563-ctlE14 1 275.6 286.7 284.6 filler 
+sect563-ctlE14 1 287.0 298.1 296.0 ctlE m14 before-text 480 
+sect563-ctlE14 1 298.5 310.8 308.5  
+sect563-ctlE14 1 335.4 353.2 349.8 HEAD before=480 
+sect563-ctlE14 1 353.6 364.7 362.6 body line after heading 
+sect563-ctlE14 1 365.1 376.2 374.1 filler 
+sect563-ctlE15 1 72.3 83.5 81.4 ctlE m15 before-text 0 
+sect563-ctlE15 1 83.9 96.2 93.9  
+sect563-ctlE15 1 96.7 114.5 111.1 HEAD before=0 
+sect563-ctlE15 1 114.8 126.0 123.9 body line after heading 
+sect563-ctlE15 1 126.4 137.5 135.4 filler 
+sect563-ctlE15 1 137.9 149.0 146.9 ctlE m15 before-text 120 
+sect563-ctlE15 1 149.4 161.7 159.4  
+sect563-ctlE15 1 168.2 186.0 182.7 HEAD before=120 
+sect563-ctlE15 1 186.5 197.6 195.5 body line after heading 
+sect563-ctlE15 1 197.9 209.0 206.9 filler 
+sect563-ctlE15 1 209.4 220.5 218.4 ctlE m15 before-text 240 
+sect563-ctlE15 1 220.9 233.2 230.9  
+sect563-ctlE15 1 245.9 263.7 260.3 HEAD before=240 
+sect563-ctlE15 1 264.0 275.1 273.0 body line after heading 
+sect563-ctlE15 1 275.6 286.7 284.6 filler 
+sect563-ctlE15 1 287.0 298.1 296.0 ctlE m15 before-text 480 
+sect563-ctlE15 1 298.5 310.8 308.5  
+sect563-ctlE15 1 335.4 353.2 349.8 HEAD before=480 
+sect563-ctlE15 1 353.6 364.7 362.6 body line after heading 
+sect563-ctlE15 1 365.1 376.2 374.1 filler 
