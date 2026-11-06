@@ -4143,7 +4143,12 @@ enum DocxFormat {
         // (Not for a drawing the file puts in the line, `wp:inline`, whose
         // VML fallback says "position:absolute" all the same: lo
         // tdf147485's logo, drawn one height above its line.)
-        if node.descendant("wp:inline") != nil { return nil }
+        // (Not one inside the shape's own text box: lo-373ee508's header table holds a picture,
+        // and the VML box round it was left in the line, at the paragraph's indent.)
+        func holdsInline(_ n: XNode) -> Bool {
+            n.children.contains { $0.name == "wp:inline" || ($0.name != "w:txbxContent" && holdsInline($0)) }
+        }
+        if holdsInline(node) { return nil }
         if let shape = _vmlTop(node), let st = shape["style"], st.containsSubstring("position:absolute") {
             var f = ImageFloat()
             var vmlHeightShare: Double? = nil, vmlHeightFrom = ""
