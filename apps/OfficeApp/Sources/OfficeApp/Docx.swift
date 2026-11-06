@@ -6106,6 +6106,7 @@ enum DocxFormat {
                     // line's height.)
                     if !box.fitsText, fitsHeight { box.fitsHeight = true }
                     att.textBox = box
+                    att.isDropCap = node.descendant("wp:docPr")?["name"] == "Drop cap"
                 }
             }
             // An embedded object's picture, a WMF or EMF its VML names

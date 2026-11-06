@@ -898,14 +898,19 @@ extension RichLayout {
 
     /// A paragraph's drop caps alone, painted in the pass after the page's body.
     func _paintDropCaps(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
-        guard i < _inline.count, !_inline[i].isEmpty else { return }
+        guard i < _inline.count, !_inline[i].isEmpty, let all = geometry(i).painter.inlinePlaceholderBoxes else { return }
         let g = geometry(i)
-        for image in _inline[i] where image.name == "Drop cap" {
-            guard let float = image.float, !float.takesRoom, _decoded[image.id] == nil, !_behindDrawn.contains("\(image.id)") else { continue }
-            let rect = _floatRect(float, image, g, i)
+        for k in _inline[i].indices where _inline[i][k].isDropCap {
+            let slot = _inlineBoxes[i][k]
+            guard slot < all.count else { continue }
+            let image = _inline[i][k]
+            var rect = all[slot].toRect().shift(Offset(g.textLeft, g.inkTop))
+            if let float = image.float, !float.takesRoom { rect = _floatRect(float, image, g, i) }
+            else if image.float == nil { continue }
+            if _decoded[image.id] != nil { continue }
             _paintOutline(image, rect, canvas)
             if let inside = _textBox(image, document), let text = image.textBox {
-                _paintTurnedTextBox(inside, text, image, rect, canvas, clips: float.bandsPage || float.wraps)
+                _paintTurnedTextBox(inside, text, image, rect, canvas)
             }
         }
     }
@@ -1550,7 +1555,7 @@ extension RichLayout {
                     rect = _floatRect(float, image, g, i)
                     // (Word writes a drop cap's text after the page's body text, so a reader of the page finds
                     // it as one run at the end: lo-e6dce9d6's "- – — ".)
-                    if _dropCapPass == 1, image.name == "Drop cap", RichTextTheme.wordWindowsPages { continue }
+                    if _dropCapPass == 1, image.isDropCap { continue }
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
@@ -1567,6 +1572,7 @@ extension RichLayout {
                     let framedOnPage = document.paragraphs[i].style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
                     rect = Rect.fromLTRB(rect.left + (framedOnPage ? 0 : room.left), rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
                 }
+                if _dropCapPass == 1, image.isDropCap { continue }
                 if let decoded = _decoded[image.id] {
                     let clipped = _clipToCell(i, image, rect, canvas)
                     _drawPicture(decoded, image, rect, canvas)

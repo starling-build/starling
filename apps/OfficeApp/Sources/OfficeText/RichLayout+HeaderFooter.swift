@@ -2208,7 +2208,7 @@ extension RichLayout {
                 canvas.drawRect(r, paint)
             }
         }
-        if theme.wordRules, RichTextTheme.wordWindowsPages, isPaged, _inline.contains(where: { $0.contains { $0.name == "Drop cap" } }) {
+        if theme.wordRules, RichTextTheme.wordWindowsPages, isPaged, _inline.contains(where: { $0.contains { $0.isDropCap } }) {
             _dropCapPass = 1
             _paintFlow(canvas, visible: visible, document: document, shading: false)
             _dropCapPass = 2

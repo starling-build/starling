@@ -998,6 +998,8 @@ public struct ImageAttachment: Hashable, Sendable {
     /// an attachment has no decodable `data` and lays out as an empty box
     /// of its size.
     public var sourceXML: String? = nil
+    /// A drop cap Docx folded into a text box (Word prints its text after the page's body).
+    public var isDropCap = false
     public var sourceRels: [KeptRel] = []
     /// A kept shape's outline, where it is one the layout draws.
     public var outline: ShapeOutline? = nil
