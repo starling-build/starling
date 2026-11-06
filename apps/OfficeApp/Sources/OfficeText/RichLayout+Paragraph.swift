@@ -1623,7 +1623,7 @@ extension RichLayout {
             // and takes only the SPLIT above and below the baseline from an override, so every run
             // of the tallest stretch gets one height and one split — the share of Arial's line under
             // its baseline, by the face the run is drawn in, not the stand-in a font name resolves to.)
-            if picturesInLine, theme.wordRules, RichTextTheme.wordWindowsPages, !Self._risesForNumber(inline) {
+            if picturesInLine, theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, !Self._risesForNumber(inline) {
                 var top = 0.0
                 var counts: [Double: (Int, String?, Bool)] = [:]
                 func tallest(_ s: InlineSpan) {
@@ -1637,6 +1637,8 @@ extension RichLayout {
                 }
                 tallest(span)
                 // (The stretch most of the text has among those within 3% of the tallest, as `_strut` does.)
+                // (Right-to-left only: a left-to-right Chinese title line over a page-sized picture (zh-e49d7943 p14) is
+                // taller in Word than its runs' own height, and holding it put the picture 2.4pt high.)
                 if top > 0, let held = counts.filter({ $0.key >= top * 0.97 }).max(by: { $0.value.0 < $1.value.0 }) {
                     let down = theme.descentShare(family: held.value.1, bold: held.value.2, italic: false)
                     func sized(_ s: InlineSpan) -> InlineSpan {
