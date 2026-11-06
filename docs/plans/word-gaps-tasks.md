@@ -14886,3 +14886,5 @@ TIP WATCH amd-8, round 178 (38de07546): Word no drops (the two false lo drops of
 - amd-1 2026-11-06: visual ranks 401-500 read out. All 100 docs match Word's lines >=96.9% (zh mean 99.9, lo mean 99.7): shape/pixel-level, released. One 4 pt line, zh-df505e38 p1 (exact 30 pt, textAlignment top): an ascent-at-top rule moved it 8 pt (overshoot), reverted; parked. Not looked at: zh-b24b396a (97.2%, 7 extra Word lines from p12) and zh-92373xxx (99.3%).
 
 TIP WATCH amd-8, round 179 (5292dc720): Word no drops; unit tests 632 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. SLIDES mean 0.7848 -> 0.7843 (0 worse, 3 better, matched-win 98/98 exact). SHEETS 0.647 unchanged (0 worse). All gates green.
+
+TIP WATCH amd-8, round 180 (6c2881645): Word no drops; unit tests 632 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green. amd-8 engine updating now to include amd-5 patches (justify space, Arabic order); round 181 is the first on it.
