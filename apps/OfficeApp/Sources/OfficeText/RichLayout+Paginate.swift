@@ -4040,11 +4040,11 @@ extension RichLayout {
                         // above it by that run, was moved a column's width away and not drawn; Word's print has it at
                         // 286, and the green box after it 51pt higher than ours.)
                         let span = _wrapOwnSpan[box.id].map { ($0.left - before, $0.right - before) } ?? (r.left, r.right)
-                        // (A text box with `allowOverlap` 1 stays where it is put even over an earlier float:
+                        // (A float in front of the text with `allowOverlap` 1 stays where it is put even over an earlier float:
                         // lo-6f698ba2's Caption frame, 304pt along in Word's print.)
                         let overlaps = theme.wordRules && RichTextTheme.wordWindowsPages
                             && ((i < _floatImages.count ? [_floatImages[i]].compactMap { $0 } : []) + (i < _inline.count ? _inline[i] : []))
-                                .contains { $0.id == box.id && $0.textBox != nil && ($0.sourceXML?.containsSubstring("allowOverlap=\"1\"") ?? false) }
+                                .contains { $0.id == box.id && ($0.sourceXML?.containsSubstring("allowOverlap=\"1\"") ?? false) && ($0.sourceXML?.containsSubstring("behindDoc=\"0\"") ?? false) }
                         for b in bands + placed where !overlaps && b.top < r.bottom - 10 && b.bottom > r.top + 10
                             && b.left < span.1 + shift - 0.5 && b.right > span.0 + shift + 0.5 && span.0 + shift < b.right {
                             shift = max(shift, b.right - span.0)
