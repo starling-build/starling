@@ -39,3 +39,9 @@ long='Nomination Point Name for the gas network and its long header text that mu
 rows=[(1,18,long)]+[(2,None,'Gas')]*3+[(0,None,'Row')]*(N-4)
 make('row-wrapheader',[font("Calibri",11),font("Arial",9,True),font("Arial",9)],'<sheetFormatPr defaultRowHeight="15"/>',rows,cols='<cols><col min="1" max="3" width="9" customWidth="1"/></cols>',merge='<mergeCells count="1"><mergeCell ref="A1:B1"/></mergeCells>')
 make('row-wrapheader-ht15',[font("Calibri",11),font("Arial",9,True),font("Arial",9)],'<sheetFormatPr defaultRowHeight="15"/>',[(1,15,long)]+rows[1:],cols='<cols><col min="1" max="3" width="9" customWidth="1"/></cols>',merge='<mergeCells count="1"><mergeCell ref="A1:B1"/></mergeCells>')
+# matrix: cell font in a Calibri 11 book, and in a Verdana 10 book (47813 shape)
+for face,szs in [("Segoe UI",[8,9,10,11,12]),("Verdana",[8,9,11,12]),("Arial",[8,10,11,12]),("Malgun Gothic",[9,10,11]),("Calibri",[9,12])]:
+    for sz in szs:
+        make(f'mx-cal11-{face.replace(" ","")}{sz}',[font("Calibri",11),font(face,sz)],'<sheetFormatPr defaultRowHeight="15"/>',plain(1))
+for face,sz in [("Verdana",10),("Verdana",8),("Arial",10),("Segoe UI",8)]:
+    make(f'mx-ver10-{face.replace(" ","")}{sz}',[font("Verdana",10),font(face,sz)],'<sheetFormatPr defaultRowHeight="12.75"/>',plain(1))
