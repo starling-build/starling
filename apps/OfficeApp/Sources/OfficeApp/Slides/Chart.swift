@@ -2650,7 +2650,7 @@ enum ChartPainter {
             // (A slide chart that sets no text size anywhere, LibreOffice's export: its legend's keys 3.1 pt
             // square, the names 6.9 from the key's edge and the entries 1.3 pt closer, the row 1.2 pt lower,
             // in PowerPoint's print of LIBRE_OFFICE-100610-0's pie and bar charts, ours 5.5 and 8.8 away.)
-            let bareLegend = c.onSlide && !beside && c.legendSize == nil && !c.legendSized && c.textSize == nil && !c.styled2013
+            let bareLegend = c.onSlide && !beside && c.legendSize == nil && !c.legendSized && c.textSize == nil && !c.styled2013 && !c.officeStyled
             let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
