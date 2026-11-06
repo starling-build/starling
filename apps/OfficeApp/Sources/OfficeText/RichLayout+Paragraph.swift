@@ -2798,7 +2798,9 @@ extension RichLayout {
                       image.sourceXML?.containsSubstring("drawingml/2006/chart") == true
                         || (image.textBox?.growsToFit == true && float.fromCellText && !float.fromCellTop) else { continue }
                 let x = _px(float.x), w = _px(image.width)
-                guard w > 0, x - _px(float.distanceLeft ?? 9) < size * 3, inner - (x + w + _px(float.distanceRight ?? 9)) < size * 3 else { continue }
+                // (The empty line needs only its mark: 26pt beside lo-4d273731's chart in a 439pt cell is room
+                // enough in Word's print, the row 196 tall; a chart as wide as the cell, none.)
+                guard w > 0, x - _px(float.distanceLeft ?? 9) < size, inner - (x + w + _px(float.distanceRight ?? 9)) < size else { continue }
                 down = max(down, _px(float.y) + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
             }
             if under > 0.01, theme.wordRules {
