@@ -1971,7 +1971,8 @@ extension RichLayout {
                         var at: Int? = nil
                         var seen = Set<String>()
                         for ch in String(decoding: units[start ..< end], as: UTF16.self) {
-                            guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80 else { continue }
+                            // (Not the object mark of a drawing: it is no character of the face, and Word sets no line by it — zh-8e8d4c40's title, 12pt 標楷體 after a wrapSquare box, stood 2pt low on JhengHei's baseline.)
+                            guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, u != 0xFFFC else { continue }
                             if covers.contains(u) { at = nil; continue }
                             var r = run.style
                             if let chain = face.uncoveredChain {
@@ -2348,7 +2349,7 @@ extension RichLayout {
                 // under its 【附件五】 box, b 11430 EMU, 0.9pt below the
                 // frame's foot in Word for Windows.)
                 if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0),
-                   !lineEndsAbove(_px(float.y)) { push = max(push, pushUnder(_px(float.y) + _px(image.height + float.effectBottom))) }
+                   !lineEndsAbove(_px(float.y)) { push = max(push, pushUnder(_px(float.y) + _px(image.height + float.effectBottom + float.distanceBottom))) }
             }
         }
         // (In a table cell too, across the cell's text — lab `wc` on Word
