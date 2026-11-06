@@ -4632,6 +4632,9 @@ enum DocxFormat {
             // and its questions wrap a line early.)
             if let space = Double(cols["w:space"] ?? cols.first("w:col")?["w:space"] ?? "") { setup.columnGap = space / 20 }
         }
+        // (A right-to-left section sets its columns from the right: its first
+        // column is the rightmost, lo-998868b6's "RTL 1".)
+        if let bidi = sect.first("w:bidi"), bidi["w:val"] != "0", bidi["w:val"] != "false", setup.columns > 1 { setup.rtlColumns = true }
         if let grid = sect.first("w:docGrid") {
             if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                 setup.lineGridPitch = pitch / 20

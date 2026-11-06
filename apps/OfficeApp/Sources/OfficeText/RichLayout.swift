@@ -1096,6 +1096,8 @@ public struct PageSetup: Hashable, Sendable {
     /// them, in points. The flow fills a page's columns left to right.
     public var columns: Int = 1
     public var columnGap: Double = 36
+    /// A right-to-left section (`w:bidi`): its first column is the rightmost.
+    public var rtlColumns = false
 
     /// The width text wraps at: the content width shared by the columns.
     public var columnWidth: Double {

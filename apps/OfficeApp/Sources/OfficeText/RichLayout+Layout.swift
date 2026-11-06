@@ -2519,8 +2519,16 @@ extension RichLayout {
     /// A column's left edge on page `page` for a piece of paragraph `i`
     /// in column `column`.
     func _pxColumnLeft(_ page: Int, column: Int, paragraph i: Int) -> Double {
-        guard _perSection else { return _pxMarginLeft(page) + Double(column) * _pxColumnStride(page) }
+        guard _perSection else {
+            let p = pageSetup(forPage: page)
+            let at = p.rtlColumns ? max(0, p.columns - 1 - column) : column
+            return _pxMarginLeft(page) + Double(at) * _pxColumnStride(page)
+        }
         let s = _setup(ofParagraph: i)
+        if s.rtlColumns, s.columns > 1 {
+            RuleTrace.hit("rtl-section-columns-run-from-the-right")
+            return _pxMarginLeft(page) + Double(max(0, s.columns - 1 - column)) * _px(s.columnWidth + s.columnGap)
+        }
         // (A continuous section sets its columns from its own side margin:
         // lo-ff3b52d1's second section, 87.9pt after a first of 90.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, s.marginLeft != pageSetup(forPage: page).marginLeft {
