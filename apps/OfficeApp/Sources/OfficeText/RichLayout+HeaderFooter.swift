@@ -1194,6 +1194,16 @@ extension RichLayout {
             x = d.colLeft + _px(float.x)
             y = d.rowTop + _px(float.y)
         }
+        // (An anchor in a cell, `layoutInCell`, aligned to the page's right or left edge and its top, is aligned
+        // to the cell's: lo-099d1f3b's logo, right/top of "the page", stands at the top right of the bordered
+        // cell it is anchored in in Word's print, ours at the page's corner.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "page", float.verticalFrom == "page",
+           let ha = float.horizontalAlign, ha == "right" || ha == "left", float.verticalAlign == "top",
+           i < _cells.count, let d = _cells[i], !d.vertical, image.name != "table", !float.leavesCell {
+            RuleTrace.hit("page-aligned-anchor-in-a-cell-is-aligned-to-the-cell")
+            x = ha == "right" ? d.colLeft + d.colWidth - w : d.colLeft
+            y = d.rowTop
+        }
         // (An anchor in a cell set from the page down and from its column across
         // is set down from the cell's top too: zh-3da9d7f2's red title, 8.45pt
         // "down the page", stands there in Word's print under the table that
