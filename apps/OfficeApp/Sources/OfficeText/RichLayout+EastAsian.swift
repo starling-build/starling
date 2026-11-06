@@ -355,6 +355,7 @@ extension RichLayout {
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
                last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a)
                 || (wordRules && g.b >= 2 && units[g.b - 1] == 0x2014 && units[a] >= 0x30 && units[a] <= 0x39 && Self._closingUnits.contains(units[g.b - 2]))
+                || (RichTextTheme.wordWindowsPages && p.style.rightToLeft && g.last == g.b && a > 0 && units[a - 1] >= 0x0620 && units[a - 1] <= 0x06FF && units[a] >= 0x0620 && units[a] <= 0x06FF)
                 || hanJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
                 if (opens || closesAfterSpaces) && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
@@ -1991,7 +1992,7 @@ extension RichLayout {
                             : need * oldStretch <= oldGive * (width - x + hair))
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
-                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\t\(spaceEms / pt)\t\(inCell ? 1 : 0)\t\(windowsAfterMarks ? 1 : 0)\t\(quarterEach / pt)\n".utf8))
+                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\t\(spaceEms / pt)\t\(inCell ? 1 : 0)\t\(windowsAfterMarks ? 1 : 0)\t\(quarterEach / pt)\t\(lineFrom)\t\(piece.b)\t\(String(String.UnicodeScalarView(units[a ..< min(a + 7, units.count)].compactMap { Unicode.Scalar(UInt32($0)) })))\n".utf8))
                     }
                     if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
