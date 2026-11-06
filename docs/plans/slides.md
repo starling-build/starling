@@ -4877,13 +4877,15 @@ whose drawing has shapes already draw from it. fa9851207 took rotation 1.31 to 0
 1. Bevel/3D from the quick style (`sp3d bevelT`, e.g. dkEdge) not drawn on a diagram's
    shapes: lo-tdf145528_SmartArt_Matrix 2.27, lo-smartart-composite-infer-right 2.07.
    Tried passing the label's sp3d/scene3d into the laid-out shapes: composite 2.07 to 2.59
-   (bevel far heavier than PowerPoint's). Parked, needs the painter's bevel tuned first.
+   (bevel far heavier than PowerPoint's). LAB OUT: wip/lab-smartart (12 quick-style variants), prints from windows on wip/lab-smartart-prints (test/labs/smartart/prints/*.png, 150 dpi, unmeasured). To fit: shadow size/offset (cycle-matrix eff0/1/2), bevel rim (composite/matrix orig vs nobevel vs flatrig vs material-default); does PowerPoint relayout Matrix or use its cached drawing (compare matrix-orig with nobevel).
 2. Quick style effectRef idx 1 (theme outerShdw) on laid-out decks: lo-smartart-cycle-matrix
    2.27. Passing the idx through drew a big hard grey block (2.27 to 3.10); PowerPoint
-   shows no such shadow there. Parked; Diagram.swift still writes effectRef 0.
+   shows a small soft ~1.6 pt drop there (I wrote 'none' wrongly). Lab out (see 1); amd-2 (starling-aa) is changing SlidePainter's shadow silhouette to include the stroke: retry the effectRef pass-through after that lands. Diagram.swift still writes effectRef 0.
 3. Text glyph raster / 1-2 px text offsets only (no shape error): missing-bullet 2.42,
    textposition 2.15, org-chart 1.34, org-chart2, accent-process 1.47 (frames 2 px low),
    snake-rows, autofit-sync. Noise floor; nothing to build.
 4. Pyramid (lo-tdf149551_SmartArt_Pyramid 1.29): PowerPoint prints dark text, we print
    white, from the cached drawing's own style; not yet read down.
 Nothing landed in this pass.
+5. cycle-matrix side boxes: bullet-to-text gap 21 pt vs PowerPoint 8. Cause found: Diagram.swift sets the hang from the unshrunk 65 pt size (22.5 pt) and the reader's shrink to ~0.17 does not scale it. The hang lives in the list marker slot (indentLeft/firstLineIndent are 0), so scaling those does nothing. Half-done on wip/smartart-bullet-hang (not landed). Fix idea: scale the list hang (RichLayout list indent, gated by spacingFollowsFont) by fontScale, or have the layout know the fitted size.
+Unit tests at the Pyramid commit: 628 run, 0 failures (amd-8's env.sh + test/tools/office-unit-tests.sh).
