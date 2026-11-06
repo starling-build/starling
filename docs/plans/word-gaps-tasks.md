@@ -15037,3 +15037,4 @@ TIP WATCH amd-8, round 198 (72cccfe2a): Word v2 clean (756 up 2 down 0, lo up 0;
 TIP WATCH amd-8, round 198 CORRECTION: the first run (72cccfe2a) used a stale PREV (c44e77699), so its zh-b4d36718 v1 drop is the round 195 one, not a flip. Re-run on 2d9bf4cb6 against 584c352c5: Word no drops in any section, nondeterminism check empty, unit tests 632 0 failures, WEB build OK, layout exit 0. zh-b4d36718 v1 99.6 -> 99.3 stands from round 195 (34dd753e1/16ca89b95/d0a6c345b), v2 clean.
 
 TIP WATCH amd-8, round 199 (ca4d7c619): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
+- Windows 01QbbApP (2026-11-06) LAB p3fit (for amd-2, via macos/starling-bd): F.pptx printed in PowerPoint for Windows, 9 slide PNGs (2400x1350, rendered from the PowerPoint PDF) on wip/lab-p3fit-prints (1500f549); no PDF committed. Not analysed.
