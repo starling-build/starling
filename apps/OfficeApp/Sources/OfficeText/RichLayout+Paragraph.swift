@@ -847,6 +847,21 @@ extension RichLayout {
                     }
                 }
             }
+            // (A run of two or more tabs that stands past the margin goes down to the next line whole, and
+            // its stops start again there: the trial lays the tabs out hanging and breaks after them, the
+            // final layout holds them and breaks before. Word's zh-77bd4900 p10: three tabs after an
+            // ideograph end at 84/108/132 from the line's start, not on the grid of the line above.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft {
+                for (k, w) in wraps.enumerated() where w > 1 && w <= units.count && units[w - 1] == 0x09 {
+                    var t0 = w - 1
+                    while t0 > 0, units[t0 - 1] == 0x09 { t0 -= 1 }
+                    guard w - t0 >= 2, t0 > 0, units[t0 - 1] != 0x20, units[t0 - 1] != 0x0A, units[t0 - 1] != 0x2028,
+                          k == 0 || wraps[k - 1] < t0,
+                          edge(t0 + 1) + (tabs[t0] ?? 0) > textWidth + _px(0.5) else { continue }
+                    wraps[k] = t0
+                    RuleTrace.hit("word-tab-run-past-the-margin-restarts-its-stops-on-the-next-line")
+                }
+            }
             tabs = [:]
             hangs = [:]
             runsPast = []
