@@ -222,6 +222,18 @@ extension RichLayout {
             // took the style's 9pt and the line held "X 济".)
             let named = _named(p, document)
             let first = _firstTextRun(p)
+            // (A paragraph that opens with a drawing's anchor, whose run
+            // is none of the text's: Word's own twips are what its print
+            // follows. zh-e49d7943's "（二）" paragraph, the anchor at the
+            // Normal 12pt and the text at 17: hangingChars 300 and hanging
+            // 720, text at 54 and the first line at 18 in the print, not
+            // the 3 x 17 the text's size gives.)
+            if let anchor = p.runs.first, anchor.length > 0, p.text.utf16.prefix(anchor.length).allSatisfy({ $0 == 0xFFFC }),
+               p.style.firstLineIndent != 0, (chars < 0) == (p.style.firstLineIndent < 0),
+               RichTextTheme.wordWindowsPages, p.style.eastAsian["w:indentStored"] == "1" {
+                RuleTrace.hit("word-chars-indent-after-drawing-anchor-follows-twips")
+                return p.style.firstLineIndent - _topLineSqueeze(p, document)
+            }
             let size: Double = first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
             var spacing: Double = first?.style.letterSpacing ?? named?.char.letterSpacing ?? 0
             // (Twice where the document balances its widths: see `_span`.)
