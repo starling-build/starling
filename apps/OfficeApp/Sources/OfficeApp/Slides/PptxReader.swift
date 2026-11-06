@@ -2745,8 +2745,20 @@ private struct SlideContext {
                 for l in scheme.all("dgm:styleLbl") {
                     if let name = l["name"], let c = l.first("dgm:txFillClrLst")?.children.first { textColors[name] = c }
                 }
+                // A node drawn as a shape with a text companion (pyramid1's
+                // `levelTx`, label `revTx`): the layout shows the text in the
+                // companion, so its colour rules where the node's list is
+                // empty (pyramid's grey tiers carry `lt1` in the drawing,
+                // PowerPoint prints `tx1`).
+                var shows: [String: String] = [:], companion: Set<String> = []
+                for cxn in data.first("dgm:cxnLst")?.all("dgm:cxn") ?? [] where cxn["type"] == "presOf" {
+                    guard let src = cxn["srcId"], let dst = cxn["destId"] else { continue }
+                    shows[dst] = src
+                    if labels[dst] == "revTx" { companion.insert(src) }
+                }
                 for sp in tree?.all("p:sp") ?? [] {
-                    guard let id = sp["modelId"], let label = labels[id], let color = textColors[label],
+                    guard let id = sp["modelId"], let label = labels[id],
+                          let color = textColors[label] ?? shows[id].flatMap({ companion.contains($0) ? textColors["revTx"] : nil }),
                           let font = sp.first("p:style")?.first("a:fontRef") else { continue }
                     font.children = [color]
                 }
